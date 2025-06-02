@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react"; // ←ここ重要！
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+//import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
 
@@ -13,6 +14,18 @@ export default function EntryPage() {
 
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
+
+    const [client, setClient] = useState<any>(null);
+
+    useEffect(() => {
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        setClient(supabase);
+    }, []);
+
+    if (!client) return <p>Loading...</p>;
 
     const fetchAddressFromPostalCode = async () => {
         if (postalCode.length !== 7) return;
@@ -94,12 +107,12 @@ export default function EntryPage() {
             if (!file || file.size === 0) return null;
             const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
             const filename = `${key}/${Date.now()}_${safeName}`;
-            const { data, error } = await supabase.storage.from("uploads").upload(filename, file);
+            const { data, error } = await client.storage.from("uploads").upload(filename, file);
             if (error) {
                 console.error(`${key} アップロード失敗:`, error.message);
                 return null;
             }
-            return supabase.storage.from("uploads").getPublicUrl(data.path).data.publicUrl;
+            return client.storage.from("uploads").getPublicUrl(data.path).data.publicUrl;
         }
 
         // --- 各ファイルアップロード ---
@@ -132,7 +145,7 @@ export default function EntryPage() {
             address: address,
         };
 
-        const { error } = await supabase.from("form_entries").insert([payload]);
+        const { error } = await client.from("form_entries").insert([payload]);
 
         if (error) {
             console.error("送信失敗:", error.message);
