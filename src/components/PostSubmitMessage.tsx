@@ -142,7 +142,13 @@ export default function PostSubmitMessage({ form }: { form: FormData }) {
                             <span className="text-red-600 text-sm">送信に失敗しました。再試行してください。</span>
                         )}
 
-                        <Link href="/">ホームに戻る</Link>
+                        <Link
+                            href="/"
+                            className="button button-muted inline-flex items-center gap-2"
+                        >
+                            <HomeIcon className="w-5 h-5" />
+                            ホームに戻る
+                        </Link>
                     </div>
 
                 </div>
