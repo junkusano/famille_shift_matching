@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 //import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 import {
     CheckCircleIcon,
@@ -62,9 +63,9 @@ export default function PostSubmitMessage({ form }: { form: FormData }) {
                     <p>
                         しばらくお待ちいただきますよう、よろしくお願いいたします。
                     </p>
-                    <a href="/" className="button button-muted inline-flex items-center gap-2">
+                    <Link href="/" className="button button-muted inline-flex items-center gap-2">
                         <HomeIcon className="w-5 h-5" /> ホームに戻る
-                    </a>
+                    </Link>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -141,9 +142,7 @@ export default function PostSubmitMessage({ form }: { form: FormData }) {
                             <span className="text-red-600 text-sm">送信に失敗しました。再試行してください。</span>
                         )}
 
-                        <a href="/" className="button button-muted inline-flex items-center gap-2">
-                            <HomeIcon className="w-5 h-5" /> ホームに戻る
-                        </a>
+                        <Link href="/">ホームに戻る</Link>
                     </div>
 
                 </div>
