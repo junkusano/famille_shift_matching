@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===============================
+   基本カラー・フォント・テーマ
+================================= */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, sans-serif;
+}
+
+/* ===============================
+   カスタムカラーとロゴ色
+================================= */
+.bg-famille {
+  background-color: #f5fcf7;
+}
+.text-famille {
+  color: #6cbf63;
+}
+
+/* ===============================
+   ボタン系（classNameで指定する想定）
+================================= */
+.button {
+  display: inline-block;
+  text-align: center;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s;
+  line-height: 1.5;
+  text-decoration: none;
+  width: fit-content;
+  min-width: 200px;
+}
+.button-primary {
+  background-color: #16a34a; /* Tailwind green-600 */
+  color: #fff;
+}
+.button-primary:hover {
+  background-color: #15803d; /* Tailwind green-700 */
+}
+.button-secondary {
+  background-color: #fff;
+  color: #16a34a;
+  border: 2px solid #16a34a;
+}
+.button-secondary:hover {
+  background-color: #f0fdf4; /* Tailwind green-50 */
+}
+.button-muted {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+.button-muted:hover {
+  background-color: #e5e7eb;
+}
+
+/* Tailwindスタイルでの補足（w-full → sm:w-auto） */
+@media (min-width: 640px) {
+  .button {
+    width: auto;
+  }
+}
+
+/* ===============================
+   フォーム系コンポーネント用追加CSS
+================================= */
+
+/* 入力ボックス汎用 */
+.input-field,
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+select {
+  @apply w-full border rounded p-2;
+}
+
+/* テキストエリア */
+textarea {
+  @apply w-full border rounded p-2;
+}
+
+/* === その他希望テキストエリアのラベル === */
+.workstyle-other-label {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500;
+  color: #374151;       /* Tailwind gray-700 */
+}
+
+/* === 広めのテキストエリア共通スタイル === */
+textarea.textarea-wide {
+  @apply border rounded p-2 resize;
+  width: 100%;
+  max-width: 100%;
+  min-width: 100%;
+}
+
+@media (min-width: 768px) {
+  textarea.textarea-wide {
+    width: 300%;
+    max-width: none;
+  }
+}
+/* ファイルアップロード */
+input[type="file"] {
+  @apply w-full border rounded p-2 bg-white;
+}
+
+/* エラーメッセージ・注意書き */
+.text-error {
+  color: #dc2626;
+}
+.text-note {
+  @apply text-xs text-gray-600 mt-1;
+}
+
+/* セクション間スペース */
+.section {
+  @apply space-y-6 mb-8;
+}
