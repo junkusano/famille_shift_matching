@@ -165,11 +165,13 @@ export default function EntryPage() {
                 }),
             });
 
-            let result = {};
+            type EmailResponse = { error?: string };
+
+            let result: EmailResponse = { error: "不明な形式のレスポンスです" };
             try {
-                result = await res.json(); // ここ！
+                result = await res.json();
             } catch {
-                result = { error: "不明な形式のレスポンスです" };
+                // 上書きせず保持
             }
 
             if (!res.ok) {
