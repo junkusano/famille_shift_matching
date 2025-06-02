@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react"; // ←ここ重要！
 import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
+import Link from "next/link"; // 追加
 
 export default function EntryPage() {
 
@@ -15,7 +16,7 @@ export default function EntryPage() {
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
 
-    const fetchAddressFromPostalCode = async () => {
+    const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
 
         try {
@@ -33,13 +34,14 @@ export default function EntryPage() {
             console.error("住所取得エラー:", error);
             alert("住所の取得に失敗しました");
         }
-    };
+    }, [postalCode]);
 
     useEffect(() => {
         if (postalCode.length === 7) {
             fetchAddressFromPostalCode()
         }
-    }, [postalCode]);
+        // ↓修正：関数も依存に加える
+    }, [postalCode, fetchAddressFromPostalCode]);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -193,13 +195,13 @@ export default function EntryPage() {
             <div className="max-w-[1600px] mx-auto bg-white p-8 rounded shadow space-y-8">
 
                 <div className="text-right">
-                    <a
+                    <Link
                         href="/"
                         className="inline-flex items-center gap-2 text-sm text-gray-600 underline hover:text-blue-600"
                     >
                         <HomeIcon className="w-5 h-5" />
                         ホームに戻る
-                    </a>
+                    </Link>
                 </div>
                 <h1 className="text-2xl font-bold text-famille text-center">
                     登録フォーム
