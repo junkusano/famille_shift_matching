@@ -470,6 +470,17 @@ export default function EntryPage() {
                                 <input type="checkbox" name="agreePrivacy" required className="mr-2" />
                                 プライバシーポリシーを読み、内容に同意します。
                             </label>
+                            {/* 🔽 プライバシーポリシーへのリンク（別要素として） */}
+                            <div className="pl-6 text-gray-500 text-xs">
+                                <a
+                                    href="https://shi-on.net/privacy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:underline"
+                                >
+                                    プライバシーポリシーを表示
+                                </a>
+                            </div>
                         </div>
                     </div>
                     {/* 送信ボタン */}
