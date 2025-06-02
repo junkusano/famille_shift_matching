@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react"; // ←ここ重要！
+import React, { useState, useEffect, useCallback } from "react";
 //import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
