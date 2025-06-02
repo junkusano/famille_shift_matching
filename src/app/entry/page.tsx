@@ -36,7 +36,7 @@ export default function EntryPage() {
 
     useEffect(() => {
         if (postalCode.length === 7) {
-            fetchAddressFromPostalCode(postalCode);
+            fetchAddressFromPostalCode()
         }
     }, [postalCode]);
 
