@@ -59,10 +59,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ status: 'ok', messageId: info.messageId });
     } catch (error: unknown) {
-        if (error instanceof Error) {
-            console.error(error.message);
-        } else {
-            console.error("不明なエラー:", error);
-        }
-    }
+    const errorMessage = error instanceof Error ? error.message : "不明なエラー";
+    console.error("メール送信エラー:", errorMessage);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+}
+
 }

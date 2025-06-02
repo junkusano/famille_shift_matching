@@ -165,13 +165,18 @@ export default function EntryPage() {
                 }),
             });
 
-            const result = await res.json();
-            console.log("メール送信レスポンス:", result);
+            let result = {};
+            try {
+                result = await res.json(); // ここ！
+            } catch {
+                result = { error: "不明な形式のレスポンスです" };
+            }
 
             if (!res.ok) {
                 console.error("メール送信エラー:", result);
-                alert("メール通知に失敗しました（採用担当への連絡は手動でお願いします）");
+                alert(`メール通知に失敗しました：${(result as any).error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
             }
+
         } catch (err) {
             console.error("fetchエラー:", err);
             alert("予期しないエラーが発生しました（メール通知に失敗）");
