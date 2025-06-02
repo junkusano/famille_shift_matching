@@ -176,7 +176,10 @@ export default function EntryPage() {
 
             if (!res.ok) {
                 console.error("メール送信エラー:", result);
-                alert(`メール通知に失敗しました：${(result as any).error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
+                if (!res.ok) {
+                    alert(`メール通知に失敗しました：${result.error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
+                }
+
             }
 
         } catch (err) {
