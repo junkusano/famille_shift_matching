@@ -58,8 +58,11 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json({ status: 'ok', messageId: info.messageId });
-    } catch (error: any) {
-        console.error("メール送信APIエラー:", error.message || error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            console.error(error.message);
+        } else {
+            console.error("不明なエラー:", error);
+        }
     }
 }

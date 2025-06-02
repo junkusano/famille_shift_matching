@@ -37,8 +37,11 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ status: "ok" });
-  } catch (error: any) {
-    console.error("メール送信エラー:", error.message);
-    return NextResponse.json({ error: "送信に失敗しました" }, { status: 500 });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error("不明なエラー:", error);
+    }
   }
 }

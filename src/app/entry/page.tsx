@@ -14,11 +14,6 @@ export default function EntryPage() {
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
 
-    const handlePostalCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = e.target.value.replace(/[^0-9\-]/g, "").replace(/-/g, "");
-        setPostalCode(raw);
-    };
-
     const fetchAddressFromPostalCode = async () => {
         if (postalCode.length !== 7) return;
 
