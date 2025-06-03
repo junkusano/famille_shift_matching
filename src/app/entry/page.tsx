@@ -311,7 +311,7 @@ export default function EntryPage() {
 
                     {/* 3. 志望動機 */}
                     <div style={{ overflowX: "auto" }}>
-                        <h2 className="text-lg font-semibold mb-2">3. 志望動機</h2>
+                        <h2 className="text-lg font-semibold mb-2">3. 志望動機<span className="text-red-500">*</span></h2>
                         <textarea
                             name="motivation"
                             placeholder="ファミーユで働きたい理由を自由にご記入ください"

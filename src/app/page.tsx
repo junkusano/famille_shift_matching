@@ -11,8 +11,8 @@ export default function Home() {
         <div className="text-center space-y-4">
           <a href="https://www.shi-on.net" target="_blank" rel="noopener noreferrer">
             <Image
-              src="/logo.png"
-              alt="ファミーユのロゴマーク（合同会社施恩）"
+              src="/myfamille_logo.png"
+              alt="マイファミーユのロゴマーク（合同会社施恩）"
               width={100}
               height={100}
               className="mx-auto"
