@@ -18,7 +18,7 @@ export default function PortalPage() {
       }
 
       // users テーブルからロールを取得する処理（supabase.rpcなどでもOK）
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('users')
         .select('system_role_id')
         .eq('uid', user.id)
