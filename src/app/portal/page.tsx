@@ -3,12 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import '@/styles/portal.css'  // portal.css のインポート
+
+interface User {
+  id: string
+  email: string
+}
 
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null) // ユーザー情報の状態
+  const [user, setUser] = useState<User | null>(null) // User 型を指定
   const [menuOpen, setMenuOpen] = useState(false) // メニューの開閉状態
 
   // ユーザー情報とロールを取得する処理
