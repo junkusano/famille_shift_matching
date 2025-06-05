@@ -72,6 +72,12 @@ export default function PortalPage() {
                             width={128} // width と height を指定する
                             height={128}
                         />
+                        <img
+                            alt="User Avatar"
+                            src={userData.photo_url || '/default-avatar.png'}
+                            className="w-32 h-32 rounded-full object-cover"
+                        />
+
                     </div>
                     <ul className="mt-6">
                         <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
