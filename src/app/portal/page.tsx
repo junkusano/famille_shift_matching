@@ -1,9 +1,10 @@
-'use client' // これを追加
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { User as SupabaseUser } from '@supabase/auth-js'  // SupabaseのUser型をインポート
+import '@/styles/portal.css'  // portal.css のインポート
 
 export default function PortalPage() {
   const router = useRouter()
@@ -26,7 +27,7 @@ export default function PortalPage() {
       // users テーブルからロールを取得する処理
       const { data } = await supabase
         .from('users')
-        .select('system_role_id')
+        .select('system_role_id, name, kana, avatar_url')  // 名前、かな、顔写真のURLも取得
         .eq('uid', user.id)
         .single()
 
@@ -90,7 +91,19 @@ export default function PortalPage() {
 
       {/* メインコンテンツ */}
       <div className="content">
-        {/* ここにポータルのメインコンテンツを配置 */}
+        <div className="user-profile">
+          {user.avatar_url && (
+            <img
+              src={user.avatar_url}
+              alt="User Avatar"
+              className="user-avatar"
+            />
+          )}
+          <h2>{user.name}</h2>
+          <p>{user.kana}</p> {/* よみがな */}
+        </div>
+
+        {/* ここにポータルの他のメインコンテンツを配置 */}
       </div>
     </div>
   )

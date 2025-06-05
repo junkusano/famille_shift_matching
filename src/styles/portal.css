@@ -1,4 +1,4 @@
-/* /style/portal.css */
+/* /styles/portal.css */
 
 /* コンテナ全体 */
 .portal-container {
@@ -105,6 +105,29 @@
   cursor: pointer;
 }
 
+.content {
+  flex-grow: 1;
+  margin-left: 250px;
+  padding: 20px;
+  background-color: #ecf0f1;
+}
+
+.user-profile {
+  text-align: center;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.user-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-bottom: 10px;
+}
+
 /* スマホでメニュー表示時のスタイル */
 @media (max-width: 768px) {
   .left-menu {
@@ -129,12 +152,4 @@
   .left-menu {
     display: flex;
   }
-}
-
-/* コンテンツ部分 */
-.content {
-  flex-grow: 1;
-  margin-left: 250px;
-  padding: 20px;
-  background-color: #ecf0f1;
 }
