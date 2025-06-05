@@ -5,22 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import '@/styles/portal.css';  // portal.cssを読み込む
 
-interface UserData {
-  last_name_kanji: string;
-  first_name_kanji: string;
-  last_name_kana: string;
-  first_name_kana: string;
-  photo_url: string | null;
-}
-
-interface RoleData {
-  system_role: string;
-}
-
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [userData, setUserData] = useState<UserData | null>(null)
+  const [userData, setUserData] = useState<any>(null)  // ここでは any を使います
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -32,21 +20,21 @@ export default function PortalPage() {
       }
 
       // users テーブルからロールを取得する処理
-      const { data: roleData } = await supabase
-        .from<RoleData>('users')  // 修正: 配列型の RoleData[] から RoleData に変更
+      const { data } = await supabase
+        .from('users')  // 直接 users テーブルからロールを取得
         .select('system_role')
         .eq('auth_user_id', user.id)
         .single()  // 単一のデータを取得
 
-      if (roleData) {
-        setRole(roleData.system_role)
+      if (data) {
+        setRole(data.system_role)  // system_role のみ取得して設定
       } else {
-        setRole('member') // デフォルト
+        setRole('member') // デフォルトのロール
       }
 
       // form_entries テーブルからユーザー情報を取得
       const { data: entryData } = await supabase
-        .from<UserData>('form_entries')
+        .from('form_entries')
         .select('last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url')
         .eq('auth_uid', user.id)
         .single()
