@@ -1,3 +1,5 @@
+'use client' // これを追加
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
