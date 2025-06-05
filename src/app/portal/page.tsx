@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import './portal.css';  // portal.cssを読み込む
+import '../../styles/portal.css';  // portal.cssを正しいパスでインポート
 
 
 export default function PortalPage() {
