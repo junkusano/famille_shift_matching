@@ -5,10 +5,18 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import '@/styles/portal.css';  // portal.cssを読み込む
 
+interface UserData {
+  last_name_kanji: string;
+  first_name_kanji: string;
+  last_name_kana: string;
+  first_name_kana: string;
+  photo_url: string | null;
+}
+
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [userData, setUserData] = useState<any>(null)  // ここでは any を使います
+  const [userData, setUserData] = useState<UserData | null>(null)  // 型をUserDataに指定
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -21,7 +29,7 @@ export default function PortalPage() {
 
       // users テーブルからロールを取得する処理
       const { data } = await supabase
-        .from('users')  // 直接 users テーブルからロールを取得
+        .from('users')
         .select('system_role')
         .eq('auth_user_id', user.id)
         .single()  // 単一のデータを取得
