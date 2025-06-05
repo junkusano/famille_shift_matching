@@ -11,6 +11,8 @@ export default function PortalPage() {
   const [user, setUser] = useState<SupabaseUser | null>(null) // SupabaseUser 型を使用
   const [menuOpen, setMenuOpen] = useState(false)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null) // photo_url を保存するための状態
+  const [name, setName] = useState<string | null>(null)  // 氏名
+  const [kana, setKana] = useState<string | null>(null)  // よみかた
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -23,15 +25,17 @@ export default function PortalPage() {
 
       setUser(user)
 
-      // users テーブルからロールを取得する処理
+      // users テーブルからロール、氏名、よみかたを取得
       const { data } = await supabase
         .from('users')
-        .select('system_role_id, name, kana')  // avatar_url は省略
+        .select('system_role_id, name, kana')  // 氏名、よみかたも取得
         .eq('uid', user.id)
         .single()
 
       if (data) {
         setRole(data.system_role_id)
+        setName(data.name)   // 氏名設定
+        setKana(data.kana)   // よみかた設定
       } else {
         setRole('member') // デフォルト
       }
@@ -66,8 +70,10 @@ export default function PortalPage() {
 
   return (
     <div className="portal-container">
+      {/* ハンバーガーメニュー */}
       <button className="hamburger" onClick={toggleMenu}>☰</button>
 
+      {/* スマホ用メニュー */}
       <div className={`menu ${menuOpen ? 'open' : ''}`}>
         <div className="user-info">
           <p className="user-id">ユーザーID: {user.id}</p>
@@ -81,6 +87,7 @@ export default function PortalPage() {
         <div className="logout" onClick={handleLogout}>ログアウト</div>
       </div>
 
+      {/* PC用左メニュー */}
       <div className="left-menu">
         <div className="user-info">
           <p className="user-id">ユーザーID: {user.id}</p>
@@ -94,9 +101,10 @@ export default function PortalPage() {
         <div className="logout" onClick={handleLogout}>ログアウト</div>
       </div>
 
+      {/* メインコンテンツ */}
       <div className="content">
         <div className="user-profile">
-          {/* photo_urlが存在する場合に画像を表示 */}
+          {/* 顔写真の表示 */}
           {photoUrl && (
             <img
               src={photoUrl}
@@ -104,8 +112,8 @@ export default function PortalPage() {
               className="user-avatar"
             />
           )}
-          <h2>{user.user_metadata?.name}</h2>
-          <p>{user.user_metadata?.kana}</p>
+          <h2>{name}</h2> {/* 氏名表示 */}
+          <p>{kana}</p> {/* よみかた表示 */}
         </div>
       </div>
     </div>

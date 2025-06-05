@@ -1,12 +1,73 @@
-/* /styles/portal.css */
-
-/* コンテナ全体 */
+/* 全体レイアウト */
 .portal-container {
   display: flex;
   height: 100vh;
 }
 
-/* スマホ用メニュー */
+/* サイドメニュー（PC） */
+.left-menu {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100%;
+  background-color: #2c3e50;
+  color: white;
+  padding-top: 60px;
+  padding-left: 20px;
+}
+
+.left-menu .user-info {
+  padding: 20px;
+  background-color: #34495e;
+}
+
+.left-menu .menu-item {
+  padding: 15px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.left-menu .menu-item:hover {
+  background-color: #16a085;
+}
+
+.left-menu .logout {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  cursor: pointer;
+}
+
+/* メインコンテンツ */
+.content {
+  flex-grow: 1;
+  margin-left: 250px;
+  padding: 20px;
+  background-color: #ecf0f1;
+}
+
+.user-profile {
+  text-align: center;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+/* 顔写真のスタイル */
+.user-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover; /* 画像が切れないように調整 */
+  margin-bottom: 10px;
+}
+
+/* メニュー（スマホ） */
 .menu {
   display: none;
   flex-direction: column;
@@ -27,36 +88,6 @@
   transform: translateX(0);
 }
 
-.user-info {
-  padding: 20px;
-  background-color: #34495e;
-  color: white;
-  text-align: center;
-}
-
-.user-id, .user-name {
-  font-size: 14px;
-}
-
-.menu-item {
-  padding: 15px;
-  cursor: pointer;
-  text-align: center;
-  font-size: 18px;
-}
-
-.menu-item:hover {
-  background-color: #16a085;
-}
-
-.logout {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  cursor: pointer;
-  text-align: center;
-}
-
 .hamburger {
   font-size: 30px;
   cursor: pointer;
@@ -68,67 +99,7 @@
   z-index: 200;
 }
 
-/* PC用の左メニュー */
-.left-menu {
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 250px;
-  height: 100%;
-  background-color: #2c3e50;
-  color: white;
-  padding-top: 60px;
-}
-
-.left-menu .user-info {
-  padding: 20px;
-  background-color: #34495e;
-}
-
-.left-menu .menu-item {
-  padding: 15px;
-  cursor: pointer;
-  text-align: center;
-  font-size: 18px;
-}
-
-.left-menu .menu-item:hover {
-  background-color: #16a085;
-}
-
-.left-menu .logout {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  cursor: pointer;
-}
-
-.content {
-  flex-grow: 1;
-  margin-left: 250px;
-  padding: 20px;
-  background-color: #ecf0f1;
-}
-
-.user-profile {
-  text-align: center;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
-}
-
-.user-avatar {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  margin-bottom: 10px;
-}
-
-/* スマホでメニュー表示時のスタイル */
+/* スマホ用メニュー */
 @media (max-width: 768px) {
   .left-menu {
     display: none;
