@@ -70,11 +70,13 @@
 
 /* 顔写真のスタイル */
 .user-avatar {
-    width: 150px;
-    height: 150px;
+    width: 128px;
+    /* 画像サイズを適切に設定 */
+    height: 128px;
     border-radius: 50%;
+    /* 丸い画像 */
     object-fit: cover;
-    /* 画像が切れないように調整 */
+    /* 画像のアスペクト比を保ちながらコンテナに収める */
     margin-bottom: 10px;
 }
 
