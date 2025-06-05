@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Image from 'next/image';  // Next.jsのImageコンポーネントをインポート
-import './portal.css';  // portal.cssを読み込む
+import '@/styles/portal.css';  // styles フォルダ内の portal.css を読み込む
 
 // 型定義を追加
 interface UserData {
