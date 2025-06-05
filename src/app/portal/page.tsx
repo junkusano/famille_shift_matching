@@ -33,10 +33,10 @@ export default function PortalPage() {
 
       // users テーブルからロールを取得する処理
       const { data: roleData } = await supabase
-        .from<RoleData>('users')  // 修正: RoleData[] → RoleData として配列型ではなく、単一のデータを取得
+        .from<RoleData>('users') // 修正: RoleData[] から RoleData に変更
         .select('system_role')
         .eq('auth_user_id', user.id)
-        .single()
+        .single() // 単一のデータを取得
 
       if (roleData) {
         setRole(roleData.system_role)
