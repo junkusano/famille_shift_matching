@@ -21,7 +21,9 @@ export async function sendEmail({
             auth: {
                 user: "noreply@info.shi-on.net", // メール送信元
                 pass: process.env.SMTP_PASSWORD, // 環境変数からSMTPパスワードを取得
+                method: "LOGIN", // 必要に応じて 'PLAIN' や 'LOGIN' に変更
             },
+            debug: true, // これで詳細なログが表示される
         });
 
         const info = await transporter.sendMail({
