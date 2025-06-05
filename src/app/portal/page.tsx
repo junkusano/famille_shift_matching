@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import Image from 'next/image';  // Next.jsのImageコンポーネントをインポート
+import Image from 'next/image';  // Image コンポーネントのインポート
 import '@/styles/portal.css';  // styles フォルダ内の portal.css を読み込む
 
 // 型定義を追加
@@ -65,12 +65,13 @@ export default function PortalPage() {
                     <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
                     <p>{userData.last_name_kana} {userData.first_name_kana}</p>
                     <div className="mt-4">
-                        <img
+                        <Image
                             src={userData.photo_url || '/default-avatar.png'}
                             alt="User Avatar"
                             className="w-32 h-32 rounded-full object-cover"
+                            width={128} // width と height を指定する
+                            height={128}
                         />
-
                     </div>
                     <ul className="mt-6">
                         <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
