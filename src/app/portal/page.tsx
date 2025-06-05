@@ -1,19 +1,13 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-
-interface User {
-  id: string
-  email: string
-}
+import { User as SupabaseUser } from '@supabase/auth-js'  // SupabaseのUser型をインポート
 
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [user, setUser] = useState<User | null>(null) // User 型を指定
-  const [menuOpen, setMenuOpen] = useState(false) // メニューの開閉状態
+  const [user, setUser] = useState<SupabaseUser | null>(null) // SupabaseUser 型を使用
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // ユーザー情報とロールを取得する処理
   useEffect(() => {
@@ -25,10 +19,9 @@ export default function PortalPage() {
         return
       }
 
-      // ユーザー情報をセット
-      setUser(user)
+      setUser(user) // user の型を SupabaseUser に合わせる
 
-      // users テーブルからロールを取得する処理（supabase.rpcなどでもOK）
+      // users テーブルからロールを取得する処理
       const { data } = await supabase
         .from('users')
         .select('system_role_id')
@@ -45,19 +38,17 @@ export default function PortalPage() {
     fetchUserData()
   }, [router])
 
-  // メニューの開閉
   const toggleMenu = () => {
     setMenuOpen(!menuOpen)
   }
 
-  // ログアウト処理
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/login') // ログアウト後にログインページにリダイレクト
+    router.push('/login')
   }
 
   if (!user) {
-    return <div>Loading...</div> // ユーザー情報が取得できない間のローディング
+    return <div>Loading...</div>
   }
 
   return (
