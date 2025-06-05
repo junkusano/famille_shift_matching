@@ -109,6 +109,7 @@ export default function EntryPage() {
         const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
         const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
         const photoUrl = await uploadFile("photo", photoFile);
+        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
 
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
@@ -121,23 +122,26 @@ export default function EntryPage() {
         const payload = {
             last_name_kanji: form.get("lastNameKanji"),
             first_name_kanji: form.get("firstNameKanji"),
+            last_name_kana: form.get("lastNameKana"),
+            first_name_kana: form.get("firstNameKana"),
+            birth_year: form.get("birthYear"),
+            birth_month: form.get("birthMonth"),
+            birth_day: form.get("birthDay"),
             motivation: form.get("motivation"),
             workstyle_other: form.get("workStyleOther"),
-            commute_options: form.getAll("commute") as string[], // 通勤方法
-            certifications: [], // 資格証明書（後で追加）
+            commute_options: form.getAll("commute") as string[],
+            certifications: [], // あとで登録してもOK
             health_condition: form.get("healthCondition"),
             agreed_terms: form.get("agreeTerms") === "on",
             agreed_privacy: form.get("agreePrivacy") === "on",
             license_front_url: licenseFrontUrl,
             license_back_url: licenseBackUrl,
+            residence_card_url: residenceCardUrl,
             photo_url: photoUrl,
             postal_code: postalCode,
             address: address,
             phone: form.get("phone"),
             email: form.get("email"),
-            birth_year: form.get("birthYear"),
-            birth_month: form.get("birthMonth"),
-            birth_day: form.get("birthDay"),
         };
 
         const { error } = await supabase.from("form_entries").insert([payload]);
