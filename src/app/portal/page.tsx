@@ -89,8 +89,8 @@ export default function PortalPage() {
                         <Image
                             src="/myfamille_logo.png"
                             alt="ファミーユロゴ"
-                            width={40} // ロゴのサイズ
-                            height={15} // ロゴのサイズ
+                            width={80} // ロゴのサイズ
+                            //height={15} // ロゴのサイズ
                         />
                         <span className="ml-2">myfamille</span> {/* ロゴと「myfamille」テキストを並べる */}
                     </h1>
