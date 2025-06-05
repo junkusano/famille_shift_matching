@@ -3,13 +3,22 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import '../../styles/portal.css';  // portal.cssを正しいパスでインポート
+import Image from 'next/image';  // Next.jsのImageコンポーネントをインポート
+import './portal.css';  // portal.cssを読み込む
 
+// 型定義を追加
+interface UserData {
+  last_name_kanji: string;
+  first_name_kanji: string;
+  last_name_kana: string;
+  first_name_kana: string;
+  photo_url: string | null;
+}
 
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [userData, setUserData] = useState<any>(null)
+  const [userData, setUserData] = useState<UserData | null>(null)  // 型を指定
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -56,9 +65,11 @@ export default function PortalPage() {
           <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
           <p>{userData.last_name_kana} {userData.first_name_kana}</p>
           <div className="mt-4">
-            <img 
+            <Image 
               src={userData.photo_url || '/default-avatar.png'} 
               alt="User Avatar" 
+              width={150} 
+              height={150} 
               className="user-avatar" 
             />
           </div>
