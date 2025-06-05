@@ -123,8 +123,8 @@ export default function EntryPage() {
             first_name_kanji: form.get("firstNameKanji"),
             motivation: form.get("motivation"),
             workstyle_other: form.get("workStyleOther"),
-            commute_options: form.getAll("commute") as string[],
-            certifications: [], // あとで登録してもOK
+            commute_options: form.getAll("commute") as string[], // 通勤方法
+            certifications: [], // 資格証明書（後で追加）
             health_condition: form.get("healthCondition"),
             agreed_terms: form.get("agreeTerms") === "on",
             agreed_privacy: form.get("agreePrivacy") === "on",
@@ -133,6 +133,11 @@ export default function EntryPage() {
             photo_url: photoUrl,
             postal_code: postalCode,
             address: address,
+            phone: form.get("phone"),
+            email: form.get("email"),
+            birth_year: form.get("birthYear"),
+            birth_month: form.get("birthMonth"),
+            birth_day: form.get("birthDay"),
         };
 
         const { error } = await supabase.from("form_entries").insert([payload]);
