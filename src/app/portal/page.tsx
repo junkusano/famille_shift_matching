@@ -3,16 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { User as SupabaseUser } from '@supabase/auth-js'
+import './portal.css';  // portal.cssを読み込む
+
 
 export default function PortalPage() {
   const router = useRouter()
   const [role, setRole] = useState<string | null>(null)
-  const [user, setUser] = useState<SupabaseUser | null>(null) // SupabaseUser 型を使用
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null) // photo_url を保存するための状態
-  const [name, setName] = useState<string | null>(null)  // 氏名
-  const [kana, setKana] = useState<string | null>(null)  // よみかた
+  const [userData, setUserData] = useState<any>(null)
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -23,99 +20,68 @@ export default function PortalPage() {
         return
       }
 
-      setUser(user)
-
-      // users テーブルからロール、氏名、よみかたを取得
+      // users テーブルからロールを取得する処理（supabase.rpcなどでもOK）
       const { data } = await supabase
         .from('users')
-        .select('system_role_id, name, kana')  // 氏名、よみかたも取得
+        .select('system_role_id')
         .eq('uid', user.id)
         .single()
 
       if (data) {
         setRole(data.system_role_id)
-        setName(data.name)   // 氏名設定
-        setKana(data.kana)   // よみかた設定
       } else {
         setRole('member') // デフォルト
       }
 
-      // form_entries テーブルから photo_url を取得
+      // form_entries テーブルからユーザー情報を取得
       const { data: entryData } = await supabase
         .from('form_entries')
-        .select('photo_url')
-        .eq('auth_uid', user.id) // ユーザーのIDと一致するエントリを取得
+        .select('last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url')
+        .eq('auth_uid', user.id)
         .single()
 
-      if (entryData) {
-        setPhotoUrl(entryData.photo_url) // photo_url を設定
-      }
+      setUserData(entryData)
     }
 
     fetchUserData()
   }, [router])
 
-  const toggleMenu = () => {
-    setMenuOpen(!menuOpen)
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
-  if (!user) {
-    return <div>Loading...</div>
-  }
+  if (!userData) return <p>Loading...</p>
 
   return (
-    <div className="portal-container">
-      {/* ハンバーガーメニュー */}
-      <button className="hamburger" onClick={toggleMenu}>☰</button>
-
-      {/* スマホ用メニュー */}
-      <div className={`menu ${menuOpen ? 'open' : ''}`}>
-        <div className="user-info">
-          <p className="user-id">ユーザーID: {user.id}</p>
-          <p className="user-name">ユーザー名: {user.email}</p>
-        </div>
-        <div className="menu-item button-primary" onClick={() => router.push('/dashboard')}>ダッシュボード</div>
-        <div className="menu-item button-primary" onClick={() => router.push('/entries')}>エントリー確認</div>
-        <div className="menu-item button-primary" onClick={() => router.push('/settings')}>設定</div>
-        {role === 'admin' && <div className="menu-item button-primary" onClick={() => router.push('/admin/tools')}>管理ツール</div>}
-        {role === 'manager' && <div className="menu-item button-primary" onClick={() => router.push('/shift/manage')}>シフト管理</div>}
-        <div className="logout" onClick={handleLogout}>ログアウト</div>
-      </div>
-
-      {/* PC用左メニュー */}
-      <div className="left-menu">
-        <div className="user-info">
-          <p className="user-id">ユーザーID: {user.id}</p>
-          <p className="user-name">ユーザー名: {user.email}</p>
-        </div>
-        <div className="menu-item button-primary" onClick={() => router.push('/dashboard')}>ダッシュボード</div>
-        <div className="menu-item button-primary" onClick={() => router.push('/entries')}>エントリー確認</div>
-        <div className="menu-item button-primary" onClick={() => router.push('/settings')}>設定</div>
-        {role === 'admin' && <div className="menu-item button-primary" onClick={() => router.push('/admin/tools')}>管理ツール</div>}
-        {role === 'manager' && <div className="menu-item button-primary" onClick={() => router.push('/shift/manage')}>シフト管理</div>}
-        <div className="logout" onClick={handleLogout}>ログアウト</div>
-      </div>
-
-      {/* メインコンテンツ */}
-      <div className="content">
-        <div className="user-profile">
-          {/* 顔写真の表示 */}
-          {photoUrl && (
-            <img
-              src={photoUrl}
-              alt="User Avatar"
-              className="user-avatar"
+    <main className="p-6">
+      <div className="flex portal-container">
+        {/* サイドバー */}
+        <div className="left-menu">
+          <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
+          <p>{userData.last_name_kana} {userData.first_name_kana}</p>
+          <div className="mt-4">
+            <img 
+              src={userData.photo_url || '/default-avatar.png'} 
+              alt="User Avatar" 
+              className="user-avatar" 
             />
-          )}
-          <h2>{name}</h2> {/* 氏名表示 */}
-          <p>{kana}</p> {/* よみかた表示 */}
+          </div>
+          <ul className="mt-6">
+            <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
+            {role === 'admin' && <li><a href="/admin/tools" className="text-blue-600">管理ツール</a></li>}
+            {role === 'manager' && <li><a href="/shift/manage" className="text-blue-600">シフト管理</a></li>}
+          </ul>
+        </div>
+
+        {/* メインコンテンツ */}
+        <div className="content">
+          <h1 className="text-2xl font-bold">ファミーユポータル</h1>
+          <p>ログイン中のロール：{role}</p>
+
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold">氏名</h3>
+            <p>{userData.last_name_kanji} {userData.first_name_kanji}</p>
+            <h3 className="text-xl font-semibold mt-4">ふりがな</h3>
+            <p>{userData.last_name_kana} {userData.first_name_kana}</p>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
