@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         mimeType: file.type,
         body: bufferToStream(buffer), // ← ここが重要
       },
+      supportsAllDrives: true,
       fields: "id, webViewLink",
     });
 
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
         role: "reader",
         type: "anyone",
       },
+      supportsAllDrives: true // ← ここも必須
     });
 
     return NextResponse.json({
