@@ -39,16 +39,32 @@ export default function EntryPage() {
 
     useEffect(() => {
         if (postalCode.length === 7) {
-            fetchAddressFromPostalCode()
+            fetchAddressFromPostalCode();
         }
+
         const url = new URL(window.location.href);
         const token = url.searchParams.get("token");
-        if (token) setAccessToken(token);  // state: const [accessToken, setAccessToken] = useState("")
 
-        if (token) setAccessToken(token);
-        // ↓修正：関数も依存に加える
+        if (token) {
+            setAccessToken(token);
+        } else {
+            const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+            if (!clientId) {
+                console.error("Google Client ID is not set");
+                return;
+            }
+
+            const redirectUri = "https://myfamille.shi-on.net/api/auth/callback";
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${clientId}` +
+                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&response_type=code` +
+                `&scope=https://www.googleapis.com/auth/drive.file` +
+                `&access_type=online`;
+
+            window.location.href = authUrl;
+        }
     }, [postalCode, fetchAddressFromPostalCode]);
-
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const form = new FormData(e.currentTarget);
@@ -108,7 +124,7 @@ export default function EntryPage() {
             const metadata = {
                 name: filename,
                 mimeType: file.type,
-                parents: ["<アップロード先フォルダID>"] // ←オプションで Drive フォルダに分けたいとき
+                parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"] // ←オプションで Drive フォルダに分けたいとき
 
             };
 
@@ -117,7 +133,7 @@ export default function EntryPage() {
             form.append("file", file);
 
             try {
-                const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+                const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${accessToken}`,
@@ -133,7 +149,7 @@ export default function EntryPage() {
                 const fileData = await response.json();
 
                 // 公開リンク取得のためのパーミッション設定
-                await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+                await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions?supportsAllDrives=true`, {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${accessToken}`,
