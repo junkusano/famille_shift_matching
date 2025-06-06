@@ -46,6 +46,7 @@ export default function EntryPage() {
         const token = url.searchParams.get("token");
 
         if (token) {
+            console.log("アクセストークン取得:", token);
             setAccessToken(token);
         } else {
             const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -128,7 +129,7 @@ export default function EntryPage() {
 
             };
 
-            const form = new FormData();
+            const uploadFormData = new FormData();
             form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
             form.append("file", file);
 
@@ -138,15 +139,19 @@ export default function EntryPage() {
                     headers: {
                         Authorization: `Bearer ${accessToken}`,
                     },
-                    body: form,
+                    body: uploadFormData,
                 });
+
+                console.log("アップロード開始:", key, file?.name, accessToken);
 
                 if (!response.ok) {
                     console.error(`${key} アップロード失敗:`, await response.text());
                     return null;
-                }
+                } 
 
                 const fileData = await response.json();
+
+                console.log(`${key} アップロード成功`, fileData); // ←ここに移動
 
                 // 公開リンク取得のためのパーミッション設定
                 await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions?supportsAllDrives=true`, {

@@ -25,15 +25,21 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json();
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      return NextResponse.json({ error: "トークン取得失敗", detail: tokenData }, { status: 500 });
+      return NextResponse.json(
+        { error: "トークン取得失敗", detail: tokenData },
+        { status: 500 }
+      );
     }
 
-    // ✅ トークンをURLに含めて /entry にリダイレクト
+    // ✅ トークン取得成功 → クエリパラメータ付きでエントリーページへリダイレクト
     const redirectUrl = new URL("https://myfamille.shi-on.net/entry");
     redirectUrl.searchParams.set("token", tokenData.access_token);
 
     return NextResponse.redirect(redirectUrl.toString());
   } catch (error) {
-    return NextResponse.json({ error: "トークン取得中に例外", detail: String(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: "トークン取得中に例外", detail: String(error) },
+      { status: 500 }
+    );
   }
 }
