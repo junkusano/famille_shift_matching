@@ -118,7 +118,7 @@ export default function EntryPage() {
         const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
         const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
         const photoUrl = await uploadFile("photo", photoFile);
-
+        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
