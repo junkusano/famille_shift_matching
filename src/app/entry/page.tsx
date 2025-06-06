@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
 import Link from "next/link"; // 追加
-import { NextResponse } from "next/server";
+//import { NextResponse } from "next/server";
 
 export default function EntryPage() {
 
