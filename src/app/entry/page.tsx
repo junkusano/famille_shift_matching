@@ -113,17 +113,24 @@ export default function EntryPage() {
             }
         }
         // --- 各ファイルアップロード ---
-        const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
-        const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
-        const photoUrl = await uploadFile("photo", photoFile);
-        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
+        const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15); // 例: 20250606T151203
+
+        const licenseFrontUrl = await uploadFile(`${formUserId}_licenseFront_${timestamp}`, licenseFront);
+        const licenseBackUrl = await uploadFile(`${formUserId}_licenseBack_${timestamp}`, licenseBack);
+        const photoUrl = await uploadFile(`${formUserId}_photo_${timestamp}`, photoFile);
+
+        const residenceCardUrl = await uploadFile(`${formUserId}_residenceCard_${timestamp}`, residenceCard);
+
 
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
-            const certUrl = await uploadFile(`certificate_${i}`, certFile);
-            if (certUrl) certificationUrls.push(certUrl);
+            if (certFile) {
+                const certUrl = await uploadFile(`${formUserId}_certificate_${i}_${timestamp}`, certFile);
+                if (certUrl) certificationUrls.push(certUrl);
+            }
         }
+
 
         // --- Supabase 登録 ---
         const payload = {

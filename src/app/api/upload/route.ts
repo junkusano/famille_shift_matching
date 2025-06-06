@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       requestBody: {
         name: filename,
         parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"],
+        driveId: "1N1EIT1escqpNREOfwc70YgBC8JVu78j2", // 追加してみる
       },
       media: {
         mimeType: file.type,
