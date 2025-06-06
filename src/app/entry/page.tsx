@@ -15,6 +15,8 @@ export default function EntryPage() {
     const [formData, setFormData] = useState<FormData | null>(null);
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
+    const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
+
 
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
@@ -97,7 +99,7 @@ export default function EntryPage() {
 
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("filename", `${key}_${Date.now()}_${file.name}`);
+            formData.append("filename", `${key}_${timestamp}_${file.name}`);
 
             try {
                 const res = await fetch("/api/upload", {
@@ -113,24 +115,16 @@ export default function EntryPage() {
             }
         }
         // --- 各ファイルアップロード ---
-        const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15); // 例: 20250606T151203
-
-        const licenseFrontUrl = await uploadFile(`${formUserId}_licenseFront_${timestamp}`, licenseFront);
-        const licenseBackUrl = await uploadFile(`${formUserId}_licenseBack_${timestamp}`, licenseBack);
-        const photoUrl = await uploadFile(`${formUserId}_photo_${timestamp}`, photoFile);
-
-        const residenceCardUrl = await uploadFile(`${formUserId}_residenceCard_${timestamp}`, residenceCard);
-
+        const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
+        const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
+        const photoUrl = await uploadFile("photo", photoFile);
 
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
-            if (certFile) {
-                const certUrl = await uploadFile(`${formUserId}_certificate_${i}_${timestamp}`, certFile);
-                if (certUrl) certificationUrls.push(certUrl);
-            }
+            const certUrl = await uploadFile(`certificate_${i}`, certFile);
+            if (certUrl) certificationUrls.push(certUrl);
         }
-
 
         // --- Supabase 登録 ---
         const payload = {
