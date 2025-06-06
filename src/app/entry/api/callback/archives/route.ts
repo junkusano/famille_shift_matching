@@ -1,8 +1,3 @@
-// src/app/entry/route.ts
-export async function GET(_req: NextRequest) {
-  return new Response("このエンドポイントはアーカイブされています。", { status: 410 });
-}
-
 /*
 import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
