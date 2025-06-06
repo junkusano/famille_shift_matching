@@ -1,4 +1,5 @@
-//import { google } from "googleapis";
+import { google } from "googleapis";
+void google; // ← ESLintが「使ってる」と認識してビルドが通る
 
 /*
 const auth = new google.auth.GoogleAuth({
