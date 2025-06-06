@@ -6,15 +6,49 @@ import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
 import Link from "next/link"; // 追加
+import { NextResponse } from "next/server";
+
+export async function GET(req: Request) {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+
+    if (!code) {
+        return NextResponse.json({ error: "code がありません" }, { status: 400 });
+    }
+
+    const params = new URLSearchParams();
+    params.append("code", code);
+    params.append("client_id", process.env.GOOGLE_CLIENT_ID || "");
+    params.append("client_secret", process.env.GOOGLE_CLIENT_SECRET || "");
+    params.append("redirect_uri", "https://myfamille.shi-on.net/api/auth/callback");
+    params.append("grant_type", "authorization_code");
+
+    try {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params.toString(),
+        });
+
+        const tokenData = await tokenRes.json();
+
+        return NextResponse.json({
+            message: "トークン取得成功",
+            token: tokenData,
+        });
+    } catch (error) {
+        return NextResponse.json({ error: "トークン取得エラー", detail: String(error) }, { status: 500 });
+    }
+}
 
 export default function EntryPage() {
 
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState<FormData | null>(null);
-
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
+    const [accessToken, setAccessToken] = useState("");
 
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
@@ -40,6 +74,11 @@ export default function EntryPage() {
         if (postalCode.length === 7) {
             fetchAddressFromPostalCode()
         }
+        const url = new URL(window.location.href);
+        const token = url.searchParams.get("token");
+        if (token) setAccessToken(token);  // state: const [accessToken, setAccessToken] = useState("")
+
+        if (token) setAccessToken(token);
         // ↓修正：関数も依存に加える
     }, [postalCode, fetchAddressFromPostalCode]);
 
@@ -92,31 +131,75 @@ export default function EntryPage() {
             return;
         }
 
-        // --- ファイルアップロード関数 ---
-        async function uploadFile(key: string, file: File | null) {
+        // --- Google Drive へファイルアップロードする関数 ---
+        async function uploadFileToGoogleDrive(key: string, file: File | null, accessToken: string): Promise<string | null> {
             if (!file || file.size === 0) return null;
+
             const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
-            const filename = `${key}/${Date.now()}_${safeName}`;
-            const { data, error } = await supabase.storage.from("uploads").upload(filename, file);
-            if (error) {
-                console.error(`${key} アップロード失敗:`, error.message);
+            const filename = `${key}_${Date.now()}_${safeName}`;
+
+            const metadata = {
+                name: filename,
+                mimeType: file.type,
+                parents: ["<アップロード先フォルダID>"] // ←オプションで Drive フォルダに分けたいとき
+
+            };
+
+            const form = new FormData();
+            form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+            form.append("file", file);
+
+            try {
+                const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: form,
+                });
+
+                if (!response.ok) {
+                    console.error(`${key} アップロード失敗:`, await response.text());
+                    return null;
+                }
+
+                const fileData = await response.json();
+
+                // 公開リンク取得のためのパーミッション設定
+                await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        role: "reader",
+                        type: "anyone",
+                    }),
+                });
+
+                // 公開URLを生成して返す
+                return `https://drive.google.com/uc?id=${fileData.id}`;
+            } catch (err) {
+                console.error(`${key} アップロード中に例外発生:`, err);
                 return null;
             }
-            return supabase.storage.from("uploads").getPublicUrl(data.path).data.publicUrl;
         }
 
         // --- 各ファイルアップロード ---
-        const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
-        const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
-        const photoUrl = await uploadFile("photo", photoFile);
-        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
+        const licenseFrontUrl = await uploadFileToGoogleDrive("licenseFront", licenseFront, accessToken);
+        const licenseBackUrl = await uploadFileToGoogleDrive("licenseBack", licenseBack, accessToken);
+        const photoUrl = await uploadFileToGoogleDrive("photo", photoFile, accessToken);
+        const residenceCardUrl = await uploadFileToGoogleDrive("residenceCard", residenceCard, accessToken);
 
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
-            const certUrl = await uploadFile(`certificate_${i}`, certFile);
+            const certUrl = await uploadFileToGoogleDrive(`certificate_${i}`, certFile, accessToken!);
             if (certUrl) certificationUrls.push(certUrl);
         }
+
+
 
         // --- Supabase 登録 ---
         const payload = {
@@ -130,10 +213,7 @@ export default function EntryPage() {
             motivation: form.get("motivation"),
             workstyle_other: form.get("workStyleOther"),
             commute_options: form.getAll("commute") as string[],
-            certifications: [], // あとで登録してもOK
             health_condition: form.get("healthCondition"),
-            agreed_terms: form.get("agreeTerms") === "on",
-            agreed_privacy: form.get("agreePrivacy") === "on",
             license_front_url: licenseFrontUrl,
             license_back_url: licenseBackUrl,
             residence_card_url: residenceCardUrl,
@@ -142,6 +222,17 @@ export default function EntryPage() {
             address: address,
             phone: form.get("phone"),
             email: form.get("email"),
+            certifications: certificationUrls.map((url, idx) => ({
+                label: `certificate_${idx}`,
+                url,
+            })),
+            agreed_at: new Date().toISOString(), // ← 同意日時
+            consent_snapshot: JSON.stringify({
+                agreeTerms: "入力内容に虚偽がないことを確認しました。",
+                agreePrivacy: "プライバシーポリシーを読み、内容に同意します。",
+            }),
+
+
         };
 
         const { error } = await supabase.from("form_entries").insert([payload]);
