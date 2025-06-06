@@ -1,6 +1,11 @@
 // src/app/entry/route.ts
-import { NextRequest, NextResponse } from "next/server";
+export async function GET(req: NextRequest) {
 
+  return new Response("このエンドポイントはアーカイブされています。", { status: 410 });
+}
+
+/*
+import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -29,3 +34,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "トークン取得エラー", detail: String(error) }, { status: 500 });
   }
 }
+  */

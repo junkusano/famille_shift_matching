@@ -15,7 +15,6 @@ export default function EntryPage() {
     const [formData, setFormData] = useState<FormData | null>(null);
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
-    const [accessToken, setAccessToken] = useState("");
 
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
@@ -41,31 +40,8 @@ export default function EntryPage() {
         if (postalCode.length === 7) {
             fetchAddressFromPostalCode();
         }
-
-        const url = new URL(window.location.href);
-        const token = url.searchParams.get("token");
-
-        if (token) {
-            console.log("アクセストークン取得:", token);
-            setAccessToken(token);
-        } else {
-            const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-            if (!clientId) {
-                console.error("Google Client ID is not set");
-                return;
-            }
-
-            const redirectUri = "https://myfamille.shi-on.net/api/auth/callback";
-            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-                `client_id=${clientId}` +
-                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-                `&response_type=code` +
-                `&scope=https://www.googleapis.com/auth/drive.file` +
-                `&access_type=online`;
-
-            window.location.href = authUrl;
-        }
     }, [postalCode, fetchAddressFromPostalCode]);
+
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const form = new FormData(e.currentTarget);
@@ -116,78 +92,38 @@ export default function EntryPage() {
         }
 
         // --- Google Drive へファイルアップロードする関数 ---
-        async function uploadFileToGoogleDrive(key: string, file: File | null, accessToken: string): Promise<string | null> {
+        async function uploadFile(key: string, file: File | null): Promise<string | null> {
             if (!file || file.size === 0) return null;
 
-            const safeName = file.name.replace(/\s+/g, "_").replace(/[^\w.-]/g, "");
-            const filename = `${key}_${Date.now()}_${safeName}`;
-
-            const metadata = {
-                name: filename,
-                mimeType: file.type,
-                parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"] // ←オプションで Drive フォルダに分けたいとき
-
-            };
-
-            const uploadFormData = new FormData();
-            form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-            form.append("file", file);
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("filename", `${key}_${Date.now()}_${file.name}`);
 
             try {
-                const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+                const res = await fetch("/api/upload", {
                     method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                    },
-                    body: uploadFormData,
+                    body: formData,
                 });
 
-                console.log("アップロード開始:", key, file?.name, accessToken);
-
-                if (!response.ok) {
-                    console.error(`${key} アップロード失敗:`, await response.text());
-                    return null;
-                } 
-
-                const fileData = await response.json();
-
-                console.log(`${key} アップロード成功`, fileData); // ←ここに移動
-
-                // 公開リンク取得のためのパーミッション設定
-                await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions?supportsAllDrives=true`, {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        role: "reader",
-                        type: "anyone",
-                    }),
-                });
-
-                // 公開URLを生成して返す
-                return `https://drive.google.com/uc?id=${fileData.id}`;
+                const result = await res.json();
+                return result.url || null;
             } catch (err) {
-                console.error(`${key} アップロード中に例外発生:`, err);
+                console.error(`${key} アップロードエラー:`, err);
                 return null;
             }
         }
-
         // --- 各ファイルアップロード ---
-        const licenseFrontUrl = await uploadFileToGoogleDrive("licenseFront", licenseFront, accessToken);
-        const licenseBackUrl = await uploadFileToGoogleDrive("licenseBack", licenseBack, accessToken);
-        const photoUrl = await uploadFileToGoogleDrive("photo", photoFile, accessToken);
-        const residenceCardUrl = await uploadFileToGoogleDrive("residenceCard", residenceCard, accessToken);
+        const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
+        const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
+        const photoUrl = await uploadFile("photo", photoFile);
+        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
 
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
-            const certUrl = await uploadFileToGoogleDrive(`certificate_${i}`, certFile, accessToken!);
+            const certUrl = await uploadFile(`certificate_${i}`, certFile);
             if (certUrl) certificationUrls.push(certUrl);
         }
-
-
 
         // --- Supabase 登録 ---
         const payload = {
