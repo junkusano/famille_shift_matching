@@ -1,5 +1,10 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
+import { Readable } from "stream"; // ← 追加！
+
+function bufferToStream(buffer: Buffer) {
+  return Readable.from(buffer);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +16,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing file or filename" }, { status: 400 });
     }
 
-    // Google 認証設定
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!),
       scopes: ["https://www.googleapis.com/auth/drive.file"],
@@ -19,20 +23,20 @@ export async function POST(req: NextRequest) {
 
     const drive = google.drive({ version: "v3", auth });
 
-    // アップロード処理
+    const buffer = Buffer.from(await file.arrayBuffer());
+
     const res = await drive.files.create({
       requestBody: {
         name: filename,
-        parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"], // ← 必要に応じて
+        parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"],
       },
       media: {
         mimeType: file.type,
-        body: Buffer.from(await file.arrayBuffer()),
+        body: bufferToStream(buffer), // ← ここが重要
       },
       fields: "id, webViewLink",
     });
 
-    // 公開URLにする
     await drive.permissions.create({
       fileId: res.data.id!,
       requestBody: {
