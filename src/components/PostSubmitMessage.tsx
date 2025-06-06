@@ -100,11 +100,11 @@ export default function PostSubmitMessage({ form }: { form: FormData }) {
                                 rel="noopener noreferrer"
                                 className="text-blue-600 underline inline-flex items-center gap-1"
                             >
-                                <CheckCircleIcon className="w-4 h-4" /> 私有車誓約書（該当者のみ）
+                                <CheckCircleIcon className="w-4 h-4" /> 私有車誓約書（私有車を業務で使用する方のみ）
                             </a>
                         </li>
                     </ul>
-                    <p>上記電子サイン完了後、ファミーユの採用担当者から、勤務の詳細について連絡をいたします。</p>
+                    <p>上記電子サイン完了後、ファミーユの採用担当者から、社内システムログイン等のご連絡を致します。</p>
                     {/* ✅ YouTube動画を埋め込む */}
                     <div className="mt-10">
                         <h2 className="text-lg font-semibold mb-2">雇用契約書について</h2>

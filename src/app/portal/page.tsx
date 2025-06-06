@@ -64,13 +64,10 @@ export default function PortalPage() {
                     <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
                     <p>ユーザー権限: {role}</p>
                     <div className="mt-4">
-                        <img
+                        <Image
                             alt="User Avatar"
-                            loading="lazy"
-                            width="128"
-                            height="128"
-                            decoding="async"
-                            data-nimg="1"
+                            width={128}
+                            height={128}
                             className="w-32 h-32 rounded-full object-cover"
                             src={userData.photo_url || '/default-avatar.png'}
                         />
@@ -90,7 +87,7 @@ export default function PortalPage() {
                             src="/myfamille_logo.png"
                             alt="ファミーユロゴ"
                             width={80} // ロゴのサイズ
-                            //height={15} // ロゴのサイズ
+                        //height={15} // ロゴのサイズ
                         />
                         <span className="ml-2">myfamille</span> {/* ロゴと「myfamille」テキストを並べる */}
                     </h1>
