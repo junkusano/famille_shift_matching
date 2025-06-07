@@ -18,6 +18,11 @@ export default function Home() {
     fetchUser();
   }, []);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    location.reload();
+  };
+
   return (
 
     <main className="min-h-screen bg-famille text-gray-800 px-4 py-8">
