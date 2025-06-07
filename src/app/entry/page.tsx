@@ -126,8 +126,18 @@ export default function EntryPage() {
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
-            const certUrl = await uploadFile(`certificate_${i}`, certFile);
-            if (certUrl) certificationUrls.push(convertDriveUrlToDirectView(certUrl));
+
+            // ❗ サイズゼロや未選択ファイルはスキップ
+            if (!certFile || certFile.size === 0) continue;
+
+            try {
+                const certUrl = await uploadFile(`certificate_${i}`, certFile);
+                if (certUrl) certificationUrls.push(convertDriveUrlToDirectView(certUrl));
+            } catch (err) {
+                console.error(`certificate_${i} アップロード失敗:`, err);
+                alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
+                return;
+            }
         }
 
         // --- Supabase 登録 ---
