@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import Footer from '@/components/Footer'; // ← 追加
 
 export default function LoginPage() {
   const router = useRouter()
@@ -49,6 +50,7 @@ export default function LoginPage() {
           ログイン
         </button>
       </form>
+      <Footer /> {/* ← フッターをここで表示 */}
     </div>
   )
 }

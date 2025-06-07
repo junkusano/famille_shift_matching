@@ -8,6 +8,7 @@ import { HomeIcon } from "@heroicons/react/24/solid";
 import Link from "next/link"; // 追加
 //import { NextResponse } from "next/server";
 import { convertDriveUrlToDirectView } from "@/lib/drive"
+import Footer from '@/components/Footer'; // ← 追加
 
 export default function EntryPage() {
 
@@ -562,6 +563,7 @@ export default function EntryPage() {
 
                 </form>
             </div>
+            <Footer /> {/* ← フッターをここで表示 */}
         </main>
     );
 }

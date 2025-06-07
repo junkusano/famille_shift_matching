@@ -55,13 +55,13 @@ export default function PortalPage() {
 
                     {/* 上部：ユーザー情報とナビゲーション */}
                     <div>
+                        <p className="text-sm text-gray-300 mt-1">
+                            <Link href="/" className="text-blue-300 hover:underline">🏠 Homeへ戻る</Link>
+                        </p>
                         <h2 className="text-xl font-semibold">
                             {userData.last_name_kanji} {userData.first_name_kanji}
                         </h2>
                         <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
-                        <p className="text-sm text-gray-300 mt-1">
-                            <Link href="/" className="text-blue-300 hover:underline">🏠 Homeへ戻る</Link>
-                        </p>
 
                         <div className="mt-4">
                             <Image
@@ -75,7 +75,7 @@ export default function PortalPage() {
 
                         {/* 📌 管理者はすべてのメニューを表示 */}
                         <ul className="mt-6 space-y-2">
-                            <li><Link href="/entry/list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
+                            <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
                             <li><Link href="/shift/manage" className="text-blue-300 hover:underline">マッチング管理</Link></li>
                             <li><Link href="/badge" className="text-blue-300 hover:underline">職員証</Link></li>
                         </ul>
@@ -116,9 +116,9 @@ export default function PortalPage() {
                         <h3 className="text-xl font-semibold mt-4">ふりがな</h3>
                         <p>{userData.last_name_kana} {userData.first_name_kana}</p>
                     </div>
-                </div>
+                </div>                
+                <Footer /> {/* ← フッターをここで表示 */}
             </div>
-            <Footer /> {/* ← フッターをここで表示 */}
         </main>
     )
 }
