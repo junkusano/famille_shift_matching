@@ -20,6 +20,18 @@ export default function Home() {
   return (
 
     <main className="min-h-screen bg-famille text-gray-800 px-4 py-8">
+      {/* 🔷 ナビゲーションバー */}
+      <div className="flex justify-end space-x-4 mb-4 pr-4">
+        {user ? (
+          <>
+            <span className="text-sm text-gray-600">ログイン中: {user.email}</span>
+            <Link href="/portal" className="text-blue-600 underline">ポータル</Link>
+            <button onClick={handleLogout} className="text-blue-600 underline">ログアウト</button>
+          </>
+        ) : (
+          <Link href="/login" className="text-blue-600 underline">ログイン</Link>
+        )}
+      </div>
       <div className="max-w-4xl mx-auto space-y-10">
 
         {/* ロゴと見出し */}
@@ -35,11 +47,7 @@ export default function Home() {
           </a>
           <h1 className="text-3xl sm:text-4xl font-bold text-famille">ファミーユ・ヘルパーサービスへようこそ</h1>
           <p className="text-lg text-gray-700">あなたの働き方に、もっと自由を。</p>
-          {user ? (
-            <p className="text-sm text-gray-600">ログイン中: {user.email}</p>
-          ) : (
-            <a href="/login" className="text-blue-600 underline">ログインはこちら</a>
-          )}
+
         </div>
 
         {/* メインビジュアル */}
