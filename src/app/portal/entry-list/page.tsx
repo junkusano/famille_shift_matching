@@ -44,35 +44,37 @@ export default function EntryListPage() {
     }
 
     return (
-        <div className="p-6">
-            <h2 className="text-xl font-bold mb-4">未登録ユーザーのエントリー一覧</h2>
+        <div className="w-full min-w-0">
+            <div className="p-6">
+                <h2 className="text-xl font-bold mb-4">未登録ユーザーのエントリー一覧</h2>
 
-            {loading ? (
-                <p>読み込み中...</p>
-            ) : entries.length === 0 ? (
-                <p>該当するエントリーはありません。</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300">
-                        <thead>
-                            <tr className="bg-gray-100 text-left">
-                                <th className="border px-2 py-1">氏名</th>
-                                <th className="border px-2 py-1">ふりがな</th>
-                                <th className="border px-2 py-1">登録日</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {entries.map(entry => (
-                                <tr key={entry.id}>
-                                    <td className="border px-2 py-1">{entry.last_name_kanji} {entry.first_name_kanji}</td>
-                                    <td className="border px-2 py-1">{entry.last_name_kana} {entry.first_name_kana}</td>
-                                    <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
+                {loading ? (
+                    <p>読み込み中...</p>
+                ) : entries.length === 0 ? (
+                    <p>該当するエントリーはありません。</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse border border-gray-300">
+                            <thead>
+                                <tr className="bg-gray-100 text-left">
+                                    <th className="border px-2 py-1">氏名</th>
+                                    <th className="border px-2 py-1">ふりがな</th>
+                                    <th className="border px-2 py-1">登録日</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            </thead>
+                            <tbody>
+                                {entries.map(entry => (
+                                    <tr key={entry.id}>
+                                        <td className="border px-2 py-1">{entry.last_name_kanji} {entry.first_name_kanji}</td>
+                                        <td className="border px-2 py-1">{entry.last_name_kana} {entry.first_name_kana}</td>
+                                        <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
