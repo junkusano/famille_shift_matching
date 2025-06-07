@@ -26,7 +26,7 @@ async function getUserRole(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('users')
     .select('system_role')
     .eq('auth_user_id', user.id)
