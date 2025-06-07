@@ -32,30 +32,6 @@ export default function PortalPage() {
                 router.push('/login')
                 return
             }
-            /*
-            const extractGoogleDriveImageUrl = (url: string | null) => {
-                if (!url) return '/default-avatar.png';
-                const match = url.match(/\/file\/d\/([^/]+)\//);
-                if (match && match[1]) {
-                    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-                }
-                return url;  // 変換できないときはそのまま返す
-            }
-            */
-            // users テーブルからロールを取得する処理
-            /*
-            const { data } = await supabase
-                .from('users')
-                .select('system_role')
-                .eq('auth_user_id', user.id)
-                .single()  // 単一のデータを取得
-
-            if (data) {
-                setRole(data.system_role)  // system_role のみ取得して設定
-            } else {
-                setRole('member') // デフォルトのロール
-            }
-            */
 
             // form_entries テーブルからユーザー情報を取得
             const { data: entryData } = await supabase
@@ -76,18 +52,16 @@ export default function PortalPage() {
         <main className="p-6">
             <div className="flex portal-container">
                 {/* サイドバー */}
-                <div className="left-menu flex flex-col justify-between h-full">
+                <div className="left-menu flex flex-col justify-between h-full min-h-screen">
 
                     {/* 上部：ユーザー情報とナビゲーション */}
                     <div>
                         <h2 className="text-xl font-semibold">
                             {userData.last_name_kanji} {userData.first_name_kanji}
                         </h2>
-
                         <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
-
-                        <p className="text-sm text-gray-500 mt-1">
-                            <Link href="/" className="text-blue-600 hover:underline">🏠 Homeへ戻る</Link>
+                        <p className="text-sm text-gray-300 mt-1">
+                            <Link href="/" className="text-blue-300 hover:underline">🏠 Homeへ戻る</Link>
                         </p>
 
                         <div className="mt-4">
@@ -100,31 +74,30 @@ export default function PortalPage() {
                             />
                         </div>
 
+                        {/* 📌 管理者はすべてのメニューを表示 */}
                         <ul className="mt-6 space-y-2">
-                            {role === 'admin' && (
-                                <li><Link href="/entry/list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
-                            )}
-                            {(role === 'admin' || role === 'manager') && (
-                                <li><Link href="/shift/manage" className="text-blue-300 hover:underline">マッチング管理</Link></li>
-                            )}
+                            <li><Link href="/entry/list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
+                            <li><Link href="/shift/manage" className="text-blue-300 hover:underline">マッチング管理</Link></li>
                             <li><Link href="/badge" className="text-blue-300 hover:underline">職員証</Link></li>
                         </ul>
                     </div>
 
                     {/* 下部：ログアウト */}
-                    <div className="mt-6 border-t pt-4">
-                        <hr className="border-gray-600 my-2" /> {/* ← 追加 */}
+                    {/* 下部：ログアウトとHR */}
+                    <div className="pt-4">
+                        {/* 白線2本に調整 */}
+                        <hr className="border-white my-2" />
+                        <hr className="border-white my-2" />
+
                         <button
                             onClick={async () => {
                                 await supabase.auth.signOut();
                                 router.push("/");
                             }}
-                            className="text-sm text-red-500 hover:underline mt-6"
+                            className="text-sm text-red-500 hover:underline"
                         >
-
                             🚪 ログアウト
                         </button>
-                        <hr className="border-gray-600 my-2" /> {/* ← 追加 */}
                     </div>
                 </div>
 
