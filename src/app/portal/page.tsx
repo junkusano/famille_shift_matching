@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import '@/styles/portal.css';  // portal.cssを読み込む
 import Image from 'next/image';  // Image コンポーネントのインポート
 import { useUserRole } from '@/context/RoleContext';
-
+import Link from 'next/link'; // ← 必ず追加
 
 interface UserData {
     last_name_kanji: string;
@@ -83,7 +83,7 @@ export default function PortalPage() {
                         </h2>
                         <p className="text-sm text-gray-600">ユーザー権限: {role}</p>
                         <p className="text-sm text-gray-500 mt-1">
-                            <a href="/" className="text-blue-600 hover:underline">🏠 Homeへ戻る</a>
+                            <Link href="/" className="text-blue-600 hover:underline">🏠 Homeへ戻る</Link>
                         </p>
 
                         <div className="mt-4">
