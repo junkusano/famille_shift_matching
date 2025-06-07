@@ -7,6 +7,8 @@ import '@/styles/portal.css';  // portal.cssを読み込む
 import Image from 'next/image';  // Image コンポーネントのインポート
 import { useUserRole } from '@/context/RoleContext';
 import Link from 'next/link'; // ← 必ず追加
+import Footer from '@/components/Footer'; // ← 追加
+
 
 interface UserData {
     last_name_kanji: string;
@@ -81,7 +83,9 @@ export default function PortalPage() {
                         <h2 className="text-xl font-semibold">
                             {userData.last_name_kanji} {userData.first_name_kanji}
                         </h2>
-                        <p className="text-sm text-gray-600">ユーザー権限: {role}</p>
+
+                        <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
+
                         <p className="text-sm text-gray-500 mt-1">
                             <Link href="/" className="text-blue-600 hover:underline">🏠 Homeへ戻る</Link>
                         </p>
@@ -97,23 +101,30 @@ export default function PortalPage() {
                         </div>
 
                         <ul className="mt-6 space-y-2">
-                            <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
-                            {role === 'admin' && <li><a href="/admin/tools" className="text-blue-600">管理ツール</a></li>}
-                            {role === 'manager' && <li><a href="/shift/manage" className="text-blue-600">シフト管理</a></li>}
+                            {role === 'admin' && (
+                                <li><Link href="/entry/list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
+                            )}
+                            {(role === 'admin' || role === 'manager') && (
+                                <li><Link href="/shift/manage" className="text-blue-300 hover:underline">マッチング管理</Link></li>
+                            )}
+                            <li><Link href="/badge" className="text-blue-300 hover:underline">職員証</Link></li>
                         </ul>
                     </div>
 
                     {/* 下部：ログアウト */}
                     <div className="mt-6 border-t pt-4">
+                        <hr className="border-gray-600 my-2" /> {/* ← 追加 */}
                         <button
                             onClick={async () => {
                                 await supabase.auth.signOut();
                                 router.push("/");
                             }}
-                            className="text-red-600 hover:underline text-sm"
+                            className="text-sm text-red-500 hover:underline mt-6"
                         >
+
                             🚪 ログアウト
                         </button>
+                        <hr className="border-gray-600 my-2" /> {/* ← 追加 */}
                     </div>
                 </div>
 
@@ -124,7 +135,7 @@ export default function PortalPage() {
                         <Image
                             src="/myfamille_logo.png"
                             alt="ファミーユロゴ"
-                            width={80} // ロゴのサイズ
+                            width={100} // ロゴのサイズ
                         //height={15} // ロゴのサイズ
                         />
                         <span className="ml-2">myfamille</span> {/* ロゴと「myfamille」テキストを並べる */}
@@ -139,6 +150,7 @@ export default function PortalPage() {
                     </div>
                 </div>
             </div>
+            <Footer /> {/* ← フッターをここで表示 */}
         </main>
     )
 }

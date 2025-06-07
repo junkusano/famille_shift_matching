@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient"; // supabaseClient を使用
 import type { User } from "@supabase/supabase-js";
+import Footer from '@/components/Footer'; // ← 追加
+
 
 export default function Home() {
 
@@ -107,9 +109,7 @@ export default function Home() {
 
         {/* ボタンエリア：統一デザイン */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center pt-6 items-center">
-          <a href="/entry" className="button button-primary">
-            登録フォームへ進む
-          </a>
+          <Link href="/entry" className="button button-primary">登録フォームへ進む</Link>
           <br />
           <a href="https://www.shi-on.net/recruit" className="button button-primary" target="_blank">
             ファミーユについてもっと知る
@@ -120,9 +120,7 @@ export default function Home() {
           </a>
         </div>
         <br />
-        <footer className="text-sm text-gray-400 text-center pt-10">
-          合同会社施恩｜訪問介護・障害福祉サービス｜愛知県名古屋市・春日井市
-        </footer>
+        <Footer /> {/* ← フッターをここで表示 */}
       </div>
     </main>
   );
