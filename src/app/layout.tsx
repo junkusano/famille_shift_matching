@@ -1,8 +1,9 @@
 import '../styles/globals.css';
-//import './globals.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-
+import { RoleContext } from '@/context/RoleContext';
+import { createSupabaseServerClient } from '@/lib/supabaseServer'; // ✅ こちらに変更
+import React from 'react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,17 +20,34 @@ export const metadata: Metadata = {
   description: 'ファミーユ職員向けの登録・マイページポータルです',
 };
 
-export default function RootLayout({
+async function getUserRole(): Promise<string | null> {
+  const supabase = createSupabaseServerClient(); // ✅ 修正後
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('system_role')
+    .eq('auth_user_id', user.id)
+    .single();
+
+  return data?.system_role || null;
+}
+
+export default async function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const role = await getUserRole();
+
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="ja">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <RoleContext.Provider value={role}>
+          {children}
+        </RoleContext.Provider>
       </body>
     </html>
   );

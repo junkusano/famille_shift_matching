@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import '@/styles/portal.css';  // portal.cssを読み込む
 import Image from 'next/image';  // Image コンポーネントのインポート
+import { useUserRole } from '@/context/RoleContext';
 
 
 interface UserData {
@@ -17,7 +18,8 @@ interface UserData {
 
 export default function PortalPage() {
     const router = useRouter()
-    const [role, setRole] = useState<string | null>(null)
+    //const [role, setRole] = useState<string | null>(null)
+    const role = useUserRole();
     const [userData, setUserData] = useState<UserData | null>(null)  // 型をUserDataに指定
 
     useEffect(() => {
@@ -39,6 +41,7 @@ export default function PortalPage() {
             }
             */
             // users テーブルからロールを取得する処理
+            /*
             const { data } = await supabase
                 .from('users')
                 .select('system_role')
@@ -50,6 +53,7 @@ export default function PortalPage() {
             } else {
                 setRole('member') // デフォルトのロール
             }
+            */
 
             // form_entries テーブルからユーザー情報を取得
             const { data: entryData } = await supabase
