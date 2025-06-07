@@ -28,6 +28,7 @@ export default function PortalPage() {
                 router.push('/login')
                 return
             }
+            /*
             const extractGoogleDriveImageUrl = (url: string | null) => {
                 if (!url) return '/default-avatar.png';
                 const match = url.match(/\/file\/d\/([^/]+)\//);
@@ -36,7 +37,7 @@ export default function PortalPage() {
                 }
                 return url;  // 変換できないときはそのまま返す
             }
-
+            *
             // users テーブルからロールを取得する処理
             const { data } = await supabase
                 .from('users')
