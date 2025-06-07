@@ -37,7 +37,7 @@ export default function PortalPage() {
                 }
                 return url;  // 変換できないときはそのまま返す
             }
-            *
+            */
             // users テーブルからロールを取得する処理
             const { data } = await supabase
                 .from('users')
