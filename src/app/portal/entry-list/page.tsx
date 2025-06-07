@@ -72,32 +72,28 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">住所</th>
                                 <th className="border px-2 py-1">資格</th>
                                 <th className="border px-2 py-1">登録日</th>
+                                <th className="border px-2 py-1"></th>
                             </tr>
                         </thead>
                         <tbody>
                             {entries.map((entry) => {
-                                // 年齢を計算
-                                //const birthDate = new Date(entry.birth_year, entry.birth_month - 1, entry.birth_day);
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
                                         (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                                         ? 1 : 0
                                 );
 
-                                // 住所（都道府県＋市区町村までを表示）
-                                const shortAddress = entry.address?.split(' ').slice(0, 1).join(' ') ?? '';
-
-                                // 資格保持の判定（仮に certifications 配列の有無で判定）
-                                //const hasCert = entry.certifications && entry.certifications.length > 0;
+                                // 市町村以下の住所を抽出（例：春日井市白山町）
+                                const match = entry.address?.match(/(?:県|都|府|道)?(.+?[市区町村])(.+?)$/);
+                                const shortAddress = match ? match[1] + match[2].split(/[０-９0-9\-−ー丁目番地]/)[0] : '―';
 
                                 return (
                                     <tr key={entry.id}>
                                         <td className="border px-2 py-1">
-                                            {entry.last_name_kanji} {entry.first_name_kanji}
-                                            <br />
                                             <span className="text-sm text-gray-500">
-                                                （{entry.last_name_kana} {entry.first_name_kana}）
-                                            </span>
+                                                {entry.last_name_kana} {entry.first_name_kana}
+                                            </span><br />
+                                            {entry.last_name_kanji} {entry.first_name_kanji}
                                         </td>
                                         <td className="border px-2 py-1">{entry.gender ?? '―'}</td>
                                         <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
@@ -108,10 +104,19 @@ export default function EntryListPage() {
                                         <td className="border px-2 py-1">
                                             {new Date(entry.created_at).toLocaleDateString()}
                                         </td>
+                                        <td className="border px-2 py-1">
+                                            <a
+                                                href={`/portal/entry-detail/${entry.id}`}
+                                                className="text-blue-600 underline hover:text-blue-800 text-sm"
+                                            >
+                                                詳細
+                                            </a>
+                                        </td>
                                     </tr>
                                 );
                             })}
                         </tbody>
+
                     </table>
                 </div>
             )}
