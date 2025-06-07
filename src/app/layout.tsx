@@ -1,9 +1,8 @@
+// layout.tsx（layoutは "use client" ではないまま）
 import '../styles/globals.css';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { RoleContext } from '@/context/RoleContext';
-import { createSupabaseServerClient } from '@/lib/supabaseServer'; // ✅ こちらに変更
-import React from 'react';
+import RoleProvider from '@/components/RoleProvider'; // ← 追加
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,35 +19,17 @@ export const metadata: Metadata = {
   description: 'ファミーユ職員向けの登録・マイページポータルです',
 };
 
-async function getUserRole(): Promise<string | null> {
-  const supabase = await createSupabaseServerClient(); // ← ✅ await を追加！
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from('users')
-    .select('system_role')
-    .eq('auth_user_id', user.id)
-    .single();
-
-  return data?.system_role || null;
-}
-
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const role = await getUserRole();
-
   return (
     <html lang="ja">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <RoleContext.Provider value={role}>
+        <RoleProvider>
           {children}
-        </RoleContext.Provider>
+        </RoleProvider>
       </body>
     </html>
   );
