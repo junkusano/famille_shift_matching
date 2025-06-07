@@ -87,8 +87,6 @@ export default function PortalPage() {
                     <div className="pt-4">
                         {/* 白線2本に調整 */}
                         <hr className="border-white my-2" />
-                        <hr className="border-white my-2" />
-
                         <button
                             onClick={async () => {
                                 await supabase.auth.signOut();
@@ -97,7 +95,8 @@ export default function PortalPage() {
                             className="text-sm text-red-500 hover:underline"
                         >
                             🚪 ログアウト
-                        </button>
+                        </button>                        
+                        <hr className="border-white my-2" />
                     </div>
                 </div>
 
@@ -108,13 +107,10 @@ export default function PortalPage() {
                         <Image
                             src="/myfamille_logo.png"
                             alt="ファミーユロゴ"
-                            width={100} // ロゴのサイズ
+                            width={120} // ロゴのサイズ
                         //height={15} // ロゴのサイズ
                         />
-                        <span className="ml-2">myfamille</span> {/* ロゴと「myfamille」テキストを並べる */}
                     </h1>
-                    <p>ユーザー権限：{role}</p>
-
                     <div className="mt-8">
                         <h3 className="text-xl font-semibold">氏名</h3>
                         <p>{userData.last_name_kanji} {userData.first_name_kanji}</p>
