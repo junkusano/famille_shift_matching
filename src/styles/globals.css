@@ -139,3 +139,35 @@ input[type="file"] {
 .section {
   @apply space-y-6 mb-8;
 }
+
+.top-nav {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #444;
+  z-index: 10;
+}
+
+.top-nav-link {
+  color: #1d4ed8; /* 青系 */
+  text-decoration: none;
+  font-weight: 500;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.top-nav-link:hover {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.user-email {
+  font-size: 0.85rem;
+  color: #555;
+}

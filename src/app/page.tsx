@@ -27,17 +27,18 @@ export default function Home() {
 
     <main className="min-h-screen bg-famille text-gray-800 px-4 py-8">
       {/* 🔷 ナビゲーションバー */}
-      <div className="flex justify-end space-x-4 mb-4 pr-4">
+      <div className="absolute top-4 right-4 flex gap-3 items-center text-sm text-gray-700 z-10">
         {user ? (
           <>
-            <span className="text-sm text-gray-600">ログイン中: {user.email}</span>
-            <Link href="/portal" className="text-blue-600 underline">ポータル</Link>
-            <button onClick={handleLogout} className="text-blue-600 underline">ログアウト</button>
+            <span className="text-gray-600">ログイン中: {user.email}</span>
+            <Link href="/portal" className="text-blue-600 hover:underline">ポータル</Link>
+            <button onClick={handleLogout} className="text-blue-600 hover:underline">ログアウト</button>
           </>
         ) : (
-          <Link href="/login" className="text-blue-600 underline">ログイン</Link>
+          <Link href="/login" className="text-blue-600 hover:underline">ログイン</Link>
         )}
       </div>
+
       <div className="max-w-4xl mx-auto space-y-10">
 
         {/* ロゴと見出し */}

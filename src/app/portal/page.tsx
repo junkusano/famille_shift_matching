@@ -74,23 +74,47 @@ export default function PortalPage() {
         <main className="p-6">
             <div className="flex portal-container">
                 {/* サイドバー */}
-                <div className="left-menu">
-                    <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
-                    <p>ユーザー権限: {role}</p>
-                    <div className="mt-4">
-                        <Image
-                            src={userData.photo_url}
-                            width={128}
-                            height={128}
-                            alt="写真"
-                            className="rounded-full object-cover"
-                        />
+                <div className="left-menu flex flex-col justify-between h-full">
+
+                    {/* 上部：ユーザー情報とナビゲーション */}
+                    <div>
+                        <h2 className="text-xl font-semibold">
+                            {userData.last_name_kanji} {userData.first_name_kanji}
+                        </h2>
+                        <p className="text-sm text-gray-600">ユーザー権限: {role}</p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            <a href="/" className="text-blue-600 hover:underline">🏠 Homeへ戻る</a>
+                        </p>
+
+                        <div className="mt-4">
+                            <Image
+                                src={userData.photo_url}
+                                width={128}
+                                height={128}
+                                alt="写真"
+                                className="rounded-full object-cover"
+                            />
+                        </div>
+
+                        <ul className="mt-6 space-y-2">
+                            <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
+                            {role === 'admin' && <li><a href="/admin/tools" className="text-blue-600">管理ツール</a></li>}
+                            {role === 'manager' && <li><a href="/shift/manage" className="text-blue-600">シフト管理</a></li>}
+                        </ul>
                     </div>
-                    <ul className="mt-6">
-                        <li><a href="/entry/list" className="text-blue-600">エントリー一覧</a></li>
-                        {role === 'admin' && <li><a href="/admin/tools" className="text-blue-600">管理ツール</a></li>}
-                        {role === 'manager' && <li><a href="/shift/manage" className="text-blue-600">シフト管理</a></li>}
-                    </ul>
+
+                    {/* 下部：ログアウト */}
+                    <div className="mt-6 border-t pt-4">
+                        <button
+                            onClick={async () => {
+                                await supabase.auth.signOut();
+                                router.push("/");
+                            }}
+                            className="text-red-600 hover:underline text-sm"
+                        >
+                            🚪 ログアウト
+                        </button>
+                    </div>
                 </div>
 
                 {/* メインコンテンツ */}
