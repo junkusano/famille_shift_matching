@@ -6,7 +6,3 @@ export function convertDriveUrlToDirectView(url: string): string {
     }
     return url
 }
-
-
-  
-}
