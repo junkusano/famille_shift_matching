@@ -9,7 +9,6 @@ import { useUserRole } from '@/context/RoleContext';
 import Link from 'next/link'; // ← 必ず追加
 import Footer from '@/components/Footer'; // ← 追加
 
-
 interface UserData {
     last_name_kanji: string;
     first_name_kanji: string;
