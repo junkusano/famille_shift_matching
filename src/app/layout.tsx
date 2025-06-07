@@ -21,12 +21,12 @@ export const metadata: Metadata = {
 };
 
 async function getUserRole(): Promise<string | null> {
-  const supabase = createSupabaseServerClient(); // ✅ 修正後
+  const supabase = await createSupabaseServerClient(); // ← ✅ await を追加！
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('users')
     .select('system_role')
     .eq('auth_user_id', user.id)
@@ -34,6 +34,7 @@ async function getUserRole(): Promise<string | null> {
 
   return data?.system_role || null;
 }
+
 
 export default async function RootLayout({
   children,
