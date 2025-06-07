@@ -1,3 +1,5 @@
+'use client';
+
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient"; // supabaseClient を使用
@@ -15,7 +17,7 @@ export default function Home() {
     };
     fetchUser();
   }, []);
-  
+
   return (
 
     <main className="min-h-screen bg-famille text-gray-800 px-4 py-8">
