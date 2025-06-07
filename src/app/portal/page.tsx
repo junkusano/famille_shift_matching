@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import '@/styles/portal.css';  // portal.cssを読み込む
 import Image from 'next/image';  // Image コンポーネントのインポート
 
+
 interface UserData {
     last_name_kanji: string;
     first_name_kanji: string;
@@ -26,6 +27,14 @@ export default function PortalPage() {
             if (!user) {
                 router.push('/login')
                 return
+            }
+            const extractGoogleDriveImageUrl = (url: string | null) => {
+                if (!url) return '/default-avatar.png';
+                const match = url.match(/\/file\/d\/([^/]+)\//);
+                if (match && match[1]) {
+                    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+                }
+                return url;  // 変換できないときはそのまま返す
             }
 
             // users テーブルからロールを取得する処理
@@ -65,11 +74,11 @@ export default function PortalPage() {
                     <p>ユーザー権限: {role}</p>
                     <div className="mt-4">
                         <Image
-                            alt="User Avatar"
+                            src={userData.photo_url}
                             width={128}
                             height={128}
-                            className="w-32 h-32 rounded-full object-cover"
-                            src={userData.photo_url || '/default-avatar.png'}
+                            alt="写真"
+                            className="rounded-full object-cover"
                         />
                     </div>
                     <ul className="mt-6">

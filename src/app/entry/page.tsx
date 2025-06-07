@@ -7,6 +7,7 @@ import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
 import Link from "next/link"; // 追加
 //import { NextResponse } from "next/server";
+import { convertDriveUrlToDirectView } from "@/lib/drive"
 
 export default function EntryPage() {
 
@@ -114,16 +115,19 @@ export default function EntryPage() {
                 return null;
             }
         }
+
         // --- 各ファイルアップロード ---
-        const licenseFrontUrl = await uploadFile("licenseFront", licenseFront);
-        const licenseBackUrl = await uploadFile("licenseBack", licenseBack);
-        const photoUrl = await uploadFile("photo", photoFile);
-        const residenceCardUrl = await uploadFile("residenceCard", residenceCard);
+        const licenseFrontUrl = convertDriveUrlToDirectView(await uploadFile("licenseFront", licenseFront));
+        const licenseBackUrl = convertDriveUrlToDirectView(await uploadFile("licenseBack", licenseBack));
+        const photoUrl = convertDriveUrlToDirectView(await uploadFile("photo", photoFile));
+        const residenceCardUrl = convertDriveUrlToDirectView(await uploadFile("residenceCard", residenceCard));
+
+        // 資格証明書のURLもすべて変換
         const certificationUrls: string[] = [];
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
             const certUrl = await uploadFile(`certificate_${i}`, certFile);
-            if (certUrl) certificationUrls.push(certUrl);
+            if (certUrl) certificationUrls.push(convertDriveUrlToDirectView(certUrl));
         }
 
         // --- Supabase 登録 ---
