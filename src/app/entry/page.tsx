@@ -173,13 +173,19 @@ export default function EntryPage() {
 
         };
 
+        console.log("🚀 Supabaseへ送信するpayload:", payload);
+
         const { error } = await supabase.from("form_entries").insert([payload]);
+
+        console.log("✅ insert処理終了");
 
         if (error) {
             console.error("送信失敗:", error.message);
             alert("送信に失敗しました");
             return;
         }
+
+        console.log("✅ insert成功！次に進みます");
 
         // --- メール送信 ---
         try {
