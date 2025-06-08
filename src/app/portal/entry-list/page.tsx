@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
+import { getMapLinkFromZip } from '@/lib/getMapLinkFromZip';
 
 interface Certification {
     label: string;
@@ -22,6 +23,7 @@ interface EntryData {
     birth_month: number;
     birth_day: number;
     address: string;
+    googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
     certifications?: Certification[]; // ← 追加（任意）
 }
 
@@ -53,6 +55,24 @@ export default function EntryListPage() {
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
+
+    useEffect(() => {
+        const appendMapLinkToEntries = async () => {
+            const updated = await Promise.all(entries.map(async (entry) => {
+                const zipcode = entry.address.match(/\d{7}/)?.[0];
+                if (zipcode) {
+                    const mapLink = await getMapLinkFromZip(zipcode);
+                    return { ...entry, mapLinkHtml: mapLink };
+                }
+                return { ...entry, mapLinkHtml: '―' };
+            }));
+            setEntries(updated);
+        };
+
+        if (!loading && entries.length > 0) {
+            appendMapLinkToEntries();
+        }
+    }, [loading]);
 
     return (
         <div className="content">
@@ -97,7 +117,9 @@ export default function EntryListPage() {
                                         </td>
                                         <td className="border px-2 py-1">{entry.gender ?? '―'}</td>
                                         <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
-                                        <td className="border px-2 py-1">{shortAddress}</td>
+                                        <td className="border px-2 py-1">
+                                            <span dangerouslySetInnerHTML={{ __html: entry.googleMapLinkHtml }} />
+                                        </td>
                                         <td className="border px-2 py-1">
                                             {entry.certifications && entry.certifications.length > 0 ? 'あり' : 'なし'}
                                         </td>
