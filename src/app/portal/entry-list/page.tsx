@@ -32,6 +32,7 @@ export default function EntryListPage() {
     const [entries, setEntries] = useState<EntryData[]>([]);
     const [loading, setLoading] = useState(true);
     const role = useUserRole();
+    const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -61,26 +62,25 @@ export default function EntryListPage() {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
 
+    // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
-
-
-        const appendMapLinkToEntries = async () => {
+        const addMapLinks = async () => {
             const updated = await Promise.all(entries.map(async (entry) => {
                 const zipcode = entry.address.match(/\d{7}/)?.[0];
                 if (zipcode) {
-                    const mapLink = await getMapLinkFromZip(zipcode);
-                    return { ...entry, googleMapUrl: mapLink };
+                    const url = await getMapLinkFromZip(zipcode);
+                    return { ...entry, googleMapUrl: url };
                 }
                 return { ...entry, googleMapUrl: undefined };
             }));
-            setEntries(updated);
+            setEntriesWithMap(updated);
         };
 
-
-        if (!loading && entries.length > 0) {
-            appendMapLinkToEntries();
+        if (entries.length > 0) {
+            addMapLinks();
         }
-    }, [loading, entries]);
+    }, [entries]);
+
 
     return (
         <div className="content">
@@ -104,7 +104,7 @@ export default function EntryListPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {entries.map((entry) => {
+                            {entriesWithMap.map((entry) => {
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
                                         (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
