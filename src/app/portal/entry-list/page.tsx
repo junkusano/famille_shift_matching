@@ -24,6 +24,7 @@ interface EntryData {
     birth_day: number;
     address: string;
     googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
+    googleMapUrl?: string;  // ← これを追加
     certifications?: Certification[]; // ← 追加（任意）
 }
 
@@ -34,7 +35,11 @@ export default function EntryListPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            if (role !== 'admin') return;
+            // admin 以外でも一応処理されるが早期returnする
+            if (role !== 'admin') {
+                setLoading(false); // ← これも忘れずに
+                return;
+            }
 
             const { data, error } = await supabase
                 .from('form_entries')
@@ -43,33 +48,35 @@ export default function EntryListPage() {
 
             if (error) {
                 console.error("取得エラー:", error.message);
-                return;
+            } else {
+                setEntries(data || []);
             }
 
-            setEntries(data || []);
-            setLoading(false);
+            setLoading(false); // ← 成功でも失敗でも最後に呼ぶ
         };
 
         fetchData();
     }, [role]);
-
 
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
 
     useEffect(() => {
+
+
         const appendMapLinkToEntries = async () => {
             const updated = await Promise.all(entries.map(async (entry) => {
                 const zipcode = entry.address.match(/\d{7}/)?.[0];
                 if (zipcode) {
                     const mapLink = await getMapLinkFromZip(zipcode);
-                    return { ...entry, mapLinkHtml: mapLink };
+                    return { ...entry, googleMapUrl: mapLink };
                 }
-                return { ...entry, mapLinkHtml: '―' };
+                return { ...entry, googleMapUrl: undefined };
             }));
             setEntries(updated);
         };
+
 
         if (!loading && entries.length > 0) {
             appendMapLinkToEntries();
