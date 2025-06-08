@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
 import { getMapLinkFromZip } from '@/lib/getMapLinkFromZip';
+import { getAddressFromZip } from '@/lib/getAddressFromZip';
 
 interface Certification {
     label: string;
     file_url?: string;
 }
-
 
 interface EntryData {
     id: string;
@@ -30,33 +30,13 @@ interface EntryData {
     certifications?: Certification[]; // ← 追加（任意）
 }
 
-
 export default function EntryListPage() {
     const [entries, setEntries] = useState<EntryData[]>([]);
     const [loading, setLoading] = useState(true);
-    const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
+    const [addressCache, setAddressCache] = useState<{ [key: string]: string }>({}); // 住所キャッシュ
 
-    /*
-    useEffect(() => {
-        setEntries([{
-            id: 'dummy',
-            last_name_kanji: '草野',
-            first_name_kanji: '淳',
-            last_name_kana: 'くさの',
-            first_name_kana: 'じゅん',
-            gender: '男性',
-            created_at: new Date().toISOString(),
-            auth_uid: null,
-            birth_year: 1990,
-            birth_month: 1,
-            birth_day: 1,
-            address: '愛知県春日井市味美白山町２－９－２６',
-            postal_code: '4860969',
-            certifications: [],
-        }]);
-    }, []);
-    */
+    const role = useUserRole();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -83,11 +63,7 @@ export default function EntryListPage() {
         fetchData();
     }, [role]);
 
-
-    // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
-        console.log("📦 entries useEffect 発火！entries.length =", entries.length);
-
         const addMapLinks = async () => {
             console.log("🧭 addMapLinks 実行開始");
             const updated = await Promise.all(entries.map(async (entry) => {
@@ -105,17 +81,23 @@ export default function EntryListPage() {
 
         if (entries.length > 0) {
             addMapLinks();
-        } else {
-            console.log("⛔ entries.length が 0 以下なのでスキップ");
         }
     }, [entries]);
 
+    // 住所を非同期に取得してキャッシュに保存
+    const getAddress = async (zipcode: string) => {
+        if (addressCache[zipcode]) {
+            return addressCache[zipcode]; // キャッシュから取得
+        }
 
+        const address = await getAddressFromZip(zipcode);
+        setAddressCache((prev) => ({ ...prev, [zipcode]: address })); // キャッシュに保存
+        return address;
+    };
 
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
-
 
     return (
         <div className="content">
@@ -146,9 +128,7 @@ export default function EntryListPage() {
                                         ? 1 : 0
                                 );
 
-                                // 市町村以下の住所を抽出（例：春日井市白山町）
-                                const match = entry.address?.match(/(?:県|都|府|道)?(.+?[市区町村])(.+?)$/);
-                                const shortAddress = match ? match[1] + match[2].split(/[０-９0-9\-−ー丁目番地]/)[0] : '―';
+                                const shortAddress = getAddress(entry.postal_code || '');
 
                                 return (
                                     <tr key={entry.id}>
@@ -162,8 +142,7 @@ export default function EntryListPage() {
                                         <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
                                         <td className="border px-2 py-1">
                                             <a href={entry.googleMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                                                {shortAddress || '―'}
-                                                {entry.address ? entry.address.split(/[０-９0-9\-−ー丁目番地]/)[0] : '―'}
+                                                {shortAddress}
                                             </a>
                                         </td>
                                         <td className="border px-2 py-1">
@@ -184,7 +163,6 @@ export default function EntryListPage() {
                                 );
                             })}
                         </tbody>
-
                     </table>
                 </div>
             )}
