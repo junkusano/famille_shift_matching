@@ -22,6 +22,7 @@ interface EntryData {
     birth_year: number;
     birth_month: number;
     birth_day: number;
+    postal_code?: string; // ← 追加
     address: string;
     googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
     googleMapUrl?: string;  // ← これを追加
@@ -43,7 +44,7 @@ export default function EntryListPage() {
 
             const { data, error } = await supabase
                 .from('form_entries')
-                .select('id, last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, gender, created_at, auth_uid, birth_year, birth_month, birth_day, address, certifications')
+                .select('id, last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, gender, created_at, auth_uid, birth_year, birth_month, birth_day, address, postal_code, certifications')
                 .is('auth_uid', null);
 
             if (error) {
@@ -62,8 +63,8 @@ export default function EntryListPage() {
     useEffect(() => {
         const addMapLinks = async () => {
             const updated = await Promise.all(entries.map(async (entry) => {
-                const zipcode = entry.address.match(/\d{7}/)?.[0];
-                if (zipcode) {
+                const zipcode = entry.postal_code?.toString().padStart(7, '0');
+                if (zipcode && zipcode.length === 7) {
                     const url = await getMapLinkFromZip(zipcode);
                     return { ...entry, googleMapUrl: url };
                 }
@@ -76,6 +77,7 @@ export default function EntryListPage() {
             addMapLinks();
         }
     }, [entries]);
+
 
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
