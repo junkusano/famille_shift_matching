@@ -23,7 +23,7 @@ export default function PortalPage() {
     //const [role, setRole] = useState<string | null>(null)
     //const role = useUserRole();
     const [userData, setUserData] = useState<UserData | null>(null)  // 型をUserDataに指定
-    
+
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -59,7 +59,7 @@ export default function PortalPage() {
                         src="/myfamille_logo.png"
                         alt="ファミーユロゴ"
                         width={120} // ロゴのサイズ
-                    //height={15} // ロゴのサイズ
+                        height={20} // ロゴのサイズ
                     />
                 </h1>
                 <div className="mt-8">

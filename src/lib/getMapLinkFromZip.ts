@@ -1,5 +1,6 @@
 // lib/getMapLinkFromZip.ts
 export async function getMapLinkFromZip(zipcode: string): Promise<string | undefined> {
+  console.log("🔍 getMapLinkFromZip called with:", zipcode);
   try {
     const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zipcode}`);
     const data = await res.json();

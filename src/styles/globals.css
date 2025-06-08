@@ -2,9 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+
 /* ===============================
    基本カラー・フォント・テーマ
 ================================= */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
