@@ -26,6 +26,7 @@ interface EntryData {
     birth_day: number;
     postal_code?: string; // ← 追加
     address: string;
+    shortAddress?: string;
     googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
     googleMapUrl?: string;  // ← これを追加
     certifications?: Certification[]; // ← 追加（任意）
@@ -37,7 +38,6 @@ export default function EntryListPage() {
     const [loading, setLoading] = useState(true);
     const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
-    const [addressCache, setAddressCache] = useState<{ [key: string]: string }>({}); // 住所キャッシュ
 
     /*
     useEffect(() => {
@@ -92,36 +92,30 @@ export default function EntryListPage() {
 
         const addMapLinks = async () => {
             console.log("🧭 addMapLinks 実行開始");
+
             const updated = await Promise.all(entries.map(async (entry) => {
-                console.log("📫 postal_code:", entry.postal_code);
                 const zipcode = entry.postal_code?.toString().padStart(7, '0');
+                let googleMapUrl: string | undefined = undefined;
+                let shortAddress = '―';
+
                 if (zipcode && zipcode.length === 7) {
-                    const url = await getMapLinkFromZip(zipcode);
-                    return { ...entry, googleMapUrl: url };
+                    googleMapUrl = await getMapLinkFromZip(zipcode);
+                    const address = await getAddressFromZip(zipcode);
+                    if (address) shortAddress = address;
                 }
-                return { ...entry, googleMapUrl: undefined };
+
+                return { ...entry, googleMapUrl, shortAddress };
             }));
 
             setEntriesWithMap(updated);
         };
 
         if (entries.length > 0) {
-            addMapLinks();
+            addMapLinks(); // ← ここで呼び出し
         } else {
             console.log("⛔ entries.length が 0 以下なのでスキップ");
         }
     }, [entries]);
-
-    // 住所を非同期に取得してキャッシュに保存
-    const getAddress = async (zipcode: string) => {
-        if (addressCache[zipcode]) {
-            return addressCache[zipcode]; // キャッシュから取得
-        }
-
-        const address = await getAddressFromZip(zipcode);
-        setAddressCache((prev) => ({ ...prev, [zipcode]: address })); // キャッシュに保存
-        return address;
-    };
 
 
     if (role !== 'admin') {
@@ -158,8 +152,6 @@ export default function EntryListPage() {
                                         ? 1 : 0
                                 );
 
-                                const shortAddress = getAddress(entry.postal_code)
-
                                 return (
                                     <tr key={entry.id}>
                                         <td className="border px-2 py-1">
@@ -172,7 +164,7 @@ export default function EntryListPage() {
                                         <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
                                         <td className="border px-2 py-1">
                                             <a href={entry.googleMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                                                {shortAddress}
+                                                {entry.shortAddress || '―'}
                                             </a>
                                         </td>
                                         <td className="border px-2 py-1">
