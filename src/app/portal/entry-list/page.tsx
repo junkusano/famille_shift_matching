@@ -63,20 +63,31 @@ export default function EntryListPage() {
     useEffect(() => {
         const addMapLinks = async () => {
             const updated = await Promise.all(entries.map(async (entry) => {
+                console.log("✅ entry.id:", entry.id, "postal_code:", entry.postal_code);
+
                 const zipcode = entry.postal_code?.toString().padStart(7, '0');
+
                 if (zipcode && zipcode.length === 7) {
+                    console.log("➡ getMapLinkFromZip 呼び出し:", zipcode);
                     const url = await getMapLinkFromZip(zipcode);
                     return { ...entry, googleMapUrl: url };
                 }
+
+                console.log("❌ 郵便番号なし・不正:", entry.postal_code);
                 return { ...entry, googleMapUrl: undefined };
             }));
+
             setEntriesWithMap(updated);
         };
 
         if (entries.length > 0) {
+            console.log("🚀 entries ready:", entries.length);
             addMapLinks();
+        } else {
+            console.log("🔸 entries 空または未取得");
         }
     }, [entries]);
+
 
 
     if (role !== 'admin') {
