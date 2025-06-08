@@ -20,5 +20,7 @@ export async function getMapLinkFromZip(zipcode: string): Promise<string | undef
 
   return undefined;
   */
+ void zipcode;
+
  return 'https://www.google.com/maps/search/?api=1&query=春日井市味美白山町';
 }
