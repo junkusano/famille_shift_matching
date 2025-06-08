@@ -11,6 +11,7 @@ interface Certification {
     file_url?: string;
 }
 
+
 interface EntryData {
     id: string;
     last_name_kanji: string;
@@ -30,13 +31,34 @@ interface EntryData {
     certifications?: Certification[]; // ← 追加（任意）
 }
 
+
 export default function EntryListPage() {
     const [entries, setEntries] = useState<EntryData[]>([]);
     const [loading, setLoading] = useState(true);
+    const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
     const [addressCache, setAddressCache] = useState<{ [key: string]: string }>({}); // 住所キャッシュ
 
-    const role = useUserRole();
+    /*
+    useEffect(() => {
+        setEntries([{
+            id: 'dummy',
+            last_name_kanji: '草野',
+            first_name_kanji: '淳',
+            last_name_kana: 'くさの',
+            first_name_kana: 'じゅん',
+            gender: '男性',
+            created_at: new Date().toISOString(),
+            auth_uid: null,
+            birth_year: 1990,
+            birth_month: 1,
+            birth_day: 1,
+            address: '愛知県春日井市味美白山町２－９－２６',
+            postal_code: '4860969',
+            certifications: [],
+        }]);
+    }, []);
+    */
 
     useEffect(() => {
         const fetchData = async () => {
@@ -63,7 +85,11 @@ export default function EntryListPage() {
         fetchData();
     }, [role]);
 
+
+    // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
+        console.log("📦 entries useEffect 発火！entries.length =", entries.length);
+
         const addMapLinks = async () => {
             console.log("🧭 addMapLinks 実行開始");
             const updated = await Promise.all(entries.map(async (entry) => {
@@ -81,6 +107,8 @@ export default function EntryListPage() {
 
         if (entries.length > 0) {
             addMapLinks();
+        } else {
+            console.log("⛔ entries.length が 0 以下なのでスキップ");
         }
     }, [entries]);
 
@@ -95,9 +123,11 @@ export default function EntryListPage() {
         return address;
     };
 
+
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
+
 
     return (
         <div className="content">
@@ -128,7 +158,7 @@ export default function EntryListPage() {
                                         ? 1 : 0
                                 );
 
-                                const shortAddress = getAddress(entry.postal_code || '');
+                                const shortAddress = getAddressFromZip(entry.postal_code)
 
                                 return (
                                     <tr key={entry.id}>
@@ -163,6 +193,7 @@ export default function EntryListPage() {
                                 );
                             })}
                         </tbody>
+
                     </table>
                 </div>
             )}
