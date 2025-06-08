@@ -37,6 +37,7 @@ export default function EntryListPage() {
     const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
 
+    /*
     useEffect(() => {
         setEntries([{
             id: 'dummy',
@@ -55,7 +56,7 @@ export default function EntryListPage() {
             certifications: [],
         }]);
     }, []);
-
+    */
 
     useEffect(() => {
         const fetchData = async () => {
