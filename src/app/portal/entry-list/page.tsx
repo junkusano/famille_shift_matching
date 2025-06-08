@@ -35,9 +35,8 @@ export default function EntryListPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            // admin 以外でも一応処理されるが早期returnする
             if (role !== 'admin') {
-                setLoading(false); // ← これも忘れずに
+                setLoading(false); // ← 中で制御するのはOK
                 return;
             }
 
@@ -52,10 +51,10 @@ export default function EntryListPage() {
                 setEntries(data || []);
             }
 
-            setLoading(false); // ← 成功でも失敗でも最後に呼ぶ
+            setLoading(false);
         };
 
-        fetchData();
+        fetchData(); // フックの外で定義した関数を常に実行する
     }, [role]);
 
     if (role !== 'admin') {
