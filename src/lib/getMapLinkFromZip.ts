@@ -1,6 +1,5 @@
 // lib/getMapLinkFromZip.ts
 export async function getMapLinkFromZip(zipcode: string): Promise<string | undefined> {
-  /*
   console.log("🔍 getMapLinkFromZip called with:", zipcode);
   try {
     const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zipcode}`);
@@ -19,8 +18,9 @@ export async function getMapLinkFromZip(zipcode: string): Promise<string | undef
   }
 
   return undefined;
+  /*
+  void zipcode;
+ 
+  return 'https://www.google.com/maps/search/?api=1&query=春日井市味美白山町';
   */
- void zipcode;
-
- return 'https://www.google.com/maps/search/?api=1&query=春日井市味美白山町';
 }
