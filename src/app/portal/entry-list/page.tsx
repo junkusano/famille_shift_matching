@@ -163,6 +163,7 @@ export default function EntryListPage() {
                                         <td className="border px-2 py-1">
                                             <a href={entry.googleMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                                                 {shortAddress || '―'}
+                                                {entry.address ? entry.address.split(/[０-９0-9\-−ー丁目番地]/)[0] : '―'}
                                             </a>
                                         </td>
                                         <td className="border px-2 py-1">
