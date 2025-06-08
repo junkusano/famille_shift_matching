@@ -58,10 +58,6 @@ export default function EntryListPage() {
         fetchData(); // フックの外で定義した関数を常に実行する
     }, [role]);
 
-    if (role !== 'admin') {
-        return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
-    }
-
     // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
         const addMapLinks = async () => {
@@ -80,6 +76,10 @@ export default function EntryListPage() {
             addMapLinks();
         }
     }, [entries]);
+
+    if (role !== 'admin') {
+        return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
+    }
 
 
     return (
