@@ -38,7 +38,7 @@ export default function EntryListPage() {
     useEffect(() => {
         const fetchData = async () => {
             if (role !== 'admin') {
-                setLoading(false); // ← 中で制御するのはOK
+                setLoading(false);
                 return;
             }
 
@@ -48,32 +48,32 @@ export default function EntryListPage() {
                 .is('auth_uid', null);
 
             if (error) {
-                console.error("取得エラー:", error.message);
+                console.error("❌ Supabase取得エラー:", error.message);
             } else {
+                console.log("✅ Supabaseデータ取得成功:", data);
                 setEntries(data || []);
             }
 
             setLoading(false);
         };
 
-        fetchData(); // フックの外で定義した関数を常に実行する
+        fetchData();
     }, [role]);
+
 
     // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
+        console.log("📦 entries useEffect 発火！entries.length =", entries.length);
+
         const addMapLinks = async () => {
+            console.log("🧭 addMapLinks 実行開始");
             const updated = await Promise.all(entries.map(async (entry) => {
-                console.log("✅ entry.id:", entry.id, "postal_code:", entry.postal_code);
-
+                console.log("📫 postal_code:", entry.postal_code);
                 const zipcode = entry.postal_code?.toString().padStart(7, '0');
-
                 if (zipcode && zipcode.length === 7) {
-                    console.log("➡ getMapLinkFromZip 呼び出し:", zipcode);
                     const url = await getMapLinkFromZip(zipcode);
                     return { ...entry, googleMapUrl: url };
                 }
-
-                console.log("❌ 郵便番号なし・不正:", entry.postal_code);
                 return { ...entry, googleMapUrl: undefined };
             }));
 
@@ -81,10 +81,9 @@ export default function EntryListPage() {
         };
 
         if (entries.length > 0) {
-            console.log("🚀 entries ready:", entries.length);
             addMapLinks();
         } else {
-            console.log("🔸 entries 空または未取得");
+            console.log("⛔ entries.length が 0 以下なのでスキップ");
         }
     }, [entries]);
 
