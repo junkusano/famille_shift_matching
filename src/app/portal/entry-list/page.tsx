@@ -10,6 +10,7 @@ interface Certification {
     file_url?: string;
 }
 
+
 interface EntryData {
     id: string;
     last_name_kanji: string;
@@ -29,11 +30,32 @@ interface EntryData {
     certifications?: Certification[]; // ← 追加（任意）
 }
 
+
 export default function EntryListPage() {
     const [entries, setEntries] = useState<EntryData[]>([]);
     const [loading, setLoading] = useState(true);
     const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
+
+    useEffect(() => {
+        setEntries([{
+            id: 'dummy',
+            last_name_kanji: '草野',
+            first_name_kanji: '淳',
+            last_name_kana: 'くさの',
+            first_name_kana: 'じゅん',
+            gender: '男性',
+            created_at: new Date().toISOString(),
+            auth_uid: null,
+            birth_year: 1990,
+            birth_month: 1,
+            birth_day: 1,
+            address: '愛知県春日井市味美白山町２－９－２６',
+            postal_code: '4860969',
+            certifications: [],
+        }]);
+    }, []);
+
 
     useEffect(() => {
         const fetchData = async () => {
