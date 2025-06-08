@@ -158,7 +158,7 @@ export default function EntryListPage() {
                                         ? 1 : 0
                                 );
 
-                                const shortAddress = getAddressFromZip(entry.postal_code)
+                                const shortAddress = getAddress(entry.postal_code)
 
                                 return (
                                     <tr key={entry.id}>
