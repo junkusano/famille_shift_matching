@@ -49,8 +49,10 @@ export default function EntryListPage() {
             setEntries(data || []);
             setLoading(false);
         };
+
         fetchData();
     }, [role]);
+
 
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
@@ -72,7 +74,7 @@ export default function EntryListPage() {
         if (!loading && entries.length > 0) {
             appendMapLinkToEntries();
         }
-    }, [loading]);
+    }, [loading, entries]);
 
     return (
         <div className="content">
@@ -118,7 +120,9 @@ export default function EntryListPage() {
                                         <td className="border px-2 py-1">{entry.gender ?? '―'}</td>
                                         <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
                                         <td className="border px-2 py-1">
-                                            <span dangerouslySetInnerHTML={{ __html: entry.googleMapLinkHtml }} />
+                                            <a href={entry.googleMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                                                {shortAddress || '―'}
+                                            </a>
                                         </td>
                                         <td className="border px-2 py-1">
                                             {entry.certifications && entry.certifications.length > 0 ? 'あり' : 'なし'}
