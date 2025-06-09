@@ -10,6 +10,9 @@ export async function POST(req: Request) {
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
       <tbody>
         <tr><td><strong>氏名</strong></td><td>${body.applicantName}</td></tr>
+        <tr><td><strong>ふりがな</strong></td><td>${body.applicantKana}</td></tr>
+        <tr><td><strong>性別</strong></td><td>${body.gender}</td></tr>
+        <tr><td><strong>年齢</strong></td><td>${body.age}歳</td></tr> 
         <tr><td><strong>メールアドレス</strong></td><td>${body.email}</td></tr>
         <tr><td><strong>電話番号</strong></td><td>${body.phone}</td></tr>
         <tr><td><strong>郵便番号</strong></td><td>${body.postal_code}</td></tr>
@@ -25,11 +28,11 @@ export async function POST(req: Request) {
           <td><strong>資格証明書</strong></td>
           <td>
             ${Array.isArray(body.certification_urls) && body.certification_urls.length > 0
-              ? body.certification_urls
-                  .map((url, index) => `<div>・<a href="${url}" target="_blank">証明書${index + 1}</a></div>`)
-                  .join("")
-              : "アップロードなし"
-            }
+      ? body.certification_urls
+        .map((url, index) => `<div>・<a href="${url}" target="_blank">証明書${index + 1}</a></div>`)
+        .join("")
+      : "アップロードなし"
+    }
           </td>
         </tr>
       </tbody>

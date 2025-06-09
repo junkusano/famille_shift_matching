@@ -61,7 +61,7 @@ export default function EntryPage() {
         const requiredFields = [
             "lastNameKanji", "firstNameKanji", "lastNameKana", "firstNameKana",
             "birthYear", "birthMonth", "birthDay", "postalCode", "address",
-            "phone", "email", "motivation", "healthCondition"
+            "phone", "email", "motivation", "healthCondition", "gender"
         ];
 
         for (const name of requiredFields) {
@@ -150,6 +150,7 @@ export default function EntryPage() {
             birth_year: form.get("birthYear"),
             birth_month: form.get("birthMonth"),
             birth_day: form.get("birthDay"),
+            gender: form.get("gender"), // ← 追加
             motivation: form.get("motivation"),
             workstyle_other: form.get("workStyleOther"),
             commute_options: form.getAll("commute") as string[],
@@ -198,6 +199,21 @@ export default function EntryPage() {
 
         console.log("✅ insert成功！次に進みます");
 
+
+        // 年齢の算出
+        const birthYear = Number(form.get("birthYear"));
+        const birthMonth = Number(form.get("birthMonth"));
+        const birthDay = Number(form.get("birthDay"));
+
+        const today = new Date();
+        let age = today.getFullYear() - birthYear;
+        if (
+            today.getMonth() + 1 < birthMonth ||
+            (today.getMonth() + 1 === birthMonth && today.getDate() < birthDay)
+        ) {
+            age--;
+        }
+
         // --- メール送信 ---
         try {
             const res = await fetch("/api/send-email", {
@@ -205,6 +221,9 @@ export default function EntryPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     applicantName: `${form.get("lastNameKanji")} ${form.get("firstNameKanji")}`,
+                    applicantKana: `${form.get("lastNameKana")} ${form.get("firstNameKana")}`, // ← NEW
+                    age: age, // ← NEW
+                    gender: form.get("gender"), // ← NEW
                     email: form.get("email"),
                     phone: form.get("phone"),
                     postal_code: postalCode,
@@ -303,6 +322,24 @@ export default function EntryPage() {
                                     <input type="number" name="birthDay" placeholder="日（例：23）" className="w-1/3 border rounded p-2" required />
                                 </div>
                             </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium">性別（戸籍上）<span className="text-red-500">*</span></label>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center text-sm">
+                                        <input type="radio" name="gender" value="男性" required className="mr-2" />
+                                        男性
+                                    </label>
+                                    <label className="flex items-center text-sm">
+                                        <input type="radio" name="gender" value="女性" required className="mr-2" />
+                                        女性
+                                    </label>
+                                </div>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    ※介護サービス提供における<strong>同性介助の法令上の要件</strong>を満たすため、<br />
+                                    <strong>戸籍上の性別</strong>をご申告いただいております。内部での性別表記・表示は一切行いません。
+                                </p>
+                            </div>
+
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700">
                                     郵便番号 <span className="text-red-500">*</span>
