@@ -29,9 +29,6 @@ interface EntryData {
     googleMapLinkHtml?: string;
     googleMapUrl?: string;
     certifications?: Certification[];
-    user_status: {
-        label: string;  // これが単一のオブジェクトであることを保証
-    };
 }
 
 export default function EntryListPage() {
@@ -64,9 +61,6 @@ export default function EntryListPage() {
                 address,
                 postal_code,
                 certifications,
-                user_status: user_status_master (
-                    label
-                )
             `)
                 .is('auth_uid', null);
 
@@ -76,12 +70,15 @@ export default function EntryListPage() {
                 console.log("✅ Supabaseデータ取得成功:", data);
 
                 // user_status を配列から最初の要素を取得して単一オブジェクトに変換
+                /*
                 const updatedData = data?.map(entry => ({
                     ...entry,
                     user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
                 }));
+                
 
                 setEntries(updatedData || []); // 修正後のデータをセット
+                */
             }
 
             setLoading(false);
@@ -148,7 +145,6 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">住所</th>
                                 <th className="border px-2 py-1">資格</th>
                                 <th className="border px-2 py-1">登録日</th>
-                                <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1"></th>
                             </tr>
                         </thead>
@@ -180,11 +176,6 @@ export default function EntryListPage() {
                                         </td>
                                         <td className="border px-2 py-1">
                                             {new Date(entry.created_at).toLocaleDateString()}
-                                        </td>
-                                        <td className="border px-2 py-1">
-                                            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                                                {entry.user_status?.label ?? '未設定'}
-                                            </span>
                                         </td>
                                         <td className="border px-2 py-1">
                                             <a
