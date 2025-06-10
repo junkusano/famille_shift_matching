@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import Image from 'next/image';
+//import Image from 'next/image';
 
 interface Certification {
     label: string;
