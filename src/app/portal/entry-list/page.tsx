@@ -60,7 +60,7 @@ export default function EntryListPage() {
                 birth_day,
                 address,
                 postal_code,
-                certifications,
+                certifications
             `)
                 .is('auth_uid', null);
 
@@ -68,26 +68,14 @@ export default function EntryListPage() {
                 console.error("❌ Supabase取得エラー:", error.message);
             } else {
                 console.log("✅ Supabaseデータ取得成功:", data);
-
-                // user_status を配列から最初の要素を取得して単一オブジェクトに変換
-                /*
-                const updatedData = data?.map(entry => ({
-                    ...entry,
-                    user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
-                }));
-                
-
-                setEntries(updatedData || []); // 修正後のデータをセット
-                */
+                setEntries(data || []);
             }
 
             setLoading(false);
         };
 
-        fetchData(); // fetchData関数の呼び出し
-    }, [role]); // useEffectの依存配列
-
-
+        fetchData();
+    }, [role]);
 
 
     // 2. マップリンク付加用 useEffect（entries に依存）
