@@ -99,15 +99,15 @@ export default function EntryDetailPage() {
             <div className="space-y-4">
                 <h2 className="text-lg font-semibold">アップロード画像</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <FileEmbed
+                    <FileThumbnail
                         title="免許証（表）"
                         src={entry.license_front_url}
                     />
-                    <FileEmbed
+                    <FileThumbnail
                         title="免許証（裏）"
                         src={entry.license_back_url}
                     />
-                    <FileEmbed
+                    <FileThumbnail
                         title="住民票"
                         src={entry.residence_card_url}
                     />
@@ -120,7 +120,7 @@ export default function EntryDetailPage() {
                     <h2 className="text-lg font-semibold">資格証明書</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {entry.certifications?.map((cert, idx) => (
-                            <FileEmbed key={idx} title={cert.label} src={cert.url} />
+                            <FileThumbnail key={idx} title={cert.label} src={cert.url} />
                         ))}
                     </div>
                 </div>
@@ -129,84 +129,41 @@ export default function EntryDetailPage() {
     );
 }
 
-/*
-function FileThumbnail({ title, src, imageOnly = false }: { title: string; src?: string; imageOnly?: boolean }) {
-    const [imgError, setImgError] = useState(false);
+function FileThumbnail({ title, src }: { title: string; src?: string }) {
+  const [imgError, setImgError] = useState(false);
 
-    if (!src) {
-        return <div className="text-sm text-center text-gray-400 border border-dashed rounded py-4">画像なし</div>;
-    }
+  if (!src) {
+    return <div className="text-sm text-center text-gray-400 border border-dashed rounded py-4">画像なし</div>;
+  }
 
-    // 顔写真は画像のみ許可
-    if (imageOnly) {
-        return (
-            <div className="text-sm text-center">
-                <p className="mb-1">{title}</p>
-                {imgError ? (
-                    <div className="text-red-500">画像ファイル以外は対応していません</div>
-                ) : (
-                    <img
-                        src={src}
-                        alt={title}
-                        className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
-                        onError={() => setImgError(true)}
-                    />
-                )}
-            </div>
-        );
-    }
-
-    // 画像またはPDF可
-    if (imgError || title.toLowerCase().includes('.pdf')) {
-        return (
-            <div className="text-sm text-center">
-                <p className="mb-1">{title}</p>
-                <a
-                    href={src}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
-                >
-                    📄 PDF/ファイルを開く
-                </a>
-            </div>
-        );
-    }
-
-    // 画像として表示
+  // 画像読み込み成功なら表示
+  if (!imgError) {
     return (
-        <div className="text-sm text-center">
-            <p className="mb-1">{title}</p>
-            <a href={src} target="_blank" rel="noopener noreferrer">
-                <img
-                    src={src}
-                    alt={title}
-                    className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
-                    onError={() => setImgError(true)}
-                />
-            </a>
+      <div className="text-sm text-center">
+        <p className="mb-1">{title}</p>
+        <img
+          src={src}
+          alt={title}
+          className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
+          onError={() => setImgError(true)}
+        />
+        {/* PDFボタンも常に表示してもいい（オプション） */}
+        <div className="mt-2">
+          <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+            PDF/ファイルとして開く
+          </a>
         </div>
+      </div>
     );
-}
-*/
+  }
 
-// PDF or 画像の両対応
-function FileEmbed({ src, title }: { src?: string; title: string }) {
-    if (!src) return <div>画像なし</div>;
-    return (
-        <div className="text-sm text-center">
-            <p className="mb-1">{title}</p>
-            <embed
-                src={src}
-                type="" // PDFなら"application/pdf"、画像なら"image/jpeg"など指定してもOK
-                className="w-full max-h-72 border rounded"
-                style={{ minHeight: 200 }}
-            />
-            <div className="mt-2">
-                <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                    新しいタブで開く
-                </a>
-            </div>
-        </div>
-    );
+  // 画像として読み込めなかった場合
+  return (
+    <div className="text-sm text-center">
+      <p className="mb-1">{title}</p>
+      <a href={src} target="_blank" rel="noopener noreferrer" className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200">
+        📄 PDF/ファイルを開く
+      </a>
+    </div>
+  );
 }
