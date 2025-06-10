@@ -11,7 +11,6 @@ interface Certification {
     file_url?: string;
 }
 
-
 interface EntryData {
     id: string;
     last_name_kanji: string;
@@ -24,17 +23,16 @@ interface EntryData {
     birth_year: number;
     birth_month: number;
     birth_day: number;
-    postal_code?: string; // ← 追加
+    postal_code?: string;
     address: string;
     shortAddress?: string;
-    googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
-    googleMapUrl?: string;  // ← これを追加
-    certifications?: Certification[]; // ← 追加（任意）
+    googleMapLinkHtml?: string;
+    googleMapUrl?: string;
+    certifications?: Certification[];
     user_status: {
-        label: string;
+        label: string;  // これが単一のオブジェクトであることを保証
     };
 }
-
 
 export default function EntryListPage() {
     const [entries, setEntries] = useState<EntryData[]>([]);
@@ -52,31 +50,38 @@ export default function EntryListPage() {
             const { data, error } = await supabase
                 .from('form_entries')
                 .select(`
-                    id,
-                    last_name_kanji,
-                    first_name_kanji,
-                    last_name_kana,
-                    first_name_kana,
-                    gender,
-                    created_at,
-                    auth_uid,
-                    birth_year,
-                    birth_month,
-                    birth_day,
-                    address,
-                    postal_code,
-                    certifications,
-                    user_status: user_status_master (
+                id,
+                last_name_kanji,
+                first_name_kanji,
+                last_name_kana,
+                first_name_kana,
+                gender,
+                created_at,
+                auth_uid,
+                birth_year,
+                birth_month,
+                birth_day,
+                address,
+                postal_code,
+                certifications,
+                user_status: user_status_master (
                     label
-                    )
-                `)
+                )
+            `)
                 .is('auth_uid', null);
 
             if (error) {
                 console.error("❌ Supabase取得エラー:", error.message);
             } else {
                 console.log("✅ Supabaseデータ取得成功:", data);
-                setEntries(data || []);
+
+                // user_status を配列から最初の要素を取得して単一オブジェクトに変換
+                const updatedData = data?.map(entry => ({
+                    ...entry,
+                    user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
+                }));
+
+                setEntries(updatedData || []); // 修正後のデータをセット
             }
 
             setLoading(false);
@@ -84,6 +89,7 @@ export default function EntryListPage() {
 
         fetchData();
     }, [role]);
+
 
 
     // 2. マップリンク付加用 useEffect（entries に依存）
