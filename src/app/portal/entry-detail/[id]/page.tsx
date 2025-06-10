@@ -2,9 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-//import Image from 'next/image';
 
 interface Certification {
   label: string;
@@ -37,6 +36,7 @@ interface EntryDetail {
 
 export default function EntryDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [entry, setEntry] = useState<EntryDetail | null>(null);
 
   useEffect(() => {
@@ -60,7 +60,24 @@ export default function EntryDetailPage() {
   if (!entry) return <p className="p-4">読み込み中...</p>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-4">
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
+      <button
+        onClick={() => router.back()}
+        className="text-blue-600 underline text-sm hover:text-blue-800"
+      >
+        ← 一覧に戻る
+      </button>
+
+      {entry.photo_url && (
+        <div className="text-center">
+          <img
+            src={entry.photo_url}
+            alt="顔写真"
+            className="inline-block h-40 w-40 rounded-full border object-cover shadow"
+          />
+        </div>
+      )}
+
       <h1 className="text-2xl font-bold">エントリー詳細</h1>
       <div className="grid md:grid-cols-2 gap-4">
         <div><strong>氏名（漢字）:</strong> {entry.last_name_kanji} {entry.first_name_kanji}</div>
@@ -76,11 +93,9 @@ export default function EntryDetailPage() {
         </div>
       </div>
 
-      {/* 画像類 */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">アップロード画像</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {entry.photo_url && <ImageThumbnail title="顔写真" src={entry.photo_url} />}
           {entry.license_front_url && <ImageThumbnail title="免許証（表）" src={entry.license_front_url} />}
           {entry.license_back_url && <ImageThumbnail title="免許証（裏）" src={entry.license_back_url} />}
           {entry.residence_card_url && <ImageThumbnail title="住民票" src={entry.residence_card_url} />}
