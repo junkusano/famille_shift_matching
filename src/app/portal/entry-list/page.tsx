@@ -160,7 +160,14 @@ export default function EntryListPage() {
                                             </a>
                                         </td>
                                         <td className="border px-2 py-1">
-                                            {entry.certifications && entry.certifications.length > 0 ? 'あり' : 'なし'}
+                                            {Array.isArray((entry as any).attachments) &&
+                                                (entry as any).attachments.some(
+                                                    (item: any) => (item.label && item.label.startsWith("certificate_")) ||
+                                                        (item.type && item.type.includes("資格証"))
+                                                )
+                                                ? 'あり'
+                                                : 'なし'
+                                            }
                                         </td>
                                         <td className="border px-2 py-1">
                                             {new Date(entry.created_at).toLocaleDateString()}
