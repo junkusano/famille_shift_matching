@@ -139,7 +139,7 @@ export default function EntryDetailPage() {
 
 // 画像表示＋PDFボタン（従来どおり）
 function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
-  const [imgError, setImgError] = useState(false);
+  //const [imgError, setImgError] = useState(false);
 
   // PDF判定
   const isPdf = mimeType === "application/pdf" ||
