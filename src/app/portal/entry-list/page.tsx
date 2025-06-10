@@ -36,6 +36,7 @@ interface EntryData {
     googleMapLinkHtml?: string;
     googleMapUrl?: string;
     certifications?: Certification[];
+    attachments?: Attachment[];
 }
 
 export default function EntryListPage() {
