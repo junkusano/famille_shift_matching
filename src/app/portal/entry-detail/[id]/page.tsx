@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-//import Image from 'next/image';
+import Image from 'next/image';
 
 interface Certification {
     label: string;
@@ -71,9 +71,12 @@ export default function EntryDetailPage() {
 
             {entry.photo_url && (
                 <div className="text-center">
-                    <FileThumbnail
+                    <Image
                         src={entry.photo_url}
-                        title="顔写真"
+                        alt="顔写真"
+                        width={160}
+                        height={160}
+                        className="inline-block h-40 w-40 rounded-full border object-cover shadow"
                     />
                 </div>
             )}
@@ -96,15 +99,15 @@ export default function EntryDetailPage() {
             <div className="space-y-4">
                 <h2 className="text-lg font-semibold">アップロード画像</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <FileThumbnail
+                    <FileEmbed
                         title="免許証（表）"
                         src={entry.license_front_url}
                     />
-                    <FileThumbnail
+                    <FileEmbed
                         title="免許証（裏）"
                         src={entry.license_back_url}
                     />
-                    <FileThumbnail
+                    <FileEmbed
                         title="住民票"
                         src={entry.residence_card_url}
                     />
@@ -117,7 +120,7 @@ export default function EntryDetailPage() {
                     <h2 className="text-lg font-semibold">資格証明書</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {entry.certifications?.map((cert, idx) => (
-                            <FileThumbnail key={idx} title={cert.label} src={cert.url} />
+                            <FileEmbed key={idx} title={cert.label} src={cert.url} />
                         ))}
                     </div>
                 </div>
@@ -126,6 +129,7 @@ export default function EntryDetailPage() {
     );
 }
 
+/*
 function FileThumbnail({ title, src, imageOnly = false }: { title: string; src?: string; imageOnly?: boolean }) {
     const [imgError, setImgError] = useState(false);
 
@@ -181,6 +185,28 @@ function FileThumbnail({ title, src, imageOnly = false }: { title: string; src?:
                     onError={() => setImgError(true)}
                 />
             </a>
+        </div>
+    );
+}
+*/
+
+// PDF or 画像の両対応
+function FileEmbed({ src, title }: { src?: string; title: string }) {
+    if (!src) return <div>画像なし</div>;
+    return (
+        <div className="text-sm text-center">
+            <p className="mb-1">{title}</p>
+            <embed
+                src={src}
+                type="" // PDFなら"application/pdf"、画像なら"image/jpeg"など指定してもOK
+                className="w-full max-h-72 border rounded"
+                style={{ minHeight: 200 }}
+            />
+            <div className="mt-2">
+                <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                    新しいタブで開く
+                </a>
+            </div>
         </div>
     );
 }
