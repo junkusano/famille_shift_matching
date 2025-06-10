@@ -126,7 +126,7 @@ export default function EntryDetailPage() {
     );
 }
 
-export function FileThumbnail({ title, src, imageOnly = false }: { title: string; src?: string; imageOnly?: boolean }) {
+function FileThumbnail({ title, src, imageOnly = false }: { title: string; src?: string; imageOnly?: boolean }) {
     const [imgError, setImgError] = useState(false);
 
     if (!src) {
