@@ -145,7 +145,7 @@ function ImageThumbnail({ title, src }: { title: string; src: string }) {
         <Image
           src={src}
           alt={title}
-          width={320}         // 幅（px）任意。縦横比維持したい場合はmax-h指定OK
+          width={320}    // 実際の画像幅に合わせて調整OK
           height={192}
           className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
         />
