@@ -335,8 +335,7 @@ export default function EntryPage() {
                                     </label>
                                 </div>
                                 <p className="text-xs text-gray-600 mt-1">
-                                    ※介護サービス提供における<strong>同性介助の法令上の要件</strong>を満たすため、<br />
-                                    <strong>戸籍上の性別</strong>をご申告いただいております。内部での性別表記・表示は一切行いません。
+                                    ※介護サービス提供における<strong>同性介助の必要性、また職員個人の健康管理（検診等）の管理</strong>のため、<strong>戸籍上の性別</strong>をご申告いただいております。事業所内で職員の性別を広域に表示するものはございません
                                 </p>
                             </div>
 

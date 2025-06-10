@@ -30,6 +30,9 @@ interface EntryData {
     googleMapLinkHtml?: string; // ← HTMLリンク文字列として追加
     googleMapUrl?: string;  // ← これを追加
     certifications?: Certification[]; // ← 追加（任意）
+    user_status: {
+        label: string;
+    };
 }
 
 
@@ -38,27 +41,6 @@ export default function EntryListPage() {
     const [loading, setLoading] = useState(true);
     const role = useUserRole();
     const [entriesWithMap, setEntriesWithMap] = useState<EntryData[]>([]);
-
-    /*
-    useEffect(() => {
-        setEntries([{
-            id: 'dummy',
-            last_name_kanji: '草野',
-            first_name_kanji: '淳',
-            last_name_kana: 'くさの',
-            first_name_kana: 'じゅん',
-            gender: '男性',
-            created_at: new Date().toISOString(),
-            auth_uid: null,
-            birth_year: 1990,
-            birth_month: 1,
-            birth_day: 1,
-            address: '愛知県春日井市味美白山町２－９－２６',
-            postal_code: '4860969',
-            certifications: [],
-        }]);
-    }, []);
-    */
 
     useEffect(() => {
         const fetchData = async () => {
@@ -69,7 +51,25 @@ export default function EntryListPage() {
 
             const { data, error } = await supabase
                 .from('form_entries')
-                .select('id, last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, gender, created_at, auth_uid, birth_year, birth_month, birth_day, address, postal_code, certifications')
+                .select(`
+                    id,
+                    last_name_kanji,
+                    first_name_kanji,
+                    last_name_kana,
+                    first_name_kana,
+                    gender,
+                    created_at,
+                    auth_uid,
+                    birth_year,
+                    birth_month,
+                    birth_day,
+                    address,
+                    postal_code,
+                    certifications,
+                    user_status: user_status_master (
+                    label
+                    )
+                `)
                 .is('auth_uid', null);
 
             if (error) {
@@ -141,6 +141,7 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">住所</th>
                                 <th className="border px-2 py-1">資格</th>
                                 <th className="border px-2 py-1">登録日</th>
+                                <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1"></th>
                             </tr>
                         </thead>
@@ -172,6 +173,11 @@ export default function EntryListPage() {
                                         </td>
                                         <td className="border px-2 py-1">
                                             {new Date(entry.created_at).toLocaleDateString()}
+                                        </td>
+                                        <td className="border px-2 py-1">
+                                            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                                                {entry.user_status?.label ?? '未設定'}
+                                            </span>
                                         </td>
                                         <td className="border px-2 py-1">
                                             <a
