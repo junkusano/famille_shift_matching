@@ -11,6 +11,13 @@ interface Certification {
     file_url?: string;
 }
 
+interface Attachment {
+    url: string | null;
+    type?: string;
+    label?: string;
+    mimeType?: string | null;
+}
+
 interface EntryData {
     id: string;
     last_name_kanji: string;
@@ -160,15 +167,17 @@ export default function EntryListPage() {
                                             </a>
                                         </td>
                                         <td className="border px-2 py-1">
-                                            {Array.isArray((entry as any).attachments) &&
-                                                (entry as any).attachments.some(
-                                                    (item: any) => (item.label && item.label.startsWith("certificate_")) ||
+                                            {Array.isArray(entry.attachments) &&
+                                                entry.attachments.some(
+                                                    (item) =>
+                                                        (item.label && item.label.startsWith("certificate_")) ||
                                                         (item.type && item.type.includes("資格証"))
                                                 )
                                                 ? 'あり'
                                                 : 'なし'
                                             }
                                         </td>
+
                                         <td className="border px-2 py-1">
                                             {new Date(entry.created_at).toLocaleDateString()}
                                         </td>
