@@ -75,23 +75,21 @@ export default function EntryListPage() {
             } else {
                 console.log("✅ Supabaseデータ取得成功:", data);
 
-                if (data && data.length > 0) {
-                    // user_status を配列から最初の要素を取得して単一オブジェクトに変換
-                    const updatedData = data?.map(entry => ({
-                        ...entry,
-                        user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
-                    }));
+                // user_status を配列から最初の要素を取得して単一オブジェクトに変換
+                const updatedData = data?.map(entry => ({
+                    ...entry,
+                    user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
+                }));
 
-                    setEntries(updatedData || []); // 修正後のデータをセット
-                } else {
-                    console.log("❗ `auth_uid` が NULL のレコードがありません。");
-                }
+                setEntries(updatedData || []); // 修正後のデータをセット
+            }
 
-                setLoading(false);
-            };
+            setLoading(false);
+        };
 
-            fetchData();
-        }, [role]);
+        fetchData(); // fetchData関数の呼び出し
+    }, [role]); // useEffectの依存配列
+
 
 
 
