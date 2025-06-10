@@ -138,15 +138,18 @@ export default function EntryDetailPage() {
 }
 
 // 画像表示＋PDFボタン（従来どおり）
-function FileThumbnail({ title, src }: { title: string; src?: string }) {
+function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
   const [imgError, setImgError] = useState(false);
+
+  // PDF判定
+  const isPdf = mimeType === "application/pdf" ||
+    (src && src.endsWith('.pdf'));
 
   if (!src) {
     return <div className="text-sm text-center text-gray-400 border border-dashed rounded py-4">画像なし</div>;
   }
 
-  // 画像読み込み成功なら表示
-  if (!imgError) {
+  if (!isPdf) {
     return (
       <div className="text-sm text-center">
         <p className="mb-1">{title}</p>
@@ -165,7 +168,7 @@ function FileThumbnail({ title, src }: { title: string; src?: string }) {
     );
   }
 
-  // 画像として読み込めなかった場合
+  // PDFはimgスキップ、PDFリンクのみ
   return (
     <div className="text-sm text-center">
       <p className="mb-1">{title}</p>
@@ -175,3 +178,4 @@ function FileThumbnail({ title, src }: { title: string; src?: string }) {
     </div>
   );
 }
+
