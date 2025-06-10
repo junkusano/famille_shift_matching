@@ -75,20 +75,23 @@ export default function EntryListPage() {
             } else {
                 console.log("✅ Supabaseデータ取得成功:", data);
 
-                // user_status を配列から最初の要素を取得して単一オブジェクトに変換
-                const updatedData = data?.map(entry => ({
-                    ...entry,
-                    user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
-                }));
+                if (data && data.length > 0) {
+                    // user_status を配列から最初の要素を取得して単一オブジェクトに変換
+                    const updatedData = data?.map(entry => ({
+                        ...entry,
+                        user_status: entry.user_status && entry.user_status.length > 0 ? entry.user_status[0] : { label: '未設定' }
+                    }));
 
-                setEntries(updatedData || []); // 修正後のデータをセット
-            }
+                    setEntries(updatedData || []); // 修正後のデータをセット
+                } else {
+                    console.log("❗ `auth_uid` が NULL のレコードがありません。");
+                }
 
-            setLoading(false);
-        };
+                setLoading(false);
+            };
 
-        fetchData();
-    }, [role]);
+            fetchData();
+        }, [role]);
 
 
 
