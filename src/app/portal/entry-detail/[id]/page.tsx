@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
 import Link from 'next/link';
+import { addStaffLog } from '@/lib/addStaffLog'; // 共通関数
 
 interface Attachment {
     url: string | null;
@@ -38,9 +39,17 @@ interface EntryDetail {
     consent_snapshot: string;
 }
 
+interface StaffLog {
+    id: number;
+    staff_id: string;
+    action_at: string;
+    action_detail: string;
+    registered_by: string;
+    created_at: string;
+}
+
 export default function EntryDetailPage() {
     const { id } = useParams();
-    //const router = useRouter();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
 
     useEffect(() => {
@@ -67,7 +76,6 @@ export default function EntryDetailPage() {
     const licenseFront = entry.attachments?.find(a => a.type === '免許証表');
     const licenseBack = entry.attachments?.find(a => a.type === '免許証裏');
     const residenceCard = entry.attachments?.find(a => a.type === '住民票');
-    // 資格証明書（labelまたはtypeがcertificate_で始まる or type: 資格証明書系）
     const certifications = entry.attachments?.filter(
         a =>
             (a.label && a.label.startsWith('certificate_')) ||
@@ -93,7 +101,6 @@ export default function EntryDetailPage() {
                 <div><strong>氏名（漢字）:</strong> {entry.last_name_kanji} {entry.first_name_kanji}</div>
                 <div><strong>氏名（かな）:</strong> {entry.last_name_kana} {entry.first_name_kana}</div>
                 <div><strong>性別:</strong> {entry.gender}</div>
-                {/* 生年月日＋年齢 */}
                 <div>
                     <strong>生年月日:</strong> {entry.birth_year}/{entry.birth_month}/{entry.birth_day}
                     {entry.birth_year && (
@@ -150,14 +157,12 @@ export default function EntryDetailPage() {
                 <div className="md:col-span-2">
                     <strong>志望動機:</strong><br />{entry.motivation}
                 </div>
-                {/* 働き方の希望 */}
                 <div>
                     <strong>働き方の希望:</strong>
                     <div>
-                        <div> <strong>働き方の希望:</strong> {entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div> ``
+                        <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
                     </div>
                 </div>
-
                 <div>
                     <strong>通勤方法:</strong>
                     {entry.commute_options && entry.commute_options.length > 0
@@ -219,6 +224,10 @@ export default function EntryDetailPage() {
                     '―'
                 )}
             </div>
+
+            {/* ここでログセクションを挿入 */}
+            <StaffLogSection staffId={entry.id} />
+
             <div className="flex justify-center items-center pt-8">
                 <Link href="/portal/entry-list" className="button button-primary flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
@@ -229,15 +238,131 @@ export default function EntryDetailPage() {
     );
 }
 
-// 画像表示＋PDFボタン（従来どおり）
+// 職員ログ（追加＋一覧）セクション
+function StaffLogSection({ staffId }: { staffId: string }) {
+    const [logs, setLogs] = useState<StaffLog[]>([]);
+    const [actionAt, setActionAt] = useState('');
+    const [actionDetail, setActionDetail] = useState('');
+    const [registeredBy, setRegisteredBy] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // ログ一覧取得
+    const fetchLogs = async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('staff_log')
+            .select('*')
+            .eq('staff_id', staffId)
+            .order('action_at', { ascending: false });
+
+        if (error) {
+            setError(error.message);
+        } else {
+            setLogs(data as StaffLog[]);
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        if (staffId) fetchLogs();
+    }, [staffId]);
+
+    // 追加イベント
+    const handleAddLog = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+
+        if (!actionAt || !actionDetail || !registeredBy) {
+            setError('全項目入力してください。');
+            return;
+        }
+
+        const { error } = await addStaffLog({
+            staff_id: staffId,
+            action_at: actionAt,
+            action_detail: actionDetail,
+            registered_by: registeredBy,
+        });
+
+        if (error) {
+            setError(error);
+        } else {
+            setActionAt('');
+            setActionDetail('');
+            setRegisteredBy('');
+            fetchLogs();
+        }
+    };
+
+    return (
+        <div className="my-12">
+            <h2 className="text-lg font-semibold mb-2">職員対応ログ（最新順）</h2>
+            <form onSubmit={handleAddLog} className="mb-4 space-y-2 p-4 border rounded bg-gray-50">
+                <div>
+                    <label className="mr-2">日時:</label>
+                    <input
+                        type="datetime-local"
+                        value={actionAt}
+                        onChange={e => setActionAt(e.target.value)}
+                        className="border px-2 py-1 rounded"
+                        required
+                    />
+                </div>
+                <div>
+                    <label className="mr-2">内容:</label>
+                    <input
+                        type="text"
+                        value={actionDetail}
+                        onChange={e => setActionDetail(e.target.value)}
+                        className="border px-2 py-1 rounded w-80"
+                        required
+                    />
+                </div>
+                <div>
+                    <label className="mr-2">登録者:</label>
+                    <input
+                        type="text"
+                        value={registeredBy}
+                        onChange={e => setRegisteredBy(e.target.value)}
+                        className="border px-2 py-1 rounded"
+                        required
+                    />
+                </div>
+                <button type="submit" className="ml-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">追加</button>
+                {error && <p className="text-red-500 mt-2">{error}</p>}
+            </form>
+            {loading ? (
+                <p>読み込み中...</p>
+            ) : logs.length === 0 ? (
+                <p className="text-gray-500">履歴はまだありません。</p>
+            ) : (
+                <table className="w-full text-sm border bg-white rounded">
+                    <thead>
+                        <tr>
+                            <th className="border px-2 py-1">日時</th>
+                            <th className="border px-2 py-1">内容</th>
+                            <th className="border px-2 py-1">登録者</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {logs.map(log => (
+                            <tr key={log.id}>
+                                <td className="border px-2 py-1">{new Date(log.action_at).toLocaleString()}</td>
+                                <td className="border px-2 py-1">{log.action_detail}</td>
+                                <td className="border px-2 py-1">{log.registered_by}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
+    );
+}
+
+// 画像表示＋PDFボタン
 function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
-    // ここで受け取った値を全部log！
-    console.log('[FileThumbnail] title:', title, 'src:', src, 'mimeType:', mimeType);
-
-
     if (!src) return <div>画像なし</div>;
-
-    // PDFならimgはスキップ
     if (mimeType === "application/pdf") {
         return (
             <div className="text-sm text-center">
@@ -248,8 +373,6 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
             </div>
         );
     }
-
-    // 画像ならimg表示
     return (
         <div className="text-sm text-center">
             <p className="mb-1">{title}</p>
@@ -268,5 +391,3 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         </div>
     );
 }
-
-

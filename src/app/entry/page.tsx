@@ -75,13 +75,13 @@ export default function EntryPage() {
             .select("id, auth_id")
             .eq("email", email);
         if (emailErr) {
-            alert("メール重複チェックでエラー:" + emailErr.message);
+            alert("メール重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + emailErr.message);
             setIsSubmitting(false);
             return;
         }
         if (emailDup && emailDup.length > 0) {
             if (emailDup.some(e => e.auth_id)) {
-                alert("すでにスタッフとしての登録があります。");
+                alert("すでにスタッフとしての登録があります。ポータルページへログインしてください。");
             } else {
                 alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
             }
@@ -95,13 +95,13 @@ export default function EntryPage() {
             .select("id, auth_id")
             .eq("phone", phone);
         if (phoneErr) {
-            alert("電話番号重複チェックでエラー:" + phoneErr.message);
+            alert("電話番号重複チェックでエラー　お問い合わせください（担当新川：090-9140-2642）" + phoneErr.message);
             setIsSubmitting(false);
             return;
         }
         if (phoneDup && phoneDup.length > 0) {
             if (phoneDup.some(e => e.auth_id)) {
-                alert("すでにスタッフとしての登録があります。");
+                alert("すでにスタッフとしての登録があります。ポータルページへログインしてください。");
             } else {
                 alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
             }
@@ -121,13 +121,13 @@ export default function EntryPage() {
                 birth_day: birthDayStr
             });
         if (nameBirthErr) {
-            alert("氏名・生年月日重複チェックでエラー:" + nameBirthErr.message);
+            alert("氏名・生年月日重複チェックでエラー　お問い合わせください（担当新川：090-9140-2642）" + nameBirthErr.message);
             setIsSubmitting(false);
             return;
         }
         if (nameBirthDup && nameBirthDup.length > 0) {
             if (nameBirthDup.some(e => e.auth_id)) {
-                alert("すでにスタッフとしての登録があります。");
+                alert("すでにスタッフとしての登録があります。ポータルページへログインしてください。");
             } else {
                 alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
             }

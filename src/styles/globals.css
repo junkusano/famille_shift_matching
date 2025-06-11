@@ -39,7 +39,9 @@ body {
    ボタン系（classNameで指定する想定）
 ================================= */
 .button {
-  display: inline-block;
+  display: inline-flex;    /* ← ここをflex or inline-flexに！ */
+  align-items: center;     /* ← アイコンとテキストの中央揃え */
+  justify-content: center; /* ← 中央寄せ */
   text-align: center;
   font-weight: 600;
   border-radius: 0.5rem;
