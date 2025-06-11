@@ -169,9 +169,11 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
     return (
         <div className="text-sm text-center">
             <p className="mb-1">{title}</p>
-            <img
-                src={src}
+            <Image
+                src={src!}
                 alt={title}
+                width={320}
+                height={192}
                 className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
             />
             <div className="mt-2">
