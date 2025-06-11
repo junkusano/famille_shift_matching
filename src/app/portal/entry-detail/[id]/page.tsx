@@ -37,6 +37,7 @@ interface EntryDetail {
     attachments?: Attachment[];
     created_at: string;
     consent_snapshot: string;
+    manager_note:string;
 }
 
 interface StaffLog {
@@ -81,6 +82,34 @@ export default function EntryDetailPage() {
             (a.label && a.label.startsWith('certificate_')) ||
             (a.type && a.type.includes('資格証'))
     );
+
+
+    // ...（EntryDetailPageコンポーネント内で）
+
+    const [managerNote, setManagerNote] = useState(entry.manager_note ?? '');
+    const [noteSaving, setNoteSaving] = useState(false);
+    const [noteMsg, setNoteMsg] = useState<string | null>(null);
+
+    // manager_noteが初期化されるタイミングでstate更新
+    useEffect(() => {
+        setManagerNote(entry.manager_note ?? '');
+    }, [entry.manager_note]);
+
+    const handleSaveManagerNote = async () => {
+        setNoteSaving(true);
+        setNoteMsg(null);
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ manager_note: managerNote })
+            .eq('id', entry.id);
+
+        if (error) {
+            setNoteMsg('保存に失敗しました：' + error.message);
+        } else {
+            setNoteMsg('保存しました');
+        }
+        setNoteSaving(false);
+    };
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
@@ -225,6 +254,32 @@ export default function EntryDetailPage() {
                 )}
             </div>
 
+            {/* マネジャー特記エリア */}
+            <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-2">マネジャー特記・共有事項</h2>
+                <textarea
+                    className="w-full border rounded p-2 mb-2"
+                    rows={5}
+                    maxLength={2000} // 任意（画面側制限、DB側はTEXTなので余裕あり）
+                    value={managerNote}
+                    onChange={e => setManagerNote(e.target.value)}
+                    placeholder="このエントリーについて特記事項・サマリー・情報共有を記入"
+                    disabled={noteSaving}
+                />
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleSaveManagerNote}
+                        disabled={noteSaving}
+                        className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                        {noteSaving ? '保存中...' : '保存'}
+                    </button>
+                    {noteMsg && <span className="text-sm">{noteMsg}</span>}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">（最大2000文字まで保存可能）</div>
+            </div>
+
+
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
 
@@ -237,6 +292,7 @@ export default function EntryDetailPage() {
         </div>
     );
 }
+
 
 // 職員ログ（追加＋一覧）セクション
 function StaffLogSection({ staffId }: { staffId: string }) {
@@ -359,6 +415,8 @@ function StaffLogSection({ staffId }: { staffId: string }) {
         </div>
     );
 }
+
+
 
 // 画像表示＋PDFボタン
 function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
