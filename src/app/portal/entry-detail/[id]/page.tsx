@@ -111,14 +111,17 @@ export default function EntryDetailPage() {
                     <FileThumbnail
                         title="免許証（表）"
                         src={licenseFront?.url ?? undefined}
+                        mimeType={licenseFront?.mimeType ?? undefined}
                     />
                     <FileThumbnail
                         title="免許証（裏）"
                         src={licenseBack?.url ?? undefined}
+                        mimeType={licenseBack?.mimeType ?? undefined}
                     />
                     <FileThumbnail
                         title="住民票"
                         src={residenceCard?.url ?? undefined}
+                        mimeType={residenceCard?.mimeType ?? undefined}
                     />
                 </div>
             </div>
@@ -128,7 +131,12 @@ export default function EntryDetailPage() {
                     <h2 className="text-lg font-semibold">資格証明書</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {certifications.map((cert, idx) => (
-                            <FileThumbnail key={idx} title={cert.label ?? cert.type ?? `資格証明書${idx + 1}`} src={cert.url ?? undefined} />
+                            <FileThumbnail
+                                key={idx}
+                                title={cert.label ?? cert.type ?? `資格証明書${idx + 1}`}
+                                src={cert.url ?? undefined}
+                                mimeType={cert.mimeType ?? undefined}
+                            />
                         ))}
                     </div>
                 </div>
