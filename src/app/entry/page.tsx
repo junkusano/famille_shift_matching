@@ -57,6 +57,42 @@ export default function EntryPage() {
         e.preventDefault();
         const form = new FormData(e.currentTarget);
 
+        // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
+
+        // payload作成前に必要な値を抽出
+        const email = form.get("email");
+        const phone = form.get("phone");
+        const lastNameKanji = form.get("lastNameKanji");
+        const firstNameKanji = form.get("firstNameKanji");
+        const birthYearStr = form.get("birthYear");
+        const birthMonthStr = form.get("birthMonth");
+        const birthDayStr = form.get("birthDay");
+
+        // --- ここで重複登録チェックを実施 ---
+        const { data: dupEntries, error: dupError } = await supabase
+            .from("form_entries")
+            .select("id, auth_id")
+            .or([
+                `email.eq.${email}`,
+                `phone.eq.${phone}`,
+                `and(last_name_kanji.eq.${lastNameKanji},first_name_kanji.eq.${firstNameKanji},birth_year.eq.${birthYearStr},birth_month.eq.${birthMonthStr},birth_day.eq.${birthDayStr})`
+            ].join(","));
+
+        if (dupError) {
+            alert("重複チェック時にエラーが発生しました");
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (dupEntries && dupEntries.length > 0) {
+            if (dupEntries.some(e => e.auth_id)) {
+                alert("すでにスタッフとしての登録があります。");
+            } else {
+                alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
+            }
+            setIsSubmitting(false);
+            return;
+        }
 
         setIsSubmitting(true); // ← 送信開始
 
@@ -109,44 +145,6 @@ export default function EntryPage() {
             if (!file || file.size === 0) return null;
 
             const formData = new FormData();
-
-
-            // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
-
-            // payload作成前に必要な値を抽出
-            const email = form.get("email");
-            const phone = form.get("phone");
-            const lastNameKanji = form.get("lastNameKanji");
-            const firstNameKanji = form.get("firstNameKanji");
-            const birthYear = form.get("birthYear");
-            const birthMonth = form.get("birthMonth");
-            const birthDay = form.get("birthDay");
-
-            // --- ここで重複登録チェックを実施 ---
-            const { data: dupEntries, error: dupError } = await supabase
-                .from("form_entries")
-                .select("id, auth_id")
-                .or([
-                    `email.eq.${email}`,
-                    `phone.eq.${phone}`,
-                    `and(last_name_kanji.eq.${lastNameKanji},first_name_kanji.eq.${firstNameKanji},birth_year.eq.${birthYear},birth_month.eq.${birthMonth},birth_day.eq.${birthDay})`
-                ].join(","));
-
-            if (dupError) {
-                alert("重複チェック時にエラーが発生しました");
-                setIsSubmitting(false);
-                return;
-            }
-
-            if (dupEntries && dupEntries.length > 0) {
-                if (dupEntries.some(e => e.auth_id)) {
-                    alert("すでにスタッフとしての登録があります。");
-                } else {
-                    alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
-                }
-                setIsSubmitting(false);
-                return;
-            }
 
             formData.append("file", file);
             formData.append("filename", `${key}_${timestamp}_${file.name}`);
@@ -248,7 +246,7 @@ export default function EntryPage() {
             }),
         };
 
-         // --- DB登録処理（DB処理2: INSERT）---
+        // --- DB登録処理（DB処理2: INSERT）---
         console.log("🚀 Supabaseへ送信するpayload:", payload);
 
         const { error } = await supabase.from("form_entries").insert([payload]);
@@ -265,9 +263,9 @@ export default function EntryPage() {
 
 
         // 年齢の算出
-        const birthYear = Number(form.get("birthYear"));
-        const birthMonth = Number(form.get("birthMonth"));
-        const birthDay = Number(form.get("birthDay"));
+        const birthYear = Number(birthYearStr);
+        const birthMonth = Number(birthMonthStr);
+        const birthDay = Number(birthDayStr);
 
         const today = new Date();
         let age = today.getFullYear() - birthYear;
