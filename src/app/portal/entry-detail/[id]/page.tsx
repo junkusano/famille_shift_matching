@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+
 
 interface Attachment {
     url: string | null;
@@ -75,13 +78,6 @@ export default function EntryDetailPage() {
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
-            <button
-                onClick={() => router.back()}
-                className="text-blue-600 underline text-sm hover:text-blue-800"
-            >
-                ← 一覧に戻る
-            </button>
-
             {entry.photo_url && (
                 <div className="text-center">
                     <Image
@@ -126,32 +122,33 @@ export default function EntryDetailPage() {
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 <div><strong>メールアドレス:</strong> {entry.email}</div>
-                {/* 職歴 */}
-                <table className="border w-full text-sm">
-                    <thead>
-                        <tr>
-                            <th className="border px-2 py-1">勤務先</th>
-                            <th className="border px-2 py-1">期間（開始）</th>
-                            <th className="border px-2 py-1">期間（終了）</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {[1, 2, 3].map((n) => {
-                            const w = entry[`workplace_${n}` as keyof EntryDetail];
-                            const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
-                            const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
-                            if (!w) return null;
-                            return (
-                                <tr key={n}>
-                                    <td className="border px-2 py-1">{w as string}</td>
-                                    <td className="border px-2 py-1">{pf ?? ""}</td>
-                                    <td className="border px-2 py-1">{pt ?? ""}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-
+                <div className="md:col-span-2 space-y-1">
+                    <strong>職歴:</strong>
+                    <table className="border w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th className="border px-2 py-1">勤務先</th>
+                                <th className="border px-2 py-1">期間（開始）</th>
+                                <th className="border px-2 py-1">期間（終了）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[1, 2, 3].map((n) => {
+                                const w = entry[`workplace_${n}` as keyof EntryDetail];
+                                const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
+                                const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
+                                if (!w) return null;
+                                return (
+                                    <tr key={n}>
+                                        <td className="border px-2 py-1">{w as string}</td>
+                                        <td className="border px-2 py-1">{pf ?? ""}</td>
+                                        <td className="border px-2 py-1">{pt ?? ""}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
                 <div className="md:col-span-2">
                     <strong>志望動機:</strong><br />{entry.motivation}
                 </div>
@@ -224,7 +221,14 @@ export default function EntryDetailPage() {
                     '―'
                 )}
             </div>
-
+            <Button
+                variant="outline"
+                onClick={() => router.back()}
+                className="flex items-center gap-2 mt-8"
+            >
+                <ArrowLeft size={18} />
+                一覧に戻る
+            </Button>
         </div>
     );
 }
