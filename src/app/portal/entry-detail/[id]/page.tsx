@@ -40,7 +40,7 @@ interface EntryDetail {
 
 export default function EntryDetailPage() {
     const { id } = useParams();
-    const router = useRouter();
+    //const router = useRouter();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
 
     useEffect(() => {
@@ -114,7 +114,7 @@ export default function EntryDetailPage() {
                             rel="noopener noreferrer"
                             className="ml-2 text-blue-600 underline"
                         >
-                            地図で見る
+                            地図
                         </a>
                     )}
                 </div>
