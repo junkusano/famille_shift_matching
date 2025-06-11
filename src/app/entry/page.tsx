@@ -141,6 +141,22 @@ export default function EntryPage() {
             }
         }
 
+        // attachments 多次元配列生成
+        const attachments = [];
+        if (licenseFrontUrl) attachments.push({ type: "license_front", url: licenseFrontUrl, mimetype: licenseFront?.type || "" });
+        if (licenseBackUrl) attachments.push({ type: "license_back", url: licenseBackUrl, mimetype: licenseBack?.type || "" });
+        if (residenceCardUrl) attachments.push({ type: "residence_card", url: residenceCardUrl, mimetype: residenceCard?.type || "" });
+
+        for (let i = 0; i < 13; i++) {
+            const certFile = form.get(`certificate_${i}`) as File;
+            const certUrl = certificationUrls[i];
+            if (certUrl) attachments.push({ type: `certificate_${i}`, url: certUrl, mimetype: certFile?.type || "" });
+        }
+
+        // work_style配列取得
+        const workStyles = form.getAll("workStyle") as string[];
+
+
         // --- Supabase 登録 ---
         const payload = {
             last_name_kanji: form.get("lastNameKanji"),
@@ -158,7 +174,7 @@ export default function EntryPage() {
             license_front_url: licenseFrontUrl,
             license_back_url: licenseBackUrl,
             residence_card_url: residenceCardUrl,
-            photo_url: photoUrl,
+            photo_url: photoUrl,  // 顔写真のみ個別カラム
             postal_code: postalCode,
             address: address,
             phone: form.get("phone"),

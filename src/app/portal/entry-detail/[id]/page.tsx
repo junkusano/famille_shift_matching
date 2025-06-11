@@ -222,7 +222,7 @@ export default function EntryDetailPage() {
             <div className="flex justify-center items-center pt-8">
                 <Link href="/portal/entry-list" className="button button-primary flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
-                    一覧に戻る
+                    戻る
                 </Link>
             </div>
         </div>
