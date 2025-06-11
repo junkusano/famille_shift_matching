@@ -111,30 +111,47 @@ export default function EntryDetailPage() {
                         </span>
                     )}
                 </div>
-                <div><strong>住所:</strong> 〒{entry.postal_code} {entry.address}</div>
+                <div>
+                    <strong>住所:</strong> 〒{entry.postal_code} {entry.address}
+                    {entry.address && (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-blue-600 underline"
+                        >
+                            地図で見る
+                        </a>
+                    )}
+                </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 <div><strong>メールアドレス:</strong> {entry.email}</div>
                 {/* 職歴 */}
-                <div className="space-y-1">
-                    <strong>職歴:</strong>
-                    <ul>
+                <table className="border w-full text-sm">
+                    <thead>
+                        <tr>
+                            <th className="border px-2 py-1">勤務先</th>
+                            <th className="border px-2 py-1">期間（開始）</th>
+                            <th className="border px-2 py-1">期間（終了）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         {[1, 2, 3].map((n) => {
                             const w = entry[`workplace_${n}` as keyof EntryDetail];
+                            const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
+                            const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
                             if (!w) return null;
                             return (
-                                <li key={n}>
-                                    {w as string}
-                                    （
-                                    {(entry[`period_from_${n}` as keyof EntryDetail] as string) ?? ''}
-                                    〜
-                                    {(entry[`period_to_${n}` as keyof EntryDetail] as string) ?? ''}
-                                    ）
-                                </li>
-
+                                <tr key={n}>
+                                    <td className="border px-2 py-1">{w as string}</td>
+                                    <td className="border px-2 py-1">{pf ?? ""}</td>
+                                    <td className="border px-2 py-1">{pt ?? ""}</td>
+                                </tr>
                             );
                         })}
-                    </ul>
-                </div>
+                    </tbody>
+                </table>
+
                 <div className="md:col-span-2">
                     <strong>志望動機:</strong><br />{entry.motivation}
                 </div>
@@ -199,6 +216,9 @@ export default function EntryDetailPage() {
                         {Object.entries(JSON.parse(entry.consent_snapshot)).map(([k, v]) => (
                             <div key={k}>{v as string}</div>
                         ))}
+                        <div className="mt-2 text-right text-gray-400">
+                            登録日時：{entry.created_at && new Date(entry.created_at).toLocaleString()}
+                        </div>
                     </div>
                 ) : (
                     '―'
