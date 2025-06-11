@@ -181,8 +181,6 @@ export default function EntryPage() {
                 agreeTerms: "入力内容に虚偽がないことを確認しました。",
                 agreePrivacy: "プライバシーポリシーを読み、内容に同意します。",
             }),
-
-
         };
 
         console.log("🚀 Supabaseへ送信するpayload:", payload);

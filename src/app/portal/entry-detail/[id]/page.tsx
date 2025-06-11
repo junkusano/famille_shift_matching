@@ -27,10 +27,14 @@ interface EntryDetail {
     phone: string;
     email: string;
     motivation: string;
+    work_styles: string[];
+    workstyle_other: string;
+    commute_options?: string[];
     health_condition: string;
     photo_url?: string;
     attachments?: Attachment[];
     created_at: string;
+    consent_snapshot: string;
 }
 
 export default function EntryDetailPage() {
@@ -95,14 +99,60 @@ export default function EntryDetailPage() {
                 <div><strong>氏名（漢字）:</strong> {entry.last_name_kanji} {entry.first_name_kanji}</div>
                 <div><strong>氏名（かな）:</strong> {entry.last_name_kana} {entry.first_name_kana}</div>
                 <div><strong>性別:</strong> {entry.gender}</div>
-                <div><strong>生年月日:</strong> {entry.birth_year}/{entry.birth_month}/{entry.birth_day}</div>
+                {/* 生年月日＋年齢 */}
+                <div>
+                    <strong>生年月日:</strong> {entry.birth_year}/{entry.birth_month}/{entry.birth_day}
+                    {entry.birth_year && (
+                        <span className="ml-2 text-gray-500">
+                            （{new Date().getFullYear() - entry.birth_year -
+                                ((new Date().getMonth() + 1 < entry.birth_month) ||
+                                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                                    ? 1 : 0)}歳）
+                        </span>
+                    )}
+                </div>
                 <div><strong>住所:</strong> 〒{entry.postal_code} {entry.address}</div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 <div><strong>メールアドレス:</strong> {entry.email}</div>
-                <div><strong>健康状態:</strong> {entry.health_condition}</div>
+                {/* 職歴 */}
+                <div className="space-y-1">
+                    <strong>職歴:</strong>
+                    <ul>
+                        {[1, 2, 3].map((n) => {
+                            const w = entry[`workplace_${n}` as keyof EntryDetail];
+                            if (!w) return null;
+                            return (
+                                <li key={n}>
+                                    {w as string}
+                                    （
+                                    {(entry[`period_from_${n}` as keyof EntryDetail] as string) ?? ''}
+                                    〜
+                                    {(entry[`period_to_${n}` as keyof EntryDetail] as string) ?? ''}
+                                    ）
+                                </li>
+
+                            );
+                        })}
+                    </ul>
+                </div>
                 <div className="md:col-span-2">
                     <strong>志望動機:</strong><br />{entry.motivation}
                 </div>
+                {/* 働き方の希望 */}
+                <div>
+                    <strong>働き方の希望:</strong>
+                    <div>
+                        <div> <strong>働き方の希望:</strong> {entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div> ``
+                    </div>
+                </div>
+
+                <div>
+                    <strong>通勤方法:</strong>
+                    {entry.commute_options && entry.commute_options.length > 0
+                        ? entry.commute_options.join('、')
+                        : '―'}
+                </div>
+                <div><strong>健康状態:</strong> {entry.health_condition}</div>
             </div>
 
             <div className="space-y-4">
@@ -141,6 +191,20 @@ export default function EntryDetailPage() {
                     </div>
                 </div>
             )}
+
+            <div>
+                <strong>同意内容:</strong>
+                {entry.consent_snapshot ? (
+                    <div className="text-xs text-gray-700 border rounded bg-gray-50 p-2 mt-1">
+                        {Object.entries(JSON.parse(entry.consent_snapshot)).map(([k, v]) => (
+                            <div key={k}>{v as string}</div>
+                        ))}
+                    </div>
+                ) : (
+                    '―'
+                )}
+            </div>
+
         </div>
     );
 }
