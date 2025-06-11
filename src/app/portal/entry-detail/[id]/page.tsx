@@ -53,6 +53,33 @@ export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
 
+    // ...（EntryDetailPageコンポーネント内で）
+
+    const [managerNote, setManagerNote] = useState(entry.manager_note ?? '');
+    const [noteSaving, setNoteSaving] = useState(false);
+    const [noteMsg, setNoteMsg] = useState<string | null>(null);
+
+    // manager_noteが初期化されるタイミングでstate更新
+    useEffect(() => {
+        setManagerNote(entry.manager_note ?? '');
+    }, [entry.manager_note]);
+
+    const handleSaveManagerNote = async () => {
+        setNoteSaving(true);
+        setNoteMsg(null);
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ manager_note: managerNote })
+            .eq('id', entry.id);
+
+        if (error) {
+            setNoteMsg('保存に失敗しました：' + error.message);
+        } else {
+            setNoteMsg('保存しました');
+        }
+        setNoteSaving(false);
+    };
+
     useEffect(() => {
         const fetchEntry = async () => {
             const { data, error } = await supabase
@@ -82,34 +109,6 @@ export default function EntryDetailPage() {
             (a.label && a.label.startsWith('certificate_')) ||
             (a.type && a.type.includes('資格証'))
     );
-
-
-    // ...（EntryDetailPageコンポーネント内で）
-
-    const [managerNote, setManagerNote] = useState(entry.manager_note ?? '');
-    const [noteSaving, setNoteSaving] = useState(false);
-    const [noteMsg, setNoteMsg] = useState<string | null>(null);
-
-    // manager_noteが初期化されるタイミングでstate更新
-    useEffect(() => {
-        setManagerNote(entry.manager_note ?? '');
-    }, [entry.manager_note]);
-
-    const handleSaveManagerNote = async () => {
-        setNoteSaving(true);
-        setNoteMsg(null);
-        const { error } = await supabase
-            .from('form_entries')
-            .update({ manager_note: managerNote })
-            .eq('id', entry.id);
-
-        if (error) {
-            setNoteMsg('保存に失敗しました：' + error.message);
-        } else {
-            setNoteMsg('保存しました');
-        }
-        setNoteSaving(false);
-    };
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
