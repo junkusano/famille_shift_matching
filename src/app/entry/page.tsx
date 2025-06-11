@@ -154,8 +154,7 @@ export default function EntryPage() {
         }
 
         // work_style配列取得
-        const workStyles = form.getAll("workStyle") as string[];
-
+        const work_styles=form.getAll("workStyle") as string[];
 
         // --- Supabase 登録 ---
         const payload = {
@@ -168,6 +167,7 @@ export default function EntryPage() {
             birth_day: form.get("birthDay"),
             gender: form.get("gender"), // ← 追加
             motivation: form.get("motivation"),
+            work_styles,
             workstyle_other: form.get("workStyleOther"),
             commute_options: form.getAll("commute") as string[],
             health_condition: form.get("healthCondition"),
@@ -175,6 +175,7 @@ export default function EntryPage() {
             license_back_url: licenseBackUrl,
             residence_card_url: residenceCardUrl,
             photo_url: photoUrl,  // 顔写真のみ個別カラム
+            attachments,
             postal_code: postalCode,
             address: address,
             phone: form.get("phone"),
