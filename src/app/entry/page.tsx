@@ -69,23 +69,64 @@ export default function EntryPage() {
         const birthDayStr = form.get("birthDay");
 
         // --- ここで重複登録チェックを実施 ---
-        const { data: dupEntries, error: dupError } = await supabase
+        // メールアドレス重複チェック
+        const { data: emailDup, error: emailErr } = await supabase
             .from("form_entries")
             .select("id, auth_id")
-            .or([
-                `email.eq.${email}`,
-                `phone.eq.${phone}`,
-                `and(last_name_kanji.eq.${lastNameKanji},first_name_kanji.eq.${firstNameKanji},birth_year.eq.${birthYearStr},birth_month.eq.${birthMonthStr},birth_day.eq.${birthDayStr})`
-            ].join(","));
-
-        if (dupError) {
-            alert("重複チェック時にエラーが発生しました");
+            .eq("email", email);
+        if (emailErr) {
+            alert("メール重複チェックでエラー:" + emailErr.message);
+            setIsSubmitting(false);
+            return;
+        }
+        if (emailDup && emailDup.length > 0) {
+            if (emailDup.some(e => e.auth_id)) {
+                alert("すでにスタッフとしての登録があります。");
+            } else {
+                alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
+            }
             setIsSubmitting(false);
             return;
         }
 
-        if (dupEntries && dupEntries.length > 0) {
-            if (dupEntries.some(e => e.auth_id)) {
+        // 電話番号重複チェック
+        const { data: phoneDup, error: phoneErr } = await supabase
+            .from("form_entries")
+            .select("id, auth_id")
+            .eq("phone", phone);
+        if (phoneErr) {
+            alert("電話番号重複チェックでエラー:" + phoneErr.message);
+            setIsSubmitting(false);
+            return;
+        }
+        if (phoneDup && phoneDup.length > 0) {
+            if (phoneDup.some(e => e.auth_id)) {
+                alert("すでにスタッフとしての登録があります。");
+            } else {
+                alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
+            }
+            setIsSubmitting(false);
+            return;
+        }
+
+        // 氏名＋生年月日重複チェック
+        const { data: nameBirthDup, error: nameBirthErr } = await supabase
+            .from("form_entries")
+            .select("id, auth_id")
+            .match({
+                last_name_kanji: lastNameKanji,
+                first_name_kanji: firstNameKanji,
+                birth_year: birthYearStr,
+                birth_month: birthMonthStr,
+                birth_day: birthDayStr
+            });
+        if (nameBirthErr) {
+            alert("氏名・生年月日重複チェックでエラー:" + nameBirthErr.message);
+            setIsSubmitting(false);
+            return;
+        }
+        if (nameBirthDup && nameBirthDup.length > 0) {
+            if (nameBirthDup.some(e => e.auth_id)) {
                 alert("すでにスタッフとしての登録があります。");
             } else {
                 alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
