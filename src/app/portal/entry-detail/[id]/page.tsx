@@ -37,7 +37,7 @@ interface EntryDetail {
     attachments?: Attachment[];
     created_at: string;
     consent_snapshot: string;
-    manager_note:string;
+    manager_note: string;
 }
 
 interface StaffLog {
@@ -53,20 +53,21 @@ export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
 
-    // ...（EntryDetailPageコンポーネント内で）
-
-    const [managerNote, setManagerNote] = useState(entry.manager_note ?? '');
+    // ここを絶対こうする！
+    const [managerNote, setManagerNote] = useState(''); // 初期値は''でOK
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
 
-    // manager_noteが初期化されるタイミングでstate更新
+    // entry取得後にmanager_noteをstateに反映
     useEffect(() => {
-        setManagerNote(entry.manager_note ?? '');
-    }, [entry.manager_note]);
+        setManagerNote(entry?.manager_note ?? '');
+    }, [entry?.manager_note]);
 
+    // manager_note保存
     const handleSaveManagerNote = async () => {
         setNoteSaving(true);
         setNoteMsg(null);
+        if (!entry) return; // 念のため
         const { error } = await supabase
             .from('form_entries')
             .update({ manager_note: managerNote })
