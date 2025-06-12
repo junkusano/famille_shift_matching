@@ -105,9 +105,16 @@ export default function EntryDetailPage() {
     const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
-    const [userRecord, setUserRecord] = useState<any>(null);
+    interface UserRecord {
+        user_id: string;
+        email: string;
+        auth_user_id?: string | null;
+        // 他必要なカラムをここに追加
+    }
 
-    const fetchUserRecord = async () => {
+    const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
+
+    const fetchUserRecord = useCallback(async () => {
         if (!userId) return;
         const { data, error } = await supabase
             .from("users")
@@ -116,14 +123,11 @@ export default function EntryDetailPage() {
             .single();
         if (!error && data) setUserRecord(data);
         else setUserRecord(null);
-    };
+    }, [userId]); // userIdが変わったらfetchし直す
 
-    // userIdが変わったタイミングで
     useEffect(() => {
         fetchUserRecord();
-    }, [userId]);
-
-
+    }, [fetchUserRecord]);
 
     // useStateのあとで
     const fetchExistingIds = async () => {
