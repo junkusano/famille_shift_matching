@@ -546,6 +546,7 @@ type NameInfo = {
     //last: string;
 };
 
+/*
 function getUserIdCandidate(
     { firstKana, lastKana }: NameInfo,
     existingIds: string[]
@@ -574,6 +575,7 @@ function getUserIdCandidate(
     }
     return `${base}${num}`;
 }
+*/
 
 // 複数候補を返す関数
 function getUserIdSuggestions(
@@ -585,7 +587,6 @@ function getUserIdSuggestions(
     const firstInitial = firstHeb.charAt(0);
     const lastInitial = lastHeb.charAt(0);
 
-    // 各パターン生成
     const candidates = [
         `${firstHeb}${lastHeb}`,
         `${firstInitial}${lastHeb}`,
@@ -593,11 +594,9 @@ function getUserIdSuggestions(
         `${firstInitial}${lastInitial}${lastHeb}`,
         `${firstInitial}${lastInitial}${firstHeb}`,
     ];
-    // サフィックスも3つくらい用意
     const base = `${firstHeb}${lastHeb}`;
     for (let num = 2; num < 5; num++) {
         candidates.push(`${base}${num}`);
     }
-    // 既存ID除外
     return candidates.filter(c => !existingIds.includes(c));
 }
