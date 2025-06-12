@@ -110,10 +110,10 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         const fetchExistingIds = async () => {
-            const { data } = await supabase.from("auth.user").select("user_id");
+            const { data } = await supabase.from("users").select("user_id");
             setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
-
         };
+
         fetchExistingIds();
     }, []);
 
@@ -135,15 +135,17 @@ export default function EntryDetailPage() {
             return;
         }
         setUserIdLoading(true);
-        const { error } = await supabase.from("auth.user").insert({
+        const { error } = await supabase.from("users").insert({
             user_id: userId,
             email: entry?.email,
             system_role: "member",
             entry_id: entry?.id,
+            status: "provisional",
         });
         setUserIdLoading(false);
         if (!error) {
             alert("アカウントを作成しました");
+            fetchExistingIds(); // ←これを追加
         } else {
             alert(
                 "エラーが発生しました：" +
@@ -153,6 +155,7 @@ export default function EntryDetailPage() {
             );
         }
     };
+
 
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
