@@ -8,8 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog'; // 共通関数
 //import { toHepburn } from "hepburn";
 import hepburn from "hepburn";
-
-
+import { useCallback } from "react";
 
 interface Attachment {
     url: string | null;
@@ -393,7 +392,7 @@ function StaffLogSection({ staffId }: { staffId: string }) {
     const [error, setError] = useState<string | null>(null);
 
     // ログ一覧取得
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
             .from('staff_log')
@@ -407,7 +406,7 @@ function StaffLogSection({ staffId }: { staffId: string }) {
             setLogs(data as StaffLog[]);
         }
         setLoading(false);
-    };
+    }, [staffId]);
 
     useEffect(() => {
         if (staffId) fetchLogs();
@@ -587,7 +586,7 @@ function getUserIdSuggestions(
     const lastInitial = lastHeb.charAt(0);
 
     // 各パターン生成
-    let candidates = [
+    const candidates = [
         `${firstHeb}${lastHeb}`,
         `${firstInitial}${lastHeb}`,
         `${firstHeb}${lastInitial}`,
