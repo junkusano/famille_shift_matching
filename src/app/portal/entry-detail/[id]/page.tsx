@@ -386,7 +386,7 @@ function StaffLogSection({ staffId }: { staffId: string }) {
 
     useEffect(() => {
         if (staffId) fetchLogs();
-    }, [staffId]);
+    }, [staffId, fetchLogs]);
 
     // 追加イベント
     const handleAddLog = async (e: React.FormEvent) => {
@@ -518,12 +518,12 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
 type NameInfo = {
     firstKana: string;
     lastKana: string;
-    first: string;
-    last: string;
+    //first: string;
+    //last: string;
 };
 
 function getUserIdCandidate(
-    { firstKana, lastKana, first, last }: NameInfo,
+    { firstKana, lastKana }: NameInfo,
     existingIds: string[]
 ): string {
     const firstHeb = hepburn.fromKana(firstKana).toLowerCase().replace(/[^a-z]/g, "");
@@ -543,7 +543,8 @@ function getUserIdCandidate(
         if (!existingIds.includes(candidate)) return candidate;
     }
     let num = 2;
-    let base = `${firstHeb}${lastHeb}`;
+    //let base = `${firstHeb}${lastHeb}`;
+    const base = `${firstHeb}${lastHeb}`;
     while (existingIds.includes(`${base}${num}`)) {
         num++;
     }
