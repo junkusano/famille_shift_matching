@@ -107,6 +107,7 @@ export default function EntryDetailPage() {
     const [userId, setUserId] = useState("");
     const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
+    const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchExistingIds = async () => {
@@ -122,30 +123,38 @@ export default function EntryDetailPage() {
             const nameInfo = {
                 firstKana: entry.first_name_kana,
                 lastKana: entry.last_name_kana,
-                first: entry.first_name_kanji,
-                last: entry.last_name_kanji
             };
-            const candidate = getUserIdCandidate(nameInfo, existingIds);
-            setUserId(candidate);
+            const suggestions = getUserIdSuggestions(nameInfo, existingIds);
+            setUserIdSuggestions(suggestions);
+            if (suggestions.length > 0) setUserId(suggestions[0]);
         }
     }, [entry, existingIds]);
 
     const handleAccountCreate = async () => {
+        if (existingIds.includes(userId)) {
+            alert("このアカウントIDは既に存在します。別のIDを入力してください。");
+            return;
+        }
         setUserIdLoading(true);
         const { error } = await supabase.from("auth.user").insert({
             user_id: userId,
             email: entry?.email,
             system_role: "member",
-            //status: entry?.status,
             entry_id: entry?.id,
         });
         setUserIdLoading(false);
         if (!error) {
             alert("アカウントを作成しました");
         } else {
-            alert("エラーが発生しました：" + error.message);
+            alert(
+                "エラーが発生しました：" +
+                (error.message || "") +
+                (error.details ? "\n" + error.details : "") +
+                (error.code ? "\n(" + error.code + ")" : "")
+            );
         }
     };
+
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -219,7 +228,23 @@ export default function EntryDetailPage() {
                     >
                         {userIdLoading ? "作成中..." : "アカウント決定"}
                     </button>
+                    {/* ここから候補案 */}
+                    <div className="flex flex-col ml-4">
+                        <span className="text-xs text-gray-500">候補:</span>
+                        {userIdSuggestions.map(sug => (
+                            <button
+                                type="button"
+                                key={sug}
+                                className="text-blue-600 text-xs underline text-left"
+                                onClick={() => setUserId(sug)}
+                                disabled={sug === userId}
+                            >
+                                {sug}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
@@ -549,4 +574,31 @@ function getUserIdCandidate(
         num++;
     }
     return `${base}${num}`;
+}
+
+// 複数候補を返す関数
+function getUserIdSuggestions(
+    { firstKana, lastKana }: NameInfo,
+    existingIds: string[]
+): string[] {
+    const firstHeb = hepburn.fromKana(firstKana).toLowerCase().replace(/[^a-z]/g, "");
+    const lastHeb = hepburn.fromKana(lastKana).toLowerCase().replace(/[^a-z]/g, "");
+    const firstInitial = firstHeb.charAt(0);
+    const lastInitial = lastHeb.charAt(0);
+
+    // 各パターン生成
+    let candidates = [
+        `${firstHeb}${lastHeb}`,
+        `${firstInitial}${lastHeb}`,
+        `${firstHeb}${lastInitial}`,
+        `${firstInitial}${lastInitial}${lastHeb}`,
+        `${firstInitial}${lastInitial}${firstHeb}`,
+    ];
+    // サフィックスも3つくらい用意
+    const base = `${firstHeb}${lastHeb}`;
+    for (let num = 2; num < 5; num++) {
+        candidates.push(`${base}${num}`);
+    }
+    // 既存ID除外
+    return candidates.filter(c => !existingIds.includes(c));
 }
