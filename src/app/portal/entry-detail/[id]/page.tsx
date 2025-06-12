@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog'; // 共通関数
-import { toHepburn } from "hepburn";
+//import { toHepburn } from "hepburn";
+import hepburn from "hepburn";
+
 
 
 interface Attachment {
@@ -119,7 +121,8 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const fetchExistingIds = async () => {
             const { data } = await supabase.from("auth.user").select("user_id");
-            setExistingIds(data?.map((row: any) => row.user_id) ?? []);
+            setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
+
         };
         fetchExistingIds();
     }, []);
@@ -523,8 +526,8 @@ function getUserIdCandidate(
     { firstKana, lastKana, first, last }: NameInfo,
     existingIds: string[]
 ): string {
-    const firstHeb = toHepburn(firstKana).toLowerCase().replace(/[^a-z]/g, "");
-    const lastHeb = toHepburn(lastKana).toLowerCase().replace(/[^a-z]/g, "");
+    const firstHeb = hepburn.fromKana(firstKana).toLowerCase().replace(/[^a-z]/g, "");
+    const lastHeb = hepburn.fromKana(lastKana).toLowerCase().replace(/[^a-z]/g, "");
     const firstInitial = firstHeb.charAt(0);
     const lastInitial = lastHeb.charAt(0);
 
