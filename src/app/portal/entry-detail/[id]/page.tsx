@@ -157,7 +157,6 @@ export default function EntryDetailPage() {
         }
     };
 
-
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
     return (
