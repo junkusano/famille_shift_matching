@@ -103,16 +103,6 @@ export default function EntryDetailPage() {
         if (id) fetchEntry();
     }, [id]);
 
-    // attachmentsからtypeで仕分け
-    const licenseFront = entry.attachments?.find(a => a.type === '免許証表');
-    const licenseBack = entry.attachments?.find(a => a.type === '免許証裏');
-    const residenceCard = entry.attachments?.find(a => a.type === '住民票');
-    const certifications = entry.attachments?.filter(
-        a =>
-            (a.label && a.label.startsWith('certificate_')) ||
-            (a.type && a.type.includes('資格証'))
-    );
-
     //Account state を設定
     const [userId, setUserId] = useState("");
     const [userIdLoading, setUserIdLoading] = useState(false);
@@ -158,6 +148,17 @@ export default function EntryDetailPage() {
     };
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
+
+    // ここから下、attachments参照もOK
+    // attachmentsからtypeで仕分け
+    const licenseFront = entry.attachments?.find(a => a.type === '免許証表');
+    const licenseBack = entry.attachments?.find(a => a.type === '免許証裏');
+    const residenceCard = entry.attachments?.find(a => a.type === '住民票');
+    const certifications = entry.attachments?.filter(
+        a =>
+            (a.label && a.label.startsWith('certificate_')) ||
+            (a.type && a.type.includes('資格証'))
+    );
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
