@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog'; // 共通関数
+import { toHepburn } from "hepburn";
+
 
 interface Attachment {
     url: string | null;
@@ -99,8 +101,6 @@ export default function EntryDetailPage() {
         if (id) fetchEntry();
     }, [id]);
 
-    if (!entry) return <p className="p-4">読み込み中...</p>;
-
     // attachmentsからtypeで仕分け
     const licenseFront = entry.attachments?.find(a => a.type === '免許証表');
     const licenseBack = entry.attachments?.find(a => a.type === '免許証裏');
@@ -110,6 +110,52 @@ export default function EntryDetailPage() {
             (a.label && a.label.startsWith('certificate_')) ||
             (a.type && a.type.includes('資格証'))
     );
+
+    //Account state を設定
+    const [userId, setUserId] = useState("");
+    const [userIdLoading, setUserIdLoading] = useState(false);
+    const [existingIds, setExistingIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchExistingIds = async () => {
+            const { data } = await supabase.from("auth.user").select("user_id");
+            setExistingIds(data?.map((row: any) => row.user_id) ?? []);
+        };
+        fetchExistingIds();
+    }, []);
+
+    useEffect(() => {
+        if (entry && existingIds.length) {
+            const nameInfo = {
+                firstKana: entry.first_name_kana,
+                lastKana: entry.last_name_kana,
+                first: entry.first_name_kanji,
+                last: entry.last_name_kanji
+            };
+            const candidate = getUserIdCandidate(nameInfo, existingIds);
+            setUserId(candidate);
+        }
+    }, [entry, existingIds]);
+
+    const handleAccountCreate = async () => {
+        setUserIdLoading(true);
+        const { error } = await supabase.from("auth.user").insert({
+            user_id: userId,
+            email: entry?.email,
+            system_role: "member",
+            //status: entry?.status,
+            entry_id: entry?.id,
+        });
+        setUserIdLoading(false);
+        if (!error) {
+            alert("アカウントを作成しました");
+        } else {
+            alert("エラーが発生しました：" + error.message);
+        }
+    };
+
+
+    if (!entry) return <p className="p-4">読み込み中...</p>;
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
@@ -156,6 +202,21 @@ export default function EntryDetailPage() {
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 <div><strong>メールアドレス:</strong> {entry.email}</div>
+                <div className="flex items-center border rounded p-2 gap-2">
+                    <label className="text-xs text-gray-500">アカウントID</label>
+                    <input
+                        value={userId}
+                        onChange={e => setUserId(e.target.value)}
+                        className="border rounded px-2 py-1 w-32"
+                    />
+                    <button
+                        className="px-2 py-1 bg-blue-600 text-white rounded"
+                        onClick={handleAccountCreate}
+                        disabled={userIdLoading || !userId}
+                    >
+                        {userIdLoading ? "作成中..." : "アカウント決定"}
+                    </button>
+                </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
@@ -448,4 +509,40 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
             </div>
         </div>
     );
+}
+
+//ユーアーID生成ロジック（ヘボン式使用）
+type NameInfo = {
+    firstKana: string;
+    lastKana: string;
+    first: string;
+    last: string;
+};
+
+function getUserIdCandidate(
+    { firstKana, lastKana, first, last }: NameInfo,
+    existingIds: string[]
+): string {
+    const firstHeb = toHepburn(firstKana).toLowerCase().replace(/[^a-z]/g, "");
+    const lastHeb = toHepburn(lastKana).toLowerCase().replace(/[^a-z]/g, "");
+    const firstInitial = firstHeb.charAt(0);
+    const lastInitial = lastHeb.charAt(0);
+
+    const candidates = [
+        `${firstHeb}${lastHeb}`,
+        `${firstInitial}${lastHeb}`,
+        `${firstHeb}${lastInitial}`,
+        `${firstInitial}${lastInitial}${lastHeb}`,
+        `${firstInitial}${lastInitial}${firstHeb}`,
+    ];
+
+    for (const candidate of candidates) {
+        if (!existingIds.includes(candidate)) return candidate;
+    }
+    let num = 2;
+    let base = `${firstHeb}${lastHeb}`;
+    while (existingIds.includes(`${base}${num}`)) {
+        num++;
+    }
+    return `${base}${num}`;
 }
