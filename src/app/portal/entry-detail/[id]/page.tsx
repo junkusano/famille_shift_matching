@@ -108,14 +108,17 @@ export default function EntryDetailPage() {
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
 
-    useEffect(() => {
-        const fetchExistingIds = async () => {
-            const { data } = await supabase.from("users").select("user_id");
-            setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
-        };
+    // useStateのあとで
+    const fetchExistingIds = async () => {
+        const { data } = await supabase.from("users").select("user_id");
+        setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
+    };
 
+    // マウント時に呼び出し
+    useEffect(() => {
         fetchExistingIds();
     }, []);
+
 
     useEffect(() => {
         if (entry && existingIds.length) {
@@ -579,6 +582,7 @@ function getUserIdCandidate(
     return `${base}${num}`;
 }
 */
+
 
 // 複数候補を返す関数
 function getUserIdSuggestions(
