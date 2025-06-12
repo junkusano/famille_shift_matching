@@ -105,6 +105,25 @@ export default function EntryDetailPage() {
     const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
+    const [userRecord, setUserRecord] = useState<any>(null);
+
+    const fetchUserRecord = async () => {
+        if (!userId) return;
+        const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+        if (!error && data) setUserRecord(data);
+        else setUserRecord(null);
+    };
+
+    // userIdが変わったタイミングで
+    useEffect(() => {
+        fetchUserRecord();
+    }, [userId]);
+
+
 
     // useStateのあとで
     const fetchExistingIds = async () => {
@@ -168,7 +187,7 @@ export default function EntryDetailPage() {
             alert("アカウントIDが未登録のため、認証メールは送信できません。先にアカウント発行を行ってください。");
             return;
         }
-        
+
         if (!entry?.email) {
             alert("メールアドレスがありません");
             return;
@@ -253,38 +272,43 @@ export default function EntryDetailPage() {
                     )}
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
-                <div><strong>メールアドレス:</strong> {entry.email}</div>
-                <div className="flex items-center border rounded p-2 gap-2">
-                    <label className="text-xs text-gray-500">アカウントID</label>
-                    <input
-                        value={userId}
-                        onChange={e => setUserId(e.target.value)}
-                        className="border rounded px-2 py-1 w-32"
-                    />
-                    <button
-                        className="px-2 py-1 bg-blue-600 text-white rounded"
-                        onClick={handleAccountCreate}
-                        disabled={userIdLoading || !userId}
-                    >
-                        {userIdLoading ? "作成中..." : "アカウント決定"}
-                    </button>
-                    {/* ここから候補案 */}
-                    <div className="flex flex-col ml-4">
-                        <span className="text-xs text-gray-500">候補:</span>
-                        {userIdSuggestions.map(sug => (
-                            <button
-                                type="button"
-                                key={sug}
-                                className="text-blue-600 text-xs underline text-left"
-                                onClick={() => setUserId(sug)}
-                                disabled={sug === userId}
-                            >
-                                {sug}
-                            </button>
-                        ))}
-                    </div>
+                <div>
+                    <strong>メールアドレス:</strong> {entry.email}
+                    {userRecord && userRecord.auth_user_id && (
+                        <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+                    )}
                 </div>
-
+                {!userRecord && (
+                    <div className="flex items-center border rounded p-2 gap-2 mt-2">
+                        <label className="text-xs text-gray-500">アカウントID</label>
+                        <input
+                            value={userId}
+                            onChange={e => setUserId(e.target.value)}
+                            className="border rounded px-2 py-1 w-32"
+                        />
+                        <button
+                            className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
+                            onClick={handleAccountCreate}
+                            disabled={userIdLoading || !userId}
+                        >
+                            {userIdLoading ? "作成中..." : "アカウント決定"}
+                        </button>
+                        <div className="flex flex-col ml-4">
+                            <span className="text-xs text-gray-500">候補:</span>
+                            {userIdSuggestions.map(sug => (
+                                <button
+                                    type="button"
+                                    key={sug}
+                                    className="text-blue-600 text-xs underline text-left"
+                                    onClick={() => setUserId(sug)}
+                                    disabled={sug === userId}
+                                >
+                                    {sug}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
@@ -412,15 +436,20 @@ export default function EntryDetailPage() {
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
 
-            <div className="flex justify-center items-center pt-8">
-                <button
-                    className="ml-2 px-2 py-1 bg-green-700 text-white rounded"
-                    onClick={handleSendInvite}
-                    disabled={!userId || !entry?.email}
+            <div className="flex justify-center items-center gap-4 pt-8">
+                {userRecord && !userRecord.auth_user_id && (
+                    <button
+                        className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                        onClick={handleSendInvite}
+                        disabled={!userId || !entry?.email}
+                    >
+                        認証メール送信
+                    </button>
+                )}
+                <Link
+                    href="/portal/entry-list"
+                    className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
                 >
-                    認証メール送信
-                </button>
-                <Link href="/portal/entry-list" className="button button-primary flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
                     戻る
                 </Link>
