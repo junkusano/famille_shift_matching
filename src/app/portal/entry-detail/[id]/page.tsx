@@ -55,8 +55,6 @@ interface StaffLog {
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
-
-    // ここを絶対こうする！
     const [managerNote, setManagerNote] = useState(''); // 初期値は''でOK
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
@@ -119,7 +117,6 @@ export default function EntryDetailPage() {
         fetchExistingIds();
     }, []);
 
-
     useEffect(() => {
         if (entry && existingIds.length) {
             const nameInfo = {
@@ -159,7 +156,45 @@ export default function EntryDetailPage() {
         }
     };
 
+    const handleSendInvite = async () => {
+        // まずusersテーブルに該当アカウントが存在するかをチェック
+        const { data: usersData, error: usersError } = await supabase
+            .from("users")
+            .select("user_id")
+            .eq("user_id", userId)
+            .single();
 
+        if (usersError || !usersData) {
+            alert("アカウントIDが未登録のため、認証メールは送信できません。先にアカウント発行を行ってください。");
+            return;
+        }
+        
+        if (!entry?.email) {
+            alert("メールアドレスがありません");
+            return;
+        }
+        // パスワードは仮で自動生成
+        const password = Math.random().toString(36).slice(-8) + "Aa1!";
+        const { data, error } = await supabase.auth.signUp({
+            email: entry.email,
+            password,
+            options: {
+                emailRedirectTo: "https://myfamille.shi-on.net/portal/entry-list" // 認証後リダイレクト先
+            }
+        });
+        if (!error) {
+            alert("認証メールを送信しました！");
+            // AuthユーザーIDと紐付けたい場合
+            if (data.user && data.user.id) {
+                await supabase
+                    .from("users")
+                    .update({ auth_user_id: data.user.id })
+                    .eq("user_id", userId);
+            }
+        } else {
+            alert("メール送信に失敗しました：" + (error.message || "不明なエラー"));
+        }
+    };
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -378,6 +413,13 @@ export default function EntryDetailPage() {
             <StaffLogSection staffId={entry.id} />
 
             <div className="flex justify-center items-center pt-8">
+                <button
+                    className="ml-2 px-2 py-1 bg-green-700 text-white rounded"
+                    onClick={handleSendInvite}
+                    disabled={!userId || !entry?.email}
+                >
+                    認証メール送信
+                </button>
                 <Link href="/portal/entry-list" className="button button-primary flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
                     戻る
