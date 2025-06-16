@@ -69,7 +69,7 @@ export default function EntryDetailPage() {
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
 
     const [userId, setUserId] = useState('');
-    const [userIdLoading, setUserIdLoading] = useState(false);
+    //const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
@@ -130,6 +130,7 @@ export default function EntryDetailPage() {
         fetchUserRecord();
     }, [fetchUserRecord]);
 
+    /*
     const handleAccountCreate = async () => {
         if (existingIds.includes(userId)) {
             alert('このアカウントIDは既に存在します。別のIDを入力してください。');
@@ -149,12 +150,12 @@ export default function EntryDetailPage() {
 
         if (!error) {
             alert('アカウントを作成しました');
-            await fetchExistingIds();  // 登録後の最新状態を反映
+           await fetchExistingIds();  // 登録後の最新状態を反映
         } else {
             alert('エラーが発生しました：' + (error.message || ''));
         }
     };
-
+    */
 
     const handleSendInvite = async () => {
         const { data: usersData, error: usersError } = await supabase
