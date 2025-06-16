@@ -219,6 +219,15 @@ export default function EntryDetailPage() {
         }
     };
 
+    // attachments から「顔写真・免許証・資格証」を除外したものを「その他書類」とみなす
+    const otherDocs = entry.attachments?.filter(
+        a =>
+            !(a.type === '免許証表' || a.type === '免許証裏' || a.type === '住民票') &&
+            !(a.label && a.label.startsWith('certificate_')) &&
+            !(a.type && a.type.includes('資格証'))
+    );
+
+
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
     // ここから下、attachments参照もOK
@@ -394,6 +403,23 @@ export default function EntryDetailPage() {
                     </div>
                 </div>
             )}
+
+            {otherDocs && otherDocs.length > 0 && (
+                <div className="space-y-2">
+                    <h2 className="text-lg font-semibold">その他の書類</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {otherDocs.map((doc, idx) => (
+                            <FileThumbnail
+                                key={idx}
+                                title={doc.label ?? doc.type ?? `書類${idx + 1}`}
+                                src={doc.url ?? undefined}
+                                mimeType={doc.mimeType ?? undefined}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
 
             <div>
                 <strong>同意内容:</strong>
