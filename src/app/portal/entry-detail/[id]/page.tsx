@@ -109,8 +109,9 @@ export default function EntryDetailPage() {
                 lastKana: entry.last_name_kana,
             };
             const suggestions = getUserIdSuggestions(nameInfo, existingIds);
-            //setUserIdSuggestions(suggestions);
-            //if (suggestions.length > 0) setUserId(suggestions[0]);
+            setUserIdSuggestions(suggestions);
+            void setUserIdSuggestions(suggestions); // ESLint警告を無視
+            if (suggestions.length > 0) setUserId(suggestions[0]);
         }
     }, [entry, existingIds]);
 
