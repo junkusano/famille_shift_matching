@@ -283,11 +283,21 @@ export default function EntryDetailPage() {
                     )}
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
-                <div>
+                <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
-                    {userRecord && userRecord.auth_user_id && (
-                        <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
-                    )}
+                    {userRecord ? (
+                        userRecord.auth_user_id ? (
+                            <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+                        ) : (
+                            <button
+                                className="px-2 py-1 bg-green-700 text-white rounded shadow hover:bg-green-800 transition text-sm"
+                                onClick={handleSendInvite}
+                                disabled={!userId || !entry?.email}
+                            >
+                                認証メール送信
+                            </button>
+                        )
+                    ) : null}
                 </div>
                 {/*アカウントID入力・決定 UI の表示条件付きブロック */}
                 {!userRecord && (
@@ -444,7 +454,7 @@ export default function EntryDetailPage() {
                 <textarea
                     className="w-full border rounded p-2 mb-2"
                     rows={5}
-                    maxLength={2000} 
+                    maxLength={2000}
                     value={managerNote}
                     onChange={e => setManagerNote(e.target.value)}
                     placeholder="このエントリーについて特記事項・サマリー・情報共有を記入"
