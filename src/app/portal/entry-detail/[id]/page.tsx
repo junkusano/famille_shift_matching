@@ -444,7 +444,7 @@ export default function EntryDetailPage() {
                 <textarea
                     className="w-full border rounded p-2 mb-2"
                     rows={5}
-                    maxLength={2000} // 任意（画面側制限、DB側はTEXTなので余裕あり）
+                    maxLength={2000} 
                     value={managerNote}
                     onChange={e => setManagerNote(e.target.value)}
                     placeholder="このエントリーについて特記事項・サマリー・情報共有を記入"
