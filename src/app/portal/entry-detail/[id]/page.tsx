@@ -303,59 +303,62 @@ export default function EntryDetailPage() {
                     )}
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
+                {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
                     {userRecord && (
+                        userRecord.auth_user_id ? (
+                            <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold text-sm">認証完了</span>
+                        ) : (
+                            <button
+                                className="px-3 py-1 text-sm bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                                onClick={handleSendInvite}
+                                disabled={!userId || !entry?.email}
+                            >
+                                認証メール送信
+                            </button>
+                        )
+                    )}
+                </div>
+                {/* ユーザーID表示・入力・決定欄 */}
+                <div className="flex items-center border rounded p-2 gap-2 mt-2">
+                    <label className="text-xs text-gray-500">ユーザーID</label>
+
+                    {userRecord ? (
+                        <span className="text-sm text-gray-700 font-mono">{userRecord.user_id}</span>
+                    ) : (
                         <>
-                            <span className="text-sm text-gray-600">（ユーザーID: {userRecord.user_id}）</span>
-                            {userRecord.auth_user_id ? (
-                                <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
-                            ) : (
-                                <button
-                                    className="px-2 py-1 bg-green-700 text-white rounded shadow hover:bg-green-800 transition text-sm"
-                                    onClick={handleSendInvite}
-                                    disabled={!userId || !entry?.email}
-                                >
-                                    認証メール送信
-                                </button>
+                            <input
+                                value={userId}
+                                onChange={e => setUserId(e.target.value)}
+                                className="border rounded px-2 py-1 w-32"
+                            />
+                            <button
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
+                                onClick={handleAccountCreate}
+                                disabled={userIdLoading || !userId}
+                            >
+                                {userIdLoading ? "作成中..." : "ユーザーID決定"}
+                            </button>
+                            {userIdSuggestions.length > 0 && (
+                                <div className="flex flex-col ml-4">
+                                    <span className="text-xs text-gray-500">候補:</span>
+                                    {userIdSuggestions.map(sug => (
+                                        <button
+                                            type="button"
+                                            key={sug}
+                                            className="text-blue-600 text-xs underline text-left"
+                                            onClick={() => setUserId(sug)}
+                                            disabled={sug === userId}
+                                        >
+                                            {sug}
+                                        </button>
+                                    ))}
+                                </div>
                             )}
                         </>
                     )}
                 </div>
-                {/*アカウントID入力・決定 UI の表示条件付きブロック */}
-                {!userRecord && (
-                    <div className="flex items-center border rounded p-2 gap-2 mt-2">
-                        <label className="text-xs text-gray-500">ユーザーID：</label>
-                        <input
-                            value={userId}
-                            onChange={e => setUserId(e.target.value)}
-                            className="border rounded px-2 py-1 w-32"
-                        />
-                        <button
-                            className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
-                            onClick={handleAccountCreate}
-                            disabled={userIdLoading || !userId}
-                        >
-                            {userIdLoading ? "作成中..." : "ユーザーID決定"}
-                        </button>
-                        {userIdSuggestions.length > 0 && (
-                            <div className="flex flex-col ml-4">
-                                <span className="text-xs text-gray-500">候補:</span>
-                                {userIdSuggestions.map(sug => (
-                                    <button
-                                        type="button"
-                                        key={sug}
-                                        className="text-blue-600 text-xs underline text-left"
-                                        onClick={() => setUserId(sug)}
-                                        disabled={sug === userId}
-                                    >
-                                        {sug}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
