@@ -130,7 +130,7 @@ export default function EntryDetailPage() {
         fetchUserRecord();
     }, [fetchUserRecord]);
 
-    /*
+
     const handleAccountCreate = async () => {
         if (existingIds.includes(userId)) {
             alert('このアカウントIDは既に存在します。別のIDを入力してください。');
@@ -150,12 +150,12 @@ export default function EntryDetailPage() {
 
         if (!error) {
             alert('アカウントを作成しました');
-           await fetchExistingIds();  // 登録後の最新状態を反映
+            await fetchExistingIds();  // 登録後の最新状態を反映
         } else {
             alert('エラーが発生しました：' + (error.message || ''));
         }
     };
-    */
+
 
     const handleSendInvite = async () => {
         const { data: usersData, error: usersError } = await supabase
@@ -288,22 +288,38 @@ export default function EntryDetailPage() {
                         <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
                     )}
                 </div>
-                {userIdSuggestions.length > 0 && (
-                    <div className="flex flex-col ml-4">
-                        <span className="text-xs text-gray-500">候補:</span>
-                        {userIdSuggestions.map(sug => (
-                            <button
-                                type="button"
-                                key={sug}
-                                className="text-blue-600 text-xs underline text-left"
-                                onClick={() => setUserId(sug)}
-                                disabled={sug === userId}
-                            >
-                                {sug}
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <div className="flex items-center border rounded p-2 gap-2 mt-2">
+                    <label className="text-xs text-gray-500">アカウントID</label>
+                    <input
+                        value={userId}
+                        onChange={e => setUserId(e.target.value)}
+                        className="border rounded px-2 py-1 w-32"
+                    />
+                    <button
+                        className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
+                        onClick={handleAccountCreate}
+                        disabled={userIdLoading || !userId}
+                    >
+                        {userIdLoading ? "作成中..." : "アカウント決定"}
+                    </button>
+                    {/* 候補IDが存在する場合に表示する部分 */}
+                    {userIdSuggestions.length > 0 && (
+                        <div className="flex flex-col ml-4">
+                            <span className="text-xs text-gray-500">候補:</span>
+                            {userIdSuggestions.map(sug => (
+                                <button
+                                    type="button"
+                                    key={sug}
+                                    className="text-blue-600 text-xs underline text-left"
+                                    onClick={() => setUserId(sug)}
+                                    disabled={sug === userId}
+                                >
+                                    {sug}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
