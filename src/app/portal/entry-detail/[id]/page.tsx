@@ -466,7 +466,6 @@ export default function EntryDetailPage() {
 
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
-
             <div className="flex justify-center items-center gap-4 pt-8">
                 {userRecord && !userRecord.auth_user_id && (
                     <button
