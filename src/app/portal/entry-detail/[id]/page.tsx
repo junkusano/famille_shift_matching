@@ -69,7 +69,7 @@ export default function EntryDetailPage() {
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
 
     const [userId, setUserId] = useState('');
-    //const [userIdLoading, setUserIdLoading] = useState(false);
+    const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
