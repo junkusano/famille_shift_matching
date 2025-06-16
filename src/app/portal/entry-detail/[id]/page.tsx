@@ -134,23 +134,26 @@ export default function EntryDetailPage() {
             alert('このアカウントIDは既に存在します。別のIDを入力してください。');
             return;
         }
+
         setUserIdLoading(true);
+
         const { error } = await supabase.from('users').insert({
             user_id: userId,
-            email: entry?.email,
             system_role: 'member',
             entry_id: entry?.id,
-            status: 'provisional',
+            status: 'account_id_create',  // アカウントID作成済の状態
         });
+
         setUserIdLoading(false);
+
         if (!error) {
             alert('アカウントを作成しました');
-            fetchExistingIds();
-
+            await fetchExistingIds();  // 登録後の最新状態を反映
         } else {
             alert('エラーが発生しました：' + (error.message || ''));
         }
     };
+
 
     const handleSendInvite = async () => {
         const { data: usersData, error: usersError } = await supabase
@@ -183,13 +186,17 @@ export default function EntryDetailPage() {
             if (data.user && data.user.id) {
                 await supabase
                     .from('users')
-                    .update({ auth_user_id: data.user.id })
+                    .update({
+                        auth_user_id: data.user.id,
+                        status: 'auth_mail_send'
+                    })
                     .eq('user_id', userId);
             }
         } else {
             alert('メール送信に失敗しました：' + (error.message || '不明なエラー'));
         }
     };
+
 
     const handleSaveManagerNote = async () => {
         setNoteSaving(true);
