@@ -170,6 +170,7 @@ export default function EntryDetailPage() {
         if (!error) {
             alert('アカウントを作成しました');
             await fetchExistingIds();  // 登録後の最新状態を反映
+            await fetchUserRecord();
         } else {
             alert('エラーが発生しました：' + (error.message || ''));
         }
@@ -213,6 +214,7 @@ export default function EntryDetailPage() {
                         status: 'auth_mail_send',
                     })
                     .eq('user_id', userId);
+                await fetchUserRecord();
             }
         } else {
             console.log('Sign-up error:', error);
@@ -303,24 +305,27 @@ export default function EntryDetailPage() {
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
-                    {userRecord ? (
-                        userRecord.auth_user_id ? (
-                            <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
-                        ) : (
-                            <button
-                                className="px-2 py-1 bg-green-700 text-white rounded shadow hover:bg-green-800 transition text-sm"
-                                onClick={handleSendInvite}
-                                disabled={!userId || !entry?.email}
-                            >
-                                認証メール送信
-                            </button>
-                        )
-                    ) : null}
+                    {userRecord && (
+                        <>
+                            <span className="text-sm text-gray-600">（ユーザーID: {userRecord.user_id}）</span>
+                            {userRecord.auth_user_id ? (
+                                <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+                            ) : (
+                                <button
+                                    className="px-2 py-1 bg-green-700 text-white rounded shadow hover:bg-green-800 transition text-sm"
+                                    onClick={handleSendInvite}
+                                    disabled={!userId || !entry?.email}
+                                >
+                                    認証メール送信
+                                </button>
+                            )}
+                        </>
+                    )}
                 </div>
                 {/*アカウントID入力・決定 UI の表示条件付きブロック */}
                 {!userRecord && (
                     <div className="flex items-center border rounded p-2 gap-2 mt-2">
-                        <label className="text-xs text-gray-500">アカウントID</label>
+                        <label className="text-xs text-gray-500">ユーザーID：</label>
                         <input
                             value={userId}
                             onChange={e => setUserId(e.target.value)}
@@ -331,7 +336,7 @@ export default function EntryDetailPage() {
                             onClick={handleAccountCreate}
                             disabled={userIdLoading || !userId}
                         >
-                            {userIdLoading ? "作成中..." : "アカウント決定"}
+                            {userIdLoading ? "作成中..." : "ユーザーID決定"}
                         </button>
                         {userIdSuggestions.length > 0 && (
                             <div className="flex flex-col ml-4">
