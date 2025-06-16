@@ -109,8 +109,8 @@ export default function EntryDetailPage() {
                 lastKana: entry.last_name_kana,
             };
             const suggestions = getUserIdSuggestions(nameInfo, existingIds);
-            setUserIdSuggestions(suggestions);
-            if (suggestions.length > 0) setUserId(suggestions[0]);
+            //setUserIdSuggestions(suggestions);
+            //if (suggestions.length > 0) setUserId(suggestions[0]);
         }
     }, [entry, existingIds]);
 
@@ -286,26 +286,22 @@ export default function EntryDetailPage() {
                         <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
                     )}
                 </div>
-                {userRecord && userRecord.auth_user_id ? (
-                    <p>アカウントは認証済みです。</p>
-                ) : (
-                    <div>
-                        <label className="text-xs text-gray-500">アカウントID</label>
-                        <input
-                            value={userId}
-                            onChange={e => setUserId(e.target.value)}
-                            className="border rounded px-2 py-1 w-32"
-                        />
-                        <button
-                            className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
-                            onClick={handleAccountCreate}
-                            disabled={userIdLoading || !userId}
-                        >
-                            {userIdLoading ? "作成中..." : "アカウント決定"}
-                        </button>
+                {userIdSuggestions.length > 0 && (
+                    <div className="flex flex-col ml-4">
+                        <span className="text-xs text-gray-500">候補:</span>
+                        {userIdSuggestions.map(sug => (
+                            <button
+                                type="button"
+                                key={sug}
+                                className="text-blue-600 text-xs underline text-left"
+                                onClick={() => setUserId(sug)}
+                                disabled={sug === userId}
+                            >
+                                {sug}
+                            </button>
+                        ))}
                     </div>
                 )}
-
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
