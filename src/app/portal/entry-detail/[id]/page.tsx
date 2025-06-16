@@ -219,6 +219,10 @@ export default function EntryDetailPage() {
         }
     };
 
+
+    if (!entry) return <p className="p-4">読み込み中...</p>;
+
+    // ここから下、attachments参照もOK
     // attachments から「顔写真・免許証・資格証」を除外したものを「その他書類」とみなす
     const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [];
 
@@ -231,9 +235,7 @@ export default function EntryDetailPage() {
     );
 
 
-    if (!entry) return <p className="p-4">読み込み中...</p>;
 
-    // ここから下、attachments参照もOK
     // attachmentsからtypeで仕分け
     const licenseFront = entry.attachments?.find(a => a.type === '免許証表');
     const licenseBack = entry.attachments?.find(a => a.type === '免許証裏');
