@@ -116,21 +116,39 @@ export default function EntryDetailPage() {
 
 
     const fetchUserRecord = useCallback(async () => {
-        if (!userId) return;
+        if (!entry?.id) return;
         const { data, error } = await supabase
             .from('users')
             .select('*')
-            .eq('user_id', userId)
+            .eq('entry_id', entry.id)
             .single();
-        if (!error && data) setUserRecord(data);
-        else setUserRecord(null);
-    }, [userId]);
+
+        if (!error && data) {
+            setUserRecord(data);
+            setUserId(data.user_id);  // DBにあるIDをそのまま使う
+        } else {
+            setUserRecord(null);
+        }
+    }, [entry?.id]);
 
     useEffect(() => {
-        if (userId) {
+        if (entry) {
             fetchUserRecord();
         }
-    }, [userId, fetchUserRecord]);
+    }, [entry, fetchUserRecord]);
+
+    useEffect(() => {
+        if (entry && !userRecord && existingIds.length) {
+            const nameInfo = {
+                firstKana: entry.first_name_kana,
+                lastKana: entry.last_name_kana,
+            };
+            const suggestions = getUserIdSuggestions(nameInfo, existingIds);
+            setUserIdSuggestions(suggestions);
+            if (suggestions.length > 0) setUserId(suggestions[0]);
+        }
+    }, [entry, userRecord, existingIds]);
+
 
     const handleAccountCreate = async () => {
         if (existingIds.includes(userId)) {
