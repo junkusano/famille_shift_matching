@@ -182,19 +182,22 @@ export default function EntryDetailPage() {
         });
 
         if (!error) {
+            console.log('User signed up:', data);
             alert('認証メールを送信しました！');
             if (data.user && data.user.id) {
                 await supabase
                     .from('users')
                     .update({
                         auth_user_id: data.user.id,
-                        status: 'auth_mail_send'
+                        status: 'auth_mail_send',
                     })
                     .eq('user_id', userId);
             }
         } else {
+            console.log('Sign-up error:', error);
             alert('メール送信に失敗しました：' + (error.message || '不明なエラー'));
         }
+
     };
 
 
@@ -283,8 +286,10 @@ export default function EntryDetailPage() {
                         <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
                     )}
                 </div>
-                {!userRecord && (
-                    <div className="flex items-center border rounded p-2 gap-2 mt-2">
+                {userRecord && userRecord.auth_user_id ? (
+                    <p>アカウントは認証済みです。</p>
+                ) : (
+                    <div>
                         <label className="text-xs text-gray-500">アカウントID</label>
                         <input
                             value={userId}
@@ -298,22 +303,9 @@ export default function EntryDetailPage() {
                         >
                             {userIdLoading ? "作成中..." : "アカウント決定"}
                         </button>
-                        <div className="flex flex-col ml-4">
-                            <span className="text-xs text-gray-500">候補:</span>
-                            {userIdSuggestions.map(sug => (
-                                <button
-                                    type="button"
-                                    key={sug}
-                                    className="text-blue-600 text-xs underline text-left"
-                                    onClick={() => setUserId(sug)}
-                                    disabled={sug === userId}
-                                >
-                                    {sug}
-                                </button>
-                            ))}
-                        </div>
                     </div>
                 )}
+
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">
