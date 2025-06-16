@@ -220,8 +220,11 @@ export default function EntryDetailPage() {
     };
 
     // attachments から「顔写真・免許証・資格証」を除外したものを「その他書類」とみなす
-    const otherDocs = entry.attachments?.filter(
+    const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [];
+
+    const otherDocs = attachmentsArray.filter(
         a =>
+            a.url !== null &&
             !(a.type === '免許証表' || a.type === '免許証裏' || a.type === '住民票') &&
             !(a.label && a.label.startsWith('certificate_')) &&
             !(a.type && a.type.includes('資格証'))
