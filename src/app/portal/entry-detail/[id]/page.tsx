@@ -289,7 +289,7 @@ export default function EntryDetailPage() {
                         <span className="px-4 py-2 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
                     )}
                 </div>
-                // アカウントID入力・決定 UI の表示条件付きブロック
+                {/*アカウントID入力・決定 UI の表示条件付きブロック */}
                 {!userRecord && (
                     <div className="flex items-center border rounded p-2 gap-2 mt-2">
                         <label className="text-xs text-gray-500">アカウントID</label>
