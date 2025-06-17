@@ -195,7 +195,7 @@ export default function EntryDetailPage() {
             email: entry.email,
             password,
             options: {
-                emailRedirectTo: 'https://myfamille.shi-on.net/portal/entry-list',
+                emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
             },
         });
 
@@ -322,10 +322,10 @@ export default function EntryDetailPage() {
                                 送信中...
                             </button>
                         ) : inviteSent ? (
-                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証ﾒｰﾙ済</span>
+                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">認証ﾒｰﾙ済</span>
                         ) : (
                             <button
-                                className="px-4 py-1 bg-green-700 text-white rounded hover:bg-green-800"
+                                className="px-4 py-1 bg-green-700 text-white rounded hover:bg-green-800 whitespace-nowrap"
                                 onClick={handleSendInvite}
                             >
                                 認証ﾒｰﾙ送信
@@ -348,7 +348,7 @@ export default function EntryDetailPage() {
                                 className="border rounded px-2 py-1 w-32"
                             />
                             <button
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition"
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition whitespace-nowrap"
                                 onClick={handleAccountCreate}
                                 disabled={userIdLoading || !userId}
                             >
