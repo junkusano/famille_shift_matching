@@ -15,15 +15,30 @@ export default function SignupCompletePage() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setSessionChecked(true);
+
+      if (session?.user) {
+        const { error: updateError } = await supabase
+          .from('form_entries')
+          .update({ auth_uid: session.user.id })
+          .eq('email', session.user.email)
+          .eq('auth_uid', null);
+
+        if (updateError) {
+          console.error('auth_uid 更新エラー:', updateError);
+          setStatusMsg('認証情報の確認中にエラーが発生しました。サポートに連絡してください。');
+          setStatusType('error');
+        }
       } else {
-        // 認証がない場合ログインへ誘導
         router.push('/login');
       }
+
+      setSessionChecked(true);
     };
+
     checkSession();
   }, [router]);
+
+
 
   const handleSetPassword = async () => {
     if (!password || password.length < 10) {
