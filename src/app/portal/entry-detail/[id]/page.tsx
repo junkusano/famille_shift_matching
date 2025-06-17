@@ -322,13 +322,13 @@ export default function EntryDetailPage() {
                                 送信中...
                             </button>
                         ) : inviteSent ? (
-                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証ﾒｰﾙ送付済</span>
+                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証ﾒｰﾙ済</span>
                         ) : (
                             <button
                                 className="px-4 py-1 bg-green-700 text-white rounded hover:bg-green-800"
                                 onClick={handleSendInvite}
                             >
-                                認証メール送信
+                                認証ﾒｰﾙ送信
                             </button>
                         )
                     ) : null}
