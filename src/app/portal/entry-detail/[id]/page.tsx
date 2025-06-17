@@ -322,7 +322,7 @@ export default function EntryDetailPage() {
                                 送信中...
                             </button>
                         ) : inviteSent ? (
-                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証メール送付済</span>
+                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証ﾒｰﾙ送付済</span>
                         ) : (
                             <button
                                 className="px-4 py-1 bg-green-700 text-white rounded hover:bg-green-800"
@@ -352,7 +352,7 @@ export default function EntryDetailPage() {
                                 onClick={handleAccountCreate}
                                 disabled={userIdLoading || !userId}
                             >
-                                {userIdLoading ? "作成中..." : "ユーザーID決定"}
+                                {userIdLoading ? "作成中..." : "ﾕｰｻﾞｰID決定"}
                             </button>
                             {userIdSuggestions.length > 0 && (
                                 <div className="flex flex-col ml-4">
