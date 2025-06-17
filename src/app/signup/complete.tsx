@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function SignupCompletePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  //const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function SignupCompletePage() {
     setLoading(true);
     setStatusMsg('');
 
-    const { data, error } = await supabase.auth.updateUser({
+    const { error } = await supabase.auth.updateUser({
       password,
     });
 
