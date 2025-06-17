@@ -177,22 +177,18 @@ export default function EntryDetailPage() {
     };
 
 
+    const [sendingInvite, setSendingInvite] = useState(false);
+    const [inviteSent, setInviteSent] = useState(false);
+
     const handleSendInvite = async () => {
-        const { data: usersData, error: usersError } = await supabase
-            .from('users')
-            .select('user_id')
-            .eq('user_id', userId)
-            .single();
 
-        if (usersError || !usersData) {
-            alert('アカウントIDが未登録のため、認証メールは送信できません。先にアカウント発行を行ってください。');
+        if (!userId || !entry?.email) {
+            alert('必要な情報が不足しています。');
             return;
         }
 
-        if (!entry?.email) {
-            alert('メールアドレスがありません');
-            return;
-        }
+        setSendingInvite(true);
+        setInviteSent(false);
 
         const password = Math.random().toString(36).slice(-8) + 'Aa1!';
         const { data, error } = await supabase.auth.signUp({
@@ -203,25 +199,37 @@ export default function EntryDetailPage() {
             },
         });
 
+        setSendingInvite(false);
+
         if (!error) {
-            console.log('User signed up:', data);
+            setInviteSent(true);
             alert('認証メールを送信しました！');
-            if (data.user && data.user.id) {
-                await supabase
-                    .from('users')
+            if (data.user?.id) {
+                await supabase.from('users')
                     .update({
                         auth_user_id: data.user.id,
                         status: 'auth_mail_send',
                     })
                     .eq('user_id', userId);
-                await fetchUserRecord();
             }
         } else {
-            console.log('Sign-up error:', error);
-            alert('メール送信に失敗しました：' + (error.message || '不明なエラー'));
+            console.error('Sign-up error:', error);
+            alert(`メール送信に失敗しました: ${error.message}`);
         }
-
     };
+
+    useEffect(() => {
+        if (!userRecord?.auth_user_id) return;
+        const interval = setInterval(async () => {
+            const { data, error } = await supabase.auth.admin.getUserById(userRecord.auth_user_id);
+            if (!error && data.user?.last_sign_in_at) {
+                setUserRecord(prev => prev ? { ...prev, auth_user_id: data.user.id } : prev);
+                clearInterval(interval);  // 認証完了で監視終了
+            }
+        }, 5000);  // 5秒おきに確認（必要に応じて間隔調整）
+
+        return () => clearInterval(interval);
+    }, [userRecord?.auth_user_id]);
 
 
     const handleSaveManagerNote = async () => {
@@ -306,19 +314,25 @@ export default function EntryDetailPage() {
                 {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
-                    {userRecord && (
+                    {userRecord ? (
                         userRecord.auth_user_id ? (
-                            <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold text-sm">認証完了</span>
+                            <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+                        ) : sendingInvite ? (
+                            <button className="px-4 py-1 bg-green-700 text-white rounded" disabled>
+                                送信中...
+                            </button>
+                        ) : inviteSent ? (
+                            <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700">認証メール送付済</span>
                         ) : (
                             <button
-                                className="px-3 py-1 text-sm bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                                className="px-4 py-1 bg-green-700 text-white rounded hover:bg-green-800"
                                 onClick={handleSendInvite}
-                                disabled={!userId || !entry?.email}
                             >
                                 認証メール送信
                             </button>
                         )
-                    )}
+                    ) : null}
+
                 </div>
                 {/* ユーザーID表示・入力・決定欄 */}
                 <div className="flex items-center border rounded p-2 gap-2 mt-2">
