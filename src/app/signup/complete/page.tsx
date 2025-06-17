@@ -6,17 +6,20 @@ import { supabase } from '@/lib/supabaseClient';
 
 export default function SignupCompletePage() {
   const router = useRouter();
-  //const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
+  const [statusType, setStatusType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
-    // サインイン状態を確認し、既にログイン済みならポータルへリダイレクト
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        router.push('/portal');
+        setSessionChecked(true);
+      } else {
+        // 認証がない場合ログインへ誘導
+        router.push('/login');
       }
     };
     checkSession();
@@ -25,28 +28,34 @@ export default function SignupCompletePage() {
   const handleSetPassword = async () => {
     if (!password || password.length < 10) {
       setStatusMsg('パスワードは10文字以上にしてください');
+      setStatusType('error');
       return;
     }
 
     setLoading(true);
     setStatusMsg('');
+    setStatusType('');
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    const { error } = await supabase.auth.updateUser({ password });
 
     setLoading(false);
 
     if (error) {
       console.error('パスワード更新エラー', error);
       setStatusMsg(`エラー: ${error.message}`);
+      setStatusType('error');
     } else {
       setStatusMsg('パスワードが設定されました。ポータルへ移動します...');
+      setStatusType('success');
       setTimeout(() => {
         router.push('/portal');
       }, 1500);
     }
   };
+
+  if (!sessionChecked) {
+    return <p className="p-4 text-center">認証確認中です...</p>;
+  }
 
   return (
     <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow">
@@ -56,7 +65,7 @@ export default function SignupCompletePage() {
       </p>
       <input
         type="password"
-        placeholder="新しいパスワード"
+        placeholder="新しいパスワード（10文字以上）"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="w-full border rounded px-3 py-2 mb-3"
@@ -68,7 +77,11 @@ export default function SignupCompletePage() {
       >
         {loading ? '設定中...' : 'パスワードを設定'}
       </button>
-      {statusMsg && <p className="mt-2 text-sm text-red-500">{statusMsg}</p>}
+      {statusMsg && (
+        <p className={`mt-2 text-sm ${statusType === 'error' ? 'text-red-500' : 'text-green-600'}`}>
+          {statusMsg}
+        </p>
+      )}
     </div>
   );
 }
