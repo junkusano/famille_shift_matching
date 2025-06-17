@@ -196,7 +196,10 @@ export default function EntryDetailPage() {
             password,
             options: {
                 emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
-            },
+                data: {
+                    full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`
+                }
+            }
         });
 
         setSendingInvite(false);
