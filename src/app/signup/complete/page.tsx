@@ -17,17 +17,21 @@ export default function SignupCompletePage() {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        const { error: updateError } = await supabase
+        console.log('認証中のユーザー:', session.user);
+
+        const { data, error: updateError } = await supabase
           .from('form_entries')
           .update({ auth_uid: session.user.id })
-          .eq('email', session.user.email)
-          .eq('auth_uid', null);
+          .eq('email', session.user.email);
 
         if (updateError) {
           console.error('auth_uid 更新エラー:', updateError);
           setStatusMsg('認証情報の確認中にエラーが発生しました。サポートに連絡してください。');
           setStatusType('error');
+        } else {
+          console.log('auth_uid 更新結果:', data);
         }
+
       } else {
         router.push('/login');
       }
@@ -37,8 +41,6 @@ export default function SignupCompletePage() {
 
     checkSession();
   }, [router]);
-
-
 
   const handleSetPassword = async () => {
     if (!password || password.length < 10) {
