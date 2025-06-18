@@ -5,29 +5,35 @@ export async function sendEmail({
     to,
     subject,
     html,
-    from = '"マイ・ファミーユ" <noreply@info.shi-on.net>',
+    from,
 }: {
     to: string;
     subject: string;
     html: string;
     from?: string;
 }) {
-    try {
-        // SMTP設定（noreply@info.shi-on.net から送信）
-        const transporter = nodemailer.createTransport({
-            host: "info.shi-on.net", // メールサーバーのホスト名
-            port: 465, // 適切なポート番号
-            secure: true, // SSL/TLSを無効化
-            auth: {
-                user: "noreply@info.shi-on.net", // メール送信元
-                pass: process.env.SMTP_PASSWORD, // 環境変数からSMTPパスワードを取得
-                method: "LOGIN", // 必要に応じて 'PLAIN' や 'LOGIN' に変更
-            },
-            debug: true, // これで詳細なログが表示される
-        });
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASSWORD;
+    const smtpServer = process.env.SMTP_SERVER;
 
+    if (!smtpUser || !smtpPass || !smtpServer) {
+        console.error("SMTP 環境変数未設定");
+        return { status: "error", error: "SMTP 環境変数未設定" };
+    }
+
+    const transporter = nodemailer.createTransport({
+        host: smtpServer,
+        port: 465,
+        secure: true,
+        auth: {
+            user: smtpUser,
+            pass: smtpPass,
+        },
+    });
+
+    try {
         const info = await transporter.sendMail({
-            from,
+            from: from || `"ファミーユ採用" <${smtpUser}>`,
             to,
             subject,
             html,
