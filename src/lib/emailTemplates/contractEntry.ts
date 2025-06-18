@@ -1,6 +1,6 @@
 import { staffContractLinks } from "@/lib/staffContractLinks";
-
-export function generateContractEntryHtml(body: any): string {
+import { ApplicantBody } from "@/types/email";
+export function generateContractEntryHtml(body: ApplicantBody): string {
     return `
     <p>${body.applicantName}様</p>
 

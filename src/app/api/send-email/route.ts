@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
 import { generateApplicantHtml } from "@/lib/emailTemplates";
 import { generateRecruiterHtml } from "@/lib/emailTemplates/recruiterEntry";
+import { ApplicantBody } from "@/types/email";
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  const body: ApplicantBody = await req.json();
 
   // メール本文生成
   const applicantHtml = generateApplicantHtml(body);

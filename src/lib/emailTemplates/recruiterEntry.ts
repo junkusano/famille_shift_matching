@@ -1,4 +1,5 @@
-export function generateRecruiterHtml(body: any): string {
+import { ApplicantBody } from "@/types/email";
+export function generateRecruiterHtml(body: ApplicantBody): string {
   return `
     <h2>新規エントリーがありました</h2>
     <p>以下の内容でエントリーが完了しました。</p>

@@ -1,4 +1,5 @@
-export function generateRegularEntryHtml(body: any): string {
+import { ApplicantBody } from "@/types/email";
+export function generateRegularEntryHtml(body: ApplicantBody): string {
   return`
 <p>${body.applicantName}様</p>
 
