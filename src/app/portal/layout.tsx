@@ -69,19 +69,20 @@ export default function PortalLayout({ children }: Props) {
                     <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
 
                     <div className="mt-4">
-                        {secureImageUrl ? (
+                        {userData.photo_url ? (
                             <Image
-                                src={secureImageUrl}
+                                src={userData.photo_url}
                                 width={128}
                                 height={128}
                                 alt="写真"
                                 className="rounded-full object-cover"
                             />
                         ) : (
-                            <div className="w-32 h-32 bg-gray-300 rounded-full flex items-center justify-center text-sm text-gray-600">
+                            <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-sm text-gray-600">
                                 No Image
                             </div>
                         )}
+
                     </div>
 
                     <ul className="mt-6 space-y-2">
