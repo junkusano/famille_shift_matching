@@ -27,7 +27,8 @@ export default function PortalLayout({ children }: Props) {
     const role = useUserRole();
     const [userData, setUserData] = useState<UserData | null>(null);
     const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
-
+    void secureImageUrl;
+    
     useEffect(() => {
         const fetchUserData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
