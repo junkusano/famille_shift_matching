@@ -20,18 +20,18 @@ export async function GET(req: NextRequest) {
   try {
     const res = await drive.files.get(
       { fileId, alt: 'media' },
-      { responseType: 'stream' as any } // 型エラー防止のため any を明示
+      { responseType: 'stream' as any } // eslint-disable-line @typescript-eslint/no-explicit-any
     )
 
-    // Next.js API Routeでstreamを返す場合は new Response でOK
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return new Response(res.data as any, {
       headers: {
         'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=31536000, immutable', // キャッシュ効率化
       },
     })
-  } catch (err: any) {
-    console.error('Drive fetch error:', err.message)
+  } catch (err: unknown) {
+    const error = err as { message: string }
+    console.error('Drive fetch error:', error.message)
     return NextResponse.json({ error: 'Failed to fetch image' }, { status: 500 })
   }
 }
