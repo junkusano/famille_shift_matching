@@ -235,15 +235,23 @@ export default function EntryPage() {
 
         // attachments 多次元配列生成
         const attachments = [];
-        if (licenseFrontUrl) attachments.push({ type: "license_front", url: licenseFrontUrl, mimetype: licenseFront?.type || "" });
-        if (licenseBackUrl) attachments.push({ type: "license_back", url: licenseBackUrl, mimetype: licenseBack?.type || "" });
-        if (residenceCardUrl) attachments.push({ type: "residence_card", url: residenceCardUrl, mimetype: residenceCard?.type || "" });
+        if (licenseFrontUrl) attachments.push({ type: "免許証表", url: licenseFrontUrl, mimetype: licenseFront?.type || "" });
+        if (licenseBackUrl) attachments.push({ type: "免許証裏", url: licenseBackUrl, mimetype: licenseBack?.type || "" });
+        if (residenceCardUrl) attachments.push({ type: "住民票", url: residenceCardUrl, mimetype: residenceCard?.type || "" });
 
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
             const certUrl = certificationUrls[i];
-            if (certUrl) attachments.push({ type: `certificate_${i}`, url: certUrl, mimetype: certFile?.type || "" });
+            if (certUrl) {
+                attachments.push({
+                    type: "資格証明書",
+                    label: `certificate_${i}`,
+                    url: certUrl,
+                    mimetype: certFile?.type || ""
+                });
+            }
         }
+
 
         // work_style配列取得
         const work_styles = form.getAll("workStyle") as string[];
