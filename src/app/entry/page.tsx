@@ -70,10 +70,11 @@ export default function EntryPage() {
 
         // --- ここで重複登録チェックを実施 ---
         // メールアドレス重複チェック
+        const cleanEmail = String(email).trim().toLowerCase();
         const { data: emailDup, error: emailErr } = await supabase
             .from("form_entries")
             .select("id, auth_id")
-            .eq("email", email);
+            .eq("email", cleanEmail);
         if (emailErr) {
             alert("メール重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + emailErr.message);
             setIsSubmitting(false);
@@ -352,6 +353,8 @@ export default function EntryPage() {
             }
 
             if (!res.ok) {
+                console.log("送信メールアドレス:", email);
+                console.log("正規化メールアドレス:", String(email).trim().toLowerCase());
                 console.error("メール送信エラー:", result);
                 if (!res.ok) {
                     alert(`メール通知に失敗しました：${result.error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
