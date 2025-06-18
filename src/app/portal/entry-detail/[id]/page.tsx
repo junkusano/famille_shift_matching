@@ -664,7 +664,11 @@ function StaffLogSection({ staffId }: { staffId: string }) {
 }
 
 // 画像表示＋PDFボタン
-function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
+function FileThumbnail({
+    title,
+    src,
+    mimeType
+}: { title: string; src?: string; mimeType?: string | null }) {
     if (!src) {
         return (
             <div className="text-sm text-center text-gray-500">
@@ -674,11 +678,31 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         );
     }
 
+    // fileId を URL から抽出（Google Drive の共有 URL を前提）
+    const fileIdMatch = src.match(/[-\w]{25,}/);
+    const fileId = fileIdMatch ? fileIdMatch[0] : null;
+
+    if (!fileId) {
+        return (
+            <div className="text-sm text-center text-red-500">
+                {title}<br />
+                無効なURL
+            </div>
+        );
+    }
+
+    const secureUrl = `/api/secure-image?fileId=${fileId}`;
+
     if (mimeType === "application/pdf") {
         return (
             <div className="text-sm text-center">
                 <p className="mb-1">{title}</p>
-                <a href={src} target="_blank" rel="noopener noreferrer" className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200">
+                <a
+                    href={secureUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
+                >
                     📄 PDF/ファイルを開く
                 </a>
             </div>
@@ -689,20 +713,26 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         <div className="text-sm text-center">
             <p className="mb-1">{title}</p>
             <Image
-                src={src}
+                src={secureUrl}
                 alt={title}
                 width={320}
                 height={192}
                 className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
             />
             <div className="mt-2">
-                <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                <a
+                    href={secureUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                >
                     ファイルとして開く
                 </a>
             </div>
         </div>
     );
 }
+
 
 // 複数候補を返す関数
 function getUserIdSuggestions(
