@@ -1,7 +1,8 @@
 import { generateRegularEntryHtml } from "./regularEntry";
 import { generateContractEntryHtml } from "./contractEntry";
+import { ApplicantBody } from "@/types/email";
 
-export function generateApplicantHtml(body: any): string {
+export function generateApplicantHtml(body: ApplicantBody): string {
   const work_styles = body.work_styles || [];
   const commutes = body.commute_options || [];
   const noCert = body.noCertifications === "on";
