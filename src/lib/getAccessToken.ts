@@ -1,11 +1,13 @@
 import jwt from 'jsonwebtoken';
 import axios, { AxiosResponse } from 'axios';
 
+// 環境変数の取得
 const clientId = process.env.LINEWORKS_CLIENT_ID;
 const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT;
 const privateKey = (process.env.LINEWORKS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
+// 環境変数の確認
 if (!clientId || !serviceAccount || !privateKey) {
   console.error('必要な環境変数が不足しています。');
   console.error('LINEWORKS_CLIENT_ID:', clientId);
@@ -20,7 +22,7 @@ export async function getAccessToken(): Promise<string> {
     iss: clientId,
     sub: serviceAccount,
     iat: now,
-    exp: now + 60 * 5,
+    exp: now + 60 * 5, // 有効期限5分
     aud: serverApiUrl,
   };
 
