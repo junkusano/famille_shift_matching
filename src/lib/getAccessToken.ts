@@ -42,7 +42,11 @@ export async function getAccessToken(): Promise<string> {
     exp: now + 60 * 5,
     aud: serverApiUrl,
   };
+  
   const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+
+  console.log('[getAccessToken] JWT Payload:', payload);
+  console.log('[getAccessToken] JWT Token (一部):', token.slice(0, 50) + '...');
 
   try {
     const response: AxiosResponse<{ access_token: string }> = await axios.post(serverApiUrl, null, {
@@ -56,13 +60,13 @@ export async function getAccessToken(): Promise<string> {
       },
     });
 
-    console.log('Access Token:', response.data.access_token);
+    console.log('[getAccessToken] Access Token:', response.data.access_token);
     return response.data.access_token;
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      console.error('Access Token取得失敗:', error.response?.data || error.message);
+      console.error('[getAccessToken] Access Token取得失敗:', error.response?.data || error.message);
     } else {
-      console.error('Access Token取得失敗（未知のエラー）:', error);
+      console.error('[getAccessToken] Access Token取得失敗（未知のエラー）:', error);
     }
     throw error;
   }
