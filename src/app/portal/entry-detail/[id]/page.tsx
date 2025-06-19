@@ -9,6 +9,7 @@ import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 //import { sendEmail } from "@/lib/email";
 //import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
+//import { createLineWorksUser } from '@/lib/lineworksService';
 import { createLineWorksUser } from '@/lib/lineworksService';
 import getAccessToken from '@/lib/getAccessToken';
 
@@ -852,14 +853,5 @@ function getUserIdSuggestions(
         candidates.push(`${base}${num}`);
     }
     return candidates.filter(c => !existingIds.includes(c));
-}
-
-function generateTemporaryPassword() {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let pwd = '';
-    for (let i = 0; i < 12; i++) {
-        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return pwd;
 }
 
