@@ -55,3 +55,35 @@ function generateTemporaryPassword(): string {
   }
   return pwd + 'Aa1!';
 }
+
+/**
+ * LINE WORKS のユーザーが存在するか確認する
+ */
+export async function checkLineWorksUserExists(
+  accessToken: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    const response = await axios.get(
+      `https://www.worksapis.com/v1.0/users/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    // 存在していれば 200 が返る想定
+    return response.status === 200;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        return false; // ユーザーが存在しない場合
+      }
+      console.error('LINE WORKS ユーザー確認失敗:', error.response?.data || error.message);
+    } else {
+      console.error('LINE WORKS ユーザー確認未知のエラー:', error);
+    }
+    throw error; // その他エラーは投げる（ネットワーク異常など）
+  }
+}

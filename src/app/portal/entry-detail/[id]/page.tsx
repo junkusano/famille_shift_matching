@@ -7,8 +7,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-import { createLineWorksUser } from '@/lib/lineworksService';
 import { getAccessToken } from '@/lib/getAccessToken';
+import { checkLineWorksUserExists, createLineWorksUser } from '@/lib/lineworksService';
+
 
 interface Attachment {
     url: string | null;
@@ -343,6 +344,52 @@ export default function EntryDetailPage() {
         setSendingContract(false);
     };
 
+    const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
+    //const [checkingLineWorks, setCheckingLineWorks] = useState(false);
+    const handleCreateLineWorksAccount = async () => {
+        if (!userId || !entry?.email) {
+            alert('必要な情報が不足しています。');
+            return;
+        }
+
+        try {
+            const accessToken = await getAccessToken();
+            const result = await createLineWorksUser(
+                accessToken,
+                userId,
+                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                entry.email
+            );
+
+            if (result.success) {
+                await supabase.from('users')
+                    .update({ temp_password: result.tempPassword })
+                    .eq('user_id', userId);
+
+                alert('LINE WORKS アカウントを作成しました！');
+                setLineWorksExists(true);  // 成功したので true に更新
+            } else {
+                alert('LINE WORKS アカウント作成に失敗しました。');
+                console.error('LINE WORKS アカウント作成失敗:', result);
+            }
+        } catch (err) {
+            console.error('LINE WORKS アカウント作成中エラー:', err);
+            alert('LINE WORKS アカウント作成中にエラーが発生しました。');
+        }
+    };
+
+    useEffect(() => {
+        const load = async () => {
+            // await はここでOK
+            if (!userId) return;  // ユーザーIDが空なら実行しない
+            const accessToken = await getAccessToken();
+            const exists = await checkLineWorksUserExists(accessToken, userId);
+            setLineWorksExists(exists);
+        };
+
+        load();
+    }, [userId]);
+
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -436,12 +483,17 @@ export default function EntryDetailPage() {
                                 )}
 
                                 {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
-                                <button
-                                    className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
-                                    onClick={handleCreateLineWorksAccount}
-                                >
-                                    LINE WORKS アカウント生成
-                                </button>
+                                {lineWorksExists ? (
+                                    <span className="px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">LINE WORKS 登録済</span>
+                                ) : (
+                                    <button
+                                        className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
+                                        onClick={handleCreateLineWorksAccount}
+                                    >
+                                        LINE WORKS アカウント生成
+                                    </button>
+                                )}
+
                             </div>
                         ) : (
                             <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
