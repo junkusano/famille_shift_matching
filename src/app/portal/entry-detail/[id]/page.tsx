@@ -370,7 +370,7 @@ export default function EntryDetailPage() {
                 </div>
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 {/* メールアドレスと認証状態・認証ボタン */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
                     {userRecord ? (
                         userRecord.auth_user_id ? (
