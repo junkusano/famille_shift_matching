@@ -8,6 +8,10 @@ const privateKey = process.env.LINEWORKS_PRIVATE_KEY ?? '';
 const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
 export async function getAccessToken(): Promise<string> {
+  console.log('LINEWORKS_PRIVATE_KEY is present:', !!process.env.LINEWORKS_PRIVATE_KEY);
+  console.log('LINEWORKS_PRIVATE_KEY length:', process.env.LINEWORKS_PRIVATE_KEY?.length);
+  console.log('LINEWORKS_CLIENT_ID:', process.env.LINEWORKS_CLIENT_ID);
+  console.log('LINEWORKS_SERVICE_ACCOUNT:', process.env.LINEWORKS_SERVICE_ACCOUNT);
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: clientId,
