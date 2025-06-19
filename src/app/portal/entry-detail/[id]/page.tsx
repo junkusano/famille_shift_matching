@@ -409,7 +409,7 @@ export default function EntryDetailPage() {
                 {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                         <div>
                             {userRecord ? (
                                 userRecord.auth_user_id ? (
