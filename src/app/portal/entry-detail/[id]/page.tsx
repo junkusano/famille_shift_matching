@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-import { sendEmail } from "@/lib/email";
+//import { sendEmail } from "@/lib/email";
 import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
 
 
@@ -275,12 +275,12 @@ export default function EntryDetailPage() {
 
         setSendingContract(true);  // ここを追加！
 
-        const applicantName = `${entry.last_name_kanji} ${entry.first_name_kanji}`;
-        const applicantKana = `${entry.last_name_kana} ${entry.first_name_kana}`;
-        const age = new Date().getFullYear() - entry.birth_year -
+        //const applicantName = `${entry.last_name_kanji} ${entry.first_name_kanji}`;
+        //const applicantKana = `${entry.last_name_kana} ${entry.first_name_kana}`;
+        /*const age = new Date().getFullYear() - entry.birth_year -
             ((new Date().getMonth() + 1 < entry.birth_month) ||
                 (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day) ? 1 : 0);
-
+        */
         const html = generateContractsAfterInterviewHtml(entry);
 
         const result = await fetch('/api/send-contract-email', {
