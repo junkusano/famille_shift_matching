@@ -283,16 +283,22 @@ export default function EntryDetailPage() {
 
         const html = generateContractsAfterInterviewHtml(entry);
 
-        const result = await sendEmail({
-            to: entry.email,
-            subject: '雇用契約書のご案内',
-            html
+        const result = await fetch('/api/send-contract-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                entry,  // 必要に応じて必要なデータだけ送る
+            }),
         });
 
-        if (result.status === 'ok') {
+        const resJson = await result.json();
+
+        if (result.ok) {
             alert(`雇用契約書メールを ${entry.email} に送信しました。`);
         } else {
-            alert(`メール送信に失敗しました: ${result.error}`);
+            alert(`メール送信に失敗しました: ${resJson.error}`);
         }
 
         setSendingContract(false);
