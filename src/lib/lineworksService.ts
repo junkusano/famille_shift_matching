@@ -1,51 +1,57 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 
-export function generateTemporaryPassword(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let pwd = '';
-  for (let i = 0; i < 12; i++) {
-    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return pwd;
-}
+export type CreateLineWorksUserResult =
+  | { success: true; tempPassword: string }
+  | { success: false; error: string };
 
 export async function createLineWorksUser(
   accessToken: string,
   userId: string,
   name: string,
   email: string
-): Promise<{
-  success: boolean;
-  tempPassword?: string;
-  response?: any;
-  error?: any;
-}> {
+): Promise<CreateLineWorksUserResult> {
   const tempPassword = generateTemporaryPassword();
 
-  const payload = {
-    userId,
-    name,
-    email,
-    password: tempPassword,
-  };
-
   try {
-    const response = await axios.post('https://www.worksapis.com/v1.0/users', payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const response = await axios.post(
+      'https://www.worksapis.com/v1.0/users',
+      {
+        userId,
+        name,
+        password: tempPassword,
+        emails: [{ type: 'WORK', value: email }]
       },
-    });
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        }
+      }
+    );
 
-    return {
-      success: true,
-      tempPassword,
-      response: response.data,
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      error: err.response ? err.response.data : err.message,
-    };
+    if (response.status === 201) {
+      return { success: true, tempPassword };
+    } else {
+      console.error('API異常レスポンス:', response.data);
+      return { success: false, error: 'LINE WORKS ユーザー作成に失敗しました。' };
+    }
+
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      console.error('LINE WORKS API エラー:', err.response.data);
+      return { success: false, error: JSON.stringify(err.response.data) };
+    } else {
+      console.error('LINE WORKS API 不明エラー:', err);
+      return { success: false, error: '不明なエラーが発生しました。' };
+    }
   }
+}
+
+function generateTemporaryPassword(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let pwd = '';
+  for (let i = 0; i < 12; i++) {
+    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pwd + 'Aa1!';
 }

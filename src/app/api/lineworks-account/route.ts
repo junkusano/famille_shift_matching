@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabaseServer';
-import getAccessToken from '@/lib/getAccessToken';
+import { getAccessToken } from '@/lib/getAccessToken';
 import { createLineWorksUser } from '@/lib/lineworksService';
 
 export async function POST(req: Request) {
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const result = await createLineWorksUser(accessToken, userId, name, email);
 
-    if (!result.success) {
+    if (result.success === false) {
       console.error('LINE WORKS ユーザー作成失敗:', result.error);
       return new Response(
         JSON.stringify({ success: false, error: result.error }),
@@ -43,10 +43,12 @@ export async function POST(req: Request) {
       JSON.stringify({ success: true, tempPassword: result.tempPassword }),
       { status: 200 }
     );
-  } catch (err: any) {
+
+  } catch (err: unknown) {
     console.error('API処理中エラー:', err);
+    const message = err instanceof Error ? err.message : '不明なエラーが発生しました。';
     return new Response(
-      JSON.stringify({ success: false, error: err.message || '不明なエラーが発生しました。' }),
+      JSON.stringify({ success: false, error: message }),
       { status: 500 }
     );
   }

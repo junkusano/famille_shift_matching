@@ -1,13 +1,14 @@
 import jwt from 'jsonwebtoken';
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 
-// 環境変数から値を取得
-const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT!;
-const privateKey = process.env.LINEWORKS_PRIVATE_KEY!.replace(/\\n/g, '\n');
-const clientId = process.env.LINEWORKS_CLIENT_ID!;
+const serviceAccount = '3xzf3.serviceaccount@shi-on';
+const privateKey = `-----BEGIN PRIVATE KEY-----
+あなたのPRIVATE_KEY文字列
+-----END PRIVATE KEY-----`;
+const clientId = 'bg4uJjAlSS0gTXejntBa';
 const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
-export default async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: clientId,
@@ -16,11 +17,10 @@ export default async function getAccessToken(): Promise<string> {
     exp: now + 60 * 5,
     aud: serverApiUrl,
   };
-
   const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
 
   try {
-    const response = await axios.post(serverApiUrl, null, {
+    const response: AxiosResponse<{ access_token: string }> = await axios.post(serverApiUrl, null, {
       params: {
         assertion: token,
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -31,9 +31,14 @@ export default async function getAccessToken(): Promise<string> {
       },
     });
 
+    console.log('Access Token:', response.data.access_token);
     return response.data.access_token;
-  } catch (error: any) {
-    console.error('Access Token取得失敗:', error.response ? error.response.data : error.message);
-    throw new Error(error.response ? JSON.stringify(error.response.data) : error.message);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('Access Token取得失敗:', error.response?.data || error.message);
+    } else {
+      console.error('Access Token取得失敗（未知のエラー）:', error);
+    }
+    throw error;
   }
 }

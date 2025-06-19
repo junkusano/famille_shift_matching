@@ -7,12 +7,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-//import { sendEmail } from "@/lib/email";
-//import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
-//import { createLineWorksUser } from '@/lib/lineworksService';
 import { createLineWorksUser } from '@/lib/lineworksService';
-import getAccessToken from '@/lib/getAccessToken';
-
+import { getAccessToken } from '@/lib/getAccessToken';
 
 interface Attachment {
     url: string | null;
@@ -218,50 +214,59 @@ export default function EntryDetailPage() {
             }
         });
 
-        if (!error) {
-            setInviteSent(true);
-            alert('認証メールを送信しました！');
-
-            if (data.user?.id) {
-                // Supabase users テーブル更新
-                await supabase.from('users')
-                    .update({
-                        auth_user_id: data.user.id,
-                        status: 'auth_mail_send',
-                    })
-                    .eq('user_id', userId);
-
-                try {
-                    // === LINE WORKS アカウント作成 ===
-                    const accessToken = await getAccessToken();
-                    const result = await createLineWorksUser(
-                        accessToken,
-                        userId,
-                        `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                        entry.email
-                    );
-
-                    if (result.success) {
-                        // 仮パスワードを保存
-                        await supabase.from('users')
-                            .update({
-                                temp_password: result.tempPassword
-                            })
-                            .eq('user_id', userId);
-
-                        alert('LINE WORKS アカウントを作成しました！');
-                    } else {
-                        console.error('LINE WORKS ユーザー作成失敗:', result.error);
-                        alert('LINE WORKS アカウント作成に失敗しました。');
-                    }
-                } catch (lineWorksErr) {
-                    console.error('LINE WORKS アカウント作成中エラー:', lineWorksErr);
-                    alert('LINE WORKS アカウント作成中にエラーが発生しました。');
-                }
-            }
-        } else {
+        if (error) {
             console.error('Sign-up error:', error);
             alert(`メール送信に失敗しました: ${error.message}`);
+            setSendingInvite(false);
+            return;
+        }
+
+        setInviteSent(true);
+        alert('認証メールを送信しました！');
+
+        if (!data.user?.id) {
+            alert('認証ユーザー情報が取得できませんでした。');
+            setSendingInvite(false);
+            return;
+        }
+
+        // Supabase users テーブル更新
+        await supabase.from('users')
+            .update({
+                auth_user_id: data.user.id,
+                status: 'auth_mail_send',
+            })
+            .eq('user_id', userId);
+
+        try {
+            // === LINE WORKS アカウント作成 ===
+            const accessToken = await getAccessToken();
+            const result = await createLineWorksUser(
+                accessToken,
+                userId,
+                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                entry.email
+            );
+
+            if (result.success === false) {
+                console.error('LINE WORKS ユーザー作成失敗:', result.error);
+                alert('LINE WORKS アカウント作成に失敗しました。');
+                setSendingInvite(false);
+                return;
+            }
+
+            // 仮パスワードを保存
+            await supabase.from('users')
+                .update({
+                    temp_password: result.tempPassword
+                })
+                .eq('user_id', userId);
+
+            alert('LINE WORKS アカウントを作成しました！');
+
+        } catch (lineWorksErr) {
+            console.error('LINE WORKS アカウント作成中エラー:', lineWorksErr);
+            alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
 
         setSendingInvite(false);
