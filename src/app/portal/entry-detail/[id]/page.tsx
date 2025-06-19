@@ -7,6 +7,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
+import { sendEmail } from "@/lib/email";
+import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
+
 
 interface Attachment {
     url: string | null;
@@ -59,6 +62,15 @@ interface UserRecord {
 type NameInfo = {
     firstKana: string;
     lastKana: string;
+};
+
+type ApplicantBody = {
+    applicantName: string;
+    applicantKana: string;
+    age: number;
+    gender: string;
+    email: string;
+    // 必要であれば他のフィールドもここに追加
 };
 
 export default function EntryDetailPage() {
@@ -252,6 +264,41 @@ export default function EntryDetailPage() {
         setNoteSaving(false);
     };
 
+
+    const [sendingContract, setSendingContract] = useState(false);
+
+    const handleSendContractMail = async () => {
+        if (!entry) {
+            alert('エントリー情報が取得できていません。');
+            return;
+        }
+
+        setSendingContract(true);  // ここを追加！
+
+        const applicantName = `${entry.last_name_kanji} ${entry.first_name_kanji}`;
+        const applicantKana = `${entry.last_name_kana} ${entry.first_name_kana}`;
+        const age = new Date().getFullYear() - entry.birth_year -
+            ((new Date().getMonth() + 1 < entry.birth_month) ||
+                (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day) ? 1 : 0);
+
+        const html = generateContractsAfterInterviewHtml(entry);
+
+        const result = await sendEmail({
+            to: entry.email,
+            subject: '雇用契約書のご案内',
+            html
+        });
+
+        if (result.status === 'ok') {
+            alert(`雇用契約書メールを ${entry.email} に送信しました。`);
+        } else {
+            alert(`メール送信に失敗しました: ${result.error}`);
+        }
+
+        setSendingContract(false);
+    };
+
+
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
     const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [];
@@ -336,6 +383,14 @@ export default function EntryDetailPage() {
                         )
                     ) : null}
 
+                    {/* 雇用契約書メール送信ボタン */}
+                    <button
+                        onClick={handleSendContractMail}
+                        disabled={sendingContract}
+                        className="px-4 py-2 bg-purple-700 text-white rounded shadow hover:bg-purple-800 transition"
+                    >
+                        {sendingContract ? '送信中...' : '雇用契約書メール送信'}
+                    </button>
                 </div>
                 {/* ユーザーID表示・入力・決定欄 */}
                 <div className="flex items-center border rounded p-2 gap-2 mt-2">

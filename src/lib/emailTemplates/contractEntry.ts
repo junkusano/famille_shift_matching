@@ -33,6 +33,7 @@ export function generateContractEntryHtml(body: ApplicantBody): string {
       <li><a href="${staffContractLinks.privacy}" target="_blank">個人情報同意書</a></li>
       <li><a href="${staffContractLinks.privateCar}" target="_blank">私有車誓約書（該当者のみ）</a></li>
     </ul>
+    <p><a href="https://youtube.com/shorts/aOWp6dtvVTo?si=B3p4I03SZ2eodWKh">電子サインの方法（動画）</a></p>
 
     <p>
     ご不明点やご相談がありましたら、<br>
