@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 //import { sendEmail } from "@/lib/email";
-import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
+//import { generateContractsAfterInterviewHtml } from "@/lib/emailTemplates/contractsAfterInterview";
 
 
 interface Attachment {
@@ -64,6 +64,7 @@ type NameInfo = {
     lastKana: string;
 };
 
+/*
 type ApplicantBody = {
     applicantName: string;
     applicantKana: string;
@@ -72,6 +73,7 @@ type ApplicantBody = {
     email: string;
     // 必要であれば他のフィールドもここに追加
 };
+*/
 
 export default function EntryDetailPage() {
     const { id } = useParams();
@@ -281,7 +283,7 @@ export default function EntryDetailPage() {
             ((new Date().getMonth() + 1 < entry.birth_month) ||
                 (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day) ? 1 : 0);
         */
-        const html = generateContractsAfterInterviewHtml(entry);
+        //const html = generateContractsAfterInterviewHtml(entry);
 
         const result = await fetch('/api/send-contract-email', {
             method: 'POST',
