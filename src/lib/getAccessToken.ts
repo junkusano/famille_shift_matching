@@ -1,17 +1,20 @@
 import jwt from 'jsonwebtoken';
 import axios, { AxiosResponse } from 'axios';
 
-const clientId = process.env.LINEWORKS_CLIENT_ID!;
-const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT!;
-//const privateKey = (process.env.LINEWORKS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-const privateKey = process.env.LINEWORKS_PRIVATE_KEY ?? '';
+const clientId = process.env.LINEWORKS_CLIENT_ID;
+const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT;
+const privateKey = (process.env.LINEWORKS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
+if (!clientId || !serviceAccount || !privateKey) {
+  console.error('必要な環境変数が不足しています。');
+  console.error('LINEWORKS_CLIENT_ID:', clientId);
+  console.error('LINEWORKS_SERVICE_ACCOUNT:', serviceAccount);
+  console.error('LINEWORKS_PRIVATE_KEY is present:', !!privateKey);
+  throw new Error('環境変数の不足により起動できません。');
+}
+
 export async function getAccessToken(): Promise<string> {
-  console.log('LINEWORKS_PRIVATE_KEY is present:', !!process.env.LINEWORKS_PRIVATE_KEY);
-  console.log('LINEWORKS_PRIVATE_KEY length:', process.env.LINEWORKS_PRIVATE_KEY?.length);
-  console.log('LINEWORKS_CLIENT_ID:', process.env.LINEWORKS_CLIENT_ID);
-  console.log('LINEWORKS_SERVICE_ACCOUNT:', process.env.LINEWORKS_SERVICE_ACCOUNT);
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: clientId,
@@ -20,10 +23,17 @@ export async function getAccessToken(): Promise<string> {
     exp: now + 60 * 5,
     aud: serverApiUrl,
   };
-  
-  const token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
 
   console.log('[getAccessToken] JWT Payload:', payload);
+
+  let token: string;
+  try {
+    token = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+  } catch (err) {
+    console.error('[getAccessToken] JWT署名エラー:', err);
+    throw err;
+  }
+
   console.log('[getAccessToken] JWT Token (一部):', token.slice(0, 50) + '...');
 
   try {
