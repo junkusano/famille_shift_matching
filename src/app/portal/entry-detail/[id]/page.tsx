@@ -410,36 +410,52 @@ export default function EntryDetailPage() {
                 <div className="flex items-center gap-2">
                     <strong>メールアドレス:</strong> {entry.email}
                     <div className="flex flex-col gap-2">
-                        <div>
-                            {userRecord ? (
-                                userRecord.auth_user_id ? (
-                                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+
+                        {userRecord ? (
+                            <div className="space-y-2">
+                                {/* 認証状態・ボタン */}
+                                {userRecord.auth_user_id ? (
+                                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">
+                                        認証完了
+                                    </span>
                                 ) : sendingInvite ? (
                                     <button className="px-4 py-1 bg-green-700 text-white rounded" disabled>
-                                        送信中...
+                                        認証メール送信中...
                                     </button>
                                 ) : inviteSent ? (
-                                    <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">認証ﾒｰﾙ済</span>
+                                    <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">
+                                        認証メール送信済
+                                    </span>
                                 ) : (
                                     <button
                                         className="px-2 py-0.5 bg-green-700 text-white rounded hover:bg-green-800 text-sm whitespace-nowrap"
                                         onClick={handleSendInvite}
                                     >
-                                        認証ﾒｰﾙ送信
+                                        認証メール送信
                                     </button>
-                                )
-                            ) : null}
-                        </div>
-                        <div>
-                            {/* 雇用契約書メール送信ボタン */}
-                            <button
-                                onClick={handleSendContractMail}
-                                disabled={sendingContract}
-                                className="px-2 py-0.5 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
-                            >
-                                {sendingContract ? '送信中...' : '雇用契約書ﾒｰﾙ送信'}
-                            </button>
-                        </div>
+                                )}
+
+                                {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
+                                <button
+                                    className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
+                                    onClick={handleCreateLineWorksAccount}
+                                >
+                                    LINE WORKS アカウント生成
+                                </button>
+                            </div>
+                        ) : (
+                            <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
+                        )}
+
+                        {/* 雇用契約書メール送信ボタン */}
+                        <button
+                            onClick={handleSendContractMail}
+                            disabled={sendingContract}
+                            className="px-2 py-0.5 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
+                        >
+                            {sendingContract ? '送信中...' : '雇用契約書ﾒｰﾙ送信'}
+                        </button>
+
                     </div>
                 </div>
                 {/* ユーザーID表示・入力・決定欄 */}
