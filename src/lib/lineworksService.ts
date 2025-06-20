@@ -24,6 +24,7 @@ export async function createLineWorksUser(
   try {
 
     const cleanedName = name.replace(/[（）\(\)]/g, '').trim();
+    console.log('cleanedName', cleanedName); 
     const response = await axios.post(
       'https://www.worksapis.com/v1.0/users',
       {
