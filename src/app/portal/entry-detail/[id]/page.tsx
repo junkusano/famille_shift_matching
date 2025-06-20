@@ -352,31 +352,34 @@ export default function EntryDetailPage() {
             return;
         }
 
+        setSendingInvite(true);
         try {
-            const accessToken = await getAccessToken();
-            const result = await createLineWorksUser(
-                accessToken,
-                userId,
-                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                entry.email
-            );
+            const response = await fetch('/api/lineworks-create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                    email: entry.email
+                })
+            });
 
-            if (result.success) {
-                await supabase.from('users')
-                    .update({ temp_password: result.tempPassword })
-                    .eq('user_id', userId);
+            const resJson = await response.json();
 
+            if (response.ok) {
                 alert('LINE WORKS アカウントを作成しました！');
-                setLineWorksExists(true);  // 成功したので true に更新
+                setLineWorksExists(true);
             } else {
-                alert('LINE WORKS アカウント作成に失敗しました。');
-                console.error('LINE WORKS アカウント作成失敗:', result);
+                console.error('API error:', resJson.error);
+                alert(`LINE WORKS アカウント作成に失敗: ${resJson.error}`);
             }
         } catch (err) {
-            console.error('LINE WORKS アカウント作成中エラー:', err);
+            console.error('Fetch error:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
+        setSendingInvite(false);
     };
+
 
     useEffect(() => {
         const load = async () => {
