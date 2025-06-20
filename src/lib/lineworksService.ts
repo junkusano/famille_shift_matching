@@ -25,7 +25,7 @@ export async function createLineWorksUser(
       'https://www.worksapis.com/v1.0/users',
       {
         userId,
-        name,
+        userName: name,  
         password: tempPassword,
         emails: [{ type: 'WORK', value: email }],
         domainId
