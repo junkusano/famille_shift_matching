@@ -16,7 +16,14 @@ export async function POST(req: Request) {
         const supabase = await createSupabaseServerClient();
         const accessToken = await getAccessToken();
 
-        const result = await createLineWorksUser(accessToken, userId, name, email);
+        const result = await createLineWorksUser(
+            accessToken,
+            process.env.LINEWORKS_DOMAIN_ID!,  // domainId を追加
+            userId,
+            name,
+            email
+        );
+
 
         if (result.success === false) {
             console.error('LINE WORKS ユーザー作成失敗:', result.error);
