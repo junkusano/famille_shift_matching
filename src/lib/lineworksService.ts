@@ -6,54 +6,86 @@ export type CreateLineWorksUserResult =
   | { success: false; error: string };
 
 export async function createLineWorksUser(
-  userId: string,
-  name: string,
-  email: string
+  userId: string,  // ローカル部 (localPart)
+  lastName: string,
+  firstName: string,
+  phoneticLastName: string,
+  phoneticFirstName: string,
+  levelId: string,
+  orgUnitId: string,
+  positionId: string
 ): Promise<CreateLineWorksUserResult> {
-  console.log('createLineWorksUser 受信データ', { userId, name, email }); 
   const accessToken = await getAccessToken();
-  const domainId = process.env.LINEWORKS_DOMAIN_ID;
+  const domainId = Number(process.env.LINEWORKS_DOMAIN_ID);
 
   if (!domainId) {
-    console.error('LINEWORKS_DOMAIN_ID が未設定です');
-    return { success: false, error: 'LINE WORKS 設定が不足しています。' };
+    return { success: false, error: 'LINE WORKS 設定 (domainId) が不足しています。' };
   }
 
+  const email = `${userId}@shi-on`;
   const tempPassword = generateTemporaryPassword();
 
-  try {
+  const requestBody = {
+    domainId,
+    email,
+    userName: {
+      lastName,
+      firstName,
+      phoneticLastName,
+      phoneticFirstName
+    },
+    passwordConfig: {
+      passwordCreationType: 'ADMIN',
+      password: tempPassword,
+      changePasswordAtNextLogin: true
+    },
+    organizations: [
+      {
+        domainId,
+        primary: true,
+        email,
+        levelId,
+        orgUnits: [
+          {
+            orgUnitId,
+            primary: true,
+            positionId,
+            isManager: false,
+            visible: true,
+            useTeamFeature: true
+          }
+        ]
+      }
+    ],
+    locale: 'ja_JP',
+    timeZone: 'Asia/Tokyo'
+  };
 
-    const cleanedName = name.replace(/[（）\(\)]/g, '').trim();
-    console.log('cleanedName', cleanedName); 
+  try {
     const response = await axios.post(
       'https://www.worksapis.com/v1.0/users',
-      {
-        userId,
-        userName: cleanedName,
-        password: tempPassword,
-        emails: [{ type: 'WORK', value: email }],
-        domainId
-      },
+      requestBody,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         }
       }
     );
 
     if (response.status === 201) {
+      console.log('ユーザー作成成功', response.data);
       return { success: true, tempPassword };
     } else {
-      console.error('LINE WORKS API 異常レスポンス:', response.status, response.data);
+      console.error('予期しないステータス:', response.status, response.data);
       return { success: false, error: `Unexpected status code: ${response.status}` };
     }
   } catch (err) {
     if (axios.isAxiosError(err)) {
-      console.error('LINE WORKS API エラー:', err.response?.data || err.message);
+      console.error('API エラー:', err.response?.data || err.message);
       return { success: false, error: JSON.stringify(err.response?.data || err.message) };
     } else {
-      console.error('LINE WORKS API 不明エラー:', err);
+      console.error('不明なエラー:', err);
       return { success: false, error: '不明なエラーが発生しました。' };
     }
   }
@@ -66,28 +98,4 @@ function generateTemporaryPassword(): string {
     pwd += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pwd + 'Aa1!';
-}
-
-export async function checkLineWorksUserExists(
-  accessToken: string,
-  userId: string
-): Promise<boolean> {
-  try {
-    const response = await axios.get(
-      `https://www.worksapis.com/v1.0/users/${userId}`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      }
-    );
-    return response.status === 200;
-  } catch (err) {
-    if (axios.isAxiosError(err)) {
-      if (err.response?.status === 404) return false;
-      console.error('LINE WORKS ユーザー確認失敗:', err.response?.data || err.message);
-      throw new Error(`API エラー: ${JSON.stringify(err.response?.data || err.message)}`);
-    } else {
-      console.error('未知のエラー:', err);
-      throw new Error('未知のエラーが発生しました');
-    }
-  }
 }

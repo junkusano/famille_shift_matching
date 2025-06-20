@@ -7,9 +7,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-//import { getAccessToken } from '@/lib/getAccessToken';
 import { createLineWorksUser } from '@/lib/lineworksService';
-
+import { getOrgList } from '@/lib/lineworks/getOrgUnits';
+import { getLevelList } from '@/lib/lineworks/getLevels';
+import { getPositionList } from '@/lib/lineworks/getPositions';
 
 interface Attachment {
     url: string | null;
@@ -87,6 +88,38 @@ export default function EntryDetailPage() {
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
+
+    const [orgList, setOrgList] = useState<{ orgUnitId: string; name: string }[]>([]);
+    const [levelList, setLevelList] = useState<{ levelId: string; name: string }[]>([]);
+    const [positionList, setPositionList] = useState<{ positionId: string; name: string }[]>([]);
+
+    const [selectedOrg, setSelectedOrg] = useState<string>('');
+    const [selectedLevel, setSelectedLevel] = useState<string>('');
+    const [selectedPosition, setSelectedPosition] = useState<string>('');
+
+    useEffect(() => {
+        const loadLineworksData = async () => {
+            try {
+                const orgs = await getOrgList();
+                const levels = await getLevelList();
+                const positions = await getPositionList();
+
+                setOrgList(orgs);
+                setLevelList(levels);
+                setPositionList(positions);
+
+                // デフォルト値セット（必要に応じて）
+                if (orgs.length > 0) setSelectedOrg(orgs[0].orgUnitId);
+                if (levels.length > 0) setSelectedLevel(levels[0].levelId);
+                if (positions.length > 0) setSelectedPosition(positions[0].positionId);
+            } catch (err) {
+                console.error('LINE WORKS データ取得エラー:', err);
+            }
+        };
+
+        loadLineworksData();
+    }, []);
+
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
@@ -375,7 +408,8 @@ export default function EntryDetailPage() {
     }, [entry, userId]);
 
 
-    // LINE WORKS の環境変数チェックは不要
+    // LINE WORKS
+
     // サーバーAPIを呼び出すだけにする
     const handleCreateLineWorksAccount = async () => {
         if (!userId || !entry || !entry.email) {
@@ -389,11 +423,15 @@ export default function EntryDetailPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userId,
-                    fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                    email: entry.email
+                    lastName: entry.last_name_kanji,
+                    firstName: entry.first_name_kanji,
+                    phoneticLastName: entry.last_name_kana,
+                    phoneticFirstName: entry.first_name_kana,
+                    levelId: selectedLevel,
+                    orgUnitId: selectedOrg,
+                    positionId: selectedPosition
                 })
             });
-
             const data = await res.json();
 
             if (!res.ok || !data.success) {
@@ -591,6 +629,53 @@ export default function EntryDetailPage() {
                         </>
                     )}
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                        <label className="block text-sm text-gray-600">所属組織</label>
+                        <select
+                            className="border rounded px-2 py-1 w-full"
+                            value={selectedOrg}
+                            onChange={e => setSelectedOrg(e.target.value)}
+                        >
+                            {orgList.map(org => (
+                                <option key={org.orgUnitId} value={org.orgUnitId}>
+                                    {org.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-600">職級</label>
+                        <select
+                            className="border rounded px-2 py-1 w-full"
+                            value={selectedLevel}
+                            onChange={e => setSelectedLevel(e.target.value)}
+                        >
+                            {levelList.map(level => (
+                                <option key={level.levelId} value={level.levelId}>
+                                    {level.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-gray-600">役職</label>
+                        <select
+                            className="border rounded px-2 py-1 w-full"
+                            value={selectedPosition}
+                            onChange={e => setSelectedPosition(e.target.value)}
+                        >
+                            {positionList.map(pos => (
+                                <option key={pos.positionId} value={pos.positionId}>
+                                    {pos.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
                     <table className="border w-full text-sm">

@@ -4,19 +4,61 @@ import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, fullName, email } = await req.json();
+    const {
+      userId,
+      lastName,
+      firstName,
+      phoneticLastName,
+      phoneticFirstName,
+      levelId,
+      orgUnitId,
+      positionId
+    } = await req.json();
 
-    if (!userId || !fullName || !email) {
-      return NextResponse.json({ success: false, error: '必須データが不足しています' }, { status: 400 });
+    if (
+      !userId ||
+      !lastName ||
+      !firstName ||
+      !phoneticLastName ||
+      !phoneticFirstName ||
+      !levelId ||
+      !orgUnitId ||
+      !positionId
+    ) {
+      return NextResponse.json(
+        { success: false, error: '必須データが不足しています' },
+        { status: 400 }
+      );
     }
 
-    console.log('API側受信データ', { userId, fullName, email });
+    console.log('API側受信データ', {
+      userId,
+      lastName,
+      firstName,
+      phoneticLastName,
+      phoneticFirstName,
+      levelId,
+      orgUnitId,
+      positionId
+    });
 
-    const result = await createLineWorksUser(userId, fullName, email);
+    const result = await createLineWorksUser(
+      userId,
+      lastName,
+      firstName,
+      phoneticLastName,
+      phoneticFirstName,
+      levelId,
+      orgUnitId,
+      positionId
+    );
 
     if (result.success === false) {
       console.error('LINE WORKS アカウント作成失敗:', result.error);
-      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: 500 }
+      );
     }
 
     const { error: updateError } = await supabase
@@ -26,12 +68,23 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       console.error('Supabase update error:', updateError.message);
-      return NextResponse.json({ success: false, error: 'Failed to update Supabase' }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: 'Supabase 更新に失敗しました' },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ success: true, tempPassword: result.tempPassword });
+    return NextResponse.json(
+      { success: true, tempPassword: result.tempPassword },
+      { status: 200 }
+    );
+
   } catch (err) {
     console.error('API Error:', err);
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Internal Server Error';
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
   }
 }
