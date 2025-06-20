@@ -32,14 +32,19 @@ export async function createLineWorksUser(
     if (response.status === 201) {
       return { success: true, tempPassword };
     } else {
-      console.error('API異常レスポンス:', response.data);
-      return { success: false, error: 'LINE WORKS ユーザー作成に失敗しました。' };
+      console.error('LINE WORKS API 異常レスポンス:', response.status, response.data);
+      return {
+        success: false,
+        error: `Unexpected status code: ${response.status}`,
+      };
     }
-
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      console.error('LINE WORKS API エラー:', err.response.data);
-      return { success: false, error: JSON.stringify(err.response.data) };
+    if (axios.isAxiosError(err)) {
+      console.error('LINE WORKS API エラー:', err.response?.data || err.message);
+      return {
+        success: false,
+        error: JSON.stringify(err.response?.data || err.message),
+      };
     } else {
       console.error('LINE WORKS API 不明エラー:', err);
       return { success: false, error: '不明なエラーが発生しました。' };
@@ -50,15 +55,12 @@ export async function createLineWorksUser(
 function generateTemporaryPassword(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let pwd = '';
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 9; i++) {
     pwd += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pwd + 'Aa1!';
 }
 
-/**
- * LINE WORKS のユーザーが存在するか確認する
- */
 export async function checkLineWorksUserExists(
   accessToken: string,
   userId: string
@@ -69,21 +71,21 @@ export async function checkLineWorksUserExists(
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-        },
+        }
       }
     );
 
-    // 存在していれば 200 が返る想定
     return response.status === 200;
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        return false; // ユーザーが存在しない場合
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        return false;
       }
-      console.error('LINE WORKS ユーザー確認失敗:', error.response?.data || error.message);
+      console.error('LINE WORKS ユーザー確認失敗:', err.response?.data || err.message);
+      throw new Error(`ユーザー確認APIエラー: ${JSON.stringify(err.response?.data || err.message)}`);
     } else {
-      console.error('LINE WORKS ユーザー確認未知のエラー:', error);
+      console.error('LINE WORKS ユーザー確認未知のエラー:', err);
+      throw new Error('未知のエラーが発生しました。');
     }
-    throw error; // その他エラーは投げる（ネットワーク異常など）
   }
 }

@@ -345,15 +345,18 @@ export default function EntryDetailPage() {
     };
 
     const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
-    //const [checkingLineWorks, setCheckingLineWorks] = useState(false);
+
     const handleCreateLineWorksAccount = async () => {
         if (!userId || !entry?.email) {
             alert('必要な情報が不足しています。');
             return;
         }
 
-        // LINE WORKS 環境変数が揃ってない場合はスキップ
-        if (!process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID || !process.env.NEXT_PUBLIC_LINEWORKS_SERVICE_ACCOUNT || !process.env.NEXT_PUBLIC_LINEWORKS_PRIVATE_KEY) {
+        if (
+            !process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID ||
+            !process.env.NEXT_PUBLIC_LINEWORKS_SERVICE_ACCOUNT ||
+            !process.env.NEXT_PUBLIC_LINEWORKS_PRIVATE_KEY
+        ) {
             alert('LINE WORKS の環境変数が不足しているため、この機能は一時的に無効化されています。');
             return;
         }
@@ -367,42 +370,48 @@ export default function EntryDetailPage() {
                 entry.email
             );
 
-            if (!result.success) {
-                alert('LINE WORKS アカウント作成に失敗しました。');
-                console.error('LINE WORKS アカウント作成失敗:', result);
+            if (result.success === false) {
+                console.error('LINE WORKS アカウント作成失敗:', result.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
                 return;
             }
 
-            await supabase.from('users')
+            const { error: updateError } = await supabase.from('users')
                 .update({ temp_password: result.tempPassword })
                 .eq('user_id', userId);
 
+            if (updateError) {
+                console.error('Supabase 更新エラー:', updateError.message);
+                alert('アカウント作成後のパスワード保存に失敗しました。');
+                return;
+            }
+
             alert('LINE WORKS アカウントを作成しました！');
             setLineWorksExists(true);
+
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
     };
 
-
-
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
-
-            // 環境変数がない場合は実行しない
             if (!process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID) return;
 
-            const accessToken = await getAccessToken();
-            const exists = await checkLineWorksUserExists(accessToken, userId);
-            setLineWorksExists(exists);
+            try {
+                const accessToken = await getAccessToken();
+                const exists = await checkLineWorksUserExists(accessToken, userId);
+                setLineWorksExists(exists);
+            } catch (err) {
+                console.error('LINE WORKS ユーザー確認中エラー:', err);
+                setLineWorksExists(null);
+            }
         };
 
         load();
     }, [userId]);
-
-
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
