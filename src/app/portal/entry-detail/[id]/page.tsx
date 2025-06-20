@@ -346,6 +346,8 @@ export default function EntryDetailPage() {
 
     const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
 
+    // LINE WORKS の環境変数チェックは不要
+    // サーバーAPIを呼び出すだけにする
     const handleCreateLineWorksAccount = async () => {
         if (!userId || !entry?.email) {
             alert('必要な情報が不足しています。');
@@ -353,25 +355,25 @@ export default function EntryDetailPage() {
         }
 
         try {
-            const res = await fetch('/api/lineworks-account', {
+            const res = await fetch('/api/lineworks/create-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userId,
-                    name: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                    email: entry.email,
-                }),
+                    fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                    email: entry.email
+                })
             });
 
             const data = await res.json();
 
-            if (!data.success) {
-                alert(`LINE WORKS アカウント作成に失敗: ${data.error}`);
+            if (!res.ok || !data.success) {
+                console.error('LINE WORKS アカウント作成失敗:', data.error);
+                alert('LINE WORKS アカウント作成に失敗しました。');
                 return;
             }
 
-            alert('LINE WORKS アカウントを作成しました！');
-            setLineWorksExists(true);
+            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
