@@ -95,6 +95,35 @@ export async function createLineWorksUser(
   }
 }
 
+export async function checkLineWorksUserExists(userId: string): Promise<{ exists: boolean }> {
+  const accessToken = await getAccessToken();
+  const domainId = Number(process.env.LINEWORKS_DOMAIN_ID);
+
+  if (!domainId) {
+    throw new Error('LINE WORKS 設定 (domainId) が不足しています');
+  }
+
+  try {
+    const response = await axios.get(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}@shi-on`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (response.status === 200) {
+      return { exists: true };
+    } else {
+      return { exists: false };
+    }
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) {
+      return { exists: false };
+    }
+    console.error('LINE WORKS ユーザー確認エラー:', err);
+    throw new Error('LINE WORKS ユーザー確認中にエラーが発生しました');
+  }
+}
+
 function generateTemporaryPassword(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let pwd = '';
@@ -103,3 +132,4 @@ function generateTemporaryPassword(): string {
   }
   return pwd + 'Aa1!';
 }
+
