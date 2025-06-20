@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const domainId = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
+const domainId = process.env.LINEWORKS_DOMAIN_ID;
 if (!domainId) {
   throw new Error('LINEWORKS_DOMAIN_ID が環境変数に設定されていません。');
 }
@@ -25,7 +25,7 @@ export async function createLineWorksUser(
         name,
         password: tempPassword,
         emails: [{ type: 'WORK', value: email }],
-        domainId: process.env.LINEWORKS_DOMAIN_ID  // ← ここを追加
+        domainId: process.env.LINEWORKS_DOMAIN_ID  
       },
       {
         headers: {
