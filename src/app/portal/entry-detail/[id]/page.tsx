@@ -104,6 +104,10 @@ export default function EntryDetailPage() {
                 const levels = await getLevelList();
                 const positions = await getPositionList();
 
+                console.log("getOrgList 結果", orgs);
+                console.log("getLevelList 結果", levels);
+                console.log("getPositionList 結果", positions);
+
                 setOrgList(orgs);
                 setLevelList(levels);
                 setPositionList(positions);
