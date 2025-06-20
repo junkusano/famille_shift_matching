@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { getAccessToken } from '@/lib/getAccessToken';
 
 export type CreateLineWorksUserResult =
@@ -6,7 +6,7 @@ export type CreateLineWorksUserResult =
   | { success: false; error: string };
 
 export async function createLineWorksUser(
-  userId: string,  // ローカル部 (localPart)
+  userId: string,
   lastName: string,
   firstName: string,
   phoneticLastName: string,
@@ -19,7 +19,7 @@ export async function createLineWorksUser(
   const domainId = Number(process.env.LINEWORKS_DOMAIN_ID);
 
   if (!domainId) {
-    return { success: false, error: 'LINE WORKS 設定 (domainId) が不足しています。' };
+    return { success: false, error: 'LINE WORKS 設定 (LINEWORKS_DOMAIN_ID) が不足しています。' };
   }
 
   const email = `${userId}@shi-on`;
@@ -80,10 +80,14 @@ export async function createLineWorksUser(
       console.error('予期しないステータス:', response.status, response.data);
       return { success: false, error: `Unexpected status code: ${response.status}` };
     }
-  } catch (err) {
+  } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      console.error('API エラー:', err.response?.data || err.message);
-      return { success: false, error: JSON.stringify(err.response?.data || err.message) };
+      const axiosErr = err as AxiosError;
+      console.error('API エラー:', axiosErr.response?.data || axiosErr.message);
+      return {
+        success: false,
+        error: JSON.stringify(axiosErr.response?.data || axiosErr.message)
+      };
     } else {
       console.error('不明なエラー:', err);
       return { success: false, error: '不明なエラーが発生しました。' };

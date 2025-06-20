@@ -40,7 +40,6 @@ export async function POST(req: Request) {
             );
         }
 
-
         const supabase = await createSupabaseServerClient();
         const { error: updateError } = await supabase
             .from('users')

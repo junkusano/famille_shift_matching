@@ -1,29 +1,30 @@
 import axios from 'axios';
 import { getAccessToken } from '@/lib/getAccessToken';
 
-export async function getPositionList(): Promise<{ positionId: string; name: string }[]> {
-  try {
-    const accessToken = await getAccessToken();
+export type Position = {
+  positionId: string;
+  name: string;
+};
 
-    const response = await axios.get('https://www.worksapis.com/v1.0/positions', {
+export async function getPositionList(): Promise<Position[]> {
+  const accessToken = await getAccessToken();
+
+  const response = await axios.get<{ positions: { positionId: string; name: string }[] }>(
+    'https://www.worksapis.com/v1.0/positions',
+    {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
-    });
-
-    const data = response.data;
-
-    if (!data || !Array.isArray(data.positions)) {
-      console.warn('LINE WORKS 役職データが不正です:', data);
-      return [];
     }
+  );
 
-    return data.positions.map((pos: any) => ({
-      positionId: pos.positionId,
-      name: pos.name
-    }));
-  } catch (err) {
-    console.error('LINE WORKS 役職一覧取得エラー:', err);
+  if (!response.data || !response.data.positions) {
+    console.warn('LINE WORKS ポジションデータが空です');
     return [];
   }
+
+  return response.data.positions.map(position => ({
+    positionId: position.positionId,
+    name: position.name
+  }));
 }

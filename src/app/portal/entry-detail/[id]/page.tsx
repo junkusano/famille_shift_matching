@@ -290,7 +290,17 @@ export default function EntryDetailPage() {
                 alert('氏名情報が不足しています。');
                 return;
             }
-            const result = await createLineWorksUser(userId, fullName, entry.email);
+            const result = await createLineWorksUser(
+                userId,
+                entry.last_name_kanji,
+                entry.first_name_kanji,
+                entry.last_name_kana,
+                entry.first_name_kana,
+                selectedLevel,
+                selectedOrg,
+                selectedPosition
+            );
+
             /*
             const result = await createLineWorksUser(
                 userId,
