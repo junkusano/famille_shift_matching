@@ -252,7 +252,7 @@ export default function EntryDetailPage() {
             }
             */
             const result = await createLineWorksUser(
-                 userId,
+                userId,
                 `${entry.last_name_kanji} ${entry.first_name_kanji}`,
                 entry.email
             );
@@ -355,16 +355,21 @@ export default function EntryDetailPage() {
     const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
 
 
-    console.log('LINE WORKS アカウント作成送信データ', {
-        userId,
-        fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-        email: entry.email
-    });
+    useEffect(() => {
+        if (entry) {
+            console.log('LINE WORKS アカウント作成送信データ', {
+                userId,
+                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                email: entry.email
+            });
+        }
+    }, [entry, userId]);
+
 
     // LINE WORKS の環境変数チェックは不要
     // サーバーAPIを呼び出すだけにする
     const handleCreateLineWorksAccount = async () => {
-        if (!userId || !entry?.email) {
+        if (!userId || !entry || !entry.email) {
             alert('必要な情報が不足しています。');
             return;
         }
