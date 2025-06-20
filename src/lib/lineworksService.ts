@@ -25,7 +25,7 @@ export async function createLineWorksUser(
         name,
         password: tempPassword,
         emails: [{ type: 'WORK', value: email }],
-        domainId: process.env.LINEWORKS_DOMAIN_ID  
+        domainId // ← サーバー側の変数 domainId をここで使う
       },
       {
         headers: {
