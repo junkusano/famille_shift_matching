@@ -21,11 +21,13 @@ export async function createLineWorksUser(
   const tempPassword = generateTemporaryPassword();
 
   try {
+
+    const cleanedName = name.replace(/[（）\(\)]/g, '').trim();
     const response = await axios.post(
       'https://www.worksapis.com/v1.0/users',
       {
         userId,
-        userName: name,  
+        userName: cleanedName,
         password: tempPassword,
         emails: [{ type: 'WORK', value: email }],
         domainId
