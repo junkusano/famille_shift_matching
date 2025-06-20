@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { getAccessToken } from '@/lib/getAccessToken';
-import { checkLineWorksUserExists, createLineWorksUser } from '@/lib/lineworksService';
+import { createLineWorksUser } from '@/lib/lineworksService';
 
 
 interface Attachment {
