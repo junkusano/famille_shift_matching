@@ -352,43 +352,26 @@ export default function EntryDetailPage() {
             return;
         }
 
-        if (
-            !process.env.LINEWORKS_CLIENT_ID ||
-            !process.env.LINEWORKS_SERVICE_ACCOUNT ||
-            !process.env.LINEWORKS_PRIVATE_KEY
-        ) {
-            alert('LINE WORKS の環境変数が不足しているため、この機能は一時的に無効化されています。');
-            return;
-        }
-
         try {
-            const accessToken = await getAccessToken();
-            const result = await createLineWorksUser(
-                accessToken,
-                userId,
-                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                entry.email
-            );
+            const res = await fetch('/api/lineworks-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    name: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                    email: entry.email,
+                }),
+            });
 
-            if (result.success === false) {
-                console.error('LINE WORKS アカウント作成失敗:', result.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
-                return;
-            }
+            const data = await res.json();
 
-            const { error: updateError } = await supabase.from('users')
-                .update({ temp_password: result.tempPassword })
-                .eq('user_id', userId);
-
-            if (updateError) {
-                console.error('Supabase 更新エラー:', updateError.message);
-                alert('アカウント作成後のパスワード保存に失敗しました。');
+            if (!data.success) {
+                alert(`LINE WORKS アカウント作成に失敗: ${data.error}`);
                 return;
             }
 
             alert('LINE WORKS アカウントを作成しました！');
             setLineWorksExists(true);
-
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
