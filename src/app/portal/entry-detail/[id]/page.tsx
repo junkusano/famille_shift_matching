@@ -251,11 +251,20 @@ export default function EntryDetailPage() {
                 return;
             }
             */
+
+            const fullName = `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''}`.trim();
+            if (!fullName) {
+                alert('氏名情報が不足しています。');
+                return;
+            }
+            const result = await createLineWorksUser(userId, fullName, entry.email);
+            /*
             const result = await createLineWorksUser(
                 userId,
                 `${entry.last_name_kanji} ${entry.first_name_kanji}`,
                 entry.email
             );
+            */
 
             if (result.success === false) {
                 console.error('LINE WORKS ユーザー作成失敗:', result.error);
