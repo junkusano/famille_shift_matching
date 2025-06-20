@@ -352,39 +352,48 @@ export default function EntryDetailPage() {
             return;
         }
 
-        setSendingInvite(true);
+        // LINE WORKS 環境変数が揃ってない場合はスキップ
+        if (!process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID || !process.env.NEXT_PUBLIC_LINEWORKS_SERVICE_ACCOUNT || !process.env.NEXT_PUBLIC_LINEWORKS_PRIVATE_KEY) {
+            alert('LINE WORKS の環境変数が不足しているため、この機能は一時的に無効化されています。');
+            return;
+        }
+
         try {
-            const response = await fetch('/api/lineworks-create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                    email: entry.email
-                })
-            });
+            const accessToken = await getAccessToken();
+            const result = await createLineWorksUser(
+                accessToken,
+                userId,
+                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                entry.email
+            );
 
-            const resJson = await response.json();
-
-            if (response.ok) {
-                alert('LINE WORKS アカウントを作成しました！');
-                setLineWorksExists(true);
-            } else {
-                console.error('API error:', resJson.error);
-                alert(`LINE WORKS アカウント作成に失敗: ${resJson.error}`);
+            if (!result.success) {
+                alert('LINE WORKS アカウント作成に失敗しました。');
+                console.error('LINE WORKS アカウント作成失敗:', result);
+                return;
             }
+
+            await supabase.from('users')
+                .update({ temp_password: result.tempPassword })
+                .eq('user_id', userId);
+
+            alert('LINE WORKS アカウントを作成しました！');
+            setLineWorksExists(true);
         } catch (err) {
-            console.error('Fetch error:', err);
+            console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
-        setSendingInvite(false);
     };
+
 
 
     useEffect(() => {
         const load = async () => {
-            // await はここでOK
-            if (!userId) return;  // ユーザーIDが空なら実行しない
+            if (!userId) return;
+
+            // 環境変数がない場合は実行しない
+            if (!process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID) return;
+
             const accessToken = await getAccessToken();
             const exists = await checkLineWorksUserExists(accessToken, userId);
             setLineWorksExists(exists);
@@ -392,6 +401,7 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
+
 
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
