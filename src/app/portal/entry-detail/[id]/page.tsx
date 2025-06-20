@@ -100,9 +100,11 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const loadLineworksData = async () => {
             try {
-                const orgs = await getOrgList();
-                const levels = await getLevelList();
-                const positions = await getPositionList();
+                const [orgs, levels, positions] = await Promise.all([
+                    getOrgList(),
+                    getLevelList(),
+                    getPositionList()
+                ]);
 
                 console.log("getOrgList 結果", orgs);
                 console.log("getLevelList 結果", levels);
@@ -112,10 +114,11 @@ export default function EntryDetailPage() {
                 setLevelList(levels);
                 setPositionList(positions);
 
-                // デフォルト値セット（必要に応じて）
-                if (orgs.length > 0) setSelectedOrg(orgs[0].orgUnitId);
-                if (levels.length > 0) setSelectedLevel(levels[0].levelId);
-                if (positions.length > 0) setSelectedPosition(positions[0].positionId);
+                // デフォルト値セット（既存選択を保持 or 最初の要素）
+                setSelectedOrg(prev => prev || (orgs.length > 0 ? orgs[0].orgUnitId : ''));
+                setSelectedLevel(prev => prev || (levels.length > 0 ? levels[0].levelId : ''));
+                setSelectedPosition(prev => prev || (positions.length > 0 ? positions[0].positionId : ''));
+
             } catch (err) {
                 console.error('LINE WORKS データ取得エラー:', err);
             }
