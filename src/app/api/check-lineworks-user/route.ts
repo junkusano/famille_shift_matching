@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const token = await getAccessToken();
     console.log('[API] トークン取得成功');
 
-    const exists = await checkLineWorksUserExists(token, userId);
+    const exists = await checkLineWorksUserExists(userId);
     console.log('[API] 存在確認結果:', exists);
 
     return NextResponse.json({ success: true, exists });
