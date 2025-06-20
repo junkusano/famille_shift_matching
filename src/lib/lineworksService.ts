@@ -1,16 +1,12 @@
 import axios from 'axios';
 
-const domainId = process.env.LINEWORKS_DOMAIN_ID;
-if (!domainId) {
-  throw new Error('LINEWORKS_DOMAIN_ID が環境変数に設定されていません。');
-}
-
 export type CreateLineWorksUserResult =
   | { success: true; tempPassword: string }
   | { success: false; error: string };
 
 export async function createLineWorksUser(
   accessToken: string,
+  domainId: string,
   userId: string,
   name: string,
   email: string
@@ -25,7 +21,7 @@ export async function createLineWorksUser(
         name,
         password: tempPassword,
         emails: [{ type: 'WORK', value: email }],
-        domainId // ← サーバー側の変数 domainId をここで使う
+        domainId
       },
       {
         headers: {
@@ -65,33 +61,4 @@ function generateTemporaryPassword(): string {
     pwd += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return pwd + 'Aa1!';
-}
-
-export async function checkLineWorksUserExists(
-  accessToken: string,
-  userId: string
-): Promise<boolean> {
-  try {
-    const response = await axios.get(
-      `https://www.worksapis.com/v1.0/users/${userId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        }
-      }
-    );
-
-    return response.status === 200;
-  } catch (err) {
-    if (axios.isAxiosError(err)) {
-      if (err.response?.status === 404) {
-        return false;
-      }
-      console.error('LINE WORKS ユーザー確認失敗:', err.response?.data || err.message);
-      throw new Error(`ユーザー確認APIエラー: ${JSON.stringify(err.response?.data || err.message)}`);
-    } else {
-      console.error('LINE WORKS ユーザー確認未知のエラー:', err);
-      throw new Error('未知のエラーが発生しました。');
-    }
-  }
 }
