@@ -30,7 +30,7 @@ export async function getAccessToken(): Promise<string> {
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       client_id: clientId,
       client_secret: clientSecret,
-      scope: 'bot bot.read',  // GAS の SCOPE に合わせる
+      scope: 'bot bot.message bot.read directory directory.read orgunit.read user user.email.read user.profile.read user.read'  // GAS の SCOPE に合わせる
     }), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
