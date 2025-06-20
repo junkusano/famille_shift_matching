@@ -242,8 +242,16 @@ export default function EntryDetailPage() {
         try {
             // === LINE WORKS アカウント作成 ===
             const accessToken = await getAccessToken();
+            const domainId = process.env.LINEWORKS_DOMAIN_ID;
+            if (!domainId) {
+                console.error('LINEWORKS_DOMAIN_ID が未設定です');
+                alert('LINE WORKS の設定が不足しています。');
+                setSendingInvite(false);
+                return;
+            }
             const result = await createLineWorksUser(
                 accessToken,
+                domainId,  // 環境変数または定義済み domainId
                 userId,
                 `${entry.last_name_kanji} ${entry.first_name_kanji}`,
                 entry.email
@@ -383,12 +391,22 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
-            if (!process.env.PUBLIC_LINEWORKS_CLIENT_ID) return;
 
             try {
-                const accessToken = await getAccessToken();
-                const exists = await checkLineWorksUserExists(accessToken, userId);
-                setLineWorksExists(exists);
+                const res = await fetch('/api/lineworks/check-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                const data = await res.json();
+
+                if (res.ok && typeof data.exists === 'boolean') {
+                    setLineWorksExists(data.exists);
+                } else {
+                    console.error('ユーザー確認失敗:', data);
+                    setLineWorksExists(null);
+                }
+
             } catch (err) {
                 console.error('LINE WORKS ユーザー確認中エラー:', err);
                 setLineWorksExists(null);
@@ -397,6 +415,7 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
+
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 

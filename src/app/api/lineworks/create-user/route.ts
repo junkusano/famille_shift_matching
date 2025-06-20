@@ -3,6 +3,7 @@ import { getAccessToken } from '@/lib/getAccessToken';
 import { createLineWorksUser } from '@/lib/lineworksService';
 import { supabase } from '@/lib/supabaseClient';
 
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { userId, fullName, email } = body;
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const token = await getAccessToken();
-    const result = await createLineWorksUser(token, userId, fullName, email);
+    const result = await createLineWorksUser(token,process.env.LINEWORKS_DOMAIN_ID!, userId, fullName, email);
 
     if (result.success === false) {
       console.error('LINE WORKS アカウント作成失敗:', result.error);

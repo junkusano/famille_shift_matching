@@ -62,3 +62,34 @@ function generateTemporaryPassword(): string {
   }
   return pwd + 'Aa1!';
 }
+
+// lineworksService.ts の末尾などに
+export async function checkLineWorksUserExists(
+  accessToken: string,
+  userId: string
+): Promise<boolean> {
+  try {
+    const response = await axios.get(
+      `https://www.worksapis.com/v1.0/users/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        }
+      }
+    );
+
+    return response.status === 200;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 404) {
+        return false; // ユーザーが存在しない場合
+      }
+      console.error('LINE WORKS ユーザー確認失敗:', err.response?.data || err.message);
+      throw new Error(`ユーザー確認APIエラー: ${JSON.stringify(err.response?.data || err.message)}`);
+    } else {
+      console.error('LINE WORKS ユーザー確認未知のエラー:', err);
+      throw new Error('未知のエラーが発生しました。');
+    }
+  }
+}
+
