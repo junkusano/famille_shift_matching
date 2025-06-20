@@ -250,9 +250,7 @@ export default function EntryDetailPage() {
                 return;
             }
             const result = await createLineWorksUser(
-                accessToken,
-                domainId,  // 環境変数または定義済み domainId
-                userId,
+                 userId,
                 `${entry.last_name_kanji} ${entry.first_name_kanji}`,
                 entry.email
             );
@@ -384,11 +382,12 @@ export default function EntryDetailPage() {
 
             if (!res.ok || !data.success) {
                 console.error('LINE WORKS アカウント作成失敗:', data.error);
-                alert('LINE WORKS アカウント作成に失敗しました。');
+                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
                 return;
             }
 
             alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
+            setLineWorksExists(true); // 成功したら直接 true にしてOK
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
@@ -400,20 +399,15 @@ export default function EntryDetailPage() {
             if (!userId) return;
 
             try {
-                const res = await fetch('/api/lineworks/check-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId })
-                });
+                const res = await fetch(`/api/lineworks/check-user?userId=${encodeURIComponent(userId)}`);
                 const data = await res.json();
 
                 if (res.ok && typeof data.exists === 'boolean') {
                     setLineWorksExists(data.exists);
                 } else {
-                    console.error('ユーザー確認失敗:', data);
+                    console.warn('LINE WORKS ユーザー確認のレスポンスが不正です:', data);
                     setLineWorksExists(null);
                 }
-
             } catch (err) {
                 console.error('LINE WORKS ユーザー確認中エラー:', err);
                 setLineWorksExists(null);
@@ -422,7 +416,6 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
-
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
