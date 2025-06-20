@@ -73,7 +73,7 @@ export async function checkLineWorksUserExists(
       `https://www.worksapis.com/v1.0/users/${userId}`,
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`
         }
       }
     );
@@ -82,10 +82,11 @@ export async function checkLineWorksUserExists(
   } catch (err) {
     if (axios.isAxiosError(err)) {
       if (err.response?.status === 404) {
-        return false; // ユーザーが存在しない場合
+        // 存在しない場合
+        return false;
       }
       console.error('LINE WORKS ユーザー確認失敗:', err.response?.data || err.message);
-      throw new Error(`ユーザー確認APIエラー: ${JSON.stringify(err.response?.data || err.message)}`);
+      throw new Error(`ユーザー確認 API エラー: ${JSON.stringify(err.response?.data || err.message)}`);
     } else {
       console.error('LINE WORKS ユーザー確認未知のエラー:', err);
       throw new Error('未知のエラーが発生しました。');

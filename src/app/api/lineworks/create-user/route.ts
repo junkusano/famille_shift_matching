@@ -9,12 +9,14 @@ export async function POST(req: NextRequest) {
   const { userId, fullName, email } = body;
 
   if (!userId || !fullName || !email) {
-    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    return NextResponse.json({ success: false, error: '必須データが不足しています' }, { status: 400 });
   }
+
+  console.log('API側受信データ', { userId, fullName, email });
 
   try {
     const token = await getAccessToken();
-    const result = await createLineWorksUser(token,process.env.LINEWORKS_DOMAIN_ID!, userId, fullName, email);
+    const result = await createLineWorksUser(token, process.env.LINEWORKS_DOMAIN_ID!, userId, fullName, email);
 
     if (result.success === false) {
       console.error('LINE WORKS アカウント作成失敗:', result.error);

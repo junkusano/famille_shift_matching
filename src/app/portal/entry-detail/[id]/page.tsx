@@ -354,6 +354,13 @@ export default function EntryDetailPage() {
 
     const [lineWorksExists, setLineWorksExists] = useState<boolean | null>(null);
 
+
+    console.log('LINE WORKS アカウント作成送信データ', {
+        userId,
+        fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+        email: entry.email
+    });
+
     // LINE WORKS の環境変数チェックは不要
     // サーバーAPIを呼び出すだけにする
     const handleCreateLineWorksAccount = async () => {
