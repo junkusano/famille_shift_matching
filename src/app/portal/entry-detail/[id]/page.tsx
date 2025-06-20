@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-import { getAccessToken } from '@/lib/getAccessToken';
+//import { getAccessToken } from '@/lib/getAccessToken';
 import { createLineWorksUser } from '@/lib/lineworksService';
 
 
@@ -241,7 +241,8 @@ export default function EntryDetailPage() {
 
         try {
             // === LINE WORKS アカウント作成 ===
-            const accessToken = await getAccessToken();
+            //const accessToken = await getAccessToken();
+            /*
             const domainId = process.env.LINEWORKS_DOMAIN_ID;
             if (!domainId) {
                 console.error('LINEWORKS_DOMAIN_ID が未設定です');
@@ -249,6 +250,7 @@ export default function EntryDetailPage() {
                 setSendingInvite(false);
                 return;
             }
+            */
             const result = await createLineWorksUser(
                  userId,
                 `${entry.last_name_kanji} ${entry.first_name_kanji}`,
