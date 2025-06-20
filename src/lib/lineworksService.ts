@@ -10,6 +10,7 @@ export async function createLineWorksUser(
   name: string,
   email: string
 ): Promise<CreateLineWorksUserResult> {
+  console.log('createLineWorksUser 受信データ', { userId, name, email }); 
   const accessToken = await getAccessToken();
   const domainId = process.env.LINEWORKS_DOMAIN_ID;
 
