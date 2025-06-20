@@ -7,6 +7,7 @@ export default function TestLineWorksPage() {
   const handleTest = async () => {
     setLog(prev => [...prev, 'テスト開始...']);
     try {
+      // テスト送信（既存の動作）
       const res = await fetch('/api/test-lineworks', {
         method: 'POST',
       });
@@ -14,6 +15,20 @@ export default function TestLineWorksPage() {
       setLog(prev => [...prev, `結果: ${JSON.stringify(data)}`]);
     } catch (e) {
       setLog(prev => [...prev, `エラー: ${e}`]);
+    }
+
+    try {
+      // jkusano の LINE WORKS ユーザー存在チェック
+      setLog(prev => [...prev, 'jkusano のアカウント存在確認中...']);
+      const resCheck = await fetch('/api/check-lineworks-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'jkusano' }),
+      });
+      const checkData = await resCheck.json();
+      setLog(prev => [...prev, `存在確認結果: ${JSON.stringify(checkData)}`]);
+    } catch (e) {
+      setLog(prev => [...prev, `存在確認エラー: ${e}`]);
     }
   };
 
