@@ -353,9 +353,9 @@ export default function EntryDetailPage() {
         }
 
         if (
-            !process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID ||
-            !process.env.NEXT_PUBLIC_LINEWORKS_SERVICE_ACCOUNT ||
-            !process.env.NEXT_PUBLIC_LINEWORKS_PRIVATE_KEY
+            !process.env.LINEWORKS_CLIENT_ID ||
+            !process.env.LINEWORKS_SERVICE_ACCOUNT ||
+            !process.env.LINEWORKS_PRIVATE_KEY
         ) {
             alert('LINE WORKS の環境変数が不足しているため、この機能は一時的に無効化されています。');
             return;
@@ -398,7 +398,7 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
-            if (!process.env.NEXT_PUBLIC_LINEWORKS_CLIENT_ID) return;
+            if (!process.env.PUBLIC_LINEWORKS_CLIENT_ID) return;
 
             try {
                 const accessToken = await getAccessToken();
