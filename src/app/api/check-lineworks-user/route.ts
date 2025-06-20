@@ -4,8 +4,12 @@ import { checkLineWorksUserExists } from '@/lib/lineworksService';
 
 export async function POST(req: Request) {
   try {
-    const { userId } = await req.json();
-    console.log('[API] ユーザー確認リクエスト:', userId);
+    console.log('[API] 呼び出し開始');
+    const text = await req.text();
+    console.log('[API] リクエストボディ（テキスト）:', text);
+
+    const { userId } = JSON.parse(text);
+    console.log('[API] userId:', userId);
 
     const token = await getAccessToken();
     console.log('[API] トークン取得成功');
@@ -15,13 +19,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, exists });
   } catch (err) {
-    console.error('[API] エラー発生:', err);
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    console.error('[API] エラー:', err);
+    return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
 }
-
-
-
