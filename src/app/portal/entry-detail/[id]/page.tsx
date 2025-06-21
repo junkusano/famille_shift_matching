@@ -84,6 +84,34 @@ export default function EntryDetailPage() {
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
     useEffect(() => {
+        console.log("useEffect 起動確認");
+
+        const loadLineworksData = async () => {
+            try {
+                const res = await fetch('/api/lineworks/getLevels');
+                console.log("getLevels status", res.status);
+
+                const text = await res.text(); // JSONにせず中身そのまま見る
+                console.log("getLevels body", text);
+
+                // 必要ならここで JSON パース試みる
+                let json;
+                try {
+                    json = JSON.parse(text);
+                } catch (jsonErr) {
+                    console.error("JSON パース失敗", jsonErr);
+                }
+
+            } catch (err) {
+                console.error("fetch エラー詳細", err);
+            }
+        };
+
+        loadLineworksData();
+    }, []);
+
+
+    useEffect(() => {
         const loadLineworksData = async () => {
             console.log("useEffect 起動確認");
             try {
