@@ -63,6 +63,22 @@ type NameInfo = {
     lastKana: string;
 };
 
+type OrgUnit = {
+    orgUnitId: string;
+    orgUnitName: string;
+};
+
+type Level = {
+    levelId: string;
+    levelName: string;
+};
+
+type Position = {
+    positionId: string;
+    positionName: string;
+};
+
+
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
@@ -84,27 +100,26 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
-
     useEffect(() => {
         const fetchData = async () => {
             try {
                 const orgRes = await fetch('/api/lineworks/getOrgUnits');
-                const orgData = await orgRes.json();
-                setOrgList(orgData.map((org: any) => ({
+                const orgData: OrgUnit[] = await orgRes.json();
+                setOrgList(orgData.map((org) => ({
                     orgUnitId: org.orgUnitId,
                     orgUnitName: org.orgUnitName
                 })));
 
                 const levelRes = await fetch('/api/lineworks/getLevels');
-                const levelData = await levelRes.json();
-                setLevelList(levelData.map((level: any) => ({
+                const levelData: Level[] = await levelRes.json();
+                setLevelList(levelData.map((level) => ({
                     levelId: level.levelId,
                     levelName: level.levelName
                 })));
 
                 const posRes = await fetch('/api/lineworks/getPositions');
-                const posData = await posRes.json();
-                setPositionList(posData.map((pos: any) => ({
+                const posData: Position[] = await posRes.json();
+                setPositionList(posData.map((pos) => ({
                     positionId: pos.positionId,
                     positionName: pos.positionName
                 })));
@@ -115,7 +130,6 @@ export default function EntryDetailPage() {
 
         fetchData();
     }, []);
-
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
