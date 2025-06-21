@@ -8,9 +8,6 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
-import { getOrgList } from '@/lib/lineworks/getOrgUnits';
-import { getLevelList } from '@/lib/lineworks/getLevels';
-import { getPositionList } from '@/lib/lineworks/getPositions';
 
 interface Attachment {
     url: string | null;
@@ -65,17 +62,6 @@ type NameInfo = {
     lastKana: string;
 };
 
-/*
-type ApplicantBody = {
-    applicantName: string;
-    applicantKana: string;
-    age: number;
-    gender: string;
-    email: string;
-    // 必要であれば他のフィールドもここに追加
-};
-*/
-
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
@@ -100,25 +86,25 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const loadLineworksData = async () => {
             try {
-                const [orgs, levels, positions] = await Promise.all([
-                    getOrgList(),
-                    getLevelList(),
-                    getPositionList()
+                const [orgsRes, levelsRes, positionsRes] = await Promise.all([
+                    fetch('/api/lineworks/getOrgUnits').then(res => res.json()),
+                    fetch('/api/lineworks/getLevels').then(res => res.json()),
+                    fetch('/api/lineworks/getPositions').then(res => res.json())
                 ]);
 
-                console.log("getOrgList 結果", orgs);
-                console.log("getLevelList 結果", levels);
-                console.log("getPositionList 結果", positions);
+                console.log("getOrgList 結果", orgsRes);
+                console.log("getLevelList 結果", levelsRes);
+                console.log("getPositionList 結果", positionsRes);
 
-                setOrgList(orgs);
-                setLevelList(levels);
-                setPositionList(positions);
+                // 必要な配列部分だけセット
+                setOrgList(orgsRes.orgUnits ?? []);
+                setLevelList(levelsRes.levels ?? []);
+                setPositionList(positionsRes.positions ?? []);
 
-                // デフォルト値セット（既存選択を保持 or 最初の要素）
-                setSelectedOrg(prev => prev || (orgs.length > 0 ? orgs[0].orgUnitId : ''));
-                setSelectedLevel(prev => prev || (levels.length > 0 ? levels[0].levelId : ''));
-                setSelectedPosition(prev => prev || (positions.length > 0 ? positions[0].positionId : ''));
-
+                // デフォルト選択値も修正
+                setSelectedOrg(prev => prev || (orgsRes.orgUnits && orgsRes.orgUnits.length > 0 ? orgsRes.orgUnits[0].orgUnitId : ''));
+                setSelectedLevel(prev => prev || (levelsRes.levels && levelsRes.levels.length > 0 ? levelsRes.levels[0].levelId : ''));
+                setSelectedPosition(prev => prev || (positionsRes.positions && positionsRes.positions.length > 0 ? positionsRes.positions[0].positionId : ''));
             } catch (err) {
                 console.error('LINE WORKS データ取得エラー:', err);
             }
@@ -126,6 +112,7 @@ export default function EntryDetailPage() {
 
         loadLineworksData();
     }, []);
+
 
 
     const fetchExistingIds = async () => {
@@ -280,17 +267,6 @@ export default function EntryDetailPage() {
             .eq('user_id', userId);
 
         try {
-            // === LINE WORKS アカウント作成 ===
-            //const accessToken = await getAccessToken();
-            /*
-            const domainId = process.env.LINEWORKS_DOMAIN_ID;
-            if (!domainId) {
-                console.error('LINEWORKS_DOMAIN_ID が未設定です');
-                alert('LINE WORKS の設定が不足しています。');
-                setSendingInvite(false);
-                return;
-            }
-            */
 
             const fullName = `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''}`.trim();
             if (!fullName) {
@@ -307,14 +283,6 @@ export default function EntryDetailPage() {
                 selectedOrg,
                 selectedPosition
             );
-
-            /*
-            const result = await createLineWorksUser(
-                userId,
-                `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                entry.email
-            );
-            */
 
             if (result.success === false) {
                 console.error('LINE WORKS ユーザー作成失敗:', result.error);
@@ -381,14 +349,6 @@ export default function EntryDetailPage() {
         }
 
         setSendingContract(true);  // ここを追加！
-
-        //const applicantName = `${entry.last_name_kanji} ${entry.first_name_kanji}`;
-        //const applicantKana = `${entry.last_name_kana} ${entry.first_name_kana}`;
-        /*const age = new Date().getFullYear() - entry.birth_year -
-            ((new Date().getMonth() + 1 < entry.birth_month) ||
-                (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day) ? 1 : 0);
-        */
-        //const html = generateContractsAfterInterviewHtml(entry);
 
         const result = await fetch('/api/send-contract-email', {
             method: 'POST',

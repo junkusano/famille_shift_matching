@@ -1,41 +1,32 @@
+import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { getAccessToken } from '@/lib/getAccessToken';
 
-export type Position = {
-  positionId: string;
-  name: string;
-};
+export async function GET() {
+  try {
+    // トークン取得 API 経由で呼び出し
+    const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
+    const { accessToken } = await tokenRes.json();
 
-export async function getPositionList(): Promise<Position[]> {
-  const accessToken = await getAccessToken();
+    if (!accessToken) {
+      return NextResponse.json({ error: 'AccessToken取得失敗' }, { status: 500 });
+    }
 
-  const domainId = process.env.LINEWORKS_DOMAIN_ID;
-  if (!domainId) {
-    throw new Error('LINEWORKS_DOMAIN_ID が環境変数に設定されていません');
-  }
+    const domainId = process.env.LINEWORKS_DOMAIN_ID;
+    if (!domainId) {
+      return NextResponse.json({ error: 'LINEWORKS_DOMAIN_ID 未設定' }, { status: 500 });
+    }
 
-  const response = await axios.get<{
-    positions: {
-      positionId: string;
-      positionName: string;
-    }[];
-  }>(
-    `https://www.worksapis.com/v1.0/positions?domainId=${domainId}`,
-    {
+    // LINE WORKS の Position API にリクエスト
+    const res = await axios.get(`https://www.worksapis.com/v1.0/positions?domainId=${domainId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
-    }
-  );
+    });
 
-  if (!response.data || !response.data.positions) {
-    console.warn('LINE WORKS 職位データが空です');
-    return [];
+    return NextResponse.json(res.data);
+  } catch (err) {
+    console.error('[getPositions] データ取得失敗:', err);
+    return NextResponse.json({ error: 'Positions取得失敗' }, { status: 500 });
   }
-
-  return response.data.positions.map(pos => ({
-    positionId: pos.positionId,
-    name: pos.positionName
-  }));
 }

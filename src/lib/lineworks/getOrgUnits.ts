@@ -1,41 +1,32 @@
+import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { getAccessToken } from '@/lib/getAccessToken';
 
-export type OrgUnit = {
-  orgUnitId: string;
-  name: string;
-};
+export async function GET() {
+  try {
+    // アクセストークン取得（内部APIを叩く）
+    const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
+    const tokenJson = await tokenRes.json();
 
-export async function getOrgList(): Promise<OrgUnit[]> {
-  const accessToken = await getAccessToken();
+    if (!tokenJson.accessToken) {
+      console.error('AccessToken が取得できませんでした');
+      return NextResponse.json({ error: 'AccessTokenが必要です' }, { status: 500 });
+    }
 
-  const domainId = process.env.LINEWORKS_DOMAIN_ID;
-  if (!domainId) {
-    throw new Error('LINEWORKS_DOMAIN_ID が環境変数に設定されていません');
-  }
+    const domainId = process.env.LINEWORKS_DOMAIN_ID;
+    if (!domainId) {
+      return NextResponse.json({ error: 'LINEWORKS_DOMAIN_ID が未設定です' }, { status: 500 });
+    }
 
-  const response = await axios.get<{
-    orgUnits: {
-      orgUnitId: string;
-      orgUnitName: string;
-    }[];
-  }>(
-    `https://www.worksapis.com/v1.0/orgunits?domainId=${domainId}`,
-    {
+    const response = await axios.get(`https://www.worksapis.com/v1.0/orgunits?domainId=${domainId}`, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${tokenJson.accessToken}`,
         'Content-Type': 'application/json'
       }
-    }
-  );
+    });
 
-  if (!response.data || !response.data.orgUnits) {
-    console.warn('LINE WORKS 組織データが空です');
-    return [];
+    return NextResponse.json(response.data.orgUnits);
+  } catch (err) {
+    console.error('[getOrgUnits API] データ取得失敗:', err);
+    return NextResponse.json({ error: 'OrgUnitsデータ取得失敗' }, { status: 500 });
   }
-
-  return response.data.orgUnits.map(org => ({
-    orgUnitId: org.orgUnitId,
-    name: org.orgUnitName
-  }));
 }
