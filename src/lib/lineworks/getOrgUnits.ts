@@ -1,5 +1,12 @@
 import axios from 'axios';
 
+
+export type OrgUnit = {
+  orgUnitId: string;
+  orgUnitName: string;
+};
+
+
 /**
  * LINE WORKS の組織一覧を取得する
  * @param accessToken アクセストークン

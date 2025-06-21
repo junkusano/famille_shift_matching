@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
+import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 
 interface Attachment {
     url: string | null;
@@ -62,11 +63,12 @@ type NameInfo = {
     lastKana: string;
 };
 
+/*
 type OrgUnit = {
     orgUnitId: string;
     orgUnitName: string;
 };
-
+*/
 /*
 type Level = {
     levelId: string;
