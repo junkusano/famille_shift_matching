@@ -75,9 +75,9 @@ export default function EntryDetailPage() {
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
 
-    const [orgList, setOrgList] = useState<{ orgUnitId: string; name: string }[]>([]);
-    const [levelList, setLevelList] = useState<{ levelId: string; name: string }[]>([]);
-    const [positionList, setPositionList] = useState<{ positionId: string; name: string }[]>([]);
+    const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
+    const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
+    const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
 
     const [selectedOrg, setSelectedOrg] = useState<string>('');
     const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -640,7 +640,7 @@ export default function EntryDetailPage() {
                         >
                             {orgList.map(org => (
                                 <option key={org.orgUnitId} value={org.orgUnitId}>
-                                    {org.name}
+                                    {org.orgUnitName}
                                 </option>
                             ))}
                         </select>
@@ -655,7 +655,7 @@ export default function EntryDetailPage() {
                         >
                             {levelList.map(level => (
                                 <option key={level.levelId} value={level.levelId}>
-                                    {level.name}
+                                    {level.levelName}
                                 </option>
                             ))}
                         </select>
@@ -670,7 +670,7 @@ export default function EntryDetailPage() {
                         >
                             {positionList.map(pos => (
                                 <option key={pos.positionId} value={pos.positionId}>
-                                    {pos.name}
+                                    {pos.positionName}
                                 </option>
                             ))}
                         </select>
