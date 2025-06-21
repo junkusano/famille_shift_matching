@@ -93,8 +93,13 @@ export default function EntryDetailPage() {
                 ]);
 
                 setOrgList(orgsRes.orgUnits ?? []);
+                console.log("OrgList セット:", orgsRes.orgUnits);
+
                 setLevelList(levelsRes.levels ?? []);
+                console.log("LevelList セット:", levelsRes.levels);
+
                 setPositionList(positionsRes.positions ?? []);
+                console.log("PositionList セット:", positionsRes.positions);
 
                 setSelectedOrg(prev => prev || (orgsRes.orgUnits?.[0]?.orgUnitId ?? ''));
                 setSelectedLevel(prev => prev || (levelsRes.levels?.[0]?.levelId ?? ''));
