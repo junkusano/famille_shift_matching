@@ -13,6 +13,9 @@ console.log('DEBUG LINEWORKS_CLIENT_SECRET:', process.env.LINEWORKS_CLIENT_SECRE
 console.log("DEBUG LINEWORKS_SERVICE_ACCOUNT:", process.env.LINEWORKS_SERVICE_ACCOUNT);
 console.log("DEBUG LINEWORKS_PRIVATE_KEY:", process.env.LINEWORKS_PRIVATE_KEY?.slice(0, 30)); 
 console.log("DEBUG RECRUIT_CONTACT_EMAIL:",process.env.RECRUIT_CONTACT_EMAIL);
+console.log("smtpUser:", process.env.SMTP_USER);
+console.log("smtpPass:", process.env.SMTP_PASSWORD);
+console.log("smtpServer",process.env.SMTP_SERVER);
 
 
 export async function getAccessToken(): Promise<string> {
