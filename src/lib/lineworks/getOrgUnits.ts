@@ -36,6 +36,6 @@ export async function getOrgList(): Promise<OrgUnit[]> {
 
   return response.data.orgUnits.map(org => ({
     orgUnitId: org.orgUnitId,
-    name: org.orgUnitName  // 正しいフィールド名に修正
+    name: org.orgUnitName
   }));
 }
