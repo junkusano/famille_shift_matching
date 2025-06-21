@@ -63,21 +63,6 @@ type NameInfo = {
     lastKana: string;
 };
 
-type OrgUnit = {
-    orgUnitId: string;
-    orgUnitName: string;
-};
-
-type Level = {
-    levelId: string;
-    levelName: string;
-};
-
-type Position = {
-    positionId: string;
-    positionName: string;
-};
-
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
