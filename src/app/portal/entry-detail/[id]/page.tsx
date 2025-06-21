@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
-
+import { fetchLevelList } from '@/lib/lineworks/getLevels';
 
 interface Attachment {
     url: string | null;
@@ -68,10 +68,12 @@ type OrgUnit = {
     orgUnitName: string;
 };
 
+/*
 type Level = {
     levelId: string;
     levelName: string;
 };
+*/
 
 type Position = {
     positionId: string;
@@ -110,12 +112,10 @@ export default function EntryDetailPage() {
                     orgUnitName: org.orgUnitName
                 })));
 
-                const levelRes = await fetch('/api/lineworks/getLevels');
-                const levelData: Level[] = await levelRes.json();
-                setLevelList(levelData.map((level) => ({
-                    levelId: level.levelId,
-                    levelName: level.levelName
-                })));
+
+                // useEffect の中で：
+                const levels = await fetchLevelList();
+                setLevelList(levels);
 
                 const posRes = await fetch('/api/lineworks/getPositions');
                 const posData: Position[] = await posRes.json();
