@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('API側受信データ', {
+    console.log('API側受信データ:', {
       userId,
       lastName,
       firstName,

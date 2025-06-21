@@ -61,6 +61,8 @@ export async function createLineWorksUser(
     timeZone: 'Asia/Tokyo'
   };
 
+  console.log('createLineWorksUser リクエストボディ:', requestBody);
+
   try {
     const response = await axios.post(
       'https://www.worksapis.com/v1.0/users',
@@ -73,20 +75,19 @@ export async function createLineWorksUser(
       }
     );
 
+    console.log('createLineWorksUser レスポンス:', response.status, response.data);
+
     if (response.status === 201) {
-      console.log('ユーザー作成成功', response.data);
       return { success: true, tempPassword };
     } else {
-      console.error('予期しないステータス:', response.status, response.data);
       return { success: false, error: `Unexpected status code: ${response.status}` };
     }
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      const axiosErr = err as AxiosError;
-      console.error('API エラー:', axiosErr.response?.data || axiosErr.message);
+      console.error('API エラー詳細:', err.response?.data || err.message);
       return {
         success: false,
-        error: JSON.stringify(axiosErr.response?.data || axiosErr.message)
+        error: JSON.stringify(err.response?.data || err.message)
       };
     } else {
       console.error('不明なエラー:', err);
@@ -100,21 +101,20 @@ export async function checkLineWorksUserExists(userId: string): Promise<{ exists
   const domainId = Number(process.env.LINEWORKS_DOMAIN_ID);
 
   if (!domainId) {
-    throw new Error('LINE WORKS 設定 (domainId) が不足しています');
+    throw new Error('LINE WORKS 設定 (LINEWORKS_DOMAIN_ID) が不足しています');
   }
 
   try {
-    const response = await axios.get(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}@shi-on`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
+    const response = await axios.get(
+      `https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}@shi-on`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` }
       }
-    });
+    );
 
-    if (response.status === 200) {
-      return { exists: true };
-    } else {
-      return { exists: false };
-    }
+    console.log('checkLineWorksUserExists レスポンス:', response.status, response.data);
+
+    return { exists: response.status === 200 };
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 404) {
       return { exists: false };
@@ -132,4 +132,3 @@ function generateTemporaryPassword(): string {
   }
   return pwd + 'Aa1!';
 }
-
