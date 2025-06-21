@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 //import { getAccessToken } from '@/lib/getAccessToken';
-import { checkLineWorksUserExists } from '@/lib/lineworksService';
+import { checkLineWorksUserExists } from '@/lib/lineworks/accountService'
 
 export async function POST(req: Request) {
   try {

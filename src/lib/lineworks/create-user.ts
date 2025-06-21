@@ -87,3 +87,4 @@ function generateSecurePassword(): string {
   const part2 = Math.random().toString(36).slice(-4);
   return `${part1}${part2}Aa1!`;
 }
+
