@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import axios, { AxiosResponse } from 'axios';
 import qs from 'qs';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const clientId = process.env.LINEWORKS_CLIENT_ID;
   const clientSecret = process.env.LINEWORKS_CLIENT_SECRET;
   const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT;
