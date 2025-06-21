@@ -84,31 +84,37 @@ export default function EntryDetailPage() {
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
     useEffect(() => {
-        console.log("useEffect 起動確認");
-
         const loadLineworksData = async () => {
+            console.log("useEffect 起動確認");
             try {
-                const res = await fetch('/api/lineworks/getLevels');
-                console.log("getLevels status", res.status);
+                const [orgsRes, levelsRes, positionsRes] = await Promise.all([
+                    fetch('/api/lineworks/getOrgUnits').then(res => res.json()),
+                    fetch('/api/lineworks/getLevels').then(res => res.json()),
+                    fetch('/api/lineworks/getPositions').then(res => res.json())
+                ]);
 
-                const text = await res.text(); // JSONにせず中身そのまま見る
-                console.log("getLevels body", text);
+                console.log("getOrgList 結果", orgsRes);
+                console.log("getLevelList 結果", levelsRes);
+                console.log("getPositionList 結果", positionsRes);
 
-                // 必要ならここで JSON パース試みる
-                let json;
-                try {
-                    json = JSON.parse(text);
-                } catch (jsonErr) {
-                    console.error("JSON パース失敗", jsonErr);
-                }
+                // 必要な配列部分だけセット
+                setOrgList(orgsRes.orgUnits ?? []);
+                setLevelList(levelsRes.levels ?? []);
+                setPositionList(positionsRes.positions ?? []);
 
+                // デフォルト選択値も修正
+                setSelectedOrg(prev => prev || (orgsRes.orgUnits && orgsRes.orgUnits.length > 0 ? orgsRes.orgUnits[0].orgUnitId : ''));
+                setSelectedLevel(prev => prev || (levelsRes.levels && levelsRes.levels.length > 0 ? levelsRes.levels[0].levelId : ''));
+                setSelectedPosition(prev => prev || (positionsRes.positions && positionsRes.positions.length > 0 ? positionsRes.positions[0].positionId : ''));
             } catch (err) {
-                console.error("fetch エラー詳細", err);
+                console.error('LINE WORKS データ取得エラー:', err);
             }
         };
 
         loadLineworksData();
     }, []);
+
+
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
