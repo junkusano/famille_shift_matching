@@ -990,7 +990,7 @@ function FileThumbnail({
 
     const secureUrl = `/api/secure-image?fileId=${fileId}`;
 
-    iif(mimeType === "application/pdf") {
+    if(mimeType === "application/pdf") {
         return (
             <div className="text-sm text-center">
                 <p className="mb-1">{title}</p>
