@@ -293,27 +293,31 @@ export default function EntryDetailPage() {
                 selectedPosition
             );
 
-            if (!result.success) {
+            if (result.success === false) {
+                // success: false の場合は error が必ずある
                 console.error('LINE WORKS ユーザー作成失敗:', result.error);
                 alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
+                setSendingInvite(false);
                 return;
             }
 
+            // success: true の場合
+            const tempPassword = result.tempPassword;
 
-            // 📝 仮パスワードを users に保存
+            // 仮パスワードを保存
             const { error: pwError } = await supabase.from('users')
                 .update({
-                    temp_password: result.tempPassword
+                    temp_password: tempPassword
                 })
                 .eq('user_id', userId);
 
             if (pwError) {
                 console.error('仮パスワード保存エラー:', pwError);
                 alert('仮パスワードの保存に失敗しました。');
-                return;
+            } else {
+                alert('LINE WORKS アカウントを作成しました！');
             }
 
-            alert('LINE WORKS アカウントを作成しました！');
 
         } catch (e) {
             console.error('招待送信中エラー:', e);
