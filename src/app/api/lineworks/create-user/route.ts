@@ -1,29 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createLineWorksUser } from '@/lib/lineworksService';
 import { supabase } from '@/lib/supabaseClient';
+import { createLineWorksUser } from '@/lib/lineworks/create-user';
 
 export async function POST(req: NextRequest) {
   try {
     const {
-      userId,
+      localName,
       lastName,
       firstName,
-      phoneticLastName,
-      phoneticFirstName,
-      levelId,
       orgUnitId,
-      positionId
+      positionId,
+      levelId
     } = await req.json();
 
+    // 必須チェック
     if (
-      !userId ||
+      !localName ||
       !lastName ||
       !firstName ||
-      !phoneticLastName ||
-      !phoneticFirstName ||
-      !levelId ||
       !orgUnitId ||
-      !positionId
+      !positionId ||
+      !levelId
     ) {
       return NextResponse.json(
         { success: false, error: '必須データが不足しています' },
@@ -32,39 +29,37 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('API側受信データ:', {
-      userId,
+      localName,
       lastName,
       firstName,
-      phoneticLastName,
-      phoneticFirstName,
-      levelId,
       orgUnitId,
-      positionId
+      positionId,
+      levelId
     });
 
-    const result = await createLineWorksUser(
-      userId,
+    // LINE WORKSユーザー作成
+    const result = await createLineWorksUser({
+      localName,
       lastName,
       firstName,
-      phoneticLastName,
-      phoneticFirstName,
-      levelId,
       orgUnitId,
-      positionId
-    );
+      positionId,
+      levelId
+    });
 
-    if (result.success === false) {
-      console.error('LINE WORKS アカウント作成失敗:', result.error);
+    if (!result.success) {
+      console.error('LINE WORKS 作成失敗:', result.error);
       return NextResponse.json(
-        { success: false, error: result.error },
+        { success: false, error: result.error || 'LINE WORKS アカウント作成失敗' },
         { status: 500 }
       );
     }
 
+    // Supabase に仮パスワードを保存
     const { error: updateError } = await supabase
       .from('users')
       .update({ temp_password: result.tempPassword })
-      .eq('user_id', userId);
+      .eq('user_id', localName); // user_id = localName として保存前提
 
     if (updateError) {
       console.error('Supabase update error:', updateError.message);

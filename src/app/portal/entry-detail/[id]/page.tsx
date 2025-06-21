@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-import { createLineWorksUser } from '@/lib/lineworksService';
+import { createLineWorksUser } from '@/lib/lineworks/create-user';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 
 interface Attachment {
@@ -256,12 +256,12 @@ export default function EntryDetailPage() {
 
         try {
             // 🔑 仮パスワード生成
-            const password = Math.random().toString(36).slice(-8) + 'Aa1!';
+            //const password = generateSecurePassword();
 
             // 🔑 Supabase サインアップ
             const { data, error } = await supabase.auth.signUp({
                 email: entry.email,
-                password,
+                password: 'DummyPass123!',
                 options: {
                     emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
                     data: {
@@ -298,39 +298,27 @@ export default function EntryDetailPage() {
                 return;
             }
 
+            /*
             // 🏢 LINE WORKS ユーザー作成
-            const fullName = `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''}`.trim();
-            if (!fullName) {
-                alert('氏名情報が不足しています。');
-                return;
-            }
+            const result = await createLineWorksUser({
+                localName: userId,
+                lastName: entry.last_name_kanji,
+                firstName: entry.first_name_kanji,
+                orgUnitId: selectedOrg,
+                positionId: selectedPosition,
+                levelId: selectedLevel
+            });
 
-            const result = await createLineWorksUser(
-                userId,
-                entry.last_name_kanji,
-                entry.first_name_kanji,
-                entry.last_name_kana,
-                entry.first_name_kana,
-                selectedLevel,
-                selectedOrg,
-                selectedPosition
-            );
-
-            if (result.success === false) {
-                // success: false の場合は error が必ずある
+            if (!result.success) {
                 console.error('LINE WORKS ユーザー作成失敗:', result.error);
                 alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
-                setSendingInvite(false);
                 return;
             }
 
-            // success: true の場合
-            const tempPassword = result.tempPassword;
-
-            // 仮パスワードを保存
+            // 仮パスワード保存
             const { error: pwError } = await supabase.from('users')
                 .update({
-                    temp_password: tempPassword
+                    temp_password: result.tempPassword
                 })
                 .eq('user_id', userId);
 
@@ -340,7 +328,7 @@ export default function EntryDetailPage() {
             } else {
                 alert('LINE WORKS アカウントを作成しました！');
             }
-
+            */
 
         } catch (e) {
             console.error('招待送信中エラー:', e);
@@ -349,7 +337,6 @@ export default function EntryDetailPage() {
             setSendingInvite(false);
         }
     };
-
 
     useEffect(() => {
         if (!userRecord?.auth_user_id) return;
@@ -432,41 +419,41 @@ export default function EntryDetailPage() {
 
     // サーバーAPIを呼び出すだけにする
     const handleCreateLineWorksAccount = async () => {
-        if (!userId || !entry || !entry.email) {
+        if (!userId || !entry) {
             alert('必要な情報が不足しています。');
             return;
         }
 
         try {
-            const res = await fetch('/api/lineworks/create-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    lastName: entry.last_name_kanji,
-                    firstName: entry.first_name_kanji,
-                    phoneticLastName: entry.last_name_kana,
-                    phoneticFirstName: entry.first_name_kana,
-                    levelId: selectedLevel,
-                    orgUnitId: selectedOrg,
-                    positionId: selectedPosition
-                })
+            const result = await createLineWorksUser({
+                localName: userId,
+                lastName: entry.last_name_kanji,
+                firstName: entry.first_name_kanji,
+                orgUnitId: selectedOrg,
+                positionId: selectedPosition,
+                levelId: selectedLevel
             });
-            const data = await res.json();
 
-            if (!res.ok || !data.success) {
-                console.error('LINE WORKS アカウント作成失敗:', data.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
+            if (!result.success) {
+                console.error('LINE WORKS アカウント作成失敗:', result.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
                 return;
             }
 
-            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
-            setLineWorksExists(true); // 成功したら直接 true にしてOK
+            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${result.tempPassword}`);
+
+            // 仮パスワードを保存
+            await supabase.from('users').update({
+                temp_password: result.tempPassword
+            }).eq('user_id', userId);
+
+            setLineWorksExists(true);
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
     };
+
 
     useEffect(() => {
         const load = async () => {

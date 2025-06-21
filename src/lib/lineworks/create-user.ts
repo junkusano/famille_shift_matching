@@ -1,0 +1,89 @@
+import { getAccessToken } from '@/lib/getAccessToken';
+
+interface CreateUserParams {
+  localName: string;
+  lastName: string;
+  firstName: string;
+  levelId: string;
+  orgUnitId: string;
+  positionId: string;
+}
+
+interface CreateUserResult {
+  success: boolean;
+  tempPassword?: string;
+  error?: string;
+}
+
+export async function createLineWorksUser(params: CreateUserParams): Promise<CreateUserResult> {
+  try {
+    const accessToken = await getAccessToken();
+    const tempPassword = generateSecurePassword();
+
+    const domainId = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
+    if (!domainId) {
+      throw new Error('環境変数 NEXT_PUBLIC_LINEWORKS_DOMAIN_ID が未設定です');
+    }
+
+    const body = {
+      email: `${params.localName}@shi-on.net`,
+      userName: {
+        lastName: params.lastName,
+        firstName: params.firstName
+      },
+      passwordConfig: {
+        passwordCreationType: "ADMIN",
+        password: tempPassword,
+        changePasswordAtNextLogin: true
+      },
+      organizations: [
+        {
+          domainId: Number(domainId),
+          primary: true,
+          email: `${params.localName}@shi-on.net`,
+          levelId: params.levelId,
+          orgUnits: [
+            {
+              orgUnitId: params.orgUnitId,
+              primary: true,
+              positionId: params.positionId,
+              isManager: false,
+              visible: true,
+              useTeamFeature: false
+            }
+          ]
+        }
+      ]
+    };
+
+    const res = await fetch('https://www.worksapis.com/v1.0/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      console.error('LINE WORKS API エラー:', errorData);
+      return { success: false, error: errorData.message || 'LINE WORKS API エラー' };
+    }
+
+    return { success: true, tempPassword };
+
+  } catch (err) {
+    console.error('createLineWorksUser 実行時エラー:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : '未知のエラー'
+    };
+  }
+}
+
+function generateSecurePassword(): string {
+  const part1 = Math.random().toString(36).slice(-4);
+  const part2 = Math.random().toString(36).slice(-4);
+  return `${part1}${part2}Aa1!`;
+}
