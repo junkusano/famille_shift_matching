@@ -84,33 +84,6 @@ export default function EntryDetailPage() {
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
     useEffect(() => {
-        console.log("useEffect 起動確認");
-
-        const loadLineworksData = async () => {
-            try {
-                const res = await fetch('/api/lineworks/getLevels');
-                console.log("getLevels status", res.status);
-
-                const text = await res.text(); // JSONにせず中身そのまま見る
-                console.log("getLevels body", text);
-
-                // 必要ならここで JSON パース試みる
-                try {
-                    JSON.parse(text);
-                } catch (jsonErr) {
-                    console.error("JSON パース失敗", jsonErr);
-                }
-
-            } catch (err) {
-                console.error("fetch エラー詳細", err);
-            }
-        };
-
-        loadLineworksData();
-    }, []);
-
-
-    useEffect(() => {
         const loadLineworksData = async () => {
             console.log("useEffect 起動確認");
             try {
@@ -258,49 +231,57 @@ export default function EntryDetailPage() {
         setSendingInvite(true);
         setInviteSent(false);
 
-        const password = Math.random().toString(36).slice(-8) + 'Aa1!';
-        const { data, error } = await supabase.auth.signUp({
-            email: entry.email,
-            password,
-            options: {
-                emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
-                data: {
-                    full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`
-                }
-            }
-        });
-
-        if (error) {
-            console.error('Sign-up error:', error);
-            alert(`メール送信に失敗しました: ${error.message}`);
-            setSendingInvite(false);
-            return;
-        }
-
-        setInviteSent(true);
-        alert('認証メールを送信しました！');
-
-        if (!data.user?.id) {
-            alert('認証ユーザー情報が取得できませんでした。');
-            setSendingInvite(false);
-            return;
-        }
-
-        // Supabase users テーブル更新
-        await supabase.from('users')
-            .update({
-                auth_user_id: data.user.id,
-                status: 'auth_mail_send',
-            })
-            .eq('user_id', userId);
-
         try {
+            // 🔑 仮パスワード生成
+            const password = Math.random().toString(36).slice(-8) + 'Aa1!';
 
+            // 🔑 Supabase サインアップ
+            const { data, error } = await supabase.auth.signUp({
+                email: entry.email,
+                password,
+                options: {
+                    emailRedirectTo: 'https://myfamille.shi-on.net/signup/complete',
+                    data: {
+                        full_name: `${entry.last_name_kanji} ${entry.first_name_kanji}`
+                    }
+                }
+            });
+
+            if (error) {
+                console.error('Sign-up error:', error);
+                alert(`メール送信に失敗しました: ${error.message}`);
+                return;
+            }
+
+            if (!data.user?.id) {
+                alert('認証ユーザー情報が取得できませんでした。');
+                return;
+            }
+
+            alert('認証メールを送信しました！');
+            setInviteSent(true);
+
+            // 📝 users テーブルを更新
+            const { error: updateError } = await supabase.from('users')
+                .update({
+                    auth_user_id: data.user.id,
+                    status: 'auth_mail_send'
+                })
+                .eq('user_id', userId);
+
+            if (updateError) {
+                console.error('Supabase users 更新エラー:', updateError);
+                alert('ユーザー情報更新に失敗しました。');
+                return;
+            }
+
+            // 🏢 LINE WORKS ユーザー作成
             const fullName = `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''}`.trim();
             if (!fullName) {
                 alert('氏名情報が不足しています。');
                 return;
             }
+
             const result = await createLineWorksUser(
                 userId,
                 entry.last_name_kanji,
@@ -312,29 +293,36 @@ export default function EntryDetailPage() {
                 selectedPosition
             );
 
-            if (result.success === false) {
+            if (!result.success) {
                 console.error('LINE WORKS ユーザー作成失敗:', result.error);
-                alert('LINE WORKS アカウント作成に失敗しました。');
-                setSendingInvite(false);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
                 return;
             }
 
-            // 仮パスワードを保存
-            await supabase.from('users')
+
+            // 📝 仮パスワードを users に保存
+            const { error: pwError } = await supabase.from('users')
                 .update({
                     temp_password: result.tempPassword
                 })
                 .eq('user_id', userId);
 
+            if (pwError) {
+                console.error('仮パスワード保存エラー:', pwError);
+                alert('仮パスワードの保存に失敗しました。');
+                return;
+            }
+
             alert('LINE WORKS アカウントを作成しました！');
 
-        } catch (lineWorksErr) {
-            console.error('LINE WORKS アカウント作成中エラー:', lineWorksErr);
-            alert('LINE WORKS アカウント作成中にエラーが発生しました。');
+        } catch (e) {
+            console.error('招待送信中エラー:', e);
+            alert('招待送信中に予期しないエラーが発生しました。');
+        } finally {
+            setSendingInvite(false);
         }
-
-        setSendingInvite(false);
     };
+
 
     useEffect(() => {
         if (!userRecord?.auth_user_id) return;
