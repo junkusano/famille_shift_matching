@@ -961,6 +961,7 @@ function StaffLogSection({ staffId }: { staffId: string }) {
 }
 
 // 画像表示＋PDFボタン
+// 画像表示＋PDFボタン
 function FileThumbnail({
     title,
     src,
@@ -988,14 +989,17 @@ function FileThumbnail({
         );
     }
 
-    const secureUrl = `/api/secure-image?fileId=${fileId}`;
+    // Google Drive のダウンロードリンク（PDFの場合は download にしてもOK）
+    const driveUrl = mimeType === "application/pdf"
+        ? `https://drive.google.com/uc?export=download&id=${fileId}`
+        : `https://drive.google.com/uc?export=view&id=${fileId}`;
 
-    if(mimeType === "application/pdf") {
+    if (mimeType === "application/pdf") {
         return (
             <div className="text-sm text-center">
                 <p className="mb-1">{title}</p>
                 <a
-                    href={secureUrl}
+                    href={driveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
@@ -1010,7 +1014,7 @@ function FileThumbnail({
         <div className="text-sm text-center">
             <p className="mb-1">{title}</p>
             <Image
-                src={secureUrl}
+                src={driveUrl}
                 alt={title}
                 width={320}
                 height={192}
@@ -1018,7 +1022,7 @@ function FileThumbnail({
             />
             <div className="mt-2">
                 <a
-                    href={secureUrl}
+                    href={driveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 underline"
@@ -1029,6 +1033,7 @@ function FileThumbnail({
         </div>
     );
 }
+
 
 
 // 複数候補を返す関数
