@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { getAccessToken } from '@/lib/getAccessToken';
 
 export type CreateLineWorksUserResult =
