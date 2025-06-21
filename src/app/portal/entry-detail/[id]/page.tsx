@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
+import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 
 interface Attachment {
     url: string | null;
@@ -62,10 +63,12 @@ type NameInfo = {
     lastKana: string;
 };
 
+/*
 type OrgUnit = {
     orgUnitId: string;
     orgUnitName: string;
 };
+*/
 
 /*
 type Level = {
@@ -107,12 +110,13 @@ export default function EntryDetailPage() {
             try {
                 const orgRes = await fetch('/api/lineworks/getOrgUnits');
                 const orgData: OrgUnit[] = await orgRes.json();
-                setOrgList(orgData.map((org) => ({
-                    orgUnitId: org.orgUnitId,
-                    orgUnitName: org.orgUnitName
-                })));
+                console.log('クライアントで受け取った orgUnitList:', orgData);
+                setOrgList([
+                    { orgUnitId: '', orgUnitName: 'なし' },
+                    ...orgData
+                ]);
             } catch (err) {
-                console.error('OrgUnit データ取得エラー:', err);
+                console.error('OrgUnit データ取得エラー:', err instanceof Error ? err.message : err);
             }
 
             // Levels
