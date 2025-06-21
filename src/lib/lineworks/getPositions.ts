@@ -1,32 +1,23 @@
-import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-export async function GET() {
+/**
+ * LINE WORKS の役職一覧を取得する関数
+ * @param accessToken LINE WORKS のアクセストークン
+ * @param domainId ドメインID
+ * @returns positions の配列
+ */
+export async function getPositionList(accessToken: string, domainId: string) {
   try {
-    // トークン取得 API 経由で呼び出し
-    const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
-    const { accessToken } = await tokenRes.json();
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'AccessToken取得失敗' }, { status: 500 });
-    }
-
-    const domainId = process.env.LINEWORKS_DOMAIN_ID;
-    if (!domainId) {
-      return NextResponse.json({ error: 'LINEWORKS_DOMAIN_ID 未設定' }, { status: 500 });
-    }
-
-    // LINE WORKS の Position API にリクエスト
-    const res = await axios.get(`https://www.worksapis.com/v1.0/positions?domainId=${domainId}`, {
+    const response = await axios.get(`https://www.worksapis.com/v1.0/positions?domainId=${domainId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
     });
 
-    return NextResponse.json(res.data);
+    return response.data.positions;
   } catch (err) {
-    console.error('[getPositions] データ取得失敗:', err);
-    return NextResponse.json({ error: 'Positions取得失敗' }, { status: 500 });
+    console.error('[getPositionList] データ取得失敗:', err);
+    throw new Error('Positions データ取得に失敗しました');
   }
 }

@@ -3,7 +3,6 @@ import axios from 'axios';
 
 export async function GET() {
   try {
-    // アクセストークン取得（内部APIを叩く）
     const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
     const tokenJson = await tokenRes.json();
 
@@ -24,6 +23,7 @@ export async function GET() {
       }
     });
 
+    // 必要に応じて orgUnits のみ返す
     return NextResponse.json(response.data.orgUnits);
   } catch (err) {
     console.error('[getOrgUnits API] データ取得失敗:', err);
