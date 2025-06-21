@@ -104,6 +104,7 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         const fetchData = async () => {
+            // OrgUnits
             try {
                 const orgRes = await fetch('/api/lineworks/getOrgUnits');
                 const orgData: OrgUnit[] = await orgRes.json();
@@ -111,27 +112,38 @@ export default function EntryDetailPage() {
                     orgUnitId: org.orgUnitId,
                     orgUnitName: org.orgUnitName
                 })));
+            } catch (err) {
+                console.error('OrgUnit データ取得エラー:', err);
+            }
 
-                // クライアント側は /api 経由で呼ぶ
+            // Levels
+            try {
                 const levels = await fetch('/api/lineworks/getLevels').then(res => res.json());
                 console.log('クライアントで受け取った levelList:', levels);
                 setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
+            } catch (err) {
+                console.error('Level データ取得エラー:', err);
+            }
 
+            // Positions
+            try {
                 const posRes = await fetch('/api/lineworks/getPositions');
                 const posData: Position[] = await posRes.json();
-                console.log('取得した posData:', posData);  // ここで確認
-                setPositionList(posData.map((pos) => ({
-                    positionId: pos.positionId,
-                    positionName: pos.positionName
-                })));
+                console.log('取得した posData:', posData);
+                setPositionList([
+                    { positionId: '', positionName: 'なし' },
+                    ...posData.map((pos) => ({
+                        positionId: pos.positionId,
+                        positionName: pos.positionName
+                    }))
+                ]);
             } catch (err) {
-                console.error('データ取得エラー:', err);
+                console.error('Position データ取得エラー:', err);
             }
         };
 
         fetchData();
     }, []);
-
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
