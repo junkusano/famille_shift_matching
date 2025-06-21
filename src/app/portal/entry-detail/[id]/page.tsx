@@ -994,14 +994,22 @@ function FileThumbnail({
         return (
             <div className="text-sm text-center">
                 <p className="mb-1">{title}</p>
-                <a
-                    href={secureUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
-                >
-                    📄 PDF/ファイルを開く
-                </a>
+                <iframe
+                    src={secureUrl}
+                    width="100%"
+                    height="400"
+                    className="border rounded"
+                />
+                <div className="mt-2">
+                    <a
+                        href={secureUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline"
+                    >
+                        別タブで開く
+                    </a>
+                </div>
             </div>
         );
     }
