@@ -29,8 +29,8 @@ export async function fetchOrgUnitList(): Promise<OrgUnit[]> {
   });
 
   const orgUnits = response.data.orgUnits ?? [];
-  return orgUnits.map((org) => ({
-    orgUnitId: org.orgUnitId,
-    orgUnitName: org.orgUnitName
+  return orgUnits.map((o) => ({
+    orgUnitId: o.orgUnitId,
+    orgUnitName: o.orgUnitName
   }));
 }
