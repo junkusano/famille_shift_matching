@@ -10,6 +10,11 @@ export async function GET() {
   const privateKey = (process.env.LINEWORKS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
+  console.log("DEBUG LINEWORKS_CLIENT_ID:", clientId);
+  console.log("DEBUG LINEWORKS_CLIENT_SECRET:", clientSecret ? '****' : 'undefined');
+  console.log("DEBUG LINEWORKS_SERVICE_ACCOUNT:", serviceAccount);
+  console.log("DEBUG LINEWORKS_PRIVATE_KEY:", privateKey ? '****' : 'undefined');
+
   if (!clientId || !clientSecret || !serviceAccount || !privateKey) {
     console.error('必要な環境変数が不足しています。');
     return NextResponse.json({ error: '環境変数の不足により起動できません。' }, { status: 500 });
@@ -38,9 +43,16 @@ export async function GET() {
       },
     });
 
+    console.log('[getAccessToken API] Token取得成功');
     return NextResponse.json({ accessToken: response.data.access_token });
   } catch (err: unknown) {
-    console.error('[getAccessToken API] Access Token取得失敗:', err);
-    return NextResponse.json({ error: 'Token取得失敗' }, { status: 500 });
+    if (axios.isAxiosError(err)) {
+      console.error('[getAccessToken API] Access Token取得失敗:');
+      console.error('status:', err.response?.status);
+      console.error('data:', err.response?.data);
+    } else {
+      console.error('[getAccessToken API] 未知のエラー:', err);
+    }
+    return NextResponse.json({ error: 'Token取得失敗', details: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
