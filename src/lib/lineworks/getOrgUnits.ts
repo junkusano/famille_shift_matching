@@ -21,7 +21,9 @@ export async function fetchOrgUnitList(): Promise<OrgUnit[]> {
     throw new Error('LINE WORKS の設定が不十分です');
   }
 
-  const url = `https://www.worksapis.com/v1.0/orgunit/orgunits?domainId=${domainId}`;
+  //const url = `https://www.worksapis.com/v1.0/orgunit/orgunits?domainId=${domainId}`;
+  const url = `https://www.worksapis.com/v1.0/directory/orgunits?domainId=${domainId}`;
+
   console.log('Requesting OrgUnits URL:', url);
 
   const response = await axios.get<OrgUnitApiResponse>(url, {
