@@ -113,13 +113,13 @@ export default function EntryDetailPage() {
                 })));
 
                 // クライアント側は /api 経由で呼ぶ
-                const levelRes = await fetch('/api/lineworks/getLevels');
-                const levelData: { levelId: string; levelName: string }[] = await levelRes.json();
-                console.log('取得した levelData:', levelData);  // ここで確認
-                setLevelList(levelData);
+                const levels = await fetch('/api/lineworks/getLevels').then(res => res.json());
+                console.log('クライアントで受け取った levelList:', levels);
+                setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
 
                 const posRes = await fetch('/api/lineworks/getPositions');
                 const posData: Position[] = await posRes.json();
+                console.log('取得した posData:', posData);  // ここで確認
                 setPositionList(posData.map((pos) => ({
                     positionId: pos.positionId,
                     positionName: pos.positionName
@@ -131,7 +131,6 @@ export default function EntryDetailPage() {
 
         fetchData();
     }, []);
-
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
