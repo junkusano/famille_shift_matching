@@ -9,6 +9,7 @@ import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
 
+
 interface Attachment {
     url: string | null;
     type?: string;
@@ -62,6 +63,21 @@ type NameInfo = {
     lastKana: string;
 };
 
+type OrgUnit = {
+    orgUnitId: string;
+    orgUnitName: string;
+};
+
+type Level = {
+    levelId: string;
+    levelName: string;
+};
+
+type Position = {
+    positionId: string;
+    positionName: string;
+};
+
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetail | null>(null);
@@ -83,34 +99,38 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
+
     useEffect(() => {
-        const loadLineworksData = async () => {
+        const fetchData = async () => {
             try {
-                const [orgsRes, levelsRes, positionsRes] = await Promise.all([
-                    fetch('/api/lineworks/getOrgUnits').then(res => res.json()),
-                    fetch('/api/lineworks/getLevels').then(res => res.json()),
-                    fetch('/api/lineworks/getPositions').then(res => res.json())
-                ]);
+                const orgRes = await fetch('/api/lineworks/getOrgUnits');
+                const orgData = await orgRes.json();
+                setOrgList(orgData.map((org: any) => ({
+                    orgUnitId: org.orgUnitId,
+                    orgUnitName: org.orgUnitName
+                })));
 
-                setOrgList(orgsRes.orgUnits ?? []);
-                console.log("OrgList セット:", orgsRes.orgUnits);
+                const levelRes = await fetch('/api/lineworks/getLevels');
+                const levelData = await levelRes.json();
+                setLevelList(levelData.map((level: any) => ({
+                    levelId: level.levelId,
+                    levelName: level.levelName
+                })));
 
-                setLevelList(levelsRes.levels ?? []);
-                console.log("LevelList セット:", levelsRes.levels);
-
-                setPositionList(positionsRes.positions ?? []);
-                console.log("PositionList セット:", positionsRes.positions);
-
-                setSelectedOrg(prev => prev || (orgsRes.orgUnits?.[0]?.orgUnitId ?? ''));
-                setSelectedLevel(prev => prev || (levelsRes.levels?.[0]?.levelId ?? ''));
-                setSelectedPosition(prev => prev || (positionsRes.positions?.[0]?.positionId ?? ''));
+                const posRes = await fetch('/api/lineworks/getPositions');
+                const posData = await posRes.json();
+                setPositionList(posData.map((pos: any) => ({
+                    positionId: pos.positionId,
+                    positionName: pos.positionName
+                })));
             } catch (err) {
-                console.error('LINE WORKS データ取得エラー:', err);
+                console.error('データ取得エラー:', err);
             }
         };
 
-        loadLineworksData();
-    }, []);  // ← userId 依存を外す！
+        fetchData();
+    }, []);
+
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
@@ -643,6 +663,7 @@ export default function EntryDetailPage() {
                             value={selectedOrg}
                             onChange={e => setSelectedOrg(e.target.value)}
                         >
+                            <option value="">選択してください</option>
                             {orgList.map(org => (
                                 <option key={org.orgUnitId} value={org.orgUnitId}>
                                     {org.orgUnitName}
@@ -658,6 +679,7 @@ export default function EntryDetailPage() {
                             value={selectedLevel}
                             onChange={e => setSelectedLevel(e.target.value)}
                         >
+                            <option value="">選択してください</option>
                             {levelList.map(level => (
                                 <option key={level.levelId} value={level.levelId}>
                                     {level.levelName}
@@ -673,6 +695,7 @@ export default function EntryDetailPage() {
                             value={selectedPosition}
                             onChange={e => setSelectedPosition(e.target.value)}
                         >
+                            <option value="">選択してください</option>
                             {positionList.map(pos => (
                                 <option key={pos.positionId} value={pos.positionId}>
                                     {pos.positionName}
