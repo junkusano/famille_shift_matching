@@ -7,6 +7,16 @@ export type Level = {
 };
 
 /**
+ * LINE WORKS の職級一覧の API レスポンス型
+ */
+type LevelApiResponse = {
+  levels: {
+    levelId: string;
+    levelName: string;
+  }[];
+};
+
+/**
  * LINE WORKS の職級一覧を取得して整形した配列を返す
  */
 export async function fetchLevelList(): Promise<Level[]> {
@@ -20,12 +30,12 @@ export async function fetchLevelList(): Promise<Level[]> {
   const url = `https://www.worksapis.com/v1.0/directory/levels?domainId=${domainId}`;
   console.log('Requesting Levels URL:', url);
 
-  const response = await axios.get(url, {
+  const response = await axios.get<LevelApiResponse>(url, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
   const levels = response.data.levels ?? [];
-  return levels.map((l: any) => ({
+  return levels.map((l) => ({
     levelId: l.levelId,
     levelName: l.levelName
   }));
