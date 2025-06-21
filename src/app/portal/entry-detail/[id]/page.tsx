@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
-//import { fetchLevelList } from '@/lib/lineworks/getLevels';
 
 interface Attachment {
     url: string | null;
@@ -73,12 +72,12 @@ type Level = {
     levelId: string;
     levelName: string;
 };
-*/
 
 type Position = {
     positionId: string;
     positionName: string;
 };
+*/
 
 
 export default function EntryDetailPage() {
@@ -127,23 +126,17 @@ export default function EntryDetailPage() {
 
             // Positions
             try {
-                const posRes = await fetch('/api/lineworks/getPositions');
-                const posData: Position[] = await posRes.json();
-                console.log('取得した posData:', posData);
-                setPositionList([
-                    { positionId: '', positionName: 'なし' },
-                    ...posData.map((pos) => ({
-                        positionId: pos.positionId,
-                        positionName: pos.positionName
-                    }))
-                ]);
+                const positions = await fetch('/api/lineworks/getPositions').then(res => res.json());
+                console.log('クライアントで受け取った positionList:', positions);
+                setPositionList([{ positionId: '', positionName: 'なし' }, ...positions]);
             } catch (err) {
-                console.error('Position データ取得エラー:', err);
+                console.error('Position データ取得エラー:', err instanceof Error ? err.message : err);
             }
         };
 
         fetchData();
     }, []);
+
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);

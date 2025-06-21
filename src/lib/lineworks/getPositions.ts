@@ -1,25 +1,42 @@
 import axios from 'axios';
+import { getAccessToken } from '@/lib/getAccessToken';
+
+export type Position = {
+  positionId: string;
+  positionName: string;
+};
 
 /**
- * LINE WORKS の役職一覧を取得する関数
- * @param accessToken LINE WORKS のアクセストークン
- * @param domainId ドメインID
- * @returns positions の配列
+ * LINE WORKS の役職一覧の API レスポンス型
  */
-export async function getPositionList(accessToken: string, domainId: string) {
-  try {
-    const url = `https://www.worksapis.com/v1.0/directory/positions?domainId=${domainId}`;
-    console.log('Requesting Positions URL:', url);
+type PositionApiResponse = {
+  positions: {
+    positionId: string;
+    positionName: string;
+  }[];
+};
 
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+/**
+ * LINE WORKS の役職一覧を取得して整形した配列を返す
+ */
+export async function fetchPositionList(): Promise<Position[]> {
+  const accessToken = await getAccessToken();
+  const domainId = process.env.LINEWORKS_DOMAIN_ID;
 
-    return response.data.positions;
-  } catch (err) {
-    console.error('[getPositionList] データ取得失敗:', err);
-    throw new Error('Positions データ取得に失敗しました');
+  if (!accessToken || !domainId) {
+    throw new Error('LINE WORKS の設定が不十分です');
   }
+
+  const url = `https://www.worksapis.com/v1.0/directory/positions?domainId=${domainId}`;
+  console.log('Requesting Positions URL:', url);
+
+  const response = await axios.get<PositionApiResponse>(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  const positions = response.data.positions ?? [];
+  return positions.map((p) => ({
+    positionId: p.positionId,
+    positionName: p.positionName
+  }));
 }
