@@ -85,7 +85,6 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         const loadLineworksData = async () => {
-            console.log("useEffect 起動確認");
             try {
                 const [orgsRes, levelsRes, positionsRes] = await Promise.all([
                     fetch('/api/lineworks/getOrgUnits').then(res => res.json()),
@@ -93,28 +92,20 @@ export default function EntryDetailPage() {
                     fetch('/api/lineworks/getPositions').then(res => res.json())
                 ]);
 
-                console.log("getOrgList 結果", orgsRes);
-                console.log("getLevelList 結果", levelsRes);
-                console.log("getPositionList 結果", positionsRes);
-
-                // 必要な配列部分だけセット
                 setOrgList(orgsRes.orgUnits ?? []);
                 setLevelList(levelsRes.levels ?? []);
                 setPositionList(positionsRes.positions ?? []);
 
-                // デフォルト選択値も修正
-                setSelectedOrg(prev => prev || (orgsRes.orgUnits && orgsRes.orgUnits.length > 0 ? orgsRes.orgUnits[0].orgUnitId : ''));
-                setSelectedLevel(prev => prev || (levelsRes.levels && levelsRes.levels.length > 0 ? levelsRes.levels[0].levelId : ''));
-                setSelectedPosition(prev => prev || (positionsRes.positions && positionsRes.positions.length > 0 ? positionsRes.positions[0].positionId : ''));
+                setSelectedOrg(prev => prev || (orgsRes.orgUnits?.[0]?.orgUnitId ?? ''));
+                setSelectedLevel(prev => prev || (levelsRes.levels?.[0]?.levelId ?? ''));
+                setSelectedPosition(prev => prev || (positionsRes.positions?.[0]?.positionId ?? ''));
             } catch (err) {
                 console.error('LINE WORKS データ取得エラー:', err);
             }
         };
 
         loadLineworksData();
-    }, []);
-
-
+    }, []);  // ← userId 依存を外す！
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
@@ -451,14 +442,21 @@ export default function EntryDetailPage() {
 
             try {
                 const res = await fetch(`/api/lineworks/check-user?userId=${encodeURIComponent(userId)}`);
-                const data = await res.json();
+                const text = await res.text();
 
-                if (res.ok && typeof data.exists === 'boolean') {
-                    setLineWorksExists(data.exists);
-                } else {
-                    console.warn('LINE WORKS ユーザー確認のレスポンスが不正です:', data);
-                    setLineWorksExists(null);
+                try {
+                    const data = JSON.parse(text);
+                    if (res.ok && typeof data.exists === 'boolean') {
+                        setLineWorksExists(data.exists);
+                    } else {
+                        console.warn('LINE WORKS ユーザー確認のレスポンスが不正です:', data);
+                        setLineWorksExists(null);
+                    }
+                } catch (parseErr) {
+                    console.warn('JSON パース失敗（check-user）:', parseErr, 'レスポンス内容:', text);
+                    setLineWorksExists(null);  // パース失敗でも止めない
                 }
+
             } catch (err) {
                 console.error('LINE WORKS ユーザー確認中エラー:', err);
                 setLineWorksExists(null);
@@ -467,6 +465,7 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
+
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -1033,8 +1032,6 @@ function FileThumbnail({
         </div>
     );
 }
-
-
 
 // 複数候補を返す関数
 function getUserIdSuggestions(
