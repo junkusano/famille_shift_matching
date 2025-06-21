@@ -441,7 +441,12 @@ export default function EntryDetailPage() {
             if (!userId) return;
 
             try {
-                const res = await fetch(`/api/lineworks/check-user?userId=${encodeURIComponent(userId)}`);
+                const res = await fetch('/api/check-lineworks-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId }),
+                });
+
                 const text = await res.text();
 
                 try {
