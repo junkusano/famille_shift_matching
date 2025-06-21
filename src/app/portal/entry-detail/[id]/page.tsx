@@ -95,9 +95,8 @@ export default function EntryDetailPage() {
                 console.log("getLevels body", text);
 
                 // 必要ならここで JSON パース試みる
-                let json;
                 try {
-                    json = JSON.parse(text);
+                    JSON.parse(text);
                 } catch (jsonErr) {
                     console.error("JSON パース失敗", jsonErr);
                 }
