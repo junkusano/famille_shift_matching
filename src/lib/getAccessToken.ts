@@ -1,5 +1,5 @@
 export async function getAccessToken(): Promise<string> {
-  const res = await fetch('/api/lineworks/getAccessToken');
+  const res = await fetch('/api/getAccessToken');
   if (!res.ok) {
     throw new Error(`AccessToken取得失敗: ${res.statusText}`);
   }
