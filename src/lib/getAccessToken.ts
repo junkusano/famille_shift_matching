@@ -9,8 +9,10 @@ const privateKey = (process.env.LINEWORKS_PRIVATE_KEY || '').replace(/\\n/g, '\n
 const serverApiUrl = 'https://auth.worksmobile.com/oauth2/v2.0/token';
 
 console.log("DEBUG LINEWORKS_CLIENT_ID:", process.env.LINEWORKS_CLIENT_ID);
+console.log('DEBUG LINEWORKS_CLIENT_SECRET:', process.env.LINEWORKS_CLIENT_SECRET);
 console.log("DEBUG LINEWORKS_SERVICE_ACCOUNT:", process.env.LINEWORKS_SERVICE_ACCOUNT);
 console.log("DEBUG LINEWORKS_PRIVATE_KEY:", process.env.LINEWORKS_PRIVATE_KEY?.slice(0, 30)); 
+console.log("DEBUG RECRUIT_CONTACT_EMAIL:",process.env.RECRUIT_CONTACT_EMAIL);
 
 
 export async function getAccessToken(): Promise<string> {
