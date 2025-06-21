@@ -11,6 +11,7 @@ export async function GET() {
     }
 
     const levels = await fetchLevelList();
+    console.log('[getLevels API] レスポンスデータ:', levels);
     return NextResponse.json(levels);
   } catch (err) {
     console.error('[getLevels API] データ取得失敗:', err);

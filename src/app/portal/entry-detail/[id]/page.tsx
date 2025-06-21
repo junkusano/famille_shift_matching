@@ -115,6 +115,7 @@ export default function EntryDetailPage() {
                 // クライアント側は /api 経由で呼ぶ
                 const levelRes = await fetch('/api/lineworks/getLevels');
                 const levelData: { levelId: string; levelName: string }[] = await levelRes.json();
+                console.log('取得した levelData:', levelData);  // ここで確認
                 setLevelList(levelData);
 
                 const posRes = await fetch('/api/lineworks/getPositions');
