@@ -8,6 +8,9 @@ import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 import { createLineWorksUser } from '@/lib/lineworksService';
+//import { fetchOrgUnitList } from '@/lib/lineworks/getOrgUnits';
+import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
+
 
 interface Attachment {
     url: string | null;
@@ -107,12 +110,17 @@ export default function EntryDetailPage() {
         const fetchData = async () => {
             // OrgUnits
             try {
-                const positions = await fetch('/api/lineworks/getPositions').then(res => res.json());
-                console.log('クライアントで受け取った positionList:', positions);
-                setPositionList([{ positionId: '', positionName: 'なし' }, ...positions]);
+                const orgRes = await fetch('/api/lineworks/getOrgUnits');
+                const orgData: OrgUnit[] = await orgRes.json();
+                console.log('クライアントで受け取った orgUnitList:', orgData);
+                setOrgList([
+                    { orgUnitId: '', orgUnitName: 'なし' },
+                    ...orgData
+                ]);
             } catch (err) {
-                console.error('Position データ取得エラー:', err instanceof Error ? err.message : err);
+                console.error('OrgUnit データ取得エラー:', err instanceof Error ? err.message : err);
             }
+
             // Levels
             try {
                 const levels = await fetch('/api/lineworks/getLevels').then(res => res.json());
