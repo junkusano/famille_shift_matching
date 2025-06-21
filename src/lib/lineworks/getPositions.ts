@@ -8,10 +8,12 @@ import axios from 'axios';
  */
 export async function getPositionList(accessToken: string, domainId: string) {
   try {
-    const response = await axios.get(`https://www.worksapis.com/v1.0/positions?domainId=${domainId}`, {
+    const url = `https://www.worksapis.com/v1.0/directory/positions?domainId=${domainId}`;
+    console.log('Requesting Positions URL:', url);
+
+    const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken}`
       }
     });
 

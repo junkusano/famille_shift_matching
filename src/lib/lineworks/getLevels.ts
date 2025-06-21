@@ -1,32 +1,25 @@
-import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-export async function GET() {
+/**
+ * LINE WORKS の職級一覧を取得する関数
+ * @param accessToken LINE WORKS のアクセストークン
+ * @param domainId ドメインID
+ * @returns levels の配列
+ */
+export async function getLevelList(accessToken: string, domainId: string) {
   try {
-    const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
-    const tokenJson = await tokenRes.json();
+    const url = `https://www.worksapis.com/v1.0/directory/levels?domainId=${domainId}`;
+    console.log('Requesting Levels URL:', url);
 
-    if (!tokenJson.accessToken) {
-      console.error('AccessToken が取得できませんでした');
-      return NextResponse.json({ error: 'AccessTokenが必要です' }, { status: 500 });
-    }
-
-    const domainId = process.env.LINEWORKS_DOMAIN_ID;
-    if (!domainId) {
-      return NextResponse.json({ error: 'LINEWORKS_DOMAIN_ID が未設定です' }, { status: 500 });
-    }
-
-    const response = await axios.get(`https://www.worksapis.com/v1.0/levels?domainId=${domainId}`, {
+    const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${tokenJson.accessToken}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken}`
       }
     });
 
-    // 必要に応じて levels のみ返す
-    return NextResponse.json(response.data.levels);
+    return response.data.levels;
   } catch (err) {
-    console.error('[getLevels API] データ取得失敗:', err);
-    return NextResponse.json({ error: 'Levelsデータ取得失敗' }, { status: 500 });
+    console.error('[getLevelList] データ取得失敗:', err);
+    throw new Error('Levels データ取得に失敗しました');
   }
 }

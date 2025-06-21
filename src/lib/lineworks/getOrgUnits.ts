@@ -1,32 +1,26 @@
-import { NextResponse } from 'next/server';
 import axios from 'axios';
 
-export async function GET() {
+/**
+ * LINE WORKS の組織一覧を取得する
+ * @param accessToken アクセストークン
+ * @param domainId ドメインID
+ * @returns orgUnits の配列
+ */
+export async function getOrgList(accessToken: string, domainId: string) {
   try {
-    const tokenRes = await fetch(`${process.env.BASE_URL}/api/getAccessToken`);
-    const tokenJson = await tokenRes.json();
+    const url = `https://www.worksapis.com/v1.0/orgunits?domainId=${domainId}`;
+    console.log('Requesting OrgUnits URL:', url);
 
-    if (!tokenJson.accessToken) {
-      console.error('AccessToken が取得できませんでした');
-      return NextResponse.json({ error: 'AccessTokenが必要です' }, { status: 500 });
-    }
-
-    const domainId = process.env.LINEWORKS_DOMAIN_ID;
-    if (!domainId) {
-      return NextResponse.json({ error: 'LINEWORKS_DOMAIN_ID が未設定です' }, { status: 500 });
-    }
-
-    const response = await axios.get(`https://www.worksapis.com/v1.0/orgunits?domainId=${domainId}`, {
+    const response = await axios.get(url, {
       headers: {
-        Authorization: `Bearer ${tokenJson.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
     });
 
-    // 必要に応じて orgUnits のみ返す
-    return NextResponse.json(response.data.orgUnits);
+    return response.data.orgUnits ?? [];
   } catch (err) {
-    console.error('[getOrgUnits API] データ取得失敗:', err);
-    return NextResponse.json({ error: 'OrgUnitsデータ取得失敗' }, { status: 500 });
+    console.error('[getOrgList] データ取得失敗:', err);
+    throw new Error('OrgUnits データ取得に失敗しました');
   }
 }
