@@ -347,54 +347,59 @@ export default function EntryPage() {
 
         // --- メール送信 ---
         try {
-            const res = await fetch("/api/send-email", {
+            console.log("🚀 メール送信リクエスト構築中...");
+
+            // Supabase 用に作成した payload をそのまま使うのが理想です。
+            // もしここで再構築するなら以下のようにまとめます。
+            const payload = {
+                applicantName: `${form.get("lastNameKanji")} ${form.get("firstNameKanji")}`,
+                applicantKana: `${form.get("lastNameKana")} ${form.get("firstNameKana")}`,
+                age: age,
+                gender: form.get("gender"),
+                email: form.get("email"),
+                phone: form.get("phone"),
+                postal_code: postalCode,
+                address: address,
+                motivation: form.get("motivation"),
+                workstyle_other: form.get("workStyleOther"),
+                commute_options: form.getAll("commute"),
+                health_condition: form.get("healthCondition"),
+                photo_url: photoUrl,
+                license_front_url: licenseFrontUrl,
+                license_back_url: licenseBackUrl,
+                certification_urls: certificationUrls,
+            };
+
+            console.log("✅ メール送信ペイロード:", payload);
+
+            const res = await fetch("/api/send-entry-email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    applicantName: `${form.get("lastNameKanji")} ${form.get("firstNameKanji")}`,
-                    applicantKana: `${form.get("lastNameKana")} ${form.get("firstNameKana")}`, // ← NEW
-                    age: age, // ← NEW
-                    gender: form.get("gender"), // ← NEW
-                    email: form.get("email"),
-                    phone: form.get("phone"),
-                    postal_code: postalCode,
-                    address: address,
-                    motivation: form.get("motivation"),
-                    workstyle_other: form.get("workStyleOther"),
-                    commute_options: form.getAll("commute"),
-                    health_condition: form.get("healthCondition"),
-                    photo_url: photoUrl,
-                    license_front_url: licenseFrontUrl,
-                    license_back_url: licenseBackUrl,
-                    certification_urls: certificationUrls,
-                }),
+                body: JSON.stringify(payload),
             });
 
-            type EmailResponse = { error?: string };
+            let result: { error?: string; success?: boolean } = { error: "不明な形式のレスポンスです" };
 
-            let result: EmailResponse = { error: "不明な形式のレスポンスです" };
             try {
                 result = await res.json();
             } catch {
-                // 上書きせず保持
+                console.warn("⚠ レスポンスがJSONではありませんでした");
             }
 
             if (!res.ok) {
-                console.log("送信メールアドレス:", email);
-                console.log("正規化メールアドレス:", String(email).trim().toLowerCase());
-                console.error("メール送信エラー:", result);
-                if (!res.ok) {
-                    alert(`メール通知に失敗しました：${result.error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
-                }
-
+                console.error("❌ メール送信エラー:", result);
+                alert(`メール通知に失敗しました：${result.error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
+            } else {
+                console.log("✅ メール送信成功");
             }
 
         } catch (err) {
-            console.error("fetchエラー:", err);
+            console.error("❌ fetchエラー:", err);
             alert("予期しないエラーが発生しました（メール通知に失敗）");
         } finally {
-            setIsSubmitting(false); // ← 成功・失敗問わず解除
+            setIsSubmitting(false);
         }
+
 
         // --- 完了処理 ---
         setFormData(form);

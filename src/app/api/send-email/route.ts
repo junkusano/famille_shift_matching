@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
+  console.log("受信したリクエストボディ", req.body);
   const body = await req.json();
 
   console.log('受信したメール送信リクエスト:', body);
