@@ -64,24 +64,6 @@ type NameInfo = {
     lastKana: string;
 };
 
-/*
-type OrgUnit = {
-    orgUnitId: string;
-    orgUnitName: string;
-};
-*/
-/*
-type Level = {
-    levelId: string;
-    levelName: string;
-};
-
-type Position = {
-    positionId: string;
-    positionName: string;
-};
-*/
-
 
 export default function EntryDetailPage() {
     const { id } = useParams();
@@ -299,38 +281,6 @@ export default function EntryDetailPage() {
                 return;
             }
 
-            /*
-            // 🏢 LINE WORKS ユーザー作成
-            const result = await createLineWorksUser({
-                localName: userId,
-                lastName: entry.last_name_kanji,
-                firstName: entry.first_name_kanji,
-                orgUnitId: selectedOrg,
-                positionId: selectedPosition,
-                levelId: selectedLevel
-            });
-
-            if (!result.success) {
-                console.error('LINE WORKS ユーザー作成失敗:', result.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
-                return;
-            }
-
-            // 仮パスワード保存
-            const { error: pwError } = await supabase.from('users')
-                .update({
-                    temp_password: result.tempPassword
-                })
-                .eq('user_id', userId);
-
-            if (pwError) {
-                console.error('仮パスワード保存エラー:', pwError);
-                alert('仮パスワードの保存に失敗しました。');
-            } else {
-                alert('LINE WORKS アカウントを作成しました！');
-            }
-            */
-
         } catch (e) {
             console.error('招待送信中エラー:', e);
             alert('招待送信中に予期しないエラーが発生しました。');
@@ -425,7 +375,7 @@ export default function EntryDetailPage() {
             return;
         }
 
-        try {
+        //try {
             const payload: Record<string, unknown> = {
                 localName: userId,
                 lastName: entry.last_name_kanji,
@@ -503,10 +453,12 @@ export default function EntryDetailPage() {
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
 
+        /*
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
+        */
     };
 
     useEffect(() => {
