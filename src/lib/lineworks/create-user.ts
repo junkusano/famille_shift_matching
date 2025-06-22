@@ -42,7 +42,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     const orgObj: Record<string, unknown> = {
       domainId: domainId,
       primary: true,
-      email: `${params.localName}@shi-on.net`,
+      email: `${params.localName}@shi-on`,
       orgUnits: [orgUnitObj]
     };
     if (params.levelId) {
@@ -52,7 +52,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     // リクエスト body
     const body = {
       domainId: domainId,  // ⭐ ルート直下に domainId を追加
-      email: `${params.localName}@shi-on.net`,
+      email: `${params.localName}@shi-on`,
       userName: {
         lastName: params.lastName,
         firstName: params.firstName
