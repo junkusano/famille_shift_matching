@@ -369,11 +369,15 @@ export default function EntryDetailPage() {
     // LINE WORKS
 
     // サーバーAPIを呼び出すだけにする
+    const [creatingLineWorks, setCreatingLineWorks] = useState(false);  // 処理中フラグ
+
     const handleCreateLineWorksAccount = async () => {
         if (!userId || !entry) {
             alert('必要な情報が不足しています。');
             return;
         }
+
+        setCreatingLineWorks(true);  // 処理開始
 
         try {
             const payload: Record<string, unknown> = {
@@ -410,7 +414,14 @@ export default function EntryDetailPage() {
 
             alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
 
-            // Supabase ユーザー情報を更新（仮パスワード＋組織情報）
+            // Supabase ユーザー情報を更新
+            console.log('Supabase 更新データ:', {
+                temp_password: data.tempPassword,
+                org_unit_id: selectedOrg,
+                level_id: selectedLevel,
+                position_id: selectedPosition
+            });
+
             const { error } = await supabase.from('users').update({
                 temp_password: data.tempPassword,
                 org_unit_id: selectedOrg,
@@ -440,7 +451,6 @@ export default function EntryDetailPage() {
                 body
             });
 
-            // 既存の send-email API に送信
             const mailRes = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -463,12 +473,16 @@ export default function EntryDetailPage() {
                 });
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
+
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
+        } finally {
+            setCreatingLineWorks(false);  // 処理終了
         }
     };
-    
+
+
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
@@ -599,15 +613,19 @@ export default function EntryDetailPage() {
 
                                 {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
                                 {lineWorksExists ? (
-                                    <span className="px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">LINE WORKS 登録済</span>
+                                    <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
+                                        LINEWORKS登録済
+                                    </span>
                                 ) : (
                                     <button
                                         className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
                                         onClick={handleCreateLineWorksAccount}
+                                        disabled={creatingLineWorks}
                                     >
-                                        LINE WORKS アカウント生成
+                                        {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
                                     </button>
                                 )}
+
 
                             </div>
                         ) : (
