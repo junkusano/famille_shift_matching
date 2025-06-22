@@ -376,82 +376,82 @@ export default function EntryDetailPage() {
         }
 
         //try {
-            const payload: Record<string, unknown> = {
-                localName: userId,
-                lastName: entry.last_name_kanji,
-                firstName: entry.first_name_kanji,
-                orgUnitId: selectedOrg
-            };
-            if (selectedPosition) payload.positionId = selectedPosition;
-            if (selectedLevel) payload.levelId = selectedLevel;
+        const payload: Record<string, unknown> = {
+            localName: userId,
+            lastName: entry.last_name_kanji,
+            firstName: entry.first_name_kanji,
+            orgUnitId: selectedOrg
+        };
+        if (selectedPosition) payload.positionId = selectedPosition;
+        if (selectedLevel) payload.levelId = selectedLevel;
 
-            console.log('送信データ:', payload);
+        console.log('送信データ:', payload);
 
-            const res = await fetch('/api/lineworks/create-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+        const res = await fetch('/api/lineworks/create-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-            const data = await res.json();
+        const data = await res.json();
 
-            if (!res.ok || !data.success) {
-                console.error('LINE WORKS アカウント作成失敗:', data.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
-                return;
-            }
+        if (!res.ok || !data.success) {
+            console.error('LINE WORKS アカウント作成失敗:', data.error);
+            alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
+            return;
+        }
 
+        await addStaffLog({
+            staff_id: entry.id,
+            action_at: new Date().toISOString(),
+            action_detail: 'LINE WORKS アカウント作成',
+            registered_by: 'システム'
+        });
+
+        alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
+
+        await supabase.from('users').update({
+            temp_password: data.tempPassword
+        }).eq('user_id', userId);
+
+        setLineWorksExists(true);
+
+        // メールテンプレート生成
+        const { subject, body } = lineworksInviteTemplate({
+            fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+            userId,
+            tempPassword: data.tempPassword
+        });
+
+        console.log('メール送信データ:', {
+            to: entry.email,
+            subject,
+            body
+        });
+
+        // 既存の send-email API に送信
+        const mailRes = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to: entry.email,
+                subject,
+                html: body
+            })
+        });
+
+        if (!mailRes.ok) {
+            const err = await mailRes.json();
+            alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
+        } else {
             await addStaffLog({
                 staff_id: entry.id,
                 action_at: new Date().toISOString(),
-                action_detail: 'LINE WORKS アカウント作成',
+                action_detail: 'LINE WORKS ログイン案内メール送信',
                 registered_by: 'システム'
             });
-
-            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
-
-            await supabase.from('users').update({
-                temp_password: data.tempPassword
-            }).eq('user_id', userId);
-
-            setLineWorksExists(true);
-
-            // メールテンプレート生成
-            const { subject, body } = lineworksInviteTemplate({
-                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-                userId,
-                tempPassword: data.tempPassword
-            });
-
-            console.log('メール送信データ:', {
-                to: entry.email,
-                subject,
-                body
-            });
-
-            // 既存の send-email API に送信
-            const mailRes = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: entry.email,
-                    subject,
-                    body
-                })
-            });
-
-            if (!mailRes.ok) {
-                const err = await mailRes.json();
-                alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
-            } else {
-                await addStaffLog({
-                    staff_id: entry.id,
-                    action_at: new Date().toISOString(),
-                    action_detail: 'LINE WORKS ログイン案内メール送信',
-                    registered_by: 'システム'
-                });
-                alert('LINE WORKS ログイン案内メールを送信しました！');
-            }
+            alert('LINE WORKS ログイン案内メールを送信しました！');
+        }
 
         /*
         } catch (err) {
