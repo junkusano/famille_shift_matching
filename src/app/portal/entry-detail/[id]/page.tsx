@@ -473,6 +473,12 @@ export default function EntryDetailPage() {
                 tempPassword: data.tempPassword
             });
 
+            console.log('メール送信データ:', {
+                to: entry.email,
+                subject,
+                body
+            });
+
             // 既存の send-email API に送信
             const mailRes = await fetch('/api/send-email', {
                 method: 'POST',

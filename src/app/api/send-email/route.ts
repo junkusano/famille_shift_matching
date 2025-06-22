@@ -5,7 +5,9 @@ import { generateRecruiterHtml } from "@/lib/emailTemplates/recruiterEntry";
 import { ApplicantBody } from "@/types/email";
 
 export async function POST(req: Request) {
+  
   const body: ApplicantBody = await req.json();
+  console.log('受診したメール:',body);
 
   // メール本文生成
   const applicantHtml = generateApplicantHtml(body);
