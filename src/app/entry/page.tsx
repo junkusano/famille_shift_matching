@@ -9,6 +9,7 @@ import Link from "next/link"; // 追加
 //import { NextResponse } from "next/server";
 import { convertDriveUrlToDirectView } from "@/lib/drive"
 import Footer from '@/components/Footer'; // ← 追加
+import { addStaffLog } from '@/lib/addStaffLog';
 
 export default function EntryPage() {
 
@@ -307,13 +308,30 @@ export default function EntryPage() {
 
         console.log("✅ insert処理終了");
 
-        if (error) {
-            console.error("送信失敗:", error.message);
+        const { data: insertData, error: insertError } = await supabase
+            .from("form_entries")
+            .insert([payload])
+            .select();
+
+        if (insertError) {
+            console.error("送信失敗:", insertError.message);
             alert("送信に失敗しました");
             return;
         }
 
-        console.log("✅ insert成功！次に進みます");
+        const { error: logError } = await addStaffLog({
+            staff_id: insertData[0].id,
+            action_at: new Date().toISOString(),
+            action_detail: 'エントリー完了',
+            registered_by: 'システム'
+        });
+
+        if (logError) {
+            console.error("staff_log 記録失敗:", logError);
+        }
+
+
+
 
 
         // 年齢の算出

@@ -28,7 +28,7 @@ export default function PortalLayout({ children }: Props) {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
     void secureImageUrl;
-    
+
     useEffect(() => {
         const fetchUserData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -87,9 +87,20 @@ export default function PortalLayout({ children }: Props) {
                     </div>
 
                     <ul className="mt-6 space-y-2">
-                        <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
-                        <li><Link href="/portal/shift/manage/matching" className="text-blue-300 hover:underline">マッチング管理</Link></li>
-                        <li><Link href="/portal/badge" className="text-blue-300 hover:underline">職員証（バッジ）</Link></li>
+                        {role === 'manager' || role === 'admin' ? (
+                            <li>
+                                <Link href="/portal/entry-list" className="text-blue-300 hover:underline">
+                                    エントリー一覧
+                                </Link>
+                            </li>
+                        ) : null}
+
+                        <li>
+                            <span className="text-blue-300">マッチング管理（工事中）</span>
+                        </li>
+                        <li>
+                            <span className="text-blue-300">職員証（バッジ：工事中）</span>
+                        </li>
                     </ul>
                 </div>
 
