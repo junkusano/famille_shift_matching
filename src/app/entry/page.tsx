@@ -304,10 +304,6 @@ export default function EntryPage() {
         // --- DB登録処理（DB処理2: INSERT）---
         console.log("🚀 Supabaseへ送信するpayload:", payload);
 
-        const { error } = await supabase.from("form_entries").insert([payload]);
-
-        console.log("✅ insert処理終了");
-
         const { data: insertData, error: insertError } = await supabase
             .from("form_entries")
             .insert([payload])
@@ -319,7 +315,10 @@ export default function EntryPage() {
             return;
         }
 
-        const { error: logError } = await addStaffLog({
+        console.log("✅ insert成功！次に進みます");
+
+        // staff_log への記録
+        const { error: logError } = await supabase.from("staff_log").insert({
             staff_id: insertData[0].id,
             action_at: new Date().toISOString(),
             action_detail: 'エントリー完了',
@@ -327,9 +326,10 @@ export default function EntryPage() {
         });
 
         if (logError) {
-            console.error("staff_log 記録失敗:", logError);
+            console.error("staff_log 記録失敗:", logError.message);
+        } else {
+            console.log("📝 staff_log にエントリー完了を記録しました");
         }
-
 
         // 年齢の算出
         const birthYear = Number(birthYearStr);
