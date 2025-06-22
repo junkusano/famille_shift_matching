@@ -36,7 +36,7 @@ interface EntryData {
   googleMapUrl?: string;
   certifications?: Certification[];
   attachments?: Attachment[];
-  status?: string;  // 追加
+  status?: string;
 }
 
 interface EntryDataWithUser extends EntryData {
@@ -76,8 +76,7 @@ export default function EntryListPage() {
           postal_code,
           certifications,
           users(status)
-        `)
-        .is('auth_uid', null);
+        `); // フィルターなしで全件取得
 
       if (error) {
         console.error("❌ Supabase取得エラー:", error.message);
@@ -125,7 +124,7 @@ export default function EntryListPage() {
 
   return (
     <div className="content">
-      <h2 className="text-xl font-bold mb-4">未登録ユーザーのエントリー一覧</h2>
+      <h2 className="text-xl font-bold mb-4">全エントリー一覧</h2>
       {loading ? (
         <p>読み込み中...</p>
       ) : entries.length === 0 ? (
