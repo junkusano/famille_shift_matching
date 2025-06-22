@@ -1,35 +1,51 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
-import { generateApplicantHtml } from "@/lib/emailTemplates";
-import { generateRecruiterHtml } from "@/lib/emailTemplates/recruiterEntry";
-import { ApplicantBody } from "@/types/email";
 
 export async function POST(req: Request) {
-  
-  const body: ApplicantBody = await req.json();
-  console.log('受診したメール:',body);
+  const body = await req.json();
 
-  // メール本文生成
-  const applicantHtml = generateApplicantHtml(body);
-  const recruiterHtml = generateRecruiterHtml(body);
+  console.log('受信したメール送信リクエスト:', body);
 
-  // エントリー者へのメール送信
+  // 宛先チェック
+  if (!body.to) {
+    console.error('送信先メールアドレスが未定義です');
+    return NextResponse.json({ error: '送信先メールアドレスが未定義です' }, { status: 400 });
+  }
+
+  // 件名
+  const subject = typeof body.subject === 'string' ? body.subject : '(件名なし)';
+
+  // 本文決定処理（html優先、次にbody、さらにオブジェクトはJSON文字列化）
+  let htmlContent: string | null = null;
+
+  if (typeof body.html === 'string') {
+    htmlContent = body.html;
+  } else if (typeof body.body === 'string') {
+    htmlContent = body.body;
+  } else if (typeof body.html === 'object') {
+    htmlContent = JSON.stringify(body.html, null, 2);
+  } else if (typeof body.body === 'object') {
+    htmlContent = JSON.stringify(body.body, null, 2);
+  }
+
+  if (!htmlContent) {
+    console.error('メール本文が指定されていません');
+    return NextResponse.json({ error: 'メール本文が指定されていません' }, { status: 400 });
+  }
+
+  // メール送信実行
   const response = await sendEmail({
-    to: body.email,
-    subject: "【ファミーユ】エントリーありがとうございます",
-    html: applicantHtml,
+    to: body.to,
+    subject,
+    html: htmlContent,
   });
 
-  if (response.status === "error") {
+  if (response.status === 'error') {
+    console.error('メール送信エラー:', response.error);
     return NextResponse.json({ error: response.error }, { status: 500 });
   }
 
-  // 採用担当者への通知
-  await sendEmail({
-    to: process.env.RECRUIT_CONTACT_EMAIL || "recruit@shi-on.net",
-    subject: `【新規エントリー】${body.applicantName}様より`,
-    html: recruiterHtml,
-  });
+  console.log('メール送信成功！messageId:', response.messageId);
 
-  return NextResponse.json({ status: "ok", messageId: response.messageId });
+  return NextResponse.json({ status: 'ok', messageId: response.messageId });
 }
