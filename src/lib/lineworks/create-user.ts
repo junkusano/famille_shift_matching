@@ -37,7 +37,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     }
 
     const orgObj: Record<string, unknown> = {
-      domainId: Number(domainId),
+      domainId: domainId,
       primary: true,
       email: `${params.localName}@shi-on.net`,
       orgUnits: [orgUnitObj]
@@ -61,8 +61,8 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     };
 
     // ⭐ ここでログ出力
-    console.log('送信 domainId:', domainId);
-    console.log('送信 body:', JSON.stringify(body, null, 2));
+    console.log('送信 body (raw):', body);
+    console.log('送信 body (JSON):', JSON.stringify(body, null, 2));
 
     const res = await fetch('https://www.worksapis.com/v1.0/users', {
       method: 'POST',
