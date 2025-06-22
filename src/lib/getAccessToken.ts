@@ -1,5 +1,5 @@
 export async function getAccessToken(): Promise<string> {
-  const baseUrl = process.env.BASE_URL;
+  const baseUrl = "https://myfamille.shi-on.net"
 
   if (!baseUrl) {
     throw new Error('BASE_URL が未設定です');
