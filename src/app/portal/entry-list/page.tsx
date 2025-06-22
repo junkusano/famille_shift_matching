@@ -33,10 +33,10 @@ interface EntryData {
     postal_code?: string;
     address: string;
     shortAddress?: string;
-    googleMapLinkHtml?: string;
     googleMapUrl?: string;
     certifications?: Certification[];
     attachments?: Attachment[];
+    status?: string; // ステータスを追加
 }
 
 export default function EntryListPage() {
@@ -55,21 +55,22 @@ export default function EntryListPage() {
             const { data, error } = await supabase
                 .from('form_entries')
                 .select(`
-                id,
-                last_name_kanji,
-                first_name_kanji,
-                last_name_kana,
-                first_name_kana,
-                gender,
-                created_at,
-                auth_uid,
-                birth_year,
-                birth_month,
-                birth_day,
-                address,
-                postal_code,
-                certifications
-            `)
+                    id,
+                    last_name_kanji,
+                    first_name_kanji,
+                    last_name_kana,
+                    first_name_kana,
+                    gender,
+                    created_at,
+                    auth_uid,
+                    birth_year,
+                    birth_month,
+                    birth_day,
+                    address,
+                    postal_code,
+                    certifications,
+                    status
+                `)
                 .is('auth_uid', null);
 
             if (error) {
@@ -85,8 +86,6 @@ export default function EntryListPage() {
         fetchData();
     }, [role]);
 
-
-    // 2. マップリンク付加用 useEffect（entries に依存）
     useEffect(() => {
         console.log("📦 entries useEffect 発火！entries.length =", entries.length);
 
@@ -111,17 +110,15 @@ export default function EntryListPage() {
         };
 
         if (entries.length > 0) {
-            addMapLinks(); // ← ここで呼び出し
+            addMapLinks();
         } else {
             console.log("⛔ entries.length が 0 以下なのでスキップ");
         }
     }, [entries]);
 
-
     if (role !== 'admin') {
         return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
     }
-
 
     return (
         <div className="content">
@@ -140,6 +137,7 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">年齢</th>
                                 <th className="border px-2 py-1">住所</th>
                                 <th className="border px-2 py-1">資格</th>
+                                <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1">登録日</th>
                                 <th className="border px-2 py-1"></th>
                             </tr>
@@ -148,7 +146,7 @@ export default function EntryListPage() {
                             {entriesWithMap.map((entry) => {
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
-                                        (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                                         ? 1 : 0
                                 );
 
@@ -169,19 +167,17 @@ export default function EntryListPage() {
                                         </td>
                                         <td className="border px-2 py-1">
                                             {Array.isArray(entry.attachments) &&
-                                                entry.attachments.some(
-                                                    (item) =>
-                                                        (item.label && item.label.startsWith("certificate_")) ||
-                                                        (item.type && item.type.includes("資格証"))
-                                                )
+                                            entry.attachments.some(
+                                                (item) =>
+                                                    (item.label && item.label.startsWith("certificate_")) ||
+                                                    (item.type && item.type.includes("資格証"))
+                                            )
                                                 ? 'あり'
                                                 : 'なし'
                                             }
                                         </td>
-
-                                        <td className="border px-2 py-1">
-                                            {new Date(entry.created_at).toLocaleDateString()}
-                                        </td>
+                                        <td className="border px-2 py-1">{entry.status ?? '―'}</td>
+                                        <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                                         <td className="border px-2 py-1">
                                             <a
                                                 href={`/portal/entry-detail/${entry.id}`}
@@ -194,7 +190,6 @@ export default function EntryListPage() {
                                 );
                             })}
                         </tbody>
-
                     </table>
                 </div>
             )}
