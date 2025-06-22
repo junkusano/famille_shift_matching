@@ -4,9 +4,9 @@ interface CreateUserParams {
   localName: string;
   lastName: string;
   firstName: string;
-  levelId?: string;   // オプションに変更
+  levelId?: string;   // オプション
   orgUnitId: string;
-  positionId?: string; // オプションに変更
+  positionId?: string; // オプション
 }
 
 interface CreateUserResult {
@@ -20,11 +20,13 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     const accessToken = await getAccessToken();
     const tempPassword = generateSecurePassword();
 
-    const domainId = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
-    if (!domainId) {
+    const domainIdRaw = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
+    if (!domainIdRaw) {
       throw new Error('環境変数 NEXT_PUBLIC_LINEWORKS_DOMAIN_ID が未設定です');
     }
+    const domainId = Number(domainIdRaw);
 
+    // orgUnits オブジェクト
     const orgUnitObj: Record<string, unknown> = {
       orgUnitId: params.orgUnitId,
       primary: true,
@@ -36,6 +38,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       orgUnitObj.positionId = params.positionId;
     }
 
+    // organizations オブジェクト
     const orgObj: Record<string, unknown> = {
       domainId: domainId,
       primary: true,
@@ -46,7 +49,9 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       orgObj.levelId = params.levelId;
     }
 
+    // リクエスト body
     const body = {
+      domainId: domainId,  // ⭐ ルート直下に domainId を追加
       email: `${params.localName}@shi-on.net`,
       userName: {
         lastName: params.lastName,
@@ -60,10 +65,12 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       organizations: [orgObj]
     };
 
-    // ⭐ ここでログ出力
+    // デバッグログ
+    console.log('送信 domainId:', domainId);
     console.log('送信 body (raw):', body);
     console.log('送信 body (JSON):', JSON.stringify(body, null, 2));
 
+    // API 呼び出し
     const res = await fetch('https://www.worksapis.com/v1.0/users', {
       method: 'POST',
       headers: {
@@ -76,7 +83,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     if (!res.ok) {
       const errorData = await res.json();
       console.error('LINE WORKS API エラー:', errorData);
-      return { success: false, error: errorData.message || 'LINE WORKS API エラー' };
+      return { success: false, error: errorData.description || errorData.message || 'LINE WORKS API エラー' };
     }
 
     return { success: true, tempPassword };
