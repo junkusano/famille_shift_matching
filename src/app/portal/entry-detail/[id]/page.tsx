@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-import { createLineWorksUser } from '@/lib/lineworks/create-user';
+//import { createLineWorksUser } from '@/lib/lineworks/create-user';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 
 interface Attachment {
@@ -425,35 +425,41 @@ export default function EntryDetailPage() {
         }
 
         try {
-            const result = await createLineWorksUser({
-                localName: userId,
-                lastName: entry.last_name_kanji,
-                firstName: entry.first_name_kanji,
-                orgUnitId: selectedOrg,
-                positionId: selectedPosition,
-                levelId: selectedLevel
+            // クライアントではこうする
+            const res = await fetch('/api/lineworks/create-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    localName: userId,
+                    lastName: entry.last_name_kanji,
+                    firstName: entry.first_name_kanji,
+                    orgUnitId: selectedOrg,
+                    positionId: selectedPosition,
+                    levelId: selectedLevel
+                })
             });
 
-            if (!result.success) {
-                console.error('LINE WORKS アカウント作成失敗:', result.error);
-                alert(`LINE WORKS アカウント作成に失敗しました: ${result.error}`);
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                console.error('LINE WORKS アカウント作成失敗:', data.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
                 return;
             }
 
-            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${result.tempPassword}`);
+            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
 
-            // 仮パスワードを保存
             await supabase.from('users').update({
-                temp_password: result.tempPassword
+                temp_password: data.tempPassword
             }).eq('user_id', userId);
 
             setLineWorksExists(true);
+
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         }
     };
-
 
     useEffect(() => {
         const load = async () => {
