@@ -318,7 +318,7 @@ export default function EntryPage() {
         console.log("✅ insert成功！次に進みます");
 
         // staff_log への記録
-        const { error: logError } = await supabase.from("staff_log").insert({
+        const { error: logError } = await addStaffLog({
             staff_id: insertData[0].id,
             action_at: new Date().toISOString(),
             action_detail: 'エントリー完了',
@@ -326,7 +326,7 @@ export default function EntryPage() {
         });
 
         if (logError) {
-            console.error("staff_log 記録失敗:", logError.message);
+            console.error("staff_log 記録失敗:", logError);
         } else {
             console.log("📝 staff_log にエントリー完了を記録しました");
         }
