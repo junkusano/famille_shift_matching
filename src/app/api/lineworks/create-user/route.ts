@@ -11,15 +11,17 @@ export async function POST(req: NextRequest) {
       orgUnitId,
       positionId,
       levelId
+    }: {
+      localName: string;
+      lastName: string;
+      firstName: string;
+      orgUnitId: string;
+      positionId?: string;
+      levelId?: string;
     } = await req.json();
 
-    // 必須チェック（positionId と levelId は除外）
-    if (
-      !localName ||
-      !lastName ||
-      !firstName ||
-      !orgUnitId
-    ) {
+    // 必須チェック（positionId と levelId はオプション）
+    if (!localName || !lastName || !firstName || !orgUnitId) {
       return NextResponse.json(
         { success: false, error: '必須データが不足しています' },
         { status: 400 }
@@ -35,18 +37,15 @@ export async function POST(req: NextRequest) {
       levelId
     });
 
-    // payloadを組み立て、空なら送らない
-    const createParams: any = {
+    // LINE WORKS ユーザー作成
+    const result = await createLineWorksUser({
       localName,
       lastName,
       firstName,
-      orgUnitId
-    };
-    if (positionId) createParams.positionId = positionId;
-    if (levelId) createParams.levelId = levelId;
-
-    // LINE WORKSユーザー作成
-    const result = await createLineWorksUser(createParams);
+      orgUnitId,
+      positionId,
+      levelId
+    });
 
     if (!result.success) {
       console.error('LINE WORKS 作成失敗:', result.error);

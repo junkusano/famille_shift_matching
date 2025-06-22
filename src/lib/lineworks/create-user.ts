@@ -25,8 +25,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       throw new Error('環境変数 NEXT_PUBLIC_LINEWORKS_DOMAIN_ID が未設定です');
     }
 
-    // orgUnits を構築
-    const orgUnit: any = {
+    const orgUnitObj: Record<string, unknown> = {
       orgUnitId: params.orgUnitId,
       primary: true,
       isManager: false,
@@ -34,17 +33,17 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       useTeamFeature: false
     };
     if (params.positionId) {
-      orgUnit.positionId = params.positionId;
+      orgUnitObj.positionId = params.positionId;
     }
 
-    const organization: any = {
+    const orgObj: Record<string, unknown> = {
       domainId: Number(domainId),
       primary: true,
       email: `${params.localName}@shi-on.net`,
-      orgUnits: [orgUnit]
+      orgUnits: [orgUnitObj]
     };
     if (params.levelId) {
-      organization.levelId = params.levelId;
+      orgObj.levelId = params.levelId;
     }
 
     const body = {
@@ -58,7 +57,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
         password: tempPassword,
         changePasswordAtNextLogin: true
       },
-      organizations: [organization]
+      organizations: [orgObj]
     };
 
     const res = await fetch('https://www.worksapis.com/v1.0/users', {

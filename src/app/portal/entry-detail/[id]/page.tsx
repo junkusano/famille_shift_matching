@@ -426,7 +426,8 @@ export default function EntryDetailPage() {
 
         try {
             // 送信データを作成し、空の場合は送らない
-            const payload: any = {
+            // 429行目あたり
+            const payload: Record<string, unknown> = {
                 localName: userId,
                 lastName: entry.last_name_kanji,
                 firstName: entry.first_name_kanji,
