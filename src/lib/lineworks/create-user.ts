@@ -60,6 +60,10 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       organizations: [orgObj]
     };
 
+    // ⭐ ここでログ出力
+    console.log('送信 domainId:', domainId);
+    console.log('送信 body:', JSON.stringify(body, null, 2));
+
     const res = await fetch('https://www.worksapis.com/v1.0/users', {
       method: 'POST',
       headers: {
