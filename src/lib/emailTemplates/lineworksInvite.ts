@@ -1,8 +1,4 @@
-export function lineworksInviteTemplate({
-  fullName,
-  userId,
-  tempPassword
-}: {
+export function lineworksInviteTemplate({ fullName, userId, tempPassword }: {
   fullName: string;
   userId: string;
   tempPassword: string;
@@ -10,26 +6,25 @@ export function lineworksInviteTemplate({
   return {
     subject: 'マイ・ファミーユ：LINE WORKS 初回ログイン情報のご案内',
     body: `
-${fullName} 様
+<p>${fullName} 様</p>
 
-ファミーユ内の情報管理ツールであるLINE WORKS のアカウントを作成いたしました。利用者様の情報や各種規定・マニュアル・お知らせ等、職員個人の手続きなどがこのアプリ内で情報共有されています。
+<p>ファミーユ内の情報管理ツールであるLINE WORKS のアカウントを作成いたしました。利用者様の情報や各種規定・マニュアル・お知らせ等、職員個人の手続きなどがこのアプリ内で情報共有されています。</p>
 
-以下の情報で初回ログインをお願いします。
+<p>以下の情報で初回ログインをお願いします。</p>
 
-【ログインID】
-${userId}@shi-on
+<p><strong>【ログインID】</strong><br>
+${userId}@shi-on</p>
 
-【初期パスワード】
-${tempPassword}
+<p><strong>【初期パスワード】</strong><br>
+${tempPassword}</p>
 
-下記のガイドページに、アプリのインストール方法やログイン手順をまとめています。
-必要に応じてご参照ください。
+<p>下記のガイドページに、アプリのインストール方法やログイン手順をまとめています。<br>
+必要に応じてご参照ください。</p>
 
-▶ ログインガイドページ
-https://myfamille.shi-on.net/lineworks-login-guide
+<p>▶ <a href="https://myfamille.shi-on.net/lineworks-login-guide">ログインガイドページ</a></p>
 
-ログイン後は必ずパスワードを変更してください。
-ご不明な点がございましたら、管理者までご連絡ください。
+<p>ログイン後は必ずパスワードを変更してください。<br>
+ご不明な点がございましたら、管理者までご連絡ください。</p>
     `.trim()
   };
 }
