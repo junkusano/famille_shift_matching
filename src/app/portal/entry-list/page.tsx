@@ -36,7 +36,13 @@ interface EntryData {
   googleMapUrl?: string;
   certifications?: Certification[];
   attachments?: Attachment[];
-  status?: string; // 追加
+  status?: string;  // 追加
+}
+
+interface EntryDataWithUser extends EntryData {
+  users?: {
+    status?: string;
+  };
 }
 
 export default function EntryListPage() {
@@ -76,9 +82,9 @@ export default function EntryListPage() {
       if (error) {
         console.error("❌ Supabase取得エラー:", error.message);
       } else {
-        const mapped = data?.map((entry: any) => ({
+        const mapped = (data as EntryDataWithUser[]).map((entry) => ({
           ...entry,
-          status: entry.users?.status || '―'
+          status: entry.users?.status ?? '―'
         })) || [];
         setEntries(mapped);
       }
@@ -172,7 +178,7 @@ export default function EntryListPage() {
                         ? 'あり'
                         : 'なし'}
                     </td>
-                    <td className="border px-2 py-1">{entry.status ?? '―'}</td>
+                    <td className="border px-2 py-1">{entry.status}</td>
                     <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                     <td className="border px-2 py-1">
                       <a
