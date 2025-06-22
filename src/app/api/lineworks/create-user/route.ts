@@ -13,14 +13,12 @@ export async function POST(req: NextRequest) {
       levelId
     } = await req.json();
 
-    // 必須チェック
+    // 必須チェック（positionId と levelId は除外）
     if (
       !localName ||
       !lastName ||
       !firstName ||
-      !orgUnitId ||
-      !positionId ||
-      !levelId
+      !orgUnitId
     ) {
       return NextResponse.json(
         { success: false, error: '必須データが不足しています' },
@@ -37,15 +35,18 @@ export async function POST(req: NextRequest) {
       levelId
     });
 
-    // LINE WORKSユーザー作成
-    const result = await createLineWorksUser({
+    // payloadを組み立て、空なら送らない
+    const createParams: any = {
       localName,
       lastName,
       firstName,
-      orgUnitId,
-      positionId,
-      levelId
-    });
+      orgUnitId
+    };
+    if (positionId) createParams.positionId = positionId;
+    if (levelId) createParams.levelId = levelId;
+
+    // LINE WORKSユーザー作成
+    const result = await createLineWorksUser(createParams);
 
     if (!result.success) {
       console.error('LINE WORKS 作成失敗:', result.error);
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     const { error: updateError } = await supabase
       .from('users')
       .update({ temp_password: result.tempPassword })
-      .eq('user_id', localName); // user_id = localName として保存前提
+      .eq('user_id', localName);
 
     if (updateError) {
       console.error('Supabase update error:', updateError.message);

@@ -425,18 +425,22 @@ export default function EntryDetailPage() {
         }
 
         try {
-            // クライアントではこうする
+            // 送信データを作成し、空の場合は送らない
+            const payload: any = {
+                localName: userId,
+                lastName: entry.last_name_kanji,
+                firstName: entry.first_name_kanji,
+                orgUnitId: selectedOrg
+            };
+            if (selectedPosition) payload.positionId = selectedPosition;
+            if (selectedLevel) payload.levelId = selectedLevel;
+
+            console.log('送信データ:', payload);
+
             const res = await fetch('/api/lineworks/create-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    localName: userId,
-                    lastName: entry.last_name_kanji,
-                    firstName: entry.first_name_kanji,
-                    orgUnitId: selectedOrg,
-                    positionId: selectedPosition,
-                    levelId: selectedLevel
-                })
+                body: JSON.stringify(payload)
             });
 
             const data = await res.json();
@@ -484,7 +488,7 @@ export default function EntryDetailPage() {
                     }
                 } catch (parseErr) {
                     console.warn('JSON パース失敗（check-user）:', parseErr, 'レスポンス内容:', text);
-                    setLineWorksExists(null);  // パース失敗でも止めない
+                    setLineWorksExists(null);
                 }
 
             } catch (err) {
@@ -495,6 +499,7 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
+
 
 
     if (!entry) return <p className="p-4">読み込み中...</p>;

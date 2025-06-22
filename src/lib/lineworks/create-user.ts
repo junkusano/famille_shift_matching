@@ -4,9 +4,9 @@ interface CreateUserParams {
   localName: string;
   lastName: string;
   firstName: string;
-  levelId: string;
+  levelId?: string;   // オプションに変更
   orgUnitId: string;
-  positionId: string;
+  positionId?: string; // オプションに変更
 }
 
 interface CreateUserResult {
@@ -25,6 +25,28 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       throw new Error('環境変数 NEXT_PUBLIC_LINEWORKS_DOMAIN_ID が未設定です');
     }
 
+    // orgUnits を構築
+    const orgUnit: any = {
+      orgUnitId: params.orgUnitId,
+      primary: true,
+      isManager: false,
+      visible: true,
+      useTeamFeature: false
+    };
+    if (params.positionId) {
+      orgUnit.positionId = params.positionId;
+    }
+
+    const organization: any = {
+      domainId: Number(domainId),
+      primary: true,
+      email: `${params.localName}@shi-on.net`,
+      orgUnits: [orgUnit]
+    };
+    if (params.levelId) {
+      organization.levelId = params.levelId;
+    }
+
     const body = {
       email: `${params.localName}@shi-on.net`,
       userName: {
@@ -36,24 +58,7 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
         password: tempPassword,
         changePasswordAtNextLogin: true
       },
-      organizations: [
-        {
-          domainId: Number(domainId),
-          primary: true,
-          email: `${params.localName}@shi-on.net`,
-          levelId: params.levelId,
-          orgUnits: [
-            {
-              orgUnitId: params.orgUnitId,
-              primary: true,
-              positionId: params.positionId,
-              isManager: false,
-              visible: true,
-              useTeamFeature: false
-            }
-          ]
-        }
-      ]
+      organizations: [organization]
     };
 
     const res = await fetch('https://www.worksapis.com/v1.0/users', {
@@ -87,4 +92,3 @@ function generateSecurePassword(): string {
   const part2 = Math.random().toString(36).slice(-4);
   return `${part1}${part2}Aa1!`;
 }
-
