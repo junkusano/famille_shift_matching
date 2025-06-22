@@ -331,9 +331,6 @@ export default function EntryPage() {
         }
 
 
-
-
-
         // 年齢の算出
         const birthYear = Number(birthYearStr);
         const birthMonth = Number(birthMonthStr);
