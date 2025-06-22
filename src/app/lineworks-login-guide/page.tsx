@@ -66,6 +66,15 @@ export default function LineworksLoginGuidePage() {
             マニュアルPDFを表示・ダウンロード
           </Link>
         </div>
+
+        <div className="mt-8">
+          <Link
+            href="/"
+            className="inline-block px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+          >
+            ホームに戻る
+          </Link>
+        </div>
       </div>
     </div>
   );

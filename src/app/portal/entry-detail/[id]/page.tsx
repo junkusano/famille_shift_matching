@@ -9,6 +9,7 @@ import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
 //import { createLineWorksUser } from '@/lib/lineworks/create-user';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
+import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 
 interface Attachment {
     url: string | null;
@@ -425,8 +426,6 @@ export default function EntryDetailPage() {
         }
 
         try {
-            // 送信データを作成し、空の場合は送らない
-            // 429行目あたり
             const payload: Record<string, unknown> = {
                 localName: userId,
                 lastName: entry.last_name_kanji,
@@ -452,6 +451,13 @@ export default function EntryDetailPage() {
                 return;
             }
 
+            await addStaffLog({
+                staff_id: entry.id,
+                action_at: new Date().toISOString(),
+                action_detail: 'LINE WORKS アカウント作成',
+                registered_by: 'システム'
+            });
+
             alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
 
             await supabase.from('users').update({
@@ -459,6 +465,37 @@ export default function EntryDetailPage() {
             }).eq('user_id', userId);
 
             setLineWorksExists(true);
+
+            // メールテンプレート生成
+            const { subject, body } = lineworksInviteTemplate({
+                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                userId,
+                tempPassword: data.tempPassword
+            });
+
+            // 既存の send-email API に送信
+            const mailRes = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: entry.email,
+                    subject,
+                    body
+                })
+            });
+
+            if (!mailRes.ok) {
+                const err = await mailRes.json();
+                alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
+            } else {
+                await addStaffLog({
+                    staff_id: entry.id,
+                    action_at: new Date().toISOString(),
+                    action_detail: 'LINE WORKS ログイン案内メール送信',
+                    registered_by: 'システム'
+                });
+                alert('LINE WORKS ログイン案内メールを送信しました！');
+            }
 
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
