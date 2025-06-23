@@ -57,17 +57,13 @@ export default function EntryPage() {
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const form = new FormData(e.currentTarget);
-
-        // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
-        const target = e.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (!file) return;
-
-        if (!file.type.startsWith("image/")) {
+        const photoFile = form.get("photo") as File;
+        if (!photoFile || !photoFile.type.startsWith("image/")) {
             alert("顔写真は画像ファイル（JPEG, PNG など）のみアップロード可能です。");
-            target.value = "";  // 入力リセット
             return;
         }
+        // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
+
         // payload作成前に必要な値を抽出
         const email = form.get("email");
         const phone = form.get("phone");
@@ -156,7 +152,7 @@ export default function EntryPage() {
         const licenseFront = form.get("licenseFront") as File;
         const licenseBack = form.get("licenseBack") as File;
         const residenceCard = form.get("residenceCard") as File;
-        const photoFile = form.get("photo") as File;
+        //const photoFile = form.get("photo") as File;
 
         // --- バリデーション ---
         const requiredFields = [
