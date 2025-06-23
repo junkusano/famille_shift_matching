@@ -59,7 +59,15 @@ export default function EntryPage() {
         const form = new FormData(e.currentTarget);
 
         // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) return;
 
+        if (!file.type.startsWith("image/")) {
+            alert("顔写真は画像ファイル（JPEG, PNG など）のみアップロード可能です。");
+            target.value = "";  // 入力リセット
+            return;
+        }
         // payload作成前に必要な値を抽出
         const email = form.get("email");
         const phone = form.get("phone");
@@ -87,6 +95,7 @@ export default function EntryPage() {
             setIsSubmitting(false);
             return;
         }
+
 
         // 電話番号重複チェック
         const cleanPhone = String(phone).replace(/[^0-9]/g, "");
