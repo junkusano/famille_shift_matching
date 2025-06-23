@@ -94,12 +94,23 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                         ) : null}
-
+                        {role === 'admin' ? (
+                            <li>
+                                <Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">
+                                    RPAテンプレ管理
+                                </Link>
+                            </li>
+                        ) : null}
                         <li>
                             <span className="text-blue-300">マッチング管理（工事中）</span>
                         </li>
                         <li>
                             <span className="text-blue-300">職員証（バッジ：工事中）</span>
+                        </li>
+                        <li>
+                            <Link href="/lineworks-login-guide" className="text-blue-300 hover:underline">
+                                LINE WORKSログインガイド
+                            </Link>
                         </li>
                     </ul>
                 </div>
