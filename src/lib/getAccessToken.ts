@@ -1,22 +1,35 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 export async function getAccessToken(): Promise<string> {
-  const baseUrl = "https://myfamille.shi-on.net"
-
-  if (!baseUrl) {
-    throw new Error('BASE_URL が未設定です');
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SupabaseのURLまたはキーが未設定です');
   }
 
-  const res = await fetch(`${baseUrl}/api/getAccessToken`);
+  const { data, error } = await supabase
+    .from('env_variables')
+    .select('value, expires_at')
+    .eq('group_key', 'lineworks')
+    .eq('key_name', 'access_token')
+    .single();
 
-  if (!res.ok) {
-    throw new Error(`AccessToken取得失敗: ${res.status} ${res.statusText}`);
+  if (error) {
+    console.error('Supabaseからの取得エラー:', error);
+    throw new Error('AccessTokenの取得に失敗しました');
   }
 
-  const data = await res.json();
-
-  if (!data.accessToken) {
-    throw new Error('AccessTokenが返却されませんでした');
+  if (!data || !data.value) {
+    throw new Error('AccessTokenがSupabaseに存在しません');
   }
 
-  return data.accessToken;
+  // 有効期限チェック（必要なら）
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    throw new Error('AccessTokenが期限切れです');
+  }
+
+  return data.value;
 }
 
