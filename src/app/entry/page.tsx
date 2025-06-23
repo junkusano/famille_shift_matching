@@ -236,9 +236,9 @@ export default function EntryPage() {
 
         // attachments 多次元配列生成
         const attachments = [];
-        if (licenseFrontUrl) attachments.push({ type: "免許証表", url: licenseFrontUrl, mimetype: licenseFront?.type || "" });
-        if (licenseBackUrl) attachments.push({ type: "免許証裏", url: licenseBackUrl, mimetype: licenseBack?.type || "" });
-        if (residenceCardUrl) attachments.push({ type: "住民票", url: residenceCardUrl, mimetype: residenceCard?.type || "" });
+        if (licenseFrontUrl) attachments.push({ type: "免許証表", url: licenseFrontUrl, mimeType: licenseFront?.type || "" });
+        if (licenseBackUrl) attachments.push({ type: "免許証裏", url: licenseBackUrl, mimeType: licenseBack?.type || "" });
+        if (residenceCardUrl) attachments.push({ type: "住民票", url: residenceCardUrl, mimeType: residenceCard?.type || "" });
 
         for (let i = 0; i < 13; i++) {
             const certFile = form.get(`certificate_${i}`) as File;
@@ -248,7 +248,7 @@ export default function EntryPage() {
                     type: "資格証明書",
                     label: `certificate_${i}`,
                     url: certUrl,
-                    mimetype: certFile?.type || ""
+                    mimeType: certFile?.type || ""
                 });
             }
         }

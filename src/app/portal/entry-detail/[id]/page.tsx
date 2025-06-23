@@ -267,6 +267,26 @@ export default function EntryDetailPage() {
             alert('認証メールを送信しました！');
             setInviteSent(true);
 
+            await addStaffLog({
+                staff_id: entry.id,
+                action_at: new Date().toISOString(),
+                action_detail: '認証メール送信',
+                registered_by: 'システム'
+            });
+            console.log('📝 認証メール送信ログを記録しました');
+
+            const { error: statusError } = await supabase
+                .from('users')
+                .update({ status: '認証メール送信済' })
+                .eq('user_id', userId);
+
+            if (statusError) {
+                console.error('ステータス更新エラー:', statusError.message);
+            } else {
+                console.log('✅ ステータスを認証メール送信済に変更しました');
+            }
+
+
             // 📝 users テーブルを更新
             const { error: updateError } = await supabase.from('users')
                 .update({
@@ -411,6 +431,18 @@ export default function EntryDetailPage() {
                 action_detail: 'LINE WORKS アカウント作成',
                 registered_by: 'システム'
             });
+
+            const { error: statusError } = await supabase
+                .from('users')
+                .update({ status: '4' })
+                .eq('user_id', entry.id);
+
+            if (statusError) {
+                console.error('ステータス更新エラー:', statusError.message);
+            } else {
+                console.log('✅ ステータスを4（LINE WORKS登録済）に変更しました');
+            }
+
 
             alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
 
