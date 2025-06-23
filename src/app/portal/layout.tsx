@@ -58,8 +58,9 @@ export default function PortalLayout({ children }: Props) {
     if (!userData) return <p>Loading...</p>;
 
     return (
-        <div className="flex portal-container min-h-screen">
-            <div className="left-menu flex flex-col justify-between h-full min-h-screen">
+        <div className="flex min-h-screen">
+            <div className="left-menu">
+
                 <div>
                     <p className="text-sm text-gray-300 mt-1">
                         <Link href="/" className="text-blue-300 hover:underline">🏠 Homeへ戻る</Link>
@@ -108,7 +109,12 @@ export default function PortalLayout({ children }: Props) {
                             <span className="text-blue-300">職員証（バッジ：工事中）</span>
                         </li>
                         <li>
-                            <Link href="/lineworks-login-guide" className="text-blue-300 hover:underline">
+                            <Link
+                                href="/lineworks-login-guide"
+                                className="text-black hover:underline"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
                                 LINE WORKSログインガイド
                             </Link>
                         </li>
@@ -130,7 +136,7 @@ export default function PortalLayout({ children }: Props) {
                 </div>
             </div>
 
-            <div className="flex-1 p-6 flex flex-col justify-between">
+            <div className="flex-1 p-6">
                 <div className="flex-1 p-6">
                     {children}
                 </div>
