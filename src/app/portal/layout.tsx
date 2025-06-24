@@ -58,7 +58,7 @@ export default function PortalLayout({ children }: Props) {
     if (!userData) return <p>Loading...</p>;
 
     return (
-        <div className="flex portal-container min-h-screen">More actions
+        <div className="flex portal-container min-h-screen">
             <div className="left-menu flex flex-col justify-between h-full min-h-screen">
                 <div>
 
