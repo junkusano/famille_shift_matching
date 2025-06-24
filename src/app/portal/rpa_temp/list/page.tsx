@@ -53,7 +53,7 @@ export default function RpaTemplateListPage() {
   };
 
   return (
-    <div className="p-4">
+    <div className="content flex-1 p-4">
       <h1 className="text-2xl font-bold mb-4">RPA テンプレート管理</h1>
 
       <div className="grid gap-4">
