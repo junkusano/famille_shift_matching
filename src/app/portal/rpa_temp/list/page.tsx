@@ -74,6 +74,13 @@ export default function RpaTemplateListPage() {
     setEditDescription(template.description);
   };
 
+  console.log("Insert payload", {
+    name: newName,
+    description: newDescription,
+    arg_labels: {},
+    result_labels: {}
+  });
+
   const handleUpdate = async () => {
     if (!editId) return;
     const { data, error } = await supabase.from('rpa_templates')
