@@ -1,24 +1,24 @@
 /* 全体レイアウト */
 .portal-container {
-    display: flex;
-    height: 100vh;
+  display: flex;
+  min-height: 100vh;
+}
+
+.left-menu,
+.content {
+  min-height: 100vh;
 }
 
 /* サイドメニュー（PC） */
 .left-menu {
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 250px;
-    height: 100%;
-    background-color: #2c3e50;
-    color: white;
-    padding-top: 60px;
-    padding-left: 20px;
-    overflow-y: auto;
-    /* スクロールが必要なら追加 */
+  width: 250px; /* 統一、あなたが安定していた値 */
+  background-color: #1e293b; /* ネイビー系 */
+  color: white;
+  padding: 1rem;
+  flex-shrink: 0; /* 左メニューの幅を固定し、縮まないようにする */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
 
 .left-menu .user-info {
@@ -53,12 +53,10 @@
 
 /* メインコンテンツ */
 .content {
-    flex-grow: 1;
-    padding: 20px;
-    overflow-y: auto;
-    background-color: #ecf0f1;
+  flex-grow: 1; /* 左メニューの隣で残りの幅を取る */
+  padding: 2rem;
+  overflow-y: auto;
 }
-
 .user-profile {
     text-align: center;
     padding: 20px;
@@ -138,17 +136,3 @@
     }
 }
 
-.left-menu {
-    background-color: #1e293b;
-    /* ネイビー系 */
-    color: white;
-    padding: 1rem;
-    width: 220px;
-    min-height: 100vh;
-}
-
-.content {
-    flex-grow: 1;
-    padding: 2rem;
-    overflow-y: auto;
-}
