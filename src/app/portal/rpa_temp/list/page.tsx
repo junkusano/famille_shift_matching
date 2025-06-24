@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 
 const supabaseUrl = 'https://your-project.supabase.co';
 const supabaseAnonKey = 'your-anon-key';
@@ -15,6 +15,8 @@ type Template = {
   id: string;
   name: string;
   description: string;
+  arg_labels: object;
+  result_labels: object;
 };
 
 export default function RpaTemplateListPage() {
@@ -30,9 +32,9 @@ export default function RpaTemplateListPage() {
   }, []);
 
   const fetchTemplates = async () => {
-    const { data, error } = await supabase.from('rpa_templates').select('*').order('id');
+    const { data, error } = await supabase.from('rpa_templates').select('*').order('created_at');
     if (error) {
-      console.error(error);
+      console.error('Fetch error:', error);
     } else {
       setTemplates(data as Template[]);
     }
@@ -41,10 +43,15 @@ export default function RpaTemplateListPage() {
   const handleAddTemplate = async () => {
     if (!newName) return;
     const { data, error } = await supabase.from('rpa_templates').insert([
-      { name: newName, description: newDescription }
+      {
+        name: newName,
+        description: newDescription,
+        arg_labels: {},
+        result_labels: {}
+      }
     ]).select();
     if (error) {
-      console.error(error);
+      console.error('Insert error:', error);
     } else {
       setTemplates([...templates, ...(data as Template[])]);
       setNewName('');
@@ -55,7 +62,7 @@ export default function RpaTemplateListPage() {
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('rpa_templates').delete().eq('id', id);
     if (error) {
-      console.error(error);
+      console.error('Delete error:', error);
     } else {
       setTemplates(templates.filter((t) => t.id !== id));
     }
@@ -70,11 +77,14 @@ export default function RpaTemplateListPage() {
   const handleUpdate = async () => {
     if (!editId) return;
     const { data, error } = await supabase.from('rpa_templates')
-      .update({ name: editName, description: editDescription })
+      .update({
+        name: editName,
+        description: editDescription
+      })
       .eq('id', editId)
       .select();
     if (error) {
-      console.error(error);
+      console.error('Update error:', error);
     } else {
       setTemplates(templates.map((t) => t.id === editId ? (data![0] as Template) : t));
       setEditId(null);
@@ -113,6 +123,7 @@ export default function RpaTemplateListPage() {
           <Button className="mt-4">新規テンプレート追加</Button>
         </DialogTrigger>
         <DialogContent className="p-4">
+          <DialogTitle>新規テンプレート追加</DialogTitle>
           <div className="grid gap-2">
             <Input
               placeholder="テンプレート名"
@@ -132,6 +143,7 @@ export default function RpaTemplateListPage() {
       {editId && (
         <Dialog open onOpenChange={(open) => { if (!open) setEditId(null); }}>
           <DialogContent className="p-4">
+            <DialogTitle>テンプレート編集</DialogTitle>
             <div className="grid gap-2">
               <Input
                 placeholder="テンプレート名"
