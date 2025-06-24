@@ -59,12 +59,10 @@ export default function PortalLayout({ children }: Props) {
 
     return (
         <div className="flex min-h-screen">
-            <div className="left-menu">
+            <div className="left-menu w-64 bg-gray-800 p-4 text-white">
 
                 <div>
-                    <p className="text-sm text-gray-300 mt-1">
-                        <Link href="/" className="text-blue-300 hover:underline">🏠 Homeへ戻る</Link>
-                    </p>
+
                     <h2 className="text-xl font-semibold">
                         {userData.last_name_kanji} {userData.first_name_kanji}
                     </h2>
@@ -88,6 +86,12 @@ export default function PortalLayout({ children }: Props) {
                     </div>
 
                     <ul className="mt-6 space-y-2">
+                        <li>
+                            <Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link>
+                        </li>
+                        <li>
+                            <Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link>
+                        </li>
                         {role === 'manager' || role === 'admin' ? (
                             <li>
                                 <Link href="/portal/entry-list" className="text-blue-300 hover:underline">
@@ -135,8 +139,8 @@ export default function PortalLayout({ children }: Props) {
                     <hr className="border-white my-2" />
                 </div>
             </div>
-            <div className="flex flex-col flex-1">
-                <div className="flex-1 p-6">
+            <div className="flex flex-col flex-1 overflow-x-auto">
+                <div className="flex-1 p-6 overflow-x-auto">
                     {children}
                 </div>
                 <Footer />
