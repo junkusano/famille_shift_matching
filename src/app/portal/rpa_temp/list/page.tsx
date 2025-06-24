@@ -1,14 +1,15 @@
 'use client';
 
-'use client';
-
-import React from 'react'; // ←これを追加
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 
+const supabaseUrl = 'https://your-project.supabase.co';
+const supabaseAnonKey = 'your-anon-key';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 type Template = {
   id: string;
@@ -20,41 +21,70 @@ export default function RpaTemplateListPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   useEffect(() => {
-    // データ取得 (仮データ)
     fetchTemplates();
   }, []);
 
   const fetchTemplates = async () => {
-    // TODO: Supabase APIでテンプレ一覧を取得
-    setTemplates([
-      { id: '1', name: 'カイポケアカウント追加', description: 'カイポケ用のアカウント生成テンプレ' },
-      { id: '2', name: 'FAX送信', description: 'FAX送信用テンプレ' }
-    ]);
+    const { data, error } = await supabase.from('rpa_templates').select('*').order('id');
+    if (error) {
+      console.error(error);
+    } else {
+      setTemplates(data as Template[]);
+    }
   };
 
   const handleAddTemplate = async () => {
     if (!newName) return;
-    // TODO: Supabase insert 処理
-    const newTemplate: Template = {
-      id: Math.random().toString(), // 仮ID
-      name: newName,
-      description: newDescription
-    };
-    setTemplates([...templates, newTemplate]);
-    setNewName('');
-    setNewDescription('');
+    const { data, error } = await supabase.from('rpa_templates').insert([
+      { name: newName, description: newDescription }
+    ]).select();
+    if (error) {
+      console.error(error);
+    } else {
+      setTemplates([...templates, ...(data as Template[])]);
+      setNewName('');
+      setNewDescription('');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    // TODO: Supabase delete 処理
-    setTemplates(templates.filter((t) => t.id !== id));
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('rpa_templates').delete().eq('id', id);
+    if (error) {
+      console.error(error);
+    } else {
+      setTemplates(templates.filter((t) => t.id !== id));
+    }
+  };
+
+  const startEdit = (template: Template) => {
+    setEditId(template.id);
+    setEditName(template.name);
+    setEditDescription(template.description);
+  };
+
+  const handleUpdate = async () => {
+    if (!editId) return;
+    const { data, error } = await supabase.from('rpa_templates')
+      .update({ name: editName, description: editDescription })
+      .eq('id', editId)
+      .select();
+    if (error) {
+      console.error(error);
+    } else {
+      setTemplates(templates.map((t) => t.id === editId ? (data![0] as Template) : t));
+      setEditId(null);
+      setEditName('');
+      setEditDescription('');
+    }
   };
 
   return (
     <div className="content">
-
       <h1 className="text-2xl font-bold mb-4">RPA テンプレート管理</h1>
 
       <div className="grid gap-4">
@@ -65,9 +95,14 @@ export default function RpaTemplateListPage() {
                 <div className="font-semibold">{template.name}</div>
                 <div className="text-sm text-gray-500">{template.description}</div>
               </div>
-              <Button variant="destructive" onClick={() => handleDelete(template.id)}>
-                削除
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => startEdit(template)}>
+                  編集
+                </Button>
+                <Button variant="destructive" onClick={() => handleDelete(template.id)}>
+                  削除
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -93,6 +128,26 @@ export default function RpaTemplateListPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {editId && (
+        <Dialog open onOpenChange={(open) => { if (!open) setEditId(null); }}>
+          <DialogContent className="p-4">
+            <div className="grid gap-2">
+              <Input
+                placeholder="テンプレート名"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+              <Input
+                placeholder="説明"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+              <Button onClick={handleUpdate}>更新</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
