@@ -84,7 +84,7 @@ export default function EntryListPage() {
     }
 
     return (
-        <div className="w-full">
+        <div className="content">
             <h2 className="text-xl font-bold mb-4">全エントリー一覧</h2>
             {loading ? (
                 <p>読み込み中...</p>

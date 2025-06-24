@@ -52,7 +52,7 @@ export default function PortalPage() {
     return (
         <>
             {/* メインコンテンツ */}
-            <div className="w-full">
+            <div className="content">
                 {/* 「ファミーユポータル」 → 「myfamille」 に変更 */}
                 <h1 className="text-2xl font-bold flex items-center">
                     <Image
