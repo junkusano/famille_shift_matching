@@ -58,10 +58,10 @@ export default function PortalLayout({ children }: Props) {
     if (!userData) return <p>Loading...</p>;
 
     return (
-        <div className="flex min-h-screen">
-            <div className="left-menu w-64 bg-gray-800 p-4 text-white">
-
-                <div>
+        <main className="p-6">Add commentMore actions
+            <div className="flex portal-container">
+                {/* サイドバー */}
+                <div className="left-menu flex flex-col justify-between h-full min-h-screen">
 
                     <h2 className="text-xl font-semibold">
                         {userData.last_name_kanji} {userData.first_name_kanji}
