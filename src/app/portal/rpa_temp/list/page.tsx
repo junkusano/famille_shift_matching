@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-//import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
@@ -13,8 +12,8 @@ type Template = {
   id: string;
   name: string;
   description: string;
-  created_at: string;
-  updated_at: string;
+  kind_id: string;
+  kind_name?: string;
 };
 
 type Arg = {
@@ -27,35 +26,43 @@ type Arg = {
   sort_order: number;
 };
 
+type CommandType = {
+  name: string;
+};
+
 export default function RpaCommandTemplateListPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [args, setArgs] = useState<Arg[]>([]);
+  const [types, setTypes] = useState<CommandType[]>([]);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [adding, setAdding] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-
-  // 新規 arg 入力
   const [newKey, setNewKey] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newType, setNewType] = useState('text');
   const [newRequired, setNewRequired] = useState(false);
+  const [newSortOrder, setNewSortOrder] = useState(0);
 
   useEffect(() => {
     fetchTemplates();
     fetchArgs();
+    fetchTypes();
   }, []);
 
   const fetchTemplates = async () => {
     const { data, error } = await supabase
       .from('rpa_command_templates')
-      .select('*')
+      .select('*, rpa_command_kind (name)')
       .order('created_at');
-
     if (error) {
-      console.error('Fetch templates error:', JSON.stringify(error, null, 2));
+      console.error('Fetch templates error:', error);
     } else {
-      setTemplates(data as Template[]);
+      const formatted = data.map((t: any) => ({
+        ...t,
+        kind_name: t.rpa_command_kind?.name ?? ''
+      }));
+      setTemplates(formatted);
     }
   };
 
@@ -64,11 +71,22 @@ export default function RpaCommandTemplateListPage() {
       .from('rpa_command_args')
       .select('*')
       .order('sort_order');
-
     if (error) {
-      console.error('Fetch args error:', JSON.stringify(error, null, 2));
+      console.error('Fetch args error:', error);
     } else {
       setArgs(data as Arg[]);
+    }
+  };
+
+  const fetchTypes = async () => {
+    const { data, error } = await supabase
+      .from('rpa_command_type')
+      .select('name')
+      .order('sort_order');
+    if (error) {
+      console.error('Fetch types error:', error);
+    } else {
+      setTypes(data as CommandType[]);
     }
   };
 
@@ -78,16 +96,12 @@ export default function RpaCommandTemplateListPage() {
     const { data, error } = await supabase.from('rpa_command_templates').insert([
       {
         name: newName,
-        description: newDescription,
-        arg_labels: {},
-        result_labels: {}
+        description: newDescription
       }
     ]).select();
-
     setAdding(false);
-
     if (error) {
-      console.error('Insert template error:', JSON.stringify(error, null, 2));
+      console.error('Insert template error:', error);
     } else {
       setTemplates([...templates, ...(data as Template[])]);
       setNewName('');
@@ -105,28 +119,27 @@ export default function RpaCommandTemplateListPage() {
         label: newLabel,
         required: newRequired,
         type: newType,
-        sort_order: 0
+        sort_order: newSortOrder
       }
     ]).select();
-
     if (error) {
-      console.error('Insert arg error:', JSON.stringify(error, null, 2));
+      console.error('Insert arg error:', error);
     } else {
       setArgs([...args, ...(data as Arg[])]);
       setNewKey('');
       setNewLabel('');
       setNewType('text');
       setNewRequired(false);
+      setNewSortOrder(0);
     }
   };
 
-  const handleDeleteTemplate = async (id: string) => {
-    const { error } = await supabase.from('rpa_command_templates').delete().eq('id', id);
+  const handleDeleteArg = async (id: string) => {
+    const { error } = await supabase.from('rpa_command_args').delete().eq('id', id);
     if (error) {
-      console.error('Delete template error:', JSON.stringify(error, null, 2));
+      console.error('Delete arg error:', error);
     } else {
-      setTemplates(templates.filter(t => t.id !== id));
-      setArgs(args.filter(a => a.template_id !== id)); // 表示上も削除
+      setArgs(args.filter(a => a.id !== id));
     }
   };
 
@@ -137,33 +150,47 @@ export default function RpaCommandTemplateListPage() {
       <Accordion type="multiple">
         {templates.map((template) => (
           <AccordionItem key={template.id} value={template.id}>
-            <AccordionTrigger>
-              {template.name}
+            <AccordionTrigger className="flex justify-between items-center">
+              <div>
+                <div className="text-lg font-bold">{template.name}</div>
+                <div className="text-sm text-gray-500">{template.description}（種別: {template.kind_name}）</div>
+              </div>
+              <div>▼</div>
             </AccordionTrigger>
             <AccordionContent>
+              <div className="grid grid-cols-6 gap-2 font-bold border-b py-1">
+                <div>key</div>
+                <div>label</div>
+                <div>type</div>
+                <div>必須</div>
+                <div>並び順</div>
+                <div>操作</div>
+              </div>
               {args.filter(a => a.template_id === template.id).map(arg => (
-                <div key={arg.id} className="flex gap-2 items-center border-b py-1">
-                  <div className="w-1/4">{arg.key}</div>
-                  <div className="w-1/4">{arg.label}</div>
-                  <div className="w-1/6">{arg.type}</div>
-                  <div className="w-1/6">{arg.required ? '必須' : '任意'}</div>
-                  <div className="w-1/6">並び順: {arg.sort_order}</div>
+                <div key={arg.id} className="grid grid-cols-6 gap-2 items-center border-b py-1">
+                  <div>{arg.key}</div>
+                  <div>{arg.label}</div>
+                  <div>{arg.type}</div>
+                  <div>{arg.required ? '必須' : '任意'}</div>
+                  <div>{arg.sort_order}</div>
+                  <div className="flex gap-1">
+                    <Button size="sm" onClick={() => handleDeleteArg(arg.id)}>削除</Button>
+                  </div>
                 </div>
               ))}
 
-              <div className="grid gap-2 mt-2">
+              <div className="grid grid-cols-6 gap-2 items-center mt-2">
                 <Input placeholder="key" value={newKey} onChange={(e) => setNewKey(e.target.value)} />
                 <Input placeholder="label" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} />
-                <Input placeholder="type" value={newType} onChange={(e) => setNewType(e.target.value)} />
-                <Checkbox checked={newRequired} onCheckedChange={(val) => setNewRequired(!!val)}>
-                  必須
-                </Checkbox>
-                <Button onClick={() => handleAddArg(template.id)}>パラメータ追加</Button>
+                <select value={newType} onChange={(e) => setNewType(e.target.value)} className="border rounded p-1">
+                  {types.map(t => (
+                    <option key={t.name} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+                <Checkbox checked={newRequired} onCheckedChange={(val) => setNewRequired(!!val)}>必須</Checkbox>
+                <Input type="number" value={newSortOrder} onChange={(e) => setNewSortOrder(parseInt(e.target.value))} />
+                <Button onClick={() => handleAddArg(template.id)}>追加</Button>
               </div>
-
-              <Button variant="destructive" className="mt-2" onClick={() => handleDeleteTemplate(template.id)}>
-                テンプレート削除
-              </Button>
             </AccordionContent>
           </AccordionItem>
         ))}
@@ -176,16 +203,8 @@ export default function RpaCommandTemplateListPage() {
         <DialogContent className="p-4">
           <DialogTitle>新規テンプレート追加</DialogTitle>
           <div className="grid gap-2">
-            <Input
-              placeholder="テンプレート名"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <Input
-              placeholder="説明"
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-            />
+            <Input placeholder="テンプレート名" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            <Input placeholder="説明" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
             <Button onClick={handleAddTemplate} disabled={adding}>
               {adding ? '送信中...' : '追加'}
             </Button>
