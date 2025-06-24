@@ -87,11 +87,12 @@ export default function PortalLayout({ children }: Props) {
 
                     <ul className="mt-6 space-y-2">
                         <li>
-                            <Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link>
-                        </li>
-                        <li>
                             <Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link>
                         </li>
+                        <li>
+                            <Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link>
+                        </li>
+
                         {role === 'manager' || role === 'admin' ? (
                             <li>
                                 <Link href="/portal/entry-list" className="text-blue-300 hover:underline">
@@ -139,7 +140,7 @@ export default function PortalLayout({ children }: Props) {
                     <hr className="border-white my-2" />
                 </div>
             </div>
-            <div className="flex flex-col flex-1 overflow-x-auto">
+            <div className="flex flex-col flex-1 min-h-screen">
                 <div className="flex-1 p-6 overflow-x-auto">
                     {children}
                 </div>
