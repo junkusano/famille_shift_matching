@@ -140,7 +140,7 @@ export default function PortalLayout({ children }: Props) {
                     <hr className="border-white my-2" />
                 </div>
             </div>
-            <div className="flex flex-col flex-1 min-h-screen">
+            <div className="flex-1 p-6 flex flex-col justify-between">More actions
                 <div className="flex-1 p-6">
                     {children}
                 </div>
