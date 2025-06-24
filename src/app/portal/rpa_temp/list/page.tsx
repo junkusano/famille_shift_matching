@@ -123,9 +123,14 @@ export default function RpaCommandTemplateListPage() {
     }
   };
 
-  const handleArgChange = (id: string, field: keyof Arg, value: any) => {
-    setArgs(args.map(arg => arg.id === id ? { ...arg, [field]: value } : arg));
+  type TemplateWithKind = Template & {
+    rpa_command_kind?: { name?: string };
   };
+
+  const formatted = (data as TemplateWithKind[]).map((t) => ({
+    ...t,
+    kind_name: t.rpa_command_kind?.name ?? ''
+  }));
 
   const handleSaveArg = async (id: string) => {
     const arg = args.find(a => a.id === id);
