@@ -103,7 +103,7 @@ export default function PortalLayout({ children }: Props) {
                             </li>
                         ) : null}
                         <li>
-                            <span className="text-blue-300">マッチング管理（工事中）</span>
+                            <span className="text-blue-300">シフトコーディネート（工事中）</span>
                         </li>
                         <li>
                             <span className="text-blue-300">職員証（バッジ：工事中）</span>
@@ -111,7 +111,7 @@ export default function PortalLayout({ children }: Props) {
                         <li>
                             <Link
                                 href="/lineworks-login-guide"
-                                className="text-black hover:underline"
+                                className="hover:underline"
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
@@ -135,8 +135,7 @@ export default function PortalLayout({ children }: Props) {
                     <hr className="border-white my-2" />
                 </div>
             </div>
-
-            <div className="flex-1 p-6">
+            <div className="flex flex-col flex-1">
                 <div className="flex-1 p-6">
                     {children}
                 </div>
