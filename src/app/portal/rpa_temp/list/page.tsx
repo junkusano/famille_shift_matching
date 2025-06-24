@@ -58,7 +58,7 @@ export default function RpaCommandTemplateListPage() {
     if (error) {
       console.error('Fetch templates error:', error);
     } else {
-      const formatted = data.map((t: any) => ({
+      const formatted = data.map((t) => ({
         ...t,
         kind_name: t.rpa_command_kind?.name ?? ''
       }));
