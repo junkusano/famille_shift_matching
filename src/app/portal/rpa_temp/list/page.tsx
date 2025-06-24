@@ -51,7 +51,12 @@ export default function RpaTemplateListPage() {
       }
     ]).select();
     if (error) {
-      console.error('Insert error:', error);
+      console.error('Insert error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
     } else {
       setTemplates([...templates, ...(data as Template[])]);
       setNewName('');
@@ -73,13 +78,6 @@ export default function RpaTemplateListPage() {
     setEditName(template.name);
     setEditDescription(template.description);
   };
-
-  console.log("Insert payload", {
-    name: newName,
-    description: newDescription,
-    arg_labels: {},
-    result_labels: {}
-  });
 
   const handleUpdate = async () => {
     if (!editId) return;
