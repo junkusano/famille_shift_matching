@@ -142,9 +142,7 @@ export default function PortalLayout({ children }: Props) {
             </div>
             <div className="flex flex-col flex-1 min-h-screen">
                 <div className="flex-1 p-6">
-                    <div className="overflow-x-auto h-full">
-                        {children}
-                    </div>
+                    {children}
                 </div>
                 <Footer />
             </div>
