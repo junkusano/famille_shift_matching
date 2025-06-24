@@ -146,6 +146,6 @@ export default function PortalLayout({ children }: Props) {
                 </div>
                 <Footer />
             </div>
-        </div>
+        </main>
     );
 }
