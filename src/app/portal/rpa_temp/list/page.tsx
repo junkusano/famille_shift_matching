@@ -51,12 +51,8 @@ export default function RpaTemplateListPage() {
       }
     ]).select();
     if (error) {
-      console.error('Insert error:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
+      console.log('Insert error (raw):', error);
+      console.log('Insert error (json):', JSON.stringify(error, null, 2));
     } else {
       setTemplates([...templates, ...(data as Template[])]);
       setNewName('');
