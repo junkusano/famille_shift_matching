@@ -54,8 +54,8 @@
 /* メインコンテンツ */
 .content {
     flex-grow: 1;
-    margin-left: 250px;
     padding: 20px;
+    overflow-y: auto;
     background-color: #ecf0f1;
 }
 
@@ -139,15 +139,16 @@
 }
 
 .left-menu {
-  background-color: #1e293b; /* ネイビー系 */
-  color: white;
-  padding: 1rem;
-  width: 220px;
-  min-height: 100vh;
+    background-color: #1e293b;
+    /* ネイビー系 */
+    color: white;
+    padding: 1rem;
+    width: 220px;
+    min-height: 100vh;
 }
 
 .content {
-  flex-grow: 1;
-  padding: 2rem;
-  overflow-y: auto;
+    flex-grow: 1;
+    padding: 2rem;
+    overflow-y: auto;
 }

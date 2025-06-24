@@ -140,7 +140,7 @@ export default function PortalLayout({ children }: Props) {
                 </div>
             </div>
             <div className="flex-1 p-6 flex flex-col justify-between">More actions
-                <div className="flex-1 p-6">
+                <div className="flex-1">
                     {children}
                 </div>
                 <Footer />
