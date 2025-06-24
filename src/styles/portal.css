@@ -1,24 +1,30 @@
 /* 全体レイアウト */
 .portal-container {
-  display: flex;
-  min-height: 100vh;
+    display: flex;
+    min-height: 100vh;
 }
 
 .left-menu,
 .content {
-  min-height: 100vh;
+    min-height: 100vh;
 }
 
 /* サイドメニュー（PC） */
 .left-menu {
-  width: 250px; /* 統一、あなたが安定していた値 */
-  background-color: #1e293b; /* ネイビー系 */
-  color: white;
-  padding: 1rem;
-  flex-shrink: 0; /* 左メニューの幅を固定し、縮まないようにする */
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
+    width: 250px;
+    /* 統一、あなたが安定していた値 */
+    background-color: #1e293b;
+    /* ネイビー系 */
+    color: white;
+    padding: 1rem;
+    flex-shrink: 0;
+    /* 左メニューの幅を固定し、縮まないようにする */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+    /* 保険として残す */
 }
 
 .left-menu .user-info {
@@ -53,10 +59,12 @@
 
 /* メインコンテンツ */
 .content {
-  flex-grow: 1; /* 左メニューの隣で残りの幅を取る */
-  padding: 2rem;
-  overflow-y: auto;
+    flex-grow: 1;
+    /* 左メニューの隣で残りの幅を取る */
+    padding: 2rem;
+    overflow-y: auto;
 }
+
 .user-profile {
     text-align: center;
     padding: 20px;
@@ -135,4 +143,3 @@
         display: flex;
     }
 }
-
