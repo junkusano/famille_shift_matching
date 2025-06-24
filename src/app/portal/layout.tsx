@@ -58,10 +58,9 @@ export default function PortalLayout({ children }: Props) {
     if (!userData) return <p>Loading...</p>;
 
     return (
-        <main className="p-6">Add commentMore actions
-            <div className="flex portal-container">
-                {/* サイドバー */}
-                <div className="left-menu flex flex-col justify-between h-full min-h-screen">
+        <div className="flex portal-container min-h-screen">More actions
+            <div className="left-menu flex flex-col justify-between h-full min-h-screen">
+                <div>
 
                     <h2 className="text-xl font-semibold">
                         {userData.last_name_kanji} {userData.first_name_kanji}
@@ -146,6 +145,6 @@ export default function PortalLayout({ children }: Props) {
                 </div>
                 <Footer />
             </div>
-        </main>
+        </div>
     );
 }
