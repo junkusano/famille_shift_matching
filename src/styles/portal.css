@@ -4,8 +4,7 @@
     min-height: 100vh;
 }
 
-.left-menu,
-.content {
+.left-menu {
     min-height: 100vh;
 }
 
@@ -64,6 +63,7 @@
     /* 左メニューの隣で残りの幅を取る */
     padding: 2rem;
     overflow-y: auto;
+    height: 95%;
 }
 
 .user-profile {
