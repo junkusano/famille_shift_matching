@@ -25,6 +25,7 @@
     height: auto;
     min-height: 100vh;
     /* 保険として残す */
+    padding-bottom: 4rem;
 }
 
 .left-menu .user-info {
