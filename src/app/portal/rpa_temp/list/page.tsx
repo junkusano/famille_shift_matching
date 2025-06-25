@@ -41,6 +41,7 @@ type CommandType = {
 console.log("RPA Command Template Page loaded!");
 
 export default function RpaCommandTemplateListPage() {
+  console.log("RPAページ最初のログ！！");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [args, setArgs] = useState<Arg[]>([]);
   const [types, setTypes] = useState<CommandType[]>([]);
@@ -74,13 +75,14 @@ export default function RpaCommandTemplateListPage() {
       return;
     }
 
-    const formatted = (data as TemplateWithKind[]).map(t => ({
+    const formatted = (data as any[]).map(t => ({
       id: t.id,
       name: t.name,
       description: t.description,
-      kind_name: t.rpa_command_kind[0]?.name || '',
+      kind_name: Array.isArray(t.rpa_command_kind)
+        ? t.rpa_command_kind[0]?.name || ''
+        : t.rpa_command_kind?.name || '', // どちらも対応
     }));
-
 
     setTemplates(formatted);
   };
