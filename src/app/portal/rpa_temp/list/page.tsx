@@ -12,7 +12,16 @@ type Template = {
   id: string;
   name: string;
   description: string;
+  kind_id: string;
   kind_name: string;
+};
+
+type RawTemplateRow = {
+  id: string;
+  name: string;
+  description: string;
+  kind_id: string;
+  rpa_command_kind?: { name: string }[] | null;
 };
 
 type Kind = {
@@ -40,11 +49,15 @@ export default function RpaCommandTemplateListPage() {
   const [types, setTypes] = useState<CommandType[]>([]);
   const [kinds, setKinds] = useState<Kind[]>([]);
   const [newKindId, setNewKindId] = useState('');
-
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newArgs, setNewArgs] = useState<Record<string, Partial<Arg>>>({});
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editKindId, setEditKindId] = useState('');
 
   useEffect(() => {
     fetchTemplates();
@@ -61,22 +74,21 @@ export default function RpaCommandTemplateListPage() {
   const fetchTemplates = async () => {
     const { data, error } = await supabase
       .from('rpa_command_templates')
-      .select('id, name, description, rpa_command_kind(name)')
+      .select('id, name, description, kind_id, rpa_command_kind(name)')
       .order('created_at');
-
     if (error) {
       console.error('Fetch templates error:', error);
       return;
     }
-    const formatted = (data as { id: string; name: string; description: string; rpa_command_kind?: { name: string }[] }[]).map(t => ({
+    const formatted = (data as RawTemplateRow[]).map(t => ({
       id: t.id,
       name: t.name,
       description: t.description,
+      kind_id: t.kind_id,
       kind_name: Array.isArray(t.rpa_command_kind)
         ? t.rpa_command_kind[0]?.name || ''
         : '',
     }));
-
     setTemplates(formatted);
   };
 
@@ -85,7 +97,6 @@ export default function RpaCommandTemplateListPage() {
       .from('rpa_command_args')
       .select('*')
       .order('sort_order');
-
     if (error) {
       console.error('Fetch args error:', error);
     } else {
@@ -183,6 +194,35 @@ export default function RpaCommandTemplateListPage() {
     }
   };
 
+  // テンプレート編集（編集ダイアログを開く）
+  const handleOpenEdit = (template: Template) => {
+    setEditTemplateId(template.id);
+    setEditName(template.name);
+    setEditDescription(template.description);
+    setEditKindId(template.kind_id);
+    setEditDialogOpen(true);
+  };
+
+  // テンプレート編集・保存
+  const handleEditTemplate = async () => {
+    if (!editTemplateId || !editName || !editKindId) {
+      alert('テンプレート名・種別は必須です');
+      return;
+    }
+    const { error } = await supabase.from('rpa_command_templates').update({
+      name: editName,
+      description: editDescription,
+      kind_id: editKindId,
+    }).eq('id', editTemplateId);
+    if (!error) {
+      setEditDialogOpen(false);
+      setEditTemplateId(null);
+      fetchTemplates();
+    } else {
+      alert("更新に失敗しました: " + error.message);
+    }
+  };
+
   return (
     <div className="content">
       <h1 className="text-2xl font-bold mb-4">RPA コマンドテンプレート管理</h1>
@@ -196,7 +236,7 @@ export default function RpaCommandTemplateListPage() {
                   <div className="text-sm text-gray-500">{template.description}（種別: {template.kind_name}）</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => alert('テンプレート編集仮')}>編集</Button>
+                  <Button size="sm" onClick={() => handleOpenEdit(template)}>編集</Button>
                   <Button size="sm" variant="destructive" onClick={() => handleDeleteTemplate(template.id)}>削除</Button>
                 </div>
               </div>
@@ -273,6 +313,7 @@ export default function RpaCommandTemplateListPage() {
         ))}
       </Accordion>
 
+      {/* 新規テンプレート追加ダイアログ */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogTrigger asChild>
           <Button className="mt-4">新規テンプレート追加</Button>
@@ -289,6 +330,24 @@ export default function RpaCommandTemplateListPage() {
               ))}
             </select>
             <Button onClick={handleAddTemplate}>追加</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* テンプレート編集ダイアログ */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="p-4">
+          <DialogTitle>テンプレート編集</DialogTitle>
+          <div className="grid gap-2">
+            <Input placeholder="テンプレート名" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            <Input placeholder="説明" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            <select value={editKindId} onChange={e => setEditKindId(e.target.value)} className="border rounded p-1">
+              <option value="">-- 種別を選択 --</option>
+              {kinds.map(k => (
+                <option key={k.id} value={k.id}>{k.name}</option>
+              ))}
+            </select>
+            <Button onClick={handleEditTemplate}>保存</Button>
           </div>
         </DialogContent>
       </Dialog>
