@@ -260,30 +260,33 @@ export default function RpaCommandTemplateListPage() {
                   <div>並び順</div>
                   <div>操作</div>
                 </div>
-                {args.filter(arg => arg.template_id === template.id).map(arg => (
-                  <div key={arg.id} className="grid grid-cols-6 gap-2 items-center border-b py-1">
-                    <Input value={arg.key} onChange={e => handleArgChange(arg.id, 'key', e.target.value)} />
-                    <Input value={arg.label} onChange={e => handleArgChange(arg.id, 'label', e.target.value)} />
-                    <select
-                      value={arg.type}
-                      onChange={e => handleArgChange(arg.id, 'type', e.target.value)}
-                      className="border rounded p-1"
-                    >
-                      {types.map(t => (
-                        <option key={t.name} value={t.name}>{t.name}</option>
-                      ))}
-                    </select>
-                    <Checkbox
-                      checked={arg.required}
-                      onCheckedChange={val => handleArgChange(arg.id, 'required', !!val)}
-                    />
-                    <Input type="number" value={arg.sort_order} onChange={e => handleArgChange(arg.id, 'sort_order', parseInt(e.target.value))} />
-                    <div className="flex gap-1">
-                      <Button size="sm" onClick={() => handleSaveArg(arg.id)}>保存</Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDeleteArg(arg.id)}>削除</Button>
+                {args.filter(arg => arg.template_id === template.id).map(arg => {
+                  console.log('描画時arg:', arg); // ← これで値が表示される
+                  return (
+                    <div key={arg.id} className="grid grid-cols-6 gap-2 items-center border-b py-1">
+                      <Input value={arg.key} onChange={e => handleArgChange(arg.id, 'key', e.target.value)} />
+                      <Input value={arg.label} onChange={e => handleArgChange(arg.id, 'label', e.target.value)} />
+                      <select
+                        value={arg.type}
+                        onChange={e => handleArgChange(arg.id, 'type', e.target.value)}
+                        className="border rounded p-1"
+                      >
+                        {types.map(t => (
+                          <option key={t.name} value={t.name}>{t.name}</option>
+                        ))}
+                      </select>
+                      <Checkbox
+                        checked={arg.required}
+                        onCheckedChange={val => handleArgChange(arg.id, 'required', !!val)}
+                      />
+                      <Input type="number" value={arg.sort_order} onChange={e => handleArgChange(arg.id, 'sort_order', parseInt(e.target.value))} />
+                      <div className="flex gap-1">
+                        <Button size="sm" onClick={() => handleSaveArg(arg.id)}>保存</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDeleteArg(arg.id)}>削除</Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="grid grid-cols-6 gap-2 items-center mt-2">
                   <Input
                     placeholder="key"
