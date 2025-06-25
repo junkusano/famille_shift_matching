@@ -38,6 +38,8 @@ type CommandType = {
   name: string;
 };
 
+console.log("RPA Command Template Page loaded!");
+
 export default function RpaCommandTemplateListPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [args, setArgs] = useState<Arg[]>([]);
@@ -50,10 +52,14 @@ export default function RpaCommandTemplateListPage() {
   const [newArgs, setNewArgs] = useState<Record<string, Partial<Arg>>>({});
 
   useEffect(() => {
+    console.log("useEffect fired");
     fetchTemplates();
     fetchArgs();
     fetchTypes();
   }, []);
+
+  console.log("RPA Command Template Page loaded!");
+
 
   const fetchTemplates = async () => {
     const { data, error } = await supabase
