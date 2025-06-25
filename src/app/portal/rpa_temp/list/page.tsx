@@ -120,8 +120,10 @@ export default function RpaCommandTemplateListPage() {
 
   // Argの保存（requiredも含め反映）
   const handleSaveArg = async (id: string) => {
+    console.log('handleSaveArg called', id);
     const arg = args.find(a => a.id === id);
     if (!arg) return;
+    console.log('updating arg', arg);
     const { error } = await supabase
       .from('rpa_command_args')
       .update({
@@ -132,8 +134,14 @@ export default function RpaCommandTemplateListPage() {
         sort_order: arg.sort_order
       })
       .eq('id', id);
-    if (!error) fetchArgs();
-    if (error) alert('保存に失敗しました: ' + error.message);
+    if (!error) {
+      fetchArgs();
+      console.log('update ok');
+    }
+    if (error) {
+      alert('保存に失敗しました: ' + error.message);
+      console.error(error);
+    }
   };
 
   // Argの削除（確認あり）
