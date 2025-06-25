@@ -61,8 +61,10 @@ export default function RpaCommandTemplateListPage() {
       .select('id, name, description, rpa_command_kind(name)')
       .order('created_at');
 
+    console.log("fetchTemplates result", { data, error });
     if (error) {
       console.error('Fetch templates error:', error);
+
       return;
     }
 
