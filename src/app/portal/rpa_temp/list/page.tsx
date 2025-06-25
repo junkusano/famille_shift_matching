@@ -154,17 +154,25 @@ export default function RpaCommandTemplateListPage() {
   };
 
   const handleAddTemplate = async () => {
-    if (!newName) return;
-    const { error } = await supabase.from('rpa_command_templates').insert([
+    console.log("handleAddTemplate called");
+    if (!newName) {
+      console.log("テンプレート名が空です");
+      return;
+    }
+    const { data, error } = await supabase.from('rpa_command_templates').insert([
       { name: newName, description: newDescription }
-    ]);
+    ]).select();
+    console.log("insert result", { data, error });
     if (!error) {
       setNewName('');
       setNewDescription('');
       setAddDialogOpen(false);
       fetchTemplates();
+    } else {
+      alert("追加に失敗しました: " + error.message);
     }
   };
+
 
   return (
     <div className="content">
