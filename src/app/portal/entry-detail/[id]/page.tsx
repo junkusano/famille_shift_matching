@@ -119,7 +119,7 @@ export default function EntryDetailPage() {
             }
 
             // テンプレートID取得
-            const kaipokeTemplateId = 'ここにカイポケテンプレートのUUID'; // 例: 'e1b02a00-7057-4471-bcdf-xxxxxxx'
+            const kaipokeTemplateId = 'a3ce7551-90f0-4e03-90bb-6fa8534fd31b'; // 例: 'e1b02a00-7057-4471-bcdf-xxxxxxx'
 
             const requestDetails = {
                 user_id: userId,
