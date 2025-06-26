@@ -88,6 +88,8 @@ export default function EntryDetailPage() {
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
 
+    import hepburn from 'hepburn'; // すでにimport済み
+
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -96,25 +98,46 @@ export default function EntryDetailPage() {
         setCreatingKaipokeUser(true);
 
         try {
-            // 必要な詳細データ
+            // ヘボン式変換
+            let lastNameHebon = hepburn.fromKana(entry.last_name_kana || '').toLowerCase();
+            if (!lastNameHebon) lastNameHebon = 'User';
+            // 頭文字だけ大文字に
+            lastNameHebon = lastNameHebon.charAt(0).toUpperCase() + lastNameHebon.slice(1);
+            // 10文字未満なら末尾に0を追加
+            let password = lastNameHebon;
+            if (password.length < 10) {
+                password = password + '0'.repeat(10 - password.length);
+            } else if (password.length > 10) {
+                password = password.slice(0, 10);
+            }
+
+            // Supabase認証から管理者IDを取得（junkusano削除）
+            const session = await supabase.auth.getSession();
+            const currentUserId = session.data?.session?.user?.id;
+            if (!currentUserId) {
+                alert('管理者ユーザーの情報が取得できません。');
+                setCreatingKaipokeUser(false);
+                return;
+            }
+
+            // テンプレートID取得
+            const kaipokeTemplateId = 'ここにカイポケテンプレートのUUID'; // 例: 'e1b02a00-7057-4471-bcdf-xxxxxxx'
+
             const requestDetails = {
                 user_id: userId,
                 last_name: entry.last_name_kanji,
+                last_name_kana: entry.last_name_kana,
                 first_name: entry.first_name_kanji,
+                first_name_kana: entry.first_name_kana,
                 gender: entry.gender,
-                // パスワードや雇用形態はエントリー内容・システム仕様に応じて補完
                 employment_type: entry.work_styles?.[0] ?? '未設定',
-                password: 'TemporaryPass123!', // 仮置き。発行ロジック必要なら変更
+                password: password,
             };
-
-            // ログイン管理者情報取得（SupabaseユーザーIDを使う場合）
-            const session = await supabase.auth.getSession();
-            const currentUserId = session.data?.session?.user?.id ?? 'junkusano'; // テストではjunkusano
 
             const { error: insertError } = await supabase
                 .from('rpa_command_requests')
                 .insert({
-                    template_id: 'a3ce7551-90f0-4e03-90bb-6fa8534fd31b', // ←テンプレートIDを設定（下で補足）
+                    template_id: kaipokeTemplateId,
                     requester_id: currentUserId,
                     approver_id: currentUserId,
                     status: 'approved',
@@ -125,7 +148,6 @@ export default function EntryDetailPage() {
                 alert('RPAリクエスト登録に失敗しました: ' + insertError.message);
             } else {
                 alert('カイポケユーザー追加リクエストを登録しました！');
-
                 await addStaffLog({
                     staff_id: entry.id,
                     action_at: new Date().toISOString(),
@@ -140,6 +162,7 @@ export default function EntryDetailPage() {
             setCreatingKaipokeUser(false);
         }
     };
+
 
     useEffect(() => {
         const fetchData = async () => {
