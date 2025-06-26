@@ -661,7 +661,48 @@ export default function EntryDetailPage() {
         }
     }, [userRecord, orgList, levelList, positionList]);
 
+    // 写真削除
+    const handleDeletePhoto = async () => {
+        if (!entry) return;
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ photo_url: null })
+            .eq('id', entry.id);
 
+        if (!error) {
+            setEntry({ ...entry, photo_url: null });
+            alert("顔写真を削除しました");
+        } else {
+            alert("削除に失敗しました: " + error.message);
+        }
+    };
+
+    // 写真再アップロード
+    const handlePhotoReupload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        // Entryページ同様に/api/upload経由でDriveへアップロード
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("filename", `photo_reupload_${Date.now()}_${file.name}`);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const result = await res.json();
+        const url = result.url;
+        if (!url) {
+            alert("アップロード失敗");
+            return;
+        }
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ photo_url: url })
+            .eq('id', entry.id);
+        if (!error) {
+            setEntry({ ...entry, photo_url: url });
+            alert("顔写真を再アップロードしました");
+        } else {
+            alert("DB更新に失敗しました: " + error.message);
+        }
+    };
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -694,50 +735,35 @@ export default function EntryDetailPage() {
                     />
                     {/* 顔写真アップロード・削除 */}
                     {entry.photo_url && (
-                        <div className="mt-2">
-                            <button
-                                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                onClick={async () => {
-                                    // Supabase or APIでphoto_urlをnullにupdate
-                                    const { error } = await supabase
-                                        .from('form_entries')
-                                        .update({ photo_url: null })
-                                        .eq('id', entry.id);
-                                    if (!error) {
-                                        // 状態を画面でも反映
-                                        setEntry({ ...entry, photo_url: null });
-                                    }
-                                }}
-                            >
-                                顔写真を削除
-                            </button>
+                        <div className="text-center">
+                            <Image
+                                src={entry.photo_url}
+                                alt="顔写真"
+                                width={160}
+                                height={160}
+                                className="inline-block h-40 w-40 rounded-full border object-cover shadow"
+                            />
+                            <div className="flex gap-4 justify-center mt-2">
+                                <button
+                                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                    onClick={handleDeletePhoto}
+                                >
+                                    顔写真を削除
+                                </button>
+                                <label className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer">
+                                    再アップロード
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handlePhotoReupload}
+                                        className="hidden"
+                                    />
+                                </label>
+                            </div>
                         </div>
                     )}
 
-                    <div className="mt-4">
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                // Google Drive等にアップロード → 新しいURL取得
-                                // （アップロード処理は実装済みのAPI/関数を流用）
-                                const url = await uploadToDriveOrStorage(file); // 仮関数。実装はあなたの環境次第
-                                if (url) {
-                                    const { error } = await supabase
-                                        .from('form_entries')
-                                        .update({ photo_url: url })
-                                        .eq('id', entry.id);
-                                    if (!error) {
-                                        setEntry({ ...entry, photo_url: url });
-                                    }
-                                }
-                            }}
-                        />
-                    </div>
                 </div>
-
             )}
 
             <h1 className="text-2xl font-bold">エントリー詳細</h1>
