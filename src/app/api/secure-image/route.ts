@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await drive.files.get(
       { fileId, alt: 'media' },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { responseType: 'stream' as any }
     );
 
