@@ -25,20 +25,19 @@ export async function GET(req: NextRequest) {
     const fileMeta = await drive.files.get({ fileId, fields: 'mimeType' })
     const mimeType = fileMeta.data.mimeType || 'application/octet-stream'
 
-    // ファイル本体をストリームで取得
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await drive.files.get(
       { fileId, alt: 'media' },
-      { responseType: 'stream' as any } // eslint-disable-line @typescript-eslint/no-explicit-any
-    )
+      { responseType: 'stream' as any }
+    );
 
-    // ストリームデータをそのままレスポンス
-    // Next.jsのAPI Routeでストリーム返却には工夫が必要なので、ここでは Response オブジェクトで返す
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return new Response(res.data as any, {
       headers: {
         'Content-Type': mimeType,
         'Cache-Control': 'public, max-age=3600',
       },
-    })
+    });
   } catch (err: unknown) {
     const error = err as { message: string }
     console.error('Drive fetch error:', error.message)
