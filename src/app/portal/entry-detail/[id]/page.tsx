@@ -86,6 +86,61 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
+    const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
+
+    const handleCreateKaipokeUser = async () => {
+        if (!entry || !userId) {
+            alert('必要な情報が不足しています。');
+            return;
+        }
+        setCreatingKaipokeUser(true);
+
+        try {
+            // 必要な詳細データ
+            const requestDetails = {
+                user_id: userId,
+                last_name: entry.last_name_kanji,
+                first_name: entry.first_name_kanji,
+                gender: entry.gender,
+                // パスワードや雇用形態はエントリー内容・システム仕様に応じて補完
+                password: 'TemporaryPass123!', // 仮置き。発行ロジック必要なら変更
+                employment_type: entry.work_styles?.[0] ?? '未設定',
+            };
+
+            // ログイン管理者情報取得（SupabaseユーザーIDを使う場合）
+            const session = await supabase.auth.getSession();
+            const currentUserId = session.data?.session?.user?.id ?? 'junkusano'; // テストではjunkusano
+
+            const { error: insertError } = await supabase
+                .from('rpa_command_requests')
+                .insert({
+                    template_id: 'kaipoke-template-uuid', // ←テンプレートIDを設定（下で補足）
+                    requester_id: currentUserId,
+                    approver_id: currentUserId,
+                    status: 'waiting_approval', // 直承認なら 'approved'
+                    request_details: requestDetails,
+                });
+
+            if (insertError) {
+                alert('RPAリクエスト登録に失敗しました: ' + insertError.message);
+            } else {
+                alert('カイポケユーザー追加リクエストを登録しました！');
+
+                await addStaffLog({
+                    staff_id: entry.id,
+                    action_at: new Date().toISOString(),
+                    action_detail: 'カイポケユーザー追加リクエスト',
+                    registered_by: currentUserId,
+                });
+            }
+        } catch (e) {
+            alert('処理中に予期しないエラーが発生しました');
+            console.error(e);
+        } finally {
+            setCreatingKaipokeUser(false);
+        }
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             // OrgUnits
@@ -658,6 +713,29 @@ export default function EntryDetailPage() {
                                     </button>
                                 )}
 
+                                {/* LINE WORKS アカウント生成ボタン（既存） */}
+                                {lineWorksExists ? (
+                                    <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
+                                        LINEWORKS登録済
+                                    </span>
+                                ) : (
+                                    <button
+                                        className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
+                                        onClick={handleCreateLineWorksAccount}
+                                        disabled={creatingLineWorks}
+                                    >
+                                        {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
+                                    </button>
+                                )}
+
+                                {/* カイポケユーザー追加ボタン（新規追加！） */}
+                                <button
+                                    className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
+                                    onClick={handleCreateKaipokeUser}
+                                    disabled={creatingKaipokeUser}
+                                >
+                                    {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
+                                </button>
 
                             </div>
                         ) : (
