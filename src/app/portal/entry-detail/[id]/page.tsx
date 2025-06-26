@@ -88,8 +88,6 @@ export default function EntryDetailPage() {
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
 
-    import hepburn from 'hepburn'; // すでにimport済み
-
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
