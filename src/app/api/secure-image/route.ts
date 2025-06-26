@@ -21,13 +21,13 @@ export async function GET(req: NextRequest) {
   const drive = google.drive({ version: 'v3', auth })
 
   try {
-    // まずファイルのメタ情報からmimeTypeを取得
-    const fileMeta = await drive.files.get({ fileId, fields: 'mimeType' })
+    // supportsAllDrives: true を追加
+    const fileMeta = await drive.files.get({ fileId, fields: 'mimeType', supportsAllDrives: true })
     const mimeType = fileMeta.data.mimeType || 'application/octet-stream'
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await drive.files.get(
-      { fileId, alt: 'media' },
+      { fileId, alt: 'media', supportsAllDrives: true }, // ←ここも必ず supportsAllDrives: true
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { responseType: 'stream' as any }
     );
