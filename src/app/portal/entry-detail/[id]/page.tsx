@@ -685,6 +685,7 @@ export default function EntryDetailPage() {
             await fetchEntry(); // 削除後、再fetchして即時反映
             alert("顔写真を削除しました");
         } else {
+            console.error("DB update error:", error);
             alert("削除に失敗しました: " + error.message);
         }
     };
@@ -702,6 +703,7 @@ export default function EntryDetailPage() {
         formData.append("filename", `photo_reupload_${Date.now()}_${file.name}`);
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         const result = await res.json();
+        console.log('アップロードAPI result:', result);
         const url = result.url;
         if (!url) {
             alert("アップロード失敗");
