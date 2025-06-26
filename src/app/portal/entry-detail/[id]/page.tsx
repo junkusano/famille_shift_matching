@@ -128,7 +128,8 @@ export default function EntryDetailPage() {
                 first_name: entry.first_name_kanji,
                 first_name_kana: entry.first_name_kana,
                 gender: entry.gender,
-                employment_type: entry.work_styles?.[0] ?? '未設定',
+                employment_type: selectedLevel,
+                org_unit_id: selectedOrg,
                 password: password,
             };
 
@@ -626,6 +627,23 @@ export default function EntryDetailPage() {
         load();
     }, [userId]);
 
+    const handleSaveUserInfo = async () => {
+        if (!userRecord) return;
+        const { error } = await supabase
+            .from('users')
+            .update({
+                org_unit_id: selectedOrg,
+                level_id: selectedLevel,
+                position_id: selectedPosition,
+            })
+            .eq('user_id', userRecord.user_id);
+
+        if (!error) {
+            alert('保存しました');
+        } else {
+            alert('保存に失敗しました: ' + error.message);
+        }
+    };
 
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
@@ -846,6 +864,13 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
+                    <button
+                        className="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        onClick={handleSaveUserInfo}
+                    >
+                        保存
+                    </button>
+                    F
                 </div>
 
                 <div className="md:col-span-2 space-y-1">
