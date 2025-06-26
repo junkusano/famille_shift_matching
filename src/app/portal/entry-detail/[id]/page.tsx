@@ -57,8 +57,8 @@ interface UserRecord {
     user_id: string;
     email: string;
     auth_user_id?: string | null;
-    org_unit_id?: string | null;      
-    level_id?: string | null;         
+    org_unit_id?: string | null;
+    level_id?: string | null;
     position_id?: string | null;
 }
 
@@ -692,7 +692,52 @@ export default function EntryDetailPage() {
                         height={160}
                         className="inline-block h-40 w-40 rounded-full border object-cover shadow"
                     />
+                    {/* 顔写真アップロード・削除 */}
+                    {entry.photo_url && (
+                        <div className="mt-2">
+                            <button
+                                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                onClick={async () => {
+                                    // Supabase or APIでphoto_urlをnullにupdate
+                                    const { error } = await supabase
+                                        .from('form_entries')
+                                        .update({ photo_url: null })
+                                        .eq('id', entry.id);
+                                    if (!error) {
+                                        // 状態を画面でも反映
+                                        setEntry({ ...entry, photo_url: null });
+                                    }
+                                }}
+                            >
+                                顔写真を削除
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="mt-4">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                // Google Drive等にアップロード → 新しいURL取得
+                                // （アップロード処理は実装済みのAPI/関数を流用）
+                                const url = await uploadToDriveOrStorage(file); // 仮関数。実装はあなたの環境次第
+                                if (url) {
+                                    const { error } = await supabase
+                                        .from('form_entries')
+                                        .update({ photo_url: url })
+                                        .eq('id', entry.id);
+                                    if (!error) {
+                                        setEntry({ ...entry, photo_url: url });
+                                    }
+                                }
+                            }}
+                        />
+                    </div>
                 </div>
+
             )}
 
             <h1 className="text-2xl font-bold">エントリー詳細</h1>
