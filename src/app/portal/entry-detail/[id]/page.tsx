@@ -57,6 +57,9 @@ interface UserRecord {
     user_id: string;
     email: string;
     auth_user_id?: string | null;
+    org_unit_id?: string | null;      
+    level_id?: string | null;         
+    position_id?: string | null;
 }
 
 type NameInfo = {
@@ -645,6 +648,20 @@ export default function EntryDetailPage() {
         }
     };
 
+    useEffect(() => {
+        if (
+            userRecord &&
+            orgList.length > 0 &&
+            levelList.length > 0 &&
+            positionList.length > 0
+        ) {
+            setSelectedOrg(userRecord.org_unit_id || "");
+            setSelectedLevel(userRecord.level_id || "");
+            setSelectedPosition(userRecord.position_id || "");
+        }
+    }, [userRecord, orgList, levelList, positionList]);
+
+
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -870,7 +887,6 @@ export default function EntryDetailPage() {
                     >
                         保存
                     </button>
-                    F
                 </div>
 
                 <div className="md:col-span-2 space-y-1">
