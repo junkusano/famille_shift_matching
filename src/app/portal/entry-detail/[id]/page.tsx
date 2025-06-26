@@ -661,7 +661,19 @@ export default function EntryDetailPage() {
         }
     }, [userRecord, orgList, levelList, positionList]);
 
-    // 写真削除
+    // 写真再アップロー
+
+    // 2. Entryの再取得関数
+    const fetchEntry = async () => {
+        const { data, error } = await supabase
+            .from('form_entries')
+            .select('*')
+            .eq('id', id)
+            .single();
+        if (!error && data) setEntry(data);
+    };
+
+    // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
         if (!entry) return;
         const { error } = await supabase
@@ -670,18 +682,21 @@ export default function EntryDetailPage() {
             .eq('id', entry.id);
 
         if (!error) {
-            setEntry({ ...entry, photo_url: null });
+            await fetchEntry(); // 削除後、再fetchして即時反映
             alert("顔写真を削除しました");
         } else {
             alert("削除に失敗しました: " + error.message);
         }
     };
 
-    // 写真再アップロード
+    // 4. アップロードハンドラ
     const handlePhotoReupload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        // Entryページ同様に/api/upload経由でDriveへアップロード
+        if (!file.type.startsWith("image/")) {
+            alert("jpgまたはpng形式の画像を選択してください。");
+            return;
+        }
         const formData = new FormData();
         formData.append("file", file);
         formData.append("filename", `photo_reupload_${Date.now()}_${file.name}`);
@@ -697,12 +712,17 @@ export default function EntryDetailPage() {
             .update({ photo_url: url })
             .eq('id', entry.id);
         if (!error) {
-            setEntry({ ...entry, photo_url: url });
-            alert("顔写真を再アップロードしました");
+            await fetchEntry(); // アップロード後も再fetch
+            alert("顔写真をアップロードしました");
         } else {
             alert("DB更新に失敗しました: " + error.message);
         }
     };
+
+    // 5. useEffectでEntry初期取得
+    useEffect(() => {
+        fetchEntry();
+    }, [id]);
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
@@ -725,7 +745,7 @@ export default function EntryDetailPage() {
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
             <div className="text-center mb-4">
-                {entry.photo_url ? (
+                {entry?.photo_url ? (
                     <>
                         <Image
                             src={entry.photo_url}
