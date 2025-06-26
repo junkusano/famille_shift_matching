@@ -103,8 +103,8 @@ export default function EntryDetailPage() {
                 first_name: entry.first_name_kanji,
                 gender: entry.gender,
                 // パスワードや雇用形態はエントリー内容・システム仕様に応じて補完
-                password: 'TemporaryPass123!', // 仮置き。発行ロジック必要なら変更
                 employment_type: entry.work_styles?.[0] ?? '未設定',
+                password: 'TemporaryPass123!', // 仮置き。発行ロジック必要なら変更
             };
 
             // ログイン管理者情報取得（SupabaseユーザーIDを使う場合）
@@ -114,10 +114,10 @@ export default function EntryDetailPage() {
             const { error: insertError } = await supabase
                 .from('rpa_command_requests')
                 .insert({
-                    template_id: 'kaipoke-template-uuid', // ←テンプレートIDを設定（下で補足）
+                    template_id: 'a3ce7551-90f0-4e03-90bb-6fa8534fd31b', // ←テンプレートIDを設定（下で補足）
                     requester_id: currentUserId,
                     approver_id: currentUserId,
-                    status: 'waiting_approval', // 直承認なら 'approved'
+                    status: 'approved',
                     request_details: requestDetails,
                 });
 
@@ -699,21 +699,6 @@ export default function EntryDetailPage() {
                                 )}
 
                                 {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
-                                {lineWorksExists ? (
-                                    <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
-                                        LINEWORKS登録済
-                                    </span>
-                                ) : (
-                                    <button
-                                        className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
-                                        onClick={handleCreateLineWorksAccount}
-                                        disabled={creatingLineWorks}
-                                    >
-                                        {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
-                                    </button>
-                                )}
-
-                                {/* LINE WORKS アカウント生成ボタン（既存） */}
                                 {lineWorksExists ? (
                                     <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
                                         LINEWORKS登録済
