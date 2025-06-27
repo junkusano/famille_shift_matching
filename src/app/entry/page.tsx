@@ -735,7 +735,7 @@ export default function EntryPage() {
                             className="button button-primary inline-flex items-center gap-2 disabled:opacity-50"
                             disabled={isSubmitting}
                         >
-                            {isSubmitting ? "送信中..." : "登録内容を送信する"}
+                            {isSubmitting ? "送信中（1-2分かかる時があります）・・・" : "登録内容を送信する"}
                         </button>
 
                     </div>
