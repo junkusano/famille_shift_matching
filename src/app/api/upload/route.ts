@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
-import { Readable } from "stream"; // ← 追加！
+import { Readable } from "stream";
 
 function bufferToStream(buffer: Buffer) {
   return Readable.from(buffer);
@@ -25,31 +25,40 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
+    // 共有ドライブにアップロード
     const res = await drive.files.create({
       requestBody: {
         name: filename,
-        parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"],
-        driveId: "1N1EIT1escqpNREOfwc70YgBC8JVu78j2", // 追加してみる
+        parents: ["1N1EIT1escqpNREOfwc70YgBC8JVu78j2"], // ←共有ドライブのフォルダID
+        driveId: "1N1EIT1escqpNREOfwc70YgBC8JVu78j2",   // ←共有ドライブID
       },
       media: {
         mimeType: file.type,
-        body: bufferToStream(buffer), // ← ここが重要
+        body: bufferToStream(buffer),
       },
       supportsAllDrives: true,
-      fields: "id, webViewLink",
+      fields: "id",
     });
 
+    const fileId = res.data.id!;
+
+    // 外部公開パーミッション付与
     await drive.permissions.create({
-      fileId: res.data.id!,
+      fileId: fileId,
       requestBody: {
         role: "reader",
         type: "anyone",
+        allowFileDiscovery: false, // 「リンクを知っている全員のみ」
       },
-      supportsAllDrives: true // ← ここも必須
+      supportsAllDrives: true,
     });
 
+    // imgタグやImageコンポーネントで直接使える形式を返す
+    const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+
     return NextResponse.json({
-      url: res.data.webViewLink,
+      url: directUrl,
+      fileId: fileId,
     });
   } catch (error) {
     console.error("Upload error:", error);
