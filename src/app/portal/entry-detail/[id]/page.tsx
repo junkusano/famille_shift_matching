@@ -10,6 +10,8 @@ import hepburn from 'hepburn';
 //import { createLineWorksUser } from '@/lib/lineworks/create-user';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
+import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
+
 
 interface Attachment {
     url: string | null;
@@ -66,6 +68,15 @@ type NameInfo = {
     firstKana: string;
     lastKana: string;
 };
+/*
+interface OrgUnit {
+    orgUnitId: string;
+    orgUnitName: string;
+    parentOrgUnitId?: string;
+    parentOrgUnitName?: string; // ←これを追加！
+    // 他に必要な項目があればここに
+}
+*/
 
 
 export default function EntryDetailPage() {
@@ -81,7 +92,8 @@ export default function EntryDetailPage() {
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
 
-    const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
+    //const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
+    const [orgList, setOrgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
     const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
 
@@ -90,7 +102,6 @@ export default function EntryDetailPage() {
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
-
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -123,13 +134,16 @@ export default function EntryDetailPage() {
 
             // テンプレートID取得
             const kaipokeTemplateId = 'a3ce7551-90f0-4e03-90bb-6fa8534fd31b'; // 例: 'e1b02a00-7057-4471-bcdf-xxxxxxx'
+            const orgUnit = orgList.find(o => o.orgUnitId === selectedOrg);
+
+            const areaName = (orgUnit?.orgUnitName || '') + (orgUnit?.parentOrgUnitName || '');
 
             const requestDetails = {
                 user_id: userId,
                 last_name: entry.last_name_kanji,
-                last_name_kana: entry.last_name_kana,
+                last_name_kana: addAreaPrefixToKana(areaName, entry.last_name_kana || ""), // ←ここだけprefix付き
                 first_name: entry.first_name_kanji,
-                first_name_kana: entry.first_name_kana,
+                first_name_kana: hiraToKata(entry.first_name_kana || ""),
                 gender: entry.gender,
                 employment_type: selectedLevel,
                 org_unit_id: selectedOrg,
@@ -172,10 +186,7 @@ export default function EntryDetailPage() {
             try {
                 const orgRes = await fetch('/api/lineworks/getOrgUnits');
                 const orgData: OrgUnit[] = await orgRes.json();
-                setOrgList(orgData.map((org) => ({
-                    orgUnitId: org.orgUnitId,
-                    orgUnitName: org.orgUnitName
-                })));
+                setOrgList(orgData);  // ← これだけ！
             } catch (err) {
                 console.error('OrgUnit データ取得エラー:', err);
             }

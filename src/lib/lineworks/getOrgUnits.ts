@@ -4,6 +4,8 @@ import axios from 'axios';
 export type OrgUnit = {
   orgUnitId: string;
   orgUnitName: string;
+  parentOrgUnitId?: string; // ← 必須！これを追加
+  parentOrgUnitName?:string;
 };
 
 
