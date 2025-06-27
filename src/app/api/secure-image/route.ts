@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { responseType: 'stream' as any }
     );
-
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return new Response(res.data as any, {
       headers: {
@@ -39,9 +39,11 @@ export async function GET(req: NextRequest) {
         'Cache-Control': 'public, max-age=3600',
       },
     });
+    
   } catch (err: unknown) {
     const error = err as { message: string }
     console.error('Drive fetch error:', error.message)
     return NextResponse.json({ error: 'Failed to fetch image' }, { status: 500 })
   }
+  
 }

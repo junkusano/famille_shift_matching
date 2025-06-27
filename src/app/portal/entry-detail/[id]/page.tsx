@@ -701,7 +701,7 @@ export default function EntryDetailPage() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("filename", `photo_reupload_${Date.now()}_${file.name}`);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const res = await fetch("/api/upload", { method: "POST", body: formData });  // ←これでOK
         const result = await res.json();
         console.log('アップロードAPI result:', result);
         const url = result.url;
@@ -714,7 +714,7 @@ export default function EntryDetailPage() {
             .update({ photo_url: url })
             .eq('id', entry.id);
         if (!error) {
-            await fetchEntry(); // アップロード後も再fetch
+            await fetchEntry();
             alert("顔写真をアップロードしました");
         } else {
             alert("DB更新に失敗しました: " + error.message);
