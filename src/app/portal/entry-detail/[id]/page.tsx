@@ -135,9 +135,11 @@ export default function EntryDetailPage() {
             // テンプレートID取得
             const kaipokeTemplateId = 'a3ce7551-90f0-4e03-90bb-6fa8534fd31b'; // 例: 'e1b02a00-7057-4471-bcdf-xxxxxxx'
             const orgUnit = orgList.find(o => o.orgUnitId === selectedOrg);
+            console.log('selectedOrg:', selectedOrg); // <- ここ追加
+            console.log('orgUnit:', orgUnit);         // <- ここ追加
 
             const areaName = (orgUnit?.orgUnitName || '') + (orgUnit?.parentOrgUnitName || '');
-
+            console.log('areaName:', areaName);       // <- ここ追加
             const requestDetails = {
                 user_id: userId,
                 last_name: entry.last_name_kanji,
