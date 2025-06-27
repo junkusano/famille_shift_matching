@@ -107,6 +107,15 @@ export default function EntryDetailPage() {
             alert('必要な情報が不足しています。');
             return;
         }
+        if (!selectedOrg) {
+            alert('所属組織（事業所）を選択してください');
+            return;
+        }
+        if (!selectedLevel) {
+            alert('雇用区分（職級）を選択してください');
+            return;
+        }
+
         setCreatingKaipokeUser(true);
 
         try {
@@ -137,11 +146,8 @@ export default function EntryDetailPage() {
             const orgUnit = orgList.find(o => o.orgUnitId === selectedOrg);
             const orgUnitName = orgUnit?.orgUnitName || '';
             const areaName = (orgUnit?.orgUnitName || '') + (orgUnit?.parentOrgUnitName || '');
-            console.log('areaName:', areaName);       // <- ここ追加
-
             const level = levelList.find(l => l.levelId === selectedLevel);
             const employmentTypeName = level?.levelName || '';
-
 
             const requestDetails = {
                 user_id: userId,
@@ -875,8 +881,8 @@ export default function EntryDetailPage() {
                                 {/* カイポケユーザー追加ボタン（新規追加！） */}
                                 <button
                                     className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
+                                    disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
                                     onClick={handleCreateKaipokeUser}
-                                    disabled={creatingKaipokeUser}
                                 >
                                     {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
                                 </button>
