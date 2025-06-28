@@ -101,6 +101,13 @@ export default function PortalLayout({ children }: Props) {
                         ) : null}
                         {role === 'admin' ? (
                             <li>
+                                <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
+                                    RPAリクエスト管理
+                                </Link>
+                            </li>
+                        ) : null}
+                        {role === 'admin' ? (
+                            <li>
                                 <Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">
                                     RPAテンプレ管理
                                 </Link>
