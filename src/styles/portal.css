@@ -135,7 +135,7 @@
 
     /* ←ここが正しい追加場所 */
     .menu {
-        padding-left: 1rem; /* 左側に余白追加 */
+        padding-left: 2rem; /* 左側に余白追加 */
     }
 }
 
