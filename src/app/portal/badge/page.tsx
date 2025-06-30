@@ -1,6 +1,6 @@
 'use client';
 
-import { createClient } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 
 export default function FamilleBadge() {
@@ -8,7 +8,6 @@ export default function FamilleBadge() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setPhotoUrl(user.user_metadata?.photo_url ?? null);
