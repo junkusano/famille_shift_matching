@@ -1,19 +1,28 @@
-type User = {
-  name: string;
-  photo_url: string;
-};
+'use client';
 
-type Props = {
-  user: User;
-};
+import { createClient } from '@/lib/supabaseClient';
+import { useEffect, useState } from 'react';
 
-export default function FamilleBadge({ user }: Props) {
+export default function FamilleBadge() {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setPhotoUrl(user.user_metadata?.photo_url ?? null);
+      }
+    };
+    fetchUser();
+  }, []);
+
   return (
     <div className="flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-md p-4 w-[350px] text-center border border-green-500">
         <div className="flex justify-start mb-2">
           <img
-            src="/famille_aichi_logo.png"
+            src="/myfamille_logo.png"
             alt="famille ロゴ"
             width={60}
             height={60}
@@ -25,14 +34,18 @@ export default function FamilleBadge({ user }: Props) {
         </p>
 
         <div className="rounded-lg border border-green-400 p-2 bg-green-50">
-          <img
-            src={user.photo_url}
-            alt={`${user.name}さんの写真`}
-            width={150}
-            height={150}
-            className="mx-auto rounded-full object-cover"
-          />
-          <p className="mt-2 text-green-800 text-sm">famille</p>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="ユーザー写真"
+              width={150}
+              height={150}
+              className="mx-auto rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-[150px] h-[150px] bg-gray-200 rounded-full mx-auto" />
+          )}
+          <p className="mt-2 text-green-800 text-sm">認定バッジ獲得</p>
         </div>
 
         <div className="mt-4 text-xs text-gray-500 text-left">
