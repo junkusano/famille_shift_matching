@@ -3,12 +3,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-/*
-interface UserData {
-  photo_url: string | null;
-}
-*/
-
 export default function FamilleBadge() {
     const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
 
@@ -22,16 +16,19 @@ export default function FamilleBadge() {
                 .select('photo_url')
                 .eq('auth_uid', user.id)
                 .single();
-            console.log('entryData:', entryData); 
+
+            console.log('entryData:', entryData);
             const photoPath = entryData?.photo_url;
             if (!photoPath) return;
 
             try {
                 console.log(photoPath);
                 const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
-                console.log(res);
-                const json = await res.json();
-                if (json.url) setSecureImageUrl(json.url);
+                if (!res.ok) throw new Error('画像取得に失敗しました');
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                setSecureImageUrl(url);
             } catch (err) {
                 console.error('Failed to fetch secure image URL', err);
             }
@@ -48,7 +45,7 @@ export default function FamilleBadge() {
                         src="/famille_aichi_logo.png"
                         alt="famille ロゴ"
                         width={60}
-                        height={60}
+                        height={150}
                     />
                 </div>
                 <h1 className="text-xl font-bold text-green-700 mb-1">famille バッジ</h1>
