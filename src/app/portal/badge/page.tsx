@@ -1,10 +1,19 @@
-export default function FamilleBadge() {
+type User = {
+  name: string;
+  photo_url: string;
+};
+
+type Props = {
+  user: User;
+};
+
+export default function FamilleBadge({ user }: Props) {
   return (
     <div className="flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-md p-4 w-[350px] text-center border border-green-500">
         <div className="flex justify-start mb-2">
           <img
-            src="/myfamille_logo.png"
+            src="/famille_aichi_logo.png"
             alt="famille ロゴ"
             width={60}
             height={60}
@@ -17,13 +26,13 @@ export default function FamilleBadge() {
 
         <div className="rounded-lg border border-green-400 p-2 bg-green-50">
           <img
-            src="/badge-image.png"
-            alt="ファミーユ バッジ画像"
+            src={user.photo_url}
+            alt={`${user.name}さんの写真`}
             width={150}
             height={150}
-            className="mx-auto"
+            className="mx-auto rounded-full object-cover"
           />
-          <p className="mt-2 text-green-800 text-sm">認定バッジ獲得</p>
+          <p className="mt-2 text-green-800 text-sm">famille</p>
         </div>
 
         <div className="mt-4 text-xs text-gray-500 text-left">
