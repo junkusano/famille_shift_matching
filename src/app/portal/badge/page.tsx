@@ -22,7 +22,7 @@ export default function FamilleBadge() {
                 .select('photo_url')
                 .eq('auth_uid', user.id)
                 .single();
-
+            console.log('entryData:', entryData); 
             const photoPath = entryData?.photo_url;
             if (!photoPath) return;
 
