@@ -132,6 +132,11 @@
     .hamburger {
         display: block;
     }
+
+    /* ←ここが正しい追加場所 */
+    .menu {
+        padding-left: 1rem; /* 左側に余白追加 */
+    }
 }
 
 /* PCではメニューを表示 */
@@ -156,7 +161,6 @@
         display: block;
     }
 
-    /* ←このブロックを追加 */
     .menu {
         padding-left: 1rem;
     }
