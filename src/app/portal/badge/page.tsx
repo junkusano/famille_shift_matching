@@ -9,6 +9,7 @@ interface UserData {
 
 export default function FamilleBadge() {
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -22,6 +23,10 @@ export default function FamilleBadge() {
         .single();
 
       setUserData(entryData);
+
+      if (entryData?.photo_url) {
+        setSecureImageUrl(`/api/secure-image?fileId=${encodeURIComponent(entryData.photo_url)}`);
+      }
     };
 
     fetchUserData();
@@ -40,13 +45,13 @@ export default function FamilleBadge() {
         </div>
         <h1 className="text-xl font-bold text-green-700 mb-1">famille バッジ</h1>
         <p className="text-sm text-gray-700 mb-4">
-          このバッジは、<span className="font-semibold">当事業所職員</span>であることを証明します。
+          このものは、<span className="font-semibold">当事業所の介護職員</span>であることを証明します。
         </p>
 
         <div className="rounded-lg border border-green-400 p-2 bg-green-50">
-          {userData?.photo_url ? (
+          {secureImageUrl ? (
             <img
-              src={userData.photo_url}
+              src={secureImageUrl}
               alt="ユーザー写真"
               width={150}
               height={150}
