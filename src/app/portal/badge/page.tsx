@@ -27,7 +27,9 @@ export default function FamilleBadge() {
             if (!photoPath) return;
 
             try {
+                console.log(photoPath);
                 const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
+                console.log(res);
                 const json = await res.json();
                 if (json.url) setSecureImageUrl(json.url);
             } catch (err) {
