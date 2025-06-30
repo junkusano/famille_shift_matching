@@ -8,7 +8,6 @@ interface UserData {
 }
 
 export default function FamilleBadge() {
-  const setUserData = useState<UserData | null>(null)[1];
   const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,10 +21,15 @@ export default function FamilleBadge() {
         .eq('auth_uid', user.id)
         .single();
 
-      setUserData(entryData);
+      const photoPath = entryData?.photo_url;
+      if (!photoPath) return;
 
-      if (entryData?.photo_url) {
-        setSecureImageUrl(`/api/secure-image?fileId=${encodeURIComponent(entryData.photo_url)}`);
+      try {
+        const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
+        const json = await res.json();
+        if (json.url) setSecureImageUrl(json.url);
+      } catch (err) {
+        console.error('Failed to fetch secure image URL', err);
       }
     };
 
