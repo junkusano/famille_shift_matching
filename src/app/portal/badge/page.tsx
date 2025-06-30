@@ -1,27 +1,38 @@
 'use client';
 
-import { supabase } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+interface UserData {
+  photo_url: string | null;
+}
 
 export default function FamilleBadge() {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setPhotoUrl(user.user_metadata?.photo_url ?? null);
-      }
+      if (!user) return;
+
+      const { data: entryData } = await supabase
+        .from('form_entries')
+        .select('photo_url')
+        .eq('auth_uid', user.id)
+        .single();
+
+      setUserData(entryData);
     };
-    fetchUser();
+
+    fetchUserData();
   }, []);
 
   return (
     <div className="flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-md p-4 w-[350px] text-center border border-green-500">
+      <div className="bg-white rounded-xl shadow-md p-4 w-[320px] min-h-[540px] text-center border border-green-500">
         <div className="flex justify-start mb-2">
           <img
-            src="/myfamille_logo.png"
+            src="/famille_aichi_logo.png"
             alt="famille ロゴ"
             width={60}
             height={60}
@@ -33,16 +44,18 @@ export default function FamilleBadge() {
         </p>
 
         <div className="rounded-lg border border-green-400 p-2 bg-green-50">
-          {photoUrl ? (
+          {userData?.photo_url ? (
             <img
-              src={photoUrl}
+              src={userData.photo_url}
               alt="ユーザー写真"
               width={150}
               height={150}
               className="mx-auto rounded-full object-cover"
             />
           ) : (
-            <div className="w-[150px] h-[150px] bg-gray-200 rounded-full mx-auto" />
+            <div className="w-[150px] h-[150px] bg-gray-300 rounded-full mx-auto flex items-center justify-center text-gray-600 text-sm">
+              No Image
+            </div>
           )}
           <p className="mt-2 text-green-800 text-sm">認定バッジ獲得</p>
         </div>
