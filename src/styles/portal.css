@@ -143,4 +143,21 @@
     .left-menu {
         display: flex;
     }
+
+    .left-menu {
+        display: none;
+    }
+
+    .menu.open {
+        display: flex;
+    }
+
+    .hamburger {
+        display: block;
+    }
+
+    /* ←このブロックを追加 */
+    .menu {
+        padding-left: 1rem;
+    }
 }
