@@ -8,7 +8,7 @@ interface UserData {
 }
 
 export default function FamilleBadge() {
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [setUserData] = useState<UserData | null>(null);
   const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
