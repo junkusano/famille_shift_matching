@@ -123,7 +123,7 @@ export default function PortalLayout({ children }: Props) {
                     </li>
                    <li>
                             <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>
-ImageU                  </li>
+                        </li>
                     <li>
                         <Link
                             href="/lineworks-login-guide"
