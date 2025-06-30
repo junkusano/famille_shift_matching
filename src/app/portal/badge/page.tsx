@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function FamilleBadge() {
-    const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -17,20 +17,27 @@ export default function FamilleBadge() {
                 .eq('auth_uid', user.id)
                 .single();
 
-            console.log('entryData:', entryData);
             const photoPath = entryData?.photo_url;
             if (!photoPath) return;
 
             try {
-                console.log(photoPath);
-                const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
-                if (!res.ok) throw new Error('画像取得に失敗しました');
+                let finalUrl: string;
 
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                setSecureImageUrl(url);
+                // Google Driveの完全URL（https含む）ならそのまま使う
+                if (photoPath.startsWith('http')) {
+                    finalUrl = photoPath;
+                } else {
+                    // それ以外は secure-image 経由
+                    const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
+                    if (!res.ok) throw new Error('画像取得に失敗しました');
+
+                    const blob = await res.blob();
+                    finalUrl = URL.createObjectURL(blob);
+                }
+
+                setImageUrl(finalUrl);
             } catch (err) {
-                console.error('Failed to fetch secure image URL', err);
+                console.error('画像取得エラー:', err);
             }
         };
 
@@ -54,9 +61,9 @@ export default function FamilleBadge() {
                 </p>
 
                 <div className="rounded-lg border border-green-400 p-2 bg-green-50">
-                    {secureImageUrl ? (
+                    {imageUrl ? (
                         <img
-                            src={secureImageUrl}
+                            src={imageUrl}
                             alt="ユーザー写真"
                             width={150}
                             height={150}
