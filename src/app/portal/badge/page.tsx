@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function FamilleBadge() {
-    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [userData, setUserData] = useState<any | null>(null);
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -17,32 +17,13 @@ export default function FamilleBadge() {
                 .eq('auth_uid', user.id)
                 .single();
 
-            const photoPath = entryData?.photo_url;
-            if (!photoPath) return;
-
-            try {
-                let finalUrl: string;
-
-                // Google Driveの完全URL（https含む）ならそのまま使う
-                if (photoPath.startsWith('http')) {
-                    finalUrl = photoPath;
-                } else {
-                    // それ以外は secure-image 経由
-                    const res = await fetch(`/api/secure-image?fileId=${encodeURIComponent(photoPath)}`);
-                    if (!res.ok) throw new Error('画像取得に失敗しました');
-
-                    const blob = await res.blob();
-                    finalUrl = URL.createObjectURL(blob);
-                }
-
-                setImageUrl(finalUrl);
-            } catch (err) {
-                console.error('画像取得エラー:', err);
-            }
+            setUserData(entryData);
         };
 
         fetchUserData();
     }, []);
+
+    if (!userData) return <p>Loading...</p>;
 
     return (
         <div className="flex flex-col items-center justify-center p-4">
@@ -51,7 +32,7 @@ export default function FamilleBadge() {
                     <img
                         src="/famille_aichi_logo.png"
                         alt="famille ロゴ"
-                        width={60}
+                        width={100}
                         height={150}
                     />
                 </div>
@@ -61,9 +42,9 @@ export default function FamilleBadge() {
                 </p>
 
                 <div className="rounded-lg border border-green-400 p-2 bg-green-50">
-                    {imageUrl ? (
+                    {userData?.photo_url ? (
                         <img
-                            src={imageUrl}
+                            src={userData.photo_url}  // 直接テーブルから取得したURLを使用
                             alt="ユーザー写真"
                             width={150}
                             height={150}
