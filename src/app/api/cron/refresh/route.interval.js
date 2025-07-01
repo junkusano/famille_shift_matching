@@ -1,5 +1,12 @@
-// src/app/api/cron/refresh/route.js
+// src/app/api/cron/refresh/route.interval.js
 import { refreshLineworksAccessTokenToSupabase } from '@/cron/refreshToken';
+
+export const runtime = 'nodejs'; // Edgeでも可（必要に応じて変更）
+export const revalidate = 0;
+
+export const config = {
+  schedule: '0 * * * *' // 毎時0分に実行（UTC時間基準）
+};
 
 export async function GET() {
   try {
