@@ -120,7 +120,7 @@
 }
 
 /* スマホ用メニュー */
-@media (max-width: 699px) {
+@media (max-width: 599px) {
     .left-menu {
         display: none;
     }
@@ -140,7 +140,7 @@
 }
 
 /* PCではメニューを表示 */
-@media (min-width: 700px) {
+@media (min-width: 600px) {
     .hamburger {
         display: none;
     }
