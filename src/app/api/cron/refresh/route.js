@@ -1,12 +1,11 @@
 // src/app/api/cron/refresh/route.js
-
-import { refreshToken } from '@/cron/refreshToken';
+import { refreshLineworksAccessTokenToSupabase } from '@/cron/refreshToken';
 
 export async function GET() {
   try {
     console.log('🔁 トークン更新処理開始');
 
-    await refreshToken();
+    await refreshLineworksAccessTokenToSupabase();
 
     console.log('✅ トークン更新成功');
     return Response.json({ success: true, message: 'Token refreshed successfully' });
@@ -14,10 +13,7 @@ export async function GET() {
     console.error('❌ トークン更新エラー:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error?.message || 'Unknown error'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+      error: error.message || 'Unknown error'
+    }), { status: 500 });
   }
 }
