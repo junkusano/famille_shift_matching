@@ -93,7 +93,7 @@ export default function EntryDetailPage() {
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
 
     //const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
-    const [orgList] = useState<OrgUnit[]>([]);
+    const [orgList, setOrgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
     const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
 
@@ -195,54 +195,54 @@ export default function EntryDetailPage() {
         const fetchData = async () => {
             // OrgUnits
             try {
-                const levelRes = await fetch('/api/lineworks/getLevels');
-                const levelData: { levelId: string; levelName: string }[] = await levelRes.json();
+                const orgRes = await fetch('/api/lineworks/getOrgUnits');
+                const orgData: OrgUnit[] = await orgRes.json();
 
-                if (Array.isArray(levelData)) {
-                    setLevelList([{ levelId: '', levelName: 'なし' }, ...levelData]);
+                if (Array.isArray(orgData)) {
+                    setOrgList(orgData);  // ✅ orgList専用
                 } else {
-                    console.warn('Level データが配列でない:', levelData);
-                    setLevelList([{ levelId: '', levelName: 'なし' }]);
+                    console.warn('orgData が配列ではありません:', orgData);
+                    setOrgList([]);
                 }
             } catch (err) {
-                console.error('Level データ取得エラー:', err);
+                console.error('OrgUnit データ取得エラー:', err);
             }
 
             // Levels
             try {
-                const levels = await fetch('/api/lineworks/getLevels').then(res => res.json());
-                if (Array.isArray(levels)) {
-                    setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
+                const levelsRes = await fetch('/api/lineworks/getLevels');
+                const levelData: { levelId: string; levelName: string }[] = await levelsRes.json();
+
+                if (Array.isArray(levelData)) {
+                    setLevelList([{ levelId: '', levelName: 'なし' }, ...levelData]); // ✅ Level専用
                 } else {
-                    console.warn('Levelsが配列ではありません:', levels);
+                    console.warn('Levelsが配列ではありません:', levelData);
                     setLevelList([{ levelId: '', levelName: 'なし' }]);
                 }
-                console.log('クライアントで受け取った levelList:', levels);
-                setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
             } catch (err) {
                 console.error('Level データ取得エラー:', err);
             }
 
             // Positions
             try {
-                const positions: { positionId: string; positionName: string }[] = await fetch('/api/lineworks/getPositions').then(res => res.json());
+                const posRes = await fetch('/api/lineworks/getPositions');
+                const posData: { positionId: string; positionName: string }[] = await posRes.json();
 
-                if (Array.isArray(positions)) {
-                    // 正しくは positionList に渡す
-                    setPositionList([{ positionId: '', positionName: 'なし' }, ...positions]);
+                if (Array.isArray(posData)) {
+                    setPositionList([{ positionId: '', positionName: 'なし' }, ...posData]); // ✅ Position専用
                 } else {
-                    console.warn('Positionsが配列ではありません:', positions);
+                    console.warn('Positionsが配列ではありません:', posData);
                     setPositionList([{ positionId: '', positionName: 'なし' }]);
                 }
-
-                console.log('クライアントで受け取った positionList:', positions);
             } catch (err) {
-                console.error('Position データ取得エラー:', err instanceof Error ? err.message : err);
+                console.error('Position データ取得エラー:', err);
             }
         };
 
         fetchData();
     }, []);
+
+
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
