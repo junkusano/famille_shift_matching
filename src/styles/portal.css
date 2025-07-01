@@ -120,7 +120,7 @@
 }
 
 /* スマホ用メニュー */
-@media (max-width: 768px) {
+@media (max-width: 699px) {
     .left-menu {
         display: none;
     }
@@ -135,12 +135,12 @@
 
     /* ←ここが正しい追加場所 */
     .menu {
-        padding-left: 2rem; /* 左側に余白追加 */
+        padding-left: 2.5rem; /* 左側に余白追加 */
     }
 }
 
 /* PCではメニューを表示 */
-@media (min-width: 769px) {
+@media (min-width: 700px) {
     .hamburger {
         display: none;
     }
