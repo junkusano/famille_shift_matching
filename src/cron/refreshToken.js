@@ -1,55 +1,50 @@
-import axios from 'axios';
+import jwt from 'jsonwebtoken';
+import axios, { AxiosResponse } from 'axios';
 
-export async function refreshLineworksAccessTokenToSupabase() {
+type AccessTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
+export async function refreshAccessToken(): Promise<string> {
+  const apiId = '12052449';
+  const serviceAccount = '3xzf3.serviceaccount@shi-on';
+  const privateKey = process.env.LINEWORKS_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!privateKey) throw new Error('Private key not found in env');
+
+  const now = Math.floor(Date.now() / 1000);
+  const jwtPayload = {
+    iss: serviceAccount,
+    scope: 'bot',
+    aud: `https://auth.worksmobile.com/${apiId}/server/token`,
+    iat: now,
+    exp: now + 3600,
+  };
+
+  const assertion = jwt.sign(jwtPayload, privateKey, { algorithm: 'RS256' });
+
   try {
-    const {
-      LINEWORKS_CLIENT_ID,
-      LINEWORKS_CLIENT_SECRET,
-      NEXT_PUBLIC_SUPABASE_URL,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY
-    } = process.env;
-
-    if (!LINEWORKS_CLIENT_ID || !LINEWORKS_CLIENT_SECRET) {
-      throw new Error('LINEWORKS_CLIENT_ID または CLIENT_SECRET が未設定です');
-    }
-
-    // アクセストークン取得
-    const tokenRes = await axios.post(
-      'https://auth.worksmobile.com/oauth2/v2.0/token',
-      new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: LINEWORKS_CLIENT_ID,
-        client_secret: LINEWORKS_CLIENT_SECRET,
-        scope: 'bot'
-      }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    const res: AxiosResponse<AccessTokenResponse> = await axios.post(
+      `https://auth.worksmobile.com/b/${apiId}/server/token`,
+      {
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
     );
 
-    const accessToken = tokenRes.data.access_token;
-    const expiresIn = tokenRes.data.expires_in;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-
-    console.log('[✅取得成功] AccessToken:', accessToken);
-
-    // Supabaseに保存
-    const payload = {
-      value: accessToken,
-      expires_at: expiresAt,
-      updated_at: new Date().toISOString()
-    };
-
-    const supabaseUrl = `${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/env_variables?group_key=eq.lineworks&key_name=eq.access_token`;
-
-    const supabaseRes = await axios.patch(supabaseUrl, payload, {
-      headers: {
-        apikey: NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log('[✅保存成功] Supabase レスポンス:', supabaseRes.status);
+    console.log('[✅成功] アクセストークン更新:', res.data.access_token);
+    return res.data.access_token;
   } catch (err) {
-    console.error('[❌エラー] トークン更新失敗:', err.response?.data || err.message);
+    if (axios.isAxiosError(err)) {
+      console.error('[❌エラー] アクセストークン更新失敗:', err.response?.data);
+    } else {
+      console.error('[❌エラー] アクセストークン更新失敗（未知のエラー）:', err);
+    }
+    throw err;
   }
 }
