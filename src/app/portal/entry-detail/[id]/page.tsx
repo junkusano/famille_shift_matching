@@ -93,7 +93,7 @@ export default function EntryDetailPage() {
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
 
     //const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
-    const [orgList, setOrgList] = useState<OrgUnit[]>([]);
+    const [orgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
     const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
 
