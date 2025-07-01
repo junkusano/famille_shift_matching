@@ -195,16 +195,28 @@ export default function EntryDetailPage() {
         const fetchData = async () => {
             // OrgUnits
             try {
-                const orgRes = await fetch('/api/lineworks/getOrgUnits');
-                const orgData: OrgUnit[] = await orgRes.json();
-                setOrgList(orgData);  // ← これだけ！
+                const levelRes = await fetch('/api/lineworks/getLevels');
+                const levelData: { levelId: string; levelName: string }[] = await levelRes.json();
+
+                if (Array.isArray(levelData)) {
+                    setLevelList([{ levelId: '', levelName: 'なし' }, ...levelData]);
+                } else {
+                    console.warn('Level データが配列でない:', levelData);
+                    setLevelList([{ levelId: '', levelName: 'なし' }]);
+                }
             } catch (err) {
-                console.error('OrgUnit データ取得エラー:', err);
+                console.error('Level データ取得エラー:', err);
             }
 
             // Levels
             try {
                 const levels = await fetch('/api/lineworks/getLevels').then(res => res.json());
+                if (Array.isArray(levels)) {
+                    setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
+                } else {
+                    console.warn('Levelsが配列ではありません:', levels);
+                    setLevelList([{ levelId: '', levelName: 'なし' }]);
+                }
                 console.log('クライアントで受け取った levelList:', levels);
                 setLevelList([{ levelId: '', levelName: 'なし' }, ...levels]);
             } catch (err) {
@@ -213,9 +225,17 @@ export default function EntryDetailPage() {
 
             // Positions
             try {
-                const positions = await fetch('/api/lineworks/getPositions').then(res => res.json());
+                const positions: { positionId: string; positionName: string }[] = await fetch('/api/lineworks/getPositions').then(res => res.json());
+
+                if (Array.isArray(positions)) {
+                    // 正しくは positionList に渡す
+                    setPositionList([{ positionId: '', positionName: 'なし' }, ...positions]);
+                } else {
+                    console.warn('Positionsが配列ではありません:', positions);
+                    setPositionList([{ positionId: '', positionName: 'なし' }]);
+                }
+
                 console.log('クライアントで受け取った positionList:', positions);
-                setPositionList([{ positionId: '', positionName: 'なし' }, ...positions]);
             } catch (err) {
                 console.error('Position データ取得エラー:', err instanceof Error ? err.message : err);
             }

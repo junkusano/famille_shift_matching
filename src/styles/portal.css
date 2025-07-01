@@ -133,31 +133,22 @@
         display: block;
     }
 
-    /* ←ここが正しい追加場所 */
     .menu {
-        padding-left: 2.5rem; /* 左側に余白追加 */
+        padding-left: 2.5rem;
     }
 }
 
-/* PCではメニューを表示 */
+/* PCではメニューを表示、ハンバーガーを非表示 */
 @media (min-width: 600px) {
-    .hamburger {
-        display: none;
-    }
-
     .left-menu {
         display: flex;
     }
 
-    .left-menu {
+    .hamburger {
         display: none;
     }
 
-    .hamburger {
-        display: block;
-    }
-
     .menu {
-        padding-left: 1rem;
+        display: none !important;
     }
 }
