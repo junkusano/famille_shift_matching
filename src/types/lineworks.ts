@@ -84,3 +84,33 @@ export type User = {
   employeeNumber?: string;
 };
 
+// OrgUnit用のメンバー定義
+export type OrgUnitAllowedMember = {
+  userId: string;
+  userExternalKey?: string;
+};
+
+// OrgUnit本体（GET /orgunits の1要素）
+export type OrgUnit = {
+  domainId: number;
+  orgUnitId: string;
+  orgUnitExternalKey?: string;
+  orgUnitName: string;
+  email?: string;
+  description?: string;
+  visible?: boolean;
+  parentOrgUnitId?: string;
+  parentExternalKey?: string;
+  displayOrder?: number;
+  displayLevel?: number;
+  canReceiveExternalMail?: boolean;
+  useMessage?: boolean;
+  useNote?: boolean;
+  useCalendar?: boolean;
+  useTask?: boolean;
+  useFolder?: boolean;
+  useServiceNotification?: boolean;
+  aliasEmails?: string[];
+  membersAllowedToUseOrgUnitEmailAsRecipient?: OrgUnitAllowedMember[];
+  membersAllowedToUseOrgUnitEmailAsSender?: OrgUnitAllowedMember[];
+};
