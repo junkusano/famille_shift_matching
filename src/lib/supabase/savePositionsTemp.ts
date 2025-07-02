@@ -8,7 +8,6 @@ export async function savePositionsTemp(positions: Position[]) {
 
   const formatted = positions.map((p) => ({
     position_id: p.positionId,
-    domain_id: p.domainId,
     position_name: p.positionName,
     position_external_key: p.positionExternalKey ?? null,
     display_order: p.displayOrder ?? null,

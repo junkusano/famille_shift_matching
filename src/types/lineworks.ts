@@ -125,7 +125,6 @@ export type Level = {
 
 export type Position = {
   positionId: string;
-  domainId: string; // 
   positionName: string;
   positionExternalKey: string | null;
   displayOrder: number | null;
