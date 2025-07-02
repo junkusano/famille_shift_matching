@@ -42,8 +42,10 @@ export async function refreshAccessToken(): Promise<string> {
 
     console.log('[🧪DEBUG] レスポンス全体:', res.data);
 
-    const token =
-      (res.data as any).access_token ?? (res.data?.access_token ?? undefined);
+    /*const token =
+      (res.data as any).access_token ?? (res.data?.access_token ?? undefined); */
+    const token = (res.data as { access_token: string }).access_token ?? undefined;
+
 
     if (!token) {
       console.error('[❌エラー] access_token がレスポンスに含まれていません');
