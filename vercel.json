@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/sync-lineworks-orgs",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-lineworks-positions",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-lineworks-levels",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
