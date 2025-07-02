@@ -7,7 +7,6 @@
     {
       "path": "/api/cron/sync-lineworks-users",
       "schedule": "*/30 * * * *",  
-      "enabled": true
     }
   ]
 }
