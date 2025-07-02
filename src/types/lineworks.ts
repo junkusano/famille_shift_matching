@@ -124,9 +124,11 @@ export type Level = {
 };
 
 export type Position = {
-  domainId: number;
   positionId: string;
-  displayOrder: number;
+  domainId?: number;
+  displayOrder?: number;
   positionName: string;
   positionExternalKey?: string;
 };
+
+

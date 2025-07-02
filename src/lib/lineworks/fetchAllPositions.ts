@@ -17,5 +17,12 @@ export async function fetchAllPositions(): Promise<Position[]> {
   }
 
   const data = await res.json();
-  return data.positions || [];
+
+  return (data.positions || []).map((p: any) => ({
+    positionId: p.positionId,
+    domainId: p.domainId,
+    displayOrder: p.displayOrder,
+    positionName: p.positionName,
+    positionExternalKey: p.positionExternalKey,
+  }));
 }

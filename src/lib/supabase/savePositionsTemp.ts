@@ -6,12 +6,12 @@ export async function savePositionsTemp(positions: Position[]) {
     throw new Error("positions は配列である必要があります");
   }
 
-  const formatted = positions.map((p) => ({
-    position_id: p.positionId,
-    domain_id: p.domainId,
-    display_order: p.displayOrder,
-    position_name: p.positionName,
-    position_external_key: p.positionExternalKey ?? null,
+  const formatted = positions.map((position) => ({
+    position_id: position.positionId,
+    domain_id: position.domainId,
+    display_order: position.displayOrder ?? null,
+    position_name: position.positionName,
+    position_external_key: position.positionExternalKey ?? null,
   }));
 
   const { error } = await supabaseAdmin
