@@ -10,7 +10,7 @@ export async function savePositionsMaster(positions: Position[]) {
 
   const formatted = positions.map((p) => ({
     id: p.positionId,                // ← positions テーブルの主キー
-    label: p.positionName,
+    name: p.positionName,
     sort_order: p.displayOrder ?? null,
     description: null,               // 今は空欄で統一
   }));
