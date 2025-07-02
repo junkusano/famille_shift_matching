@@ -2,20 +2,85 @@
 
 export type User = {
   userId: string;
+  userExternalKey?: string;
+  isAdministrator?: boolean;
+  isPending?: boolean;
+  isSuspended?: boolean;
+  isDeleted?: boolean;
+  isAwaiting?: boolean;
+  suspendedReason?: string | null;
   email?: string;
   userName?: {
     firstName?: string;
     lastName?: string;
+    phoneticFirstName?: string | null;
+    phoneticLastName?: string | null;
   };
+  i18nName?: string[];
   nickName?: string;
+  privateEmail?: string;
+  aliasEmails?: string[];
+  employmentTypeId?: string | null;
+  employmentTypeName?: string | null;
+  employmentTypeExternalKey?: string | null;
+  userTypeId?: string | null;
+  userTypeName?: string | null;
+  userTypeExternalKey?: string | null;
+  userTypeCode?: string | null;
+  searchable?: boolean;
   organizations?: {
+    domainId?: number;
+    primary?: boolean;
+    userExternalKey?: string | null;
+    email?: string;
+    levelId?: string;
+    levelExternalKey?: string | null;
+    levelName?: string;
+    executive?: boolean;
     organizationName?: string;
     orgUnits?: {
       orgUnitId?: string;
+      orgUnitExternalKey?: string | null;
+      orgUnitEmail?: string;
       orgUnitName?: string;
+      primary?: boolean;
+      positionId?: string;
+      positionExternalKey?: string | null;
       positionName?: string;
+      isManager?: boolean;
+      visible?: boolean;
+      useTeamFeature?: boolean;
     }[];
-    levelCode?: string;
-    levelName?: string;
   }[];
+  telephone?: string;
+  cellPhone?: string;
+  location?: string;
+  task?: string;
+  messenger?: {
+    protocol?: string;
+    messengerId?: string;
+  };
+  birthdayCalendarType?: string;
+  birthday?: string;
+  locale?: string;
+  hiredDate?: string;
+  timeZone?: string;
+  leaveOfAbsence?: {
+    startTime?: string | null;
+    endTime?: string | null;
+    isLeaveOfAbsence?: boolean;
+  };
+  customFields?: {
+    customFieldId: string;
+    value: string;
+    link?: string | null;
+  }[];
+  relations?: {
+    relationUserId: string;
+    relationName: string;
+    externalKey: string;
+  }[];
+  activationDate?: string;
+  employeeNumber?: string;
 };
+

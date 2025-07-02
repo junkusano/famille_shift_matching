@@ -6,17 +6,71 @@ export async function saveUsersLWTemp(users: User[]) {
     throw new Error("users は配列である必要があります");
   }
 
-  const formatted = users.map((u) => ({
-    user_id: u.userId,
-    name: u.userName
-      ? `${u.userName.lastName ?? ""}${u.userName.firstName ?? ""}`
-      : u.nickName ?? "",
-    organization: u.organizations?.[0]?.organizationName ?? "",
-    org_unit: u.organizations?.[0]?.orgUnits?.[0]?.orgUnitName ?? "",
-    position: u.organizations?.[0]?.orgUnits?.[0]?.positionName ?? "",
-    level_code: u.organizations?.[0]?.levelCode ?? "",
-    level_name: u.organizations?.[0]?.levelName ?? "",
-  }));
+  const formatted = users.map((u) => {
+    const org = u.organizations?.[0];
+    const orgUnit = org?.orgUnits?.[0];
+
+    return {
+      user_id: u.userId,
+      user_external_key: u.userExternalKey,
+      is_administrator: u.isAdministrator,
+      is_pending: u.isPending,
+      is_suspended: u.isSuspended,
+      is_deleted: u.isDeleted,
+      is_awaiting: u.isAwaiting,
+      suspended_reason: u.suspendedReason,
+      email: u.email,
+      last_name: u.userName?.lastName ?? null,
+      first_name: u.userName?.firstName ?? null,
+      phonetic_last_name: u.userName?.phoneticLastName ?? null,
+      phonetic_first_name: u.userName?.phoneticFirstName ?? null,
+      nick_name: u.nickName,
+      private_email: u.privateEmail,
+      employment_type_id: u.employmentTypeId,
+      employment_type_name: u.employmentTypeName,
+      employment_type_external_key: u.employmentTypeExternalKey,
+      user_type_id: u.userTypeId,
+      user_type_name: u.userTypeName,
+      user_type_external_key: u.userTypeExternalKey,
+      user_type_code: u.userTypeCode,
+      searchable: u.searchable,
+      domain_id: org?.domainId ?? null,
+      is_primary: org?.primary ?? null,
+      org_email: org?.email ?? null,
+      level_id: org?.levelId ?? null,
+      level_external_key: org?.levelExternalKey ?? null,
+      level_name: org?.levelName ?? null,
+      executive: org?.executive ?? null,
+      organization_name: org?.organizationName ?? null,
+      org_unit_id: orgUnit?.orgUnitId ?? null,
+      org_unit_name: orgUnit?.orgUnitName ?? null,
+      org_unit_email: orgUnit?.orgUnitEmail ?? null,
+      org_unit_primary: orgUnit?.primary ?? null,
+      position_id: orgUnit?.positionId ?? null,
+      position_name: orgUnit?.positionName ?? null,
+      is_manager: orgUnit?.isManager ?? null,
+      visible: orgUnit?.visible ?? null,
+      use_team_feature: orgUnit?.useTeamFeature ?? null,
+      telephone: u.telephone,
+      cell_phone: u.cellPhone,
+      location: u.location,
+      task: u.task,
+      messenger_protocol: u.messenger?.protocol ?? null,
+      messenger_id: u.messenger?.messengerId ?? null,
+      birthday_calendar_type: u.birthdayCalendarType,
+      birthday: u.birthday,
+      locale: u.locale,
+      hired_date: u.hiredDate,
+      time_zone: u.timeZone,
+      loa_start_time: u.leaveOfAbsence?.startTime ?? null,
+      loa_end_time: u.leaveOfAbsence?.endTime ?? null,
+      is_leave_of_absence: u.leaveOfAbsence?.isLeaveOfAbsence ?? null,
+      custom_fields: u.customFields ?? [],
+      relations: u.relations ?? [],
+      activation_date: u.activationDate,
+      employee_number: u.employeeNumber,
+    };
+  });
 
   const { error } = await supabaseAdmin
     .from("users_lw_temp")
