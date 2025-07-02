@@ -32,7 +32,7 @@ export async function refreshAccessToken(): Promise<string> {
     const res: AxiosResponse<AccessTokenResponse | { message: string; code: string; detail: string }> = await axios.post(
       `https://auth.worksmobile.com/b/${apiId}/server/token`,
       {
-        grant_type: 'JWT-BEARER', // ← ここ重要
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
         assertion,
       },
       {
