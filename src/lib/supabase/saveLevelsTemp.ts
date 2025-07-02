@@ -10,7 +10,7 @@ export async function saveLevelsTemp(levels: Level[]) {
     levelid: level.levelId,
     levelname: level.levelName,
     levelexternalkey: level.levelExternalKey ?? null,
-    displayorder: level.displayOrder ?? null,
+    display_order: level.displayOrder ?? null,
     executive: level.executive ?? false,
   }));
 
