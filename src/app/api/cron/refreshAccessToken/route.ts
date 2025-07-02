@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { refreshAccessToken } from '@/cron/refreshToken';
+import { refreshAccessToken } from '@/lib/lineworks/refreshAccessToken'; // ← 修正ここ
 
 export async function GET() {
   try {
