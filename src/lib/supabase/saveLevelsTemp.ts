@@ -16,7 +16,7 @@ export async function saveLevelsTemp(levels: Level[]) {
 
   const { error } = await supabaseAdmin
     .from("levels_temp")
-    .upsert(formatted, { onConflict: "levelid" });
+    .upsert(formatted, { onConflict: "level_id" });
 
   if (error) {
     throw new Error(`levels_temp の保存に失敗しました: ${error.message}`);
