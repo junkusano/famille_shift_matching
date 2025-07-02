@@ -1,5 +1,5 @@
-import { getAccessToken } from "@/lib/getAccessToken";
 import { Position } from "@/types/lineworks";
+import { getAccessToken } from "@/lib/getAccessToken";
 
 export async function fetchAllPositions(): Promise<Position[]> {
   const token = await getAccessToken();
@@ -16,13 +16,21 @@ export async function fetchAllPositions(): Promise<Position[]> {
     throw new Error(`Failed to fetch positions: ${res.status} ${res.statusText}`);
   }
 
-  const data = await res.json();
+  type RawPosition = {
+    positionId: string;
+    domainId: string;
+    positionName: string;
+    positionExternalKey?: string;
+    displayOrder?: number;
+  };
 
-  return (data.positions || []).map((p: any) => ({
+  const data: { positions: RawPosition[] } = await res.json();
+
+  return data.positions.map((p) => ({
     positionId: p.positionId,
     domainId: p.domainId,
-    displayOrder: p.displayOrder,
     positionName: p.positionName,
-    positionExternalKey: p.positionExternalKey,
+    positionExternalKey: p.positionExternalKey ?? null,
+    displayOrder: p.displayOrder ?? null,
   }));
 }
