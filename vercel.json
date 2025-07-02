@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/refresh",
+      "path": "/api/cron/refreshAccessToken",
       "schedule": "*/30 * * * *"
     },
     {
