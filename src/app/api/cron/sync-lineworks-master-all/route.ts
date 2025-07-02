@@ -40,8 +40,8 @@ export async function GET() {
       counts: {
         positions: positions.length,
         levels: levels.length,
-        /*
         orgs: orgs.length,
+        /*
         users: users.length,
         groups: groups.length,
         */
