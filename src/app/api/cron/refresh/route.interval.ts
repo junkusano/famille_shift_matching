@@ -1,5 +1,6 @@
 // src/app/api/cron/refresh/route.interval.ts
-import { refreshLineworksAccessTokenToSupabase } from '@/cron/refreshToken';
+import { refreshAccessToken } from '@/cron/refreshToken';
+
 
 export const runtime = 'nodejs';
 export const revalidate = 0;
@@ -10,7 +11,7 @@ export const config = {
 
 export async function GET(): Promise<Response> {
   try {
-    await refreshLineworksAccessTokenToSupabase();
+    await refreshAccessToken();
 
     return new Response(JSON.stringify({
       success: true,

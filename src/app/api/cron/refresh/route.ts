@@ -1,12 +1,16 @@
+import { NextResponse } from 'next/server';
 import { refreshAccessToken } from '@/cron/refreshToken';
 
 export async function GET() {
   try {
-    console.log('🧪 手動トークン更新開始');
-    const token = await refreshAccessToken();
-    return Response.json({ success: true, token });
+    const accessToken = await refreshAccessToken();
+    console.log('[✅アクセストークン]', accessToken);
+    return NextResponse.json({ access_token: accessToken });
   } catch (err) {
     console.error('❌ 手動トークン更新失敗:', err);
-    return new Response('Error', { status: 500 });
+    return NextResponse.json(
+      { error: 'アクセストークン更新失敗', detail: String(err) },
+      { status: 500 }
+    );
   }
 }
