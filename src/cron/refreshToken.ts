@@ -29,32 +29,34 @@ export async function refreshAccessToken(): Promise<string> {
   const assertion = jwt.sign(jwtPayload, privateKey, { algorithm: 'RS256' });
 
   try {
-    const res: AxiosResponse<AccessTokenResponse | { message: string; code: string; detail: string }> = await axios.post(
-      `https://auth.worksmobile.com/b/${apiId}/server/token`,
+    const url = `https://auth.worksmobile.com/b/${apiId}/server/token`;
+
+    const res: AxiosResponse<AccessTokenResponse> = await axios.post(
+      url,
+      null,
       {
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion,
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        params: {
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion,
+        },
       }
     );
 
     console.log('[🧪DEBUG] レスポンス全体:', res.data);
 
-    if ('access_token' in res.data) {
-      const token = res.data.access_token;
-      console.log('[✅成功] アクセストークン更新:', token);
-      return token;
+    if (res.data.access_token) {
+      console.log('[✅成功] アクセストークン更新:', res.data.access_token);
+      return res.data.access_token;
     } else {
       console.error('[❌エラー] access_token がレスポンスに含まれていません');
       throw new Error('access_token missing in response');
     }
-  } catch (err) {
+  } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      console.error('[❌エラー] アクセストークン更新失敗:', err.response?.data);
+      console.error('[❌Axiosエラー] アクセストークン更新失敗:', err.response?.data || err.message);
     } else {
-      console.error('[❌エラー] アクセストークン更新失敗（未知のエラー）:', err);
+      console.error('[❌未知エラー] アクセストークン更新失敗:', err);
     }
     throw err;
   }
@@ -68,7 +70,7 @@ export async function refreshLineworksAccessTokenToSupabase(): Promise<void> {
 
   const token = await refreshAccessToken();
 
-  const { error } = await supabase
+  const { error, status } = await supabase
     .from('lineworks_tokens')
     .update({
       access_token: token,
@@ -81,5 +83,5 @@ export async function refreshLineworksAccessTokenToSupabase(): Promise<void> {
     throw error;
   }
 
-  console.log('[✅成功] Supabaseにトークン保存完了');
+  console.log(`[✅成功] Supabaseにトークン保存完了（HTTPステータス: ${status}）`);
 }
