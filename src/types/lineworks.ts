@@ -122,3 +122,11 @@ export type Level = {
   levelExternalKey?: string;
   executive: boolean;
 };
+
+export type Position = {
+  domainId: number;
+  positionId: string;
+  displayOrder: number;
+  positionName: string;
+  positionExternalKey?: string;
+};
