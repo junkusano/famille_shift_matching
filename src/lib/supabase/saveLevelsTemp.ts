@@ -7,8 +7,8 @@ export async function saveLevelsTemp(levels: Level[]) {
   }
 
   const formatted = levels.map((level) => ({
-    level＿id: level.levelId,
-    level＿name: level.levelName,
+    level_id: level.levelId,
+    level_name: level.levelName,
     level_external_key: level.levelExternalKey ?? null,
     display_order: level.displayOrder ?? null,
     executive: level.executive ?? false,
