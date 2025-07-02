@@ -3,7 +3,7 @@ import { User } from '@/types/lineworks';
 
 export async function fetchAllLineworksUsers(accessToken: string): Promise<User[]> {
   const baseUrl = 'https://www.worksapis.com/v1.0/users';
-  const domainId = process.env.LINEWORKS_API_DOMAIN_ID;
+  const domainId = process.env.LINEWORKS_DOMAIN_ID;
   let users: User[] = [];
   let cursor: string | null = null;
 
