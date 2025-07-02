@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import axios, { AxiosResponse } from 'axios';
+import { createClient } from '@supabase/supabase-js';
 
 type AccessTokenResponse = {
   access_token: string;
@@ -47,4 +48,28 @@ export async function refreshAccessToken(): Promise<string> {
     }
     throw err;
   }
+}
+
+// ✅ Supabaseにトークン保存する関数（route.interval.ts から呼び出す用）
+export async function refreshLineworksAccessTokenToSupabase(): Promise<void> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const token = await refreshAccessToken();
+
+  const { error } = await supabase
+    .from('lineworks_tokens')
+    .update({
+      access_token: token,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('provider', 'lineworks');
+
+  if (error) {
+    console.error('[❌エラー] Supabaseへのトークン保存失敗:', error);
+    throw error;
+  }
+
+  console.log('[✅成功] Supabaseにトークン保存完了');
 }
