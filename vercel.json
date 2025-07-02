@@ -3,6 +3,11 @@
     {
       "path": "/api/cron/refresh",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-lineworks-users",
+      "schedule": "*/30 * * * *",  
+      "enabled": true
     }
   ]
 }
