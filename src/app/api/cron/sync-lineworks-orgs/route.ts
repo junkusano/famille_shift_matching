@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const token = await getAccessToken();
-    const orgUnits = await fetchAllOrgUnits(token);
+    const orgUnits = await fetchAllOrgUnits();
     await saveOrgsLwTemp(orgUnits);
     return NextResponse.json({ status: "OK", count: orgUnits.length });
   } catch (err) {

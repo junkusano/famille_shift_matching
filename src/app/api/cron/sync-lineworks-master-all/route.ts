@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { fetchAllPositions } from "@/lib/lineworks/fetchAllPositions";
 import { fetchAllLevels } from "@/lib/lineworks/fetchAllLevels";
-//import { fetchAllOrgUnits } from "@/lib/lineworks/fetchAllOrgUnits";
+import { fetchAllOrgUnits } from "@/lib/lineworks/fetchAllOrgUnits";
 //import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
 //import { fetchAllGroups } from "@/lib/lineworks/fetchAllGroups";
 
@@ -14,6 +14,7 @@ import { fetchAllLevels } from "@/lib/lineworks/fetchAllLevels";
 
 import { savePositionsMaster } from "@/lib/supabase/savePositionsMaster";
 import { saveLevelsMaster } from "@/lib/supabase/saveLevelsMaster";
+import { saveOrgsMaster } from "@/lib/supabase/saveOrgsMaster";
 
 export async function GET() {
   try {
@@ -23,10 +24,10 @@ export async function GET() {
 
     const levels = await fetchAllLevels();
     await saveLevelsMaster(levels);
-    /*
-    const orgs = await fetchAllOrgs();
+    
+    const orgs = await fetchAllOrgUnits();
     await saveOrgsMaster(orgs);
-
+    /*
     const users = await fetchAllUsers();
     await saveUsersMaster(users);
 
@@ -38,7 +39,8 @@ export async function GET() {
       status: "OK",
       counts: {
         positions: positions.length,
-        /*levels: levels.length,
+        levels: levels.length,
+        /*
         orgs: orgs.length,
         users: users.length,
         groups: groups.length,
