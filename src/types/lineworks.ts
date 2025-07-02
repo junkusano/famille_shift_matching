@@ -114,3 +114,11 @@ export type OrgUnit = {
   membersAllowedToUseOrgUnitEmailAsRecipient?: OrgUnitAllowedMember[];
   membersAllowedToUseOrgUnitEmailAsSender?: OrgUnitAllowedMember[];
 };
+
+export type Level = {
+  levelId: string;
+  displayOrder: number;
+  levelName: string;
+  levelExternalKey?: string;
+  executive: boolean;
+};
