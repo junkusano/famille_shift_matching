@@ -12,7 +12,7 @@ interface AccessTokenResponse {
 export async function refreshAccessToken(): Promise<string> {
   const clientId = 'bg4uJjAlSS0gTXejntBa'; // LINE WORKS Client ID
   const serviceAccount = '3xzf3.serviceaccount@shi-on'; // Service Account ID
-  const apiId = '12052449'; // LINE WORKS API ID
+  //const apiId = '12052449'; // LINE WORKS API ID
   const privateKey = process.env.LINEWORKS_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
   if (!privateKey) throw new Error('Private key not found in env');
