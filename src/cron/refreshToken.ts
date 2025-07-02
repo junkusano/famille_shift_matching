@@ -76,5 +76,5 @@ if (error) {
 }
 
   console.log('✅ Token refreshed and saved to Supabase');
-  return accessToken;
+  return "accessToken更新しました";
 }
