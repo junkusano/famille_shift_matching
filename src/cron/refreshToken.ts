@@ -1,3 +1,5 @@
+// src/cron/refreshToken.ts
+
 import jwt from 'jsonwebtoken';
 import axios, { AxiosResponse } from 'axios';
 import { createClient } from '@supabase/supabase-js';
@@ -38,8 +40,18 @@ export async function refreshAccessToken(): Promise<string> {
       }
     );
 
-    console.log('[✅成功] アクセストークン更新:', res.data.access_token);
-    return res.data.access_token;
+    console.log('[🧪DEBUG] レスポンス全体:', res.data);
+
+    const token =
+      (res.data as any).access_token ?? (res.data?.access_token ?? undefined);
+
+    if (!token) {
+      console.error('[❌エラー] access_token がレスポンスに含まれていません');
+      throw new Error('access_token missing in response');
+    }
+
+    console.log('[✅成功] アクセストークン更新:', token);
+    return token;
   } catch (err) {
     if (axios.isAxiosError(err)) {
       console.error('[❌エラー] アクセストークン更新失敗:', err.response?.data);
@@ -50,7 +62,6 @@ export async function refreshAccessToken(): Promise<string> {
   }
 }
 
-// ✅ Supabaseにトークン保存する関数（route.interval.ts から呼び出す用）
 export async function refreshLineworksAccessTokenToSupabase(): Promise<void> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
