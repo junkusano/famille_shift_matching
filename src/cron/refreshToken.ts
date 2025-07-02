@@ -56,21 +56,24 @@ export async function refreshAccessToken(): Promise<string> {
     throw new Error('❌ 有効期限のDate変換に失敗');
   }
 
-  const { error } = await supabase
-    .from('env_variables')
-    .upsert({
+const { error } = await supabase
+  .from('env_variables')
+  .upsert(
+    {
       group_key: 'lineworks',
       key_name: 'access_token',
-      value: accessToken,
-      expires_at: expiresAtDate.toISOString(),
-    })
-    .eq('group_key', 'lineworks')
-    .eq('key_name', 'access_token');
+      value: accessToken, // ← 正しい変数名に
+      updated_at: new Date().toISOString(),
+    },
+    {
+      onConflict: 'group_key,key_name', // ← カンマ区切りの string に変更
+    }
+  );
 
-  if (error) {
-    console.error('❌ Supabaseへの保存エラー:', error);
-    throw new Error('Failed to update token in Supabase');
-  }
+if (error) {
+  console.error('❌ Supabase保存エラー:', error);
+  throw new Error('Failed to update token in Supabase');
+}
 
   console.log('✅ Token refreshed and saved to Supabase');
   return accessToken;
