@@ -43,11 +43,17 @@ export async function refreshAccessToken(): Promise<string> {
   });
 
   const accessToken: string | undefined = res.data?.access_token;
-  const expiresIn: number = res.data?.expires_in ?? 3600;
+  const expiresInRaw = res.data?.expires_in;
+  const expiresIn = typeof expiresInRaw === 'number' ? expiresInRaw : 3600;
   const expiresAt = now + expiresIn;
 
-  if (!accessToken) {
-    throw new Error('❌ access_token missing in response');
+  if (!accessToken || !expiresAt || isNaN(expiresAt)) {
+    throw new Error('❌ access_token または expiresAt が不正');
+  }
+
+  const expiresAtDate = new Date(expiresAt * 1000);
+  if (isNaN(expiresAtDate.getTime())) {
+    throw new Error('❌ 有効期限のDate変換に失敗');
   }
 
   const { error } = await supabase
@@ -56,7 +62,7 @@ export async function refreshAccessToken(): Promise<string> {
       group_key: 'lineworks',
       key_name: 'access_token',
       value: accessToken,
-      expires_at: new Date(expiresAt * 1000).toISOString(),
+      expires_at: expiresAtDate.toISOString(),
     })
     .eq('group_key', 'lineworks')
     .eq('key_name', 'access_token');
