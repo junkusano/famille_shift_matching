@@ -46,7 +46,7 @@ async function fetchChannelInfo(channelId: string): Promise<{
 // Supabaseからグループ情報取得
 async function getGroupInfoFromChannelId(channelId: string) {
     const { data, error } = await supabase
-        .from('groups_lw_channel_info')
+        .from('group_lw_channel_info')
         .select('group_id, channel_id')
         .eq('channel_id', channelId)
         .single()
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         if (!groupInfo) {
             const apiInfo = await fetchChannelInfo(channelId)            
             if (apiInfo) {
-                await supabase.from('groups_lw_temp').upsert(
+                await supabase.from('group_lw_temp').upsert(
                     [
                         {
                             group_id: apiInfo.groupId,
