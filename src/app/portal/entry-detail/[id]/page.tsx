@@ -851,28 +851,33 @@ export default function EntryDetailPage() {
                 <Label>名前：</Label>
                 <Input
                     id="first_name_kanji"
+                    className="h-9 w-full text-sm"
                     value={entry?.first_name_kanji || ""}
                     onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
                 />
                 <Input
                     id="last_name_kanji"
+                    className="h-9 w-full text-sm"
                     value={entry?.last_name_kanji || ""}
                     onChange={(e) => setEntry({ ...entry!, last_name_kanji: e.target.value })}
                 />
                 <Label>よみがな：</Label>
                 <Input
                     id="first_name_kana"
+                    className="h-9 w-full text-sm"
                     value={entry?.first_name_kana || ""}
                     onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
                 />
                 <Input
                     id="last_name_kana"
+                    className="h-9 w-full text-sm"
                     value={entry?.last_name_kana || ""}
                     onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
                 />
                 <Label>性別：</Label>
                 <Input
                     id="gender"
+                    className="h-9 w-full text-sm"
                     value={entry?.gender || ""}
                     onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
                 />
