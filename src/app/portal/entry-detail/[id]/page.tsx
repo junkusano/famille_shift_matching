@@ -884,7 +884,7 @@ export default function EntryDetailPage() {
                         onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
                     />
                 </div>
-                <div className="grid md:grid-cols-2 gap-4"></div>
+            </div>
                 <div className="flex items-center gap-2">
                     <Label>性別：</Label>
                     <Input
@@ -893,7 +893,8 @@ export default function EntryDetailPage() {
                         value={entry?.gender || ""}
                         onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
                     />
-
+                </div>
+                <div className="flex items-center gap-2">
                     <Label>生年月日:</Label>
                     <Input
                         id="birth_year"
@@ -930,371 +931,371 @@ export default function EntryDetailPage() {
                                     ? 1 : 0)}歳）
                         </span>
                     )}
-                </div>
-            </div>
-            <div className="flex items-center gap-2">
-                <Label>郵便番号：</Label>
-                <Input
-                    id="postal_code"
-                    className="h-9 w-10 text-sm "
-                    value={entry?.postal_code || ""}
-                    onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
-                />
-                <Label>住所：</Label>
-                <Input
-                    id="address"
-                    className="h-20 w-32 text-sm "
-                    value={entry?.address || ""}
-                    onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
-                />
-                {entry.address && (
-                    <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-blue-600 underline"
-                    >
-                        地図
-                    </a>
-                )}
-
-                <div><strong>電話番号:</strong> {entry.phone}</div>
-                {/* メールアドレスと認証状態・認証ボタン */}
+                
                 <div className="flex items-center gap-2">
-                    <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
-                    <input
-                        id="email"
-                        type="email"
-                        className="border rounded px-2 py-1 w-full"
-                        value={entry?.email ?? ''}
-                        onChange={(e) => setEntry({ ...entry, email: e.target.value })}
+                    <Label>郵便番号：</Label>
+                    <Input
+                        id="postal_code"
+                        className="h-9 w-10 text-sm "
+                        value={entry?.postal_code || ""}
+                        onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
                     />
-                    <div className="flex flex-col gap-2">
+                    <Label>住所：</Label>
+                    <Input
+                        id="address"
+                        className="h-20 w-32 text-sm "
+                        value={entry?.address || ""}
+                        onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
+                    />
+                    {entry.address && (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-blue-600 underline"
+                        >
+                            地図
+                        </a>
+                    )}
+
+                    <div><strong>電話番号:</strong> {entry.phone}</div>
+                    {/* メールアドレスと認証状態・認証ボタン */}
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
+                        <input
+                            id="email"
+                            type="email"
+                            className="border rounded px-2 py-1 w-full"
+                            value={entry?.email ?? ''}
+                            onChange={(e) => setEntry({ ...entry, email: e.target.value })}
+                        />
+                        <div className="flex flex-col gap-2">
+
+                            {userRecord ? (
+                                <div className="space-y-2">
+                                    {/* 認証状態・ボタン */}
+                                    {userRecord.auth_user_id ? (
+                                        <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">
+                                            認証完了
+                                        </span>
+                                    ) : sendingInvite ? (
+                                        <button className="px-4 py-1 bg-green-700 text-white rounded" disabled>
+                                            認証メール送信中...
+                                        </button>
+                                    ) : inviteSent ? (
+                                        <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">
+                                            認証メール送信済
+                                        </span>
+                                    ) : (
+                                        <button
+                                            className="px-2 py-0.5 bg-green-700 text-white rounded hover:bg-green-800 text-sm whitespace-nowrap"
+                                            onClick={handleSendInvite}
+                                        >
+                                            認証メール送信
+                                        </button>
+                                    )}
+
+                                    {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
+                                    {lineWorksExists ? (
+                                        <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
+                                            LINEWORKS登録済
+                                        </span>
+                                    ) : (
+                                        <button
+                                            className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
+                                            onClick={handleCreateLineWorksAccount}
+                                            disabled={creatingLineWorks}
+                                        >
+                                            {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
+                                        </button>
+                                    )}
+
+                                    {/* カイポケユーザー追加ボタン（新規追加！） */}
+                                    <button
+                                        className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
+                                        disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
+                                        onClick={handleCreateKaipokeUser}
+                                    >
+                                        {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
+                                    </button>
+
+                                </div>
+                            ) : (
+                                <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
+                            )}
+
+                            {/* 雇用契約書メール送信ボタン */}
+                            <button
+                                onClick={handleSendContractMail}
+                                disabled={sendingContract}
+                                className="px-2 py-0.5 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
+                            >
+                                {sendingContract ? '送信中...' : '雇用契約書ﾒｰﾙ送信'}
+                            </button>
+
+                        </div>
+                    </div>
+                    {/* ユーザーID表示・入力・決定欄 */}
+                    <div className="flex items-center border rounded p-2 gap-2 mt-2">
+                        <label className="text-xs text-gray-500">ユーザーID</label>
 
                         {userRecord ? (
-                            <div className="space-y-2">
-                                {/* 認証状態・ボタン */}
-                                {userRecord.auth_user_id ? (
-                                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">
-                                        認証完了
-                                    </span>
-                                ) : sendingInvite ? (
-                                    <button className="px-4 py-1 bg-green-700 text-white rounded" disabled>
-                                        認証メール送信中...
-                                    </button>
-                                ) : inviteSent ? (
-                                    <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">
-                                        認証メール送信済
-                                    </span>
-                                ) : (
-                                    <button
-                                        className="px-2 py-0.5 bg-green-700 text-white rounded hover:bg-green-800 text-sm whitespace-nowrap"
-                                        onClick={handleSendInvite}
-                                    >
-                                        認証メール送信
-                                    </button>
-                                )}
-
-                                {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
-                                {lineWorksExists ? (
-                                    <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
-                                        LINEWORKS登録済
-                                    </span>
-                                ) : (
-                                    <button
-                                        className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
-                                        onClick={handleCreateLineWorksAccount}
-                                        disabled={creatingLineWorks}
-                                    >
-                                        {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
-                                    </button>
-                                )}
-
-                                {/* カイポケユーザー追加ボタン（新規追加！） */}
-                                <button
-                                    className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
-                                    disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
-                                    onClick={handleCreateKaipokeUser}
-                                >
-                                    {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
-                                </button>
-
-                            </div>
+                            <span className="text-sm text-gray-700 font-mono">{userRecord.user_id}</span>
                         ) : (
-                            <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
+                            <>
+                                <input
+                                    value={userId}
+                                    onChange={e => setUserId(e.target.value)}
+                                    className="border rounded px-2 py-1 w-32"
+                                />
+                                <button
+                                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition whitespace-nowrap"
+                                    onClick={handleAccountCreate}
+                                    disabled={userIdLoading || !userId}
+                                >
+                                    {userIdLoading ? "作成中..." : "ﾕｰｻﾞｰID決定"}
+                                </button>
+                                {userIdSuggestions.length > 0 && (
+                                    <div className="flex flex-col ml-4">
+                                        <span className="text-xs text-gray-500">候補:</span>
+                                        {userIdSuggestions.map(sug => (
+                                            <button
+                                                type="button"
+                                                key={sug}
+                                                className="text-blue-600 text-xs underline text-left"
+                                                onClick={() => setUserId(sug)}
+                                                disabled={sug === userId}
+                                            >
+                                                {sug}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div>
+                            <label className="block text-sm text-gray-600">所属組織</label>
+                            <select
+                                className="border rounded px-2 py-1 w-full"
+                                value={selectedOrg}
+                                onChange={e => setSelectedOrg(e.target.value)}
+                            >
+                                <option value="">選択してください</option>
+                                {orgList.map(org => (
+                                    <option key={org.orgUnitId} value={org.orgUnitId}>
+                                        {org.orgUnitName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
-                        {/* 雇用契約書メール送信ボタン */}
+                        <div>
+                            <label className="block text-sm text-gray-600">職級</label>
+                            <select
+                                className="border rounded px-2 py-1 w-full"
+                                value={selectedLevel}
+                                onChange={e => setSelectedLevel(e.target.value)}
+                            >
+                                <option value="">選択してください</option>
+                                {levelList.map(level => (
+                                    <option key={level.levelId} value={level.levelId}>
+                                        {level.levelName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm text-gray-600">役職</label>
+                            <select
+                                className="border rounded px-2 py-1 w-full"
+                                value={selectedPosition}
+                                onChange={e => setSelectedPosition(e.target.value)}
+                            >
+                                <option value="">選択してください</option>
+                                {positionList.map(pos => (
+                                    <option key={pos.positionId} value={pos.positionId}>
+                                        {pos.positionName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <button
-                            onClick={handleSendContractMail}
-                            disabled={sendingContract}
-                            className="px-2 py-0.5 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
+                            className="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            onClick={handleSaveUserInfo}
                         >
-                            {sendingContract ? '送信中...' : '雇用契約書ﾒｰﾙ送信'}
+                            保存
                         </button>
+                    </div>
 
+                    <div className="md:col-span-2 space-y-1">
+                        <strong>職歴:</strong>
+                        <table className="border w-full text-sm">
+                            <thead>
+                                <tr>
+                                    <th className="border px-2 py-1">勤務先</th>
+                                    <th className="border px-2 py-1">期間（開始）</th>
+                                    <th className="border px-2 py-1">期間（終了）</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[1, 2, 3].map((n) => {
+                                    const w = entry[`workplace_${n}` as keyof EntryDetail];
+                                    const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
+                                    const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
+                                    if (!w) return null;
+                                    return (
+                                        <tr key={n}>
+                                            <td className="border px-2 py-1">{w as string}</td>
+                                            <td className="border px-2 py-1">{pf ?? ""}</td>
+                                            <td className="border px-2 py-1">{pt ?? ""}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="md:col-span-2">
+                        <strong>志望動機:</strong><br />{entry.motivation}
+                    </div>
+                    <div>
+                        <strong>働き方の希望:</strong>
+                        <div>
+                            <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
+                        </div>
+                    </div>
+                    <div>
+                        <strong>通勤方法:</strong>
+                        {entry.commute_options && entry.commute_options.length > 0
+                            ? entry.commute_options.join('、')
+                            : '―'}
+                    </div>
+                    <div><strong>健康状態:</strong> {entry.health_condition}</div>
+                </div>
+
+                <div className="space-y-4">
+                    <h2 className="text-lg font-semibold">アップロード画像</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <FileThumbnail
+                            title="免許証（表）"
+                            src={licenseFront?.url ?? undefined}
+                            mimeType={licenseFront?.mimeType ?? undefined}
+                        />
+                        <FileThumbnail
+                            title="免許証（裏）"
+                            src={licenseBack?.url ?? undefined}
+                            mimeType={licenseBack?.mimeType ?? undefined}
+                        />
+                        <FileThumbnail
+                            title="住民票"
+                            src={residenceCard?.url ?? undefined}
+                            mimeType={residenceCard?.mimeType ?? undefined}
+                        />
                     </div>
                 </div>
-                {/* ユーザーID表示・入力・決定欄 */}
-                <div className="flex items-center border rounded p-2 gap-2 mt-2">
-                    <label className="text-xs text-gray-500">ユーザーID</label>
 
-                    {userRecord ? (
-                        <span className="text-sm text-gray-700 font-mono">{userRecord.user_id}</span>
+                {certifications && certifications.length > 0 && (
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-semibold">資格証明書</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {certifications.map((cert, idx) => (
+                                <FileThumbnail
+                                    key={idx}
+                                    title={cert.label ?? cert.type ?? `資格証明書${idx + 1}`}
+                                    src={cert.url ?? undefined}
+                                    mimeType={cert.mimeType ?? undefined}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {otherDocs && otherDocs.length > 0 && (
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-semibold">その他の書類</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {otherDocs.map((doc, idx) => (
+                                <FileThumbnail
+                                    key={idx}
+                                    title={doc.label ?? doc.type ?? `書類${idx + 1}`}
+                                    src={doc.url ?? undefined}
+                                    mimeType={doc.mimeType ?? undefined}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+
+                <div>
+                    <strong>同意内容:</strong>
+                    {entry.consent_snapshot ? (
+                        <div className="text-xs text-gray-700 border rounded bg-gray-50 p-2 mt-1">
+                            {Object.entries(JSON.parse(entry.consent_snapshot)).map(([k, v]) => (
+                                <div key={k}>{v as string}</div>
+                            ))}
+                            <div className="mt-2 text-right text-gray-400">
+                                登録日時：{entry.created_at && new Date(entry.created_at).toLocaleString()}
+                            </div>
+                        </div>
                     ) : (
-                        <>
-                            <input
-                                value={userId}
-                                onChange={e => setUserId(e.target.value)}
-                                className="border rounded px-2 py-1 w-32"
-                            />
-                            <button
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded shadow hover:bg-blue-700 transition whitespace-nowrap"
-                                onClick={handleAccountCreate}
-                                disabled={userIdLoading || !userId}
-                            >
-                                {userIdLoading ? "作成中..." : "ﾕｰｻﾞｰID決定"}
-                            </button>
-                            {userIdSuggestions.length > 0 && (
-                                <div className="flex flex-col ml-4">
-                                    <span className="text-xs text-gray-500">候補:</span>
-                                    {userIdSuggestions.map(sug => (
-                                        <button
-                                            type="button"
-                                            key={sug}
-                                            className="text-blue-600 text-xs underline text-left"
-                                            onClick={() => setUserId(sug)}
-                                            disabled={sug === userId}
-                                        >
-                                            {sug}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </>
+                        '―'
                     )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div>
-                        <label className="block text-sm text-gray-600">所属組織</label>
-                        <select
-                            className="border rounded px-2 py-1 w-full"
-                            value={selectedOrg}
-                            onChange={e => setSelectedOrg(e.target.value)}
-                        >
-                            <option value="">選択してください</option>
-                            {orgList.map(org => (
-                                <option key={org.orgUnitId} value={org.orgUnitId}>
-                                    {org.orgUnitName}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
 
-                    <div>
-                        <label className="block text-sm text-gray-600">職級</label>
-                        <select
-                            className="border rounded px-2 py-1 w-full"
-                            value={selectedLevel}
-                            onChange={e => setSelectedLevel(e.target.value)}
+                {/* マネジャー特記エリア */}
+                <div className="mb-8">
+                    <h2 className="text-lg font-semibold mb-2">マネジャー特記・共有事項</h2>
+                    <textarea
+                        className="w-full border rounded p-2 mb-2"
+                        rows={5}
+                        maxLength={2000}
+                        value={managerNote}
+                        onChange={e => setManagerNote(e.target.value)}
+                        placeholder="このエントリーについて特記事項・サマリー・情報共有を記入"
+                        disabled={noteSaving}
+                    />
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleSaveManagerNote}
+                            disabled={noteSaving}
+                            className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                         >
-                            <option value="">選択してください</option>
-                            {levelList.map(level => (
-                                <option key={level.levelId} value={level.levelId}>
-                                    {level.levelName}
-                                </option>
-                            ))}
-                        </select>
+                            {noteSaving ? '保存中...' : '保存'}
+                        </button>
+                        {noteMsg && <span className="text-sm">{noteMsg}</span>}
                     </div>
+                    <div className="text-xs text-gray-400 mt-1">（最大2000文字まで保存可能）</div>
+                </div>
+                {/* ここでログセクションを挿入 */}
+                <StaffLogSection staffId={entry.id} />
+                <div className="flex justify-center items-center gap-4 pt-8">
+                    {userRecord && !userRecord.auth_user_id && (
+                        <button
+                            className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                            onClick={handleSendInvite}
+                            disabled={!userId || !entry?.email}
+                        >
+                            認証メール送信
+                        </button>
+                    )}
 
-                    <div>
-                        <label className="block text-sm text-gray-600">役職</label>
-                        <select
-                            className="border rounded px-2 py-1 w-full"
-                            value={selectedPosition}
-                            onChange={e => setSelectedPosition(e.target.value)}
-                        >
-                            <option value="">選択してください</option>
-                            {positionList.map(pos => (
-                                <option key={pos.positionId} value={pos.positionId}>
-                                    {pos.positionName}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <button
-                        className="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        onClick={handleSaveUserInfo}
+                    <button className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                        onClick={updateEntry}
                     >
                         保存
                     </button>
-                </div>
 
-                <div className="md:col-span-2 space-y-1">
-                    <strong>職歴:</strong>
-                    <table className="border w-full text-sm">
-                        <thead>
-                            <tr>
-                                <th className="border px-2 py-1">勤務先</th>
-                                <th className="border px-2 py-1">期間（開始）</th>
-                                <th className="border px-2 py-1">期間（終了）</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {[1, 2, 3].map((n) => {
-                                const w = entry[`workplace_${n}` as keyof EntryDetail];
-                                const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
-                                const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
-                                if (!w) return null;
-                                return (
-                                    <tr key={n}>
-                                        <td className="border px-2 py-1">{w as string}</td>
-                                        <td className="border px-2 py-1">{pf ?? ""}</td>
-                                        <td className="border px-2 py-1">{pt ?? ""}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="md:col-span-2">
-                    <strong>志望動機:</strong><br />{entry.motivation}
-                </div>
-                <div>
-                    <strong>働き方の希望:</strong>
-                    <div>
-                        <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
-                    </div>
-                </div>
-                <div>
-                    <strong>通勤方法:</strong>
-                    {entry.commute_options && entry.commute_options.length > 0
-                        ? entry.commute_options.join('、')
-                        : '―'}
-                </div>
-                <div><strong>健康状態:</strong> {entry.health_condition}</div>
-            </div>
-
-            <div className="space-y-4">
-                <h2 className="text-lg font-semibold">アップロード画像</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <FileThumbnail
-                        title="免許証（表）"
-                        src={licenseFront?.url ?? undefined}
-                        mimeType={licenseFront?.mimeType ?? undefined}
-                    />
-                    <FileThumbnail
-                        title="免許証（裏）"
-                        src={licenseBack?.url ?? undefined}
-                        mimeType={licenseBack?.mimeType ?? undefined}
-                    />
-                    <FileThumbnail
-                        title="住民票"
-                        src={residenceCard?.url ?? undefined}
-                        mimeType={residenceCard?.mimeType ?? undefined}
-                    />
-                </div>
-            </div>
-
-            {certifications && certifications.length > 0 && (
-                <div className="space-y-2">
-                    <h2 className="text-lg font-semibold">資格証明書</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {certifications.map((cert, idx) => (
-                            <FileThumbnail
-                                key={idx}
-                                title={cert.label ?? cert.type ?? `資格証明書${idx + 1}`}
-                                src={cert.url ?? undefined}
-                                mimeType={cert.mimeType ?? undefined}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {otherDocs && otherDocs.length > 0 && (
-                <div className="space-y-2">
-                    <h2 className="text-lg font-semibold">その他の書類</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {otherDocs.map((doc, idx) => (
-                            <FileThumbnail
-                                key={idx}
-                                title={doc.label ?? doc.type ?? `書類${idx + 1}`}
-                                src={doc.url ?? undefined}
-                                mimeType={doc.mimeType ?? undefined}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
-
-
-            <div>
-                <strong>同意内容:</strong>
-                {entry.consent_snapshot ? (
-                    <div className="text-xs text-gray-700 border rounded bg-gray-50 p-2 mt-1">
-                        {Object.entries(JSON.parse(entry.consent_snapshot)).map(([k, v]) => (
-                            <div key={k}>{v as string}</div>
-                        ))}
-                        <div className="mt-2 text-right text-gray-400">
-                            登録日時：{entry.created_at && new Date(entry.created_at).toLocaleString()}
-                        </div>
-                    </div>
-                ) : (
-                    '―'
-                )}
-            </div>
-
-            {/* マネジャー特記エリア */}
-            <div className="mb-8">
-                <h2 className="text-lg font-semibold mb-2">マネジャー特記・共有事項</h2>
-                <textarea
-                    className="w-full border rounded p-2 mb-2"
-                    rows={5}
-                    maxLength={2000}
-                    value={managerNote}
-                    onChange={e => setManagerNote(e.target.value)}
-                    placeholder="このエントリーについて特記事項・サマリー・情報共有を記入"
-                    disabled={noteSaving}
-                />
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleSaveManagerNote}
-                        disabled={noteSaving}
-                        className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                    <Link
+                        href="/portal/entry-list"
+                        className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
                     >
-                        {noteSaving ? '保存中...' : '保存'}
-                    </button>
-                    {noteMsg && <span className="text-sm">{noteMsg}</span>}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+                        戻る
+                    </Link>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">（最大2000文字まで保存可能）</div>
-            </div>
-            {/* ここでログセクションを挿入 */}
-            <StaffLogSection staffId={entry.id} />
-            <div className="flex justify-center items-center gap-4 pt-8">
-                {userRecord && !userRecord.auth_user_id && (
-                    <button
-                        className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
-                        onClick={handleSendInvite}
-                        disabled={!userId || !entry?.email}
-                    >
-                        認証メール送信
-                    </button>
-                )}
-
-                <button className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
-                    onClick={updateEntry}
-                >
-                    保存
-                </button>
-
-                <Link
-                    href="/portal/entry-list"
-                    className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
-                    戻る
-                </Link>
             </div>
         </div>
     );
