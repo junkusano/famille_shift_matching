@@ -931,32 +931,31 @@ export default function EntryDetailPage() {
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                        <Label>郵便番号：</Label>
-                        <Input
-                            id="postal_code"
-                            className="h-9 w-10 text-sm "
-                            value={entry?.postal_code || ""}
-                            onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
-                        />
-                        <Label>住所：</Label>
-                        <Input
-                            id="address"
-                            className="h-20 w-32 text-sm "
-                            value={entry?.address || ""}
-                            onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
-                        />
-                        {entry.address && (
-                            <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="ml-2 text-blue-600 underline"
-                            >
-                                地図
-                            </a>
-                        )}
-                    </div>
+                    <Label>郵便番号：</Label>
+                    <Input
+                        id="postal_code"
+                        className="h-9 w-10 text-sm "
+                        value={entry?.postal_code || ""}
+                        onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
+                    />
+                    <Label>住所：</Label>
+                    <Input
+                        id="address"
+                        className="h-20 w-32 text-sm "
+                        value={entry?.address || ""}
+                        onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
+                    />
+                    {entry.address && (
+                        <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-blue-600 underline"
+                        >
+                            地図
+                        </a>
+                    )}
+
                     <div><strong>電話番号:</strong> {entry.phone}</div>
                     {/* メールアドレスと認証状態・認証ボタン */}
                     <div className="flex items-center gap-2">
