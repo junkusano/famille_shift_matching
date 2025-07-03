@@ -1183,9 +1183,6 @@ export default function EntryDetailPage() {
                 </div>
                 <div className="text-xs text-gray-400 mt-1">（最大2000文字まで保存可能）</div>
             </div>
-            <div>
-            <button onClick={updateEntry}>保存</button>
-            </div>
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
             <div className="flex justify-center items-center gap-4 pt-8">
@@ -1198,6 +1195,8 @@ export default function EntryDetailPage() {
                         認証メール送信
                     </button>
                 )}
+
+                <button onClick={updateEntry}>保存</button>
 
                 <Link
                     href="/portal/entry-list"
