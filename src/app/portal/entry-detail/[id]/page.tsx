@@ -11,6 +11,8 @@ import hepburn from 'hepburn';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 
 interface Attachment {
@@ -446,7 +448,13 @@ export default function EntryDetailPage() {
         if (!entry) return;
         const { error } = await supabase
             .from("form_entries")
-            .update({ email: entry.email }) // 必要に応じて他のフィールドも追加
+            .update({
+                first_name_kanji: entry.first_name_kanji,
+                last_name_kanji: entry.last_name_kanji,
+                first_name_kana: entry.first_name_kana,
+                last_name_kana: entry.last_name_kana,
+                gender: entry.gender,
+                email: entry.email }) // 必要に応じて他のフィールドも追加
             .eq("id", entry.id);
 
         if (error) {
@@ -840,9 +848,34 @@ export default function EntryDetailPage() {
             </div>
             <h1 className="text-2xl font-bold">エントリー詳細</h1>
             <div className="grid md:grid-cols-2 gap-4">
-                <div><strong>氏名（漢字）:</strong> {entry.last_name_kanji} {entry.first_name_kanji}</div>
-                <div><strong>氏名（かな）:</strong> {entry.last_name_kana} {entry.first_name_kana}</div>
-                <div><strong>性別:</strong> {entry.gender}</div>
+                <Label>名前：</Label>
+                <Input
+                    id="first_name_kanji"
+                    value={entry?.first_name_kanji || ""}
+                    onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
+                />
+                <Input
+                    id="last_name_kanji"
+                    value={entry?.last_name_kanji || ""}
+                    onChange={(e) => setEntry({ ...entry!, last_name_kanji: e.target.value })}
+                />
+                <Label>よみがな：</Label>
+                <Input
+                    id="first_name_kana"
+                    value={entry?.first_name_kana || ""}
+                    onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
+                />
+                <Input
+                    id="last_name_kana"
+                    value={entry?.last_name_kana || ""}
+                    onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
+                />
+                <Label>性別：</Label>
+                <Input
+                    id="gender"
+                    value={entry?.gender || ""}
+                    onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
+                />
                 <div>
                     <strong>生年月日:</strong> {entry.birth_year}/{entry.birth_month}/{entry.birth_day}
                     {entry.birth_year && (
@@ -870,19 +903,14 @@ export default function EntryDetailPage() {
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
-
-                    <div className="mb-4">
-                        <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
-                        <input
-                            id="email"
-                            type="email"
-                            className="border rounded px-2 py-1 w-full"
-                            value={entry?.email ?? ''}
-                            onChange={(e) => setEntry({ ...entry, email: e.target.value })}
-                        />
-                    </div>
-
-                    <strong>メールアドレス:</strong> {entry.email}
+                    <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
+                    <input
+                        id="email"
+                        type="email"
+                        className="border rounded px-2 py-1 w-full"
+                        value={entry?.email ?? ''}
+                        onChange={(e) => setEntry({ ...entry, email: e.target.value })}
+                    />
                     <div className="flex flex-col gap-2">
 
                         {userRecord ? (
@@ -1196,7 +1224,11 @@ export default function EntryDetailPage() {
                     </button>
                 )}
 
-                <button onClick={updateEntry}>保存</button>
+                <button className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                    onClick={updateEntry}
+                >
+                    保存
+                </button>
 
                 <Link
                     href="/portal/entry-list"
