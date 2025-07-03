@@ -858,41 +858,62 @@ export default function EntryDetailPage() {
                 <div className="flex items-center gap-2">
                     <Label>名前：</Label>
                     <Input
-                        id="first_name_kanji"
-                        className="h-9 w-32 text-sm"
-                        value={entry?.first_name_kanji || ""}
-                        onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
-                    />
-                    <Input
                         id="last_name_kanji"
                         className="h-9 w-32 text-sm"
                         value={entry?.last_name_kanji || ""}
                         onChange={(e) => setEntry({ ...entry!, last_name_kanji: e.target.value })}
                     />
+                    <Input
+                        id="first_name_kanji"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.first_name_kanji || ""}
+                        onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
+                    />
                 </div>
                 <div className="flex items-center gap-2">
                     <Label>よみがな：</Label>
-                    <Input
-                        id="first_name_kana"
-                        className="h-9 w-32 text-sm"
-                        value={entry?.first_name_kana || ""}
-                        onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
-                    />
                     <Input
                         id="last_name_kana"
                         className="h-9 w-32 text-sm"
                         value={entry?.last_name_kana || ""}
                         onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
                     />
+                    <Input
+                        id="first_name_kana"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.first_name_kana || ""}
+                        onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
+                    />
                 </div>
                 <div className="flex items-center gap-2">
                     <Label>性別：</Label>
-                    <Input
-                        id="gender"
-                        className="h-9 w-32 text-sm "
-                        value={entry?.gender || ""}
-                        onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
-                    />
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-1">
+                            <input
+                                type="radio"
+                                name="gender"
+                                value="男性"
+                                checked={entry?.gender === "男性"}
+                                onChange={(e) =>
+                                    setEntry({ ...entry!, gender: e.target.value })
+                                }
+                            />
+                            男性
+                        </label>
+
+                        <label className="flex items-center gap-1">
+                            <input
+                                type="radio"
+                                name="gender"
+                                value="女性"
+                                checked={entry?.gender === "女性"}
+                                onChange={(e) =>
+                                    setEntry({ ...entry!, gender: e.target.value })
+                                }
+                            />
+                            女性
+                        </label>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Label>生年月日:</Label>
@@ -908,7 +929,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_month"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-10 text-sm"
+                        className="h-9 w-8 text-sm text-center"
                         value={entry?.birth_month ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_month: Number(e.target.value) })
@@ -917,7 +938,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_day"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-10 text-sm"
+                        className="h-9 w-8 text-sm text-center"
                         value={entry?.birth_day ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_day: Number(e.target.value) })
@@ -936,9 +957,16 @@ export default function EntryDetailPage() {
                     <Label>郵便番号：</Label>
                     <Input
                         id="postal_code"
-                        className="h-9 w-7 text-sm "
+                        className="h-9 w-32 text-sm"
                         value={entry?.postal_code || ""}
-                        onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
+                        onChange={(e) =>
+                            setEntry({
+                                ...entry!,
+                                postal_code: e.target.value.replace(/[^0-9\-]/g, ""),
+                            })
+                        }
+                        placeholder="000-0000"
+                        maxLength={8}
                     /><br />
                     <Label>住所:</Label>
                     <Input
@@ -962,7 +990,7 @@ export default function EntryDetailPage() {
                     <Label>📞電話:</Label>
                     <Input
                         id="phone"
-                        className="h-15 w-full text-sm "
+                        className="h-15 w-32  text-sm "
                         value={entry?.phone || ""}
                         onChange={(e) => setEntry({ ...entry!, phone: e.target.value })}
                     />
