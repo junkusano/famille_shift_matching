@@ -454,7 +454,8 @@ export default function EntryDetailPage() {
                 first_name_kana: entry.first_name_kana,
                 last_name_kana: entry.last_name_kana,
                 gender: entry.gender,
-                email: entry.email }) // 必要に応じて他のフィールドも追加
+                email: entry.email
+            }) // 必要に応じて他のフィールドも追加
             .eq("id", entry.id);
 
         if (error) {
@@ -848,32 +849,36 @@ export default function EntryDetailPage() {
             </div>
             <h1 className="text-2xl font-bold">エントリー詳細</h1>
             <div className="grid md:grid-cols-2 gap-4">
-                <Label>名前：</Label>
-                <Input
-                    id="first_name_kanji"
-                    className="h-9 w-32 text-sm"
-                    value={entry?.first_name_kanji || ""}
-                    onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
-                />
-                <Input
-                    id="last_name_kanji"
-                    className="h-9 w-32 text-sm"
-                    value={entry?.last_name_kanji || ""}
-                    onChange={(e) => setEntry({ ...entry!, last_name_kanji: e.target.value })}
-                />
-                <Label>よみがな：</Label>
-                <Input
-                    id="first_name_kana"
-                    className="h-9 w-32 text-sm"
-                    value={entry?.first_name_kana || ""}
-                    onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
-                />
-                <Input
-                    id="last_name_kana"
-                    className="h-9 w-32 text-sm"
-                    value={entry?.last_name_kana || ""}
-                    onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
-                />
+                <div className="flex items-center gap-2">
+                    <Label>名前：</Label>
+                    <Input
+                        id="first_name_kanji"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.first_name_kanji || ""}
+                        onChange={(e) => setEntry({ ...entry!, first_name_kanji: e.target.value })}
+                    />
+                    <Input
+                        id="last_name_kanji"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.last_name_kanji || ""}
+                        onChange={(e) => setEntry({ ...entry!, last_name_kanji: e.target.value })}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Label>よみがな：</Label>
+                    <Input
+                        id="first_name_kana"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.first_name_kana || ""}
+                        onChange={(e) => setEntry({ ...entry!, first_name_kana: e.target.value })}
+                    />
+                    <Input
+                        id="last_name_kana"
+                        className="h-9 w-32 text-sm"
+                        value={entry?.last_name_kana || ""}
+                        onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
+                    />
+                </div>
                 <Label>性別：</Label>
                 <Input
                     id="gender"
