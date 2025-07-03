@@ -940,12 +940,14 @@ export default function EntryDetailPage() {
                         onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
                     />
                 </div>
-                <div className="flex items-center gap-2"><Input
-                    id="address"
-                    className="h-20 w-32 text-sm "
-                    value={entry?.address || ""}
-                    onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
-                />
+                <div className="flex items-center gap-2">
+                    <Label>住所:</Label>
+                    <Input
+                        id="address"
+                        className="h-15 w-full text-sm "
+                        value={entry?.address || ""}
+                        onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
+                    />
                     {entry.address && (
                         <a
                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
