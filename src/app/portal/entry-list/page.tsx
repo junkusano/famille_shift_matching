@@ -41,7 +41,8 @@ export default function EntryListPage() {
 
             const { data, error } = await supabase
                 .from('form_entries_with_status')
-                .select('*');
+                .select('*')
+                .order('status', { ascending: true });
 
             if (error) {
                 console.error("❌ Supabase取得エラー:", error.message);
