@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'skipped' }, { status: 200 })
     }
 
+    // ✅ 1. msg_lw_log に INSERT
     const { error } = await supabase.from('msg_lw_log').insert([{
       event_type: eventType,
       timestamp,
@@ -41,7 +42,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'db error' }, { status: 500 })
     }
 
+    // ✅ 2. group_list に UPSERT（存在しないchannel_idだけ追加）
+    await supabase
+      .from('group_list')
+      .upsert(
+        {
+          channel_id: channelId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'channel_id' }
+      )
+
     return NextResponse.json({ status: 'ok' }, { status: 200 })
+
   } catch (err) {
     console.error('❌ エラー:', err)
     return NextResponse.json({ error: 'unexpected error' }, { status: 500 })
