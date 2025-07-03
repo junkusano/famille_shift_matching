@@ -879,15 +879,44 @@ export default function EntryDetailPage() {
                         onChange={(e) => setEntry({ ...entry!, last_name_kana: e.target.value })}
                     />
                 </div>
-                <Label>性別：</Label>
-                <Input
-                    id="gender"
-                    className="h-9 w-32 text-sm "
-                    value={entry?.gender || ""}
-                    onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
-                />
-                <div>
-                    <strong>生年月日:</strong> {entry.birth_year}/{entry.birth_month}/{entry.birth_day}
+                <div className="flex items-center gap-2">
+                    <Label>性別：</Label>
+                    <Input
+                        id="gender"
+                        className="h-9 w-32 text-sm "
+                        value={entry?.gender || ""}
+                        onChange={(e) => setEntry({ ...entry!, gender: e.target.value })}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Label>生年月日:</Label>
+                    <Input
+                        id="birth_year"
+                        type="number" // ← ここがポイント！
+                        className="h-9 w-16 text-sm"
+                        value={entry?.birth_year ?? ""}
+                        onChange={(e) =>
+                            setEntry({ ...entry!, birth_year: Number(e.target.value) })
+                        }
+                    />
+                    <Input
+                        id="birth_month"
+                        type="number" // ← ここがポイント！
+                        className="h-9 w-10 text-sm"
+                        value={entry?.birth_month ?? ""}
+                        onChange={(e) =>
+                            setEntry({ ...entry!, birth_month: Number(e.target.value) })
+                        }
+                    />
+                    <Input
+                        id="birth_day"
+                        type="number" // ← ここがポイント！
+                        className="h-9 w-10 text-sm"
+                        value={entry?.birth_day ?? ""}
+                        onChange={(e) =>
+                            setEntry({ ...entry!, birth_day: Number(e.target.value) })
+                        }
+                    />
                     {entry.birth_year && (
                         <span className="ml-2 text-gray-500">
                             （{new Date().getFullYear() - entry.birth_year -
