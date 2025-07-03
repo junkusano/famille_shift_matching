@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       },
     ])
 
-    let groupInfo = await getGroupInfoFromChannelId(channelId)
+    const groupInfo = await getGroupInfoFromChannelId(channelId)
 
     // グループ情報がなければAPIから取得
     if (!groupInfo) {
