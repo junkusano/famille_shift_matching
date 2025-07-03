@@ -12,9 +12,11 @@ type Group = {
     channelId: string
 }
 
+/*
 type GroupApiResponse = {
     groups: Group[]
 }
+    */
 
 // LINE WORKS Botトークンを使ってグループ一覧を取得し、channelIdに一致するグループを探す
 async function getGroupInfoFromChannelId(channelId: string) {
