@@ -957,7 +957,7 @@ export default function EntryDetailPage() {
                     <Label>郵便番号：</Label>
                     <Input
                         id="postal_code"
-                        className="h-9 w-32 text-sm"
+                        className="h-9 w-16 text-sm"
                         value={entry?.postal_code || ""}
                         onChange={(e) =>
                             setEntry({
@@ -967,7 +967,7 @@ export default function EntryDetailPage() {
                         }
                         placeholder="000-0000"
                         maxLength={8}
-                    /><br />
+                    />
                     <Label>住所:</Label>
                     <Input
                         id="address"
