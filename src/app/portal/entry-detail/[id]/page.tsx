@@ -893,7 +893,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_year"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-16 text-sm"
+                        className="h-9 w-10 text-sm"
                         value={entry?.birth_year ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_year: Number(e.target.value) })
@@ -902,7 +902,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_month"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-10 text-sm"
+                        className="h-9 w-5 text-sm"
                         value={entry?.birth_month ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_month: Number(e.target.value) })
@@ -911,7 +911,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_day"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-10 text-sm"
+                        className="h-9 w-5 text-sm"
                         value={entry?.birth_day ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_day: Number(e.target.value) })
