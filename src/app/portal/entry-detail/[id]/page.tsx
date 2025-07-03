@@ -1169,23 +1169,22 @@ export default function EntryDetailPage() {
 
 
             <div className="flex items-center gap-2">
-
-                <div className="md:col-span-2">
-                    <strong>志望動機:</strong><br />{entry.motivation}
-                </div>
+                <strong>志望動機:</strong><br />{entry.motivation}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <strong>働き方の希望:</strong>
                 <div>
-                    <strong>働き方の希望:</strong>
-                    <div>
-                        <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
-                    </div>
+                    <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
                 </div>
-                <div>
-                    <strong>通勤方法:</strong>
-                    {entry.commute_options && entry.commute_options.length > 0
-                        ? entry.commute_options.join('、')
-                        : '―'}
-                </div>
-                <div><strong>健康状態:</strong> {entry.health_condition}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <strong>通勤方法:</strong>
+                {entry.commute_options && entry.commute_options.length > 0
+                    ? entry.commute_options.join('、')
+                    : '―'}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <strong>健康状態:</strong> {entry.health_condition}
             </div>
 
             <div className="space-y-4">
