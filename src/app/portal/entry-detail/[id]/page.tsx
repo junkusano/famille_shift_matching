@@ -85,6 +85,7 @@ export default function EntryDetailPage() {
     const [managerNote, setManagerNote] = useState('');
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
+    //const [email, setEmail] = useState<string>('');
 
     const [userId, setUserId] = useState('');
     const [userIdLoading, setUserIdLoading] = useState(false);
@@ -102,6 +103,7 @@ export default function EntryDetailPage() {
     const [selectedPosition, setSelectedPosition] = useState<string>('');
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
+
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -190,7 +192,6 @@ export default function EntryDetailPage() {
         }
     };
 
-
     useEffect(() => {
         const fetchData = async () => {
             // OrgUnits
@@ -242,8 +243,6 @@ export default function EntryDetailPage() {
         fetchData();
     }, []);
 
-
-
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
@@ -252,6 +251,7 @@ export default function EntryDetailPage() {
     useEffect(() => {
         fetchExistingIds();
     }, []);
+
 
     useEffect(() => {
         const fetchEntry = async () => {
@@ -319,7 +319,6 @@ export default function EntryDetailPage() {
         }
     }, [entry, userRecord, existingIds]);
 
-
     const handleAccountCreate = async () => {
         if (existingIds.includes(userId)) {
             alert('このアカウントIDは既に存在します。別のIDを入力してください。');
@@ -345,7 +344,6 @@ export default function EntryDetailPage() {
             alert('エラーが発生しました：' + (error.message || ''));
         }
     };
-
 
     const [sendingInvite, setSendingInvite] = useState(false);
     const [inviteSent, setInviteSent] = useState(false);
@@ -443,6 +441,22 @@ export default function EntryDetailPage() {
 
         return () => clearInterval(interval);
     }, [userRecord?.auth_user_id]);
+
+    const updateEntry = async () => {
+        if (!entry) return;
+        const { error } = await supabase
+            .from("form_entries")
+            .update({ email: entry.email }) // 必要に応じて他のフィールドも追加
+            .eq("id", entry.id);
+
+        if (error) {
+            console.error("更新失敗:", error);
+        } else {
+            console.log("保存成功");
+        }
+    };
+
+
 
 
     const handleSaveManagerNote = async () => {
@@ -856,6 +870,18 @@ export default function EntryDetailPage() {
                 <div><strong>電話番号:</strong> {entry.phone}</div>
                 {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
+
+                    <div className="mb-4">
+                        <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
+                        <input
+                            id="email"
+                            type="email"
+                            className="border rounded px-2 py-1 w-full"
+                            value={entry?.email ?? ''}
+                            onChange={(e) => setEntry({ ...entry, email: e.target.value })}
+                        />
+                    </div>
+
                     <strong>メールアドレス:</strong> {entry.email}
                     <div className="flex flex-col gap-2">
 
@@ -1157,8 +1183,7 @@ export default function EntryDetailPage() {
                 </div>
                 <div className="text-xs text-gray-400 mt-1">（最大2000文字まで保存可能）</div>
             </div>
-
-
+            <button onClick={updateEntry}>保存</button>
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
             <div className="flex justify-center items-center gap-4 pt-8">
@@ -1171,6 +1196,7 @@ export default function EntryDetailPage() {
                         認証メール送信
                     </button>
                 )}
+
                 <Link
                     href="/portal/entry-list"
                     className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
@@ -1402,4 +1428,5 @@ function getUserIdSuggestions(
     }
     return candidates.filter(c => !existingIds.includes(c));
 }
+
 
