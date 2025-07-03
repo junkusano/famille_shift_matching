@@ -7,7 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const BOT_ID = process.env.LW_BOT_ID!
+//const BOT_ID = process.env.LW_BOT_ID!
+const BOT_ID = "6807147";
 
 // チャンネル情報をAPIから取得
 async function fetchChannelInfo(channelId: string): Promise<{
