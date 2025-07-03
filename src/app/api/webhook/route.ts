@@ -106,8 +106,9 @@ export async function POST(req: NextRequest) {
             {
               group_id: apiInfo.groupId,
               group_name: apiInfo.title,
+              raw_group_name: apiInfo.title,
               channel_id: apiInfo.channelId,
-              updated_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
             },
           ],
           { onConflict: 'channel_id' }
