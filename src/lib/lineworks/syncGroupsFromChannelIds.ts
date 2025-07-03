@@ -1,11 +1,13 @@
 // lib/lineworks/syncGroupsFromChannelIds.ts
 
 import { createClient } from '@supabase/supabase-js'
+import { getAccessToken } from '@/lib/getAccessToken';
 
 const BOT_ID = process.env.WORKS_API_BOT_ID!
 const WORKS_API_TOKEN = process.env.WORKS_API_TOKEN!
 const SUPABASE_URL = process.env.SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!
+const accessToken = await getAccessToken();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
@@ -22,7 +24,7 @@ async function fetchChannelInfo(channelId: string): Promise<ChannelInfo | null> 
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${WORKS_API_TOKEN}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     })
 
