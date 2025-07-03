@@ -456,6 +456,7 @@ export default function EntryDetailPage() {
                 gender: entry.gender,
                 postal_code: entry.postal_code,
                 address: entry.address,
+                phone: entry.phone,
                 birth_year: entry.birth_year,
                 birth_month: entry.birth_month,
                 birth_day: entry.birth_day,
@@ -907,7 +908,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_month"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-5 text-sm"
+                        className="h-9 w-10 text-sm"
                         value={entry?.birth_month ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_month: Number(e.target.value) })
@@ -916,7 +917,7 @@ export default function EntryDetailPage() {
                     <Input
                         id="birth_day"
                         type="number" // ← ここがポイント！
-                        className="h-9 w-5 text-sm"
+                        className="h-9 w-10 text-sm"
                         value={entry?.birth_day ?? ""}
                         onChange={(e) =>
                             setEntry({ ...entry!, birth_day: Number(e.target.value) })
@@ -931,16 +932,14 @@ export default function EntryDetailPage() {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                     <Label>郵便番号：</Label>
                     <Input
                         id="postal_code"
-                        className="h-9 w-10 text-sm "
+                        className="h-9 w-30 text-sm "
                         value={entry?.postal_code || ""}
                         onChange={(e) => setEntry({ ...entry!, postal_code: e.target.value })}
                     />
-                </div>
-                <div className="flex items-center gap-2">
                     <Label>住所:</Label>
                     <Input
                         id="address"
@@ -959,7 +958,15 @@ export default function EntryDetailPage() {
                         </a>
                     )}
                 </div>
-                <div className="flex items-center gap-2"><strong>電話番号:</strong> {entry.phone}</div>
+                <div className="flex items-center gap-2">
+                    <Label>📞電話:</Label>
+                    <Input
+                        id="phone"
+                        className="h-15 w-full text-sm "
+                        value={entry?.phone || ""}
+                        onChange={(e) => setEntry({ ...entry!, phone: e.target.value })}
+                    />
+                </div>
                 {/* メールアドレスと認証状態・認証ボタン */}
                 <div className="flex items-center gap-2">
                     <label htmlFor="email" className="block mb-1 font-medium">メールアドレス</label>
