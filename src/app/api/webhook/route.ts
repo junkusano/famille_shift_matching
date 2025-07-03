@@ -46,8 +46,8 @@ async function fetchChannelInfo(channelId: string): Promise<{
 // Supabaseからグループ情報取得
 async function getGroupInfoFromChannelId(channelId: string) {
     const { data, error } = await supabase
-        .from('groups_lw_temp')
-        .select('group_id, group_name, channel_id')
+        .from('groups_lw_channel_info')
+        .select('group_id, channel_id')
         .eq('channel_id', channelId)
         .single()
 
@@ -58,7 +58,6 @@ async function getGroupInfoFromChannelId(channelId: string) {
 
     return {
         groupId: data.group_id,
-        groupName: data.group_name,
         channelId: data.channel_id,
     }
 }
@@ -99,29 +98,20 @@ export async function POST(req: NextRequest) {
 
         // グループ情報がなければAPIから取得
         if (!groupInfo) {
-            const apiInfo = await fetchChannelInfo(channelId)
-            const title = apiInfo.title ?? '';
-            const delimiter = title.includes('@') ? '@' : (title.includes('＠') ? '＠' : null);
-
-            const [group_name, group_account] = delimiter
-                ? title.split(delimiter).map(s => s.trim())
-                : [title.trim(), null];
+            const apiInfo = await fetchChannelInfo(channelId)            
             if (apiInfo) {
                 await supabase.from('groups_lw_temp').upsert(
                     [
                         {
                             group_id: apiInfo.groupId,
                             channel_id: apiInfo.channelId,
-                            raw_group_name: title,
-                            group_name: group_name,
-                            group_account: group_account,
-                            created_at: new Date().toISOString(),
+                            fetched_at: new Date().toISOString(),
                         },
                     ],
                     { onConflict: 'channel_id' }
                 )
 
-                console.log(`✅ groups_lw_temp に upsert 完了: ${apiInfo.title}`)
+                console.log(`✅ groups_lw_channel_info に upsert 完了: ${apiInfo.channelId}`)
             } else {
                 console.warn(`⚠️ グループ情報取得できず: ${channelId}`)
             }
