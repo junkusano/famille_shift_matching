@@ -1,17 +1,14 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-// Supabaseクライアントの初期化
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed')
-
+export async function POST(req: NextRequest) {
   try {
-    const data = req.body
+    const data = await req.json()
 
     const eventType = data?.type || null
     const timestamp = data?.issuedTime || new Date().toISOString()
@@ -23,8 +20,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const members = eventType === 'joined' ? data?.members || null : null
 
     if (!eventType || !channelId || !domainId) {
-      console.log('⚠️ 必須フィールド不足：ログ記録スキップ')
-      return res.status(200).send('OK (Skipped)')
+      console.log('⚠️ 必須フィールド不足：スキップ')
+      return NextResponse.json({ status: 'skipped' }, { status: 200 })
     }
 
     const { error } = await supabase.from('msg_lw_log').insert([{
@@ -41,13 +38,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (error) {
       console.error('❌ Supabase保存エラー:', error)
-      return res.status(500).json({ error: 'DB Error' })
+      return NextResponse.json({ error: 'db error' }, { status: 500 })
     }
 
-    console.log(`✅ ログ保存完了: ${eventType} @ ${channelId}`)
-    return res.status(200).send('OK')
+    return NextResponse.json({ status: 'ok' }, { status: 200 })
   } catch (err) {
-    console.error('❌ ハンドラ例外:', err)
-    return res.status(500).json({ error: 'Unexpected error' })
+    console.error('❌ エラー:', err)
+    return NextResponse.json({ error: 'unexpected error' }, { status: 500 })
   }
 }
