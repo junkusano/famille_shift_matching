@@ -4,7 +4,7 @@ import { fetchAllPositions } from "@/lib/lineworks/fetchAllPositions";
 import { fetchAllLevels } from "@/lib/lineworks/fetchAllLevels";
 import { fetchAllOrgUnits } from "@/lib/lineworks/fetchAllOrgUnits";
 //import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
-//import { fetchAllGroups } from "@/lib/lineworks/fetchAllGroups";
+import { fetchAllGroups } from "@/lib/lineworks/fetchAllGroups";
 
 //import { savePositionsTemp } from "@/lib/supabase/savePositionsTemp";
 //import { saveLevelsTemp } from "@/lib/supabase/saveLevelsTemp";
@@ -15,6 +15,7 @@ import { fetchAllOrgUnits } from "@/lib/lineworks/fetchAllOrgUnits";
 import { savePositionsMaster } from "@/lib/supabase/savePositionsMaster";
 import { saveLevelsMaster } from "@/lib/supabase/saveLevelsMaster";
 import { saveOrgsMaster } from "@/lib/supabase/saveOrgsMaster";
+import { saveGroupsMaster } from "@/lib/supabase/saveGroupsTemp";
 
 export async function GET() {
   try {
@@ -29,11 +30,11 @@ export async function GET() {
     await saveOrgsMaster(orgs);
     /*
     const users = await fetchAllUsers();
-    await saveUsersMaster(users);
-
+    await save UsersMaster(users);
+    */
     const groups = await fetchAllGroups();
     await saveGroupsMaster(groups);
-    */
+    
 
     return NextResponse.json({
       status: "OK",
@@ -43,8 +44,9 @@ export async function GET() {
         orgs: orgs.length,
         /*
         users: users.length,
-        groups: groups.length,
         */
+        groups: groups.length,
+        
       },
     });
   } catch (err) {
