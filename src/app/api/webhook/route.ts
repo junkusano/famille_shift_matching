@@ -8,7 +8,8 @@ const supabase = createClient(
 )
 
 //const BOT_ID = process.env.LW_BOT_ID!
-const BOT_ID = "6807147";
+//const BOT_ID = "6807147";
+const BOT_ID = "6807751";   //ヘルパーサービス管理者
 
 // チャンネル情報をAPIから取得
 async function fetchChannelInfo(channelId: string): Promise<{
