@@ -15,13 +15,14 @@ export async function fetchAllGroups(): Promise<LineworksGroup[]> {
     let hasMore = true;
 
     while (hasMore) {
-        const res = await fetch(`${apiUrl}?domainId=${domainId}&count=100${cursor ? `&cursor=${cursor}` : ""}`, {
-            method: "GET",
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
-        });
+        const res = await fetch(`${apiUrl}?domainId=${domainId}&count=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+            , {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
 
         if (!res.ok) throw new Error(`Group fetch failed: ${res.statusText}`);
         const json = await res.json();
