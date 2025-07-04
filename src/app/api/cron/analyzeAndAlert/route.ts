@@ -12,7 +12,7 @@ export async function GET() {
   );
 
   const { data: logs, error } = await supabase
-    .from('msg_lw_temp')
+    .from('msg_lw_log')
     .select('*')
     .gte('timestamp', new Date(Date.now() - 1000 * 60 * 60).toISOString());
 
