@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/analyzeAndAlert",
-      "schedule": "*/1 * * * *"
+      "schedule": "3 * * * *"
     }
   ]
 }
