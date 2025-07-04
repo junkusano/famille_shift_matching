@@ -1,5 +1,5 @@
 export async function sendLWBotMessage(channelId: string, text: string, accessToken: string) {
-  const botId = process.env.LW_BOT_ID!;
+  const botId = "6807147";  //ヘルパーサービス管理者
   const url = `https://www.worksapis.com/v1.0/bots/${botId}/channels/${channelId}/messages`;
 
   const res = await fetch(url, {
