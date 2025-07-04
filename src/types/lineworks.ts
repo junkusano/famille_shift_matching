@@ -130,5 +130,8 @@ export type Position = {
   displayOrder: number | null;
 };
 
-
+export type Group = {
+  groupId: string;
+  groupName: string;
+};
 
