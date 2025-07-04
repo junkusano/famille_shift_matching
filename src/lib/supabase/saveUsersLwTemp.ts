@@ -79,4 +79,12 @@ export async function saveUsersLWTemp(users: User[]) {
   if (error) {
     throw new Error(`保存に失敗しました: ${error.message}`);
   }
+
+  // users_lw_temp から users テーブルへ反映（lw_useridをキーに）
+  const { error: updateError } = await supabaseAdmin.rpc("update_users_from_lw_temp");
+
+  if (updateError) {
+    throw new Error(`users テーブルの更新に失敗しました: ${updateError.message}`);
+  }
+
 }

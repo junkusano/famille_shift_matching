@@ -3,18 +3,13 @@ import { NextResponse } from "next/server";
 import { fetchAllPositions } from "@/lib/lineworks/fetchAllPositions";
 import { fetchAllLevels } from "@/lib/lineworks/fetchAllLevels";
 import { fetchAllOrgUnits } from "@/lib/lineworks/fetchAllOrgUnits";
-//import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
+import { fetchAllLineworksUsers } from "@/lib/lineworks/fetchAllUsers";
 import { fetchAllGroups } from "@/lib/lineworks/fetchAllGroups";
-
-//import { savePositionsTemp } from "@/lib/supabase/savePositionsTemp";
-//import { saveLevelsTemp } from "@/lib/supabase/saveLevelsTemp";
-//import { saveOrgsLwTemp } from "@/lib/supabase/saveOrgsLwTemp";
-//import { saveUsersLWTemp } from "@/lib/supabase/saveUsersLwTemp";
-//import { saveGroupsMaster } from "@/lib/supabase/saveGroupsMaster";
 
 import { savePositionsMaster } from "@/lib/supabase/savePositionsMaster";
 import { saveLevelsMaster } from "@/lib/supabase/saveLevelsMaster";
 import { saveOrgsMaster } from "@/lib/supabase/saveOrgsMaster";
+import { saveUsersLWTemp } from "@/lib/supabase/saveUsersLwTemp";
 import { saveGroupsMaster } from "@/lib/supabase/saveGroupsTemp";
 
 export async function GET() {
@@ -28,10 +23,10 @@ export async function GET() {
     
     const orgs = await fetchAllOrgUnits();
     await saveOrgsMaster(orgs);
-    /*
-    const users = await fetchAllUsers();
-    await save UsersMaster(users);
-    */
+    
+    const users = await fetchAllLineworksUsers();
+    await saveUsersLWTemp(users);
+    
     const groups = await fetchAllGroups();
     await saveGroupsMaster(groups);
     
@@ -42,9 +37,7 @@ export async function GET() {
         positions: positions.length,
         levels: levels.length,
         orgs: orgs.length,
-        /*
         users: users.length,
-        */
         groups: groups.length,
         
       },

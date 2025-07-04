@@ -12,7 +12,7 @@ export async function GET() {
         console.log('✅ AccessToken 取得:', accessToken.slice(0, 10) + '...');
         console.log('🕒 時刻:', new Date().toISOString());
 
-        const users = await fetchAllLineworksUsers(accessToken);
+        const users = await fetchAllLineworksUsers();
         await saveUsersLWTemp(users);
 
         return NextResponse.json({ message: `同期成功（${users.length}件）` });

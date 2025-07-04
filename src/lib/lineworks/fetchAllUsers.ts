@@ -1,9 +1,11 @@
 // ✅ lib/lineworks/fetchAllUsers.ts
 import { User } from '@/types/lineworks';
+import { getAccessToken } from '@/lib/getAccessToken';
 
-export async function fetchAllLineworksUsers(accessToken: string): Promise<User[]> {
+export async function fetchAllLineworksUsers(): Promise<User[]> {
   const baseUrl = 'https://www.worksapis.com/v1.0/users';
   const domainId = process.env.LINEWORKS_DOMAIN_ID;
+  const accessToken = await getAccessToken();
   let users: User[] = [];
   let cursor: string | null = null;
 
