@@ -10,7 +10,7 @@ export async function fetchAllGroups(): Promise<LineworksGroup[]> {
     const domainId = process.env.NEXT_PUBLIC_LINEWORKS_DOMAIN_ID;
     const apiUrl = "https://www.worksapis.com/v1.0/groups";
 
-    let allGroups: LineworksGroup[] = [];
+    const allGroups: LineworksGroup[] = [];
     let cursor = "";
     let hasMore = true;
 
