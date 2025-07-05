@@ -187,7 +187,7 @@ export default function PortalLayout({ children }: Props) {
                         <span className="text-blue-300">シフトコーディネート（工事中）</span>
                     </li>
                     <li>
-                        <span className="text-blue-300">職員証（バッジ：工事中）</span>
+                        <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>
                     </li>
                     <li>
                         <Link
