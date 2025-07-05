@@ -1,5 +1,4 @@
 import { getAccessToken } from '@/lib/getAccessToken';
-import { sendLWBotMessage } from '@/lib/lineworks/sendLWBotMessage';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseApiKey = process.env.SUPABASE_SERVICE_ROLE!;
@@ -14,15 +13,12 @@ const messageText = `【ご協力のお願い】
 ご協力よろしくお願いいたします🙇‍♀️`;
 
 export async function sendAllBotMessagesFromView() {
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id,lwuser_id`,
-    {
-      headers: {
-        apikey: supabaseApiKey,
-        Authorization: `Bearer ${supabaseApiKey}`,
-      },
-    }
-  );
+  const res = await fetch(`${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id,lwuser_id`, {
+    headers: {
+      apikey: supabaseApiKey,
+      Authorization: `Bearer ${supabaseApiKey}`,
+    },
+  });
 
   if (!res.ok) {
     const err = await res.text();
@@ -35,11 +31,36 @@ export async function sendAllBotMessagesFromView() {
   const accessToken = await getAccessToken();
 
   for (const row of data) {
-    if (row.channel_id && row.lwuser_id && !sent.has(row.channel_id)) {
-      const messageWithMention = `<m userId=${row.lwuser_id}>さん\n${messageText}`;
-      await sendLWBotMessage(row.channel_id, messageWithMention, accessToken);
+    if (row.channel_id && !sent.has(row.channel_id)) {
+      const messageText2 = `<m userId='${row.lwuser_id}'>さん\n${messageText}`;
+      await sendLWBotMessage(row.channel_id, messageText2, accessToken);
       sent.add(row.channel_id);
-      break; // ✅ 1件だけ送って終了（テスト用）
+      break;　// 全件送るのでコメントアウト
+    }
+  }
+
+  // 内部関数として定義
+  async function sendLWBotMessage(channelId: string, text: string, accessToken: string) {
+    const botId = '6807751'; // すまーとアイさん
+    const url = `https://www.worksapis.com/v1.0/bots/${botId}/channels/${channelId}/messages`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: {
+          type: 'text',
+          text,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`❌ メッセージ送信失敗（${channelId}）: ${err}`);
     }
   }
 }
