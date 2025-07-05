@@ -1,23 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/refreshAccessToken",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-lineworks-users",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-lineworks-orgs",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-lineworks-positions",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-lineworks-levels",
+      "path": "/api/cron/sync-lineworks-master-all",
       "schedule": "*/30 * * * *"
     },
     {
