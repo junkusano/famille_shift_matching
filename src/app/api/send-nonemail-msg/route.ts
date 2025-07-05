@@ -38,7 +38,7 @@ export async function GET() {
 
         for (const row of data) {
             if (row.channel_id && !sent.has(row.channel_id)) {
-                const messageText2 = `<m userId='${row.lw_userid}'>さん\n${messageText}`;
+                const messageText2 = `<m userId="${row.lw_userid}">さん\n${messageText}`;
                 await sendLWBotMessage(row.channel_id, messageText2, accessToken);
                 sent.add(row.channel_id);
                 break; //1件だけテストしたいので
