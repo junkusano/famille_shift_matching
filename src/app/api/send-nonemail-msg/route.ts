@@ -1,4 +1,7 @@
 import { getAccessToken } from '@/lib/getAccessToken';
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+
+export const runtime = 'nodejs'; // ← これを必ず指定！
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseApiKey = process.env.SUPABASE_SERVICE_ROLE!;
@@ -36,31 +39,6 @@ export async function sendAllBotMessagesFromView() {
       await sendLWBotMessage(row.channel_id, messageText2, accessToken);
       sent.add(row.channel_id);
       break;　// 全件送るのでコメントアウト
-    }
-  }
-
-  // 内部関数として定義
-  async function sendLWBotMessage(channelId: string, text: string, accessToken: string) {
-    const botId = '6807751'; // すまーとアイさん
-    const url = `https://www.worksapis.com/v1.0/bots/${botId}/channels/${channelId}/messages`;
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        content: {
-          type: 'text',
-          text,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error(`❌ メッセージ送信失敗（${channelId}）: ${err}`);
     }
   }
 }
