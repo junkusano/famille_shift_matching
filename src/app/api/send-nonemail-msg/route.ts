@@ -41,7 +41,7 @@ export async function GET() {
                 const messageText2 = `<m userId="${row.lw_userid}">さん\n${messageText}`;
                 await sendLWBotMessage(row.channel_id, messageText2, accessToken);
                 sent.add(row.channel_id);
-                break; //1件だけテストしたいので
+                //break; //1件だけテストしたいので
             }
         }
 
