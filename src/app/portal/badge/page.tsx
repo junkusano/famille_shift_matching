@@ -7,6 +7,8 @@ import Image from 'next/image';
 // フォームエントリーの型（必要な部分だけ定義）
 type FormEntry = {
     photo_url: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
 };
 
 export default function FamilleBadge() {
@@ -19,7 +21,7 @@ export default function FamilleBadge() {
 
             const { data: entryData } = await supabase
                 .from('form_entries')
-                .select('photo_url')
+                .select('photo_url, last_name_kanji,first_name_kanji')
                 .eq('auth_uid', user.id)
                 .single();
 
@@ -61,11 +63,13 @@ export default function FamilleBadge() {
                             No Image
                         </div>
                     )}
-                    <p className="mt-2 text-green-800 text-sm">認定バッジ獲得</p>
+                    <p className="mt-2 text-green-800 text-sm">
+                        {userData.last_name_kanji} {userData.first_name_kanji}
+                    </p>
                 </div>
 
                 <div className="mt-4 text-xs text-gray-500 text-left">
-                    <p>ファミーユヘルパーサービス愛知</p>
+                    <h1 className="text-xl font-bold text-green-700 mb-1">ファミーユヘルパーサービス愛知</h1>
                     <p>所在地：〒456-0018 名古屋市熱田区新尾頭3丁目1-18 WIZ金山602</p>
                     <p>電話番号：052-990-3734</p>
                 </div>
