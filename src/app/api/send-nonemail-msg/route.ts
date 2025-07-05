@@ -6,7 +6,7 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 export const runtime = 'nodejs';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseApiKey = process.env.SUPABASE_SERVICE_ROLE!;
+const supabaseApiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const messageText = `【ご協力のお願い】
 📣新しい「myfamille（マイファミーユ）」ポータル運用に向けて、個人メールアドレスを教えてください（このグループにコメントしてください）。
