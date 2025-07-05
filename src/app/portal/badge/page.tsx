@@ -63,9 +63,9 @@ export default function FamilleBadge() {
                             No Image
                         </div>
                     )}
-                    <p className="mt-2 text-green-800 text-sm">
+                    <h1>
                         {userData.last_name_kanji} {userData.first_name_kanji}
-                    </p>
+                    </h1>
                 </div>
 
                 <div className="mt-4 text-xs text-gray-500 text-left">
