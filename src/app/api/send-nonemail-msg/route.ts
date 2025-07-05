@@ -14,29 +14,32 @@ const messageText = `【ご協力のお願い】
 ご協力よろしくお願いいたします🙇‍♀️`;
 
 export async function sendAllBotMessagesFromView() {
-    const res = await fetch(`${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id`, {
-        headers: {
-            apikey: supabaseApiKey,
-            Authorization: `Bearer ${supabaseApiKey}`,
-        },
-    });
-
-    if (!res.ok) {
-        const err = await res.text();
-        console.error(`❌ Supabase fetch failed: ${err}`);
-        return;
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id,lwuser_id`,
+    {
+      headers: {
+        apikey: supabaseApiKey,
+        Authorization: `Bearer ${supabaseApiKey}`,
+      },
     }
+  );
 
-    const data: { channel_id: string; lwuser_id: string }[] = await res.json();
-    const sent = new Set<string>();
-    const accessToken = await getAccessToken();
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`❌ Supabase fetch failed: ${err}`);
+    return;
+  }
 
-    for (const row of data) {
-        if (row.channel_id && !sent.has(row.channel_id)) {
-            const messageText2 = '<m userId=' + row.lwuser_id + '>さん\n' + messageText;
-            await sendLWBotMessage(row.channel_id, messageText2, accessToken);
-            sent.add(row.channel_id);
-            break; // 1件だけ送って終了
-        }
+  const data: { channel_id: string; lwuser_id: string }[] = await res.json();
+  const sent = new Set<string>();
+  const accessToken = await getAccessToken();
+
+  for (const row of data) {
+    if (row.channel_id && row.lwuser_id && !sent.has(row.channel_id)) {
+      const messageWithMention = `<m userId=${row.lwuser_id}>さん\n${messageText}`;
+      await sendLWBotMessage(row.channel_id, messageWithMention, accessToken);
+      sent.add(row.channel_id);
+      break; // ✅ 1件だけ送って終了（テスト用）
     }
+  }
 }
