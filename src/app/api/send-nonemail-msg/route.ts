@@ -19,7 +19,7 @@ const messageText = `【ご協力のお願い】
 
 export async function GET() {
     try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id,lwuser_id`, {
+        const res = await fetch(`${supabaseUrl}/rest/v1/users_personal_group_view?select=channel_id,lw_userid`, {
             headers: {
                 apikey: supabaseApiKey,
                 Authorization: `Bearer ${supabaseApiKey}`,
@@ -32,13 +32,13 @@ export async function GET() {
             return new Response(`Supabase fetch failed: ${err}`, { status: 500 });
         }
 
-        const data: { channel_id: string; lwuser_id: string }[] = await res.json();
+        const data: { channel_id: string; lw_userid: string }[] = await res.json();
         const sent = new Set<string>();
         const accessToken = await getAccessToken();
 
         for (const row of data) {
             if (row.channel_id && !sent.has(row.channel_id)) {
-                const messageText2 = `<m userId='${row.lwuser_id}'>さん\n${messageText}`;
+                const messageText2 = `<m userId='${row.lw_userid}'>さん\n${messageText}`;
                 await sendLWBotMessage(row.channel_id, messageText2, accessToken);
                 sent.add(row.channel_id);
                 break; //1件だけテストしたいので
