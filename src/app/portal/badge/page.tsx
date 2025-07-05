@@ -69,7 +69,7 @@ export default function FamilleBadge() {
                 </div>
 
                 <div className="mt-4 text-xs text-gray-500 text-left">
-                    <h1 className="text-xl font-bold text-green-700 mb-1">ファミーユヘルパーサービス愛知</h1>
+                    <h2 className="text-xl font-bold text-green-700 mb-1">ファミーユヘルパーサービス愛知</h2>
                     <p>所在地：〒456-0018 名古屋市熱田区新尾頭3丁目1-18 WIZ金山602</p>
                     <p>電話番号：052-990-3734</p>
                 </div>
