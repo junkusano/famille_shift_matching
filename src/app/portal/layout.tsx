@@ -155,7 +155,6 @@ export default function PortalLayout({ children }: Props) {
                     )}
                 </div>
 
-
                 <ul className="mt-6 ml-4 space-y-2">
                     <li>
                         <Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link>
@@ -225,19 +224,33 @@ export default function PortalLayout({ children }: Props) {
                     </h2>
                     <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
 
-                    <div className="mt-4">
+                    <div className="relative w-32 h-32">
                         {userData.photo_url ? (
-                            <Image
-                                src={userData.photo_url}
-                                width={128}
-                                height={128}
-                                alt="写真"
-                                className="rounded-full object-cover"
-                            />
+                            <>
+                                <Image
+                                    src={userData.photo_url}
+                                    width={128}
+                                    height={128}
+                                    alt="写真"
+                                    className="rounded-full object-cover w-full h-full"
+                                />
+                                <button
+                                    className="absolute bottom-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 rounded hover:bg-red-600"
+                                    onClick={handleDeletePhoto}
+                                >
+                                    ×
+                                </button>
+                            </>
                         ) : (
-                            <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-sm text-gray-600">
-                                No Image
-                            </div>
+                            <label className="flex flex-col items-center justify-center w-full h-full bg-gray-300 text-gray-600 text-sm rounded-full cursor-pointer">
+                                Upload
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handlePhotoReupload}
+                                    className="hidden"
+                                />
+                            </label>
                         )}
                     </div>
 
