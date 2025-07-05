@@ -31,6 +31,57 @@ export default function PortalLayout({ children }: Props) {
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+
+
+    // 画像削除
+    const handleDeletePhoto = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ photo_url: null })
+            .eq('auth_uid', user.id);
+
+        if (!error) {
+            setUserData((prev) => prev ? { ...prev, photo_url: null } : prev);
+        } else {
+            alert("削除に失敗しました: " + error.message);
+        }
+    };
+
+    // 画像アップロード
+    const handlePhotoReupload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("filename", `user_photo_${Date.now()}_${file.name}`);
+        const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+        });
+        const result = await res.json();
+        const url = result.url;
+        if (!url) {
+            alert("アップロード失敗");
+            return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ photo_url: url })
+            .eq('auth_uid', user.id);
+
+        if (!error) {
+            setUserData((prev) => prev ? { ...prev, photo_url: url } : prev);
+        } else {
+            alert("更新に失敗しました: " + error.message);
+        }
+    };
+
     useEffect(() => {
         const fetchUserData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -74,21 +125,36 @@ export default function PortalLayout({ children }: Props) {
                     ユーザー権限: {role}
                 </p>
 
-                <div className="ml-4 mt-4">
+                <div className="relative w-32 h-32">
                     {userData.photo_url ? (
-                        <Image
-                            src={userData.photo_url}
-                            width={128}
-                            height={128}
-                            alt="写真"
-                            className="rounded-full object-cover"
-                        />
+                        <>
+                            <Image
+                                src={userData.photo_url}
+                                width={128}
+                                height={128}
+                                alt="写真"
+                                className="rounded-full object-cover w-full h-full"
+                            />
+                            <button
+                                className="absolute bottom-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 rounded hover:bg-red-600"
+                                onClick={handleDeletePhoto}
+                            >
+                                ×
+                            </button>
+                        </>
                     ) : (
-                        <div className="w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-sm text-gray-600">
-                            No Image
-                        </div>
+                        <label className="flex flex-col items-center justify-center w-full h-full bg-gray-300 text-gray-600 text-sm rounded-full cursor-pointer">
+                            Upload
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoReupload}
+                                className="hidden"
+                            />
+                        </label>
                     )}
                 </div>
+
 
                 <ul className="mt-6 ml-4 space-y-2">
                     <li>
@@ -121,9 +187,9 @@ export default function PortalLayout({ children }: Props) {
                     <li>
                         <span className="text-blue-300">シフトコーディネート（工事中）</span>
                     </li>
-                   <li>
-                            <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>
-                        </li>
+                    <li>
+                        <span className="text-blue-300">職員証（バッジ：工事中）</span>
+                    </li>
                     <li>
                         <Link
                             href="/lineworks-login-guide"
