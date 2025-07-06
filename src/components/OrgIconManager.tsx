@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabaseAdmin } from '@/lib/supabase/service';
 
 type Org = {
   id: string;
@@ -14,20 +13,18 @@ export function OrgIconsPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 組織一覧取得（サーバーでやりたければAPIルートに）
     fetchOrgs();
   }, []);
 
   const fetchOrgs = async () => {
-    const { data, error } = await supabaseAdmin
-      .from('orgs')
-      .select('id, org_name, display_order')
-      .order('display_order', { ascending: true });
+    try {
+      const res = await fetch('/api/orgIcons');
+      if (!res.ok) throw new Error('APIエラー');
 
-    if (!error && data) {
+      const data = await res.json();
       setOrgs(data);
-    } else {
-      console.error(error);
+    } catch (err) {
+      console.error('組織一覧の取得に失敗しました:', err);
     }
   };
 
