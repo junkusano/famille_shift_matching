@@ -6,18 +6,6 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
 
-const CATEGORY_OPTIONS = [
-  { id: 'blue', label: '青 - 要介護サービス' },
-  { id: 'green', label: '緑 - 人事労務サポートルーム' },
-  { id: 'none', label: 'なし - 個人のアイコン' },
-  { id: 'orange', label: 'オレンジ - 移動支援サービス' },
-  { id: 'pink', label: 'ピンク - 要支援サービス' },
-  { id: 'purple', label: '紫 - 保険外サービス' },
-  { id: 'yellow', label: '黄 - 相談支援' }
-];
-
-const getCategoryLabel = (id: string) => CATEGORY_OPTIONS.find(opt => opt.id === id)?.label || id;
-
 type Org = {
   id: string;
   org_name: string;
@@ -31,16 +19,23 @@ type IconRecord = {
   file_id: string;
 };
 
+type CategoryOption = {
+  id: string;
+  label: string;
+};
+
 export function OrgIconsPanel() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
-  const [category, setCategory] = useState<string>('blue');
+  const [category, setCategory] = useState<string>('');
   const [icons, setIcons] = useState<IconRecord[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
 
   useEffect(() => {
     fetchOrgs();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -55,6 +50,14 @@ export function OrgIconsPanel() {
       setOrgs(data);
     } catch (err) {
       console.error('組織一覧の取得に失敗しました:', err);
+    }
+  };
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase.from('org_icons_category').select('id, label').order('sort_order');
+    if (!error && data) {
+      setCategoryOptions(data);
+      if (data.length > 0) setCategory(data[0].id);
     }
   };
 
@@ -114,6 +117,8 @@ export function OrgIconsPanel() {
     }
   };
 
+  const getCategoryLabel = (id: string) => categoryOptions.find(opt => opt.id === id)?.label || id;
+
   return (
     <div className="flex gap-4">
       <div className="w-1/3 space-y-2">
@@ -141,7 +146,7 @@ export function OrgIconsPanel() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {CATEGORY_OPTIONS.map((opt) => (
+                {categoryOptions.map((opt) => (
                   <option key={opt.id} value={opt.id}>{opt.label}</option>
                 ))}
               </select>
