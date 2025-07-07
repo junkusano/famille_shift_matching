@@ -687,6 +687,7 @@ export default function EntryDetailPage() {
 
     //LINE WORKSの写真アップロード処理
     const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
+        console.log("写真アップロード userId:",userId);
         try {
             // 画像ファイルのバイトを取得
             const imageBlob = await fetch(iconUrl).then(res => res.blob());
