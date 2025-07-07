@@ -28,10 +28,10 @@ export function OrgIconsPanel() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<string>('');
   const [icons, setIcons] = useState<IconRecord[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+  const [uploading, setUploading] = useState<boolean>(false);
 
   useEffect(() => {
     fetchOrgs();
@@ -72,16 +72,12 @@ export function OrgIconsPanel() {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedIconUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
   const handleUpload = async () => {
     if (!selectedId || !selectedFile) return;
+    setUploading(true);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -96,6 +92,7 @@ export function OrgIconsPanel() {
 
     if (!url) {
       alert('アップロードに失敗しました');
+      setUploading(false);
       return;
     }
 
@@ -112,9 +109,9 @@ export function OrgIconsPanel() {
       alert('保存に失敗しました: ' + error.message);
     } else {
       alert('アップロード完了');
-      setUploadedIconUrl(url);
       fetchIcons(selectedId);
     }
+    setUploading(false);
   };
 
   const getCategoryLabel = (id: string) => categoryOptions.find(opt => opt.id === id)?.label || id;
@@ -150,22 +147,10 @@ export function OrgIconsPanel() {
                   <option key={opt.id} value={opt.id}>{opt.label}</option>
                 ))}
               </select>
-              <Button onClick={handleUpload} disabled={!selectedFile}>
-                アップロード
+              <Button onClick={handleUpload} disabled={!selectedFile || uploading}>
+                {uploading ? 'アップロード中...' : 'アップロード'}
               </Button>
             </div>
-            {uploadedIconUrl && (
-              <div className="mt-2">
-                <p className="text-sm">直近アップロードされた画像:</p>
-                <Image
-                  src={uploadedIconUrl}
-                  alt="preview"
-                  width={80}
-                  height={80}
-                  className="object-contain border rounded"
-                />
-              </div>
-            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
               {icons.map(icon => (
                 <div key={icon.id} className="text-center">
