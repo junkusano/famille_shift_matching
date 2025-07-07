@@ -657,6 +657,12 @@ export default function EntryDetailPage() {
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
 
+            const iconUrl = await getOrgIconUrl(selectedOrg);
+            if (iconUrl) {
+                await uploadLineWorksIcon(userId, iconUrl);
+            }
+
+
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
@@ -665,6 +671,59 @@ export default function EntryDetailPage() {
         }
     };
 
+    //Supabase からアイコンURLを取得
+    const getOrgIconUrl = async (orgId: string): Promise<string | null> => {
+        const { data, error } = await supabase
+            .from('org_icons_category')
+            .select('icon_url')
+            .eq('org_unit_id', orgId)
+            .single();
+
+        if (error || !data) return null;
+        return data.icon_url;
+    };
+
+    //LINE WORKSの写真アップロード処理
+    const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
+        try {
+            // 画像ファイルのバイトを取得
+            const imageBlob = await fetch(iconUrl).then(res => res.blob());
+            const fileName = `icon_${userId}.jpg`;
+
+            // アップロードURLを取得
+            const uploadRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.NEXT_PUBLIC_LINEWORKS_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fileName,
+                    fileSize: imageBlob.size
+                })
+            });
+
+            const uploadData = await uploadRes.json();
+            const uploadUrl = uploadData.uploadUrl;
+            if (!uploadUrl) throw new Error('Upload URL not received');
+
+            // アップロード
+            const putRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'image/jpeg'
+                },
+                body: imageBlob
+            });
+
+            if (!putRes.ok) throw new Error('画像アップロードに失敗しました');
+
+            alert('LINE WORKSアイコンを設定しました');
+        } catch (err) {
+            console.error('アイコン設定エラー:', err);
+            alert('LINE WORKSアイコンの設定に失敗しました');
+        }
+    };
 
     useEffect(() => {
         const load = async () => {
