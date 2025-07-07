@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
+import { Trash2 } from 'lucide-react';
 
 type Org = {
   id: string;
@@ -32,6 +33,16 @@ export function OrgIconsPanel() {
   const [icons, setIcons] = useState<IconRecord[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [uploading, setUploading] = useState<boolean>(false);
+
+  const handleDelete = async (iconId: string) => {
+    if (!confirm('このアイコンを削除しますか？')) return;
+    const { error } = await supabase.from('org_icons').delete().eq('id', iconId);
+    if (error) {
+      alert('削除に失敗しました: ' + error.message);
+    } else {
+      fetchIcons(selectedId!);
+    }
+  };
 
   useEffect(() => {
     fetchOrgs();
@@ -123,9 +134,8 @@ export function OrgIconsPanel() {
           <button
             key={org.id}
             onClick={() => setSelectedId(org.id)}
-            className={`block w-full text-left p-2 border rounded ${
-              selectedId === org.id ? 'bg-blue-100' : ''
-            }`}
+            className={`block w-full text-left p-2 border rounded ${selectedId === org.id ? 'bg-blue-100' : ''
+              }`}
           >
             {org.org_name}
           </button>
@@ -153,7 +163,7 @@ export function OrgIconsPanel() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
               {icons.map(icon => (
-                <div key={icon.id} className="text-center">
+                <div key={icon.id} className="text-center relative">
                   <Image
                     src={icon.file_id}
                     alt={icon.category}
@@ -162,6 +172,13 @@ export function OrgIconsPanel() {
                     className="object-contain border rounded mx-auto"
                   />
                   <p className="text-sm mt-1">{getCategoryLabel(icon.category)}</p>
+                  <button
+                    onClick={() => handleDelete(icon.id)}
+                    className="absolute top-0 right-1 text-red-500 hover:text-red-700"
+                    title="削除"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               ))}
             </div>
