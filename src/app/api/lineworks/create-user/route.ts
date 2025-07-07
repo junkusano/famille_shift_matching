@@ -5,6 +5,7 @@ import { createLineWorksUser } from '@/lib/lineworks/create-user';
 export async function POST(req: NextRequest) {
   try {
     const {
+      lwUserId,
       localName,
       lastName,
       firstName,
@@ -12,6 +13,7 @@ export async function POST(req: NextRequest) {
       positionId,
       levelId
     }: {
+      lwUserId: string;
       localName: string;
       lastName: string;
       firstName: string;
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('API側受信データ:', {
+      lwUserId,
       localName,
       lastName,
       firstName,
@@ -39,6 +42,7 @@ export async function POST(req: NextRequest) {
 
     // LINE WORKS ユーザー作成
     const result = await createLineWorksUser({
+      lwUserId,
       localName,
       lastName,
       firstName,

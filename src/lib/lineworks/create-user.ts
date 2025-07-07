@@ -1,6 +1,7 @@
 import { getAccessToken } from '@/lib/getAccessToken';
 
 interface CreateUserParams {
+  lwUserId: string;
   localName: string;
   lastName: string;
   firstName: string;
