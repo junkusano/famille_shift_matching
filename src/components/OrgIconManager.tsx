@@ -35,7 +35,7 @@ export function OrgIconsPanel() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
+  //const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<string>('blue');
   const [icons, setIcons] = useState<IconRecord[]>([]);
 
