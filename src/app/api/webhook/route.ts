@@ -140,7 +140,7 @@ async function upsertGroupChannelInfo(groupId: string | null, channelId: string)
     }
 
     // すでに存在するか確認
-    const { data, error } = await supabase
+    const { data} = await supabase
         .from('group_lw_channel_info')
         .select('id')
         .eq('channel_id', channelId)
