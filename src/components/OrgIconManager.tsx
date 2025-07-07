@@ -35,7 +35,7 @@ export function OrgIconsPanel() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  //const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
+  const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<string>('blue');
   const [icons, setIcons] = useState<IconRecord[]>([]);
 
@@ -149,6 +149,18 @@ export function OrgIconsPanel() {
                 アップロード
               </Button>
             </div>
+            {uploadedIconUrl && (
+              <div className="mt-2">
+                <p className="text-sm">直近アップロードされた画像:</p>
+                <Image
+                  src={uploadedIconUrl}
+                  alt="preview"
+                  width={80}
+                  height={80}
+                  className="object-contain border rounded"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
               {icons.map(icon => (
                 <div key={icon.id} className="text-center">
