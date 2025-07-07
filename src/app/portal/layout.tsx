@@ -172,6 +172,11 @@ export default function PortalLayout({ children }: Props) {
                     {role === 'admin' && (
                         <>
                             <li>
+                                <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">
+                                    組織アイコン設定
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                     RPAリクエスト管理
                                 </Link>
@@ -270,6 +275,12 @@ export default function PortalLayout({ children }: Props) {
                         )}
                         {role === 'admin' && (
                             <>
+                                <li>                            <li>
+                                    <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">
+                                        組織アイコン設定
+                                    </Link>
+                                </li>
+                                </li>
                                 <li>
                                     <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                         RPAリクエスト管理
