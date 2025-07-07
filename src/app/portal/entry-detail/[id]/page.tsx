@@ -659,7 +659,7 @@ export default function EntryDetailPage() {
 
             const iconUrl = await getOrgIconUrl(selectedOrg);
             if (iconUrl) {
-                await uploadLineWorksIcon(userId, iconUrl);
+                await uploadLineWorksIcon(data.userId, iconUrl);
             }
 
 

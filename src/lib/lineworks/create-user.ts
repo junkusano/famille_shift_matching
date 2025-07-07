@@ -10,6 +10,7 @@ interface CreateUserParams {
 }
 
 interface CreateUserResult {
+  userId?: string;
   success: boolean;
   tempPassword?: string;
   error?: string;
@@ -80,13 +81,18 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       body: JSON.stringify(body)
     });
 
+
+
     if (!res.ok) {
       const errorData = await res.json();
       console.error('LINE WORKS API エラー:', errorData);
       return { success: false, error: errorData.description || errorData.message || 'LINE WORKS API エラー' };
     }
 
-    return { success: true, tempPassword };
+    const responseData = await res.json();
+    const userId = responseData.userId;
+
+    return { success: true, tempPassword, userId };
 
   } catch (err) {
     console.error('createLineWorksUser 実行時エラー:', err);

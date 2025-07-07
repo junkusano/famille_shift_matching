@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: true, tempPassword: result.tempPassword },
+      { success: true, tempPassword: result.tempPassword,userId: result.userId },
       { status: 200 }
     );
 
