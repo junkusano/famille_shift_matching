@@ -16,10 +16,19 @@ const CATEGORY_OPTIONS = [
   { id: 'yellow', label: '黄 - 相談支援' }
 ];
 
+const getCategoryLabel = (id: string) => CATEGORY_OPTIONS.find(opt => opt.id === id)?.label || id;
+
 type Org = {
   id: string;
   org_name: string;
   display_order: number;
+};
+
+type IconRecord = {
+  id: string;
+  org_id: string;
+  category: string;
+  file_id: string;
 };
 
 export function OrgIconsPanel() {
@@ -28,20 +37,31 @@ export function OrgIconsPanel() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedIconUrl, setUploadedIconUrl] = useState<string | null>(null);
   const [category, setCategory] = useState<string>('blue');
+  const [icons, setIcons] = useState<IconRecord[]>([]);
 
   useEffect(() => {
     fetchOrgs();
   }, []);
 
+  useEffect(() => {
+    if (selectedId) fetchIcons(selectedId);
+  }, [selectedId]);
+
   const fetchOrgs = async () => {
     try {
       const res = await fetch('/api/orgIcons');
       if (!res.ok) throw new Error('APIエラー');
-
       const data = await res.json();
       setOrgs(data);
     } catch (err) {
       console.error('組織一覧の取得に失敗しました:', err);
+    }
+  };
+
+  const fetchIcons = async (orgId: string) => {
+    const { data, error } = await supabase.from('org_icons').select('*').eq('org_id', orgId);
+    if (!error && data) {
+      setIcons(data);
     }
   };
 
@@ -90,6 +110,7 @@ export function OrgIconsPanel() {
     } else {
       alert('アップロード完了');
       setUploadedIconUrl(url);
+      fetchIcons(selectedId);
     }
   };
 
@@ -128,18 +149,20 @@ export function OrgIconsPanel() {
                 アップロード
               </Button>
             </div>
-            {uploadedIconUrl && (
-              <div>
-                <p className="text-sm mt-2">アップロードされたアイコン：</p>
-                <Image
-                  src={uploadedIconUrl}
-                  alt="Uploaded Icon"
-                  width={80}
-                  height={80}
-                  className="object-contain border rounded"
-                />
-              </div>
-            )}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              {icons.map(icon => (
+                <div key={icon.id} className="text-center">
+                  <Image
+                    src={icon.file_id}
+                    alt={icon.category}
+                    width={80}
+                    height={80}
+                    className="object-contain border rounded mx-auto"
+                  />
+                  <p className="text-sm mt-1">{getCategoryLabel(icon.category)}</p>
+                </div>
+              ))}
+            </div>
           </>
         ) : (
           <p className="text-gray-500">組織を選択してください</p>
