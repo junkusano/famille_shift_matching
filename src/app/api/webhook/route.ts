@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
         // グループ情報がなければAPIから取得
         if (!groupInfo) {
-            const apiInfo = await fetchChannelInfo(channelId)            
+            const apiInfo = await fetchChannelInfo(channelId)
             if (apiInfo) {
                 await supabase.from('group_lw_temp').upsert(
                     [
@@ -112,7 +112,14 @@ export async function POST(req: NextRequest) {
                     { onConflict: 'channel_id' }
                 )
 
+                // group_lw_channel_infoにも登録（存在しない場合のみ）
+                await upsertGroupChannelInfo(apiInfo.groupId, apiInfo.channelId)
+
                 console.log(`✅ groups_lw_channel_info に upsert 完了: ${apiInfo.channelId}`)
+
+
+
+
             } else {
                 console.warn(`⚠️ グループ情報取得できず: ${channelId}`)
             }
@@ -122,5 +129,40 @@ export async function POST(req: NextRequest) {
     } catch (err) {
         console.error('❌ エラー:', err)
         return NextResponse.json({ error: 'unexpected error' }, { status: 500 })
+    }
+}
+
+// group_lw_channel_infoに存在しなければ登録
+async function upsertGroupChannelInfo(groupId: string | null, channelId: string) {
+    if (!groupId) {
+        console.warn(`⚠️ groupId が null のため、登録スキップ: ${channelId}`)
+        return
+    }
+
+    // すでに存在するか確認
+    const { data, error } = await supabase
+        .from('group_lw_channel_info')
+        .select('id')
+        .eq('channel_id', channelId)
+        .single()
+
+    if (data) {
+        console.log(`ℹ️ 既に登録済み: ${channelId}`)
+        return
+    }
+
+    // 未登録なら追加
+    const { error: insertError } = await supabase.from('group_lw_channel_info').insert([
+        {
+            group_id: groupId,
+            channel_id: channelId,
+            fetched_at: new Date().toISOString(),
+        },
+    ])
+
+    if (insertError) {
+        console.error(`❌ group_lw_channel_info への登録失敗: ${channelId}`, insertError)
+    } else {
+        console.log(`✅ group_lw_channel_info に登録完了: ${channelId}`)
     }
 }
