@@ -658,6 +658,8 @@ export default function EntryDetailPage() {
             }
 
             const iconUrl = await getOrgIconUrl(selectedOrg);
+            console.log('ユーザー画像引数userId：', data.userId);
+            console.log('ユーザー画像引数iconUrl：', data.userId);
             if (iconUrl) {
                 await uploadLineWorksIcon(data.userId, iconUrl);
             }
