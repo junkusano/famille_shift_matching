@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-lineworks-master-all",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/analyzeAndAlert",
+      "schedule": "0 7,13,17 * * *"
+    }
+  ]
+}
