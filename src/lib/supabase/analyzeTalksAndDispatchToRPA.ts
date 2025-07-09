@@ -100,7 +100,7 @@ request_detailの中には以下を含めてください：
                 status: "pending",
             });
             await supabase.from("msg_lw_log").update({ status: "dispatched" }).in("id", ids);
-        } catch (e) {
+        } catch (_e) {
             await supabase.from("msg_lw_log").update({ status: "error" }).in("id", ids);
         }
     }
