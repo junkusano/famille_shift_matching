@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import analyzeTalksAndDispatchToRPA from "@/lib/supabase/analyzeTalksAndDispatchToRPA";
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(_req: NextRequest): Promise<Response> {
   try {
     const result = await analyzeTalksAndDispatchToRPA();
     return Response.json({ success: true, result });
