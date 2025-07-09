@@ -11,7 +11,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function analyzePendingTalksAndDispatch() {
+
+const analyzePendingTalksAndDispatch = async () => {
     const { data: logs, error } = await supabase
         .from("msg_lw_log")
         .select("id, user_id, role, content")
@@ -104,3 +105,5 @@ request_detailの中には以下を含めてください：
         }
     }
 }
+
+export default analyzePendingTalksAndDispatch;
