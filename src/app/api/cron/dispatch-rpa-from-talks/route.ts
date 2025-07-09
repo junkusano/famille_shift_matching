@@ -1,24 +1,12 @@
-// /pages/api/cron/dispatch-rpa-from-talks.ts
-import type { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest } from "next/server";
 import analyzeTalksAndDispatchToRPA from "@/lib/supabase/analyzeTalksAndDispatchToRPA";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-
+export async function POST(req: NextRequest): Promise<Response> {
   try {
-    await analyzeTalksAndDispatchToRPA();
-    return res
-      .status(200)
-      .json({ message: "トーク分析およびRPA登録が完了しました" });
-  } catch (error: any) {
-    console.error("トーク分析処理エラー:", error);
-    return res
-      .status(500)
-      .json({ message: "サーバーエラー", error: error?.message || error });
+    const result = await analyzeTalksAndDispatchToRPA();
+    return Response.json({ success: true, result });
+  } catch (error: unknown) {
+    console.error("RPA dispatch error:", error);
+    return Response.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
 }
