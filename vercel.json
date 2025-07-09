@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/dispatch-rpa-from-talks",
-      "schedule": "*/1 * * *"
+      "schedule": "*/1 * * * *"
     }
   ]
 }
