@@ -10,7 +10,7 @@ export default function KaipokeInfoPage() {
   useEffect(() => {
     fetch('/api/kaipoke-info')
       .then((res) => {
-        if (!res.ok) throw new Error('Network response was not ok')
+        if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`)
         return res.json()
       })
       .then((json) => setData(json))
