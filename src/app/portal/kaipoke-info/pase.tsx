@@ -1,9 +1,9 @@
 'use client'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+import { useEffect, useState } from 'react'
 
 export default function KaipokeInfoPage() {
-  const [data, setData] = useState<any[] | null>(null)
+  const [data, setData] = useState<{ id: number, title?: string, description?: string, created_at: string }[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -23,7 +23,7 @@ export default function KaipokeInfoPage() {
       {isLoading ? (
         <div className="h-48 w-full bg-gray-100 animate-pulse" />
       ) : (
-        data?.map((item: any) => (
+        data?.map((item) => (
           <div key={item.id} className="border rounded-md p-4 shadow-sm space-y-2">
             <div className="text-sm text-gray-500">ID: {item.id}</div>
             <div className="text-lg font-semibold">{item.title || 'タイトルなし'}</div>
