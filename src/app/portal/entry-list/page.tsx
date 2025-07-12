@@ -35,8 +35,36 @@ export default function EntryListPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [searchText, setSearchText] = useState('');
+    const [myLevelSort, setMyLevelSort] = useState<number | null>(null);
     const pageSize = 50;
     const role = useUserRole();
+
+    useEffect(() => {
+        const fetchMyLevelSort = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: userRecord } = await supabase
+                .from('users')
+                .select('level_id')
+                .eq('auth_user_id', user.id)
+                .single();
+
+            if (!userRecord?.level_id) return;
+
+            const { data: levelRecord } = await supabase
+                .from('levels')
+                .select('sort_order')
+                .eq('id', userRecord.level_id)
+                .single();
+
+            if (levelRecord?.sort_order !== undefined) {
+                setMyLevelSort(levelRecord.sort_order);
+            }
+        };
+
+        fetchMyLevelSort();
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -57,24 +85,25 @@ export default function EntryListPage() {
                 console.error('Supabase取得エラー:', error.message);
                 setEntries([]);
             } else {
+                const filtered = (data || []).filter(entry => {
+                    if (role === 'admin') return true;
+                    return myLevelSort === null || (entry.level_sort ?? 999999) > myLevelSort;
+                });
+
                 const statusOrder: Record<string, number> = {
                     account_id_create: 1,
                     auth_mail_send: 2,
                     joined: 3,
                 };
 
-                const sorted = (data || []).sort((a, b) => {
-                    // ステータスがnullのものを最上位にする
+                const sorted = filtered.sort((a, b) => {
                     const sa = a.status === null ? -1 : (statusOrder[a.status] ?? 99);
                     const sb = b.status === null ? -1 : (statusOrder[b.status] ?? 99);
                     if (sa !== sb) return sa - sb;
-
-                    // 同じステータスなら level_sort 降順（役職が上の方を先に）
                     const la = a.level_sort ?? 0;
                     const lb = b.level_sort ?? 0;
-                    return lb - la; // 降順
+                    return lb - la;
                 });
-
 
                 setEntries(sorted);
                 setTotalCount(count || 0);
@@ -83,8 +112,10 @@ export default function EntryListPage() {
             setLoading(false);
         };
 
-        fetchData();
-    }, [role, currentPage]);
+        if (role === 'admin' || myLevelSort !== null) {
+            fetchData();
+        }
+    }, [role, currentPage, myLevelSort]);
 
     useEffect(() => {
         const addMapLinks = async () => {
@@ -158,7 +189,7 @@ export default function EntryListPage() {
                             {filteredEntries.map((entry) => {
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
-                                        (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                                         ? 1 : 0
                                 );
 
