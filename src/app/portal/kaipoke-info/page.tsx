@@ -16,6 +16,7 @@ export default function KaipokeInfoPage() {
   const [data, setData] = useState<KaipokeInfo[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/kaipoke-info')
@@ -30,6 +31,32 @@ export default function KaipokeInfoPage() {
       })
       .finally(() => setIsLoading(false))
   }, [])
+
+  const handleChange = (id: string, field: keyof KaipokeInfo, value: string) => {
+    setData((prev) =>
+      prev?.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ) ?? null
+    )
+  }
+
+  const handleSave = async (item: KaipokeInfo) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/kaipoke-info/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      })
+      if (!res.ok) throw new Error('更新に失敗しました')
+      alert('保存しました')
+    } catch (err) {
+      console.error(err)
+      alert('保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (error) return <div className="p-4 text-red-600">読み込みエラーが発生しました</div>
 
@@ -48,19 +75,69 @@ export default function KaipokeInfoPage() {
               <th className="border p-2">メール</th>
               <th className="border p-2">終了日</th>
               <th className="border p-2">備考</th>
+              <th className="border p-2">操作</th>
             </tr>
           </thead>
           <tbody>
             {data?.map((item) => (
               <tr key={item.id}>
-                <td className="border p-2">{item.name}</td>
-                <td className="border p-2">{item.kaipoke_cs_id}</td>
-                <td className="border p-2">{item.service_kind}</td>
-                <td className="border p-2">{item.email}</td>
                 <td className="border p-2">
-                  {item.end_at ? new Date(item.end_at).toLocaleDateString() : '-'}
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(e) => handleChange(item.id, 'name', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
                 </td>
-                <td className="border p-2">{item.biko}</td>
+                <td className="border p-2">
+                  <input
+                    type="text"
+                    value={item.kaipoke_cs_id}
+                    onChange={(e) => handleChange(item.id, 'kaipoke_cs_id', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <input
+                    type="text"
+                    value={item.service_kind}
+                    onChange={(e) => handleChange(item.id, 'service_kind', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <input
+                    type="email"
+                    value={item.email}
+                    onChange={(e) => handleChange(item.id, 'email', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <input
+                    type="date"
+                    value={item.end_at ? item.end_at.substring(0, 10) : ''}
+                    onChange={(e) => handleChange(item.id, 'end_at', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <input
+                    type="text"
+                    value={item.biko}
+                    onChange={(e) => handleChange(item.id, 'biko', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <button
+                    onClick={() => handleSave(item)}
+                    className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
+                    disabled={saving}
+                  >
+                    保存
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
