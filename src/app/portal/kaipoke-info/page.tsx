@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from 'react'
 
+type KaipokeInfo = {
+  id: string
+  kaipoke_cs_id: string
+  name: string
+  end_at: string | null
+  service_kind: string
+  email: string
+  biko: string
+}
+
 export default function KaipokeInfoPage() {
-  const [data, setData] = useState<{ id: number; title?: string; description?: string; created_at: string }[] | null>(null)
+  const [data, setData] = useState<KaipokeInfo[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -25,20 +35,34 @@ export default function KaipokeInfoPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">カイポケ情報 一覧</h1>
+      <h1 className="text-2xl font-bold">カイポケ顧客情報一覧</h1>
       {isLoading ? (
         <div className="h-48 w-full bg-gray-100 animate-pulse" />
       ) : (
-        data?.map((item) => (
-          <div key={item.id} className="border rounded-md p-4 shadow-sm space-y-2">
-            <div className="text-sm text-gray-500">ID: {item.id}</div>
-            <div className="text-lg font-semibold">{item.title || 'タイトルなし'}</div>
-            <div className="text-sm">{item.description || '説明なし'}</div>
-            <div className="text-xs text-right text-gray-400">
-              登録日: {new Date(item.created_at).toLocaleString()}
-            </div>
-          </div>
-        ))
+        <table className="w-full table-auto border border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-left">
+              <th className="border p-2">事業所名</th>
+              <th className="border p-2">顧客ID</th>
+              <th className="border p-2">種別</th>
+              <th className="border p-2">メール</th>
+              <th className="border p-2">終了日</th>
+              <th className="border p-2">備考</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.map((item) => (
+              <tr key={item.id}>
+                <td className="border p-2">{item.name}</td>
+                <td className="border p-2">{item.kaipoke_cs_id}</td>
+                <td className="border p-2">{item.service_kind}</td>
+                <td className="border p-2">{item.email}</td>
+                <td className="border p-2">{item.end_at ? new Date(item.end_at).toLocaleDateString() : '-'}</td>
+                <td className="border p-2">{item.biko}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   )
