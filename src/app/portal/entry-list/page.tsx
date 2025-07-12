@@ -24,6 +24,8 @@ interface EntryData {
     googleMapUrl?: string;
     status?: string;
     status_label?: string;
+    level_label?: string;
+    level_sort?: number;
 }
 
 export default function EntryListPage() {
@@ -49,14 +51,18 @@ export default function EntryListPage() {
             const { data, error, count } = await supabase
                 .from('form_entries_with_status')
                 .select('*', { count: 'exact' })
-                .range(from, to)
-                .order('status', { ascending: true });
+                .range(from, to);
 
             if (error) {
                 console.error('Supabase取得エラー:', error.message);
                 setEntries([]);
             } else {
-                setEntries(data || []);
+                const sorted = (data || []).sort((a, b) => {
+                    if (!a.status && b.status) return -1;
+                    if (a.status && !b.status) return 1;
+                    return 0;
+                });
+                setEntries(sorted);
                 setTotalCount(count || 0);
             }
 
@@ -128,6 +134,7 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">性別</th>
                                 <th className="border px-2 py-1">年齢</th>
                                 <th className="border px-2 py-1">住所</th>
+                                <th className="border px-2 py-1">レベル</th>
                                 <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1">登録日</th>
                                 <th className="border px-2 py-1"></th>
@@ -156,6 +163,7 @@ export default function EntryListPage() {
                                                 {entry.shortAddress || '―'}
                                             </a>
                                         </td>
+                                        <td className="border px-2 py-1">{entry.level_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{entry.status_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                                         <td className="border px-2 py-1">
