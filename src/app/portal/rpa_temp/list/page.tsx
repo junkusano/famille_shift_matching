@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useUserRole } from '@/context/RoleContext'
 
 type Template = {
   id: string;
@@ -58,6 +59,7 @@ export default function RpaCommandTemplateListPage() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editKindId, setEditKindId] = useState('');
+  const role = useUserRole();
 
   useEffect(() => {
     fetchTemplates();
@@ -230,6 +232,11 @@ export default function RpaCommandTemplateListPage() {
       alert("更新に失敗しました: " + error.message);
     }
   };
+
+
+  if (!['admin', 'manager'].includes(role)) {
+    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
+  }
 
   return (
     <div className="content">

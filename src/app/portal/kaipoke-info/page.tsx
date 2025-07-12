@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useUserRole } from '@/context/RoleContext' // すでに別ページで使っているはず
+
 
 type KaipokeInfo = {
   id: string
@@ -17,6 +19,7 @@ export default function KaipokeInfoPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
   const [saving, setSaving] = useState(false)
+  const role = useUserRole(); // ★追加
 
   useEffect(() => {
     fetch('/api/kaipoke-info')
@@ -59,6 +62,11 @@ export default function KaipokeInfoPage() {
   }
 
   if (error) return <div className="p-4 text-red-600">読み込みエラーが発生しました</div>
+
+
+  if (!['admin', 'manager'].includes(role)) {
+    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
+  }
 
   return (
     <div className="p-4 space-y-4">

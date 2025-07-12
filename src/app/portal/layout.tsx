@@ -169,7 +169,7 @@ export default function PortalLayout({ children }: Props) {
                             </Link>
                         </li>
                     )}
-                    {role === 'admin' && (
+                    {(role === 'manager' || role === 'admin') && (
                         <>
                             <li>
                                 <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">
@@ -278,7 +278,7 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                         )}
-                        {role === 'admin' && (
+                        {(role === 'manager' || role === 'admin') && (
                             <>
                                 <li>                            <li>
                                     <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">

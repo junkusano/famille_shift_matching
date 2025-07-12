@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useUserRole } from '@/context/RoleContext'
 
 type RpaRequestView = {
   id: string;
@@ -19,6 +20,7 @@ type RpaRequestView = {
 export default function RpaRequestListPage() {
   const [requests, setRequests] = useState<RpaRequestView[]>([]);
   const [loading, setLoading] = useState(true);
+  const role = useUserRole();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,6 +41,10 @@ export default function RpaRequestListPage() {
 
     fetchData();
   }, []);
+
+  if (!['admin', 'manager'].includes(role)) {
+    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
+  }
 
   return (
     <div className="p-4">

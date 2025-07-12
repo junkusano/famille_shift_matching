@@ -80,8 +80,8 @@ export default function EntryListPage() {
         }
     }, [entries]);
 
-    if (role !== 'admin') {
-        return <p className="p-6">このページは管理者のみがアクセスできます。</p>;
+    if (!['admin', 'manager'].includes(role)) {
+        return <p className="p-6">このページは管理者およびマネジャーのみがアクセスできます。</p>;
     }
 
     return (
