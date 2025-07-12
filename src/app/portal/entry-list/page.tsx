@@ -24,7 +24,7 @@ interface EntryData {
     googleMapUrl?: string;
     status?: string;
     status_label?: string;
-    level_label?: string;
+    position_label?: string;
     level_sort?: number;
 }
 
@@ -57,11 +57,22 @@ export default function EntryListPage() {
                 console.error('Supabase取得エラー:', error.message);
                 setEntries([]);
             } else {
+                const statusOrder = {
+                    null: 0,
+                    'account_id_create': 1,
+                    'auth_mail_send': 2,
+                    'joined': 3,
+                };
+
                 const sorted = (data || []).sort((a, b) => {
-                    if (!a.status && b.status) return -1;
-                    if (a.status && !b.status) return 1;
-                    return 0;
+                    const sa = statusOrder[a.status as keyof typeof statusOrder] ?? 999;
+                    const sb = statusOrder[b.status as keyof typeof statusOrder] ?? 999;
+                    if (sa !== sb) return sa - sb;
+                    const la = a.level_sort ?? 999999;
+                    const lb = b.level_sort ?? 999999;
+                    return la - lb;
                 });
+
                 setEntries(sorted);
                 setTotalCount(count || 0);
             }
@@ -134,7 +145,7 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">性別</th>
                                 <th className="border px-2 py-1">年齢</th>
                                 <th className="border px-2 py-1">住所</th>
-                                <th className="border px-2 py-1">レベル</th>
+                                <th className="border px-2 py-1">職級</th>
                                 <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1">登録日</th>
                                 <th className="border px-2 py-1"></th>
@@ -163,7 +174,7 @@ export default function EntryListPage() {
                                                 {entry.shortAddress || '―'}
                                             </a>
                                         </td>
-                                        <td className="border px-2 py-1">{entry.level_label ?? '―'}</td>
+                                        <td className="border px-2 py-1">{entry.position_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{entry.status_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                                         <td className="border px-2 py-1">
