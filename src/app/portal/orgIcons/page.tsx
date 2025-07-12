@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { OrgIconsPanel } from '@/components/OrgIconManager';
 import { useUserRole } from '@/context/RoleContext'
