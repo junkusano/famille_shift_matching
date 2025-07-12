@@ -31,7 +31,7 @@ export default function KaipokeInfoPage() {
       .finally(() => setIsLoading(false))
   }, [])
 
-  if (error) return <div>読み込みエラーが発生しました</div>
+  if (error) return <div className="p-4 text-red-600">読み込みエラーが発生しました</div>
 
   return (
     <div className="p-4 space-y-4">
@@ -57,7 +57,9 @@ export default function KaipokeInfoPage() {
                 <td className="border p-2">{item.kaipoke_cs_id}</td>
                 <td className="border p-2">{item.service_kind}</td>
                 <td className="border p-2">{item.email}</td>
-                <td className="border p-2">{item.end_at ? new Date(item.end_at).toLocaleDateString() : '-'}</td>
+                <td className="border p-2">
+                  {item.end_at ? new Date(item.end_at).toLocaleDateString() : '-'}
+                </td>
                 <td className="border p-2">{item.biko}</td>
               </tr>
             ))}
