@@ -3,15 +3,21 @@
 import { useEffect, useState } from 'react'
 
 export default function KaipokeInfoPage() {
-  const [data, setData] = useState<{ id: number, title?: string, description?: string, created_at: string }[] | null>(null)
+  const [data, setData] = useState<{ id: number; title?: string; description?: string; created_at: string }[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    fetch('/portal/kaipoke-info')
-      .then(res => res.json())
-      .then(json => setData(json))
-      .catch(() => setError(true))
+    fetch('/api/kaipoke-info')
+      .then((res) => {
+        if (!res.ok) throw new Error('Network response was not ok')
+        return res.json()
+      })
+      .then((json) => setData(json))
+      .catch((err) => {
+        console.error('Fetch error:', err)
+        setError(true)
+      })
       .finally(() => setIsLoading(false))
   }, [])
 
