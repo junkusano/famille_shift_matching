@@ -88,6 +88,7 @@ export default function EntryDetailPage() {
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
     //const [email, setEmail] = useState<string>('');
+    const [restricted, setRestricted] = useState(false);
 
     const [userId, setUserId] = useState('');
     const [userIdLoading, setUserIdLoading] = useState(false);
@@ -245,6 +246,37 @@ export default function EntryDetailPage() {
         fetchData();
     }, []);
 
+    const [myLevelSort, setMyLevelSort] = useState<number | null>(null);
+
+    useEffect(() => {
+        const fetchMyLevelSort = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: userRecord } = await supabase
+                .from('users')
+                .select('level_id')
+                .eq('auth_user_id', user.id)
+                .single();
+
+            if (!userRecord?.level_id) return;
+
+            const { data: levelRecord } = await supabase
+                .from('levels')
+                .select('sort_order')
+                .eq('id', userRecord.level_id)
+                .single();
+
+            if (levelRecord?.sort_order !== undefined) {
+                setMyLevelSort(levelRecord.sort_order);
+            }
+        };
+
+        fetchMyLevelSort();
+    }, []);
+
+
+
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
@@ -258,18 +290,27 @@ export default function EntryDetailPage() {
     useEffect(() => {
         const fetchEntry = async () => {
             const { data, error } = await supabase
-                .from('form_entries')
+                .from('form_entries_with_status')  // ← `with_status` に変更必須！
                 .select('*')
                 .eq('id', id)
                 .single();
 
             if (error) {
                 console.error('取得エラー:', error.message);
-            } else {
-                setEntry(data);
-                setManagerNote(data?.manager_note ?? '');
+                return;
             }
+
+            // level_sort による制限
+            const entryLevelSort = data.level_sort ?? 999999;
+            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+                setRestricted(true);
+                return;
+            }
+
+            setEntry(data);
+            setManagerNote(data?.manager_note ?? '');
         };
+
 
         if (id) fetchEntry();
     }, [id]);
@@ -687,7 +728,7 @@ export default function EntryDetailPage() {
 
     //LINE WORKSの写真アップロード処理
     const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
-        console.log("写真アップロード userId:",userId);
+        console.log("写真アップロード userId:", userId);
         try {
             // 画像ファイルのバイトを取得
             const imageBlob = await fetch(iconUrl).then(res => res.blob());
@@ -876,6 +917,10 @@ export default function EntryDetailPage() {
             (a.label && a.label.startsWith('certificate_')) ||
             (a.type && a.type.includes('資格証'))
     );
+
+    if (restricted) {
+        return <p className="p-6 text-red-600 font-bold">このエントリーにはアクセスできません（権限不足）</p>;
+    }
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
