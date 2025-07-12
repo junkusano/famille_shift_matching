@@ -57,21 +57,24 @@ export default function EntryListPage() {
                 console.error('Supabase取得エラー:', error.message);
                 setEntries([]);
             } else {
-                const statusOrder = {
-                    null: 0,
-                    'account_id_create': 1,
-                    'auth_mail_send': 2,
-                    'joined': 3,
+                const statusOrder: Record<string, number> = {
+                    account_id_create: 1,
+                    auth_mail_send: 2,
+                    joined: 3,
                 };
 
                 const sorted = (data || []).sort((a, b) => {
-                    const sa = a.status === null ? 0 : (statusOrder[a.status] ?? 999);
-                    const sb = b.status === null ? 0 : (statusOrder[b.status] ?? 999);
+                    // ステータスがnullのものを最上位にする
+                    const sa = a.status === null ? -1 : (statusOrder[a.status] ?? 99);
+                    const sb = b.status === null ? -1 : (statusOrder[b.status] ?? 99);
                     if (sa !== sb) return sa - sb;
-                    const la = a.level_sort ?? 999999;
-                    const lb = b.level_sort ?? 999999;
-                    return la - lb;
+
+                    // 同じステータスなら level_sort 降順（役職が上の方を先に）
+                    const la = a.level_sort ?? 0;
+                    const lb = b.level_sort ?? 0;
+                    return lb - la; // 降順
                 });
+
 
                 setEntries(sorted);
                 setTotalCount(count || 0);
@@ -155,7 +158,7 @@ export default function EntryListPage() {
                             {filteredEntries.map((entry) => {
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
-                                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                                        (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                                         ? 1 : 0
                                 );
 
