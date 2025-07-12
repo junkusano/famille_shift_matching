@@ -24,7 +24,7 @@ interface EntryData {
     googleMapUrl?: string;
     status?: string;
     status_label?: string;
-    position_label?: string;
+    level_label?: string;
     level_sort?: number;
 }
 
@@ -65,8 +65,8 @@ export default function EntryListPage() {
                 };
 
                 const sorted = (data || []).sort((a, b) => {
-                    const sa = statusOrder[a.status as keyof typeof statusOrder] ?? 999;
-                    const sb = statusOrder[b.status as keyof typeof statusOrder] ?? 999;
+                    const sa = a.status === null ? 0 : (statusOrder[a.status] ?? 999);
+                    const sb = b.status === null ? 0 : (statusOrder[b.status] ?? 999);
                     if (sa !== sb) return sa - sb;
                     const la = a.level_sort ?? 999999;
                     const lb = b.level_sort ?? 999999;
@@ -174,7 +174,7 @@ export default function EntryListPage() {
                                                 {entry.shortAddress || '―'}
                                             </a>
                                         </td>
-                                        <td className="border px-2 py-1">{entry.position_label ?? '―'}</td>
+                                        <td className="border px-2 py-1">{entry.level_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{entry.status_label ?? '―'}</td>
                                         <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                                         <td className="border px-2 py-1">
