@@ -30,7 +30,7 @@ export default function FaxPage() {
   }, []);
 
   async function fetchEntries() {
-    const { data, error } = await supabase.from("fax_directory").select();
+    const { data, error } = await supabase.from("fax").select();
     if (!error) setEntries(data as FaxEntry[]);
   }
 
@@ -41,9 +41,9 @@ export default function FaxPage() {
 
   async function handleSave() {
     if (editing) {
-      await supabase.from("fax_directory").update(formData).eq("id", editing.id);
+      await supabase.from("fax").update(formData).eq("id", editing.id);
     } else {
-      await supabase.from("fax_directory").insert([formData]);
+      await supabase.from("fax").insert([formData]);
     }
     setFormData({});
     setEditing(null);
@@ -51,7 +51,7 @@ export default function FaxPage() {
   }
 
   async function handleDelete(id: string) {
-    await supabase.from("fax_directory").delete().eq("id", id);
+    await supabase.from("fax").delete().eq("id", id);
     fetchEntries();
   }
 
