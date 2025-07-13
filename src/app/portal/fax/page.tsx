@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableHead,
@@ -50,7 +54,7 @@ export default function FaxPage() {
       await supabase
         .from("fax")
         .update(formData)
-        .eq("fax", editing.fax); // 主キーが fax の場合
+        .eq("fax", editing.fax);
     } else {
       await supabase.from("fax").insert([formData]);
     }
@@ -70,41 +74,14 @@ export default function FaxPage() {
         <h1 className="text-xl font-bold">FAX電話帳</h1>
         <Dialog>
           <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormData({});
-              }}
-            >
-              新規追加
-            </Button>
+            <Button onClick={() => { setEditing(null); setFormData({}) }}>新規追加</Button>
           </DialogTrigger>
           <DialogContent>
             <div className="space-y-2">
-              <Input
-                name="office_name"
-                placeholder="事業所名"
-                onChange={handleChange}
-                value={formData.office_name || ""}
-              />
-              <Input
-                name="fax"
-                placeholder="FAX番号"
-                onChange={handleChange}
-                value={formData.fax || ""}
-              />
-              <Input
-                name="email"
-                placeholder="メールアドレス"
-                onChange={handleChange}
-                value={formData.email || ""}
-              />
-              <Input
-                name="service_kind"
-                placeholder="種別（例：医療機関）"
-                onChange={handleChange}
-                value={formData.service_kind || ""}
-              />
+              <Input name="office_name" placeholder="事業所名" onChange={handleChange} value={formData.office_name || ""} />
+              <Input name="fax" placeholder="FAX番号" onChange={handleChange} value={formData.fax || ""} />
+              <Input name="email" placeholder="メールアドレス" onChange={handleChange} value={formData.email || ""} />
+              <Input name="service_kind" placeholder="種別（例：医療機関）" onChange={handleChange} value={formData.service_kind || ""} />
               <Button onClick={handleSave}>保存</Button>
             </div>
           </DialogContent>
@@ -143,39 +120,15 @@ export default function FaxPage() {
                   </DialogTrigger>
                   <DialogContent>
                     <div className="space-y-2">
-                      <Input
-                        name="office_name"
-                        placeholder="事業所名"
-                        onChange={handleChange}
-                        value={formData.office_name || ""}
-                      />
-                      <Input
-                        name="fax"
-                        placeholder="FAX番号"
-                        onChange={handleChange}
-                        value={formData.fax || ""}
-                      />
-                      <Input
-                        name="email"
-                        placeholder="メールアドレス"
-                        onChange={handleChange}
-                        value={formData.email || ""}
-                      />
-                      <Input
-                        name="service_kind"
-                        placeholder="種別（例：医療機関）"
-                        onChange={handleChange}
-                        value={formData.service_kind || ""}
-                      />
+                      <Input name="office_name" placeholder="事業所名" onChange={handleChange} value={formData.office_name || ""} />
+                      <Input name="fax" placeholder="FAX番号" onChange={handleChange} value={formData.fax || ""} />
+                      <Input name="email" placeholder="メールアドレス" onChange={handleChange} value={formData.email || ""} />
+                      <Input name="service_kind" placeholder="種別（例：医療機関）" onChange={handleChange} value={formData.service_kind || ""} />
                       <Button onClick={handleSave}>保存</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(entry.fax)}
-                >
+                <Button variant="destructive" size="sm" onClick={() => handleDelete(entry.fax)}>
                   削除
                 </Button>
               </TableCell>
