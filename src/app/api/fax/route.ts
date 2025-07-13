@@ -18,7 +18,7 @@ type FaxEntry = {
 // POST: 新規登録
 export async function POST(req: Request) {
   const body: FaxEntry = await req.json();
-  const { error } = await supabase.from("fax_directory").insert([body]);
+  const { error } = await supabase.from("fax").insert([body]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
 // GET: 一覧取得（オプション）
 export async function GET() {
-  const { data, error } = await supabase.from("fax_directory").select();
+  const { data, error } = await supabase.from("fax").select();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

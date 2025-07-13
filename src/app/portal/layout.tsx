@@ -181,7 +181,11 @@ export default function PortalLayout({ children }: Props) {
                                     利用者様情報
                                 </Link>
                             </li>
-                            <li><a href="/portal/fax" className="font-bold text-gray-900">FAX電話帳</a></li>
+                            <li>
+                                <Link href="/portal/fax" className="text-blue-300 hover:underline">
+                                    fax電話帳
+                                </Link>
+                            </li>
                             <li>
                                 <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                     RPAリクエスト管理
@@ -292,7 +296,11 @@ export default function PortalLayout({ children }: Props) {
                                         </Link>
                                     </li>
                                 </li>
-                                <li><a href="/portal/fax" className="font-bold text-gray-900">FAX電話帳</a></li>
+                                <li>
+                                    <Link href="/portal/fax" className="text-blue-300 hover:underline">
+                                        fax電話帳
+                                    </Link>
+                                </li>
                                 <li>
                                     <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                         RPAリクエスト管理
