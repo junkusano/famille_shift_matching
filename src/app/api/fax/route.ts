@@ -1,22 +1,39 @@
-import { supabase } from "@/lib/supabaseClient"
+import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
-export async function fetchFaxList() {
-  const { data, error } = await supabase.from("fax_directory").select()
-  if (error) throw error
-  return data
+// Supabaseクライアントの生成
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// 型定義
+type FaxEntry = {
+  fax: string;
+  office_name: string;
+  email: string;
+  service_kind: string;
+};
+
+// POST: 新規登録
+export async function POST(req: Request) {
+  const body: FaxEntry = await req.json();
+  const { error } = await supabase.from("fax_directory").insert([body]);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }
 
-export async function createFax(entry: any) {
-  const { error } = await supabase.from("fax_directory").insert([entry])
-  if (error) throw error
-}
+// GET: 一覧取得（オプション）
+export async function GET() {
+  const { data, error } = await supabase.from("fax_directory").select();
 
-export async function updateFax(id: string, entry: any) {
-  const { error } = await supabase.from("fax_directory").update(entry).eq("id", id)
-  if (error) throw error
-}
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-export async function deleteFax(id: string) {
-  const { error } = await supabase.from("fax_directory").delete().eq("id", id)
-  if (error) throw error
+  return NextResponse.json(data);
 }
