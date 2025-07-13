@@ -35,8 +35,14 @@ export default function FaxPage() {
     email: '',
     service_kind: '',
   })
-  const [editFax, setEditFax] = useState<string | null>(null)
-  const [editEntry, setEditEntry] = useState<FaxEntry | null>(null)
+
+  const [isEditingIndex, setIsEditingIndex] = useState<number | null>(null)
+  const [editEntry, setEditEntry] = useState<FaxEntry>({
+    fax: '',
+    office_name: '',
+    email: '',
+    service_kind: '',
+  })
 
   const fetchFaxList = async () => {
     const res = await fetch('/api/fax')
@@ -62,23 +68,23 @@ export default function FaxPage() {
     }
   }
 
-  const handleEdit = (fax: string) => {
-    const target = faxList.find((e) => e.fax === fax)
-    if (target) {
-      setEditFax(fax)
-      setEditEntry({ ...target })
-    }
+  const handleEdit = (index: number) => {
+    setIsEditingIndex(index)
+    setEditEntry({ ...faxList[index] })
   }
 
-  const handleUpdate = async () => {
-    if (!editEntry) return
-    const res = await fetch('/api/fax', {
+  const handleCancelEdit = () => {
+    setIsEditingIndex(null)
+  }
+
+  const handleSaveEdit = async () => {
+    const res = await fetch(`/api/fax`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editEntry),
     })
     if (res.ok) {
-      setEditFax(null)
+      setIsEditingIndex(null)
       fetchFaxList()
     } else {
       alert('更新に失敗しました')
@@ -86,11 +92,9 @@ export default function FaxPage() {
   }
 
   const handleDelete = async (fax: string) => {
-    if (!confirm('本当に削除しますか？')) return
-    const res = await fetch('/api/fax', {
+    if (!confirm('削除してよろしいですか？')) return
+    const res = await fetch(`/api/fax?fax=${fax}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fax }),
     })
     if (res.ok) {
       fetchFaxList()
@@ -115,9 +119,7 @@ export default function FaxPage() {
               <Label>FAX番号</Label>
               <Input
                 value={newEntry.fax}
-                onChange={(e) =>
-                  setNewEntry({ ...newEntry, fax: e.target.value })
-                }
+                onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })}
               />
               <Label>事業所名</Label>
               <Input
@@ -129,9 +131,7 @@ export default function FaxPage() {
               <Label>メール</Label>
               <Input
                 value={newEntry.email}
-                onChange={(e) =>
-                  setNewEntry({ ...newEntry, email: e.target.value })
-                }
+                onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })}
               />
               <Label>サービス種別</Label>
               <Input
@@ -148,20 +148,20 @@ export default function FaxPage() {
         </Dialog>
       </div>
 
-      <Table className="w-full">
+      <Table className="w-full text-sm">
         <TableHeader>
           <TableRow>
             <TableHead>FAX</TableHead>
             <TableHead>事業所名</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>サービス種別</TableHead>
-            <TableHead className="text-right">操作</TableHead>
+            <TableHead className="w-28 text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {faxList.map((entry) => (
+          {faxList.map((entry, index) => (
             <TableRow key={entry.fax}>
-              {editFax === entry.fax && editEntry ? (
+              {isEditingIndex === index ? (
                 <>
                   <TableCell>
                     <Input
@@ -175,10 +175,7 @@ export default function FaxPage() {
                     <Input
                       value={editEntry.office_name}
                       onChange={(e) =>
-                        setEditEntry({
-                          ...editEntry,
-                          office_name: e.target.value,
-                        })
+                        setEditEntry({ ...editEntry, office_name: e.target.value })
                       }
                     />
                   </TableCell>
@@ -194,22 +191,15 @@ export default function FaxPage() {
                     <Input
                       value={editEntry.service_kind}
                       onChange={(e) =>
-                        setEditEntry({
-                          ...editEntry,
-                          service_kind: e.target.value,
-                        })
+                        setEditEntry({ ...editEntry, service_kind: e.target.value })
                       }
                     />
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button size="sm" variant="outline" onClick={handleUpdate}>
-                      ✓
+                  <TableCell className="flex gap-1 justify-end">
+                    <Button size="sm" variant="outline" onClick={handleSaveEdit}>
+                      💾
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditFax(null)}
-                    >
+                    <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
                       ×
                     </Button>
                   </TableCell>
@@ -220,11 +210,11 @@ export default function FaxPage() {
                   <TableCell>{entry.office_name}</TableCell>
                   <TableCell>{entry.email}</TableCell>
                   <TableCell>{entry.service_kind}</TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="flex gap-1 justify-end">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleEdit(entry.fax)}
+                      onClick={() => handleEdit(index)}
                     >
                       編集
                     </Button>
@@ -233,7 +223,7 @@ export default function FaxPage() {
                       variant="destructive"
                       onClick={() => handleDelete(entry.fax)}
                     >
-                      削除
+                      🗑️
                     </Button>
                   </TableCell>
                 </>
