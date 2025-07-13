@@ -34,9 +34,14 @@ export async function POST(req: Request) {
 
 // GET: 一覧取得
 export async function GET() {
-  const { data, error } = await supabase.from("fax").select();
+    
+  const { data, error } = await supabase
+    .from('fax')
+    .select('*')
+    .order('fax', { ascending: true }); // 必要に応じてorder変更
 
   if (error) {
+    console.error('Supabase GET error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
