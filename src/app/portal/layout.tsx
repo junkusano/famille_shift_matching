@@ -182,6 +182,11 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                             <li>
+                                    <Link href="/portal/phone" className="text-blue-300 hover:underline">
+                                        電話帳
+                                    </Link>
+                                </li>
+                            <li>
                                 <Link href="/portal/fax" className="text-blue-300 hover:underline">
                                     fax電話帳
                                 </Link>
@@ -295,6 +300,11 @@ export default function PortalLayout({ children }: Props) {
                                             利用者様情報
                                         </Link>
                                     </li>
+                                </li>
+                                <li>
+                                    <Link href="/portal/phone" className="text-blue-300 hover:underline">
+                                        電話帳
+                                    </Link>
                                 </li>
                                 <li>
                                     <Link href="/portal/fax" className="text-blue-300 hover:underline">
