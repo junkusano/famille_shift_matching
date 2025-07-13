@@ -5,7 +5,14 @@ import { createClient } from "@supabase/supabase-js";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableHead, TableRow, TableCell, TableHeader, TableBody } from "@/components/ui/table";
+import {
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableHeader,
+  TableBody,
+} from "@/components/ui/table";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,7 +20,6 @@ const supabase = createClient(
 );
 
 interface FaxEntry {
-  id: string;
   fax: string;
   office_name: string;
   email: string;
@@ -41,7 +47,10 @@ export default function FaxPage() {
 
   async function handleSave() {
     if (editing) {
-      await supabase.from("fax").update(formData).eq("id", editing.id);
+      await supabase
+        .from("fax")
+        .update(formData)
+        .eq("fax", editing.fax); // 主キーが fax の場合
     } else {
       await supabase.from("fax").insert([formData]);
     }
@@ -50,79 +59,130 @@ export default function FaxPage() {
     fetchEntries();
   }
 
-  async function handleDelete(id: string) {
-    await supabase.from("fax").delete().eq("id", id);
+  async function handleDelete(fax: string) {
+    await supabase.from("fax").delete().eq("fax", fax);
     fetchEntries();
   }
 
   return (
-      <main className="flex-1 p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-bold">FAX電話帳</h1>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button onClick={() => { setEditing(null); setFormData({}) }}>新規追加</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <div className="space-y-2">
-                <Input name="office_name" placeholder="事業所名" onChange={handleChange} value={formData.office_name || ""} />
-                <Input name="fax" placeholder="FAX番号" onChange={handleChange} value={formData.fax || ""} />
-                <Input name="email" placeholder="メールアドレス" onChange={handleChange} value={formData.email || ""} />
-                <Input name="service_kind" placeholder="種別（例：医療機関）" onChange={handleChange} value={formData.service_kind || ""} />
-                <Button onClick={handleSave}>保存</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+    <main className="flex-1 p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">FAX電話帳</h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormData({});
+              }}
+            >
+              新規追加
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <div className="space-y-2">
+              <Input
+                name="office_name"
+                placeholder="事業所名"
+                onChange={handleChange}
+                value={formData.office_name || ""}
+              />
+              <Input
+                name="fax"
+                placeholder="FAX番号"
+                onChange={handleChange}
+                value={formData.fax || ""}
+              />
+              <Input
+                name="email"
+                placeholder="メールアドレス"
+                onChange={handleChange}
+                value={formData.email || ""}
+              />
+              <Input
+                name="service_kind"
+                placeholder="種別（例：医療機関）"
+                onChange={handleChange}
+                value={formData.service_kind || ""}
+              />
+              <Button onClick={handleSave}>保存</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-        <Table className="w-full">
-          <TableHeader>
-            <TableRow>
-              <TableHead>事業所名</TableHead>
-              <TableHead>FAX番号</TableHead>
-              <TableHead>メール</TableHead>
-              <TableHead>種別</TableHead>
-              <TableHead>操作</TableHead>
+      <Table className="w-full">
+        <TableHeader>
+          <TableRow>
+            <TableHead>事業所名</TableHead>
+            <TableHead>FAX番号</TableHead>
+            <TableHead>メール</TableHead>
+            <TableHead>種別</TableHead>
+            <TableHead>操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry) => (
+            <TableRow key={entry.fax}>
+              <TableCell>{entry.office_name}</TableCell>
+              <TableCell>{entry.fax}</TableCell>
+              <TableCell>{entry.email}</TableCell>
+              <TableCell>{entry.service_kind}</TableCell>
+              <TableCell className="space-x-2">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditing(entry);
+                        setFormData(entry);
+                      }}
+                    >
+                      編集
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <div className="space-y-2">
+                      <Input
+                        name="office_name"
+                        placeholder="事業所名"
+                        onChange={handleChange}
+                        value={formData.office_name || ""}
+                      />
+                      <Input
+                        name="fax"
+                        placeholder="FAX番号"
+                        onChange={handleChange}
+                        value={formData.fax || ""}
+                      />
+                      <Input
+                        name="email"
+                        placeholder="メールアドレス"
+                        onChange={handleChange}
+                        value={formData.email || ""}
+                      />
+                      <Input
+                        name="service_kind"
+                        placeholder="種別（例：医療機関）"
+                        onChange={handleChange}
+                        value={formData.service_kind || ""}
+                      />
+                      <Button onClick={handleSave}>保存</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(entry.fax)}
+                >
+                  削除
+                </Button>
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((entry) => (
-              <TableRow key={entry.id}>
-                <TableCell>{entry.office_name}</TableCell>
-                <TableCell>{entry.fax}</TableCell>
-                <TableCell>{entry.email}</TableCell>
-                <TableCell>{entry.service_kind}</TableCell>
-                <TableCell className="space-x-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setEditing(entry);
-                          setFormData(entry);
-                        }}
-                      >
-                        編集
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <div className="space-y-2">
-                        <Input name="office_name" placeholder="事業所名" onChange={handleChange} value={formData.office_name || ""} />
-                        <Input name="fax" placeholder="FAX番号" onChange={handleChange} value={formData.fax || ""} />
-                        <Input name="email" placeholder="メールアドレス" onChange={handleChange} value={formData.email || ""} />
-                        <Input name="service_kind" placeholder="種別（例：医療機関）" onChange={handleChange} value={formData.service_kind || ""} />
-                        <Button onClick={handleSave}>保存</Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(entry.id)}>
-                    削除
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </main>
+          ))}
+        </TableBody>
+      </Table>
+    </main>
   );
 }
