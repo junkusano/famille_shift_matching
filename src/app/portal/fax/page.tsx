@@ -56,15 +56,6 @@ export default function FaxPage() {
   }
 
   return (
-    <div className="flex">
-      <aside className="w-64 h-screen bg-gray-100 p-4 border-r">
-        <h2 className="text-lg font-semibold mb-4">メニュー</h2>
-        <ul className="space-y-2">
-          <li><a href="/portal" className="text-blue-600 hover:underline">ダッシュボード</a></li>
-          <li><a href="/portal/fax" className="font-bold text-gray-900">FAX電話帳</a></li>
-          <li><a href="/portal/kaipoke-info" className="text-blue-600 hover:underline">Kaipoke Info</a></li>
-        </ul>
-      </aside>
       <main className="flex-1 p-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-bold">FAX電話帳</h1>
@@ -133,6 +124,5 @@ export default function FaxPage() {
           </TableBody>
         </Table>
       </main>
-    </div>
   );
 }

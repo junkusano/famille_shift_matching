@@ -181,6 +181,7 @@ export default function PortalLayout({ children }: Props) {
                                     利用者様情報
                                 </Link>
                             </li>
+                            <li><a href="/portal/fax" className="font-bold text-gray-900">FAX電話帳</a></li>
                             <li>
                                 <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                     RPAリクエスト管理
@@ -285,12 +286,13 @@ export default function PortalLayout({ children }: Props) {
                                         組織アイコン設定
                                     </Link>
                                 </li>
-                                <li>
-                                    <Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">
-                                        利用者様情報
-                                    </Link>
+                                    <li>
+                                        <Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">
+                                            利用者様情報
+                                        </Link>
+                                    </li>
                                 </li>
-                                </li>
+                                <li><a href="/portal/fax" className="font-bold text-gray-900">FAX電話帳</a></li>
                                 <li>
                                     <Link href="/portal/rpa_requests" className="text-blue-300 hover:underline">
                                         RPAリクエスト管理
