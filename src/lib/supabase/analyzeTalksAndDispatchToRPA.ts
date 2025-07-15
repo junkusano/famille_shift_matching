@@ -19,7 +19,6 @@ const analyzePendingTalksAndDispatch = async () => {
         .order("timestamp", { ascending: true });
 
 
-
     console.log("Supabase status fetch error:", error);
     console.log("logs:", logs);
 
