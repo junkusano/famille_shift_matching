@@ -60,6 +60,9 @@ const analyzePendingTalksAndDispatch = async () => {
 
         const responseText = res.choices[0].message.content?.trim() ?? "";
 
+        console.log("🔍 AI応答内容:", responseText);
+
+
         // 分析ログに記録
         await supabase.from("msg_lw_analysis_log").insert({
             timestamp: new Date().toISOString(),
