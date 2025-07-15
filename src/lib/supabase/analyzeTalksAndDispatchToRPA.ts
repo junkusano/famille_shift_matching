@@ -14,8 +14,10 @@ const analyzePendingTalksAndDispatch = async () => {
         .from("msg_lw_log")
         .select("id, user_id, channel_id, message, timestamp")
         .eq("status", 0)
-        .eq("event_type", "message") // ← ここを追加
+        .eq("event_type", "message")
+        .neq("message", null) // ← 💡ここでnull排除！
         .order("timestamp", { ascending: true });
+
 
 
     console.log("Supabase status fetch error:", error);
