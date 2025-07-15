@@ -6,7 +6,7 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
   role: "system",
   content: `
 あなたは会話の流れから、RPAに必要な処理指示を構造化データで抽出するアシスタントです。
-以下のどちらかに該当する場合、該当のテンプレートIDを含むJSONで回答してください。
+以下のどちらかに該当する場合、該当のテンプレートIDを含むJSONで回答してください。なお、シフト処理のハンドラーになる重大な判断なので、あいまいなものは処理をせず、また　出力形式も
 
 
 【1. シフト削除】
