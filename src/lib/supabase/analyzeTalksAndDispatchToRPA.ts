@@ -54,6 +54,22 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         const group_account = baseLog?.group_account || "不明";
         const timestamp = baseLog?.timestamp || new Date().toISOString();
 
+        const accessToken = await getAccessToken();
+        const groupRes = await fetch(`https://www.worksapis.com/v1.0/groups/${channel_id}/members`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
+        });
+        const groupData = await groupRes.json();
+        const members = groupData.members || [];
+
+        const mentionMapText = members
+            .filter((m: any) => m.type === "USER")
+            .map((m: any) => `@${m.externalKey}=${m.id}`)
+            .join(", ");
+
         const messages: ChatCompletionMessageParam[] = [
             rpaInstructionPrompt,
             {
@@ -63,6 +79,10 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             {
                 role: "system",
                 content: `この会話の基準日（最終発言時刻）は ${timestamp} です。`,
+            },
+            {
+                role: "system",
+                content: `この会話には以下のメンションが含まれます: ${mentionMapText}`,
             },
             ...talks.map((t) => ({
                 role: t.role,
