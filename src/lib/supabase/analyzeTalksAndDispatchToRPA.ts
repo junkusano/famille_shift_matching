@@ -11,12 +11,12 @@ const openai = new OpenAI({
 const analyzePendingTalksAndDispatch = async () => {
     // ステータス0: 未処理
     const { data: logs, error } = await supabase
-        .from("msg_lw_log_with_group_account") // ← view を使用
+        .from("msg_lw_log_with_group_account")
         .select("id, user_id, channel_id, message, timestamp, group_account")
         .eq("status", 0)
         .eq("event_type", "message")
         .neq("message", null)
-        .filter("group_account", "ilike", "^[0-9]+$") // ← 数字のみの group_account
+        .eq("is_numeric_group_account", true) // ← NEW!
         .order("timestamp", { ascending: true });
 
 
