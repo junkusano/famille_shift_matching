@@ -121,7 +121,8 @@ const analyzePendingTalksAndDispatch = async () => {
             await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids); // 4 = error
         }
 
+    }
 
-    };
+};
 
-    export default analyzePendingTalksAndDispatch;
+export default analyzePendingTalksAndDispatch;
