@@ -8,6 +8,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
+/*
 type Log = {
   id: number;
   user_id: string;
@@ -16,6 +17,7 @@ type Log = {
   timestamp: string;
   group_account: string;
 };
+*/
 
 type GroupedTalk = {
   ids: number[];
