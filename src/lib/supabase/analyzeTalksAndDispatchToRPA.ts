@@ -45,8 +45,20 @@ const analyzePendingTalksAndDispatch = async () => {
     for (const [channel_id, { ids, talks }] of Object.entries(grouped)) {
         if (!talks.length) continue;
 
+        const baseLog = logs.find((log) => ids.includes(log.id));
+        const group_account = baseLog?.group_account || "不明";
+        const timestamp = baseLog?.timestamp || new Date().toISOString();
+
         const messages: ChatCompletionMessageParam[] = [
             rpaInstructionPrompt,
+            {
+                role: "system",
+                content: `この会話は group_account=${group_account} のやりとりです。`,
+            },
+            {
+                role: "system",
+                content: `この会話の基準日（最終発言時刻）は ${timestamp} です。`,
+            },
             ...talks.map((t) => ({
                 role: t.role as "user" | "assistant" | "system",
                 content: t.content,
@@ -62,7 +74,6 @@ const analyzePendingTalksAndDispatch = async () => {
         const responseText = res.choices[0].message.content?.trim() ?? "";
 
         console.log("🔍 AI応答内容:", responseText);
-
 
         // 分析ログに記録
         await supabase.from("msg_lw_analysis_log").insert({
@@ -84,7 +95,7 @@ const analyzePendingTalksAndDispatch = async () => {
             await supabase.from("rpa_command_request").insert({
                 template_id,
                 request_detail,
-                requested_by: null, // channel_idベースなので特定user_idなし
+                requested_by: null,
                 status: "pending",
             });
 
@@ -100,6 +111,7 @@ const analyzePendingTalksAndDispatch = async () => {
             await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids); // 4 = error
         }
     }
+
 };
 
 export default analyzePendingTalksAndDispatch;
