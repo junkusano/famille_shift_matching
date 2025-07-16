@@ -111,12 +111,9 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             });
 
             await supabase.from("msg_lw_log").update({ status: 3 }).in("id", ids);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                console.error("💥 JSON解析またはInsertエラー:", err.message);
-            } else {
-                console.error("💥 予期せぬエラー:", err);
-            }
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error("💥 JSON解析またはInsertエラー:", errorMsg);
 
             await supabase.from("msg_lw_analysis_log").insert({
                 timestamp: new Date().toISOString(),
