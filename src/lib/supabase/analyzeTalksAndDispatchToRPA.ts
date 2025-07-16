@@ -22,6 +22,12 @@ type GroupedTalk = {
   talks: { role: "user" | "assistant" | "system"; content: string }[];
 };
 
+type GroupMember = {
+  externalKey: string;
+  id: string;
+  type: "USER" | "ORGUNIT" | "GROUP";
+};
+
 const analyzePendingTalksAndDispatch = async (): Promise<void> => {
     const { data: logs, error } = await supabase
         .from("msg_lw_log_with_group_account")
@@ -63,11 +69,11 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             },
         });
         const groupData = await groupRes.json();
-        const members = groupData.members || [];
+        const members: GroupMember[] = groupData.members || [];
 
         const mentionMapText = members
-            .filter((m: any) => m.type === "USER")
-            .map((m: any) => `@${m.externalKey}=${m.id}`)
+            .filter((m) => m.type === "USER")
+            .map((m) => `@${m.externalKey}=${m.id}`)
             .join(", ");
 
         const messages: ChatCompletionMessageParam[] = [
@@ -113,7 +119,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
         try {
             let cleanedText = responseText.trim();
-            if (cleanedText.startsWith("```")) {
+            if (cleanedText.startsWith("```") && cleanedText.endsWith("```")) {
                 cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/```$/, "").trim();
             }
 
