@@ -7,7 +7,6 @@ import { getAccessToken } from "@/lib/getAccessToken";
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
-
 /*
 type Log = {
   id: number;
@@ -73,10 +72,12 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         const groupData = await groupRes.json();
         const members: GroupMember[] = groupData.members || [];
 
-        const mentionMapText = members
-            .filter((m) => m.type === "USER")
-            .map((m) => `@${m.externalKey}=${m.id}`)
-            .join(", ");
+        const mentionMap = members
+            .filter((m): m is GroupMember & { type: "USER" } => m.type === "USER")
+            .map((m) => ({
+                name: m.externalKey,
+                user_id: m.id,
+            }));
 
         const messages: ChatCompletionMessageParam[] = [
             rpaInstructionPrompt,
@@ -90,7 +91,9 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             },
             {
                 role: "system",
-                content: `この会話には以下のメンションが含まれます: ${mentionMapText}`,
+                content:
+                    `この会話には以下のメンションがあります（JSON形式）。文中に出てくる @名前 に対応する user_id は以下のとおりです。内容に登場する人物の担当者IDを特定する際に必ず参考にしてください。\n` +
+                    JSON.stringify(mentionMap, null, 2),
             },
             ...talks.map((t) => ({
                 role: t.role,
