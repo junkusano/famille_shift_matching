@@ -17,7 +17,12 @@ type Log = {
   group_account: string;
 };
 
-const analyzePendingTalksAndDispatch = async () => {
+type GroupedTalk = {
+  ids: number[];
+  talks: { role: "user" | "assistant" | "system"; content: string }[];
+};
+
+const analyzePendingTalksAndDispatch = async (): Promise<void> => {
     const { data: logs, error } = await supabase
         .from("msg_lw_log_with_group_account")
         .select("id, user_id, channel_id, message, timestamp, group_account")
@@ -30,26 +35,20 @@ const analyzePendingTalksAndDispatch = async () => {
     console.log("Supabase status fetch error:", error);
     console.log("logs:", logs);
 
-    if (error || !logs?.length) return;
+    if (error || !logs || logs.length === 0) return;
 
-    const grouped = logs.reduce(
-        (acc: Record<string, { ids: number[]; talks: { role: string; content: string }[] }>, log: Log) => {
-            const key = log.channel_id || `user:${log.user_id}`;
-            if (!acc[key]) {
-                acc[key] = { ids: [], talks: [] };
-            }
-            acc[key].ids.push(log.id);
-            acc[key].talks.push({
-                role: "user",
-                content: log.message,
-            });
-            return acc;
-        },
-        {}
-    );
+    const grouped: Record<string, GroupedTalk> = logs.reduce((acc, log) => {
+        const key = log.channel_id || `user:${log.user_id}`;
+        if (!acc[key]) {
+            acc[key] = { ids: [], talks: [] };
+        }
+        acc[key].ids.push(log.id);
+        acc[key].talks.push({ role: "user", content: log.message });
+        return acc;
+    }, {});
 
     for (const [channel_id, { ids, talks }] of Object.entries(grouped)) {
-        if (!talks.length) continue;
+        if (talks.length === 0) continue;
 
         const baseLog = logs.find((log) => ids.includes(log.id));
         const group_account = baseLog?.group_account || "不明";
@@ -66,7 +65,7 @@ const analyzePendingTalksAndDispatch = async () => {
                 content: `この会話の基準日（最終発言時刻）は ${timestamp} です。`,
             },
             ...talks.map((t) => ({
-                role: t.role as "user" | "assistant" | "system",
+                role: t.role,
                 content: t.content,
             })),
         ];
