@@ -2,32 +2,38 @@ import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
 import { rpaInstructionPrompt } from "@/lib/supabase/rpaInstructionPrompt";
-
+import { getAccessToken } from "@/lib/getAccessToken";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
+type Log = {
+  id: number;
+  user_id: string;
+  channel_id: string;
+  message: string;
+  timestamp: string;
+  group_account: string;
+};
+
 const analyzePendingTalksAndDispatch = async () => {
-    // ステータス0: 未処理
     const { data: logs, error } = await supabase
         .from("msg_lw_log_with_group_account")
         .select("id, user_id, channel_id, message, timestamp, group_account")
         .eq("status", 0)
         .eq("event_type", "message")
         .neq("message", null)
-        .eq("is_numeric_group_account", true) // ← NEW!
+        .eq("is_numeric_group_account", true)
         .order("timestamp", { ascending: true });
-
 
     console.log("Supabase status fetch error:", error);
     console.log("logs:", logs);
 
     if (error || !logs?.length) return;
 
-    // ✅ グルーピングキーを channel_id に変更（user_idではない）
     const grouped = logs.reduce(
-        (acc: Record<string, { ids: number[]; talks: { role: string; content: string }[] }>, log) => {
+        (acc: Record<string, { ids: number[]; talks: { role: string; content: string }[] }>, log: Log) => {
             const key = log.channel_id || `user:${log.user_id}`;
             if (!acc[key]) {
                 acc[key] = { ids: [], talks: [] };
@@ -71,11 +77,9 @@ const analyzePendingTalksAndDispatch = async () => {
             temperature: 0,
         });
 
-        const responseText = res.choices[0].message.content?.trim() ?? "";
-
+        const responseText = (res.choices?.[0]?.message?.content ?? "").trim();
         console.log("🔍 AI応答内容:", responseText);
 
-        // 分析ログに記録
         await supabase.from("msg_lw_analysis_log").insert({
             timestamp: new Date().toISOString(),
             channel_id: channel_id,
@@ -84,7 +88,7 @@ const analyzePendingTalksAndDispatch = async () => {
         });
 
         if (responseText.toLowerCase() === "処理なし") {
-            await supabase.from("msg_lw_log").update({ status: 2 }).in("id", ids); // 2 = done
+            await supabase.from("msg_lw_log").update({ status: 2 }).in("id", ids);
             continue;
         }
 
@@ -107,9 +111,13 @@ const analyzePendingTalksAndDispatch = async () => {
                 requested_at: new Date().toISOString(),
             });
 
-            await supabase.from("msg_lw_log").update({ status: 3 }).in("id", ids); // 3 = dispatched
-        } catch (err) {
-            console.error("💥 JSON解析またはInsertエラー:", err);
+            await supabase.from("msg_lw_log").update({ status: 3 }).in("id", ids);
+        } catch (err: unknown) {
+            if (err instanceof Error) {
+                console.error("💥 JSON解析またはInsertエラー:", err.message);
+            } else {
+                console.error("💥 予期せぬエラー:", err);
+            }
 
             await supabase.from("msg_lw_analysis_log").insert({
                 timestamp: new Date().toISOString(),
@@ -118,11 +126,9 @@ const analyzePendingTalksAndDispatch = async () => {
                 reason: "JSON parse or insert error",
             });
 
-            await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids); // 4 = error
+            await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids);
         }
-
     }
-
 };
 
 export default analyzePendingTalksAndDispatch;
