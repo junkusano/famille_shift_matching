@@ -92,20 +92,25 @@ const analyzePendingTalksAndDispatch = async () => {
             const parsed = JSON.parse(responseText);
             const { template_id, request_detail } = parsed;
 
-            await supabase.from("rpa_command_request").insert({
+            const requestorId = logs.find((l) => l.id === ids[0])?.user_id ?? null;
+
+            await supabase.from("rpa_command_requests").insert({
                 template_id,
-                request_detail,
-                requested_by: null,
+                request_details: request_detail,
+                requester_id: requestorId,
                 status: "pending",
+                requested_at: new Date().toISOString(),
             });
 
             await supabase.from("msg_lw_log").update({ status: 3 }).in("id", ids); // 3 = dispatched
-        } catch {
+        } catch (err) {
+            console.error("💥 JSON解析またはInsertエラー:", err);
+
             await supabase.from("msg_lw_analysis_log").insert({
                 timestamp: new Date().toISOString(),
                 channel_id: channel_id,
                 text: responseText,
-                reason: "JSON parse error",
+                reason: "JSON parse or insert error",
             });
 
             await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids); // 4 = error
