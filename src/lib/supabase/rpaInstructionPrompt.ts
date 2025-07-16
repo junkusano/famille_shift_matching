@@ -23,7 +23,7 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 **出力形式（厳守）：**
 \`\`\`json
 {
-  "template_id": "13a881d9-4104-4198-a0a3-3d3e89427472",
+  "template_id": "9bcfa71a-e800-4b49-a6aa-b80016b4b683",
   "request_detail": {
     "group_account": "msgデータに含まれる group_account（他から推測しない）",
     "shift_date": "対象日（例: 2025-07-10。不明な場合は「不明」と記載）",
