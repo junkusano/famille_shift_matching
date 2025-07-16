@@ -89,7 +89,12 @@ const analyzePendingTalksAndDispatch = async () => {
         }
 
         try {
-            const parsed = JSON.parse(responseText);
+            let cleanedText = responseText.trim();
+            if (cleanedText.startsWith("```")) {
+                cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/```$/, "").trim();
+            }
+
+            const parsed = JSON.parse(cleanedText);
             const { template_id, request_detail } = parsed;
 
             const requestorId = logs.find((l) => l.id === ids[0])?.user_id ?? null;
@@ -115,8 +120,8 @@ const analyzePendingTalksAndDispatch = async () => {
 
             await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids); // 4 = error
         }
-    }
 
-};
 
-export default analyzePendingTalksAndDispatch;
+    };
+
+    export default analyzePendingTalksAndDispatch;
