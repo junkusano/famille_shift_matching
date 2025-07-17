@@ -20,14 +20,14 @@ type Log = {
 */
 
 type GroupedTalk = {
-  ids: number[];
-  talks: { role: "user" | "assistant" | "system"; content: string }[];
+    ids: number[];
+    talks: { role: "user" | "assistant" | "system"; content: string }[];
 };
 
 type GroupMember = {
-  externalKey: string;
-  id: string;
-  type: "USER" | "ORGUNIT" | "GROUP";
+    externalKey: string;
+    id: string;
+    type: "USER" | "ORGUNIT" | "GROUP";
 };
 
 const analyzePendingTalksAndDispatch = async (): Promise<void> => {
@@ -140,7 +140,15 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             const parsed = JSON.parse(cleanedText);
             const { template_id, request_detail } = parsed;
 
-            const requestorId = logs.find((l) => l.id === ids[0])?.user_id ?? null;
+            const lw_user_id = logs.find((l) => l.id === ids[0])?.user_id ?? null;
+
+            const { data: user } = await supabase
+                .from("users")
+                .select("auth_uid")
+                .eq("lw_userid", lw_user_id)  // ←正しいカラム名
+                .maybeSingle();
+
+            const requestorId = user?.auth_uid ?? null;
 
             await supabase.from("rpa_command_requests").insert({
                 template_id,
