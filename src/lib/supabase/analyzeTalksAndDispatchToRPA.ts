@@ -7,6 +7,7 @@ import { getAccessToken } from "@/lib/getAccessToken";
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
+
 /*
 type Log = {
   id: number;
@@ -117,8 +118,16 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             reason: responseText.toLowerCase() === "処理なし" ? "処理不要" : "処理判定済",
         });
 
-        if (responseText.toLowerCase() === "処理なし") {
-            await supabase.from("msg_lw_log").update({ status: 2 }).in("id", ids);
+        if (responseText.trim() === "処理なし") {
+            for (const id of ids) {
+                const { error: updateErr } = await supabase
+                    .from("msg_lw_log")
+                    .update({ status: 2 })
+                    .eq("id", id);
+                if (updateErr) {
+                    console.error(`❌ Update failed for id=${id} (status=2):`, updateErr.message);
+                }
+            }
             continue;
         }
 
@@ -141,7 +150,15 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                 requested_at: new Date().toISOString(),
             });
 
-            await supabase.from("msg_lw_log").update({ status: 3 }).in("id", ids);
+            for (const id of ids) {
+                const { error: updateErr } = await supabase
+                    .from("msg_lw_log")
+                    .update({ status: 3 })
+                    .eq("id", id);
+                if (updateErr) {
+                    console.error(`❌ Update failed for id=${id} (status=3):`, updateErr.message);
+                }
+            }
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             console.error("💥 JSON解析またはInsertエラー:", errorMsg);
@@ -153,7 +170,15 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                 reason: "JSON parse or insert error",
             });
 
-            await supabase.from("msg_lw_log").update({ status: 4 }).in("id", ids);
+            for (const id of ids) {
+                const { error: updateErr } = await supabase
+                    .from("msg_lw_log")
+                    .update({ status: 4 })
+                    .eq("id", id);
+                if (updateErr) {
+                    console.error(`❌ Update failed for id=${id} (status=4):`, updateErr.message);
+                }
+            }
         }
     }
 };
