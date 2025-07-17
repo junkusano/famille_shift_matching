@@ -249,6 +249,7 @@ export default function RpaCommandTemplateListPage() {
                 <div>
                   <div className="text-xl font-bold">{template.name}</div>
                   <div className="text-sm text-gray-500">{template.description}（種別: {template.kind_name}）</div>
+                  <div className="text-md font-mono text-blue-700 break-all">UUID: {template.id}</div>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => handleOpenEdit(template)}>編集</Button>
