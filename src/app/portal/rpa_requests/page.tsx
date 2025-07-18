@@ -92,7 +92,7 @@ export default function RpaRequestListPage() {
         template_id: '',
       })
       fetchRequests()
-    } catch (err) {
+    } catch (_rer) {
       alert('追加に失敗しました')
     }
   }
