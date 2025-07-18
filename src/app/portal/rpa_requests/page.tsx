@@ -85,7 +85,7 @@ export default function RpaRequestListPage() {
                   <pre className="whitespace-pre-wrap break-all max-w-xs">
                     {r.result_details ? JSON.stringify(r.result_details, null, 2) : '-'}
                   </pre>
-                </td>　            
+                </td>            
                 <td className="border px-2 py-1">{r.result_summary ?? '-'}</td>
                 <td className="border px-2 py-1">
                   {new Date(r.created_at).toLocaleString('ja-JP')}
