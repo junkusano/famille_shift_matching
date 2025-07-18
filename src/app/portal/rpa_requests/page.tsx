@@ -92,7 +92,7 @@ export default function RpaRequestListPage() {
         template_id: '',
       })
       fetchRequests()
-    } catch (err) {
+    } catch (_err) {
       alert('追加に失敗しました')
     }
   }
@@ -125,6 +125,9 @@ export default function RpaRequestListPage() {
         <Textarea placeholder="結果詳細（JSON）" className="col-span-full" rows={4} value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
         <div className="col-span-full"><Button onClick={handleAdd}>追加</Button></div>
       </div>
+
+      {/* ローディング表示 */}
+      {loading && <p className="text-gray-500">読み込み中...</p>}
 
       {/* 表示テーブル（10列） */}
       <table className="table-auto w-full text-sm border">
