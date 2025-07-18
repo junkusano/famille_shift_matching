@@ -9,7 +9,8 @@ type RpaRequestView = {
   requester_id: string;
   requester_name: string | null;
   approver_name: string | null;
-  kind_name: string | null;
+  kind_name: string | null; //
+  template_name: string | null;
   status_label: string | null;
   request_details: object | null;
   result_details: object | null;
@@ -59,8 +60,11 @@ export default function RpaRequestListPage() {
               <th className="px-2 py-1 border">申請者</th>
               <th className="px-2 py-1 border">承認者</th>
               <th className="px-2 py-1 border">種別</th>
+              <th className="px-2 py-1 border">テンプレート</th> 
               <th className="px-2 py-1 border">ステータス</th>
-              <th className="px-2 py-1 border">概要</th>
+              <th className="px-2 py-1 border">リクエスト詳細</th> 
+              <th className="px-2 py-1 border">結果詳細</th> 
+              <th className="px-2 py-1 border">実行結果</th> 
               <th className="px-2 py-1 border">登録日</th>
             </tr>
           </thead>
@@ -69,8 +73,19 @@ export default function RpaRequestListPage() {
               <tr key={r.id}>
                 <td className="border px-2 py-1">{r.requester_name ?? '-'}</td>
                 <td className="border px-2 py-1">{r.approver_name ?? '-'}</td>
+                <td className="border px-2 py-1">{r.template_name ?? '-'}</td>
                 <td className="border px-2 py-1">{r.kind_name ?? '-'}</td>
                 <td className="border px-2 py-1">{r.status_label ?? '-'}</td>
+                <td className="border px-2 py-1">
+                  <pre className="whitespace-pre-wrap break-all max-w-xs">
+                    {r.request_details ? JSON.stringify(r.request_details, null, 2) : '-'}
+                  </pre>
+                </td>
+                <td className="border px-2 py-1">
+                  <pre className="whitespace-pre-wrap break-all max-w-xs">
+                    {r.result_details ? JSON.stringify(r.result_details, null, 2) : '-'}
+                  </pre>
+                </td>　            
                 <td className="border px-2 py-1">{r.result_summary ?? '-'}</td>
                 <td className="border px-2 py-1">
                   {new Date(r.created_at).toLocaleString('ja-JP')}
