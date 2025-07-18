@@ -161,7 +161,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             for (const id of ids) {
                 const { error: updateErr } = await supabase
                     .from("msg_lw_log")
-                    .update({ status: 3 })
+                    .update({ status: 9 })
                     .eq("id", id);
                 if (updateErr) {
                     console.error(`❌ Update failed for id=${id} (status=3):`, updateErr.message);
@@ -181,7 +181,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
             for (const id of ids) {
                 const { error: updateErr } = await supabase
                     .from("msg_lw_log")
-                    .update({ status: 4 })
+                    .update({ status: 9 })
                     .eq("id", id);
                 if (updateErr) {
                     console.error(`❌ Update failed for id=${id} (status=4):`, updateErr.message);
