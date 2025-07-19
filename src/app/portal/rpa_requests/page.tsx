@@ -42,6 +42,7 @@ export default function RpaRequestListPage() {
     result_details: {},
     template_id: '',
   })
+  const [editingId, setEditingId] = useState<string | null>(null)
   const role = useUserRole()
 
   const fetchRequests = async () => {
@@ -68,33 +69,53 @@ export default function RpaRequestListPage() {
     fetchRequests()
   }, [])
 
+  const resetForm = () => {
+    setNewEntry({
+      requester_id: '',
+      approver_id: '',
+      status: '',
+      result_summary: '',
+      request_details: {},
+      result_details: {},
+      template_id: '',
+    })
+    setEditingId(null)
+  }
+
   const handleAdd = async () => {
     try {
-      const { error } = await supabase.from('rpa_command_requests').insert([
-        {
-          requester_id: newEntry.requester_id,
-          approver_id: newEntry.approver_id,
-          template_id: newEntry.template_id,
-          status: newEntry.status,
-          request_details: newEntry.request_details,
-          result_details: newEntry.result_details,
-          result_summary: newEntry.result_summary,
-        },
-      ])
+      const { error } = await supabase.from('rpa_command_requests').insert([{ ...newEntry }])
       if (error) throw error
-      setNewEntry({
-        requester_id: '',
-        approver_id: '',
-        status: '',
-        result_summary: '',
-        request_details: {},
-        result_details: {},
-        template_id: '',
-      })
+      resetForm()
       fetchRequests()
-    } catch  {
+    } catch {
       alert('追加に失敗しました')
     }
+  }
+
+  const handleUpdate = async () => {
+    if (!editingId) return
+    try {
+      const { error } = await supabase.from('rpa_command_requests').update({ ...newEntry }).eq('id', editingId)
+      if (error) throw error
+      resetForm()
+      fetchRequests()
+    } catch {
+      alert('更新に失敗しました')
+    }
+  }
+
+  const handleEdit = (r: RpaRequestView) => {
+    setNewEntry({
+      requester_id: r.requester_id || '',
+      approver_id: r.approver_id || '',
+      status: r.status || '',
+      result_summary: r.result_summary || '',
+      request_details: r.request_details || {},
+      result_details: r.result_details || {},
+      template_id: r.template_id || '',
+    })
+    setEditingId(r.id)
   }
 
   const handleDelete = async (id: string) => {
@@ -111,7 +132,7 @@ export default function RpaRequestListPage() {
     <div className="p-4 space-y-6">
       <h1 className="text-xl font-bold">RPAリクエスト一覧（実テーブル対応）</h1>
 
-      {/* 追加フォーム */}
+      {/* 追加・編集フォーム */}
       <div className="grid gap-2 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <Input placeholder="申請者ID" value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })} />
         <Input placeholder="承認者ID" value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })} />
@@ -123,13 +144,20 @@ export default function RpaRequestListPage() {
         <Input placeholder="実行結果" value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
         <Textarea placeholder="リクエスト詳細（JSON）" className="col-span-full" rows={4} value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch {} }} />
         <Textarea placeholder="結果詳細（JSON）" className="col-span-full" rows={4} value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
-        <div className="col-span-full"><Button onClick={handleAdd}>追加</Button></div>
+        <div className="col-span-full flex gap-2">
+          {editingId ? (
+            <>
+              <Button onClick={handleUpdate}>更新</Button>
+              <Button variant="outline" onClick={resetForm}>キャンセル</Button>
+            </>
+          ) : (
+            <Button onClick={handleAdd}>追加</Button>
+          )}
+        </div>
       </div>
 
-      {/* ローディング表示 */}
       {loading && <p className="text-gray-500">読み込み中...</p>}
 
-      {/* 表示テーブル（10列） */}
       <table className="table-auto w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
@@ -157,7 +185,10 @@ export default function RpaRequestListPage() {
               <td className="border px-2 py-1 whitespace-pre-wrap break-all max-w-xs">{r.result_details ? JSON.stringify(r.result_details, null, 2) : '-'}</td>
               <td className="border px-2 py-1">{r.result_summary ?? '-'}</td>
               <td className="border px-2 py-1">{new Date(r.created_at).toLocaleString('ja-JP')}</td>
-              <td className="border px-2 py-1"><Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button></td>
+              <td className="border px-2 py-1 space-x-1">
+                <Button size="sm" variant="outline" onClick={() => handleEdit(r)}>編集</Button>
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button>
+              </td>
             </tr>
           ))}
         </tbody>
