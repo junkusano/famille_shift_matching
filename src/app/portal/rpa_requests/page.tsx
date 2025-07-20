@@ -1,6 +1,5 @@
 'use client'
 
-// ...（省略可能なimport）
 import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
 
-// 型定義
 interface RpaRequestView {
   id: string;
   requester_name: string | null;
@@ -46,9 +44,8 @@ export default function RpaRequestListPage() {
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [statuses, setStatuses] = useState<StatusOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [newEntry, setNewEntry] = useState<Partial<RpaRequestView>>({});
+  const [isLoading, setIsLoading] = useState(false);
   const role = useUserRole();
 
   useEffect(() => {
@@ -61,7 +58,6 @@ export default function RpaRequestListPage() {
   const fetchRequests = async () => {
     const { data } = await supabase.from('rpa_command_requests_view').select('*').order('created_at', { ascending: false });
     setRequests(data || []);
-    setLoading(false);
   };
 
   const fetchTemplates = async () => {
@@ -76,12 +72,14 @@ export default function RpaRequestListPage() {
 
   const fetchStatuses = async () => {
     const { data } = await supabase.from('rpa_command_request_status').select('id, label');
-    const mapped = (data || []).map((s: any) => ({ value: s.id, label: s.label }));
+    const mapped: StatusOption[] = (data || []).map((s: { id: string; label: string }) => ({ value: s.id, label: s.label }));
     setStatuses(mapped);
   };
 
   const handleAdd = async () => {
+    setIsLoading(true);
     const { error } = await supabase.from('rpa_command_requests').insert([newEntry]);
+    setIsLoading(false);
     if (!error) {
       setNewEntry({});
       fetchRequests();
@@ -137,7 +135,9 @@ export default function RpaRequestListPage() {
         <Input placeholder='実行結果' value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
         <Textarea placeholder='リクエスト詳細（JSON）' value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch {} }} />
         <Textarea placeholder='結果詳細（JSON）' value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
-        <div className="col-span-full"><Button onClick={handleAdd}>追加</Button></div>
+        <div className="col-span-full">
+          <Button onClick={handleAdd} disabled={isLoading}>{isLoading ? '追加中...' : '追加'}</Button>
+        </div>
       </div>
 
       {/* 一覧と行内編集 */}
