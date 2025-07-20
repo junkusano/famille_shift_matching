@@ -1,198 +1,199 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { supabase } from '@/lib/supabaseClient'
-import { useUserRole } from '@/context/RoleContext'
+// ...（省略可能なimport）
+import { useEffect, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/lib/supabaseClient';
+import { useUserRole } from '@/context/RoleContext';
 
 // 型定義
-type RpaRequestView = {
-  id: string
-  requester_name: string | null
-  approver_name: string | null
-  kind_name: string | null
-  template_name: string | null
-  status: string | null
-  request_details: object | null
-  result_details: object | null
-  result_summary: string | null
-  created_at: string
-  template_id?: string
-  requester_id?: string
-  approver_id?: string
+interface RpaRequestView {
+  id: string;
+  requester_name: string | null;
+  approver_name: string | null;
+  kind_name: string | null;
+  template_name: string | null;
+  status: string | null;
+  request_details: object | null;
+  result_details: object | null;
+  result_summary: string | null;
+  created_at: string;
+  template_id?: string;
+  requester_id?: string;
+  approver_id?: string;
 }
 
-type TemplateOption = {
-  id: string
-  name: string
+interface TemplateOption {
+  id: string;
+  name: string;
+}
+
+interface UserOption {
+  user_id: string;
+  last_name_kanji: string;
+  first_name_kanji: string;
+}
+
+interface StatusOption {
+  value: string;
+  label: string;
 }
 
 export default function RpaRequestListPage() {
-  const [requests, setRequests] = useState<RpaRequestView[]>([])
-  const [templates, setTemplates] = useState<TemplateOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [newEntry, setNewEntry] = useState<Partial<RpaRequestView>>({
-    requester_id: '',
-    approver_id: '',
-    status: '',
-    result_summary: '',
-    request_details: {},
-    result_details: {},
-    template_id: '',
-  })
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const role = useUserRole()
-
-  const fetchRequests = async () => {
-    const { data, error } = await supabase
-      .from('rpa_command_requests_view')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (!error) setRequests(data as RpaRequestView[])
-    setLoading(false)
-  }
-
-  const fetchTemplates = async () => {
-    const { data, error } = await supabase
-      .from('rpa_command_templates')
-      .select('id, name')
-      .order('name')
-
-    if (!error) setTemplates(data as TemplateOption[])
-  }
+  const [requests, setRequests] = useState<RpaRequestView[]>([]);
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [statuses, setStatuses] = useState<StatusOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newEntry, setNewEntry] = useState<Partial<RpaRequestView>>({});
+  const role = useUserRole();
 
   useEffect(() => {
-    fetchTemplates()
-    fetchRequests()
-  }, [])
+    fetchTemplates();
+    fetchUsers();
+    fetchStatuses();
+    fetchRequests();
+  }, []);
 
-  const resetForm = () => {
-    setNewEntry({
-      requester_id: '',
-      approver_id: '',
-      status: '',
-      result_summary: '',
-      request_details: {},
-      result_details: {},
-      template_id: '',
-    })
-    setEditingId(null)
-  }
+  const fetchRequests = async () => {
+    const { data } = await supabase.from('rpa_command_requests_view').select('*').order('created_at', { ascending: false });
+    setRequests(data || []);
+    setLoading(false);
+  };
+
+  const fetchTemplates = async () => {
+    const { data } = await supabase.from('rpa_command_templates').select('id, name');
+    setTemplates(data || []);
+  };
+
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('user_entry_united_view').select('user_id, last_name_kanji, first_name_kanji');
+    setUsers(data || []);
+  };
+
+  const fetchStatuses = async () => {
+    const { data } = await supabase.from('rpa_command_request_status').select('id, label');
+    const mapped = (data || []).map((s: any) => ({ value: s.id, label: s.label }));
+    setStatuses(mapped);
+  };
 
   const handleAdd = async () => {
-    try {
-      const { error } = await supabase.from('rpa_command_requests').insert([{ ...newEntry }])
-      if (error) throw error
-      resetForm()
-      fetchRequests()
-    } catch {
-      alert('追加に失敗しました')
+    const { error } = await supabase.from('rpa_command_requests').insert([newEntry]);
+    if (!error) {
+      setNewEntry({});
+      fetchRequests();
+    } else {
+      alert('追加失敗');
     }
-  }
+  };
 
-  const handleUpdate = async () => {
-    if (!editingId) return
-    try {
-      const { error } = await supabase.from('rpa_command_requests').update({ ...newEntry }).eq('id', editingId)
-      if (error) throw error
-      resetForm()
-      fetchRequests()
-    } catch {
-      alert('更新に失敗しました')
-    }
-  }
-
-  const handleEdit = (r: RpaRequestView) => {
-    setNewEntry({
-      requester_id: r.requester_id || '',
-      approver_id: r.approver_id || '',
-      status: r.status || '',
-      result_summary: r.result_summary || '',
-      request_details: r.request_details || {},
-      result_details: r.result_details || {},
-      template_id: r.template_id || '',
-    })
-    setEditingId(r.id)
-  }
+  const handleUpdate = async (id: string, update: Partial<RpaRequestView>) => {
+    const { error } = await supabase.from('rpa_command_requests').update(update).eq('id', id);
+    if (!error) fetchRequests();
+    else alert('更新失敗');
+  };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('rpa_command_requests').delete().eq('id', id)
-    if (!error) fetchRequests()
-    else alert('削除に失敗しました')
-  }
+    const { error } = await supabase.from('rpa_command_requests').delete().eq('id', id);
+    if (!error) fetchRequests();
+    else alert('削除失敗');
+  };
 
-  if (!['admin', 'manager'].includes(role)) {
-    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
-  }
+  if (!['admin', 'manager'].includes(role)) return <div>閲覧権限がありません</div>;
 
   return (
     <div className="p-4 space-y-6">
-      <h1 className="text-xl font-bold">RPAリクエスト一覧（実テーブル対応）</h1>
+      <h1 className="text-xl font-bold">RPAリクエスト一覧</h1>
 
-      {/* 追加・編集フォーム */}
-      <div className="grid gap-2 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        <Input placeholder="申請者ID" value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })} />
-        <Input placeholder="承認者ID" value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })} />
-        <select className="border rounded px-2 py-1" value={newEntry.template_id} onChange={e => setNewEntry({ ...newEntry, template_id: e.target.value })}>
-          <option value="">テンプレートを選択</option>
-          {templates.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
+      {/* 新規追加 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        <select value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })}>
+          <option value=''>申請者を選択</option>
+          {users.map(u => (
+            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+          ))}
         </select>
-        <Input placeholder="ステータス" value={newEntry.status || ''} onChange={e => setNewEntry({ ...newEntry, status: e.target.value })} />
-        <Input placeholder="実行結果" value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
-        <Textarea placeholder="リクエスト詳細（JSON）" className="col-span-full" rows={4} value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch {} }} />
-        <Textarea placeholder="結果詳細（JSON）" className="col-span-full" rows={4} value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
-        <div className="col-span-full flex gap-2">
-          {editingId ? (
-            <>
-              <Button onClick={handleUpdate}>更新</Button>
-              <Button variant="outline" onClick={resetForm}>キャンセル</Button>
-            </>
-          ) : (
-            <Button onClick={handleAdd}>追加</Button>
-          )}
-        </div>
+        <select value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })}>
+          <option value=''>承認者を選択</option>
+          {users.map(u => (
+            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+          ))}
+        </select>
+        <select value={newEntry.template_id || ''} onChange={e => setNewEntry({ ...newEntry, template_id: e.target.value })}>
+          <option value=''>テンプレート選択</option>
+          {templates.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+        <select value={newEntry.status || ''} onChange={e => setNewEntry({ ...newEntry, status: e.target.value })}>
+          <option value=''>ステータス選択</option>
+          {statuses.map(s => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <Input placeholder='実行結果' value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
+        <Textarea placeholder='リクエスト詳細（JSON）' value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch {} }} />
+        <Textarea placeholder='結果詳細（JSON）' value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
+        <div className="col-span-full"><Button onClick={handleAdd}>追加</Button></div>
       </div>
 
-      {loading && <p className="text-gray-500">読み込み中...</p>}
-
+      {/* 一覧と行内編集 */}
       <table className="table-auto w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
-            <th className="border px-2 py-1">申請者</th>
-            <th className="border px-2 py-1">承認者</th>
-            <th className="border px-2 py-1">種別</th>
-            <th className="border px-2 py-1">テンプレート</th>
-            <th className="border px-2 py-1">ステータス</th>
-            <th className="border px-2 py-1">リクエスト詳細</th>
-            <th className="border px-2 py-1">結果詳細</th>
-            <th className="border px-2 py-1">実行結果</th>
-            <th className="border px-2 py-1">登録日</th>
-            <th className="border px-2 py-1">操作</th>
+            <th>申請者</th><th>承認者</th><th>種別</th><th>テンプレート</th>
+            <th>ステータス</th><th>リクエスト詳細</th><th>結果詳細</th>
+            <th>実行結果</th><th>登録日</th><th>操作</th>
           </tr>
         </thead>
         <tbody>
-          {requests.map(r => (
+          {requests.map((r) => (
             <tr key={r.id}>
-              <td className="border px-2 py-1">{r.requester_name ?? '-'}</td>
-              <td className="border px-2 py-1">{r.approver_name ?? '-'}</td>
-              <td className="border px-2 py-1">{r.kind_name ?? '-'}</td>
-              <td className="border px-2 py-1">{r.template_name ?? '-'}</td>
-              <td className="border px-2 py-1">{r.status ?? '-'}</td>
-              <td className="border px-2 py-1 whitespace-pre-wrap break-all max-w-xs">{r.request_details ? JSON.stringify(r.request_details, null, 2) : '-'}</td>
-              <td className="border px-2 py-1 whitespace-pre-wrap break-all max-w-xs">{r.result_details ? JSON.stringify(r.result_details, null, 2) : '-'}</td>
-              <td className="border px-2 py-1">{r.result_summary ?? '-'}</td>
-              <td className="border px-2 py-1">{new Date(r.created_at).toLocaleString('ja-JP')}</td>
-              <td className="border px-2 py-1 space-x-1">
-                <Button size="sm" variant="outline" onClick={() => handleEdit(r)}>編集</Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button>
+              <td>
+                <select value={r.requester_id || ''} onChange={e => handleUpdate(r.id, { requester_id: e.target.value })}>
+                  {users.map(u => (
+                    <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+                  ))}
+                </select>
               </td>
+              <td>
+                <select value={r.approver_id || ''} onChange={e => handleUpdate(r.id, { approver_id: e.target.value })}>
+                  {users.map(u => (
+                    <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+                  ))}
+                </select>
+              </td>
+              <td>{r.kind_name}</td>
+              <td>
+                <select value={r.template_id || ''} onChange={e => handleUpdate(r.id, { template_id: e.target.value })}>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <select value={r.status || ''} onChange={e => handleUpdate(r.id, { status: e.target.value })}>
+                  {statuses.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <Textarea rows={3} value={JSON.stringify(r.request_details || {}, null, 2)} onChange={e => { try { handleUpdate(r.id, { request_details: JSON.parse(e.target.value) }) } catch {} }} />
+              </td>
+              <td>
+                <Textarea rows={3} value={JSON.stringify(r.result_details || {}, null, 2)} onChange={e => { try { handleUpdate(r.id, { result_details: JSON.parse(e.target.value) }) } catch {} }} />
+              </td>
+              <td>
+                <Input value={r.result_summary || ''} onChange={e => handleUpdate(r.id, { result_summary: e.target.value })} />
+              </td>
+              <td>{new Date(r.created_at).toLocaleString('ja-JP')}</td>
+              <td><Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button></td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-  )
+  );
 }
