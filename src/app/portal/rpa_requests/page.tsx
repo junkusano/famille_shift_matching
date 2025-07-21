@@ -174,34 +174,34 @@ export default function RpaRequestListPage() {
           {requests.map((r) => (
             <tr key={r.id}>
               <td>
-                <select value={editedRows[r.id]?.requester_id || r.requester_id || ''} onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}>
+                <select value={editedRows[r.id]?.requester_id ?? r.requester_id ?? ''} onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}>
                   {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>
-                <select value={editedRows[r.id]?.approver_id || r.approver_id || ''} onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}>
+                <select value={editedRows[r.id]?.approver_id ?? r.approver_id ?? ''} onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}>
                   {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>{r.kind_name}</td>
               <td>
-                <select value={editedRows[r.id]?.template_id || r.template_id || ''} onChange={e => handleFieldChange(r.id, 'template_id', e.target.value)}>
+                <select value={editedRows[r.id]?.template_id ?? r.template_id ?? ''} onChange={e => handleFieldChange(r.id, 'template_id', e.target.value)}>
                   {templates.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                 </select>
               </td>
               <td>
-                <select value={editedRows[r.id]?.status || r.status || ''} onChange={e => handleFieldChange(r.id, 'status', e.target.value)}>
+                <select value={editedRows[r.id]?.status ?? r.status ?? ''} onChange={e => handleFieldChange(r.id, 'status', e.target.value)}>
                   {statuses.map(s => (<option key={s.value} value={s.value}>{s.label}</option>))}
                 </select>
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.request_details || r.request_details || {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch {} }} />
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.request_details ?? r.request_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch {} }} />
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.result_details || r.result_details || {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch {} }} />
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.result_details ?? r.result_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch {} }} />
               </td>
               <td>
-                <Input value={editedRows[r.id]?.result_summary || r.result_summary || ''} onChange={e => handleFieldChange(r.id, 'result_summary', e.target.value)} />
+                <Input value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''} onChange={e => handleFieldChange(r.id, 'result_summary', e.target.value)} />
               </td>
               <td>{new Date(r.created_at).toLocaleString('ja-JP')}</td>
               <td>
