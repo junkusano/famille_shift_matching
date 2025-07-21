@@ -89,7 +89,7 @@ export default function RpaRequestListPage() {
     }
   };
 
-  const handleFieldChange = (id: string, field: keyof RpaRequestView, value: any) => {
+  const handleFieldChange = <K extends keyof RpaRequestView>(id: string, field: K, value: RpaRequestView[K]) => {
     setEditedRows(prev => ({
       ...prev,
       [id]: {
