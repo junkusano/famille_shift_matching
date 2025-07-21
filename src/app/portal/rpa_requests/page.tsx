@@ -45,6 +45,7 @@ export default function RpaRequestListPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [statuses, setStatuses] = useState<StatusOption[]>([]);
   const [newEntry, setNewEntry] = useState<Partial<RpaRequestView>>({});
+  const [editedRows, setEditedRows] = useState<Record<string, Partial<RpaRequestView>>>({});
   const [isLoading, setIsLoading] = useState(false);
   const role = useUserRole();
 
@@ -88,10 +89,30 @@ export default function RpaRequestListPage() {
     }
   };
 
-  const handleUpdate = async (id: string, update: Partial<RpaRequestView>) => {
+  const handleFieldChange = (id: string, field: keyof RpaRequestView, value: any) => {
+    setEditedRows(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: value,
+      }
+    }));
+  };
+
+  const handleSave = async (id: string) => {
+    const update = editedRows[id];
+    if (!update) return;
     const { error } = await supabase.from('rpa_command_requests').update(update).eq('id', id);
-    if (!error) fetchRequests();
-    else alert('更新失敗');
+    if (!error) {
+      setEditedRows(prev => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      fetchRequests();
+    } else {
+      alert('更新失敗');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -153,45 +174,40 @@ export default function RpaRequestListPage() {
           {requests.map((r) => (
             <tr key={r.id}>
               <td>
-                <select value={r.requester_id || ''} onChange={e => handleUpdate(r.id, { requester_id: e.target.value })}>
-                  {users.map(u => (
-                    <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
-                  ))}
+                <select value={editedRows[r.id]?.requester_id || r.requester_id || ''} onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}>
+                  {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>
-                <select value={r.approver_id || ''} onChange={e => handleUpdate(r.id, { approver_id: e.target.value })}>
-                  {users.map(u => (
-                    <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
-                  ))}
+                <select value={editedRows[r.id]?.approver_id || r.approver_id || ''} onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}>
+                  {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>{r.kind_name}</td>
               <td>
-                <select value={r.template_id || ''} onChange={e => handleUpdate(r.id, { template_id: e.target.value })}>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                <select value={editedRows[r.id]?.template_id || r.template_id || ''} onChange={e => handleFieldChange(r.id, 'template_id', e.target.value)}>
+                  {templates.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                 </select>
               </td>
               <td>
-                <select value={r.status || ''} onChange={e => handleUpdate(r.id, { status: e.target.value })}>
-                  {statuses.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
+                <select value={editedRows[r.id]?.status || r.status || ''} onChange={e => handleFieldChange(r.id, 'status', e.target.value)}>
+                  {statuses.map(s => (<option key={s.value} value={s.value}>{s.label}</option>))}
                 </select>
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(r.request_details || {}, null, 2)} onChange={e => { try { handleUpdate(r.id, { request_details: JSON.parse(e.target.value) }) } catch {} }} />
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.request_details || r.request_details || {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch {} }} />
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(r.result_details || {}, null, 2)} onChange={e => { try { handleUpdate(r.id, { result_details: JSON.parse(e.target.value) }) } catch {} }} />
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.result_details || r.result_details || {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch {} }} />
               </td>
               <td>
-                <Input value={r.result_summary || ''} onChange={e => handleUpdate(r.id, { result_summary: e.target.value })} />
+                <Input value={editedRows[r.id]?.result_summary || r.result_summary || ''} onChange={e => handleFieldChange(r.id, 'result_summary', e.target.value)} />
               </td>
               <td>{new Date(r.created_at).toLocaleString('ja-JP')}</td>
-              <td><Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button></td>
+              <td>
+                <Button size="sm" variant="default" onClick={() => handleSave(r.id)}>保存</Button>
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)}>削除</Button>
+              </td>
             </tr>
           ))}
         </tbody>
