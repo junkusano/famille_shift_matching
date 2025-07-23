@@ -1,5 +1,4 @@
 //lib/supabase/rpaInstructionPrompt.ts
-
 import { ChatCompletionMessageParam } from "openai/resources";
 
 export const rpaInstructionPrompt: ChatCompletionMessageParam = {
@@ -21,13 +20,19 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 - 発信者自身の都合で「行けない」「無理」「代わりを頼む」などと発言している場合は **処理対象外** としてください（これはシフト削除ではなく、担当交代の要請にあたります）
 
 **出力形式（厳守）：**
+複数シフト削除に対応するため、以下の形式で出力してください。
+
 \`\`\`json
 {
   "template_id": "9bcfa71a-e800-4b49-a6aa-b80016b4b683",
   "request_detail": {
     "group_account": "msgデータに含まれる group_account（他から推測しない）",
-    "shift_date": "対象日（例: 2025-07-10。不明な場合は「不明」と記載）",
-    "shift_time": "時間帯（例: 9:00-11:00。不明な場合は「不明」と記載）"
+    "deletions": [
+      {
+        "shift_date": "対象日（例: 2025-07-10。不明な場合は「不明」）",
+        "shift_time": "時間帯（例: 9:00-11:00。不明な場合は「不明」）"
+      }
+    ]
   }
 }
 \`\`\`
