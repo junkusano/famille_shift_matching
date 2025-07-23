@@ -29,13 +29,13 @@ interface TemplateOption {
 }
 
 interface UserOption {
-  user_id: string;
+  auth_uid: string;
   last_name_kanji: string;
   first_name_kanji: string;
 }
 
 interface StatusOption {
-  value: string;
+  status_code: string;
   label: string;
 }
 
@@ -67,14 +67,13 @@ export default function RpaRequestListPage() {
   };
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('user_entry_united_view').select('user_id, last_name_kanji, first_name_kanji');
-    setUsers(data || []);
+    const { data } = await supabase.from('form_entries').select('auth_uid, last_name_kanji, first_name_kanji');
+    setUsers(data?.map(u => ({ auth_uid: u.auth_uid, last_name_kanji: u.last_name_kanji, first_name_kanji: u.first_name_kanji })) || []);
   };
 
   const fetchStatuses = async () => {
-    const { data } = await supabase.from('rpa_command_request_status').select('id, label');
-    const mapped: StatusOption[] = (data || []).map((s) => ({ value: s.id, label: s.label }));
-    setStatuses(mapped);
+    const { data } = await supabase.from('rpa_command_request_status').select('status_code, label');
+    setStatuses(data || []);
   };
 
   const handleAdd = async () => {
@@ -127,18 +126,17 @@ export default function RpaRequestListPage() {
     <div className="p-4 space-y-6">
       <h1 className="text-xl font-bold">RPAリクエスト一覧</h1>
 
-      {/* 新規追加 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
         <select value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })} name="requester_id">
           <option value=''>申請者を選択</option>
           {users.map(u => (
-            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+            <option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>
           ))}
         </select>
         <select value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })} name="approver_id">
           <option value=''>承認者を選択</option>
           {users.map(u => (
-            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+            <option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>
           ))}
         </select>
         <select value={newEntry.template_id || ''} onChange={e => setNewEntry({ ...newEntry, template_id: e.target.value })} name="template_id">
@@ -150,7 +148,7 @@ export default function RpaRequestListPage() {
         <select value={newEntry.status || ''} onChange={e => setNewEntry({ ...newEntry, status: e.target.value })} name="status">
           <option value=''>ステータス選択</option>
           {statuses.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.status_code} value={s.status_code}>{s.label}</option>
           ))}
         </select>
         <Input placeholder='実行結果' value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
@@ -161,7 +159,6 @@ export default function RpaRequestListPage() {
         </div>
       </div>
 
-      {/* 一覧と行内編集 */}
       <table className="table-auto w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
@@ -176,13 +173,13 @@ export default function RpaRequestListPage() {
               <td>
                 <select name="requester_id" value={editedRows[r.id]?.requester_id ?? r.requester_id ?? ''} onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}>
                   <option value=''>申請者を選択</option>
-                  {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
+                  {users.map(u => (<option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>
                 <select name="approver_id" value={editedRows[r.id]?.approver_id ?? r.approver_id ?? ''} onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}>
                   <option value=''>承認者を選択</option>
-                  {users.map(u => (<option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
+                  {users.map(u => (<option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>{r.kind_name}</td>
@@ -195,7 +192,7 @@ export default function RpaRequestListPage() {
               <td>
                 <select name="status" value={editedRows[r.id]?.status ?? r.status ?? ''} onChange={e => handleFieldChange(r.id, 'status', e.target.value)}>
                   <option value=''>ステータス選択</option>
-                  {statuses.map(s => (<option key={s.value} value={s.value}>{s.label}</option>))}
+                  {statuses.map(s => (<option key={s.status_code} value={s.status_code}>{s.label}</option>))}
                 </select>
               </td>
               <td>
