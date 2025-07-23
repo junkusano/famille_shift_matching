@@ -29,13 +29,13 @@ interface TemplateOption {
 }
 
 interface UserOption {
-  user_id: string;
+  auth_uid: string;
   last_name_kanji: string;
   first_name_kanji: string;
 }
 
 interface StatusOption {
-  value: string;
+  status_code: string;
   label: string;
 }
 
@@ -67,14 +67,13 @@ export default function RpaRequestListPage() {
   };
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('user_entry_united_view').select('user_id, last_name_kanji, first_name_kanji');
-    setUsers(data || []);
+    const { data } = await supabase.from('form_entries').select('auth_uid, last_name_kanji, first_name_kanji');
+    setUsers(data?.map(u => ({ auth_uid: u.auth_uid, last_name_kanji: u.last_name_kanji, first_name_kanji: u.first_name_kanji })) || []);
   };
 
   const fetchStatuses = async () => {
-    const { data } = await supabase.from('rpa_command_request_status').select('id, label');
-    const mapped: StatusOption[] = (data || []).map((s: { id: string; label: string }) => ({ value: s.id, label: s.label }));
-    setStatuses(mapped);
+    const { data } = await supabase.from('rpa_command_request_status').select('status_code, label');
+    setStatuses(data || []);
   };
 
   const handleAdd = async () => {
@@ -127,41 +126,39 @@ export default function RpaRequestListPage() {
     <div className="p-4 space-y-6">
       <h1 className="text-xl font-bold">RPAリクエスト一覧</h1>
 
-      {/* 新規追加 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-        <select value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })}>
+        <select value={newEntry.requester_id || ''} onChange={e => setNewEntry({ ...newEntry, requester_id: e.target.value })} name="requester_id">
           <option value=''>申請者を選択</option>
           {users.map(u => (
-            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+            <option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>
           ))}
         </select>
-        <select value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })}>
+        <select value={newEntry.approver_id || ''} onChange={e => setNewEntry({ ...newEntry, approver_id: e.target.value })} name="approver_id">
           <option value=''>承認者を選択</option>
           {users.map(u => (
-            <option key={u.user_id} value={u.user_id}>{u.last_name_kanji}{u.first_name_kanji}</option>
+            <option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>
           ))}
         </select>
-        <select value={newEntry.template_id || ''} onChange={e => setNewEntry({ ...newEntry, template_id: e.target.value })}>
+        <select value={newEntry.template_id || ''} onChange={e => setNewEntry({ ...newEntry, template_id: e.target.value })} name="template_id">
           <option value=''>テンプレート選択</option>
           {templates.map(t => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <select value={newEntry.status || ''} onChange={e => setNewEntry({ ...newEntry, status: e.target.value })}>
+        <select value={newEntry.status || ''} onChange={e => setNewEntry({ ...newEntry, status: e.target.value })} name="status">
           <option value=''>ステータス選択</option>
           {statuses.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.status_code} value={s.status_code}>{s.label}</option>
           ))}
         </select>
         <Input placeholder='実行結果' value={newEntry.result_summary || ''} onChange={e => setNewEntry({ ...newEntry, result_summary: e.target.value })} />
-        <Textarea placeholder='リクエスト詳細（JSON）' value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch { } }} />
-        <Textarea placeholder='結果詳細（JSON）' value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch { } }} />
+        <Textarea placeholder='リクエスト詳細（JSON）' value={JSON.stringify(newEntry.request_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, request_details: JSON.parse(e.target.value) }) } catch {} }} />
+        <Textarea placeholder='結果詳細（JSON）' value={JSON.stringify(newEntry.result_details || {}, null, 2)} onChange={e => { try { setNewEntry({ ...newEntry, result_details: JSON.parse(e.target.value) }) } catch {} }} />
         <div className="col-span-full">
           <Button onClick={handleAdd} disabled={isLoading}>{isLoading ? '追加中...' : '追加'}</Button>
         </div>
       </div>
 
-      {/* 一覧と行内編集 */}
       <table className="table-auto w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
@@ -174,68 +171,35 @@ export default function RpaRequestListPage() {
           {requests.map((r) => (
             <tr key={r.id}>
               <td>
-                <select
-                  name="requester_id"
-                  value={editedRows[r.id]?.requester_id ?? r.requester_id ?? ''}
-                  onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}
-                >
+                <select name="requester_id" value={editedRows[r.id]?.requester_id ?? r.requester_id ?? ''} onChange={e => handleFieldChange(r.id, 'requester_id', e.target.value)}>
                   <option value=''>申請者を選択</option>
-                  {users.map(u => (
-                    <option key={u.user_id} value={u.user_id} selected={u.user_id === (editedRows[r.id]?.requester_id ?? r.requester_id)}>
-                      {u.last_name_kanji}{u.first_name_kanji}
-                    </option>
-                  ))}
+                  {users.map(u => (<option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>
-                <select
-                  name="approver_id"
-                  value={editedRows[r.id]?.approver_id ?? r.approver_id ?? ''}
-                  onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}
-                >
+                <select name="approver_id" value={editedRows[r.id]?.approver_id ?? r.approver_id ?? ''} onChange={e => handleFieldChange(r.id, 'approver_id', e.target.value)}>
                   <option value=''>承認者を選択</option>
-                  {users.map(u => (
-                    <option key={u.user_id} value={u.user_id} selected={u.user_id === (editedRows[r.id]?.approver_id ?? r.approver_id)}>
-                      {u.last_name_kanji}{u.first_name_kanji}
-                    </option>
-                  ))}
+                  {users.map(u => (<option key={u.auth_uid} value={u.auth_uid}>{u.last_name_kanji}{u.first_name_kanji}</option>))}
                 </select>
               </td>
               <td>{r.kind_name}</td>
               <td>
-                <select
-                  name="template_id"
-                  value={editedRows[r.id]?.template_id ?? r.template_id ?? ''}
-                  onChange={e => handleFieldChange(r.id, 'template_id', e.target.value)}
-                >
-                  <option value=''>テンプレートを選択</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id} selected={t.id === (editedRows[r.id]?.template_id ?? r.template_id)}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-
-              </td>
-              <td>
-                <select
-                  name="status"
-                  value={editedRows[r.id]?.status ?? r.status ?? ''}
-                  onChange={e => handleFieldChange(r.id, 'status', e.target.value)}
-                >
-                  <option value=''>ステータスを選択</option>
-                  {statuses.map(s => (
-                    <option key={s.value} value={s.value} selected={s.value === (editedRows[r.id]?.status ?? r.status)}>
-                      {s.label}
-                    </option>
-                  ))}
+                <select name="template_id" value={editedRows[r.id]?.template_id ?? r.template_id ?? ''} onChange={e => handleFieldChange(r.id, 'template_id', e.target.value)}>
+                  <option value=''>テンプレート選択</option>
+                  {templates.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                 </select>
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.request_details ?? r.request_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch { } }} />
+                <select name="status" value={editedRows[r.id]?.status ?? r.status ?? ''} onChange={e => handleFieldChange(r.id, 'status', e.target.value)}>
+                  <option value=''>ステータス選択</option>
+                  {statuses.map(s => (<option key={s.status_code} value={s.status_code}>{s.label}</option>))}
+                </select>
               </td>
               <td>
-                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.result_details ?? r.result_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch { } }} />
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.request_details ?? r.request_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch {} }} />
+              </td>
+              <td>
+                <Textarea rows={3} value={JSON.stringify(editedRows[r.id]?.result_details ?? r.result_details ?? {}, null, 2)} onChange={e => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch {} }} />
               </td>
               <td>
                 <Input value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''} onChange={e => handleFieldChange(r.id, 'result_summary', e.target.value)} />
