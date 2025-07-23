@@ -152,7 +152,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
             await supabase.from("rpa_command_requests").insert({
                 template_id,
-                request_details: request_detail,
+                request_details: JSON.stringify(request_detail),
                 requester_id: requestorId,
                 status: "pending",
                 requested_at: new Date().toISOString(),
