@@ -144,15 +144,15 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
             const { data: user } = await supabase
                 .from("users")
-                .select("auth_uid")
+                .select("auth_user_id")
                 .eq("lw_userid", lw_user_id)  // ←正しいカラム名
                 .maybeSingle();
 
-            const requestorId = user?.auth_uid ?? null;
+            const requestorId = user?.auth_user_id ?? null;
 
             await supabase.from("rpa_command_requests").insert({
                 template_id,
-                request_details: JSON.stringify(request_detail),
+                request_details: request_detail,
                 requester_id: requestorId,
                 status: "pending",
                 requested_at: new Date().toISOString(),
