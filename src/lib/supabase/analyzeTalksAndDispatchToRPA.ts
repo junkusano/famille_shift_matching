@@ -154,7 +154,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                 template_id,
                 request_details: request_detail,
                 requester_id: requestorId,
-                status: "pending",
+                status: "approved",
                 requested_at: new Date().toISOString(),
             });
 
