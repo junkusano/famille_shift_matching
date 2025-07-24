@@ -1491,12 +1491,19 @@ function StaffLogSection({ staffId }: { staffId: string }) {
             return;
         }
 
-        const { error } = await addStaffLog({
+        const logResult = await addStaffLog({
             staff_id: staffId,
-            action_at: actionAt,
-            action_detail: actionDetail,
-            registered_by: registeredBy,
+            action_at: new Date().toISOString(),
+            action_detail: 'LINE WORKS アカウント作成',
+            registered_by: 'システム'
         });
+
+        if (logResult?.error) {
+            console.error('ログ追加失敗:', logResult.error);
+        } else {
+            console.log('ログ追加成功');
+        }
+
 
         if (error) {
             setError(error);
