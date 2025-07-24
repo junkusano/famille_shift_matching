@@ -44,7 +44,7 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 次のような文脈に該当する場合：
 
 - 「@〇〇さんお願いします」「この枠、〇〇さんに」「私が行きます」など、**具体的に誰かを割り当てる意図がある**
-- 会話から、**group_account（利用者ID）、shift_date、shift_time、user_id（担当者ID）**のすべてが取得または判定可能であること
+- 会話から、**group_account（利用者ID）、shift_date、が必ず取得可能であり、shift_time、user_id（担当者ID）**　といったデータは可能な限り取得または判定可能であること
 
 **注意：**
 - user_id は msg の発言者ではなく、**文中で言及された担当者**の lw_user_id を取得すること
