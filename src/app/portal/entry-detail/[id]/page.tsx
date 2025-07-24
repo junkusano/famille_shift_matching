@@ -714,16 +714,19 @@ export default function EntryDetailPage() {
         }
     };
 
-    //Supabase からアイコンURLを取得
+    // Supabase からアイコンURLを取得（修正版）
     const getOrgIconUrl = async (orgId: string): Promise<string | null> => {
         const { data, error } = await supabase
-            .from('org_icons_category')
+            .from('org_icons')  // ← ✅ 修正：org_icons を参照
             .select('icon_url')
             .eq('org_unit_id', orgId)
-            .single();
+            .maybeSingle();     // ← ✅ エラー防止のため maybeSingle
 
-        if (error || !data) return null;
-        return data.icon_url;
+        if (error) {
+            console.error('アイコンURL取得エラー:', error.message);
+            return null;
+        }
+        return data?.icon_url ?? null;
     };
 
     //LINE WORKSの写真アップロード処理
