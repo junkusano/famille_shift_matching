@@ -1,18 +1,17 @@
 import { getAccessToken } from '@/lib/getAccessToken';
 
 interface CreateUserParams {
-  lwUserId: string;
-  localName: string;
+  loginId: string;
   lastName: string;
   firstName: string;
-  levelId?: string;   // オプション
+  levelId?: string;
   orgUnitId: string;
-  positionId?: string; // オプション
+  positionId?: string;
 }
 
 interface CreateUserResult {
-  userId?: string;
   success: boolean;
+  userId?: string; // ← LINE WORKSの内部ID（UUID）
   tempPassword?: string;
   error?: string;
 }
@@ -28,7 +27,6 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     }
     const domainId = Number(domainIdRaw);
 
-    // orgUnits オブジェクト
     const orgUnitObj: Record<string, unknown> = {
       orgUnitId: params.orgUnitId,
       primary: true,
@@ -40,21 +38,20 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       orgUnitObj.positionId = params.positionId;
     }
 
-    // organizations オブジェクト
     const orgObj: Record<string, unknown> = {
       domainId: domainId,
       primary: true,
-      email: `${params.localName}@shi-on`,
+      email: `${params.loginId}@shi-on`,
       orgUnits: [orgUnitObj]
     };
     if (params.levelId) {
       orgObj.levelId = params.levelId;
     }
 
-    // リクエスト body
     const body = {
-      domainId: domainId,  // ⭐ ルート直下に domainId を追加
-      email: `${params.localName}@shi-on`,
+      domainId: domainId,
+      email: `${params.loginId}@shi-on`,
+      userExternalKey: params.loginId,
       userName: {
         lastName: params.lastName,
         firstName: params.firstName
@@ -67,12 +64,6 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       organizations: [orgObj]
     };
 
-    // デバッグログ
-    console.log('送信 domainId:', domainId);
-    console.log('送信 body (raw):', body);
-    console.log('送信 body (JSON):', JSON.stringify(body, null, 2));
-
-    // API 呼び出し
     const res = await fetch('https://www.worksapis.com/v1.0/users', {
       method: 'POST',
       headers: {
@@ -82,8 +73,6 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
       body: JSON.stringify(body)
     });
 
-
-
     if (!res.ok) {
       const errorData = await res.json();
       console.error('LINE WORKS API エラー:', errorData);
@@ -91,9 +80,9 @@ export async function createLineWorksUser(params: CreateUserParams): Promise<Cre
     }
 
     const responseData = await res.json();
-    const userId = responseData.userId;
+    const userId = responseData.userId; // ← LINE WORKSが返すUUID（内部ID）
 
-    return { success: true, tempPassword, userId };
+    return { success: true, userId, tempPassword };
 
   } catch (err) {
     console.error('createLineWorksUser 実行時エラー:', err);

@@ -593,7 +593,7 @@ export default function EntryDetailPage() {
 
         try {
             const payload: Record<string, unknown> = {
-                localName: userId,
+                loginId: userId, // ← localName → loginId に修正（API設計と一致）
                 lastName: entry.last_name_kanji,
                 firstName: entry.first_name_kanji,
                 orgUnitId: selectedOrg
@@ -635,7 +635,6 @@ export default function EntryDetailPage() {
                 console.log('✅ ステータスを4（LINE WORKS登録済）に変更しました');
             }
 
-
             alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
 
             // Supabase ユーザー情報を更新
@@ -646,16 +645,18 @@ export default function EntryDetailPage() {
                 position_id: selectedPosition
             });
 
-            const { error } = await supabase.from('users').update({
+            await supabase.from('users').update({
                 temp_password: data.tempPassword,
                 org_unit_id: selectedOrg,
                 level_id: selectedLevel,
                 position_id: selectedPosition
             }).eq('user_id', userId);
 
-            if (error) {
-                console.error('ユーザー情報更新エラー:', error.message);
-                alert(`ユーザー情報更新に失敗しました: ${error.message}`);
+
+            if (!res.ok || !data.success) {
+                console.error('LINE WORKS アカウント作成失敗:', data.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
+                return;
             } else {
                 console.log('ユーザー情報を更新しました');
             }
