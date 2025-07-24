@@ -51,14 +51,20 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 - mention された場合など、該当者が明確であればその ID を採用。不明な場合は「不明」と記載
 
 **出力形式（厳守）：**
+複数件の追加に対応するため、以下の形式で出力してください。
+
 \`\`\`json
 {
   "template_id": "2f9dacc7-92bc-4888-8ff3-eadca4e4f75a",
   "request_detail": {
     "group_account": "msgデータに含まれる group_account（他から推測しない）",
-    "shift_date": "対象日（例: 2025-07-10。不明な場合は「不明」）",
-    "shift_time": "時間帯（例: 9:00-11:00。不明な場合は「不明」）",
-    "user_id": "担当者の lw_user_id（例: 31de1d65-b999-4e17-bf28-86fb52ce1300。形式が違う／特定不能な場合は「不明」）"
+    "additions": [
+      {
+        "shift_date": "対象日（例: 2025-07-10。不明な場合は『不明』）",
+        "shift_time": "時間帯（例: 9:00-11:00。不明な場合は『不明』）",
+        "user_id": "担当者の lw_user_id（形式が違う／特定不能な場合は『不明』）"
+      }
+    ]
   }
 }
 \`\`\`
