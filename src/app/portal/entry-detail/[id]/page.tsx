@@ -705,6 +705,8 @@ export default function EntryDetailPage() {
             console.log('取得した orgUnitId:', selectedOrg);
             console.log('取得された iconUrl:', iconUrl);
 
+            alert('data.userId:'+data.userId);
+
             if (iconUrl) {
                 console.log('🟢 アイコンアップロード開始');
                 await uploadLineWorksIcon(data.userId, iconUrl);
