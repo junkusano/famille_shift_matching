@@ -743,32 +743,42 @@ export default function EntryDetailPage() {
     };
 
     //LINE WORKSの写真アップロード処理
+    // LINE WORKSの写真アップロード処理（ログ強化版）
     const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
-        console.log("写真アップロード userId:", userId);
+        console.log("\u{1F4F7} 写真アップロード処理開始: userId =", userId);
+        console.log("\u{1F4C2} 画像URL:", iconUrl);
+
         //try {
             // 画像ファイルのバイトを取得
-            const imageBlob = await fetch(iconUrl).then(res => res.blob());
-            //const fileName = `icon_${userId}.jpg`;
+            const imageRes = await fetch(iconUrl);
+            console.log("\u{1F4C4} 画像取得レスポンス:", imageRes.status);
+            if (!imageRes.ok) throw new Error("画像URLからの取得に失敗しました");
+
+            const imageBlob = await imageRes.blob();
+            console.log("\u{1F4DD} 画像サイズ (bytes):", imageBlob.size);
 
             // アップロードURLを取得
-            const uploadRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
+            const fileName = iconUrl; // 今回は一旦 URL をそのまま渡してみる
+            const uploadMetaRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${process.env.NEXT_PUBLIC_LINEWORKS_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    fileName: iconUrl,
+                    fileName,
                     fileSize: imageBlob.size
                 })
             });
 
-            const uploadData = await uploadRes.json();
-            
+            console.log("\u{1F4E1} アップロードURL取得ステータス:", uploadMetaRes.status);
+            const uploadData = await uploadMetaRes.json();
+            console.log("\u{1F4E6} uploadUrl 取得結果:", uploadData);
+
             const uploadUrl = uploadData.uploadUrl;
             if (!uploadUrl) throw new Error('Upload URL not received');
 
-            // アップロード
+            // 実際のPUTアップロード
             const putRes = await fetch(uploadUrl, {
                 method: 'PUT',
                 headers: {
@@ -777,14 +787,17 @@ export default function EntryDetailPage() {
                 body: imageBlob
             });
 
+            console.log("\u{1F4E4} PUT アップロードステータス:", putRes.status);
             if (!putRes.ok) throw new Error('画像アップロードに失敗しました');
 
+            console.log("\u{2705} LINE WORKSアイコンを設定しました");
             alert('LINE WORKSアイコンを設定しました');
-        /*} catch (err) {
-            console.error('アイコン設定エラー:', err);
+       /*} catch (err) {
+            console.error('\u{26D4} アイコン設定エラー:', err);
             alert('LINE WORKSアイコンの設定に失敗しました');
         }*/
     };
+
 
     useEffect(() => {
         const load = async () => {
