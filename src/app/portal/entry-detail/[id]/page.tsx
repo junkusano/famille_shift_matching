@@ -699,7 +699,9 @@ export default function EntryDetailPage() {
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
 
+            alert('selectedOrg:'+selectedOrg);
             const iconUrl = await getOrgIconUrl(selectedOrg);
+            alert('iconUrl:'+iconUrl);
             console.log('取得した orgUnitId:', selectedOrg);
             console.log('取得された iconUrl:', iconUrl);
 
