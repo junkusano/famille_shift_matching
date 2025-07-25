@@ -718,17 +718,19 @@ export default function EntryDetailPage() {
     // Supabase からアイコンURLを取得（修正版）
     const getOrgIconUrl = async (orgId: string): Promise<string | null> => {
         const { data, error } = await supabase
-            .from('org_icons')  // ← ✅ 修正：org_icons を参照
-            .select('icon_url')
-            .eq('org_unit_id', orgId)
-            .maybeSingle();     // ← ✅ エラー防止のため maybeSingle
+            .from('org_icons')             // テーブル名
+            .select('file_id')             // カラム名（中身はURL）
+            .eq('org_id', orgId)           // フィルター条件
+            .maybeSingle();                // 結果は1件
 
         if (error) {
             console.error('アイコンURL取得エラー:', error.message);
             return null;
         }
-        return data?.icon_url ?? null;
+
+        return data?.file_id ?? null;    // そのまま返す（変換なし）
     };
+
 
     //LINE WORKSの写真アップロード処理
     const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
