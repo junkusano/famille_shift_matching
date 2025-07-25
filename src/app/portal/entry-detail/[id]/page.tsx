@@ -758,12 +758,13 @@ export default function EntryDetailPage() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    fileName,
+                    fileName: iconUrl,
                     fileSize: imageBlob.size
                 })
             });
 
             const uploadData = await uploadRes.json();
+            /*
             const uploadUrl = uploadData.uploadUrl;
             if (!uploadUrl) throw new Error('Upload URL not received');
 
@@ -779,6 +780,7 @@ export default function EntryDetailPage() {
             if (!putRes.ok) throw new Error('画像アップロードに失敗しました');
 
             alert('LINE WORKSアイコンを設定しました');
+            */
         } catch (err) {
             console.error('アイコン設定エラー:', err);
             alert('LINE WORKSアイコンの設定に失敗しました');
