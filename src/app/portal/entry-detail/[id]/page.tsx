@@ -591,7 +591,7 @@ export default function EntryDetailPage() {
 
         setCreatingLineWorks(true);  // 処理開始
 
-        try {
+        //try {
             const payload: Record<string, unknown> = {
                 loginId: userId, // ← localName → loginId に修正（API設計と一致）
                 lastName: entry.last_name_kanji,
@@ -716,12 +716,14 @@ export default function EntryDetailPage() {
 
 
 
-        } catch (err) {
+        /*} catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         } finally {
+         */
             setCreatingLineWorks(false);  // 処理終了
-        }
+        //}
+        
     };
 
     // Supabase からアイコンURLを取得（修正版）
