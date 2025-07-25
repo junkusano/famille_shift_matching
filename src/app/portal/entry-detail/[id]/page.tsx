@@ -700,11 +700,16 @@ export default function EntryDetailPage() {
             }
 
             const iconUrl = await getOrgIconUrl(selectedOrg);
-            console.log('ユーザー画像引数userId：', data.userId);
-            console.log('ユーザー画像引数iconUrl：', data.userId);
+            console.log('取得した orgUnitId:', selectedOrg);
+            console.log('取得された iconUrl:', iconUrl);
+
             if (iconUrl) {
+                console.log('🟢 アイコンアップロード開始');
                 await uploadLineWorksIcon(data.userId, iconUrl);
+            } else {
+                console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
             }
+
 
 
         } catch (err) {
