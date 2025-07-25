@@ -745,7 +745,7 @@ export default function EntryDetailPage() {
     //LINE WORKSの写真アップロード処理
     const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
         console.log("写真アップロード userId:", userId);
-        try {
+        //try {
             // 画像ファイルのバイトを取得
             const imageBlob = await fetch(iconUrl).then(res => res.blob());
             //const fileName = `icon_${userId}.jpg`;
@@ -769,7 +769,6 @@ export default function EntryDetailPage() {
             if (!uploadUrl) throw new Error('Upload URL not received');
 
             // アップロード
-            /*
             const putRes = await fetch(uploadUrl, {
                 method: 'PUT',
                 headers: {
@@ -781,11 +780,10 @@ export default function EntryDetailPage() {
             if (!putRes.ok) throw new Error('画像アップロードに失敗しました');
 
             alert('LINE WORKSアイコンを設定しました');
-            */
-        } catch (err) {
+        /*} catch (err) {
             console.error('アイコン設定エラー:', err);
             alert('LINE WORKSアイコンの設定に失敗しました');
-        }
+        }*/
     };
 
     useEffect(() => {
