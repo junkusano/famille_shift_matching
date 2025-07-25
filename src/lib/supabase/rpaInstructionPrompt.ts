@@ -1,4 +1,3 @@
-//lib/supabase/rpaInstructionPrompt.ts
 import { ChatCompletionMessageParam } from "openai/resources";
 
 export const rpaInstructionPrompt: ChatCompletionMessageParam = {
@@ -23,6 +22,10 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 
 **出力形式（厳守）：**
 複数シフト削除に対応するため、短日のシフト削除であっても　以下の形式で出力してください。
+- また、文中に「朝」「昼」「夕」とある場合は以下の時間に読み替えてください：
+  - 朝：8:00
+  - 昼：12:00
+  - 夕：17:00
 
 \`\`\`json
 {
@@ -31,8 +34,8 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
     "group_account": "msgデータに含まれる group_account（他から推測しない）",
     "deletions": [
       {
-        "shift_date": "対象日（例: 2025-07-10。不明な場合は「不明」）",
-        "shift_time": "時間帯（例: 9:00-11:00。不明な場合は「不明」）"
+        "shift_date": "対象日（例: 2025-07-10。不明な場合は『不明』）",
+        "shift_time": "時間帯（例: 9:00-11:00。不明な場合は『不明』）"
       }
     ]
   }
@@ -51,6 +54,10 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 **注意：**
 - user_id は msg の発言者ではなく、**文中で言及された担当者**の lw_user_id を取得すること
 - mention された場合など、該当者が明確であればその ID を採用。不明な場合は「不明」と記載
+- また、文中に「朝」「昼」「夕」とある場合は以下の時間に読み替えてください：
+  - 朝：8:00
+  - 昼：12:00
+  - 夕：17:00
 
 **出力形式（厳守）：**
 複数件の追加に対応するため、短日のシフト追加であっても、以下の形式で出力してください。
@@ -87,6 +94,5 @@ export const rpaInstructionPrompt: ChatCompletionMessageParam = {
 
 - 出力形式は**必ず上記JSONまたは「処理なし」**のいずれかに限る
 - それ以外の説明・補足・自然文・装飾・改行追加は禁止
-- 情報が欠けている場合の補完・推測・創作は禁止。「不明」と記述すること
-`
+- 情報が欠けている場合の補完・推測・創作は禁止。「不明」と記述すること`
 };

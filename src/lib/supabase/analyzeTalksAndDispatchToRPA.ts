@@ -60,7 +60,11 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
         const baseLog = logs.find((log) => ids.includes(log.id));
         const group_account = baseLog?.group_account || "不明";
-        const timestamp = baseLog?.timestamp || new Date().toISOString();
+        const timestampUtc = baseLog?.timestamp || new Date().toISOString();
+        const jstDate = new Date(timestampUtc);
+        jstDate.setHours(jstDate.getHours() + 9);
+        const timestamp = jstDate.toISOString().replace("T", " ").replace(".000Z", ""); // 見やすく調整
+
 
         const accessToken = await getAccessToken();
         const groupRes = await fetch(`https://www.worksapis.com/v1.0/groups/${channel_id}/members`, {
