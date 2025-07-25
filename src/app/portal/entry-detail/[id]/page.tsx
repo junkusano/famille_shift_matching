@@ -709,6 +709,7 @@ export default function EntryDetailPage() {
 
             if (iconUrl) {
                 console.log('🟢 アイコンアップロード開始');
+                alert('🟢 アイコンアップロード開始');
                 await uploadLineWorksIcon(data.userId, iconUrl);
             } else {
                 console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
@@ -765,6 +766,7 @@ export default function EntryDetailPage() {
 
             // アップロードURLを取得
             const fileName = iconUrl; // 今回は一旦 URL をそのまま渡してみる
+            alert('API送付');
             const uploadMetaRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
                 method: 'POST',
                 headers: {
