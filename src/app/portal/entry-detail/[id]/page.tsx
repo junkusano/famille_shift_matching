@@ -748,7 +748,7 @@ export default function EntryDetailPage() {
         try {
             // 画像ファイルのバイトを取得
             const imageBlob = await fetch(iconUrl).then(res => res.blob());
-            const fileName = `icon_${userId}.jpg`;
+            //const fileName = `icon_${userId}.jpg`;
 
             // アップロードURLを取得
             const uploadRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
