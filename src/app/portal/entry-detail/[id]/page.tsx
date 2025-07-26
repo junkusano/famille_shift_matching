@@ -785,10 +785,10 @@ export default function EntryDetailPage() {
             });
 
             // ステータスだけ先に表示
-            alert(`レスポンスステータス: ${res.status}`);
+            alert(`レスポンスステータス: ${uploadMetaRes.status}`);
 
             // 本文を取得
-            const data = await res.json();
+            const data = await uploadMetaRes.json();
 
             // JSON.stringify で表示できる形に変換
             alert(`レスポンス内容: ${JSON.stringify(data, null, 2)}`);
