@@ -699,6 +699,7 @@ export default function EntryDetailPage() {
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
 
+            //ラインワークス・アイコン画像アップロード
             alert('selectedOrg:'+selectedOrg);
             const iconUrl = await getOrgIconUrl(selectedOrg);
             alert('iconUrl:'+iconUrl);
