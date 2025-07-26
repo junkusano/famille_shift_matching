@@ -36,7 +36,10 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ iconUrl, fileSize })
+      body: JSON.stringify({ 
+        fileName: userId,
+        fileSize: fileSize
+      })
     });
 
     if (!metaRes.ok) {
