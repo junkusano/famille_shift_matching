@@ -25,7 +25,9 @@ export async function POST(req: Request) {
 
     const imageBlob = await imageRes.blob();
     const fileSize = imageBlob.size;
-    const fileName = 'user_icon.jpg';
+    //const fileName = 'user_icon.jpg';
+
+    console.log('imageBlob.size:',imageBlob.size);
 
     // アップロードURLを取得
     const metaRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ fileName, fileSize })
+      body: JSON.stringify({ iconUrl, fileSize })
     });
 
     if (!metaRes.ok) {
