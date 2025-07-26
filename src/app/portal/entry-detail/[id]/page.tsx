@@ -13,8 +13,6 @@ import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { getAccessToken } from '@/lib/getAccessToken';
-
 
 interface Attachment {
     url: string | null;
@@ -712,7 +710,14 @@ export default function EntryDetailPage() {
             if (iconUrl) {
                 console.log('🟢 アイコンアップロード開始');
                 alert('🟢 アイコンアップロード開始');
-                await uploadLineWorksIcon(data.userId, iconUrl);
+                await fetch('/api/upload-lwuser_icon', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId, iconUrl })
+                });
+
             } else {
                 console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
             }
@@ -753,7 +758,7 @@ export default function EntryDetailPage() {
 
     //LINE WORKSの写真アップロード処理
     // LINE WORKSの写真アップロード処理（ログ強化版）
-    const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
+    /*const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
         alert('uploadLineWorksIconk開始');
         console.log("\u{1F4F7} 写真アップロード処理開始: userId =", userId);
         console.log("\u{1F4C2} 画像URL:", iconUrl);
@@ -767,7 +772,7 @@ export default function EntryDetailPage() {
 
             const imageBlob = await imageRes.blob();
             console.log("\u{1F4DD} 画像サイズ (bytes):", imageBlob.size);
-            */
+            
 
 
             // アップロードURLを取得
@@ -821,6 +826,7 @@ export default function EntryDetailPage() {
             alert('LINE WORKSアイコンの設定に失敗しました');
         }
     };
+    */
 
 
     useEffect(() => {
