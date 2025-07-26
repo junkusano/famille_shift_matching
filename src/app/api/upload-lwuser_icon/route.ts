@@ -18,6 +18,7 @@ export async function POST(req: Request) {
 
     // 画像を取得
     const imageRes = await fetch(iconUrl);
+    console.log('imageRes =', imageRes.url);
     if (!imageRes.ok) {
       console.error('画像取得エラー:', imageRes.statusText);
       return NextResponse.json({ error: '画像取得に失敗しました' }, { status: 400 });
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
     const imageBlob = await imageRes.blob();
     const fileSize = imageBlob.size;
-    //const fileName = 'user_icon.jpg';
+    const fileName = 'user_icon.jpg';
 
     console.log('imageBlob.size:',imageBlob.size);
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        fileName: iconUrl,
+        fileName: fileName,
         fileSize: fileSize
       })
     });
