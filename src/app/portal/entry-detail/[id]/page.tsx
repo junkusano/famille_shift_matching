@@ -799,7 +799,7 @@ export default function EntryDetailPage() {
                 headers: {
                     'Content-Type': 'image/jpeg'
                 },
-                body: imageBlob
+                //body: imageBlob
             });
 
             console.log("\u{1F4E4} PUT アップロードステータス:", putRes.status);
