@@ -710,12 +710,13 @@ export default function EntryDetailPage() {
             if (iconUrl) {
                 console.log('🟢 アイコンアップロード開始');
                 alert('🟢 アイコンアップロード開始');
+                const lwUserId = data.userId;  // ← LINE WORKS の内部UUID
                 await fetch('/api/upload-lwuser_icon', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ userId, iconUrl })
+                    body: JSON.stringify({ userId: lwUserId, iconUrl })
                 });
 
             } else {
