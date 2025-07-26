@@ -780,10 +780,11 @@ export default function EntryDetailPage() {
                 },
                 body: JSON.stringify({
                     fileName,
-                    //fileSize: imageBlob.size
                     fileSize: 20000
                 })
             });
+
+            alert('uploadMetaRes.json();'+ uploadMetaRes.json());
 
             alert('PUTしていく。以下はいるの？');
             console.log("\u{1F4E1} アップロードURL取得ステータス:", uploadMetaRes.status);
