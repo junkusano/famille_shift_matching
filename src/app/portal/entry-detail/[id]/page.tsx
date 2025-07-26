@@ -759,12 +759,15 @@ export default function EntryDetailPage() {
 
         try {
             // 画像ファイルのバイトを取得
+            /*
             const imageRes = await fetch(iconUrl);
             console.log("\u{1F4C4} 画像取得レスポンス:", imageRes.status);
             if (!imageRes.ok) throw new Error("画像URLからの取得に失敗しました");
 
             const imageBlob = await imageRes.blob();
             console.log("\u{1F4DD} 画像サイズ (bytes):", imageBlob.size);
+            */
+
 
             // アップロードURLを取得
             const fileName = iconUrl; // 今回は一旦 URL をそのまま渡してみる
@@ -777,10 +780,12 @@ export default function EntryDetailPage() {
                 },
                 body: JSON.stringify({
                     fileName,
-                    fileSize: imageBlob.size
+                    //fileSize: imageBlob.size
+                    fileSize: 20000
                 })
             });
 
+            alert('PUTしていく。以下はいるの？');
             console.log("\u{1F4E1} アップロードURL取得ステータス:", uploadMetaRes.status);
             const uploadData = await uploadMetaRes.json();
             console.log("\u{1F4E6} uploadUrl 取得結果:", uploadData);
