@@ -592,129 +592,129 @@ export default function EntryDetailPage() {
         setCreatingLineWorks(true);  // 処理開始
 
         try {
-        const payload: Record<string, unknown> = {
-            loginId: userId, // ← localName → loginId に修正（API設計と一致）
-            lastName: entry.last_name_kanji,
-            firstName: entry.first_name_kanji,
-            orgUnitId: selectedOrg
-        };
-        if (selectedPosition) payload.positionId = selectedPosition;
-        if (selectedLevel) payload.levelId = selectedLevel;
+            const payload: Record<string, unknown> = {
+                loginId: userId, // ← localName → loginId に修正（API設計と一致）
+                lastName: entry.last_name_kanji,
+                firstName: entry.first_name_kanji,
+                orgUnitId: selectedOrg
+            };
+            if (selectedPosition) payload.positionId = selectedPosition;
+            if (selectedLevel) payload.levelId = selectedLevel;
 
-        console.log('送信データ:', payload);
+            console.log('送信データ:', payload);
 
-        const res = await fetch('/api/lineworks/create-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+            const res = await fetch('/api/lineworks/create-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if (!res.ok || !data.success) {
-            console.error('LINE WORKS アカウント作成失敗:', data.error);
-            alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
-            return;
-        }
+            if (!res.ok || !data.success) {
+                console.error('LINE WORKS アカウント作成失敗:', data.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
+                return;
+            }
 
-        await addStaffLog({
-            staff_id: entry.id,
-            action_at: new Date().toISOString(),
-            action_detail: 'LINE WORKS アカウント作成',
-            registered_by: 'システム'
-        });
-
-        const { error: statusError } = await supabase
-            .from('users')
-            .update({ status: '4' })
-            .eq('user_id', entry.id);
-
-        if (statusError) {
-            console.error('ステータス更新エラー:', statusError.message);
-        } else {
-            console.log('✅ ステータスを4（LINE WORKS登録済）に変更しました');
-        }
-
-        alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
-
-        // Supabase ユーザー情報を更新
-        console.log('Supabase 更新データ:', {
-            temp_password: data.tempPassword,
-            org_unit_id: selectedOrg,
-            level_id: selectedLevel,
-            position_id: selectedPosition
-        });
-
-        await supabase.from('users').update({
-            temp_password: data.tempPassword,
-            org_unit_id: selectedOrg,
-            level_id: selectedLevel,
-            position_id: selectedPosition
-        }).eq('user_id', userId);
-
-
-        if (!res.ok || !data.success) {
-            console.error('LINE WORKS アカウント作成失敗:', data.error);
-            alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
-            return;
-        } else {
-            console.log('ユーザー情報を更新しました');
-        }
-
-        setLineWorksExists(true);
-
-        // メールテンプレート生成
-        const { subject, body } = lineworksInviteTemplate({
-            fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
-            userId,
-            tempPassword: data.tempPassword
-        });
-
-        console.log('メール送信データ:', {
-            to: entry.email,
-            subject,
-            body
-        });
-
-        const mailRes = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                to: entry.email,
-                subject,
-                html: body
-            })
-        });
-
-        if (!mailRes.ok) {
-            const err = await mailRes.json();
-            alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
-        } else {
             await addStaffLog({
                 staff_id: entry.id,
                 action_at: new Date().toISOString(),
-                action_detail: 'LINE WORKS ログイン案内メール送信',
+                action_detail: 'LINE WORKS アカウント作成',
                 registered_by: 'システム'
             });
-            alert('LINE WORKS ログイン案内メールを送信しました！');
-        }
 
-        //ラインワークス・アイコン画像アップロード
-        alert('selectedOrg:' + selectedOrg);
-        const iconUrl = await getOrgIconUrl(selectedOrg);
-        alert('iconUrl:' + iconUrl);
-        console.log('取得した orgUnitId:', selectedOrg);
-        console.log('取得された iconUrl:', iconUrl);
+            const { error: statusError } = await supabase
+                .from('users')
+                .update({ status: '4' })
+                .eq('user_id', entry.id);
 
-        alert('data.userId:' + data.userId);
+            if (statusError) {
+                console.error('ステータス更新エラー:', statusError.message);
+            } else {
+                console.log('✅ ステータスを4（LINE WORKS登録済）に変更しました');
+            }
 
-        if (iconUrl) {
-            console.log('🟢 アイコンアップロード開始');
-            alert('🟢 アイコンアップロード開始');
-            await uploadLineWorksIcon(data.userId, iconUrl);
-        } else {
-            console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
-        }
+            alert(`LINE WORKS アカウント作成成功！仮パスワード: ${data.tempPassword}`);
+
+            // Supabase ユーザー情報を更新
+            console.log('Supabase 更新データ:', {
+                temp_password: data.tempPassword,
+                org_unit_id: selectedOrg,
+                level_id: selectedLevel,
+                position_id: selectedPosition
+            });
+
+            await supabase.from('users').update({
+                temp_password: data.tempPassword,
+                org_unit_id: selectedOrg,
+                level_id: selectedLevel,
+                position_id: selectedPosition
+            }).eq('user_id', userId);
+
+
+            if (!res.ok || !data.success) {
+                console.error('LINE WORKS アカウント作成失敗:', data.error);
+                alert(`LINE WORKS アカウント作成に失敗しました: ${data.error}`);
+                return;
+            } else {
+                console.log('ユーザー情報を更新しました');
+            }
+
+            setLineWorksExists(true);
+
+            // メールテンプレート生成
+            const { subject, body } = lineworksInviteTemplate({
+                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                userId,
+                tempPassword: data.tempPassword
+            });
+
+            console.log('メール送信データ:', {
+                to: entry.email,
+                subject,
+                body
+            });
+
+            const mailRes = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: entry.email,
+                    subject,
+                    html: body
+                })
+            });
+
+            if (!mailRes.ok) {
+                const err = await mailRes.json();
+                alert(`メール送信に失敗しました: ${err.error || '不明なエラー'}`);
+            } else {
+                await addStaffLog({
+                    staff_id: entry.id,
+                    action_at: new Date().toISOString(),
+                    action_detail: 'LINE WORKS ログイン案内メール送信',
+                    registered_by: 'システム'
+                });
+                alert('LINE WORKS ログイン案内メールを送信しました！');
+            }
+
+            //ラインワークス・アイコン画像アップロード
+            alert('selectedOrg:' + selectedOrg);
+            const iconUrl = await getOrgIconUrl(selectedOrg);
+            alert('iconUrl:' + iconUrl);
+            console.log('取得した orgUnitId:', selectedOrg);
+            console.log('取得された iconUrl:', iconUrl);
+
+            alert('data.userId:' + data.userId);
+
+            if (iconUrl) {
+                console.log('🟢 アイコンアップロード開始');
+                alert('🟢 アイコンアップロード開始');
+                await uploadLineWorksIcon(data.userId, iconUrl);
+            } else {
+                console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
+            }
 
 
 
@@ -722,8 +722,8 @@ export default function EntryDetailPage() {
             console.error('LINE WORKS アカウント作成中エラー:', err);
             alert('LINE WORKS アカウント作成中にエラーが発生しました。');
         } finally {
-        
-        setCreatingLineWorks(false);  // 処理終了
+
+            setCreatingLineWorks(false);  // 処理終了
         }
 
     };
@@ -784,9 +784,14 @@ export default function EntryDetailPage() {
                 })
             });
 
-            alert('uploadMetaRes.json();'+ uploadMetaRes.json());
+            // ステータスだけ先に表示
+            alert(`レスポンスステータス: ${res.status}`);
 
-            alert('PUTしていく。以下はいるの？');
+            // 本文を取得
+            const data = await res.json();
+
+            // JSON.stringify で表示できる形に変換
+            alert(`レスポンス内容: ${JSON.stringify(data, null, 2)}`);
             console.log("\u{1F4E1} アップロードURL取得ステータス:", uploadMetaRes.status);
             const uploadData = await uploadMetaRes.json();
             console.log("\u{1F4E6} uploadUrl 取得結果:", uploadData);
