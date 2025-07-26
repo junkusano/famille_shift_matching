@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     console.log('🖼️ iconUrl =', iconUrl);
 
     const accessToken = await getAccessToken();
+    console.log('accessToken =', accessToken);
 
     // 画像を取得
     const imageRes = await fetch(iconUrl);
