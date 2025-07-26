@@ -780,10 +780,16 @@ export default function EntryDetailPage() {
             alert(`✅ fetch成功: ステータス = ${uploadMetaRes.status}`);
             const resJson = await uploadMetaRes.json();
             alert('🎁 uploadMetaRes内容: ' + JSON.stringify(resJson, null, 2));
-        } catch (err: any) {
-            alert(`❌ アイコン設定エラー: ${err.message || err}`);
-            console.error('❌ uploadLineWorksIcon エラー:', err);
+        } catch (err) {
+            if (err instanceof Error) {
+                alert(`❌ アイコン設定エラー: ${err.message}`);
+                console.error('❌ uploadLineWorksIcon エラー:', err.message);
+            } else {
+                alert('❌ 未知のアイコン設定エラーが発生しました');
+                console.error('❌ uploadLineWorksIcon エラー（詳細不明）:', err);
+            }
         }
+
     };
 
     useEffect(() => {
