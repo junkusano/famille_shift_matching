@@ -726,52 +726,35 @@ export default function EntryDetailPage() {
                 console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
             }
 
-            // LW グループ追加
-            const handleInitGroups = async () => {
-                if (!entry || !userId || !selectedOrg || myLevelSort === null) {
-                    alert('必要な情報が不足しています');
-                    return;
-                }
+            console.log('🟢 続けてグループ初期化を開始します');
 
-                setGroupInitLoading(true);
-                try {
-                    const res = await fetch('/api/init-group', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId, // 例: jkkusano
-                            orgUnitId: selectedOrg,
-                            levelSort: myLevelSort
-                        })
+            try {
+                const groupRes = await fetch('/api/init-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: data.userId,  // ✅ lw_userid（UUID）を渡す
+                        orgUnitId: selectedOrg,
+                        levelSort: myLevelSort
+                    })
+                });
+
+                if (groupRes.ok) {
+                    console.log('✅ LINE WORKS グループ初期化成功');
+                    await addStaffLog({
+                        staff_id: entry.id,
+                        action_at: new Date().toISOString(),
+                        action_detail: 'LINE WORKS グループ初期化',
+                        registered_by: 'システム'
                     });
-
-                    if (res.ok) {
-                        alert('LINE WORKSグループを初期化しました');
-                        setGroupInitDone(true);
-                    } else {
-                        const error = await res.json();
-                        console.error('グループ初期化エラー:', error);
-                        alert(`エラーが発生しました: ${error.error || '不明なエラー'}`);
-                    }
-                } catch (e) {
-                    console.error('送信エラー:', e);
-                    alert('通信エラーが発生しました');
-                } finally {
-                    setGroupInitLoading(false);
+                } else {
+                    const err = await groupRes.json();
+                    console.error('❌ グループ初期化失敗:', err);
+                    alert(`グループ初期化に失敗しました: ${err.error || '不明なエラー'}`);
                 }
-            };
-
-            // JSX側に配置（例：LINE WORKS登録済のあと）
-            {
-                lineWorksExists && !groupInitDone && (
-                    <button
-                        className="px-2 py-0.5 bg-indigo-700 text-white rounded hover:bg-indigo-800 text-sm"
-                        disabled={groupInitLoading}
-                        onClick={handleInitGroups}
-                    >
-                        {groupInitLoading ? 'グループ初期化中...' : 'LINE WORKSグループ初期化'}
-                    </button>
-                )
+            } catch (groupErr) {
+                console.error('グループ初期化中の通信エラー:', groupErr);
+                alert('グループ初期化中に通信エラーが発生しました。');
             }
 
         } catch (err) {
