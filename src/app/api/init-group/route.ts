@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
   const { data: targetUser } = await supabase
     .from('user_entry_united_view')
-    .select('lw_userid, first_name_kanji, last_name_kanji')
+    .select('lw_userid, first_name_kanji, last_name_kanji, user_id')
     .eq('lw_userid', userId)
     .single();
 
@@ -25,8 +25,9 @@ export async function POST(req: Request) {
 
   const lwUserId = targetUser?.lw_userid;
   const fullName = `${targetUser?.last_name_kanji ?? ''}${targetUser?.first_name_kanji ?? ''}`;
+  const localUserId = targetUser?.user_id;
 
-  if (!lwUserId || !fullName) {
+  if (!lwUserId || !fullName || !localUserId) {
     console.error('[init-group] ユーザー情報取得失敗');
     return NextResponse.json({ error: 'ユーザー情報取得に失敗しました' }, { status: 400 });
   }
@@ -38,11 +39,7 @@ export async function POST(req: Request) {
     .lt('level_sort', levelSort)
     .not('lw_userid', 'is', null);
 
-  console.log('[init-group] sameOrgUpperUsers:', sameOrgUpperUsers);
-
   const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
-  console.log('[init-group] parentOrgIds:', parentOrgIds);
-
   const { data: upperOrgUpperUsers } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid')
@@ -50,29 +47,26 @@ export async function POST(req: Request) {
     .lt('level_sort', levelSort)
     .not('lw_userid', 'is', null);
 
-  console.log('[init-group] upperOrgUpperUsers:', upperOrgUpperUsers);
-
   const fixedAdmins = await fetchFixedAdmins(supabase);
-  console.log('[init-group] fixedAdmins:', fixedAdmins);
 
   const supportGroup: GroupCreatePayload = {
-    groupName: `${fullName}さん_人事労務サポートルーム`,
+    groupName: `${fullName}さん 人事労務サポートルーム@${localUserId}`,
     groupExternalKey: `support_${lwUserId}`,
     administrators: [
       ...fixedAdmins.map(id => ({ userId: id })),
-      { userId: lwUserId },
-      ...(sameOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ userId: u.lw_userid })),
-      ...(upperOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ userId: u.lw_userid }))
+      // 除外: { userId: lwUserId },
+      ...(sameOrgUpperUsers || []).map(u => ({ userId: u.lw_userid })),
+      ...(upperOrgUpperUsers || []).map(u => ({ userId: u.lw_userid }))
     ],
     members: [
       { id: lwUserId, type: 'USER' as const },
-      ...(sameOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ id: u.lw_userid, type: 'USER' as const })),
-      ...(upperOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ id: u.lw_userid, type: 'USER' as const }))
+      ...(sameOrgUpperUsers || []).map(u => ({ id: u.lw_userid, type: 'USER' as const })),
+      ...(upperOrgUpperUsers || []).map(u => ({ id: u.lw_userid, type: 'USER' as const }))
     ]
   };
 
   const careerGroup: GroupCreatePayload = {
-    groupName: `${fullName}さん_勤務キャリア・コーディネートルーム`,
+    groupName: `${fullName}さん 勤務キャリア・コーディネートルーム@${localUserId}`,
     groupExternalKey: `career_${lwUserId}`,
     administrators: fixedAdmins.map(id => ({ userId: id })),
     members: [
@@ -158,5 +152,5 @@ async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
     .in('user_id', FIXED_GROUP_MASTERS)
     .not('lw_userid', 'is', null);
 
-  return (data || []).map((u: { lw_userid: string }) => u.lw_userid);
+  return (data || []).map(u => u.lw_userid);
 }

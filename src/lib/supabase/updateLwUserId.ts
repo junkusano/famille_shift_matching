@@ -7,6 +7,8 @@ export async function updateLwUserIdMapping(userId: string, lwUserId: string): P
       throw new Error('userId または lwUserId が未指定です');
     }
 
+    console.log('[updatelwuserId] lwUserId (UUID):', lwUserId, 'user_id:', userId);
+
     const { error } = await supabase
       .from('users')
       .update({ lw_userid: lwUserId })
