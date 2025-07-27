@@ -60,23 +60,23 @@ export async function POST(req: Request) {
   const fixedAdmins = await fetchFixedAdmins(supabase);
   console.log('[init-group] fixedAdmins:', fixedAdmins);
 
-  const supportGroup = {
+  const supportGroup: GroupCreatePayload = {
     groupName: `${fullName}さん_人事労務サポートルーム`,
     groupExternalKey: `support_${userId}`,
     administrators: [
       ...fixedAdmins.map(id => ({ userId: id })),
       { userId: lwUserId },
-      ...sameOrgUpperUsers.map(u => ({ userId: u.lw_userid })),
-      ...upperOrgUpperUsers.map(u => ({ userId: u.lw_userid }))
+      ...(sameOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ userId: u.lw_userid })),
+      ...(upperOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ userId: u.lw_userid }))
     ],
     members: [
-      { id: lwUserId, type: 'USER' },
-      ...sameOrgUpperUsers.map(u => ({ id: u.lw_userid, type: 'USER' })),
-      ...upperOrgUpperUsers.map(u => ({ id: u.lw_userid, type: 'USER' }))
+      { id: lwUserId, type: 'USER' as const },
+      ...(sameOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ id: u.lw_userid, type: 'USER' as const })),
+      ...(upperOrgUpperUsers || []).map((u: { lw_userid: string }) => ({ id: u.lw_userid, type: 'USER' as const }))
     ]
   };
 
-  const careerGroup = {
+  const careerGroup: GroupCreatePayload = {
     groupName: `${fullName}さん_勤務キャリア・コーディネートルーム`,
     groupExternalKey: `career_${userId}`,
     administrators: fixedAdmins.map(id => ({ userId: id })),
@@ -97,7 +97,14 @@ export async function POST(req: Request) {
   return NextResponse.json({ success: true });
 }
 
-async function createGroup(group: any, token: string) {
+interface GroupCreatePayload {
+  groupName: string;
+  groupExternalKey: string;
+  administrators: { userId: string }[];
+  members: { id: string; type: 'USER' | 'GROUP' }[];
+}
+
+async function createGroup(group: GroupCreatePayload, token: string) {
   const res = await fetch(`${API_BASE}/groups`, {
     method: 'POST',
     headers: {
