@@ -106,6 +106,9 @@ export default function EntryDetailPage() {
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
 
+    const [groupInitLoading, setGroupInitLoading] = useState(false);
+    const [groupInitDone, setGroupInitDone] = useState(false);
+
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -724,10 +727,6 @@ export default function EntryDetailPage() {
             }
 
             // LW グループ追加
-
-            const [groupInitLoading, setGroupInitLoading] = useState(false);
-            const [groupInitDone, setGroupInitDone] = useState(false);
-
             const handleInitGroups = async () => {
                 if (!entry || !userId || !selectedOrg || myLevelSort === null) {
                     alert('必要な情報が不足しています');
