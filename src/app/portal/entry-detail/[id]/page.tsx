@@ -106,8 +106,8 @@ export default function EntryDetailPage() {
 
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
 
-    const [groupInitLoading, setGroupInitLoading] = useState(false);
-    const [groupInitDone, setGroupInitDone] = useState(false);
+    //const [groupInitLoading, setGroupInitLoading] = useState(false);
+    //const [groupInitDone, setGroupInitDone] = useState(false);
 
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
