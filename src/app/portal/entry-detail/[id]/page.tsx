@@ -709,7 +709,7 @@ export default function EntryDetailPage() {
 
             //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
             //すでに一度　lw_userIdもっている場合には更新
-            await updateLwUserIdMapping(userId, data.userId); 
+            await updateLwUserIdMapping(data.userId,userId); 
 
             //ラインワークス・アイコン画像アップロード
             //alert('selectedOrg:' + selectedOrg);
