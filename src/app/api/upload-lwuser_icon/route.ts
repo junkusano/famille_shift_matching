@@ -64,7 +64,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'uploadUrlが取得できませんでした' }, { status: 500 });
         }
 
-        await fetch(uploadUrl, {
+        const putRes = await fetch(uploadUrl, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'image/jpeg'
@@ -72,7 +72,12 @@ export async function POST(req: Request) {
             body: imageBlob
         });
 
-        return NextResponse.json({ success: true });
+        console.log('📤 画像PUTアップロード status:', putRes.status);
+
+        if (!putRes.ok) {
+            console.error('画像アップロード失敗:', await putRes.text());
+            return NextResponse.json({ error: '画像アップロードに失敗しました' }, { status: 500 });
+        }
 
     } catch (err) {
         console.error('APIエラー:', err);
