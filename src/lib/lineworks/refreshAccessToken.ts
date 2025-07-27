@@ -14,7 +14,7 @@ export async function refreshAccessToken(): Promise<string> {
   const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT!;
   const privateKey = process.env.LINEWORKS_PRIVATE_KEY!.replace(/\\n/g, '\n');
   const clientSecret = process.env.LINEWORKS_CLIENT_SECRET!;
-  const scope = 'bot bot.read bot.message user user.read user.profile.read user.email.read directory directory.read orgunit orgunit.read';
+  const scope = 'bot bot.read bot.message user user.read user.profile.read profile user.email.read directory directory.read orgunit orgunit.read';
 
   const payload = {
     iss: clientId,
