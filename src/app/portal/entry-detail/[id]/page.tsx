@@ -707,7 +707,7 @@ export default function EntryDetailPage() {
             // 3. 少し待機（Supabase反映待ち）
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
+            //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
             //すでに一度　lw_userIdもっている場合には更新
             await updateLwUserIdMapping(userId, data.userId); 
 

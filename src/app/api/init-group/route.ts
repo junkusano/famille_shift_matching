@@ -15,22 +15,19 @@ export async function POST(req: Request) {
 
     console.log('[init-group] lwUserId (UUID):', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
 
-    const { data: targetUser } = await supabase
-        .from('user_entry_united_view')
-        .select('lw_userid, first_name_kanji, last_name_kanji, user_id')
+    const { data: entryUser } = await supabase
+        .from('entries')
+        .select('user_id, last_name_kanji, first_name_kanji')
         .eq('lw_userid', userId)
         .single();
 
-    console.log('[init-group] targetUser:', targetUser);
-
-    const lwUserId = targetUser?.lw_userid;
-    const fullName = `${targetUser?.last_name_kanji ?? ''}${targetUser?.first_name_kanji ?? ''}`;
-    const localUserId = targetUser?.user_id;
-
-    if (!lwUserId || !fullName || !localUserId) {
-        console.error('[init-group] ユーザー情報取得失敗');
-        return NextResponse.json({ error: 'ユーザー情報取得に失敗しました' }, { status: 400 });
+    if (!entryUser) {
+        console.error('[init-group] entries からの情報取得失敗');
+        return NextResponse.json({ error: 'ユーザー情報取得失敗' }, { status: 400 });
     }
+
+    const fullName = `${entryUser.last_name_kanji}${entryUser.first_name_kanji}`;
+    const localUserId = entryUser.user_id;
 
     const { data: sameOrgUpperUsers } = await supabase
         .from('user_entry_united_view')
@@ -51,15 +48,14 @@ export async function POST(req: Request) {
 
     const supportGroup: GroupCreatePayload = {
         groupName: `${fullName}さん 人事労務サポートルーム@${localUserId}`,
-        groupExternalKey: `support_${lwUserId}`,
+        groupExternalKey: `support_${userId}`,
         administrators: [
             ...fixedAdmins.map(id => ({ userId: id })),
-            // 除外: { userId: lwUserId },
             ...(sameOrgUpperUsers || []).map(u => ({ userId: u.lw_userid })),
             ...(upperOrgUpperUsers || []).map(u => ({ userId: u.lw_userid }))
         ],
         members: [
-            { id: lwUserId, type: 'USER' as const },
+            { id: userId, type: 'USER' as const },
             ...(sameOrgUpperUsers || []).map(u => ({ id: u.lw_userid, type: 'USER' as const })),
             ...(upperOrgUpperUsers || []).map(u => ({ id: u.lw_userid, type: 'USER' as const }))
         ]
@@ -67,10 +63,10 @@ export async function POST(req: Request) {
 
     const careerGroup: GroupCreatePayload = {
         groupName: `${fullName}さん 勤務キャリア・コーディネートルーム@${localUserId}`,
-        groupExternalKey: `career_${lwUserId}`,
+        groupExternalKey: `career_${userId}`,
         administrators: fixedAdmins.map(id => ({ userId: id })),
         members: [
-            { id: lwUserId, type: 'USER' },
+            { id: userId, type: 'USER' },
             { id: HELPER_MANAGER_GROUP_ID, type: 'GROUP' }
         ]
     };
@@ -116,10 +112,8 @@ async function createGroup(group: GroupCreatePayload, token: string) {
         })
     });
 
-    //すでに同名のグループがある時　作成したuserをメンバー追加
     if (createRes.status === 409) {
-        console.warn(`[init-group] グループ作成済み (${group.groupName})、メンバー追加に切り替え`);
-
+        console.warn(`[init-group] グループ作成済 (${group.groupName})、メンバー追加に切り替え`);
         for (const member of group.members) {
             const addRes = await fetch(`${API_BASE}/groups/externalKey:${group.groupExternalKey}/members`, {
                 method: 'POST',
@@ -129,7 +123,6 @@ async function createGroup(group: GroupCreatePayload, token: string) {
                 },
                 body: JSON.stringify(member)
             });
-
             if (!addRes.ok) {
                 const msg = await addRes.text();
                 console.error(`[init-group] メンバー追加失敗 (${member.id}):`, msg);
