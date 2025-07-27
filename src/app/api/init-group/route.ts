@@ -4,23 +4,17 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { FIXED_GROUP_MASTERS, HELPER_MANAGER_GROUP_ID, ORG_RECURSION_LIMIT } from '@/lib/lineworks/groupDefaults';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getAccessToken } from '@/lib/getAccessToken';
 
 const DOMAIN_ID = parseInt(process.env.LINEWORKS_DOMAIN_ID || '0');
 const API_BASE = 'https://www.worksapis.com/v1.0';
-
-async function getAccessToken(): Promise<string> {
-  const res = await fetch('/api/lineworks/token');
-  const data = await res.json();
-  return data.token;
-}
 
 export async function POST(req: Request) {
   const { userId, orgUnitId, levelSort } = await req.json();
   const accessToken = await getAccessToken();
 
-  console.log('[init-group] userId:', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
+  console.log('[init-group] lwUserId (UUID):', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
 
-  // userId は lw_userid（UUID）なので、それで検索
   const { data: targetUser } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid, first_name_kanji, last_name_kanji')
