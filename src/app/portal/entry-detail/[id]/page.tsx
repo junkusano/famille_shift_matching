@@ -723,7 +723,57 @@ export default function EntryDetailPage() {
                 console.warn('⚠️ アイコンURLが取得できなかったため、アップロードをスキップ');
             }
 
+            // LW グループ追加
 
+            const [groupInitLoading, setGroupInitLoading] = useState(false);
+            const [groupInitDone, setGroupInitDone] = useState(false);
+
+            const handleInitGroups = async () => {
+                if (!entry || !userId || !selectedOrg || myLevelSort === null) {
+                    alert('必要な情報が不足しています');
+                    return;
+                }
+
+                setGroupInitLoading(true);
+                try {
+                    const res = await fetch('/api/init-group', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId, // 例: jkkusano
+                            orgUnitId: selectedOrg,
+                            levelSort: myLevelSort
+                        })
+                    });
+
+                    if (res.ok) {
+                        alert('LINE WORKSグループを初期化しました');
+                        setGroupInitDone(true);
+                    } else {
+                        const error = await res.json();
+                        console.error('グループ初期化エラー:', error);
+                        alert(`エラーが発生しました: ${error.error || '不明なエラー'}`);
+                    }
+                } catch (e) {
+                    console.error('送信エラー:', e);
+                    alert('通信エラーが発生しました');
+                } finally {
+                    setGroupInitLoading(false);
+                }
+            };
+
+            // JSX側に配置（例：LINE WORKS登録済のあと）
+            {
+                lineWorksExists && !groupInitDone && (
+                    <button
+                        className="px-2 py-0.5 bg-indigo-700 text-white rounded hover:bg-indigo-800 text-sm"
+                        disabled={groupInitLoading}
+                        onClick={handleInitGroups}
+                    >
+                        {groupInitLoading ? 'グループ初期化中...' : 'LINE WORKSグループ初期化'}
+                    </button>
+                )
+            }
 
         } catch (err) {
             console.error('LINE WORKS アカウント作成中エラー:', err);

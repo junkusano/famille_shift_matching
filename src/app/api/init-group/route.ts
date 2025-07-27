@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { FIXED_GROUP_MASTERS, HELPER_MANAGER_GROUP_ID, ORG_RECURSION_LIMIT } from '@/lib/lineworks/groupDefaults';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 const DOMAIN_ID = parseInt(process.env.LINEWORKS_DOMAIN_ID || '0');
 const API_BASE = 'https://www.worksapis.com/v1.0';
@@ -17,21 +18,24 @@ export async function POST(req: Request) {
   const { userId, orgUnitId, levelSort } = await req.json();
   const accessToken = await getAccessToken();
 
-  // 対象ユーザー情報（lw_userid, 氏名）取得
+  console.log('[init-group] userId:', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
+
   const { data: targetUser } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid, first_name_kanji, last_name_kanji')
     .eq('user_id', userId)
     .single();
 
+  console.log('[init-group] targetUser:', targetUser);
+
   const lwUserId = targetUser?.lw_userid;
   const fullName = `${targetUser?.last_name_kanji ?? ''}${targetUser?.first_name_kanji ?? ''}`;
 
   if (!lwUserId || !fullName) {
+    console.error('[init-group] ユーザー情報取得失敗');
     return NextResponse.json({ error: 'ユーザー情報取得に失敗しました' }, { status: 400 });
   }
 
-  // 上位ユーザー取得（同一組織）
   const { data: sameOrgUpperUsers } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid')
@@ -39,8 +43,11 @@ export async function POST(req: Request) {
     .lt('level_sort', levelSort)
     .not('lw_userid', 'is', null);
 
-  // 上位組織
-  const parentOrgIds = await getParentOrgUnits(orgUnitId);
+  console.log('[init-group] sameOrgUpperUsers:', sameOrgUpperUsers);
+
+  const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
+  console.log('[init-group] parentOrgIds:', parentOrgIds);
+
   const { data: upperOrgUpperUsers } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid')
@@ -48,7 +55,10 @@ export async function POST(req: Request) {
     .lt('level_sort', levelSort)
     .not('lw_userid', 'is', null);
 
-  const fixedAdmins = await fetchFixedAdmins();
+  console.log('[init-group] upperOrgUpperUsers:', upperOrgUpperUsers);
+
+  const fixedAdmins = await fetchFixedAdmins(supabase);
+  console.log('[init-group] fixedAdmins:', fixedAdmins);
 
   const supportGroup = {
     groupName: `${fullName}さん_人事労務サポートルーム`,
@@ -75,6 +85,9 @@ export async function POST(req: Request) {
       { id: HELPER_MANAGER_GROUP_ID, type: 'GROUP' }
     ]
   };
+
+  console.log('[init-group] creating support group:', supportGroup);
+  console.log('[init-group] creating career group:', careerGroup);
 
   await Promise.all([
     createGroup(supportGroup, accessToken),
@@ -109,11 +122,13 @@ async function createGroup(group: any, token: string) {
 
   if (!res.ok) {
     const error = await res.text();
-    console.error('グループ作成失敗:', group.groupName, error);
+    console.error('[init-group] グループ作成失敗:', group.groupName, error);
+  } else {
+    console.log('[init-group] グループ作成成功:', group.groupName);
   }
 }
 
-async function getParentOrgUnits(orgId: string): Promise<string[]> {
+async function getParentOrgUnits(supabase: SupabaseClient, orgId: string): Promise<string[]> {
   const visited = new Set<string>();
   let current = orgId;
   let count = 0;
@@ -134,12 +149,12 @@ async function getParentOrgUnits(orgId: string): Promise<string[]> {
   return Array.from(visited);
 }
 
-async function fetchFixedAdmins(): Promise<string[]> {
+async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
   const { data } = await supabase
     .from('user_entry_united_view')
     .select('lw_userid')
     .in('user_id', FIXED_GROUP_MASTERS)
     .not('lw_userid', 'is', null);
 
-  return (data || []).map(u => u.lw_userid);
+  return (data || []).map((u: { lw_userid: string }) => u.lw_userid);
 }
