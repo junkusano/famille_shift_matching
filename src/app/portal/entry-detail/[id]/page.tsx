@@ -699,17 +699,17 @@ export default function EntryDetailPage() {
             }
 
             //ラインワークス・アイコン画像アップロード
-            alert('selectedOrg:' + selectedOrg);
+            //alert('selectedOrg:' + selectedOrg);
             const iconUrl = await getOrgIconUrl(selectedOrg);
-            alert('iconUrl:' + iconUrl);
+            //alert('iconUrl:' + iconUrl);
             console.log('取得した orgUnitId:', selectedOrg);
             console.log('取得された iconUrl:', iconUrl);
 
-            alert('data.userId:' + data.userId);
+            //alert('data.userId:' + data.userId);
 
             if (iconUrl) {
                 console.log('🟢 アイコンアップロード開始');
-                alert('🟢 アイコンアップロード開始');
+                //alert('🟢 アイコンアップロード開始');
                 const lwUserId = data.userId;  // ← LINE WORKS の内部UUID
                 await fetch('/api/upload-lwuser_icon', {
                     method: 'POST',
