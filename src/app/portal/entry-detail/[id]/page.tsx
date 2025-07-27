@@ -581,7 +581,6 @@ export default function EntryDetailPage() {
 
 
     // LINE WORKS
-
     // サーバーAPIを呼び出すだけにする
     const [creatingLineWorks, setCreatingLineWorks] = useState(false);  // 処理中フラグ
 
@@ -700,6 +699,12 @@ export default function EntryDetailPage() {
                 });
                 alert('LINE WORKS ログイン案内メールを送信しました！');
             }
+
+            // 2. ユーザー情報を同期（GETリクエスト）
+            await fetch('/api/cron/sync-lineworks-users', { method: 'GET' });
+
+            // 3. 少し待機（Supabase反映待ち）
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             //ラインワークス・アイコン画像アップロード
             //alert('selectedOrg:' + selectedOrg);
