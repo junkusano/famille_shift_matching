@@ -13,7 +13,6 @@ import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { updateLwUserIdMapping } from '@/lib/supabase/updateLwUserId';
 
 interface Attachment {
     url: string | null;
@@ -708,18 +707,13 @@ export default function EntryDetailPage() {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             //すでに一度　lw_userIdもっている場合には更新
-            //alert('updateLWuser: userId:' + userId + 'lw_userid:' + data.userId);
-            try {
-                const updateResult = await updateLwUserIdMapping(userId, data.userId);
-                console.log('✅ updateLwUserIdMapping 結果:', updateResult);
+            //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
+            await fetch('/api/update-lw-userid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, lwUserId: data.userId })
+            });
 
-                if (!updateResult.success) {
-                    alert('🟥 lw_userid 更新失敗: ' + updateResult.error);
-                }
-            } catch (err) {
-                console.error('❌ updateLwUserIdMapping 呼び出しエラー:', err);
-                alert('updateLwUserIdMapping 呼び出しに失敗しました');
-            }
 
             //ラインワークス・アイコン画像アップロード
             //alert('selectedOrg:' + selectedOrg);
