@@ -5,12 +5,25 @@ import { supabase } from '@/lib/supabaseClient';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import type { SupabaseShiftRaw, ShiftData } from '@/types/shift';
+
+const PAGE_SIZE = 10;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
+    const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
     const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
     const [accountId, setAccountId] = useState<string>('');
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // フィルター用 state
+    const [filterDate, setFilterDate] = useState('');
+    const [filterService, setFilterService] = useState('');
+    const [filterPostal, setFilterPostal] = useState('');
+    const [filterName, setFilterName] = useState('');
+    const [filterGender, setFilterGender] = useState('');
 
     useEffect(() => {
         const fetchUserInfo = async () => {
@@ -28,21 +41,21 @@ export default function ShiftPage() {
             const response = await supabase
                 .from('shift')
                 .select(`
-          shift_id,
-          shift_start_date,
-          shift_start_time,
-          service_code,
-          kaipoke_cs_id,
-          staff_01_user_id,
-          staff_02_user_id,
-          staff_03_user_id,
-          cs_kaipoke_info:cs_kaipoke_info(
-            postal_code,
-            name,
-            gender_request,
-            cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
-          )
-        `)
+                    shift_id,
+                    shift_start_date,
+                    shift_start_time,
+                    service_code,
+                    kaipoke_cs_id,
+                    staff_01_user_id,
+                    staff_02_user_id,
+                    staff_03_user_id,
+                    cs_kaipoke_info:cs_kaipoke_info(
+                        postal_code,
+                        name,
+                        gender_request,
+                        cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
+                    )
+                `)
                 .gte('shift_start_date', new Date().toISOString().split('T')[0]);
 
             if (response.error) {
@@ -69,10 +82,25 @@ export default function ShiftPage() {
             }));
 
             setShifts(formatted);
+            setFilteredShifts(formatted);
         };
 
         fetchUserInfo();
     }, []);
+
+    useEffect(() => {
+        const result = shifts.filter((s) => {
+            return (
+                (!filterDate || s.shift_start_date.includes(filterDate)) &&
+                (!filterService || s.service_code.includes(filterService)) &&
+                (!filterPostal || s.address.includes(filterPostal)) &&
+                (!filterName || s.client_name.includes(filterName)) &&
+                (!filterGender || s.gender_request_name.includes(filterGender))
+            );
+        });
+        setFilteredShifts(result);
+        setCurrentPage(1);
+    }, [filterDate, filterService, filterPostal, filterName, filterGender, shifts]);
 
     const handleConfirm = async () => {
         if (!selectedShift) return;
@@ -103,16 +131,28 @@ export default function ShiftPage() {
         }
     };
 
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
+
     return (
         <div className="content">
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+                <Input placeholder="日付" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
+                <Input placeholder="種別" value={filterService} onChange={(e) => setFilterService(e.target.value)} />
+                <Input placeholder="郵便番号" value={filterPostal} onChange={(e) => setFilterPostal(e.target.value)} />
+                <Input placeholder="利用者名" value={filterName} onChange={(e) => setFilterName(e.target.value)} />
+                <Input placeholder="性別希望" value={filterGender} onChange={(e) => setFilterGender(e.target.value)} />
+            </div>
+
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {shifts.map((shift) => (
+                {paginatedShifts.map((shift) => (
                     <Card key={shift.shift_id} className="shadow">
                         <CardContent className="p-4">
                             <div className="text-sm font-semibold">{shift.shift_start_date} {shift.shift_start_time}</div>
                             <div className="text-sm">種別: {shift.service_code}</div>
-                            <div className="text-sm">市区町村: {shift.address}</div>
+                            <div className="text-sm">郵便番号: {shift.address}</div>
                             <div className="text-sm">利用者名: {shift.client_name}</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
                             <Dialog>
@@ -129,6 +169,14 @@ export default function ShiftPage() {
                         </CardContent>
                     </Card>
                 ))}
+            </div>
+
+            <div className="flex justify-center mt-4">
+                <Pagination
+                    totalPages={Math.ceil(filteredShifts.length / PAGE_SIZE)}
+                    currentPage={currentPage}
+                    onPageChange={setCurrentPage}
+                />
             </div>
         </div>
     );
