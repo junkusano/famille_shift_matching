@@ -1,30 +1,27 @@
-import { supabaseAdmin } from '@/lib/supabase/service';
+import { NextResponse } from 'next/server';
+import { updateLwUserIdMapping } from '@/lib/supabase/updateLwUserId'; // ✅ libからimport
 
-export async function updateLwUserIdMapping(userId: string, lwUserId: string): Promise<{ success: boolean; error?: string }> {
-  console.log('[updateLwUserIdMapping] 開始');
-
+export async function POST(req: Request) {
   try {
+    const body = await req.json();
+    const { userId, lwUserId } = body;
+
+    console.log('[API/update-lw-userid] 受信:', body);
+
     if (!userId || !lwUserId) {
-      console.error('[updateLwUserIdMapping] userId または lwUserId が未指定です');
-      throw new Error('userId または lwUserId が未指定です');
+      return NextResponse.json(
+        { success: false, error: 'userId または lwUserId が未指定です' },
+        { status: 400 }
+      );
     }
 
-    console.log(`[updateLwUserIdMapping] 実行: userId=${userId}, lwUserId=${lwUserId}`);
-
-    const { error } = await supabaseAdmin
-      .from('users')
-      .update({ lw_userid: lwUserId })
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('[updateLwUserIdMapping] 更新失敗:', error.message);
-      return { success: false, error: error.message };
-    }
-
-    console.log(`[updateLwUserIdMapping] 成功: user_id=${userId}, lw_userid=${lwUserId}`);
-    return { success: true };
+    const result = await updateLwUserIdMapping(userId, lwUserId);
+    return NextResponse.json(result);
   } catch (err) {
-    console.error('[updateLwUserIdMapping] 例外エラー:', err);
-    return { success: false, error: err instanceof Error ? err.message : '不明なエラー' };
+    console.error('[API/update-lw-userid] 例外エラー:', err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : '不明なエラー' },
+      { status: 500 }
+    );
   }
 }
