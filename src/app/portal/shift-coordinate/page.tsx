@@ -61,11 +61,11 @@ export default function ShiftPage() {
         staff_01_user_id: s.staff_01_user_id,
         staff_02_user_id: s.staff_02_user_id,
         staff_03_user_id: s.staff_03_user_id,
-        address: s.cs_kaipoke_info?.address || '',
+        address: s.cs_kaipoke_info?.postal_code || '',
         client_name: s.cs_kaipoke_info?.name || '',
-        gender_request_name: s.cs_kaipoke_info?.cs_gender_request?.gender_request_name || '',
-        male_flg: s.cs_kaipoke_info?.cs_gender_request?.male_flg || false,
-        female_flg: s.cs_kaipoke_info?.cs_gender_request?.female_flg || false
+        gender_request_name: s.cs_kaipoke_info?.gender_request?.gender_request_name || '',
+        male_flg: s.cs_kaipoke_info?.gender_request?.male_flg || false,
+        female_flg: s.cs_kaipoke_info?.gender_request?.female_flg || false
       }));
 
       setShifts(formatted);
