@@ -708,8 +708,18 @@ export default function EntryDetailPage() {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             //すでに一度　lw_userIdもっている場合には更新
-            //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
-            await updateLwUserIdMapping(data.userId,userId); 
+            //alert('updateLWuser: userId:' + userId + 'lw_userid:' + data.userId);
+            try {
+                const updateResult = await updateLwUserIdMapping(userId, data.userId);
+                console.log('✅ updateLwUserIdMapping 結果:', updateResult);
+
+                if (!updateResult.success) {
+                    alert('🟥 lw_userid 更新失敗: ' + updateResult.error);
+                }
+            } catch (err) {
+                console.error('❌ updateLwUserIdMapping 呼び出しエラー:', err);
+                alert('updateLwUserIdMapping 呼び出しに失敗しました');
+            }
 
             //ラインワークス・アイコン画像アップロード
             //alert('selectedOrg:' + selectedOrg);

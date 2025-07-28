@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 
 export async function updateLwUserIdMapping(userId: string, lwUserId: string): Promise<{ success: boolean; error?: string }> {
-
+　alert('[updateLwUserIdMapping]開始');
   try {
     if (!userId || !lwUserId) {
       throw new Error('userId または lwUserId が未指定です');
