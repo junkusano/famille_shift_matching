@@ -182,10 +182,10 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                             <li>
-                                    <Link href="/portal/phone" className="text-blue-300 hover:underline">
-                                        電話帳
-                                    </Link>
-                                </li>
+                                <Link href="/portal/phone" className="text-blue-300 hover:underline">
+                                    電話帳
+                                </Link>
+                            </li>
                             <li>
                                 <Link href="/portal/fax" className="text-blue-300 hover:underline">
                                     fax電話帳
@@ -204,7 +204,9 @@ export default function PortalLayout({ children }: Props) {
                         </>
                     )}
                     <li>
-                        <span className="text-blue-300">シフトコーディネート（工事中）</span>
+                        <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">
+                            シフトコーディネート（工事中）
+                        </Link>
                     </li>
                     <li>
                         <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>
@@ -324,7 +326,9 @@ export default function PortalLayout({ children }: Props) {
                             </>
                         )}
                         <li>
-                            <span className="text-blue-300">シフトコーディネート（工事中）</span>
+                            <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">
+                                シフトコーディネート（工事中）
+                            </Link>
                         </li>
                         <li>
                             <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>

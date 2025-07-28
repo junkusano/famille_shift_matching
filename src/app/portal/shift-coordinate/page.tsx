@@ -24,8 +24,17 @@ interface ShiftData {
 
 export default function ShiftCoordinatePage() {
   const [shifts, setShifts] = useState<ShiftData[]>([]);
+  const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
   const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
   const [accountId, setAccountId] = useState<string>('');
+
+  const [serviceCodeFilter, setServiceCodeFilter] = useState('');
+  const [addressFilter, setAddressFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -43,11 +52,23 @@ export default function ShiftCoordinatePage() {
       const { data, error } = await supabase.rpc('get_shift_with_info');
       if (!error && data) {
         setShifts(data);
+        setFilteredShifts(data);
       }
     };
 
     fetchUserInfo();
   }, []);
+
+  useEffect(() => {
+    const filtered = shifts.filter(shift =>
+      (!serviceCodeFilter || shift.service_code.includes(serviceCodeFilter)) &&
+      (!addressFilter || shift.address.includes(addressFilter)) &&
+      (!nameFilter || shift.client_name.includes(nameFilter)) &&
+      (!genderFilter || shift.gender_request_name.includes(genderFilter))
+    );
+    setFilteredShifts(filtered);
+    setCurrentPage(1);
+  }, [serviceCodeFilter, addressFilter, nameFilter, genderFilter, shifts]);
 
   const handleConfirm = async () => {
     if (!selectedShift) return;
@@ -58,7 +79,6 @@ export default function ShiftCoordinatePage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        shift_id: selectedShift.shift_id,
         kaipoke_cs_id: selectedShift.kaipoke_cs_id,
         service_code: selectedShift.service_code,
         shift_start_date: selectedShift.shift_start_date,
@@ -79,11 +99,22 @@ export default function ShiftCoordinatePage() {
     }
   };
 
+  const totalPages = Math.ceil(filteredShifts.length / itemsPerPage);
+  const paginatedShifts = filteredShifts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="content">
       <h2 className="text-xl font-bold mb-4">シフトセルフコーディネート</h2>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <input type="text" placeholder="種別で絞り込み" className="border p-1" value={serviceCodeFilter} onChange={(e) => setServiceCodeFilter(e.target.value)} />
+        <input type="text" placeholder="市区町村で絞り込み" className="border p-1" value={addressFilter} onChange={(e) => setAddressFilter(e.target.value)} />
+        <input type="text" placeholder="利用者名で絞り込み" className="border p-1" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+        <input type="text" placeholder="性別希望で絞り込み" className="border p-1" value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)} />
+      </div>
+
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {shifts.map((shift) => (
+        {paginatedShifts.map((shift) => (
           <Card key={shift.shift_id} className="shadow">
             <CardContent className="p-4">
               <div className="text-sm font-semibold">{shift.shift_start_date} {shift.shift_start_time}</div>
@@ -105,6 +136,16 @@ export default function ShiftCoordinatePage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="flex justify-between items-center mt-6">
+        <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1 border rounded">
+          ◀ 前へ
+        </button>
+        <span>{currentPage} / {totalPages}</span>
+        <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1 border rounded">
+          次へ ▶
+        </button>
       </div>
     </div>
   );
