@@ -7,205 +7,211 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { extractFilterOptions, ShiftFilterOptions } from '@/lib/supabase/shiftFilterOptions';
-import { Pagination } from '@/components/ui/pagination';
 import type { SupabaseShiftRaw, ShiftData } from '@/types/shift';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 50;
 
 export default function ShiftPage() {
-    const [shifts, setShifts] = useState<ShiftData[]>([]);
-    const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
-    const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
-    const [accountId, setAccountId] = useState<string>('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [filterOptions, setFilterOptions] = useState<ShiftFilterOptions>({
-        dateOptions: [], serviceOptions: [], postalOptions: [], nameOptions: [], genderOptions: []
+  const [shifts, setShifts] = useState<ShiftData[]>([]);
+  const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
+  const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
+  const [accountId, setAccountId] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filterOptions, setFilterOptions] = useState<ShiftFilterOptions>({
+    dateOptions: [],
+    serviceOptions: [],
+    postalOptions: [],
+    nameOptions: [],
+    genderOptions: [],
+  });
+
+  const [filterDate, setFilterDate] = useState('');
+  const [filterService, setFilterService] = useState<string[]>([]);
+  const [filterPostal, setFilterPostal] = useState('');
+  const [filterName, setFilterName] = useState('');
+  const [filterGender, setFilterGender] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('account_id')
+        .eq('auth_user_id', user.id)
+        .single();
+      setAccountId(userRecord?.account_id || '');
+
+      const response = await supabase
+        .from('shift')
+        .select(`
+          shift_id,
+          shift_start_date,
+          shift_start_time,
+          service_code,
+          kaipoke_cs_id,
+          staff_01_user_id,
+          staff_02_user_id,
+          staff_03_user_id,
+          cs_kaipoke_info:cs_kaipoke_info(
+            postal_code,
+            name,
+            gender_request,
+            cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
+          )
+        `)
+        .gte('shift_start_date', new Date().toISOString().split('T')[0]);
+
+      if (response.error) {
+        console.error('データ取得エラー:', response.error.message);
+        return;
+      }
+
+      const data = response.data as SupabaseShiftRaw[];
+
+      const formatted = data.map((s): ShiftData => ({
+        shift_id: s.shift_id,
+        shift_start_date: s.shift_start_date,
+        shift_start_time: s.shift_start_time,
+        service_code: s.service_code,
+        kaipoke_cs_id: s.kaipoke_cs_id,
+        staff_01_user_id: s.staff_01_user_id,
+        staff_02_user_id: s.staff_02_user_id,
+        staff_03_user_id: s.staff_03_user_id,
+        address: s.cs_kaipoke_info?.postal_code || '',
+        client_name: s.cs_kaipoke_info?.name || '',
+        gender_request_name: s.cs_kaipoke_info?.cs_gender_request?.gender_request_name || '',
+        male_flg: s.cs_kaipoke_info?.cs_gender_request?.male_flg || false,
+        female_flg: s.cs_kaipoke_info?.cs_gender_request?.female_flg || false
+      }));
+
+      setShifts(formatted);
+      setFilteredShifts(formatted);
+      setFilterOptions(extractFilterOptions(formatted));
+    };
+    fetchData();
+  }, []);
+
+  const applyFilters = () => {
+    const result = shifts.filter((s) => (
+      (!filterDate || s.shift_start_date === filterDate) &&
+      (filterService.length === 0 || filterService.includes(s.service_code)) &&
+      (!filterPostal || s.address === filterPostal) &&
+      (!filterName || s.client_name === filterName) &&
+      (!filterGender || s.gender_request_name === filterGender)
+    ));
+    setFilteredShifts(result);
+    setCurrentPage(1);
+  };
+
+  const handleConfirm = async () => {
+    if (!selectedShift) return;
+    const res = await fetch('/api/shift-coodinate-rpa-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kaipoke_cs_id: selectedShift.kaipoke_cs_id,
+        service_code: selectedShift.service_code,
+        shift_start_date: selectedShift.shift_start_date,
+        shift_start_time: selectedShift.shift_start_time,
+        staff_01_user_id: selectedShift.staff_01_user_id,
+        staff_02_user_id: selectedShift.staff_02_user_id,
+        staff_03_user_id: selectedShift.staff_03_user_id,
+        requested_by: accountId,
+      }),
     });
+    if (res.ok) {
+      alert('希望を送信しました');
+      setSelectedShift(null);
+    } else {
+      const err = await res.json();
+      alert(`送信に失敗しました: ${err.error}`);
+    }
+  };
 
-    const [filterDate, setFilterDate] = useState('');
-    const [filterService, setFilterService] = useState('');
-    const [filterPostal, setFilterPostal] = useState('');
-    const [filterName, setFilterName] = useState('');
-    const [filterGender, setFilterGender] = useState('');
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
-    useEffect(() => {
-        const fetchUserInfo = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+  return (
+    <div className="content">
+      <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
 
-            const { data: userRecord } = await supabase
-                .from('users')
-                .select('account_id')
-                .eq('auth_user_id', user.id)
-                .single();
-
-            setAccountId(userRecord?.account_id || '');
-
-            const response = await supabase
-                .from('shift')
-                .select(`
-                    shift_id,
-                    shift_start_date,
-                    shift_start_time,
-                    service_code,
-                    kaipoke_cs_id,
-                    staff_01_user_id,
-                    staff_02_user_id,
-                    staff_03_user_id,
-                    cs_kaipoke_info:cs_kaipoke_info(
-                        postal_code,
-                        name,
-                        gender_request,
-                        cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
-                    )
-                `)
-                .gte('shift_start_date', new Date().toISOString().split('T')[0]);
-
-            if (response.error) {
-                console.error('データ取得エラー:', response.error.message);
-                return;
-            }
-
-            const data = response.data as SupabaseShiftRaw[];
-
-            const formatted = data.map((s): ShiftData => ({
-                shift_id: s.shift_id,
-                shift_start_date: s.shift_start_date,
-                shift_start_time: s.shift_start_time,
-                service_code: s.service_code,
-                kaipoke_cs_id: s.kaipoke_cs_id,
-                staff_01_user_id: s.staff_01_user_id,
-                staff_02_user_id: s.staff_02_user_id,
-                staff_03_user_id: s.staff_03_user_id,
-                address: s.cs_kaipoke_info?.postal_code || '',
-                client_name: s.cs_kaipoke_info?.name || '',
-                gender_request_name: s.cs_kaipoke_info?.gender_request?.gender_request_name || '',
-                male_flg: s.cs_kaipoke_info?.gender_request?.male_flg || false,
-                female_flg: s.cs_kaipoke_info?.gender_request?.female_flg || false
-            }));
-
-            setShifts(formatted);
-            setFilteredShifts(formatted);
-            setFilterOptions(extractFilterOptions(formatted));
-        };
-
-        fetchUserInfo();
-    }, []);
-
-    const applyFilters = () => {
-        const result = shifts.filter((s) => {
-            return (
-                (!filterDate || s.shift_start_date === filterDate) &&
-                (!filterService || s.service_code === filterService) &&
-                (!filterPostal || s.address === filterPostal) &&
-                (!filterName || s.client_name === filterName) &&
-                (!filterGender || s.gender_request_name === filterGender)
-            );
-        });
-        setFilteredShifts(result);
-        setCurrentPage(1);
-    };
-
-    const handleConfirm = async () => {
-        if (!selectedShift) return;
-
-        const res = await fetch('/api/shift-coodinate-rpa-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                kaipoke_cs_id: selectedShift.kaipoke_cs_id,
-                service_code: selectedShift.service_code,
-                shift_start_date: selectedShift.shift_start_date,
-                shift_start_time: selectedShift.shift_start_time,
-                staff_01_user_id: selectedShift.staff_01_user_id,
-                staff_02_user_id: selectedShift.staff_02_user_id,
-                staff_03_user_id: selectedShift.staff_03_user_id,
-                requested_by: accountId,
-            }),
-        });
-
-        if (res.ok) {
-            alert('希望を送信しました');
-            setSelectedShift(null);
-        } else {
-            const err = await res.json();
-            alert(`送信に失敗しました: ${err.error}`);
-        }
-    };
-
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
-
-    return (
-        <div className="content">
-            <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-                <Select onValueChange={setFilterDate} value={filterDate}>
-                    <SelectTrigger><SelectValue placeholder="日付" /></SelectTrigger>
-                    <SelectContent>
-                        {filterOptions.dateOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select onValueChange={setFilterService} value={filterService}>
-                    <SelectTrigger><SelectValue placeholder="種別" /></SelectTrigger>
-                    <SelectContent>
-                        {filterOptions.serviceOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select onValueChange={setFilterPostal} value={filterPostal}>
-                    <SelectTrigger><SelectValue placeholder="郵便番号" /></SelectTrigger>
-                    <SelectContent>
-                        {filterOptions.postalOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select onValueChange={setFilterName} value={filterName}>
-                    <SelectTrigger><SelectValue placeholder="利用者名" /></SelectTrigger>
-                    <SelectContent>
-                        {filterOptions.nameOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select onValueChange={setFilterGender} value={filterGender}>
-                    <SelectTrigger><SelectValue placeholder="性別希望" /></SelectTrigger>
-                    <SelectContent>
-                        {filterOptions.genderOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Button onClick={applyFilters} className="col-span-2 md:col-span-3 lg:col-span-5">フィルターを適用</Button>
-            </div>
-
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {paginatedShifts.map((shift) => (
-                    <Card key={shift.shift_id} className="shadow">
-                        <CardContent className="p-4">
-                            <div className="text-sm font-semibold">{shift.shift_start_date} {shift.shift_start_time}</div>
-                            <div className="text-sm">種別: {shift.service_code}</div>
-                            <div className="text-sm">郵便番号: {shift.address}</div>
-                            <div className="text-sm">利用者名: {shift.client_name}</div>
-                            <div className="text-sm">性別希望: {shift.gender_request_name}</div>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button onClick={() => setSelectedShift(shift)} className="mt-2 w-full text-xs">
-                                        このシフトを希望する
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <div className="text-base font-semibold mb-2">このシフトを希望しますか？</div>
-                                    <Button onClick={handleConfirm}>OK（希望を送信）</Button>
-                                </DialogContent>
-                            </Dialog>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
-            <div className="flex justify-center mt-4">
-                <Pagination
-                    totalPages={Math.ceil(filteredShifts.length / PAGE_SIZE)}
-                    currentPage={currentPage}
-                    onPageChange={setCurrentPage}
-                />
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
+        <div>
+          <label className="text-xs">日付</label>
+          <Select onValueChange={setFilterDate} value={filterDate}>
+            <SelectTrigger><SelectValue placeholder="日付" /></SelectTrigger>
+            <SelectContent>
+              {filterOptions.dateOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-    );
+        <div>
+          <label className="text-xs">種別（複数選択）</label>
+          <select multiple value={filterService} onChange={(e) => setFilterService(Array.from(e.target.selectedOptions, o => o.value))} className="w-full border rounded p-1 h-[6rem]">
+            {filterOptions.serviceOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs">郵便番号</label>
+          <Select onValueChange={setFilterPostal} value={filterPostal}>
+            <SelectTrigger><SelectValue placeholder="郵便番号" /></SelectTrigger>
+            <SelectContent>
+              {filterOptions.postalOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs">利用者名</label>
+          <Select onValueChange={setFilterName} value={filterName}>
+            <SelectTrigger><SelectValue placeholder="利用者名" /></SelectTrigger>
+            <SelectContent>
+              {filterOptions.nameOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs">性別希望</label>
+          <Select onValueChange={setFilterGender} value={filterGender}>
+            <SelectTrigger><SelectValue placeholder="性別希望" /></SelectTrigger>
+            <SelectContent>
+              {filterOptions.genderOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-3">
+          <Button onClick={applyFilters} className="w-full">フィルターを適用</Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {paginatedShifts.map((shift) => (
+          <Card key={shift.shift_id} className="shadow">
+            <CardContent className="p-4">
+              <div className="text-sm font-semibold">{shift.shift_start_date} {shift.shift_start_time}</div>
+              <div className="text-sm">種別: {shift.service_code}</div>
+              <div className="text-sm">郵便番号: {shift.address}</div>
+              <div className="text-sm">利用者名: {shift.client_name}</div>
+              <div className="text-sm">性別希望: {shift.gender_request_name}</div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button onClick={() => setSelectedShift(shift)} className="mt-2 w-full text-xs">このシフトを希望する</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <div className="text-base font-semibold mb-2">このシフトを希望しますか？</div>
+                  <Button onClick={handleConfirm}>OK（希望を送信）</Button>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex justify-between mt-6">
+        <Button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>戻る</Button>
+        <Button disabled={start + PAGE_SIZE >= filteredShifts.length} onClick={() => setCurrentPage(p => p + 1)}>次へ</Button>
+      </div>
+    </div>
+  );
 }
