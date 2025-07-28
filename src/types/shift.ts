@@ -8,9 +8,9 @@ export interface SupabaseShiftRaw {
   staff_02_user_id?: string;
   staff_03_user_id?: string;
   cs_kaipoke_info?: {
-    address?: string;
+    postal_code?: string;
     name?: string;
-    cs_gender_request?: {
+    gender_request?: {
       gender_request_name?: string;
       male_flg?: boolean;
       female_flg?: boolean;
