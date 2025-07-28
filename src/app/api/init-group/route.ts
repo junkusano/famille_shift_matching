@@ -16,9 +16,10 @@ export async function POST(req: Request) {
     console.log('[init-group] lwUserId (UUID):', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
 
     const { data: entryUser } = await supabase
-        .from('entries')
+        .from('user_entry_united_view')
         .select('user_id, last_name_kanji, first_name_kanji')
         .eq('lw_userid', userId)
+        .eq('group_type', '人事労務サポートルーム')
         .single();
 
     if (!entryUser) {
