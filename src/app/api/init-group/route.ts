@@ -34,15 +34,15 @@ export async function POST(req: Request) {
         .from('user_entry_united_view')
         .select('lw_userid')
         .eq('org_unit_id', orgUnitId)
-        .lt('level_sort', levelSort)
+        .lt('level_sort', parseInt(levelSort))
         .not('lw_userid', 'is', null);
 
     const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
     const { data: upperOrgUpperUsers } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
-        .in('org_unit_id', parentOrgIds)
-        .lt('level_sort', levelSort)
+        .in('org_unit_id', parentOrgIds.length ? parentOrgIds : ['dummy'])
+        .lt('level_sort', parseInt(levelSort))
         .not('lw_userid', 'is', null);
 
     const fixedAdmins = await fetchFixedAdmins(supabase);
