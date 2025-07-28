@@ -23,7 +23,7 @@ export async function POST(req: Request) {
         .single();
 
     if (!entryUser) {
-        console.error('[init-group] entries からの情報取得失敗');
+        console.error('[init-group] user_entry_united_view からの情報取得失敗');
         return NextResponse.json({ error: 'ユーザー情報取得失敗' }, { status: 400 });
     }
 
