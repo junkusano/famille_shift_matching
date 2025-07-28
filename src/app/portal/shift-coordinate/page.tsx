@@ -37,7 +37,7 @@ export default function ShiftPage() {
           staff_02_user_id,
           staff_03_user_id,
           cs_kaipoke_info:cs_kaipoke_info(
-            address,
+            postal_code,
             name,
             gender_request,
             cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
