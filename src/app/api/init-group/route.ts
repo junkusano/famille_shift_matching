@@ -10,16 +10,15 @@ const DOMAIN_ID = parseInt(process.env.LINEWORKS_DOMAIN_ID || '0');
 const API_BASE = 'https://www.worksapis.com/v1.0';
 
 export async function POST(req: Request) {
-    const { userId, orgUnitId, levelSort } = await req.json();
+    const { userId, orgUnitId } = await req.json();
     const accessToken = await getAccessToken();
 
-    console.log('[init-group] lwUserId (UUID):', userId, 'orgUnitId:', orgUnitId, 'levelSort:', levelSort);
+    console.log('[init-group] lwUserId (UUID):', userId, 'orgUnitId:', orgUnitId);
 
     const { data: entryUser } = await supabase
         .from('user_entry_united_view')
-        .select('user_id, last_name_kanji, first_name_kanji')
+        .select('user_id, last_name_kanji, first_name_kanji, level_sort')
         .eq('lw_userid', userId)
-        .eq('group_type', '人事労務サポートルーム')
         .single();
 
     if (!entryUser) {
@@ -29,6 +28,7 @@ export async function POST(req: Request) {
 
     const fullName = `${entryUser.last_name_kanji}${entryUser.first_name_kanji}`;
     const localUserId = entryUser.user_id;
+    const levelSort = entryUser.level_sort;
 
     const { data: sameOrgUpperUsers } = await supabase
         .from('user_entry_united_view')

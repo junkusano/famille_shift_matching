@@ -748,8 +748,7 @@ export default function EntryDetailPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userId: data.userId,  // ✅ lw_userid（UUID）を渡す
-                        orgUnitId: selectedOrg,
-                        levelSort: myLevelSort
+                        orgUnitId: selectedOrg
                     })
                 });
 
