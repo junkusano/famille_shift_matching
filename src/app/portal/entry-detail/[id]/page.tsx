@@ -707,8 +707,8 @@ export default function EntryDetailPage() {
             // 3. 少し待機（Supabase反映待ち）
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
             //すでに一度　lw_userIdもっている場合には更新
+            //alert('updateLWuser: userId:'+userId+'lw_userid:'+data.userId);
             await updateLwUserIdMapping(data.userId,userId); 
 
             //ラインワークス・アイコン画像アップロード
