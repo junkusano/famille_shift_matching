@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { extractFilterOptions, ShiftFilterOptions } from '@/lib/supabase/shiftFilterOptions';
 import { Pagination } from '@/components/ui/pagination';
 import type { SupabaseShiftRaw, ShiftData } from '@/types/shift';
 
@@ -17,8 +18,10 @@ export default function ShiftPage() {
     const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
     const [accountId, setAccountId] = useState<string>('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [filterOptions, setFilterOptions] = useState<ShiftFilterOptions>({
+        dateOptions: [], serviceOptions: [], postalOptions: [], nameOptions: [], genderOptions: []
+    });
 
-    // フィルター用 state
     const [filterDate, setFilterDate] = useState('');
     const [filterService, setFilterService] = useState('');
     const [filterPostal, setFilterPostal] = useState('');
@@ -83,33 +86,32 @@ export default function ShiftPage() {
 
             setShifts(formatted);
             setFilteredShifts(formatted);
+            setFilterOptions(extractFilterOptions(formatted));
         };
 
         fetchUserInfo();
     }, []);
 
-    useEffect(() => {
+    const applyFilters = () => {
         const result = shifts.filter((s) => {
             return (
-                (!filterDate || s.shift_start_date.includes(filterDate)) &&
-                (!filterService || s.service_code.includes(filterService)) &&
-                (!filterPostal || s.address.includes(filterPostal)) &&
-                (!filterName || s.client_name.includes(filterName)) &&
-                (!filterGender || s.gender_request_name.includes(filterGender))
+                (!filterDate || s.shift_start_date === filterDate) &&
+                (!filterService || s.service_code === filterService) &&
+                (!filterPostal || s.address === filterPostal) &&
+                (!filterName || s.client_name === filterName) &&
+                (!filterGender || s.gender_request_name === filterGender)
             );
         });
         setFilteredShifts(result);
         setCurrentPage(1);
-    }, [filterDate, filterService, filterPostal, filterName, filterGender, shifts]);
+    };
 
     const handleConfirm = async () => {
         if (!selectedShift) return;
 
         const res = await fetch('/api/shift-coodinate-rpa-request', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 kaipoke_cs_id: selectedShift.kaipoke_cs_id,
                 service_code: selectedShift.service_code,
@@ -139,11 +141,37 @@ export default function ShiftPage() {
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-                <Input placeholder="日付" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-                <Input placeholder="種別" value={filterService} onChange={(e) => setFilterService(e.target.value)} />
-                <Input placeholder="郵便番号" value={filterPostal} onChange={(e) => setFilterPostal(e.target.value)} />
-                <Input placeholder="利用者名" value={filterName} onChange={(e) => setFilterName(e.target.value)} />
-                <Input placeholder="性別希望" value={filterGender} onChange={(e) => setFilterGender(e.target.value)} />
+                <Select onValueChange={setFilterDate} value={filterDate}>
+                    <SelectTrigger><SelectValue placeholder="日付" /></SelectTrigger>
+                    <SelectContent>
+                        {filterOptions.dateOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={setFilterService} value={filterService}>
+                    <SelectTrigger><SelectValue placeholder="種別" /></SelectTrigger>
+                    <SelectContent>
+                        {filterOptions.serviceOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={setFilterPostal} value={filterPostal}>
+                    <SelectTrigger><SelectValue placeholder="郵便番号" /></SelectTrigger>
+                    <SelectContent>
+                        {filterOptions.postalOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={setFilterName} value={filterName}>
+                    <SelectTrigger><SelectValue placeholder="利用者名" /></SelectTrigger>
+                    <SelectContent>
+                        {filterOptions.nameOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select onValueChange={setFilterGender} value={filterGender}>
+                    <SelectTrigger><SelectValue placeholder="性別希望" /></SelectTrigger>
+                    <SelectContent>
+                        {filterOptions.genderOptions.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Button onClick={applyFilters} className="col-span-2 md:col-span-3 lg:col-span-5">フィルターを適用</Button>
             </div>
 
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
