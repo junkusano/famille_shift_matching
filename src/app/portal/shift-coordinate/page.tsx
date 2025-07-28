@@ -57,8 +57,7 @@ export default function ShiftPage() {
           cs_kaipoke_info:cs_kaipoke_info(
             postal_code,
             name,
-            gender_request,
-            cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg)
+            gender_request(gender_request_name, male_flg, female_flg)
           )
         `)
         .gte('shift_start_date', new Date().toISOString().split('T')[0]);
@@ -81,9 +80,9 @@ export default function ShiftPage() {
         staff_03_user_id: s.staff_03_user_id,
         address: s.cs_kaipoke_info?.postal_code || '',
         client_name: s.cs_kaipoke_info?.name || '',
-        gender_request_name: s.cs_kaipoke_info?.cs_gender_request?.gender_request_name || '',
-        male_flg: s.cs_kaipoke_info?.cs_gender_request?.male_flg || false,
-        female_flg: s.cs_kaipoke_info?.cs_gender_request?.female_flg || false
+        gender_request_name: s.cs_kaipoke_info?.gender_request?.gender_request_name || '',
+        male_flg: s.cs_kaipoke_info?.gender_request?.male_flg || false,
+        female_flg: s.cs_kaipoke_info?.gender_request?.female_flg || false
       }));
 
       setShifts(formatted);
