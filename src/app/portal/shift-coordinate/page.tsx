@@ -113,28 +113,49 @@ export default function ShiftPage() {
 
     const handleConfirm = async () => {
         if (!selectedShift) return;
-        const res = await fetch("/api/shift-coodinate-rpa-request", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+
+        try {
+            const session = await supabase.auth.getSession();
+            const currentUserId = session.data?.session?.user?.id;
+            if (!currentUserId) {
+                alert("ログイン情報が取得できません");
+                return;
+            }
+
+            const shiftRequestTemplateId = "92932ea2-b450-4ed0-a07b-4888750da641";
+            const requestDetails = {
                 kaipoke_cs_id: selectedShift.kaipoke_cs_id,
-                service_code: selectedShift.service_code,
                 shift_start_date: selectedShift.shift_start_date,
                 shift_start_time: selectedShift.shift_start_time,
-                staff_01_user_id: selectedShift.staff_01_user_id,
-                staff_02_user_id: selectedShift.staff_02_user_id,
-                staff_03_user_id: selectedShift.staff_03_user_id,
-                requested_by: accountId,
-            }),
-        });
-        if (res.ok) {
-            alert("希望を送信しました");
+                service_code: selectedShift.service_code,
+                postal_code_3: selectedShift.postal_code_3,
+                client_name: selectedShift.client_name,
+                requested_by: currentUserId
+            };
+
+            const { error: insertError } = await supabase
+                .from("rpa_command_requests")
+                .insert({
+                    template_id: shiftRequestTemplateId,
+                    requester_id: currentUserId,
+                    approver_id: currentUserId,
+                    status: "approved",
+                    request_details: requestDetails
+                });
+
+            if (insertError) {
+                alert("リクエスト登録に失敗しました: " + insertError.message);
+            } else {
+                alert("希望リクエストを登録しました！");
+            }
+        } catch (e) {
+            alert("処理中にエラーが発生しました");
+            console.error(e);
+        } finally {
             setSelectedShift(null);
-        } else {
-            const err = await res.json();
-            alert(`送信に失敗しました: ${err.error}`);
         }
     };
+
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
