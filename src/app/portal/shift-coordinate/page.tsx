@@ -5,13 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 
