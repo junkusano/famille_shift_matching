@@ -31,10 +31,10 @@ export default function ShiftPage() {
         genderOptions: [],
     });
 
-    const [filterDate, setFilterDate] = useState("");
+    const [filterDate, setFilterDate] = useState<string[]>([]);
     const [filterService, setFilterService] = useState<string[]>([]);
     const [filterPostal, setFilterPostal] = useState<string[]>([]);
-    const [filterName, setFilterName] = useState("");
+    const [filterName, setFilterName] = useState<string[]>([]);
     const [filterGender, setFilterGender] = useState<string[]>([]);
 
     useEffect(() => {
@@ -97,15 +97,24 @@ export default function ShiftPage() {
     }, []);
 
     const applyFilters = () => {
-        const result = shifts.filter(
-            (s) =>
-                (!filterDate || s.shift_start_date === filterDate) &&
-                (filterService.length === 0 || filterService.includes(s.service_code)) &&
-                (!filterPostal.length || filterPostal.includes(s.postal_code_3)) &&
-                (!filterName || s.client_name === filterName) &&
-                (!filterGender.length || filterGender.includes(s.gender_request_name))
+        const result = shifts.filter((s) =>
+            (!filterDate.length || filterDate.includes(s.shift_start_date)) &&
+            (!filterService.length || filterService.includes(s.service_code)) &&
+            (!filterPostal.length || filterPostal.includes(s.postal_code_3)) &&
+            (!filterName.length || filterName.includes(s.client_name)) &&
+            (!filterGender.length || filterGender.includes(s.gender_request_name))
         );
         setFilteredShifts(result);
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => {
+        setFilterDate([]);
+        setFilterService([]);
+        setFilterPostal([]);
+        setFilterName([]);
+        setFilterGender([]);
+        setFilteredShifts(shifts); // 全件に戻す
         setCurrentPage(1);
     };
 
@@ -143,19 +152,17 @@ export default function ShiftPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
                 <div>
-                    <label className="text-xs">日付</label>
-                    <Select onValueChange={setFilterDate} value={filterDate}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="日付" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {filterOptions.dateOptions.map((opt) => (
-                                <SelectItem key={opt} value={opt}>
-                                    {opt}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <label className="text-xs">日付（複数選択）</label>
+                    <select
+                        multiple
+                        value={filterDate}
+                        onChange={(e) => setFilterDate(Array.from(e.target.selectedOptions, (o) => o.value))}
+                        className="w-full border rounded p-1 h-[6rem]"
+                    >
+                        {filterOptions.dateOptions.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>
@@ -195,19 +202,19 @@ export default function ShiftPage() {
                 </div>
 
                 <div>
-                    <label className="text-xs">利用者名</label>
-                    <Select onValueChange={setFilterName} value={filterName}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="利用者名" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {filterOptions.nameOptions.map((opt) => (
-                                <SelectItem key={opt} value={opt}>
-                                    {opt}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <label className="text-xs">利用者名（複数選択）</label>
+                    <select
+                        multiple
+                        value={filterName}
+                        onChange={(e) => setFilterName(Array.from(e.target.selectedOptions, (o) => o.value))}
+                        className="w-full border rounded p-1 h-[6rem]"
+                    >
+                        {filterOptions.nameOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                                {opt}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>
@@ -227,12 +234,15 @@ export default function ShiftPage() {
                         ))}
                     </select>
                 </div>
-
-                <div className="col-span-3">
+                <div className="col-span-3 flex gap-2">
                     <Button onClick={applyFilters} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                         フィルターを適用
                     </Button>
+                    <Button onClick={clearFilters} className="w-full bg-gray-400 hover:bg-gray-500 text-white">
+                        フィルター解除
+                    </Button>
                 </div>
+
             </div>
 
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
