@@ -1,24 +1,44 @@
-// shift のフィルター選択肢を抽出する共通モジュール
-// 保存場所の推奨：src/lib/supabase/shiftFilterOptions.ts
-
-import type { ShiftData } from '@/types/shift';
+// src/lib/supabase/shiftFilterOptions.ts
 
 export interface ShiftFilterOptions {
   dateOptions: string[];
   serviceOptions: string[];
-  postalOptions: string[];
+  postalOptions: { postal_code_3: string; district: string }[];
   nameOptions: string[];
   genderOptions: string[];
 }
 
-export const extractFilterOptions = (shifts: ShiftData[]): ShiftFilterOptions => {
-  const sortAndUniq = (values: string[]) => [...new Set(values)].sort();
+export function extractFilterOptions(
+  shifts: {
+    shift_start_date: string;
+    service_code: string;
+    postal_code_3: string;
+    client_name: string;
+    gender_request_name: string;
+  }[],
+  postalDistricts: { postal_code_3: string; district: string }[] = []
+): ShiftFilterOptions {
+  const dateSet = new Set<string>();
+  const serviceSet = new Set<string>();
+  const nameSet = new Set<string>();
+  const genderSet = new Set<string>();
+  const postalSet = new Set<string>();
+
+  for (const s of shifts) {
+    dateSet.add(s.shift_start_date);
+    serviceSet.add(s.service_code);
+    nameSet.add(s.client_name);
+    genderSet.add(s.gender_request_name);
+    postalSet.add(s.postal_code_3);
+  }
+
+  const postalOptions = postalDistricts.filter(p => postalSet.has(p.postal_code_3));
 
   return {
-    dateOptions: sortAndUniq(shifts.map((s) => s.shift_start_date)),
-    serviceOptions: sortAndUniq(shifts.map((s) => s.service_code)),
-    postalOptions: sortAndUniq(shifts.map((s) => s.address)),
-    nameOptions: sortAndUniq(shifts.map((s) => s.client_name)),
-    genderOptions: sortAndUniq(shifts.map((s) => s.gender_request_name)),
+    dateOptions: Array.from(dateSet).sort(),
+    serviceOptions: Array.from(serviceSet).sort(),
+    postalOptions: postalOptions.sort((a, b) => a.postal_code_3.localeCompare(b.postal_code_3)),
+    nameOptions: Array.from(nameSet).sort(),
+    genderOptions: Array.from(genderSet).sort(),
   };
-};
+}
