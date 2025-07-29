@@ -359,8 +359,6 @@ function ShiftRequestDialog({
         onConfirm();
         setOpen(false);
     };
-    const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
-    const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -372,7 +370,6 @@ function ShiftRequestDialog({
                 <DialogDescription>希望を送信すると、RPA申請が開始されます。</DialogDescription>
                 <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
-                    // ボタン表示を改善
                     <Button onClick={handleConfirm} disabled={creating}>
                         {creating ? "送信中..." : "希望を送信"}
                     </Button>
