@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogTrigger,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
@@ -24,12 +30,12 @@ export default function ShiftPage() {
         nameOptions: [],
         genderOptions: [],
     });
-
     const [filterDate, setFilterDate] = useState<string[]>([]);
     const [filterService, setFilterService] = useState<string[]>([]);
     const [filterPostal, setFilterPostal] = useState<string[]>([]);
     const [filterName, setFilterName] = useState<string[]>([]);
     const [filterGender, setFilterGender] = useState<string[]>([]);
+    const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -161,6 +167,49 @@ export default function ShiftPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
+    const handleShiftRequest = async () => {
+        if (!selectedShift) return;
+
+        setCreatingShiftRequest(true); // ← スピナーなど表示
+        try {
+            const session = await supabase.auth.getSession();
+            const userId = session.data?.session?.user?.id;
+            if (!userId) {
+                alert("ログイン情報が取得できません");
+                return;
+            }
+
+            const { error } = await supabase.from("rpa_command_requests").insert({
+                template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
+                requester_id: userId,
+                approver_id: userId,
+                status: "approved",
+                request_details: {
+                    kaipoke_cs_id: selectedShift.kaipoke_cs_id,
+                    shift_start_date: selectedShift.shift_start_date,
+                    shift_start_time: selectedShift.shift_start_time,
+                    service_code: selectedShift.service_code,
+                    postal_code_3: selectedShift.postal_code_3,
+                    client_name: selectedShift.client_name,
+                    requested_by: userId,
+                },
+            });
+
+            if (error) {
+                alert("送信に失敗しました: " + error.message);
+            } else {
+                alert("希望リクエストを登録しました！");
+                setSelectedShift(null); // ダイアログ閉じ
+            }
+        } catch (e) {
+            alert("処理中にエラーが発生しました");
+            console.error(e);
+        } finally {
+            setCreatingShiftRequest(false);
+        }
+    };
+
+
     return (
         <div className="content">
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
@@ -272,22 +321,10 @@ export default function ShiftPage() {
                             <div className="text-sm">エリア: {shift.district}</div>
                             <div className="text-sm">利用者名: {shift.client_name}</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button
-                                        onClick={() => setSelectedShift(shift)}
-                                        className="mt-2 w-full text-xs"
-                                    >
-                                        このシフトを希望する
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <div className="text-base font-semibold mb-2">
-                                        このシフトを希望しますか？
-                                    </div>
-                                    <Button onClick={handleConfirm}>OK（希望を送信）</Button>
-                                </DialogContent>
-                            </Dialog>
+                            <ShiftRequestDialog
+                                onConfirm={handleShiftRequest}
+                                creating={creatingShiftRequest}
+                            />
                         </CardContent>
                     </Card>
                 ))}
@@ -305,5 +342,42 @@ export default function ShiftPage() {
                 </Button>
             </div>
         </div>
+    );
+}
+
+function ShiftRequestDialog({
+    onConfirm,
+    creating,
+}: {
+    onConfirm: () => void;
+    creating: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+
+    const handleCancel = () => setOpen(false);
+    const handleConfirm = () => {
+        onConfirm();
+        setOpen(false);
+    };
+    const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
+    const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogTitle>このシフトを希望しますか？</DialogTitle>
+                <DialogDescription>希望を送信すると、RPA申請が開始されます。</DialogDescription>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
+                    // ボタン表示を改善
+                    <Button onClick={handleConfirm} disabled={creating}>
+                        {creating ? "送信中..." : "希望を送信"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
