@@ -322,7 +322,7 @@ export default function ShiftPage() {
                             <div className="text-sm">利用者名: {shift.client_name}</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
                             <ShiftRequestDialog
-                                onConfirm={handleShiftRequest}
+                                onConfirm={handleConfirm}
                                 creating={creatingShiftRequest}
                             />
                         </CardContent>
