@@ -51,16 +51,8 @@ export default function ShiftPage() {
             setAccountId(userRecord?.account_id || "");
 
             const { data: shiftData } = await supabase
-                .from("shift")
-                .select(`
-          shift_id, shift_start_date, shift_start_time, service_code, kaipoke_cs_id,
-          staff_01_user_id, staff_02_user_id, staff_03_user_id,
-          cs_kaipoke_info:cs_kaipoke_info(
-            postal_code, name, gender_request,
-            cs_gender_request:cs_gender_request(gender_request_name, male_flg, female_flg),
-            postal_district:postal_district(postal_code_3, district)
-          )
-        `)
+                .from("shift_csinfo_postalname_view")
+                .select(`*`)
                 .gte("shift_start_date", jstNow);
 
             const { data: postalDistricts } = await supabase
@@ -79,13 +71,13 @@ export default function ShiftPage() {
                 staff_01_user_id: s.staff_01_user_id,
                 staff_02_user_id: s.staff_02_user_id,
                 staff_03_user_id: s.staff_03_user_id,
-                address: s.cs_kaipoke_info?.postal_code || "",
-                client_name: s.cs_kaipoke_info?.name || "",
-                gender_request_name: s.cs_kaipoke_info?.cs_gender_request?.gender_request_name || "",
-                male_flg: s.cs_kaipoke_info?.cs_gender_request?.male_flg || false,
-                female_flg: s.cs_kaipoke_info?.cs_gender_request?.female_flg || false,
-                postal_code_3: s.cs_kaipoke_info?.postal_district?.postal_code_3 || "",
-                district: s.cs_kaipoke_info?.postal_district?.district || "",
+                address: s.postal_code || "",
+                client_name: s.name || "",
+                gender_request_name: s.gender_request_name || "",
+                male_flg: s.male_flg || false,
+                female_flg: s.female_flg || false,
+                postal_code_3: s.postal_code_3 || "",
+                district: s.district || "",
             }));
 
             const sorted = formatted.sort((a, b) => {
