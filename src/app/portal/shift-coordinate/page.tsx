@@ -123,19 +123,21 @@ export default function ShiftPage() {
 
     // 1. 送信用関数を追加（LW Bot 送信）
     async function sendLineWorksMessage(channelId: string, message: string) {
-        const res = await fetch(`https://www.worksapis.com/v1.0/bots/6807751/channels/${channelId}/messages`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${process.env.NEXT_PUBLIC_LW_BOT_TOKEN}` // 環境変数で指定
-            },
-            body: JSON.stringify({
-                content: { type: "text", text: message }
-            })
-        });
-        if (!res.ok) {
-            const err = await res.text();
-            console.error("LW送信失敗:", err);
+        try {
+            const res = await fetch("/api/send-lw-message", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ channelId, message }),
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error("/api/send-lw-message 送信失敗:", res.status, errorText);
+            }
+        } catch (err) {
+            console.error("/api/send-lw-message エラー:", err);
         }
     }
 
