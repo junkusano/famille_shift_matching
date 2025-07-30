@@ -51,24 +51,29 @@ export default function ShiftPage() {
                 .single();
             setAccountId(userRecord?.account_id || "");
 
-            const { data: shiftData } = await supabase
-                .from("shift_csinfo_postalname_view")
-                .select("*")
-                .gte("shift_start_date", jstNow)
-                .limit(10000);  // ← 明示的に追加
+            const allShifts: SupabaseShiftRaw[] = [];
+            for (let i = 0; i < 10; i++) {
+                const { data, error } = await supabase
+                    .from("shift_csinfo_postalname_view")
+                    .select("*")
+                    .gte("shift_start_date", jstNow)
+                    .range(i * 1000, (i + 1) * 1000 - 1);
 
-            alert("shiftData length:" + shiftData?.length);
+                if (error || !data?.length) break;
+                allShifts.push(...data);
+            }
 
+            alert("allShifts length:" + allShifts?.length);
 
             const { data: postalDistricts } = await supabase
                 .from("postal_district")
                 .select("postal_code_3, district")
                 .order("postal_code_3");
 
-            if (!shiftData) return;
+            if (!allShifts) return;
 
-            const formatted = (shiftData as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === "-"||(s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+            const formatted = (allShifts as SupabaseShiftRaw[])
+                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
