@@ -206,7 +206,7 @@ export default function PortalLayout({ children }: Props) {
                     )}
                     <li>
                         <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">
-                            シフトコーディネート（工事中）
+                            シフトコーディネート（シフ子）
                         </Link>
                     </li>
                     <li>
@@ -327,7 +327,7 @@ export default function PortalLayout({ children }: Props) {
                         )}
                         <li>
                             <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">
-                                シフトコーディネート（工事中）
+                                シフトコーディネート（シフ子）
                             </Link>
                         </li>
                         <li>

@@ -63,7 +63,7 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
-            alert("allShifts length:" + allShifts?.length);
+            //alert("allShifts length:" + allShifts?.length);
 
             const { data: postalDistricts } = await supabase
                 .from("postal_district")
@@ -93,7 +93,7 @@ export default function ShiftPage() {
                     district: s.district || "",
                 }));
 
-            alert("filtered shiftData before map:" + formatted.length);
+            //alert("filtered shiftData before map:" + formatted.length);
 
             const sorted = formatted.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
@@ -103,7 +103,7 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            alert("sorted length:" + sorted.length);
+            //alert("sorted length:" + sorted.length);
 
 
             setShifts(sorted);
