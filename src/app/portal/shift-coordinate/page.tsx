@@ -265,7 +265,11 @@ export default function ShiftPage() {
                             <div className="text-sm">利用者名: {shift.client_name}　様</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
                             <ShiftRequestDialog
-                                onConfirm={handleShiftRequest}
+                                shift={shift}
+                                onConfirm={() => {
+                                    setSelectedShift(shift); // ← これが重要！
+                                    handleShiftRequest();
+                                }}
                                 creating={creatingShiftRequest}
                             />
                         </CardContent>
@@ -291,9 +295,11 @@ export default function ShiftPage() {
 function ShiftRequestDialog({
     onConfirm,
     creating,
+    shift,
 }: {
     onConfirm: () => void;
     creating: boolean;
+    shift: ShiftData;
 }) {
     const [open, setOpen] = useState(false);
 
@@ -310,7 +316,12 @@ function ShiftRequestDialog({
             </DialogTrigger>
             <DialogContent>
                 <DialogTitle>このシフトを希望しますか？</DialogTitle>
-                <DialogDescription>希望を送信すると、RPA申請が開始されます。</DialogDescription>
+                <DialogDescription>
+                    希望を送信すると、RPA申請が開始されます。
+                    <div className="mt-2 text-sm text-gray-500">
+                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+                    </div>
+                </DialogDescription>
                 <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
                     <Button onClick={handleConfirm} disabled={creating}>
