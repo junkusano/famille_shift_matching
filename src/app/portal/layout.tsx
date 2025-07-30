@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import '@/styles/portal.css';
+import '@/styles/globals.css';
 import Image from 'next/image';
 import { useUserRole } from '@/context/RoleContext';
 import Link from 'next/link';
