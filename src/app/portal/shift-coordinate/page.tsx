@@ -298,6 +298,7 @@ export default function ShiftPage() {
                             <div className="text-sm">エリア: {shift.district}</div>
                             <div className="text-sm">利用者名: {shift.client_name}　様</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
                             <ShiftRequestDialog
                                 shift={shift}
                                 creating={creatingShiftRequest}
@@ -305,7 +306,9 @@ export default function ShiftPage() {
                                     handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
                                 }}
                             />
+                            {/* 横並びにする追加ボタン */}
                             <GroupAddButton shift={shift} />
+                            </div>
                         </CardContent>
                     </Card>
                 ))}
@@ -345,92 +348,110 @@ function ShiftRequestDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>このシフトを希望しますか？</DialogTitle>
-                <DialogDescription>
-                    希望を送信すると、シフトコーディネート申請が開始されます。
-                    <div className="mt-2 text-sm text-gray-500">
-                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                    <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogTitle>このシフトを希望しますか？</DialogTitle>
+                    <DialogDescription>
+                        希望を送信すると、シフトコーディネート申請が開始されます。
+                        <div className="mt-2 text-sm text-gray-500">
+                            利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+                        </div>
+                        <label className="flex items-center mt-4 gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={attendRequest}
+                                onChange={(e) => setAttendRequest(e.target.checked)}
+                            />
+                            同行を希望する
+                        </label>
+                    </DialogDescription>
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
+                        <Button onClick={handleConfirm} disabled={creating}>
+                            {creating ? "送信中..." : "希望を送信"}
+                        </Button>
                     </div>
-                    <label className="flex items-center mt-4 gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={attendRequest}
-                            onChange={(e) => setAttendRequest(e.target.checked)}
-                        />
-                        同行を希望する
-                    </label>
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
-                    <Button onClick={handleConfirm} disabled={creating}>
-                        {creating ? "送信中..." : "希望を送信"}
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </DialogContent>
+            </Dialog>
     );
 }
 
-function GroupAddButton({ shift }: { shift: ShiftData }) {
-    return (
-        <div className="mt-2">
-            <button
-                className="text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100"
-                onClick={async () => {
-                    const session = await supabase.auth.getSession();
-                    const userId = session.data?.session?.user?.id;
-                    if (!userId) return;
+function GroupAddButton({ shift }: { shift: any }) {
+  const [open, setOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
-                    const { data: chanData } = await supabase
-                        .from("group_lw_channel_view")
-                        .select("group_id")
-                        .eq("group_account", shift.kaipoke_cs_id)
-                        .maybeSingle();
+  const handleConfirm = async () => {
+    setProcessing(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const userId = session.data?.session?.user?.id;
+      if (!userId) throw new Error("ユーザー情報取得失敗");
 
-                    const { data: userData } = await supabase
-                        .from("user_entry_united_view")
-                        .select("lw_userid")
-                        .eq("auth_user_id", userId)
-                        .maybeSingle();
+      const { data: chanData } = await supabase
+        .from("group_lw_channel_view")
+        .select("group_id")
+        .eq("group_account", shift.kaipoke_cs_id)
+        .maybeSingle();
 
-                    const senderId = userData?.lw_userid;
+      const { data: userData } = await supabase
+        .from("user_entry_united_view")
+        .select("lw_userid")
+        .eq("auth_user_id", userId)
+        .maybeSingle();
 
-                    if (!chanData?.group_id || !senderId) {
-                        alert("グループIDまたはユーザーIDが取得できませんでした");
-                        return;
-                    }
+      const senderId = userData?.lw_userid;
+      if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
 
-                    const res = await fetch('/api/lw-group-user-add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            groupId: chanData.group_id,
-                            userId: senderId,
-                        }),
-                    });
+      const res = await fetch('/api/lw-group-user-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupId: chanData.group_id,
+          userId: senderId,
+        }),
+      });
 
-                    if (!res.ok) {
-                        const err = await res.text();
-                        alert(`グループ追加失敗: ${err}`);
-                    } else {
-                        alert('✅ グループに追加されました');
-                    }
-                }}
-            >
+      const text = await res.text();
+      if (!res.ok) {
+        if (text.includes('Group member already exist')) {
+          alert('✅ すでにグループメンバーに追加されています。');
+        } else {
+          alert(`❌ グループ追加失敗: ${text}`);
+        }
+      } else {
+        alert('✅ グループに追加されました');
+      }
+    } catch (e) {
+      alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
+    } finally {
+      setProcessing(false);
+      setOpen(false);
+    }
+  };
 
-                <Image
-                    src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg"
-                    width={16}
-                    height={16}
-                    alt="LW"
-                />
-                <span>グループ追加</span>
-            </button>
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
+          <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
+          <span>グループ追加</span>
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogTitle>メンバー追加確認</DialogTitle>
+        <DialogDescription>
+          {shift.client_name} 様の情報連携グループにメンバー追加しますか？
+        </DialogDescription>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
+          <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
+            {processing ? '追加中...' : 'OK'}
+          </button>
         </div>
-    );
+      </DialogContent>
+    </Dialog>
+  );
 }
