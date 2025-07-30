@@ -195,13 +195,12 @@
         grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
     }
-}
+    
+    .hamburger {
+        display: none;
+    }
 
-.hamburger {
-    display: none;
-}
-
-.menu {
-    display: none !important;
-}
+    .menu {
+        display: none !important;
+    }
 }
