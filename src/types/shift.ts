@@ -14,6 +14,7 @@ export interface SupabaseShiftRaw {
   female_flg?: boolean;
   postal_code_3?: string;
   district?: string;
+  level_sort_order?: number;
 }
 
 export interface ShiftData {
