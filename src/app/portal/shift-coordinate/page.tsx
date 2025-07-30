@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
+import Image from 'next/image';
+import lwIcon from '@/public/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg'; // 添付されたロゴファイル
 
 
 
@@ -66,7 +68,7 @@ export default function ShiftPage() {
             if (!shiftData) return;
 
             const formatted = (shiftData as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === null || (s.level_sort_order !== undefined && (s.level_sort_order < 5000000 || s.level_sort_order === 1250000)))
+                .filter((s) => s.staff_01_user_id === null || (s.level_sort_order !== undefined && s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -307,6 +309,7 @@ export default function ShiftPage() {
                                     handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
                                 }}
                             />
+                            <GroupAddButton shift={shift} />
                         </CardContent>
                     </Card>
                 ))}
@@ -374,5 +377,58 @@ function ShiftRequestDialog({
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function GroupAddButton({ shift }: { shift: any }) {
+    return (
+        <div className="mt-2">
+            <button
+                className="text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100"
+                onClick={async () => {
+                    const session = await supabase.auth.getSession();
+                    const userId = session.data?.session?.user?.id;
+                    if (!userId) return;
+
+                    const { data: chanData } = await supabase
+                        .from("group_lw_channel_view")
+                        .select("group_id")
+                        .eq("group_account", shift.kaipoke_cs_id)
+                        .maybeSingle();
+
+                    const { data: userData } = await supabase
+                        .from("user_entry_united_view")
+                        .select("lw_userid")
+                        .eq("auth_user_id", userId)
+                        .maybeSingle();
+
+                    const senderId = userData?.lw_userid;
+
+                    if (!chanData?.group_id || !senderId) {
+                        alert("グループIDまたはユーザーIDが取得できませんでした");
+                        return;
+                    }
+
+                    const res = await fetch('/api/lw-group-user-add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            groupId: chanData.group_id,
+                            userId: senderId,
+                        }),
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.text();
+                        alert(`グループ追加失敗: ${err}`);
+                    } else {
+                        alert('✅ グループに追加されました');
+                    }
+                }}
+            >
+                <Image src={lwIcon} alt="LW" width={16} height={16} />
+                <span>グループ追加</span>
+            </button>
+        </div>
     );
 }
