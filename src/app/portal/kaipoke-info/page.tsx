@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useUserRole } from '@/context/RoleContext' // すでに別ページで使っているはず
+import { useUserRole } from '@/context/RoleContext'
 
-
+// 型定義
 type KaipokeInfo = {
   id: string
   kaipoke_cs_id: string
@@ -13,14 +13,15 @@ type KaipokeInfo = {
   email: string
   biko: string
   gender_request: string
+  postal_code: string
 }
 
 export default function KaipokeInfoPage() {
   const [data, setData] = useState<KaipokeInfo[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const role = useUserRole(); // ★追加
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const role = useUserRole()
 
   useEffect(() => {
     fetch('/api/kaipoke-info')
@@ -45,12 +46,21 @@ export default function KaipokeInfoPage() {
   }
 
   const handleSave = async (item: KaipokeInfo) => {
-    setSaving(true)
+    setSavingId(item.id)
     try {
       const res = await fetch(`/api/kaipoke-info/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
+        body: JSON.stringify({
+          kaipoke_cs_id: item.kaipoke_cs_id,
+          name: item.name,
+          end_at: item.end_at,
+          service_kind: item.service_kind,
+          email: item.email,
+          biko: item.biko,
+          gender_request: item.gender_request,
+          postal_code: item.postal_code
+        }),
       })
       if (!res.ok) throw new Error('更新に失敗しました')
       alert('保存しました')
@@ -58,12 +68,11 @@ export default function KaipokeInfoPage() {
       console.error(err)
       alert('保存に失敗しました')
     } finally {
-      setSaving(false)
+      setSavingId(null)
     }
   }
 
   if (error) return <div className="p-4 text-red-600">読み込みエラーが発生しました</div>
-
 
   if (!['admin', 'manager'].includes(role)) {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
@@ -81,6 +90,7 @@ export default function KaipokeInfoPage() {
               <th className="border p-2">事業所名</th>
               <th className="border p-2">顧客ID</th>
               <th className="border p-2">種別</th>
+              <th className="border p-2">郵便番号</th>
               <th className="border p-2">メール</th>
               <th className="border p-2">終了日</th>
               <th className="border p-2">性別希望</th>
@@ -117,6 +127,14 @@ export default function KaipokeInfoPage() {
                 </td>
                 <td className="border p-2">
                   <input
+                    type="text"
+                    value={item.postal_code}
+                    onChange={(e) => handleChange(item.id, 'postal_code', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  />
+                </td>
+                <td className="border p-2">
+                  <input
                     type="email"
                     value={item.email}
                     onChange={(e) => handleChange(item.id, 'email', e.target.value)}
@@ -138,9 +156,9 @@ export default function KaipokeInfoPage() {
                     className="w-full border px-2 py-1"
                   >
                     <option value="">未設定</option>
-                    <option value="UUID1">男性ヘルパー</option>
-                    <option value="UUID2">女性ヘルパー</option>
-                    <option value="UUID3">どちらでもよい</option>
+                    <option value="554d705b-85ec-4437-9352-4b026e2e904f">男性ヘルパー</option>
+                    <option value="uuid-female">女性ヘルパー</option>
+                    <option value="uuid-any">どちらでもよい</option>
                   </select>
                 </td>
                 <td className="border p-2">
@@ -155,7 +173,7 @@ export default function KaipokeInfoPage() {
                   <button
                     onClick={() => handleSave(item)}
                     className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
-                    disabled={saving}
+                    disabled={savingId === item.id}
                   >
                     保存
                   </button>
