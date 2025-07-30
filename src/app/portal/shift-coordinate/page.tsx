@@ -19,7 +19,7 @@ const PAGE_SIZE = 50;
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
-    const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
+    //const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
     const [accountId, setAccountId] = useState<string>("");
     void accountId;
     const [currentPage, setCurrentPage] = useState(1);
