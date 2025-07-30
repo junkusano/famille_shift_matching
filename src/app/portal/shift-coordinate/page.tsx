@@ -121,7 +121,7 @@ export default function ShiftPage() {
         setCurrentPage(1);
     };
 
-    const handleShiftRequest = async () => {
+    const handleShiftRequest = async (attendRequest: boolean) => {
         if (!selectedShift) return;
 
         setCreatingShiftRequest(true);
@@ -146,6 +146,7 @@ export default function ShiftPage() {
                     postal_code_3: selectedShift.postal_code_3,
                     client_name: selectedShift.client_name,
                     requested_by: userId,
+                    attend_request: attendRequest, // ✅ attendRequest をここで追加
                 },
             });
 
@@ -266,11 +267,11 @@ export default function ShiftPage() {
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
                             <ShiftRequestDialog
                                 shift={shift}
-                                onConfirm={() => {
-                                    setSelectedShift(shift); // ← これが重要！
-                                    handleShiftRequest();
-                                }}
                                 creating={creatingShiftRequest}
+                                onConfirm={(attendRequest) => {
+                                    setSelectedShift(shift); // ShiftData型そのまま
+                                    handleShiftRequest(attendRequest); // attendRequestは別引数で渡す
+                                }}
                             />
                         </CardContent>
                     </Card>
@@ -297,15 +298,16 @@ function ShiftRequestDialog({
     creating,
     shift,
 }: {
-    onConfirm: () => void;
+    onConfirm: (attendRequest: boolean) => void;
     creating: boolean;
     shift: ShiftData;
 }) {
     const [open, setOpen] = useState(false);
+    const [attendRequest, setAttendRequest] = useState(false);
 
     const handleCancel = () => setOpen(false);
     const handleConfirm = () => {
-        onConfirm();
+        onConfirm(attendRequest);
         setOpen(false);
     };
 
@@ -317,10 +319,18 @@ function ShiftRequestDialog({
             <DialogContent>
                 <DialogTitle>このシフトを希望しますか？</DialogTitle>
                 <DialogDescription>
-                    希望を送信すると、RPA申請が開始されます。
+                    希望を送信すると、シフトコーディネート申請が開始されます。
                     <div className="mt-2 text-sm text-gray-500">
                         利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
                     </div>
+                    <label className="flex items-center mt-4 gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={attendRequest}
+                            onChange={(e) => setAttendRequest(e.target.checked)}
+                        />
+                        同行希望あり
+                    </label>
                 </DialogDescription>
                 <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
