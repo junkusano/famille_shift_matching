@@ -201,7 +201,7 @@ export default function ShiftPage() {
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
     return (
-        <div className="content">
+        <div className="content" style={{ overflowY: "auto", maxHeight: "80vh" }}>
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
 
             <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
