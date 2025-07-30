@@ -15,7 +15,7 @@ import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFi
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 9999999;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
@@ -201,7 +201,7 @@ export default function ShiftPage() {
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
     return (
-        <div className="content" style={{ overflowY: "auto", maxHeight: "80vh" }}>
+        <div className="content">
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
 
             <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
