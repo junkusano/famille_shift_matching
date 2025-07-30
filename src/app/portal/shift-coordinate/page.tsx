@@ -376,7 +376,7 @@ function ShiftRequestDialog({
     );
 }
 
-function GroupAddButton({ shift }: { shift: any }) {
+function GroupAddButton({ shift }: { shift: ShiftData }) {
     return (
         <div className="mt-2">
             <button
