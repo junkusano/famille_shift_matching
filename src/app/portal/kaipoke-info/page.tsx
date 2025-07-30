@@ -156,9 +156,9 @@ export default function KaipokeInfoPage() {
                     className="w-full border px-2 py-1"
                   >
                     <option value="">未設定</option>
-                    <option value="554d705b-85ec-4437-9352-4b026e2e904f">男性ヘルパー</option>
-                    <option value="uuid-female">女性ヘルパー</option>
-                    <option value="uuid-any">どちらでもよい</option>
+                    <option value="9b32a1f0-f711-4ab4-92fb-0331f0c86d42">男性希望</option>
+                    <option value="42224870-c644-48a5-87e2-7df9c24bca5b">女性希望</option>
+                    <option value="554d705b-85ec-4437-9352-4b026e2e904f">男女問わず</option>
                   </select>
                 </td>
                 <td className="border p-2">
