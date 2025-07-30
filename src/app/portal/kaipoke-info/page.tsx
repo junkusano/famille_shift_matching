@@ -12,6 +12,7 @@ type KaipokeInfo = {
   service_kind: string
   email: string
   biko: string
+  gender_request: string
 }
 
 export default function KaipokeInfoPage() {
@@ -82,6 +83,7 @@ export default function KaipokeInfoPage() {
               <th className="border p-2">種別</th>
               <th className="border p-2">メール</th>
               <th className="border p-2">終了日</th>
+              <th className="border p-2">性別希望</th>
               <th className="border p-2">備考</th>
               <th className="border p-2">操作</th>
             </tr>
@@ -128,6 +130,18 @@ export default function KaipokeInfoPage() {
                     onChange={(e) => handleChange(item.id, 'end_at', e.target.value)}
                     className="w-full border px-2 py-1"
                   />
+                </td>
+                <td className="border p-2">
+                  <select
+                    value={item.gender_request}
+                    onChange={(e) => handleChange(item.id, 'gender_request', e.target.value)}
+                    className="w-full border px-2 py-1"
+                  >
+                    <option value="">未設定</option>
+                    <option value="UUID1">男性ヘルパー</option>
+                    <option value="UUID2">女性ヘルパー</option>
+                    <option value="UUID3">どちらでもよい</option>
+                  </select>
                 </td>
                 <td className="border p-2">
                   <input
