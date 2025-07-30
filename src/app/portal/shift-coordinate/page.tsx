@@ -379,7 +379,7 @@ function ShiftRequestDialog({
     );
 }
 
-function GroupAddButton({ shift }: { shift: any }) {
+function GroupAddButton({ shift }: { shift: ShiftData }) {
   const [open, setOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
 
