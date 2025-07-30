@@ -124,47 +124,41 @@
 /* スマホ用メニュー */
 @media (max-width: 768px) {
     .filter-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 
-    .filter-grid>div {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
+  .filter-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 
-    .filter-grid select {
-        width: 100%;
-        height: auto;
-        min-height: 5rem;
-        padding: 0.5rem;
-        font-size: 14px;
-    }
+  .filter-grid select {
+    width: 100%;
+    height: auto;
+    min-height: 5rem;
+    padding: 0.5rem;
+    font-size: 14px;
+  }
 
-    .dialog-content {
-        z-index: 9999 !important;
-        /* メニューより上 */
-        position: relative;
-    }
+  .filter-grid .col-span-3 {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 
-    .filter-grid .col-span-3 {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .filter-grid .col-span-3 button {
-        width: 100%;
-    }
+  .filter-grid .col-span-3 button {
+    width: 100%;
+  }
 
     .content {
         padding: 1rem;
     }
 
     .dialog-content {
-        margin-left: auto;
+        margin-left: 3em;
         margin-right: auto;
         max-width: 95vw;
         position: relative;
@@ -195,7 +189,7 @@
         grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
     }
-    
+
     .hamburger {
         display: none;
     }
