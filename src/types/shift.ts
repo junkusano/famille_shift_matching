@@ -2,6 +2,7 @@ export interface SupabaseShiftRaw {
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
+  shift_end_time: string;
   service_code: string;
   kaipoke_cs_id: string;
   staff_01_user_id?: string;
@@ -21,6 +22,7 @@ export interface ShiftData {
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
+  shift_end_time: string;
   service_code: string;
   kaipoke_cs_id: string;
   staff_01_user_id?: string;

@@ -68,6 +68,7 @@ export default function ShiftPage() {
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
                     shift_start_time: s.shift_start_time,
+                    shift_end_time: s.shift_end_time,
                     service_code: s.service_code,
                     kaipoke_cs_id: s.kaipoke_cs_id,
                     staff_01_user_id: s.staff_01_user_id,
@@ -256,7 +257,7 @@ export default function ShiftPage() {
                     <Card key={shift.shift_id} className="shadow">
                         <CardContent className="p-4">
                             <div className="text-sm font-semibold">
-                                {shift.shift_start_date} {shift.shift_start_time}
+                                {shift.shift_start_date} {shift.shift_start_time}～{shift.shift_end_time}
                             </div>
                             <div className="text-sm">種別: {shift.service_code}</div>
                             <div className="text-sm">郵便番号: {shift.address}</div>
