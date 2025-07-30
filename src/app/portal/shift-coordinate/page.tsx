@@ -121,6 +121,25 @@ export default function ShiftPage() {
         setCurrentPage(1);
     };
 
+    // 1. 送信用関数を追加（LW Bot 送信）
+    async function sendLineWorksMessage(channelId: string, message: string) {
+        const res = await fetch(`https://www.worksapis.com/v1.0/bots/6807751/channels/${channelId}/messages`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.NEXT_PUBLIC_LW_BOT_TOKEN}` // 環境変数で指定
+            },
+            body: JSON.stringify({
+                content: { type: "text", text: message }
+            })
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            console.error("LW送信失敗:", err);
+        }
+    }
+
+    // 2. handleShiftRequest を修正
     const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
         setCreatingShiftRequest(true);
         try {
@@ -152,6 +171,31 @@ export default function ShiftPage() {
                 alert("送信に失敗しました: " + error.message);
             } else {
                 alert("希望リクエストを登録しました！");
+
+                // チャンネル取得
+                const { data: chanData } = await supabase
+                    .from("group_lw_channel_view")
+                    .select("channel_id")
+                    .eq("group_account", shift.kaipoke_cs_id)
+                    .maybeSingle();
+
+                // 投稿者情報取得
+                const { data: userData } = await supabase
+                    .from("user_entry_united_view")
+                    .select("lw_userid, last_name_kanji, first_name_kanji")
+                    .eq("auth_user_id", userId)
+                    .maybeSingle();
+
+                const sender = userData?.lw_userid
+                    ? `<m="${userData.lw_userid}">`
+                    : `${userData?.last_name_kanji ?? "不明"}${userData?.first_name_kanji ?? "さん"}`;
+
+                if (chanData?.channel_id) {
+                    const message = `✅シフト希望が登録されました\n\n・カイポケ反映までお待ちください\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name}\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${sender}`;
+                    await sendLineWorksMessage(chanData.channel_id, message);
+                } else {
+                    console.warn("利用者様のラインワークスに確認メッセージを送ろうとしましたが、該当のチャンネルIDが見つかりませんでした。");
+                }
             }
         } catch (e) {
             alert("処理中にエラーが発生しました");
