@@ -15,7 +15,7 @@ import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFi
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
 
-const PAGE_SIZE = 9999999;
+const PAGE_SIZE = 500;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
@@ -56,6 +56,9 @@ export default function ShiftPage() {
                 .select(`*`)
                 .gte("shift_start_date", jstNow);
 
+            alert("shiftData length:" + shiftData?.length);
+
+
             const { data: postalDistricts } = await supabase
                 .from("postal_district")
                 .select("postal_code_3, district")
@@ -64,7 +67,7 @@ export default function ShiftPage() {
             if (!shiftData) return;
 
             const formatted = (shiftData as SupabaseShiftRaw[])
-                //.filter((s) => s.level_sort_order < 5000000 && s.level_sort_order !== 1250000)
+                .filter((s) => s.level_sort_order < 5000000 && s.level_sort_order !== 1250000) 
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -84,6 +87,8 @@ export default function ShiftPage() {
                     district: s.district || "",
                 }));
 
+            alert("filtered shiftData before map:"+ formatted.length);
+
             const sorted = formatted.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
@@ -91,6 +96,9 @@ export default function ShiftPage() {
                 if (a.postal_code_3 !== b.postal_code_3) return a.postal_code_3.localeCompare(b.postal_code_3);
                 return a.client_name.localeCompare(b.client_name);
             });
+
+            alert("sorted length:"+ sorted.length);
+
 
             setShifts(sorted);
             setFilteredShifts(sorted);
