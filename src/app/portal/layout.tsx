@@ -292,16 +292,15 @@ export default function PortalLayout({ children }: Props) {
                         )}
                         {(role === 'manager' || role === 'admin') && (
                             <>
-                                <li>                            <li>
+                                <li>                          
                                     <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">
                                         組織アイコン設定
                                     </Link>
-                                </li>
-                                    <li>
+                                </li> 
+                                <li>                                   
                                         <Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">
                                             利用者様情報
-                                        </Link>
-                                    </li>
+                                        </Link>                                    
                                 </li>
                                 <li>
                                     <Link href="/portal/phone" className="text-blue-300 hover:underline">

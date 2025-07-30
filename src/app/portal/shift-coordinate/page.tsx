@@ -62,23 +62,25 @@ export default function ShiftPage() {
 
             if (!shiftData) return;
 
-            const formatted = (shiftData as SupabaseShiftRaw[]).map((s): ShiftData => ({
-                shift_id: s.shift_id,
-                shift_start_date: s.shift_start_date,
-                shift_start_time: s.shift_start_time,
-                service_code: s.service_code,
-                kaipoke_cs_id: s.kaipoke_cs_id,
-                staff_01_user_id: s.staff_01_user_id,
-                staff_02_user_id: s.staff_02_user_id,
-                staff_03_user_id: s.staff_03_user_id,
-                address: s.postal_code || "",
-                client_name: s.name || "",
-                gender_request_name: s.gender_request_name || "",
-                male_flg: s.male_flg || false,
-                female_flg: s.female_flg || false,
-                postal_code_3: s.postal_code_3 || "",
-                district: s.district || "",
-            }));
+            const formatted = (shiftData as SupabaseShiftRaw[])
+                .filter((s) => s.staff_01_user_id === null || (s.level_sort_order !== undefined && s.level_sort_order < 5000000))
+                .map((s): ShiftData => ({
+                    shift_id: s.shift_id,
+                    shift_start_date: s.shift_start_date,
+                    shift_start_time: s.shift_start_time,
+                    service_code: s.service_code,
+                    kaipoke_cs_id: s.kaipoke_cs_id,
+                    staff_01_user_id: s.staff_01_user_id,
+                    staff_02_user_id: s.staff_02_user_id,
+                    staff_03_user_id: s.staff_03_user_id,
+                    address: s.postal_code || "",
+                    client_name: s.name || "",
+                    gender_request_name: s.gender_request_name || "",
+                    male_flg: s.male_flg || false,
+                    female_flg: s.female_flg || false,
+                    postal_code_3: s.postal_code_3 || "",
+                    district: s.district || "",
+                }));
 
             const sorted = formatted.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
@@ -114,17 +116,14 @@ export default function ShiftPage() {
         setFilterPostal([]);
         setFilterName([]);
         setFilterGender([]);
-        setFilteredShifts(shifts); // 全件に戻す
+        setFilteredShifts(shifts);
         setCurrentPage(1);
     };
-
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
     const handleShiftRequest = async () => {
         if (!selectedShift) return;
 
-        setCreatingShiftRequest(true); // ← スピナーなど表示
+        setCreatingShiftRequest(true);
         try {
             const session = await supabase.auth.getSession();
             const userId = session.data?.session?.user?.id;
@@ -153,7 +152,7 @@ export default function ShiftPage() {
                 alert("送信に失敗しました: " + error.message);
             } else {
                 alert("希望リクエストを登録しました！");
-                setSelectedShift(null); // ダイアログ閉じ
+                setSelectedShift(null);
             }
         } catch (e) {
             alert("処理中にエラーが発生しました");
@@ -163,6 +162,8 @@ export default function ShiftPage() {
         }
     };
 
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
 
     return (
         <div className="content">
@@ -188,27 +189,21 @@ export default function ShiftPage() {
                     <select
                         multiple
                         value={filterService}
-                        onChange={(e) =>
-                            setFilterService(Array.from(e.target.selectedOptions, (o) => o.value))
-                        }
+                        onChange={(e) => setFilterService(Array.from(e.target.selectedOptions, (o) => o.value))}
                         className="w-full border rounded p-1 h-[6rem]"
                     >
                         {filterOptions.serviceOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                                {opt}
-                            </option>
+                            <option key={opt} value={opt}>{opt}</option>
                         ))}
                     </select>
                 </div>
 
                 <div>
-                    <label className="text-xs">住所エリア</label>
+                    <label className="text-xs">住所エリア（複数選択）</label>
                     <select
                         multiple
                         value={filterPostal}
-                        onChange={(e) =>
-                            setFilterPostal(Array.from(e.target.selectedOptions, (o) => o.value))
-                        }
+                        onChange={(e) => setFilterPostal(Array.from(e.target.selectedOptions, (o) => o.value))}
                         className="w-full border rounded p-1 h-[6rem]"
                     >
                         {filterOptions.postalOptions.map((p) => (
@@ -228,27 +223,21 @@ export default function ShiftPage() {
                         className="w-full border rounded p-1 h-[6rem]"
                     >
                         {filterOptions.nameOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                                {opt}
-                            </option>
+                            <option key={opt} value={opt}>{opt}</option>
                         ))}
                     </select>
                 </div>
 
                 <div>
-                    <label className="text-xs">ヘルパー希望</label>
+                    <label className="text-xs">ヘルパー希望（複数選択）</label>
                     <select
                         multiple
                         value={filterGender}
-                        onChange={(e) =>
-                            setFilterGender(Array.from(e.target.selectedOptions, (o) => o.value))
-                        }
+                        onChange={(e) => setFilterGender(Array.from(e.target.selectedOptions, (o) => o.value))}
                         className="w-full border rounded p-1 h-[6rem]"
                     >
                         {filterOptions.genderOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                                {opt}
-                            </option>
+                            <option key={opt} value={opt}>{opt}</option>
                         ))}
                     </select>
                 </div>
@@ -260,7 +249,6 @@ export default function ShiftPage() {
                         フィルター解除
                     </Button>
                 </div>
-
             </div>
 
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
