@@ -14,10 +14,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
-import lwIcon from '@/public/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg'; // 添付されたロゴファイル
-
-
-
 
 const PAGE_SIZE = 50;
 
@@ -426,7 +422,13 @@ function GroupAddButton({ shift }: { shift: any }) {
                     }
                 }}
             >
-                <Image src={lwIcon} alt="LW" width={16} height={16} />
+
+                <Image
+                    src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg"
+                    width={16}
+                    height={16}
+                    alt="LW"
+                />
                 <span>グループ追加</span>
             </button>
         </div>
