@@ -122,7 +122,25 @@
 }
 
 /* スマホ用メニュー */
-@media (max-width: 599px) {
+@media (max-width: 768px) {
+    .filter-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        overflow-x: auto;
+    }
+
+    .filter-grid select {
+        height: auto;
+        min-height: 5rem;
+    }
+
+    .dialog-content {
+        z-index: 9999 !important;
+        /* メニューより上 */
+        position: relative;
+    }
+
     .left-menu {
         display: none;
     }
