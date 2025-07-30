@@ -121,9 +121,7 @@ export default function ShiftPage() {
         setCurrentPage(1);
     };
 
-    const handleShiftRequest = async (attendRequest: boolean) => {
-        if (!selectedShift) return;
-
+    const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
         setCreatingShiftRequest(true);
         try {
             const session = await supabase.auth.getSession();
@@ -139,14 +137,14 @@ export default function ShiftPage() {
                 approver_id: userId,
                 status: "approved",
                 request_details: {
-                    kaipoke_cs_id: selectedShift.kaipoke_cs_id,
-                    shift_start_date: selectedShift.shift_start_date,
-                    shift_start_time: selectedShift.shift_start_time,
-                    service_code: selectedShift.service_code,
-                    postal_code_3: selectedShift.postal_code_3,
-                    client_name: selectedShift.client_name,
+                    kaipoke_cs_id: shift.kaipoke_cs_id,
+                    shift_start_date: shift.shift_start_date,
+                    shift_start_time: shift.shift_start_time,
+                    service_code: shift.service_code,
+                    postal_code_3: shift.postal_code_3,
+                    client_name: shift.client_name,
                     requested_by: userId,
-                    attend_request: attendRequest, // ✅ attendRequest をここで追加
+                    attend_request: attendRequest,
                 },
             });
 
@@ -154,7 +152,6 @@ export default function ShiftPage() {
                 alert("送信に失敗しました: " + error.message);
             } else {
                 alert("希望リクエストを登録しました！");
-                setSelectedShift(null);
             }
         } catch (e) {
             alert("処理中にエラーが発生しました");
@@ -269,8 +266,7 @@ export default function ShiftPage() {
                                 shift={shift}
                                 creating={creatingShiftRequest}
                                 onConfirm={(attendRequest) => {
-                                    setSelectedShift(shift); // ShiftData型そのまま
-                                    handleShiftRequest(attendRequest); // attendRequestは別引数で渡す
+                                    handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
                                 }}
                             />
                         </CardContent>
@@ -329,7 +325,7 @@ function ShiftRequestDialog({
                             checked={attendRequest}
                             onChange={(e) => setAttendRequest(e.target.checked)}
                         />
-                        同行希望あり
+                        同行を希望する
                     </label>
                 </DialogDescription>
                 <div className="flex justify-end gap-2 mt-4">
