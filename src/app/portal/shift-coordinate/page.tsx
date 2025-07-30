@@ -53,8 +53,9 @@ export default function ShiftPage() {
 
             const { data: shiftData } = await supabase
                 .from("shift_csinfo_postalname_view")
-                .select(`*`)
-                .gte("shift_start_date", jstNow);
+                .select("*")
+                .gte("shift_start_date", jstNow)
+                .limit(10000);  // ← 明示的に追加
 
             alert("shiftData length:" + shiftData?.length);
 
@@ -67,7 +68,7 @@ export default function ShiftPage() {
             if (!shiftData) return;
 
             const formatted = (shiftData as SupabaseShiftRaw[])
-                .filter((s) => s.level_sort_order < 5000000 && s.level_sort_order !== 1250000) 
+                .filter((s) => s.staff_01_user_id === "-"||(s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -87,7 +88,7 @@ export default function ShiftPage() {
                     district: s.district || "",
                 }));
 
-            alert("filtered shiftData before map:"+ formatted.length);
+            alert("filtered shiftData before map:" + formatted.length);
 
             const sorted = formatted.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
@@ -97,7 +98,7 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            alert("sorted length:"+ sorted.length);
+            alert("sorted length:" + sorted.length);
 
 
             setShifts(sorted);
