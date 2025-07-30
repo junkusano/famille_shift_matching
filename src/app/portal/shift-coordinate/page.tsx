@@ -204,88 +204,92 @@ export default function ShiftPage() {
         <div className="content">
             <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
-                <div>
-                    <label className="text-xs">日付（複数選択）</label>
-                    <select
-                        multiple
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full border rounded p-1 h-[6rem]"
-                    >
-                        {filterOptions.dateOptions.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                </div>
+            <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
+                <tbody>
+                    <tr>
+                        <td style={{ width: '50%' }}>
+                            <label className="text-xs">日付（複数選択）</label>
+                            <select
+                                multiple
+                                value={filterDate}
+                                onChange={(e) => setFilterDate(Array.from(e.target.selectedOptions, (o) => o.value))}
+                                className="w-full border rounded p-1 h-[6rem]"
+                            >
+                                {filterOptions.dateOptions.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </td>
+                        <td style={{ width: '50%' }}>
+                            <label className="text-xs">種別（複数選択）</label>
+                            <select
+                                multiple
+                                value={filterService}
+                                onChange={(e) => setFilterService(Array.from(e.target.selectedOptions, (o) => o.value))}
+                                className="w-full border rounded p-1 h-[6rem]"
+                            >
+                                {filterOptions.serviceOptions.map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
 
-                <div>
-                    <label className="text-xs">種別（複数選択）</label>
-                    <select
-                        multiple
-                        value={filterService}
-                        onChange={(e) => setFilterService(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full border rounded p-1 h-[6rem]"
-                    >
-                        {filterOptions.serviceOptions.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="text-xs">住所エリア（複数選択）</label>
-                    <select
-                        multiple
-                        value={filterPostal}
-                        onChange={(e) => setFilterPostal(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full border rounded p-1 h-[6rem]"
-                    >
-                        {filterOptions.postalOptions.map((p) => (
-                            <option key={p.postal_code_3} value={p.postal_code_3}>
-                                {p.postal_code_3}（{p.district}）
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="text-xs">利用者名（複数選択）</label>
-                    <select
-                        multiple
-                        value={filterName}
-                        onChange={(e) => setFilterName(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full border rounded p-1 h-[6rem]"
-                    >
-                        {filterOptions.nameOptions.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="text-xs">ヘルパー希望（複数選択）</label>
-                    <select
-                        multiple
-                        value={filterGender}
-                        onChange={(e) => setFilterGender(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full border rounded p-1 h-[6rem]"
-                    >
-                        {filterOptions.genderOptions.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="col-span-3 flex gap-2">
-                    <Button onClick={applyFilters} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                        フィルターを適用
-                    </Button>
-                    <Button onClick={clearFilters} className="w-full bg-gray-400 hover:bg-gray-500 text-white">
-                        フィルター解除
-                    </Button>
-                </div>
-            </div>
-
+                        <td style={{ width: '50%' }}>
+                            <label className="text-xs">住所エリア（複数選択）</label>
+                            <select
+                                multiple
+                                value={filterPostal}
+                                onChange={(e) => setFilterPostal(Array.from(e.target.selectedOptions, (o) => o.value))}
+                                className="w-full border rounded p-1 h-[6rem]"
+                            >
+                                {filterOptions.postalOptions.map((p) => (
+                                    <option key={p.postal_code_3} value={p.postal_code_3}>
+                                        {p.postal_code_3}（{p.district}）
+                                    </option>
+                                ))}
+                            </select>
+                        </td>
+                        <td style={{ width: '50%' }}>
+                            <label className="text-xs">利用者名（複数選択）</label>
+                            <select
+                                multiple
+                                value={filterName}
+                                onChange={(e) => setFilterName(Array.from(e.target.selectedOptions, (o) => o.value))}
+                                className="w-full border rounded p-1 h-[6rem]"
+                            >
+                                {filterOptions.nameOptions.map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style={{ width: '50%' }}>
+                            <label className="text-xs">ヘルパー希望（複数選択）</label>
+                            <select
+                                multiple
+                                value={filterGender}
+                                onChange={(e) => setFilterGender(Array.from(e.target.selectedOptions, (o) => o.value))}
+                                className="w-full border rounded p-1 h-[6rem]"
+                            >
+                                {filterOptions.genderOptions.map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </td>
+                        <td style={{ width: '50%' }}>
+                            <Button onClick={applyFilters} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                                フィルターを適用
+                            </Button>
+                            <Button onClick={clearFilters} className="w-full bg-gray-400 hover:bg-gray-500 text-white">
+                                フィルター解除
+                            </Button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {paginatedShifts.map((shift) => (
                     <Card key={shift.shift_id} className="shadow">
@@ -299,15 +303,15 @@ export default function ShiftPage() {
                             <div className="text-sm">利用者名: {shift.client_name}　様</div>
                             <div className="text-sm">性別希望: {shift.gender_request_name}</div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
-                            <ShiftRequestDialog
-                                shift={shift}
-                                creating={creatingShiftRequest}
-                                onConfirm={(attendRequest) => {
-                                    handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
-                                }}
-                            />
-                            {/* 横並びにする追加ボタン */}
-                            <GroupAddButton shift={shift} />
+                                <ShiftRequestDialog
+                                    shift={shift}
+                                    creating={creatingShiftRequest}
+                                    onConfirm={(attendRequest) => {
+                                        handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
+                                    }}
+                                />
+                                {/* 横並びにする追加ボタン */}
+                                <GroupAddButton shift={shift} />
                             </div>
                         </CardContent>
                     </Card>
@@ -348,110 +352,110 @@ function ShiftRequestDialog({
     };
 
     return (
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                    <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-                </DialogTrigger>
-                <DialogContent>
-                    <DialogTitle>このシフトを希望しますか？</DialogTitle>
-                    <DialogDescription>
-                        希望を送信すると、シフトコーディネート申請が開始されます。
-                        <div className="mt-2 text-sm text-gray-500">
-                            利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
-                        </div>
-                        <label className="flex items-center mt-4 gap-2 text-sm">
-                            <input
-                                type="checkbox"
-                                checked={attendRequest}
-                                onChange={(e) => setAttendRequest(e.target.checked)}
-                            />
-                            同行を希望する
-                        </label>
-                    </DialogDescription>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
-                        <Button onClick={handleConfirm} disabled={creating}>
-                            {creating ? "送信中..." : "希望を送信"}
-                        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
+            </DialogTrigger>
+            <DialogContent className="dialog-content ml-4" style={{ maxWidth: '95vw' }}>
+                <DialogTitle>このシフトを希望しますか？</DialogTitle>
+                <DialogDescription>
+                    希望を送信すると、シフトコーディネート申請が開始されます。
+                    <div className="mt-2 text-sm text-gray-500">
+                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
                     </div>
-                </DialogContent>
-            </Dialog>
+                    <label className="flex items-center mt-4 gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={attendRequest}
+                            onChange={(e) => setAttendRequest(e.target.checked)}
+                        />
+                        同行を希望する
+                    </label>
+                </DialogDescription>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
+                    <Button onClick={handleConfirm} disabled={creating}>
+                        {creating ? "送信中..." : "希望を送信"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
 function GroupAddButton({ shift }: { shift: ShiftData }) {
-  const [open, setOpen] = useState(false);
-  const [processing, setProcessing] = useState(false);
+    const [open, setOpen] = useState(false);
+    const [processing, setProcessing] = useState(false);
 
-  const handleConfirm = async () => {
-    setProcessing(true);
-    try {
-      const session = await supabase.auth.getSession();
-      const userId = session.data?.session?.user?.id;
-      if (!userId) throw new Error("ユーザー情報取得失敗");
+    const handleConfirm = async () => {
+        setProcessing(true);
+        try {
+            const session = await supabase.auth.getSession();
+            const userId = session.data?.session?.user?.id;
+            if (!userId) throw new Error("ユーザー情報取得失敗");
 
-      const { data: chanData } = await supabase
-        .from("group_lw_channel_view")
-        .select("group_id")
-        .eq("group_account", shift.kaipoke_cs_id)
-        .maybeSingle();
+            const { data: chanData } = await supabase
+                .from("group_lw_channel_view")
+                .select("group_id")
+                .eq("group_account", shift.kaipoke_cs_id)
+                .maybeSingle();
 
-      const { data: userData } = await supabase
-        .from("user_entry_united_view")
-        .select("lw_userid")
-        .eq("auth_user_id", userId)
-        .maybeSingle();
+            const { data: userData } = await supabase
+                .from("user_entry_united_view")
+                .select("lw_userid")
+                .eq("auth_user_id", userId)
+                .maybeSingle();
 
-      const senderId = userData?.lw_userid;
-      if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
+            const senderId = userData?.lw_userid;
+            if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
 
-      const res = await fetch('/api/lw-group-user-add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groupId: chanData.group_id,
-          userId: senderId,
-        }),
-      });
+            const res = await fetch('/api/lw-group-user-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    groupId: chanData.group_id,
+                    userId: senderId,
+                }),
+            });
 
-      const text = await res.text();
-      if (!res.ok) {
-        if (text.includes('Group member already exist')) {
-          alert('✅ すでにグループメンバーに追加されています。');
-        } else {
-          alert(`❌ グループ追加失敗: ${text}`);
+            const text = await res.text();
+            if (!res.ok) {
+                if (text.includes('Group member already exist')) {
+                    alert('✅ すでにグループメンバーに追加されています。');
+                } else {
+                    alert(`❌ グループ追加失敗: ${text}`);
+                }
+            } else {
+                alert('✅ グループに追加されました');
+            }
+        } catch (e) {
+            alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
+        } finally {
+            setProcessing(false);
+            setOpen(false);
         }
-      } else {
-        alert('✅ グループに追加されました');
-      }
-    } catch (e) {
-      alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
-    } finally {
-      setProcessing(false);
-      setOpen(false);
-    }
-  };
+    };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
-          <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
-          <span>グループ追加</span>
-        </button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogTitle>メンバー追加確認</DialogTitle>
-        <DialogDescription>
-          {shift.client_name} 様の情報連携グループにメンバー追加しますか？
-        </DialogDescription>
-        <div className="flex justify-end gap-2 mt-4">
-          <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
-          <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
-            {processing ? '追加中...' : 'OK'}
-          </button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
+                    <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
+                    <span>グループ追加</span>
+                </button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogTitle>メンバー追加確認</DialogTitle>
+                <DialogDescription>
+                    {shift.client_name} 様の情報連携グループにメンバー追加しますか？
+                </DialogDescription>
+                <div className="flex justify-end gap-2 mt-4">
+                    <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
+                    <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
+                        {processing ? '追加中...' : 'OK'}
+                    </button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
 }
