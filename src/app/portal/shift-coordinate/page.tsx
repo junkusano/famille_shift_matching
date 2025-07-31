@@ -377,7 +377,8 @@ function ShiftRequestDialog({
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
-                    maxWidth: '95vw',
+                    width: '90vw',           // ← 👈 幅を明示的に制限
+                    maxWidth: '480px',       // ← 👈 最大幅をPC用に調整
                     maxHeight: '90vh',
                     overflowY: 'auto',
                     zIndex: 9999,
