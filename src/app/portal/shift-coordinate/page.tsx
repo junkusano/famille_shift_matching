@@ -370,7 +370,16 @@ function ShiftRequestDialog({
             <DialogTrigger asChild>
                 <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
             </DialogTrigger>
-            <DialogContent className="dialog-content ml-4" style={{ maxWidth: '95vw' }}>
+            <DialogContent
+                className="dialog-content"
+                style={{
+                    maxWidth: '95vw',
+                    margin: '0 auto',
+                    top: '10vh', // 👈 スマホでも上から少し余裕を持たせて表示
+                    position: 'relative',
+                    zIndex: 9999,
+                }}
+            >
                 <DialogTitle>このシフトを希望しますか？</DialogTitle>
                 <DialogDescription>
                     希望を送信すると、シフトコーディネート申請が開始されます。
