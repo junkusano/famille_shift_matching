@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useUserRole } from '@/context/RoleContext'
 
+// 型定義
 type KaipokeInfo = {
   id: string
   kaipoke_cs_id: string
@@ -61,15 +62,10 @@ export default function KaipokeInfoPage() {
           postal_code: item.postal_code
         }),
       })
-
-      console.log('PUT request status:', res.status)
-      const text = await res.text()
-      console.log('PUT response text:', text)
-
       if (!res.ok) throw new Error('更新に失敗しました')
       alert('保存しました')
     } catch (err) {
-      console.error('保存エラー:', err)
+      console.error(err)
       alert('保存に失敗しました')
     } finally {
       setSavingId(null)
