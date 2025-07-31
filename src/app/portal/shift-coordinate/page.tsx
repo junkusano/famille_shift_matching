@@ -46,10 +46,10 @@ export default function ShiftPage() {
 
             const { data: userRecord } = await supabase
                 .from("users")
-                .select("account_id")
+                .select("user_id")
                 .eq("auth_user_id", user.id)
                 .single();
-            setAccountId(userRecord?.account_id || "");
+            setAccountId(userRecord?.user_id || "");
 
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
