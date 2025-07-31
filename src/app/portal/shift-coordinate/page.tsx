@@ -373,11 +373,17 @@ function ShiftRequestDialog({
             <DialogContent
                 className="dialog-content"
                 style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
                     maxWidth: '95vw',
-                    margin: '0 auto',
-                    top: '10vh', // 👈 スマホでも上から少し余裕を持たせて表示
-                    position: 'relative',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
                     zIndex: 9999,
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    padding: '1.5rem',
                 }}
             >
                 <DialogTitle>このシフトを希望しますか？</DialogTitle>
