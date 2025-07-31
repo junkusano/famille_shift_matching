@@ -1,9 +1,12 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { v4 as uuidv4 } from 'uuid'
+import { format } from 'date-fns'
+//import { v4 as uuidv4 } from 'uuid'
 import toast from 'react-hot-toast'
 
-interface KaipokeInfo {
+type KaipokeInfo = {
   id: string
   name: string
   kaipoke_cs_id: string
@@ -16,49 +19,55 @@ interface KaipokeInfo {
 }
 
 export default function KaipokeInfoPage() {
-  const [data, setData] = useState<KaipokeInfo[]>([])
+  const [items, setItems] = useState<KaipokeInfo[]>([])
 
   useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from('cs_kaipoke_info')
+        .select('*')
+        .order('name', { ascending: true })
+      if (error) {
+        console.error('Fetch error:', error)
+      } else {
+        setItems(data || [])
+      }
+    }
     fetchData()
   }, [])
 
-  const fetchData = async () => {
-    const { data, error } = await supabase
-      .from('cs_kaipoke_info')
-      .select('*')
-      .order('name', { ascending: true })
-
-    if (error) {
-      toast.error('データ取得に失敗しました')
-    } else {
-      setData(data || [])
-    }
-  }
-
   const handleChange = (id: string, field: keyof KaipokeInfo, value: string) => {
-    setData((prev) =>
+    setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     )
   }
 
-  const handleUpdate = async (item: KaipokeInfo) => {
+  const handleSave = async (item: KaipokeInfo) => {
     const { error } = await supabase
       .from('cs_kaipoke_info')
-      .update(item)
+      .update({
+        name: item.name,
+        kaipoke_cs_id: item.kaipoke_cs_id,
+        service_kind: item.service_kind,
+        postal_code: item.postal_code,
+        email: item.email,
+        end_at: item.end_at ? new Date(item.end_at).toISOString() : null,
+        gender_request: item.gender_request,
+        biko: item.biko,
+      })
       .eq('id', item.id)
 
     if (error) {
-      toast.error('更新に失敗しました')
+      toast.error('保存に失敗しました')
+      console.error('Save error:', error)
     } else {
-      toast.success('更新しました')
-      fetchData()
+      toast.success('保存しました')
     }
   }
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">カイポケ情報一覧</h1>
-      <table className="w-full border">
+      <table className="table-auto w-full border">
         <thead>
           <tr className="bg-gray-100 text-left">
             <th className="border p-2">事業所名</th>
@@ -73,10 +82,11 @@ export default function KaipokeInfoPage() {
           </tr>
         </thead>
         <tbody>
-          {data.map((item) => (
-            <tr key={item.id}>
+          {items.map((item) => (
+            <tr key={item.id} className="border-t">
               <td className="border p-2">
                 <input
+                  type="text"
                   value={item.name || ''}
                   onChange={(e) => handleChange(item.id, 'name', e.target.value)}
                   className="w-full border px-2 py-1"
@@ -84,6 +94,7 @@ export default function KaipokeInfoPage() {
               </td>
               <td className="border p-2">
                 <input
+                  type="text"
                   value={item.kaipoke_cs_id || ''}
                   onChange={(e) => handleChange(item.id, 'kaipoke_cs_id', e.target.value)}
                   className="w-full border px-2 py-1"
@@ -91,6 +102,7 @@ export default function KaipokeInfoPage() {
               </td>
               <td className="border p-2">
                 <input
+                  type="text"
                   value={item.service_kind || ''}
                   onChange={(e) => handleChange(item.id, 'service_kind', e.target.value)}
                   className="w-full border px-2 py-1"
@@ -98,6 +110,7 @@ export default function KaipokeInfoPage() {
               </td>
               <td className="border p-2">
                 <input
+                  type="text"
                   value={item.postal_code || ''}
                   onChange={(e) => handleChange(item.id, 'postal_code', e.target.value)}
                   className="w-full border px-2 py-1"
@@ -105,6 +118,7 @@ export default function KaipokeInfoPage() {
               </td>
               <td className="border p-2">
                 <input
+                  type="email"
                   value={item.email || ''}
                   onChange={(e) => handleChange(item.id, 'email', e.target.value)}
                   className="w-full border px-2 py-1"
@@ -113,14 +127,14 @@ export default function KaipokeInfoPage() {
               <td className="border p-2">
                 <input
                   type="date"
-                  value={item.end_at ? item.end_at.substring(0, 10) : ''}
+                  value={item.end_at ? format(new Date(item.end_at), 'yyyy-MM-dd') : ''}
                   onChange={(e) => handleChange(item.id, 'end_at', e.target.value)}
                   className="w-full border px-2 py-1"
                 />
               </td>
               <td className="border p-2">
                 <select
-                  value={item.gender_request || ''}
+                  value={item.gender_request}
                   onChange={(e) => handleChange(item.id, 'gender_request', e.target.value)}
                   className="w-full border px-2 py-1"
                 >
@@ -132,15 +146,16 @@ export default function KaipokeInfoPage() {
               </td>
               <td className="border p-2">
                 <input
+                  type="text"
                   value={item.biko || ''}
                   onChange={(e) => handleChange(item.id, 'biko', e.target.value)}
                   className="w-full border px-2 py-1"
                 />
               </td>
-              <td className="border p-2">
+              <td className="border p-2 text-center">
                 <button
-                  onClick={() => handleUpdate(item)}
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                  onClick={() => handleSave(item)}
+                  className="bg-blue-500 text-white px-3 py-1 rounded"
                 >
                   保存
                 </button>
