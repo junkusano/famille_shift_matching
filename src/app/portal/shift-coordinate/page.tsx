@@ -159,7 +159,7 @@ export default function ShiftPage() {
                     service_code: shift.service_code,
                     postal_code_3: shift.postal_code_3,
                     client_name: shift.client_name,
-                    requested_by: userId,
+                    requested_by: accountId,
                     attend_request: attendRequest,
                 },
             });
