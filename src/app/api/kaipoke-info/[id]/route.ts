@@ -6,14 +6,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id
-  const body = await req.json()
+export async function PUT(req: NextRequest, context: { params: { id: string } }) {
+  const id = context.params.id
+  const payload = await req.json()
 
   try {
     const { error } = await supabase
       .from('cs_kaipoke_info')
-      .update(body)
+      .update(payload)
       .eq('id', id)
 
     if (error) {
@@ -23,7 +23,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({ success: true })
   } catch (e) {
-    console.error('Unexpected PUT error:', e)
-    return NextResponse.json({ error: 'Unexpected error occurred' }, { status: 500 })
+    console.error('Unexpected error:', e)
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 })
   }
 }
