@@ -8,9 +8,6 @@ export interface SupabaseShiftRaw {
   staff_01_user_id?: string;
   staff_02_user_id?: string;
   staff_03_user_id?: string;
-  staff_01_kaipoke_user_id?: string;
-  staff_02_kaipoke_user_id?: string;
-  staff_03_kaipoke_user_id?: string;
   postal_code?: string;
   name?: string;
   gender_request_name?: string;
@@ -31,9 +28,6 @@ export interface ShiftData {
   staff_01_user_id?: string;
   staff_02_user_id?: string;
   staff_03_user_id?: string;
-  staff_01_kaipoke_user_id?: string;
-  staff_02_kaipoke_user_id?: string;
-  staff_03_kaipoke_user_id?: string;
   address: string;
   client_name: string;
   gender_request_name: string;

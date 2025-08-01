@@ -22,7 +22,7 @@ export default function ShiftPage() {
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
     //const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
     const [accountId, setAccountId] = useState<string>("");
-    void accountId;
+    const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     const [currentPage, setCurrentPage] = useState(1);
     const [filterOptions, setFilterOptions] = useState<ShiftFilterOptions>({
         dateOptions: [],
@@ -46,10 +46,11 @@ export default function ShiftPage() {
 
             const { data: userRecord } = await supabase
                 .from("users")
-                .select("user_id")
+                .select("user_id, kaipoke_user_id")
                 .eq("auth_user_id", user.id)
                 .single();
             setAccountId(userRecord?.user_id || "");
+            setKaipokeUserId(userRecord?.kaipoke_user_id || "");
 
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
@@ -73,7 +74,7 @@ export default function ShiftPage() {
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order! < 5000000 && s.level_sort_order !== 1250000))
+                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -91,11 +92,7 @@ export default function ShiftPage() {
                     female_flg: s.female_flg || false,
                     postal_code_3: s.postal_code_3 || "",
                     district: s.district || "",
-                    staff_01_kaipoke_user_id: s.staff_01_kaipoke_user_id || "",
-                    staff_02_kaipoke_user_id: s.staff_02_kaipoke_user_id || "",
-                    staff_03_kaipoke_user_id: s.staff_03_kaipoke_user_id || "",
                 }));
-
 
             //alert("filtered shiftData before map:" + formatted.length);
 
@@ -164,10 +161,8 @@ export default function ShiftPage() {
                     postal_code_3: shift.postal_code_3,
                     client_name: shift.client_name,
                     requested_by: accountId,
+                    requested_kaipoke_user_id: kaipokeUserId,
                     attend_request: attendRequest,
-                    staff_01_kaipoke_user_id: shift.staff_01_kaipoke_user_id || "",
-                    staff_02_kaipoke_user_id: shift.staff_02_kaipoke_user_id || "",
-                    staff_03_kaipoke_user_id: shift.staff_03_kaipoke_user_id || "",
                 },
             });
 
