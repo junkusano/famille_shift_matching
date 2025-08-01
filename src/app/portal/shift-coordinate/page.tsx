@@ -154,6 +154,7 @@ export default function ShiftPage() {
                 approver_id: userId,
                 status: "approved",
                 request_details: {
+                    shift_id: shift.shift_id,
                     kaipoke_cs_id: shift.kaipoke_cs_id,
                     shift_start_date: shift.shift_start_date,
                     shift_start_time: shift.shift_start_time,
