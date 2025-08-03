@@ -318,7 +318,14 @@ export default function ShiftPage() {
                             <div className="text-sm">郵便番号: {shift.address}</div>
                             <div className="text-sm">エリア: {shift.district}</div>
                             <div className="text-sm">利用者名: {shift.client_name}　様</div>
-                            <div className="text-sm">性別希望: {shift.gender_request_name}</div>
+                            <div className="text-sm" style={{
+                                color:
+                                    shift.gender_request_name === "男性希望" ? "blue" :
+                                        shift.gender_request_name === "女性希望" ? "red" :
+                                            "black"
+                            }}>
+                                性別希望: {shift.gender_request_name}
+                            </div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
                                 <ShiftRequestDialog
                                     shift={shift}
