@@ -182,7 +182,7 @@ export default function EntryListPage() {
                                 <th className="border px-2 py-1">職級</th>
                                 <th className="border px-2 py-1">ステータス</th>
                                 <th className="border px-2 py-1">登録日</th>
-                                <th className="border px-2 py-1"></th>
+                                <th className="border px-2 py-1" />
                             </tr>
                         </thead>
                         <tbody>

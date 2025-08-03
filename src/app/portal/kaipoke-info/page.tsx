@@ -64,8 +64,10 @@ export default function KaipokeInfoPage() {
     if (error) {
       toast.error('保存に失敗しました')
       console.error('Save error:', error)
+      window.alert('保存に失敗しました。内容を確認してください。')
     } else {
       toast.success('保存しました')
+      window.alert('保存が完了しました。')
     }
   }
 
