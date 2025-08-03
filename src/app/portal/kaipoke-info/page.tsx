@@ -72,140 +72,142 @@ export default function KaipokeInfoPage() {
   }
 
   return (
-    <div className="p-4">
-      <table className="table-auto w-full border">
-        <thead>
-          <tr className="bg-gray-100 text-left">
-            <th className="border p-2">事業所名</th>
-            <th className="border p-2">顧客ID</th>
-            <th className="border p-2">種別</th>
-            <th className="border p-2">郵便番号</th>
-            <th className="border p-2">メール</th>
-            <th className="border p-2">性別希望</th>
-            <th className="border p-2">通勤</th>
-            <th className="border p-2">操作</th>
-          </tr>
-          <tr className="bg-gray-50 text-left text-sm">
-            <th className="border p-1" colSpan={2}>備考</th>
-            <th className="border p-1" colSpan={2}>ルート</th>
-            <th className="border p-1" colSpan={2}>手段</th>
-            <th className="border p-1" colSpan={2}>目的</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <>
-              <tr key={item.id + '-top'} className="border-t align-top">
-                <td className="border p-2">
-                  <input
-                    type="text"
-                    value={item.name || ''}
-                    onChange={(e) => handleChange(item.id, 'name', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  />
-                </td>
-                <td className="border p-2">
-                  <input
-                    type="text"
-                    value={item.kaipoke_cs_id || ''}
-                    onChange={(e) => handleChange(item.id, 'kaipoke_cs_id', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  />
-                </td>
-                <td className="border p-2">
-                  <input
-                    type="text"
-                    value={item.service_kind || ''}
-                    onChange={(e) => handleChange(item.id, 'service_kind', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  />
-                </td>
-                <td className="border p-2">
-                  <input
-                    type="text"
-                    value={item.postal_code || ''}
-                    onChange={(e) => handleChange(item.id, 'postal_code', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  />
-                </td>
-                <td className="border p-2">
-                  <input
-                    type="email"
-                    value={item.email || ''}
-                    onChange={(e) => handleChange(item.id, 'email', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  />
-                </td>
-                <td className="border p-2">
-                  <select
-                    value={item.gender_request}
-                    onChange={(e) => handleChange(item.id, 'gender_request', e.target.value)}
-                    className="w-full border px-2 py-1"
-                  >
-                    <option value="">未設定</option>
-                    <option value="9b32a1f0-f711-4ab4-92fb-0331f0c86d42">男性希望</option>
-                    <option value="42224870-c644-48a5-87e2-7df9c24bca5b">女性希望</option>
-                    <option value="554d705b-85ec-4437-9352-4b026e2e904f">男女問わず</option>
-                  </select>
-                </td>
-                <td className="border p-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={item.commuting_flg}
-                    onChange={(e) => handleChange(item.id, 'commuting_flg', e.target.checked)}
-                  />
-                </td>
-                <td className="border p-2 text-center align-top" rowSpan={2}>
-                  <button
-                    onClick={() => handleSave(item)}
-                    className="bg-blue-500 text-white px-3 py-1 rounded"
-                  >
-                    保存
-                  </button>
-                </td>
-              </tr>
-              <tr key={item.id + '-bottom'} className="bg-gray-50">
-                <td colSpan={8} className="border p-2">
-                  <div className="grid grid-cols-4 gap-4">
-                    <div>
-                      <label className="text-sm">備考</label>
-                      <textarea
-                        value={item.biko || ''}
-                        onChange={(e) => handleChange(item.id, 'biko', e.target.value)}
-                        className="w-full border px-2 py-1 h-16"
-                      />
+    <div className="p-4 overflow-x-auto">
+      <div className="max-h-[600px] overflow-y-auto">
+        <table className="table-auto w-full border">
+          <thead className="sticky top-0 bg-white z-10 shadow">
+            <tr className="bg-gray-100 text-left">
+              <th className="border p-2">事業所名</th>
+              <th className="border p-2">顧客ID</th>
+              <th className="border p-2">種別</th>
+              <th className="border p-2">郵便番号</th>
+              <th className="border p-2">メール</th>
+              <th className="border p-2">性別希望</th>
+              <th className="border p-2">通勤</th>
+              <th className="border p-2">操作</th>
+            </tr>
+            <tr className="bg-gray-50 text-left text-sm">
+              <th className="border p-1" colSpan={2}>備考</th>
+              <th className="border p-1" colSpan={2}>ルート</th>
+              <th className="border p-1" colSpan={2}>手段</th>
+              <th className="border p-1" colSpan={2}>目的</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <>
+                <tr key={item.id + '-top'} className="border-t align-top">
+                  <td className="border p-2">
+                    <input
+                      type="text"
+                      value={item.name || ''}
+                      onChange={(e) => handleChange(item.id, 'name', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-2">
+                    <input
+                      type="text"
+                      value={item.kaipoke_cs_id || ''}
+                      onChange={(e) => handleChange(item.id, 'kaipoke_cs_id', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-2">
+                    <input
+                      type="text"
+                      value={item.service_kind || ''}
+                      onChange={(e) => handleChange(item.id, 'service_kind', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-2">
+                    <input
+                      type="text"
+                      value={item.postal_code || ''}
+                      onChange={(e) => handleChange(item.id, 'postal_code', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-2">
+                    <input
+                      type="email"
+                      value={item.email || ''}
+                      onChange={(e) => handleChange(item.id, 'email', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    />
+                  </td>
+                  <td className="border p-2">
+                    <select
+                      value={item.gender_request}
+                      onChange={(e) => handleChange(item.id, 'gender_request', e.target.value)}
+                      className="w-full border px-2 py-1"
+                    >
+                      <option value="">未設定</option>
+                      <option value="9b32a1f0-f711-4ab4-92fb-0331f0c86d42">男性希望</option>
+                      <option value="42224870-c644-48a5-87e2-7df9c24bca5b">女性希望</option>
+                      <option value="554d705b-85ec-4437-9352-4b026e2e904f">男女問わず</option>
+                    </select>
+                  </td>
+                  <td className="border p-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={item.commuting_flg}
+                      onChange={(e) => handleChange(item.id, 'commuting_flg', e.target.checked)}
+                    />
+                  </td>
+                  <td className="border p-2 text-center align-top" rowSpan={2}>
+                    <button
+                      onClick={() => handleSave(item)}
+                      className="bg-blue-500 text-white px-3 py-1 rounded"
+                    >
+                      保存
+                    </button>
+                  </td>
+                </tr>
+                <tr key={item.id + '-bottom'} className="bg-gray-50">
+                  <td colSpan={8} className="border p-2">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <label className="text-sm">備考</label>
+                        <textarea
+                          value={item.biko || ''}
+                          onChange={(e) => handleChange(item.id, 'biko', e.target.value)}
+                          className="w-full border px-2 py-1 h-16"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm">ルート</label>
+                        <textarea
+                          value={item.standard_route || ''}
+                          onChange={(e) => handleChange(item.id, 'standard_route', e.target.value)}
+                          className="w-full border px-2 py-1 h-16"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm">手段</label>
+                        <textarea
+                          value={item.standard_trans_ways || ''}
+                          onChange={(e) => handleChange(item.id, 'standard_trans_ways', e.target.value)}
+                          className="w-full border px-2 py-1 h-16"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm">目的</label>
+                        <textarea
+                          value={item.standard_purpose || ''}
+                          onChange={(e) => handleChange(item.id, 'standard_purpose', e.target.value)}
+                          className="w-full border px-2 py-1 h-16"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm">ルート</label>
-                      <textarea
-                        value={item.standard_route || ''}
-                        onChange={(e) => handleChange(item.id, 'standard_route', e.target.value)}
-                        className="w-full border px-2 py-1 h-16"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm">手段</label>
-                      <textarea
-                        value={item.standard_trans_ways || ''}
-                        onChange={(e) => handleChange(item.id, 'standard_trans_ways', e.target.value)}
-                        className="w-full border px-2 py-1 h-16"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm">目的</label>
-                      <textarea
-                        value={item.standard_purpose || ''}
-                        onChange={(e) => handleChange(item.id, 'standard_purpose', e.target.value)}
-                        className="w-full border px-2 py-1 h-16"
-                      />
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </>
-          ))}
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
