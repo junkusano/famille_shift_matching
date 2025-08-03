@@ -77,7 +77,7 @@ export default function KaipokeInfoPage() {
         <table className="table-auto w-full border">
           <thead className="sticky top-0 bg-white z-10 shadow">
             <tr className="bg-gray-100 text-left">
-              <th className="border p-2">利用者様名</th>
+              <th className="border p-2 bg-yellow-100 text-red-600 font-bold">利用者様名</th>
               <th className="border p-2">カイポケ内部ID</th>
               <th className="border p-2">サービス種別</th>
               <th className="border p-2">郵便番号</th>
@@ -96,7 +96,7 @@ export default function KaipokeInfoPage() {
           <tbody>
             {items.map((item) => (
               <>
-                <tr key={item.id + '-top'} className="border-t align-top">
+                <tr key={item.id + '-top'} className="border-t border-b-2 border-gray-500 align-top">
                   <td className="border p-2">
                     <label className="text-sm">利用者様名：</label>
                     <input
@@ -172,7 +172,7 @@ export default function KaipokeInfoPage() {
                     </button>
                   </td>
                 </tr>
-                <tr key={item.id + '-bottom'} className="bg-gray-50">
+                <tr key={item.id + '-bottom'} className="bg-gray-50 border-b border-gray-300">
                   <td colSpan={8} className="border p-2">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
