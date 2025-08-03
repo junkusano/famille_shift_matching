@@ -172,7 +172,7 @@ export default function KaipokeInfoPage() {
                     </button>
                   </td>
                 </tr>
-                <tr key={item.id + '-bottom'} className="bg-gray-50 border-b border-gray-300">
+                <tr key={item.id + '-bottom'} className="bg-gray-50">
                   <td colSpan={8} className="border p-2">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
