@@ -77,13 +77,13 @@ export default function KaipokeInfoPage() {
         <table className="table-auto w-full border">
           <thead className="sticky top-0 bg-white z-10 shadow">
             <tr className="bg-gray-100 text-left">
-              <th className="border p-2">事業所名</th>
-              <th className="border p-2">顧客ID</th>
-              <th className="border p-2">種別</th>
+              <th className="border p-2">利用者様名</th>
+              <th className="border p-2">カイポケ内部ID</th>
+              <th className="border p-2">サービス種別</th>
               <th className="border p-2">郵便番号</th>
               <th className="border p-2">メール</th>
               <th className="border p-2">性別希望</th>
-              <th className="border p-2">通勤</th>
+              <th className="border p-2">通所・通勤</th>
               <th className="border p-2">操作</th>
             </tr>
             <tr className="bg-gray-50 text-left text-sm">
@@ -98,6 +98,7 @@ export default function KaipokeInfoPage() {
               <>
                 <tr key={item.id + '-top'} className="border-t align-top">
                   <td className="border p-2">
+                    <label className="text-sm">利用者様名：</label>
                     <input
                       type="text"
                       value={item.name || ''}
@@ -106,6 +107,7 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
+                    <label className="text-sm">カイポケ内部ID</label>
                     <input
                       type="text"
                       value={item.kaipoke_cs_id || ''}
@@ -114,6 +116,7 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
+                    <label className="text-sm">サービス種別：</label>
                     <input
                       type="text"
                       value={item.service_kind || ''}
@@ -122,6 +125,7 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
+                    <label className="text-sm">郵便番号：</label>
                     <input
                       type="text"
                       value={item.postal_code || ''}
@@ -130,6 +134,7 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
+                    <label className="text-sm">email:</label>
                     <input
                       type="email"
                       value={item.email || ''}
@@ -138,6 +143,7 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
+                    <label className="text-sm">性別希望：</label>
                     <select
                       value={item.gender_request}
                       onChange={(e) => handleChange(item.id, 'gender_request', e.target.value)}
@@ -150,6 +156,7 @@ export default function KaipokeInfoPage() {
                     </select>
                   </td>
                   <td className="border p-2 text-center">
+                    <label className="text-sm">通所・通学：</label>
                     <input
                       type="checkbox"
                       checked={item.commuting_flg}
@@ -169,7 +176,7 @@ export default function KaipokeInfoPage() {
                   <td colSpan={8} className="border p-2">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
-                        <label className="text-sm">備考</label>
+                        <label className="text-sm">備考：</label>
                         <textarea
                           value={item.biko || ''}
                           onChange={(e) => handleChange(item.id, 'biko', e.target.value)}
@@ -177,7 +184,7 @@ export default function KaipokeInfoPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm">ルート</label>
+                        <label className="text-sm">ルート（初期値）：</label>
                         <textarea
                           value={item.standard_route || ''}
                           onChange={(e) => handleChange(item.id, 'standard_route', e.target.value)}
@@ -185,7 +192,7 @@ export default function KaipokeInfoPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm">手段</label>
+                        <label className="text-sm">手段（初期値）：</label>
                         <textarea
                           value={item.standard_trans_ways || ''}
                           onChange={(e) => handleChange(item.id, 'standard_trans_ways', e.target.value)}
@@ -193,7 +200,7 @@ export default function KaipokeInfoPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm">目的</label>
+                        <label className="text-sm">目的（初期値）：</label>
                         <textarea
                           value={item.standard_purpose || ''}
                           onChange={(e) => handleChange(item.id, 'standard_purpose', e.target.value)}
