@@ -366,7 +366,7 @@ export default function ShiftPage() {
                                 {shift.biko && (
                                     <Dialog>
                                         <DialogTrigger asChild>
-                                            <button className="ml-2 text-xs text-gray-600 underline">詳細情報</button>
+                                            <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
                                         </DialogTrigger>
                                         <DialogContent>
                                             <div className="text-sm">
