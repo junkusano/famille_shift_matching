@@ -35,4 +35,10 @@ export interface ShiftData {
   female_flg: boolean;
   postal_code_3: string;
   district: string;
+  cs_name?: string;
+  commuting_flg?: boolean;
+  standard_route?: string;
+  standard_trans_ways?: string;
+  standard_purpose?: string;
+  biko?: string;
 }

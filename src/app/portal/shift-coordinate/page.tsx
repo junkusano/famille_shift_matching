@@ -14,6 +14,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
+import { useMemo } from "react";
+import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
+
+
 
 const PAGE_SIZE = 500;
 
@@ -106,9 +110,30 @@ export default function ShiftPage() {
 
             //alert("sorted length:" + sorted.length);
 
+            const { data: csInfoData } = await supabase
+                .from("cs_kaipoke_info")
+                .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
+                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
 
-            setShifts(sorted);
-            setFilteredShifts(sorted);
+            const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
+
+            const merged = formatted.map(shift => {
+                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
+                return {
+                    ...shift,
+                    cs_name: csInfo?.name ?? '',
+                    commuting_flg: csInfo?.commuting_flg ?? false,
+                    standard_route: csInfo?.standard_route ?? '',
+                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
+                    standard_purpose: csInfo?.standard_purpose ?? '',
+                    biko: csInfo?.biko ?? '',
+                };
+            });
+            setShifts(merged);
+            setFilteredShifts(merged);
+
+            //setShifts(sorted);
+            //setFilteredShifts(sorted);
             setFilterOptions(extractFilterOptions(sorted, postalDistricts));
         };
 
@@ -317,15 +342,42 @@ export default function ShiftPage() {
                             <div className="text-sm">種別: {shift.service_code}</div>
                             <div className="text-sm">郵便番号: {shift.address}</div>
                             <div className="text-sm">エリア: {shift.district}</div>
-                            <div className="text-sm">利用者名: {shift.client_name}　様</div>
+                            <div className="text-sm">
+                                利用者名: {shift.client_name} 様
+                                {shift.commuting_flg && (
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <div className="text-sm">
+                                                <strong>通所経路等</strong>
+                                                <p>{[shift.standard_route, shift.standard_trans_ways, shift.standard_purpose].filter(Boolean).join(' / ')}</p>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+                            </div>
                             <div className="text-sm" style={{
-                                color:
-                                    shift.gender_request_name === "男性希望" ? "blue" :
-                                        shift.gender_request_name === "女性希望" ? "red" :
-                                            "black"
+                                color: shift.gender_request_name === "男性希望" ? "blue" :
+                                    shift.gender_request_name === "女性希望" ? "red" : "black"
                             }}>
                                 性別希望: {shift.gender_request_name}
+                                {shift.biko && (
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <button className="ml-2 text-xs text-gray-600 underline">詳細情報</button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <div className="text-sm">
+                                                <strong>備考</strong>
+                                                <p>{shift.biko}</p>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
                             </div>
+
                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
                                 <ShiftRequestDialog
                                     shift={shift}

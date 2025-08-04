@@ -93,10 +93,13 @@ export default function KaipokeInfoPage() {
               <th className="border p-1" colSpan={2}>目的</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="border-separate border-spacing-y-4">
             {items.map((item) => (
               <>
-                <tr key={item.id + '-top'} className="border-t align-top">
+                <tr
+                  key={item.id}
+                  className="bg-white shadow-md border border-gray-400 rounded-md"
+                >
                   <td className="border p-2">
                     <label className="text-sm">利用者様名：</label>
                     <input
