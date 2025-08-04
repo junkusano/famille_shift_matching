@@ -79,7 +79,10 @@ export default function EntryListPage() {
             const { data, error, count } = await supabase
                 .from('form_entries_with_status')
                 .select('*', { count: 'exact' })
+                .order('created_at', { ascending: false })  // 登録日が新しい順
+                .order('id', { ascending: true })           // 安定化のための第二キー
                 .range(from, to);
+
 
             if (error) {
                 console.error('Supabase取得エラー:', error.message);
@@ -189,7 +192,7 @@ export default function EntryListPage() {
                             {filteredEntries.map((entry) => {
                                 const age = new Date().getFullYear() - entry.birth_year - (
                                     new Date().getMonth() + 1 < entry.birth_month ||
-                                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                                        (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                                         ? 1 : 0
                                 );
 
