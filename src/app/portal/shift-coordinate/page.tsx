@@ -14,8 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
-import { useMemo } from "react";
-import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
+//import { useMemo } from "react";
+//import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 
 
 
