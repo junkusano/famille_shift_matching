@@ -349,12 +349,15 @@ export default function ShiftPage() {
                                         <DialogTrigger asChild>
                                             <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
                                         </DialogTrigger>
-                                        <DialogContent>
+                                        <DialogContent
+                                            className="max-w-sm w-[90vw] sm:w-[420px] p-4"
+                                        >
                                             <div className="text-sm">
                                                 <strong>通所経路等</strong>
                                                 <p>{[shift.standard_route, shift.standard_trans_ways, shift.standard_purpose].filter(Boolean).join(' / ')}</p>
                                             </div>
                                         </DialogContent>
+
                                     </Dialog>
                                 )}
                             </div>
@@ -368,12 +371,15 @@ export default function ShiftPage() {
                                         <DialogTrigger asChild>
                                             <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
                                         </DialogTrigger>
-                                        <DialogContent>
+                                        <DialogContent
+                                            className="max-w-sm w-[90vw] sm:w-[420px] p-4"
+                                        >
                                             <div className="text-sm">
                                                 <strong>備考</strong>
                                                 <p>{shift.biko}</p>
                                             </div>
                                         </DialogContent>
+
                                     </Dialog>
                                 )}
                             </div>
