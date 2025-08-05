@@ -83,23 +83,6 @@ export default function ShiftPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
 
-    const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
-        const session = await supabase.auth.getSession();
-        const userId = session.data?.session?.user?.id;
-        if (!userId) {
-            alert("ログイン情報が取得できません");
-            return;
-        }
-
-        await supabase.from("shift_requests").insert({
-            shift_id: shift.shift_id,
-            user_id: userId,
-            attend_request: attendRequest,
-        });
-
-        alert("シフト希望を登録しました！");
-    };
-
     const handleShiftDelete = async (shift: ShiftData, reason: string) => {
         const session = await supabase.auth.getSession();
         const userId = session.data?.session?.user?.id;
@@ -148,9 +131,8 @@ export default function ShiftPage() {
                             </div>
                             <div className="text-sm">利用者: {shift.client_name}</div>
                             <div className="text-sm">エリア: {shift.address}</div>
-
                             <div className="flex gap-2 mt-4">
-                                <ShiftRequestDialog shift={shift} onConfirm={handleShiftRequest} />
+
                                 <ShiftDeleteDialog shift={shift} onConfirm={handleShiftDelete} />
                             </div>
                             {/* 横並びにする追加ボタン */}
@@ -172,44 +154,6 @@ export default function ShiftPage() {
                 </Button>
             </div>
         </div>
-    );
-}
-
-function ShiftRequestDialog({
-    shift,
-    onConfirm
-}: {
-    shift: ShiftData;
-    onConfirm: (shift: ShiftData, attendRequest: boolean) => void;
-}) {
-    const [open, setOpen] = useState(false);
-    const [attendRequest, setAttendRequest] = useState(false);
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>シフト希望</DialogTitle>
-                <DialogDescription>
-                    {shift.client_name} 様のシフトを希望しますか？
-                    <label className="flex items-center mt-2">
-                        <input
-                            type="checkbox"
-                            checked={attendRequest}
-                            onChange={(e) => setAttendRequest(e.target.checked)}
-                        />
-                        同行希望
-                    </label>
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button onClick={() => setOpen(false)}>キャンセル</Button>
-                    <Button onClick={() => onConfirm(shift, attendRequest)}>希望を送信</Button>
-                </div>
-            </DialogContent>
-
-        </Dialog>
     );
 }
 
