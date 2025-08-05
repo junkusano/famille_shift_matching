@@ -53,7 +53,7 @@ export default function ShiftPage() {
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
-                        `staff_01_user_id.eq.${user.id},staff_02_user_id.eq.${user.id},staff_03_user_id.eq.${user.id}`
+                        `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
                     .eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
                     .order("shift_start_time", { ascending: true });
