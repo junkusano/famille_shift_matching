@@ -16,7 +16,9 @@ import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import Image from 'next/image';
 //import { useMemo } from "react";
 //import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
-
+import { format, parseISO } from "date-fns";
+import ja from "date-fns/locale/ja";
+import { format as formatTz } from "date-fns-tz";
 
 
 const PAGE_SIZE = 500;
@@ -244,7 +246,7 @@ export default function ShiftPage() {
 
     return (
         <div className="content">
-            <h2 className="text-xl font-bold mb-4">シフト一覧</h2>
+            <h2 className="text-xl font-bold mb-4">シフ子（シフトコーディネート：自分で好きなシフトを取れます）</h2>
 
             <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
                 <tbody>
@@ -332,6 +334,8 @@ export default function ShiftPage() {
                     </tr>
                 </tbody>
             </table>
+            {/* 希望送信ウィジェット追加 */}
+            <ShiftWishWidget filterOptions={filterOptions} />
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {paginatedShifts.map((shift) => (
                     <Card key={shift.shift_id} className="shadow">
@@ -583,5 +587,174 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function ShiftWishWidget({
+    filterOptions,
+}: {
+    filterOptions: Pick<ShiftFilterOptions, "postalOptions" | "dateOptions">;
+}) {
+    const [requestType, setRequestType] = useState<"spot" | "regular">("spot");
+    const [selectedDateOrWeekday, setSelectedDateOrWeekday] = useState<string>("");
+    const [startHour, setStartHour] = useState(9);
+    const [endHour, setEndHour] = useState(12);
+    const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        try {
+            const session = await supabase.auth.getSession();
+            const userId = session.data?.session?.user?.id;
+            if (!userId) {
+                alert("ログインが必要です");
+                return;
+            }
+
+            const areaJson = selectedAreas.map((code) => {
+                const match = filterOptions.postalOptions.find((p) => p.postal_code_3 === code);
+                return { postal_code_3: code, district: match?.district ?? "" };
+            });
+
+            const isSpot = requestType === "spot";
+            const payload = {
+                user_id: userId,
+                request_type: requestType,
+                preferred_date: isSpot ? selectedDateOrWeekday : null,
+                preferred_weekday: !isSpot ? parseInt(selectedDateOrWeekday) : null,
+                time_start_hour: startHour,
+                time_end_hour: endHour,
+                postal_area_json: areaJson,
+            };
+
+            const { error } = await supabase.from("shift_wishes").insert(payload);
+
+            if (error) {
+                alert("送信失敗: " + error.message);
+            } else {
+                alert("✅ シフト希望を送信しました！");
+            }
+        } catch (e) {
+            alert("送信中にエラーが発生しました");
+            console.error(e);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded mb-6">
+            <p className="text-sm text-gray-800 mb-2 font-semibold">
+                シフ子に無いけど、シフトは入れます。もっとサービス取ってきてください。
+            </p>
+
+            {/* 種別 */}
+            <div className="mb-2 text-sm">
+                <label className="mr-4">
+                    <input
+                        type="radio"
+                        checked={requestType === "regular"}
+                        onChange={() => setRequestType("regular")}
+                    /> レギュラー希望（曜日指定）
+                </label>
+                <label>
+                    <input
+                        type="radio"
+                        checked={requestType === "spot"}
+                        onChange={() => setRequestType("spot")}
+                    /> スポット希望（特定日）
+                </label>
+            </div>
+
+            {/* 日付 or 曜日選択 */}
+            {requestType === "spot" ? (
+                <select
+                    value={selectedDateOrWeekday}
+                    onChange={(e) => setSelectedDateOrWeekday(e.target.value)}
+                    className="border rounded px-2 py-1 mb-2"
+                >
+                    <option value="">-- 日付を選択 --</option>
+                    {filterOptions.dateOptions.map((dateStr) => {
+                        const weekday = format(parseISO(dateStr), "(E)", { locale: ja });
+                        const display = format(parseISO(dateStr), "M/d") + weekday;
+                        return (
+                            <option key={dateStr} value={dateStr}>
+                                {display}
+                            </option>
+                        );
+                    })}
+                </select>
+            ) : (
+                <select
+                    value={selectedDateOrWeekday}
+                    onChange={(e) => setSelectedDateOrWeekday(e.target.value)}
+                    className="border rounded px-2 py-1 mb-2"
+                >
+                    <option value="">-- 曜日を選択 --</option>
+                    <option value="0">日曜日</option>
+                    <option value="1">月曜日</option>
+                    <option value="2">火曜日</option>
+                    <option value="3">水曜日</option>
+                    <option value="4">木曜日</option>
+                    <option value="5">金曜日</option>
+                    <option value="6">土曜日</option>
+                </select>
+            )}
+
+            {/* 時間枠 */}
+            <div className="mb-2 text-sm flex gap-2">
+                <label>時間帯:</label>
+                <select
+                    value={startHour}
+                    onChange={(e) => setStartHour(Number(e.target.value))}
+                    className="border rounded px-2 py-1"
+                >
+                    {[...Array(24)].map((_, i) => (
+                        <option key={i} value={i}>{i}時</option>
+                    ))}
+                </select>
+                ～
+                <select
+                    value={endHour}
+                    onChange={(e) => setEndHour(Number(e.target.value))}
+                    className="border rounded px-2 py-1"
+                >
+                    {[...Array(24)].map((_, i) => (
+                        <option key={i} value={i}>{i}時</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* エリア */}
+            <div className="mb-2 text-sm">
+                <label>希望エリア:</label>
+                <select
+                    multiple
+                    value={selectedAreas}
+                    onChange={(e) => setSelectedAreas(Array.from(e.target.selectedOptions, o => o.value))}
+                    className="w-full border rounded p-1 h-[6rem]"
+                >
+                    {filterOptions.postalOptions.map((p) => (
+                        <option key={p.postal_code_3} value={p.postal_code_3}>
+                            {p.postal_code_3}（{p.district}）
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            {/* Submit */}
+            <div className="mt-3">
+                <Button onClick={handleSubmit} disabled={submitting} className="bg-green-600 text-white hover:bg-green-700">
+                    {submitting ? "送信中..." : "要望を送る"}
+                </Button>
+            </div>
+
+            <div className="text-xs text-gray-500 mt-2">
+                👉 <a href="https://board.worksmobile.com/main/board/4090000000109323447?t=56469" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">
+                    新規案件も確認してみてください
+                </a>
+            </div>
+        </div>
     );
 }
