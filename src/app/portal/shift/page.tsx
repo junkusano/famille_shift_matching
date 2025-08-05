@@ -23,6 +23,7 @@ export default function ShiftPage() {
 
     // ユーザーIDの取得
     const [userId, setUserId] = useState<string>("");
+    void userId;
 
     useEffect(() => {
         const fetchData = async () => {
