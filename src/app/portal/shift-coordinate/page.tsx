@@ -590,6 +590,7 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
     );
 }
 
+
 function ShiftWishWidget({
     filterOptions,
 }: {
@@ -656,14 +657,14 @@ function ShiftWishWidget({
                         type="radio"
                         checked={requestType === "regular"}
                         onChange={() => setRequestType("regular")}
-                    /> レギュラー希望（曜日指定）
+                    /> レギュラー希望（曜日指定：複数選択可能）
                 </label>
                 <label>
                     <input
                         type="radio"
                         checked={requestType === "spot"}
                         onChange={() => setRequestType("spot")}
-                    /> スポット希望（特定日）
+                    /> スポット希望（特定日：複数選択可能）
                 </label>
             </div>
 
@@ -704,7 +705,7 @@ function ShiftWishWidget({
 
             {/* 時間枠 */}
             <div className="mb-2 text-sm flex gap-2">
-                <label>時間帯:</label>
+                <label>時間帯（複数選択可能）:</label>
                 <select
                     value={startHour}
                     onChange={(e) => setStartHour(Number(e.target.value))}
@@ -728,7 +729,7 @@ function ShiftWishWidget({
 
             {/* エリア */}
             <div className="mb-2 text-sm">
-                <label>希望エリア:</label>
+                <label>希望エリア（複数選択可能）:</label>
                 <select
                     multiple
                     value={selectedAreas}
