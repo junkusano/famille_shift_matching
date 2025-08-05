@@ -11,12 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays, subDays } from "date-fns";
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
 const PAGE_SIZE = 500;
 
 export default function ShiftPage() {
+    void parseISO;
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
     const [currentDate, setCurrentDate] = useState<string>("");
@@ -24,6 +25,7 @@ export default function ShiftPage() {
     // ユーザーIDの取得
     const [userId, setUserId] = useState<string>("");
     void userId;
+    const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
 
     useEffect(() => {
         const fetchData = async () => {
@@ -32,28 +34,43 @@ export default function ShiftPage() {
 
             setUserId(user.id); // ログインユーザーIDを設定
 
-            // 今日はログインユーザーのシフトを取得
-            const { data: shiftsData } = await supabase
-                .from("shifts")
-                .select("*")
-                .or(`shift_01_user_id.eq.${user.id},shift_02_user_id.eq.${user.id},shift_03_user_id.eq.${user.id}`)
-                .order("shift_start_date", { ascending: true })
-                .order("shift_start_time", { ascending: true });
+            // `user_id` を `users` テーブルから取得する
+            const { data: userRecord } = await supabase
+                .from("users")
+                .select("user_id")
+                .eq("auth_user_id", user.id)
+                .single();
 
-            // シフトデータが空でない場合、そのシフトの日付を設定
-            if (shiftsData?.length) {
-                const firstShiftDate = shiftsData?.[0]?.shift_start_date || '';
-                if (firstShiftDate) {
-                    const formattedDate = format(parseISO(firstShiftDate), "M月d日");
-                    setCurrentDate(formattedDate); // 当日のシフト表示
-                }
+            if (userRecord?.user_id) {
+                // `user_id` を利用してシフトを取得
+                const formattedDate = format(shiftDate, "yyyy-MM-dd");
+                setCurrentDate(format(shiftDate, "M月d日")); // シフト表示用の日付
+
+                const { data: shiftsData } = await supabase
+                    .from("shifts")
+                    .select("*")
+                    .or(`shift_01_user_id.eq.${userRecord.user_id},shift_02_user_id.eq.${userRecord.user_id},shift_03_user_id.eq.${userRecord.user_id}`)
+                    .eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
+                    .order("shift_start_time", { ascending: true });
+
+                setShifts(shiftsData || []);
             }
-
-            setShifts(shiftsData || []);
         };
 
         fetchData();
-    }, []);
+    }, [shiftDate]); // shiftDateが変わるたびに再取得
+
+    // 前の日
+    const handlePrevDay = () => {
+        setShiftDate(subDays(shiftDate, 1));
+        setCurrentPage(1);  // ページをリセット
+    };
+
+    // 次の日
+    const handleNextDay = () => {
+        setShiftDate(addDays(shiftDate, 1));
+        setCurrentPage(1);  // ページをリセット
+    };
 
     // ページネーション
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -98,10 +115,10 @@ export default function ShiftPage() {
             <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2> {/* 現在のシフトが空の場合でも表示 */}
 
             <div className="flex justify-between mb-4">
-                <Button onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>
+                <Button onClick={handlePrevDay} disabled={currentPage === 1}>
                     前の日
                 </Button>
-                <Button onClick={() => setCurrentPage(currentPage + 1)} disabled={start + PAGE_SIZE >= shifts.length}>
+                <Button onClick={handleNextDay} disabled={start + PAGE_SIZE >= shifts.length}>
                     次の日
                 </Button>
             </div>
