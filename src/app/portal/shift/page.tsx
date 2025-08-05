@@ -51,7 +51,7 @@ export default function ShiftPage() {
                     .from("shifts")
                     .select("*")
                     //.or(`shift_01_user_id.eq.${userRecord.user_id},shift_02_user_id.eq.${userRecord.user_id},shift_03_user_id.eq.${userRecord.user_id}`)
-                    .eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
+                    //.eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
                     .order("shift_start_time", { ascending: true });
 
                 setShifts(shiftsData || []);
