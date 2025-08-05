@@ -649,7 +649,7 @@ function ShiftWishWidget({
     return (
         <div className="bg-blue-50 border border-blue-200 p-4 rounded mb-6">
             <p className="text-sm text-gray-800 mb-2 font-semibold">
-                シフト要望：シフ子に無いけど、もっとシフトに入りたい。入れるエリア・時間があるよ！　という方はぜひ教えてください。マネジャーがケアマネ・相談員へ掛け合います。
+                シフトWish：シフ子に無いけど、もっとシフトに入りたい。入れるエリア・時間があるよ！　という方はぜひ教えてください。マネジャーがケアマネ・相談員へ掛け合います。
             </p>
 
             {/* 種別 */}
@@ -751,7 +751,7 @@ function ShiftWishWidget({
             {/* Submit */}
             <div className="mt-3">
                 <Button onClick={handleSubmit} disabled={submitting} className="bg-green-600 text-white hover:bg-green-700">
-                    {submitting ? "送信中..." : "要望を送る"}
+                    {submitting ? "送信中..." : "Wishを送る"}
                 </Button>
             </div>
 
