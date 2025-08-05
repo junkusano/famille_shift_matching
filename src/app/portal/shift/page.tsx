@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, parseISO, addDays, subDays } from "date-fns";
-void parseISO;
 import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
@@ -40,27 +39,28 @@ export default function ShiftPage() {
             if (userRecord?.user_id) {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
-                alert("user_id:"+ userRecord.user_id);
-                alert("user_id:"+ userId);
-
-                //const formattedDate = format(shiftDate, "yyyy-MM-dd");
+                const formattedDate = format(shiftDate, "yyyy-MM-dd");
                 setCurrentDate(format(shiftDate, "Y年M月d日"));
 
                 // 現在の日付を基にシフトを取得する
                 const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
                 const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
                 
-                const { data: shiftsData } = await supabase
+                const { data: shiftsData, error } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
                         `staff_01_user_id.eq.${userRecord.user_id},staff_02_user_id.eq.${userRecord.user_id},staff_03_user_id.eq.${userRecord.user_id}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
-                    .gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
-                    .lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
+                    .gte("shift_start_date", startOfDay.toISOString()) // JST 00:00以降
+                    .lte("shift_start_date", endOfDay.toISOString()) // JST 23:59まで
                     .order("shift_start_time", { ascending: true });
 
-                setShifts(shiftsData || []);
+                if (error) {
+                    console.error("シフト取得エラー:", error);
+                } else {
+                    setShifts(shiftsData || []);
+                }
             }
         };
 
