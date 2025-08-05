@@ -40,6 +40,7 @@ export default function ShiftPage() {
             if (userRecord?.user_id) {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
+                alert("user_id:"+ userRecord.user_id);
                 alert("user_id:"+ userId);
 
                 //const formattedDate = format(shiftDate, "yyyy-MM-dd");
@@ -48,8 +49,6 @@ export default function ShiftPage() {
                 // 現在の日付を基にシフトを取得する
                 const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
                 const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
-
-
                 
                 const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
