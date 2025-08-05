@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { format, parseISO, addDays, subDays } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
@@ -22,6 +22,7 @@ export default function ShiftPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [currentDate, setCurrentDate] = useState<string>(""); 
     const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
+    void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
 
     useEffect(() => {
