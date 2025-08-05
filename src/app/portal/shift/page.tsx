@@ -41,7 +41,10 @@ export default function ShiftPage() {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
                 const formattedDate = format(shiftDate, "yyyy-MM-dd");
-                setCurrentDate(format(shiftDate, "M月d日")); // シフト表示用の日付
+                setCurrentDate(format(shiftDate, "Y年M月d日")); // シフト表示用の日付
+
+                alert("user_id:"+userRecord.user_id);
+                alert("yyyy-mm-dd:"+formattedDate);
 
                 // シフトデータをユーザーIDでフィルタリング
                 const { data: shiftsData } = await supabase
