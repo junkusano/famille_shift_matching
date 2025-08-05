@@ -47,6 +47,9 @@ export default function ShiftPage() {
                 const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
                 const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
 
+                alert("startOfDay.toISOString:"+startOfDay.toISOString());
+                alert("endOfDay.toISOString:"+endOfDay.toISOString());
+
                 const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
