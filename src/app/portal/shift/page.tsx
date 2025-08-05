@@ -44,15 +44,17 @@ export default function ShiftPage() {
                 setCurrentDate(formattedDate);  // ここで setCurrentDate を使用
 
                 // 現在の日付を基にシフトを取得する
-                //const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
-                const startOfDay = new Date(shiftDate);
-                startOfDay.setHours(0, 0, 0, 0);  // 今日の00:00 JST
-                //const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
-                const endOfDay = new Date(shiftDate);  // 新しい Date オブジェクトを作成
-                endOfDay.setHours(23, 59, 59, 999);
+                const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
+                //const startOfDay = new Date(shiftDate);
+                //startOfDay.setHours(0, 0, 0, 0);  // 今日の00:00 JST
+                const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
+                //const endOfDay = new Date(shiftDate);  // 新しい Date オブジェクトを作成
+                //endOfDay.setHours(23, 59, 59, 999);
+                const startOfDayJST = new Date(startOfDay.getTime() + (9 * 60 * 60 * 1000));
+                const endOfDayJST = new Date(endOfDay.getTime() + (9 * 60 * 60 * 1000));
 
-                alert("startOfDay.toISOString:" + startOfDay.toISOString());
-                alert("endOfDay.toISOString:" + endOfDay.toISOString());
+                alert("startOfDay.toISOString:" + startOfDayJST.toISOString());
+                alert("endOfDay.toISOString:" + endOfDayJST.toISOString());
 
                 const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
