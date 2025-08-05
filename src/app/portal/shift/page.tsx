@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, parseISO, addDays, subDays } from "date-fns";
-void parseISO;
 import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
@@ -21,9 +20,8 @@ const PAGE_SIZE = 500;
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
-    const [currentDate, setCurrentDate] = useState<string>("");
+    const [currentDate, setCurrentDate] = useState<string>(""); 
     const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
-    void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
 
     useEffect(() => {
@@ -35,27 +33,27 @@ export default function ShiftPage() {
             const { data: userRecord } = await supabase
                 .from("users")
                 .select("user_id")
-                .eq("auth_user_id", user.id) // ここで auth_user_id を使ってユーザーIDを取得
+                .eq("auth_user_id", user.id)
                 .single();
 
             if (userRecord?.user_id) {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
                 const formattedDate = format(shiftDate, "yyyy-MM-dd");
-                setCurrentDate(format(shiftDate, "Y年M月d日")); // シフト表示用の日付
+                setCurrentDate(format(shiftDate, "Y年M月d日"));
 
-                //alert("user_id:"+userRecord.user_id);
-                //alert("yyyy-mm-dd:"+formattedDate);
-
-                // シフトデータをユーザーIDでフィルタリング
-                // ユーザーIDでフィルタリング
-                const { data: shiftsData } = await supabase
+                // 現在の日付を基にシフトを取得する
+                const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
+                const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
+                
+                const { data: shiftsData, error } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
-                        `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
+                        `staff_01_user_id.eq.${user.id},staff_02_user_id.eq.${user.id},staff_03_user_id.eq.${user.id}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
-                    .eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
+                    .gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
+                    .lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
                     .order("shift_start_time", { ascending: true });
 
                 setShifts(shiftsData || []);
@@ -102,7 +100,7 @@ export default function ShiftPage() {
 
     return (
         <div className="content">
-            <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2> {/* 現在のシフトが空の場合でも表示 */}
+            <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2>
 
             <div className="flex justify-between mb-4">
                 <Button onClick={handlePrevDay} disabled={currentPage === 1}>
@@ -131,8 +129,8 @@ export default function ShiftPage() {
                             </div>
                             <div className="text-sm">利用者: {shift.client_name}</div>
                             <div className="text-sm">エリア: {shift.address}</div>
+                            <div className="text-sm">サービス種別: {shift.service_code}</div>
                             <div className="flex gap-2 mt-4">
-
                                 <ShiftDeleteDialog shift={shift} onConfirm={handleShiftDelete} />
                             </div>
                             {/* 横並びにする追加ボタン */}
@@ -270,4 +268,3 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         </Dialog>
     );
 }
-
