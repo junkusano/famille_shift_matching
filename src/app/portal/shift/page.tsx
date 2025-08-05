@@ -12,18 +12,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, parseISO, addDays, subDays } from "date-fns";
+void parseISO;
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
 const PAGE_SIZE = 500;
 
 export default function ShiftPage() {
-    void parseISO;
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
     const [currentDate, setCurrentDate] = useState<string>("");
-
-    // ユーザーIDの取得
-    const [userId, setUserId] = useState<string>("");
+    const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
     void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
 
@@ -32,20 +30,20 @@ export default function ShiftPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            setUserId(user.id); // ログインユーザーIDを設定
-
-            // `user_id` を `users` テーブルから取得する
+            // auth_user_id を使って users テーブルの user_id を取得
             const { data: userRecord } = await supabase
                 .from("users")
                 .select("user_id")
-                .eq("auth_user_id", user.id)
+                .eq("auth_user_id", user.id) // ここで auth_user_id を使ってユーザーIDを取得
                 .single();
 
             if (userRecord?.user_id) {
-                // `user_id` を利用してシフトを取得
+                setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
+
                 const formattedDate = format(shiftDate, "yyyy-MM-dd");
                 setCurrentDate(format(shiftDate, "M月d日")); // シフト表示用の日付
 
+                // シフトデータをユーザーIDでフィルタリング
                 const { data: shiftsData } = await supabase
                     .from("shifts")
                     .select("*")
@@ -58,7 +56,7 @@ export default function ShiftPage() {
         };
 
         fetchData();
-    }, [shiftDate]); // shiftDateが変わるたびに再取得
+    }, [shiftDate]); // shiftDateが変更されたときに再取得
 
     // 前の日
     const handlePrevDay = () => {
