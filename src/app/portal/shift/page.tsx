@@ -40,7 +40,7 @@ export default function ShiftPage() {
             if (userRecord?.user_id) {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
-                const formattedDate = format(shiftDate, "yyyy-MM-dd");
+                //const formattedDate = format(shiftDate, "yyyy-MM-dd");
                 setCurrentDate(format(shiftDate, "Y年M月d日")); // シフト表示用の日付
 
                 //alert("user_id:"+userRecord.user_id);
