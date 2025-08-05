@@ -62,7 +62,7 @@ export default function ShiftPage() {
                     .or(
                         `staff_01_user_id.eq.${userRecord.user_id},staff_02_user_id.eq.${userRecord.user_id},staff_03_user_id.eq.${userRecord.user_id}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
-                    //.gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
+                    .gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
                     .lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
                     .order("shift_start_time", { ascending: true });
 
