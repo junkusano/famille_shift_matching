@@ -246,7 +246,7 @@ export default function ShiftPage() {
 
     return (
         <div className="content">
-            <h2 className="text-xl font-bold mb-4">シフ子（シフトコーディネート：自分で好きなシフトを取れます）</h2>
+            <h2 className="text-xl font-bold mb-4">シフ子（ｼﾌﾄｺｰﾃﾞｨﾈｰﾄ：自分で好きなシフトを取れます）</h2>
 
             <table style={{ width: '100%', borderSpacing: '1rem 0' }}>
                 <tbody>
