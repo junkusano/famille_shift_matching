@@ -20,7 +20,9 @@ export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
     const [accountId, setAccountId] = useState<string>("");
+    void accountId;
     const [kaipokeUserId, setKaipokeUserId] = useState<string>("");
+    void kaipokeUserId;
     const [currentPage, setCurrentPage] = useState(1);
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
     const [currentDate, setCurrentDate] = useState<string>("");
