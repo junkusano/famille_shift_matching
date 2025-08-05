@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { format,addDays, subDays } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
@@ -44,11 +44,15 @@ export default function ShiftPage() {
                 setCurrentDate(formattedDate);  // ここで setCurrentDate を使用
 
                 // 現在の日付を基にシフトを取得する
-                const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
-                const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
+                //const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
+                const startOfDay = new Date(shiftDate);
+                startOfDay.setHours(0, 0, 0, 0);  // 今日の00:00 JST
+                //const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
+                const endOfDay = new Date(shiftDate);  // 新しい Date オブジェクトを作成
+                endOfDay.setHours(23, 59, 59, 999);
 
-                alert("startOfDay.toISOString:"+startOfDay.toISOString());
-                alert("endOfDay.toISOString:"+endOfDay.toISOString());
+                alert("startOfDay.toISOString:" + startOfDay.toISOString());
+                alert("endOfDay.toISOString:" + endOfDay.toISOString());
 
                 const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
