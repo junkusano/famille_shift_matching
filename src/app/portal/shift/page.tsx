@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, parseISO, addDays, subDays } from "date-fns";
 void parseISO;
+import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
 const PAGE_SIZE = 500;
@@ -48,7 +49,7 @@ export default function ShiftPage() {
 
                 // シフトデータをユーザーIDでフィルタリング
                 // ユーザーIDでフィルタリング
-                const { data: shiftsData, error } = await supabase
+                const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
@@ -250,34 +251,22 @@ function ShiftDeleteDialog({
 }
 
 function GroupAddButton({ shift }: { shift: ShiftData }) {
-    const [processing, setProcessing] = useState(false); // 処理中の状態
-    const [open, setOpen] = useState(false); // モーダルの状態
-    const [errorMessage, setErrorMessage] = useState(""); // エラーメッセージ
+    const [open, setOpen] = useState(false);
+    const [processing, setProcessing] = useState(false);
 
     const handleConfirm = async () => {
         setProcessing(true);
         try {
-            // ログインユーザーの情報取得
             const session = await supabase.auth.getSession();
             const userId = session.data?.session?.user?.id;
+            if (!userId) throw new Error("ユーザー情報取得失敗");
 
-            if (!userId) {
-                alert("ログイン情報が取得できません");
-                return;
-            }
-
-            // LINE WORKS グループIDを取得（ここは仮の処理。実際の値を取得する方法に変更が必要）
-            const { data: chanData, error } = await supabase
+            const { data: chanData } = await supabase
                 .from("group_lw_channel_view")
                 .select("group_id")
-                .eq("group_account", shift.kaipoke_cs_id) // 何らかの条件でグループIDを取得
+                .eq("group_account", shift.kaipoke_cs_id)
                 .maybeSingle();
 
-            if (error || !chanData?.group_id) {
-                throw new Error("グループ情報が取得できません");
-            }
-
-            // ユーザー情報を取得
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
                 .select("lw_userid")
@@ -285,9 +274,8 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
                 .maybeSingle();
 
             const senderId = userData?.lw_userid;
-            if (!senderId) throw new Error("ユーザー情報が取得できません");
+            if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
 
-            // グループにユーザーを追加するAPIリクエスト
             const res = await fetch('/api/lw-group-user-add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -311,7 +299,7 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
             alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
         } finally {
             setProcessing(false);
-            setOpen(false); // 処理が完了したらモーダルを閉じる
+            setOpen(false);
         }
     };
 
@@ -319,21 +307,15 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
-                    <img src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
+                    <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
                     <span>グループ追加</span>
                 </button>
             </DialogTrigger>
-
             <DialogContent>
-                <DialogTitle>グループ追加確認</DialogTitle>
+                <DialogTitle>メンバー追加確認</DialogTitle>
                 <DialogDescription>
                     {shift.client_name} 様の情報連携グループにメンバー追加しますか？
                 </DialogDescription>
-
-                {errorMessage && (
-                    <div className="text-red-500 text-sm mt-2">{errorMessage}</div>
-                )}
-
                 <div className="flex justify-end gap-2 mt-4">
                     <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
                     <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
@@ -344,3 +326,4 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         </Dialog>
     );
 }
+
