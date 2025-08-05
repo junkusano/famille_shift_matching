@@ -43,15 +43,15 @@ export default function ShiftPage() {
                 const formattedDate = format(shiftDate, "yyyy-MM-dd");
                 setCurrentDate(format(shiftDate, "Y年M月d日")); // シフト表示用の日付
 
-                alert("user_id:"+userRecord.user_id);
-                alert("yyyy-mm-dd:"+formattedDate);
+                //alert("user_id:"+userRecord.user_id);
+                //alert("yyyy-mm-dd:"+formattedDate);
 
                 // シフトデータをユーザーIDでフィルタリング
                 const { data: shiftsData } = await supabase
                     .from("shift")
                     .select("*")
-                    .or(`shift_01_user_id.eq.${userRecord.user_id},shift_02_user_id.eq.${userRecord.user_id},shift_03_user_id.eq.${userRecord.user_id}`)
-                    .eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
+                    //.or(`shift_01_user_id.eq.${userRecord.user_id},shift_02_user_id.eq.${userRecord.user_id},shift_03_user_id.eq.${userRecord.user_id}`)
+                    //.eq("shift_start_date", formattedDate)  // 特定の日付のシフトを取得
                     .order("shift_start_time", { ascending: true });
 
                 setShifts(shiftsData || []);
