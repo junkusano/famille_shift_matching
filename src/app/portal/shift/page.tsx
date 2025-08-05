@@ -12,14 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, parseISO } from "date-fns";
-import { ja } from 'date-fns/locale';
-import { ShiftData } from "@/types/shift";
+import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
 const PAGE_SIZE = 500;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
-    const [accountId, setAccountId] = useState<string>("");
     const [currentPage, setCurrentPage] = useState(1);
     const [currentDate, setCurrentDate] = useState<string>("");
 
@@ -33,7 +31,6 @@ export default function ShiftPage() {
                 .select("user_id")
                 .eq("auth_user_id", user.id)
                 .single();
-            setAccountId(userRecord?.user_id || "");
 
             const { data: shiftsData } = await supabase
                 .from("shifts")
@@ -44,7 +41,6 @@ export default function ShiftPage() {
 
             setShifts(shiftsData || []);
 
-            // Set the current date (assuming first shift's date as reference)
             const firstShiftDate = shiftsData?.[0]?.shift_start_date || '';
             if (firstShiftDate) {
                 const formattedDate = format(parseISO(firstShiftDate), "M月d日");
@@ -73,7 +69,6 @@ export default function ShiftPage() {
         });
 
         alert("シフト希望を登録しました！");
-        // LINE WORKS Bot メッセージ送信などの処理を追加することができます
     };
 
     const handleShiftDelete = async (shift: ShiftData, reason: string) => {
@@ -91,7 +86,6 @@ export default function ShiftPage() {
         });
 
         alert("シフト削除リクエストが完了しました！");
-        // LINE WORKS Bot メッセージ送信などの処理を追加することができます
     };
 
     return (
