@@ -597,7 +597,7 @@ function ShiftWishWidget({
     filterOptions: Pick<ShiftFilterOptions, "postalOptions" | "dateOptions">;
 }) {
     const [requestType, setRequestType] = useState<"spot" | "regular">("spot");
-    const [selectedDateOrWeekday, setSelectedDateOrWeekday] = useState<string>("");
+    const [selectedDateOrWeekday, setSelectedDateOrWeekday] = useState<string[]>([]); // 複数選択を配列に変更
     const [startHour, setStartHour] = useState(9);
     const [endHour, setEndHour] = useState(12);
     const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
@@ -613,6 +613,7 @@ function ShiftWishWidget({
                 return;
             }
 
+            // エリア情報のJSON形式
             const areaJson = selectedAreas.map((code) => {
                 const match = filterOptions.postalOptions.find((p) => p.postal_code_3 === code);
                 return { postal_code_3: code, district: match?.district ?? "" };
@@ -622,8 +623,9 @@ function ShiftWishWidget({
             const payload = {
                 user_id: userId,
                 request_type: requestType,
-                preferred_date: isSpot ? selectedDateOrWeekday : null,
-                preferred_weekday: !isSpot ? parseInt(selectedDateOrWeekday) : null,
+                // 複数選択された日付や曜日をjsonbとして格納
+                preferred_date: isSpot ? selectedDateOrWeekday : null, // 複数日付選択
+                preferred_weekday: !isSpot ? selectedDateOrWeekday.map(Number) : null, // 複数曜日選択
                 time_start_hour: startHour,
                 time_end_hour: endHour,
                 postal_area_json: areaJson,
@@ -671,8 +673,9 @@ function ShiftWishWidget({
             {/* 日付 or 曜日選択 */}
             {requestType === "spot" ? (
                 <select
+                    multiple
                     value={selectedDateOrWeekday}
-                    onChange={(e) => setSelectedDateOrWeekday(e.target.value)}
+                    onChange={(e) => setSelectedDateOrWeekday(Array.from(e.target.selectedOptions, (o) => o.value))}
                     className="border rounded px-2 py-1 mb-2"
                 >
                     <option value="">-- 日付を選択 --</option>
@@ -688,8 +691,9 @@ function ShiftWishWidget({
                 </select>
             ) : (
                 <select
+                    multiple
                     value={selectedDateOrWeekday}
-                    onChange={(e) => setSelectedDateOrWeekday(e.target.value)}
+                    onChange={(e) => setSelectedDateOrWeekday(Array.from(e.target.selectedOptions, (o) => o.value))}
                     className="border rounded px-2 py-1 mb-2"
                 >
                     <option value="">-- 曜日を選択 --</option>
@@ -715,7 +719,7 @@ function ShiftWishWidget({
                         <option key={i} value={i}>{i}時</option>
                     ))}
                 </select>
-                ～
+                ～ 
                 <select
                     value={endHour}
                     onChange={(e) => setEndHour(Number(e.target.value))}
