@@ -17,8 +17,8 @@ import Image from 'next/image';
 //import { useMemo } from "react";
 //import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
-import ja from "date-fns/locale/ja";
-import { format as formatTz } from "date-fns-tz";
+import { ja } from 'date-fns/locale';
+//import { format as formatTz } from "date-fns-tz";
 
 
 const PAGE_SIZE = 500;
