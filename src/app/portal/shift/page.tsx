@@ -54,7 +54,7 @@ export default function ShiftPage() {
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
-                        `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
+                        `staff_01_user_id.eq.${userRecord.user_id},staff_02_user_id.eq.${userRecord.user_id},staff_03_user_id.eq.${userRecord.user_id}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
                     .gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
                     .lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
