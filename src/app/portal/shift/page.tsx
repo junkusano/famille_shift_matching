@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { addDays, subDays } from "date-fns";
+import { format,addDays, subDays } from "date-fns";
 import Image from 'next/image';
 import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 
@@ -20,7 +20,7 @@ const PAGE_SIZE = 500;
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
-    const [currentDate, setCurrentDate] = useState<string>(""); 
+    const [currentDate, setCurrentDate] = useState<string>("");
     const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
     void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
@@ -39,10 +39,14 @@ export default function ShiftPage() {
             if (userRecord?.user_id) {
                 setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
+                // シフト日付をフォーマットして currentDate に設定
+                const formattedDate = format(shiftDate, "Y年M月d日");
+                setCurrentDate(formattedDate);  // ここで setCurrentDate を使用
+
                 // 現在の日付を基にシフトを取得する
                 const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
                 const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
-                
+
                 const { data: shiftsData } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
