@@ -62,13 +62,15 @@ export default function ShiftPage() {
 
     // 前の日
     const handlePrevDay = () => {
-        setShiftDate(subDays(shiftDate, 1));
+        const newDate = subDays(shiftDate, 1);
+        setShiftDate(newDate);
         setCurrentPage(1);  // ページをリセット
     };
 
     // 次の日
     const handleNextDay = () => {
-        setShiftDate(addDays(shiftDate, 1));
+        const newDate = addDays(shiftDate, 1);
+        setShiftDate(newDate);
         setCurrentPage(1);  // ページをリセット
     };
 
