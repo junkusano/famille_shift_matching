@@ -646,7 +646,7 @@ function ShiftWishWidget({
     return (
         <div className="bg-blue-50 border border-blue-200 p-4 rounded mb-6">
             <p className="text-sm text-gray-800 mb-2 font-semibold">
-                シフ子に無いけど、シフトは入れます。もっとサービス取ってきてください。
+                シフト要望：シフ子に無いけど、もっとシフトに入りたい。入れるエリア・時間があるよ！　という方はぜひ教えてください。マネジャーがケアマネ・相談員へ掛け合います。
             </p>
 
             {/* 種別 */}
