@@ -17,40 +17,44 @@ import { ShiftData } from "@/types/shift";  // typesディレクトリがある�
 const PAGE_SIZE = 500;
 
 export default function ShiftPage() {
-    const [shifts, setShifts] = useState<ShiftData[]>([]);
+    const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
     const [currentDate, setCurrentDate] = useState<string>("");
+
+    // ユーザーIDの取得
+    const [userId, setUserId] = useState<string>("");
 
     useEffect(() => {
         const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: userRecord } = await supabase
-                .from("users")
-                .select("user_id")
-                .eq("auth_user_id", user.id)
-                .single();
+            setUserId(user.id); // ログインユーザーIDを設定
 
+            // 今日はログインユーザーのシフトを取得
             const { data: shiftsData } = await supabase
                 .from("shifts")
                 .select("*")
-                .eq("user_id", userRecord?.user_id)
+                .or(`shift_01_user_id.eq.${user.id},shift_02_user_id.eq.${user.id},shift_03_user_id.eq.${user.id}`)
                 .order("shift_start_date", { ascending: true })
                 .order("shift_start_time", { ascending: true });
 
-            setShifts(shiftsData || []);
-
-            const firstShiftDate = shiftsData?.[0]?.shift_start_date || '';
-            if (firstShiftDate) {
-                const formattedDate = format(parseISO(firstShiftDate), "M月d日");
-                setCurrentDate(formattedDate);
+            // シフトデータが空でない場合、そのシフトの日付を設定
+            if (shiftsData?.length) {
+                const firstShiftDate = shiftsData?.[0]?.shift_start_date || '';
+                if (firstShiftDate) {
+                    const formattedDate = format(parseISO(firstShiftDate), "M月d日");
+                    setCurrentDate(formattedDate); // 当日のシフト表示
+                }
             }
+
+            setShifts(shiftsData || []);
         };
 
         fetchData();
     }, []);
 
+    // ページネーション
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
 
@@ -90,8 +94,8 @@ export default function ShiftPage() {
 
     return (
         <div className="content">
-            <h2 className="text-xl font-bold mb-4">{currentDate} シフト</h2>
-            
+            <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2> {/* 現在のシフトが空の場合でも表示 */}
+
             <div className="flex justify-between mb-4">
                 <Button onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1}>
                     前の日
@@ -107,22 +111,27 @@ export default function ShiftPage() {
                 </Button>
             </div>
 
-            {paginatedShifts.map((shift) => (
-                <Card key={shift.shift_id} className="shadow">
-                    <CardContent>
-                        <div className="text-sm font-semibold">
-                            {shift.shift_start_date} {shift.shift_start_time}～{shift.shift_end_time}
-                        </div>
-                        <div className="text-sm">利用者: {shift.client_name}</div>
-                        <div className="text-sm">エリア: {shift.address}</div>
+            {/* シフトが0件でも表示 */}
+            {paginatedShifts.length === 0 ? (
+                <div className="text-sm text-gray-500">シフトがありません</div>
+            ) : (
+                paginatedShifts.map((shift) => (
+                    <Card key={shift.shift_id} className="shadow">
+                        <CardContent>
+                            <div className="text-sm font-semibold">
+                                {shift.shift_start_date} {shift.shift_start_time}～{shift.shift_end_time}
+                            </div>
+                            <div className="text-sm">利用者: {shift.client_name}</div>
+                            <div className="text-sm">エリア: {shift.address}</div>
 
-                        <div className="flex gap-2 mt-4">
-                            <ShiftRequestDialog shift={shift} onConfirm={handleShiftRequest} />
-                            <ShiftDeleteDialog shift={shift} onConfirm={handleShiftDelete} />
-                        </div>
-                    </CardContent>
-                </Card>
-            ))}
+                            <div className="flex gap-2 mt-4">
+                                <ShiftRequestDialog shift={shift} onConfirm={handleShiftRequest} />
+                                <ShiftDeleteDialog shift={shift} onConfirm={handleShiftDelete} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))
+            )}
 
             <div className="flex justify-between mt-6">
                 <Button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
