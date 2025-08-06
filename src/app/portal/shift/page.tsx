@@ -169,19 +169,12 @@ export default function ShiftPage() {
                 return;
             }
 
-            // チャンネル取得
-            const { data: chanData } = await supabase
-                .from("group_lw_channel_view")
-                .select("channel_id")
-                .eq("group_account", shift.kaipoke_cs_id)
-                .maybeSingle();
-
-
             // Bot送信メッセージ生成
             const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
+            const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
-            const message = `${mentionUser}が理由によりシフトにはいれないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
+            const message = `${mentionUser}が理由により${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
 
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
@@ -189,7 +182,7 @@ export default function ShiftPage() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    channelId: chanData.channel_id,
+                    channelId: shift.channel_id,
                     text: message,
                 }),
             });
@@ -226,7 +219,7 @@ export default function ShiftPage() {
                     <Card key={shift.shift_id} className="shadow">
                         <CardContent>
                             <div className="text-sm font-semibold">
-                                {shift.shift_start_date} {shift.shift_start_time}～{shift.shift_end_time}
+                                {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
                             </div>
                             <div className="text-sm">利用者: {shift.client_name}</div>
                             <div className="text-sm">エリア: {shift.address}</div>
