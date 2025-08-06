@@ -169,7 +169,7 @@ export default function ShiftPage() {
                 return;
             }
 
-            alert(reason);
+            //alert(reason);
 
             // Bot送信メッセージ生成
             const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
@@ -177,7 +177,7 @@ export default function ShiftPage() {
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || '未記入'}）。代わりに${mentionMgr}にシフトを移します`;
-
+            alert(message);
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
