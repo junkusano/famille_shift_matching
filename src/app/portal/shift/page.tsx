@@ -15,7 +15,7 @@ import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
 //import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
-import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
+//import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 
 const PAGE_SIZE = 50;
 
