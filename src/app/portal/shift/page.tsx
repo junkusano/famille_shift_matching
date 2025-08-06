@@ -49,23 +49,22 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
-            // 日付表示用
-            setCurrentDate(format(shiftDate, "Y年M月d日"));
+            // 日付表示（シフト不要）
+            setCurrentDate(format(shiftDate, "yyyy年M月d日"));
 
-            // 日付の開始・終了（JST基準）
+            // JST基準の開始・終了時刻
             const startOfDay = new Date(shiftDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(shiftDate);
             endOfDay.setHours(23, 59, 59, 999);
 
-            // JST補正（DBがUTC格納の場合）
-            const startISO = new Date(startOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
-            const endISO = new Date(endOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
+            const startISO = startOfDay.toISOString();
+            const endISO = endOfDay.toISOString();
 
             // 30日前からのデータを取得
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const thirtyDaysISO = new Date(thirtyDaysAgo.getTime() - 9 * 60 * 60 * 1000).toISOString();
+            const thirtyDaysISO = thirtyDaysAgo.toISOString();
 
             const allShifts = [];
             for (let i = 0; i < 10; i++) {
@@ -80,18 +79,15 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
-            // ログインユーザーのシフトだけ残す
             const filteredByUser = allShifts.filter(
                 s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
             );
 
-            // 現在選択日でフィルター
             const filteredByDate = filteredByUser.filter(s => {
-                const shiftDateUTC = new Date(s.shift_start_date).getTime();
-                return shiftDateUTC >= new Date(startISO).getTime() && shiftDateUTC <= new Date(endISO).getTime();
+                const shiftTime = new Date(`${s.shift_start_date}T${s.shift_start_time}`).getTime();
+                return shiftTime >= startOfDay.getTime() && shiftTime <= endOfDay.getTime();
             });
 
-            // ソート
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
@@ -120,6 +116,7 @@ export default function ShiftPage() {
 
         fetchData();
     }, [shiftDate]);
+
 
     // 前の日
     const handlePrevDay = () => {
