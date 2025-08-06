@@ -50,25 +50,17 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
-            // 日付表示用
-            setCurrentDate(format(shiftDate, "yyyy年M月d日"));
-
-            // 日付の開始・終了（JST基準）
-            const startOfDay = new Date(shiftDate);
-            startOfDay.setHours(0, 0, 0, 0);
-            const endOfDay = new Date(shiftDate);
-            endOfDay.setHours(23, 59, 59, 999);
-
-            // 30日前からのデータを取得しておき、クライアントで日別フィルター
+            // 30日前から全件取得
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const thirtyDaysISO = thirtyDaysAgo.toISOString();
 
             const allShifts = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
-                    .gte("shift_start_date", thirtyDaysAgo.toISOString())
+                    .gte("shift_start_date", thirtyDaysISO)
                     .order("shift_start_date", { ascending: true })
                     .range(i * 1000, (i + 1) * 1000 - 1);
 
@@ -76,18 +68,23 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
-            // ログインユーザーのシフトだけ残す
+            // ログインユーザーのシフトだけ
             const filteredByUser = allShifts.filter(
                 s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
             );
 
-            // 現在選択日でフィルター（UTC補正せず直接比較）
+            // 現在選択日でフィルター（JSTベース）
+            const startOfDay = new Date(shiftDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(shiftDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
             const filteredByDate = filteredByUser.filter(s => {
-                const shiftTime = new Date(s.shift_start_date).getTime();
+                const shiftTime = new Date(`${s.shift_start_date}T${s.shift_start_time}`).getTime();
                 return shiftTime >= startOfDay.getTime() && shiftTime <= endOfDay.getTime();
             });
 
-            // ソート
+            // ソート & districtを住所に使用
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
@@ -104,7 +101,7 @@ export default function ShiftPage() {
                 staff_01_user_id: s.staff_01_user_id,
                 staff_02_user_id: s.staff_02_user_id,
                 staff_03_user_id: s.staff_03_user_id,
-                address: s.district || s.postal_code || "",
+                address: s.district || "",
                 client_name: s.name || "",
                 gender_request_name: s.gender_request_name || "",
                 male_flg: s.male_flg || false,
@@ -119,19 +116,9 @@ export default function ShiftPage() {
 
 
 
-    // 前の日
-    const handlePrevDay = () => {
-        const newDate = subDays(shiftDate, 1);
-        setShiftDate(newDate);
-        setCurrentPage(1);  // ページをリセット
-    };
+    const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
+    const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
 
-    // 次の日
-    const handleNextDay = () => {
-        const newDate = addDays(shiftDate, 1);
-        setShiftDate(newDate);
-        setCurrentPage(1);  // ページをリセット
-    };
 
     // ページネーション
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -155,15 +142,13 @@ export default function ShiftPage() {
     };
     return (
         <div className="content">
-            <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2>
-
-            <div className="flex justify-between mb-4">
-                <Button onClick={handlePrevDay} disabled={currentPage === 1}>
-                    前の日
-                </Button>
-                <Button onClick={handleNextDay} disabled={start + PAGE_SIZE >= shifts.length}>
-                    次の日
-                </Button>
+            <div className="content">
+                <div className="flex justify-between mb-4 items-center">
+                    <Button onClick={handlePrevDay}>前の日</Button>
+                    <span className="text-xl font-bold">{format(shiftDate, "Y年M月d日")}</span>
+                    <Button onClick={handleNextDay}>次の日</Button>
+                </div>
+                {/* 以下シフト表示 */}
             </div>
 
             <div className="text-right mb-4">
