@@ -136,7 +136,7 @@ export default function ShiftPage() {
             // ユーザーデータ取得（manager_user_id 判定用）
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
-                .select("manager_auth_user_id,manager_user_id, lw_userid")
+                .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid")
                 .eq("auth_user_id", userId)
                 .maybeSingle();
 
@@ -171,7 +171,7 @@ export default function ShiftPage() {
 
             // Bot送信メッセージ生成
             const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
-            const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_user_id}">さん` : "マネジャー";
+            const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
 
             const message = `${mentionUser}が理由によりシフトにはいれないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
 
