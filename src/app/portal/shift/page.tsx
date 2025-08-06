@@ -169,6 +169,8 @@ export default function ShiftPage() {
                 return;
             }
 
+            alert(reason);
+
             // Bot送信メッセージ生成
             const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
