@@ -227,8 +227,9 @@ export default function ShiftPage() {
                             <div className="text-sm">エリア: {shift.address}</div>
                             <div className="text-sm">サービス種別: {shift.service_code}</div>
                             <div className="flex gap-2 mt-4">
-                                <ShiftDeleteDialog shift={shift} onConfirm={(reason) => handleShiftReject(shift, reason)} />
+                                <ShiftDeleteDialog shift={shift} onConfirm={(reason) => handleShiftReject(shift, String(reason))} />
                             </div>
+
                             {/* 横並びにする追加ボタン */}
                             <GroupAddButton shift={shift} />
                         </CardContent>
