@@ -169,6 +169,14 @@ export default function ShiftPage() {
                 return;
             }
 
+            // チャンネル取得
+            const { data: chanData } = await supabase
+                .from("group_lw_channel_view")
+                .select("channel_id")
+                .eq("group_account", shift.kaipoke_cs_id)
+                .maybeSingle();
+
+
             // Bot送信メッセージ生成
             const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
@@ -181,7 +189,7 @@ export default function ShiftPage() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    channelId: shift.channel_id,
+                    channelId: chanData.channel_id,
                     text: message,
                 }),
             });
