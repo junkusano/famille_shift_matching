@@ -169,6 +169,22 @@ export default function ShiftPage() {
                 return;
             }
 
+            // group_lw_channel_view から取得
+            const { data: chanData, error: chanError } = await supabase
+                .from("group_lw_channel_view")
+                .select("channel_id")
+                .eq("group_account", shift.kaipoke_cs_id)
+                .maybeSingle();
+
+            if (chanError) {
+                console.error("channel_id 取得エラー:", chanError);
+            }
+
+            if (!chanData?.channel_id) {
+                console.warn("チャネルIDが取得できませんでした", shift.kaipoke_cs_id);
+                return;
+            }
+
             //alert(reason);
 
             // Bot送信メッセージ生成
@@ -178,7 +194,7 @@ export default function ShiftPage() {
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || '未記入'}）。代わりに${mentionMgr}にシフトを移します`;
             //alert(message);
-            alert("channel_id:"+shift.channel_id);
+            alert("channel_id:" + shift.channel_id);
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
