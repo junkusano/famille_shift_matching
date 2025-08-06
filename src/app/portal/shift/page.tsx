@@ -136,7 +136,7 @@ export default function ShiftPage() {
             // ユーザーデータ取得（manager_user_id 判定用）
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
-                .select("manager_user_id, lw_userid")
+                .select("manager_auth_user_id,manager_user_id, lw_userid")
                 .eq("auth_user_id", userId)
                 .maybeSingle();
 
@@ -149,7 +149,7 @@ export default function ShiftPage() {
             const { error } = await supabase.from("rpa_command_requests").insert({
                 template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
                 requester_id: userId,
-                approver_id: userData.manager_user_id,
+                approver_id: userData.manager_auth_user_id,
                 status: "approved",
                 request_details: {
                     shift_id: shift.shift_id,
