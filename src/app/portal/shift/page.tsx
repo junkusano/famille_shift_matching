@@ -64,8 +64,8 @@ export default function ShiftPage() {
                 const startOfDayJST = new Date(startOfDay.getTime() + (9 * 60 * 60 * 1000));
                 const endOfDayJST = new Date(endOfDay.getTime() + (9 * 60 * 60 * 1000));
 
-                alert("startOfDay.toISOString:" + startOfDayJST.toISOString());
-                alert("endOfDay.toISOString:" + endOfDayJST.toISOString());
+                //alert("startOfDay.toISOString:" + startOfDayJST.toISOString());
+                //alert("endOfDay.toISOString:" + endOfDayJST.toISOString());
 
                 /*
                 const { data: allShifts } = await supabase
@@ -110,7 +110,7 @@ export default function ShiftPage() {
             }
             if (!allShifts) return;
             const formatted = (allShifts as SupabaseShiftRaw[])
-                //.filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+                .filter((s) => s.staff_01_user_id == userRecord?.user_id )
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
