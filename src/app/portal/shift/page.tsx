@@ -174,7 +174,7 @@ export default function ShiftPage() {
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
-            const message = `${mentionUser}が理由により${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
+            const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${shift.reason}）。代わりに${mentionMgr}にシフトを移します`;
 
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
