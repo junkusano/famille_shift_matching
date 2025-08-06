@@ -32,6 +32,7 @@ export default function ShiftPage() {
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     void kaipokeUserId;
 
+    // startISO と endISO を使わないなら削除
     useEffect(() => {
         const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -49,29 +50,25 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
-            // 日付表示（シフト不要）
+            // 日付表示用
             setCurrentDate(format(shiftDate, "yyyy年M月d日"));
 
-            // JST基準の開始・終了時刻
+            // 日付の開始・終了（JST基準）
             const startOfDay = new Date(shiftDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(shiftDate);
             endOfDay.setHours(23, 59, 59, 999);
 
-            const startISO = startOfDay.toISOString();
-            const endISO = endOfDay.toISOString();
-
-            // 30日前からのデータを取得
+            // 30日前からのデータを取得しておき、クライアントで日別フィルター
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const thirtyDaysISO = thirtyDaysAgo.toISOString();
 
             const allShifts = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
-                    .gte("shift_start_date", thirtyDaysISO)
+                    .gte("shift_start_date", thirtyDaysAgo.toISOString())
                     .order("shift_start_date", { ascending: true })
                     .range(i * 1000, (i + 1) * 1000 - 1);
 
@@ -79,15 +76,18 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
+            // ログインユーザーのシフトだけ残す
             const filteredByUser = allShifts.filter(
                 s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
             );
 
+            // 現在選択日でフィルター（UTC補正せず直接比較）
             const filteredByDate = filteredByUser.filter(s => {
-                const shiftTime = new Date(`${s.shift_start_date}T${s.shift_start_time}`).getTime();
+                const shiftTime = new Date(s.shift_start_date).getTime();
                 return shiftTime >= startOfDay.getTime() && shiftTime <= endOfDay.getTime();
             });
 
+            // ソート
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
@@ -116,6 +116,7 @@ export default function ShiftPage() {
 
         fetchData();
     }, [shiftDate]);
+
 
 
     // 前の日
