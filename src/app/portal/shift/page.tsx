@@ -194,14 +194,14 @@ export default function ShiftPage() {
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || '未記入'}）。代わりに${mentionMgr}にシフトを移します`;
             //alert(message);
-            alert("channel_id:" + shift.channel_id);
+            alert("channel_id:" + chanData.channel_id);
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    channelId: shift.channel_id,
+                    channelId: chanData.channel_id,
                     text: message,
                 }),
             });
