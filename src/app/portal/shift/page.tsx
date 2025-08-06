@@ -136,7 +136,7 @@ export default function ShiftPage() {
             // ユーザーデータ取得（manager_user_id 判定用）
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
-                .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid")
+                .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid,manager_kaipoke_user_id")
                 .eq("auth_user_id", userId)
                 .maybeSingle();
 
@@ -159,8 +159,9 @@ export default function ShiftPage() {
                     service_code: shift.service_code,
                     postal_code_3: shift.postal_code_3,
                     client_name: shift.client_name,
-                    requested_by: userId,
+                    requested_by: userData.manager_auth_user_id,
                     attend_request: false,
+                    requested_kaipoke_user_id: userData.manager_kaipoke_user_id,
                 },
             });
 
