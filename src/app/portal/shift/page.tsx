@@ -124,22 +124,78 @@ export default function ShiftPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
 
-    const handleShiftDelete = async (shift: ShiftData, reason: string) => {
+    async function handleShiftReject(shift, reason) {
         const session = await supabase.auth.getSession();
-        const userId = session.data?.session?.user?.id;
-        if (!userId) {
+        const authUserId = session.data?.session?.user?.id;
+        if (!authUserId) {
             alert("ログイン情報が取得できません");
             return;
         }
 
-        await supabase.from("shift_deletions").insert({
-            shift_id: shift.shift_id,
-            user_id: userId,
-            reason,
+        // ビューから直属マネジャー情報を取得
+        const { data: userRec, error: userErr } = await supabase
+            .from("user_entry_united_view")
+            .select("user_id, kaipoke_user_id, lw_userid, manager_user_id, manager_kaipoke_user_id, manager_lw_userid")
+            .eq("auth_user_id", authUserId)
+            .maybeSingle();
+
+        if (userErr) {
+            alert("ユーザー情報取得に失敗しました");
+            return;
+        }
+
+        if (!userRec?.manager_user_id) {
+            alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
+            return;
+        }
+
+        // RPAコマンド登録
+        const { error: insertErr } = await supabase.from("rpa_command_requests").insert({
+            template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
+            requester_id: userRec.user_id,
+            approver_id: userRec.manager_user_id,
+            status: "approved",
+            request_details: {
+                shift_id: shift.shift_id,
+                kaipoke_cs_id: shift.kaipoke_cs_id,
+                shift_start_date: shift.shift_start_date,
+                shift_start_time: shift.shift_start_time,
+                service_code: shift.service_code,
+                postal_code_3: shift.postal_code_3,
+                client_name: shift.client_name,
+                requested_by: userRec.user_id,
+                requested_kaipoke_user_id: userRec.kaipoke_user_id,
+                attend_request: false
+            }
         });
 
-        alert("シフト削除リクエストが完了しました！");
-    };
+        if (insertErr) {
+            alert("送信に失敗しました: " + insertErr.message);
+            return;
+        }
+
+        // LINE WORKS Bot通知
+        const mentionUser = userRec.lw_userid ? `<m userId="${userRec.lw_userid}">さん` : "あなた";
+        const mentionMgr = userRec.manager_lw_userid ? `<m userId="${userRec.manager_lw_userid}">さん` : "マネジャー";
+        const message = `${mentionUser}が${reason}によりシフトに入れないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
+
+        const { data: chanData } = await supabase
+            .from("group_lw_channel_view")
+            .select("channel_id")
+            .eq("group_account", shift.kaipoke_cs_id)
+            .maybeSingle();
+
+        if (chanData?.channel_id) {
+            await fetch('/api/lw-send-botmessage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channelId: chanData.channel_id, text: message })
+            });
+        }
+
+        alert("シフト辞退を登録しました");
+    }
+
     return (
         <div className="content">
             <div className="content">
@@ -171,7 +227,7 @@ export default function ShiftPage() {
                             <div className="text-sm">エリア: {shift.address}</div>
                             <div className="text-sm">サービス種別: {shift.service_code}</div>
                             <div className="flex gap-2 mt-4">
-                                <ShiftDeleteDialog shift={shift} onConfirm={handleShiftDelete} />
+                                <ShiftDeleteDialog shift={shift} onConfirm={handleShiftReject} />
                             </div>
                             {/* 横並びにする追加ボタン */}
                             <GroupAddButton shift={shift} />
