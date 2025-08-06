@@ -34,7 +34,6 @@ export default function ShiftPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -43,134 +42,77 @@ export default function ShiftPage() {
                 .select("user_id, kaipoke_user_id")
                 .eq("auth_user_id", user.id)
                 .single();
-            setAccountId(userRecord?.user_id || "");
-            setKaipokeUserId(userRecord?.kaipoke_user_id || "");
-            setUserId(userRecord?.user_id);
 
-            if (userRecord?.user_id) {
-                //setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
+            if (!userRecord?.user_id) return;
 
-                // シフト日付をフォーマットして currentDate に設定
-                const formattedDate = format(shiftDate, "Y年M月d日");
-                setCurrentDate(formattedDate);  // ここで setCurrentDate を使用
+            setAccountId(userRecord.user_id);
+            setKaipokeUserId(userRecord.kaipoke_user_id || "");
+            setUserId(userRecord.user_id);
 
-                // 現在teの日付を基にシフトを取得する
-                //const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
-                //const startOfDay = new Date(shiftDate);
-                //startOfDay.setHours(0, 0, 0, 0);  // 今日の00:00 JST
-                //const endOfDay = new Date(shiftDate.setHours(23, 59, 59, 999)); // 今日の23:59
-                //const endOfDay = new Date(shiftDate);  // 新しい Date オブジェクトを作成
-                //endOfDay.setHours(23, 59, 59, 999);
-                //const startOfDayJST = new Date(startOfDay.getTime() + (9 * 60 * 60 * 1000));
-                //const endOfDayJST = new Date(endOfDay.getTime() + (9 * 60 * 60 * 1000));
+            setCurrentDate(format(shiftDate, "Y年M月d日"));
 
-                //alert("startOfDay.toISOString:" + startOfDayJST.toISOString());
-                //alert("endOfDay.toISOString:" + endOfDayJST.toISOString());
+            const startOfDay = new Date(shiftDate);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(shiftDate);
+            endOfDay.setHours(23, 59, 59, 999);
 
-                /*
-                const { data: allShifts } = await supabase
-                    .from("shift_csinfo_postalname_view")
-                    .select("*")
-                    .or(
-                        `staff_01_user_id.eq.${userRecord.user_id},staff_02_user_id.eq.${userRecord.user_id},staff_03_user_id.eq.${userRecord.user_id}`
-                    )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
-                    //.gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
-                    //.lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
-                    .order("shift_start_time", { ascending: true });
-                
+            const startISO = new Date(startOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
+            const endISO = new Date(endOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
 
-                if (error || !data?.length) break;
-                allShifts.push(...data);
-                */
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const thirtyDaysISO = new Date(thirtyDaysAgo.getTime() - 9 * 60 * 60 * 1000).toISOString();
 
-                //const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-
-                const { data: userRecord } = await supabase
-                    .from("users")
-                    .select("user_id, kaipoke_user_id")
-                    .eq("auth_user_id", user.id)
-                    .single();
-                setAccountId(userRecord?.user_id || "");
-                setKaipokeUserId(userRecord?.kaipoke_user_id || "");
-            }
-            const allShifts: SupabaseShiftRaw[] = [];
+            const allShifts = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
                     .from("shift_csinfo_postalname_view")
-                    .select("*")
-                    .gte("shift_start_date", jstNow)
-                    //.gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
-                    //.lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
+                    .select("*, cs_kaipoke_info(name, district)")
+                    .gte("shift_start_date", thirtyDaysISO)
+                    .order("shift_start_date", { ascending: true })
                     .range(i * 1000, (i + 1) * 1000 - 1);
 
                 if (error || !data?.length) break;
                 allShifts.push(...data);
-                setShifts(data);
             }
-            if (!allShifts) return;
-            const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id == userRecord?.user_id )
-                .map((s): ShiftData => ({
-                    shift_id: s.shift_id,
-                    shift_start_date: s.shift_start_date,
-                    shift_start_time: s.shift_start_time,
-                    shift_end_time: s.shift_end_time,
-                    service_code: s.service_code,
-                    kaipoke_cs_id: s.kaipoke_cs_id,
-                    staff_01_user_id: s.staff_01_user_id,
-                    staff_02_user_id: s.staff_02_user_id,
-                    staff_03_user_id: s.staff_03_user_id,
-                    address: s.postal_code || "",
-                    client_name: s.name || "",
-                    gender_request_name: s.gender_request_name || "",
-                    male_flg: s.male_flg || false,
-                    female_flg: s.female_flg || false,
-                    postal_code_3: s.postal_code_3 || "",
-                    district: s.district || "",
-                }));
 
-            //alert("filtered shiftData before map:" + formatted.length);
+            const filteredByUser = allShifts.filter(
+                s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
+            );
 
-            const sorted = formatted.sort((a, b) => {
+            const filteredByDate = filteredByUser.filter(s => {
+                const shiftDateUTC = new Date(s.shift_start_date).getTime();
+                return shiftDateUTC >= new Date(startISO).getTime() && shiftDateUTC <= new Date(endISO).getTime();
+            });
+
+            const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
-                if (d1 !== d2) return d1.localeCompare(d2);
-                if (a.postal_code_3 !== b.postal_code_3) return a.postal_code_3.localeCompare(b.postal_code_3);
-                return a.client_name.localeCompare(b.client_name);
+                return d1.localeCompare(d2);
             });
 
-            //alert("sorted length:" + sorted.length);
+            setShifts(sorted.map(s => ({
+                shift_id: s.shift_id,
+                shift_start_date: s.shift_start_date,
+                shift_start_time: s.shift_start_time,
+                shift_end_time: s.shift_end_time,
+                service_code: s.service_code,
+                kaipoke_cs_id: s.kaipoke_cs_id,
+                staff_01_user_id: s.staff_01_user_id,
+                staff_02_user_id: s.staff_02_user_id,
+                staff_03_user_id: s.staff_03_user_id,
+                address: s.cs_kaipoke_info?.district || s.cs_kaipoke_info?.name || "",
+                client_name: s.name || "",
+                gender_request_name: s.gender_request_name || "",
+                male_flg: s.male_flg || false,
+                female_flg: s.female_flg || false,
+                postal_code_3: s.postal_code_3 || "",
+                district: s.district || "",
+            })));
+        };
 
-            const { data: csInfoData } = await supabase
-                .from("cs_kaipoke_info")
-                .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
-                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
-
-            const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
-
-            const merged = formatted.map(shift => {
-                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
-                return {
-                    ...shift,
-                    cs_name: csInfo?.name ?? '',
-                    commuting_flg: csInfo?.commuting_flg ?? false,
-                    standard_route: csInfo?.standard_route ?? '',
-                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
-                    standard_purpose: csInfo?.standard_purpose ?? '',
-                    biko: csInfo?.biko ?? '',
-                };
-            });
-            setShifts(merged);
-            //setFilteredShifts(merged);
-
-            setShifts(sorted);
-            //setFilteredShifts(sorted);
-            //setFilterOptions(extractFilterOptions(sorted, postalDistricts));
-        }
         fetchData();
-    },[shiftDate])
-
+    }, [shiftDate]);
 
     // 前の日
     const handlePrevDay = () => {
