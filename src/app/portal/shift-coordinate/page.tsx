@@ -21,7 +21,7 @@ import { ja } from 'date-fns/locale';
 //import { format as formatTz } from "date-fns-tz";
 
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 100;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
