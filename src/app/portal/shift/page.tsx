@@ -14,7 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
 //import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
-import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
+//import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
+import type { ShiftData } from "@/types/shift";
 //import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 
 const PAGE_SIZE = 50;
@@ -30,7 +31,6 @@ export default function ShiftPage() {
     void accountId;
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     void kaipokeUserId;
-
 
     useEffect(() => {
         const fetchData = async () => {
@@ -49,16 +49,20 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
+            // 日付表示用
             setCurrentDate(format(shiftDate, "Y年M月d日"));
 
+            // 日付の開始・終了（JST基準）
             const startOfDay = new Date(shiftDate);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(shiftDate);
             endOfDay.setHours(23, 59, 59, 999);
 
+            // JST補正（DBがUTC格納の場合）
             const startISO = new Date(startOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
             const endISO = new Date(endOfDay.getTime() - 9 * 60 * 60 * 1000).toISOString();
 
+            // 30日前からのデータを取得
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const thirtyDaysISO = new Date(thirtyDaysAgo.getTime() - 9 * 60 * 60 * 1000).toISOString();
@@ -67,7 +71,7 @@ export default function ShiftPage() {
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
                     .from("shift_csinfo_postalname_view")
-                    .select("*, cs_kaipoke_info(name, district)")
+                    .select("*")
                     .gte("shift_start_date", thirtyDaysISO)
                     .order("shift_start_date", { ascending: true })
                     .range(i * 1000, (i + 1) * 1000 - 1);
@@ -76,15 +80,18 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
+            // ログインユーザーのシフトだけ残す
             const filteredByUser = allShifts.filter(
                 s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
             );
 
+            // 現在選択日でフィルター
             const filteredByDate = filteredByUser.filter(s => {
                 const shiftDateUTC = new Date(s.shift_start_date).getTime();
                 return shiftDateUTC >= new Date(startISO).getTime() && shiftDateUTC <= new Date(endISO).getTime();
             });
 
+            // ソート
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
@@ -101,7 +108,7 @@ export default function ShiftPage() {
                 staff_01_user_id: s.staff_01_user_id,
                 staff_02_user_id: s.staff_02_user_id,
                 staff_03_user_id: s.staff_03_user_id,
-                address: s.cs_kaipoke_info?.district || s.cs_kaipoke_info?.name || "",
+                address: s.district || s.postal_code || "",
                 client_name: s.name || "",
                 gender_request_name: s.gender_request_name || "",
                 male_flg: s.male_flg || false,
