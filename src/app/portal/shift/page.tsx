@@ -13,9 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
-import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
+//import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
+import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 50;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
@@ -24,20 +25,29 @@ export default function ShiftPage() {
     const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
     void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
+    const [accountId, setAccountId] = useState<string>("");
+    void accountId;
+    const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
+    void kaipokeUserId;
+
 
     useEffect(() => {
         const fetchData = async () => {
+            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             const { data: userRecord } = await supabase
                 .from("users")
-                .select("user_id")
+                .select("user_id, kaipoke_user_id")
                 .eq("auth_user_id", user.id)
                 .single();
+            setAccountId(userRecord?.user_id || "");
+            setKaipokeUserId(userRecord?.kaipoke_user_id || "");
+            setUserId(userRecord?.user_id);
 
             if (userRecord?.user_id) {
-                setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
+                //setUserId(userRecord.user_id); // user_id（例えば、'junkusano'）を設定
 
                 // シフト日付をフォーマットして currentDate に設定
                 const formattedDate = format(shiftDate, "Y年M月d日");
@@ -56,22 +66,72 @@ export default function ShiftPage() {
                 alert("startOfDay.toISOString:" + startOfDayJST.toISOString());
                 alert("endOfDay.toISOString:" + endOfDayJST.toISOString());
 
-                const { data: shiftsData } = await supabase
+                /*
+                const { data: allShifts } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
                     .or(
                         `staff_01_user_id.eq.${userRecord.user_id},staff_02_user_id.eq.${userRecord.user_id},staff_03_user_id.eq.${userRecord.user_id}`
                     )  // どれかのスタッフがログインユーザーのIDに一致するシフトを取得
-                    .gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
-                    .lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
+                    //.gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
+                    //.lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
                     .order("shift_start_time", { ascending: true });
+                
 
-                setShifts(shiftsData || []);
+                if (error || !data?.length) break;
+                allShifts.push(...data);
+                */
+
+                //const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const { data: userRecord } = await supabase
+                    .from("users")
+                    .select("user_id, kaipoke_user_id")
+                    .eq("auth_user_id", user.id)
+                    .single();
+                setAccountId(userRecord?.user_id || "");
+                setKaipokeUserId(userRecord?.kaipoke_user_id || "");
             }
-        };
+            const allShifts: SupabaseShiftRaw[] = [];
+            for (let i = 0; i < 10; i++) {
+                const { data, error } = await supabase
+                    .from("shift_csinfo_postalname_view")
+                    .select("*")
+                    .gte("shift_start_date", jstNow)
+                    //.gte("shift_start_date", startOfDay.toISOString()) // 00:00以降
+                    //.lte("shift_start_date", endOfDay.toISOString()) // 23:59まで
+                    .range(i * 1000, (i + 1) * 1000 - 1);
 
+                if (error || !data?.length) break;
+                allShifts.push(...data);
+                setShifts(data);
+            }
+            if (!allShifts) return;
+            const formatted = (allShifts as SupabaseShiftRaw[])
+                //.filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+                .map((s): ShiftData => ({
+                    shift_id: s.shift_id,
+                    shift_start_date: s.shift_start_date,
+                    shift_start_time: s.shift_start_time,
+                    shift_end_time: s.shift_end_time,
+                    service_code: s.service_code,
+                    kaipoke_cs_id: s.kaipoke_cs_id,
+                    staff_01_user_id: s.staff_01_user_id,
+                    staff_02_user_id: s.staff_02_user_id,
+                    staff_03_user_id: s.staff_03_user_id,
+                    address: s.postal_code || "",
+                    client_name: s.name || "",
+                    gender_request_name: s.gender_request_name || "",
+                    male_flg: s.male_flg || false,
+                    female_flg: s.female_flg || false,
+                    postal_code_3: s.postal_code_3 || "",
+                    district: s.district || "",
+                }));
+        }
         fetchData();
-    }, [shiftDate]); // shiftDateが変更されたときに再取得
+    })
+
 
     // 前の日
     const handlePrevDay = () => {
@@ -107,7 +167,6 @@ export default function ShiftPage() {
 
         alert("シフト削除リクエストが完了しました！");
     };
-
     return (
         <div className="content">
             <h2 className="text-xl font-bold mb-4">{currentDate || "シフト"} シフト</h2>
@@ -164,7 +223,6 @@ export default function ShiftPage() {
         </div>
     );
 }
-
 function ShiftDeleteDialog({
     shift,
     onConfirm
