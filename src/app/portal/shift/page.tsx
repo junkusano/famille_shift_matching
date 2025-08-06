@@ -174,7 +174,7 @@ export default function ShiftPage() {
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
-            alert(shift.reaso);
+            alert(shift.reason);
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${shift.reason}）。代わりに${mentionMgr}にシフトを移します`;
            
