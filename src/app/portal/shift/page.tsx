@@ -174,9 +174,11 @@ export default function ShiftPage() {
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
+            alert(shift.reaso);
+
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${shift.reason}）。代わりに${mentionMgr}にシフトを移します`;
-            alert(message);
-            
+           
+
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
@@ -278,7 +280,7 @@ function ShiftDeleteDialog({
                 <div className="flex justify-end gap-2 mt-4">
                     <Button onClick={() => setOpen(false)}>キャンセル</Button>
                     <Button onClick={() => { onConfirm(shift, reason); setOpen(false); }} disabled={!reason}>
-                        削除を確定
+                        処理実行を確定
                     </Button>
                 </div>
             </DialogContent>
