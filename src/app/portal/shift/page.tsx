@@ -169,7 +169,7 @@ export default function ShiftPage() {
             //setFilterOptions(extractFilterOptions(sorted, postalDistricts));
         }
         fetchData();
-    })
+    },[shiftDate])
 
 
     // 前の日
