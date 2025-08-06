@@ -114,8 +114,6 @@ export default function ShiftPage() {
         fetchData();
     }, [shiftDate]);
 
-
-
     const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
 
@@ -124,77 +122,75 @@ export default function ShiftPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
 
-    async function handleShiftReject(shift, reason) {
-        const session = await supabase.auth.getSession();
-        const authUserId = session.data?.session?.user?.id;
-        if (!authUserId) {
-            alert("ログイン情報が取得できません");
-            return;
-        }
+    // "このシフトに入れない" ボタン押下時処理
+    function handleShiftOptOut(shift) {
+        const [processing, setProcessing] = useState(false);
 
-        // ビューから直属マネジャー情報を取得
-        const { data: userRec, error: userErr } = await supabase
-            .from("user_entry_united_view")
-            .select("user_id, kaipoke_user_id, lw_userid, manager_user_id, manager_kaipoke_user_id, manager_lw_userid")
-            .eq("auth_user_id", authUserId)
-            .maybeSingle();
+        const executeOptOut = async () => {
+            setProcessing(true);
+            try {
+                const session = await supabase.auth.getSession();
+                const userId = session.data?.session?.user?.id;
+                if (!userId) throw new Error("ログイン情報が取得できません");
 
-        if (userErr) {
-            alert("ユーザー情報取得に失敗しました");
-            return;
-        }
+                const { data: userRecord } = await supabase
+                    .from("user_entry_united_view")
+                    .select("user_id, kaipoke_user_id, lw_userid, manager_user_id, manager_kaipoke_user_id, manager_lw_userid")
+                    .eq("auth_user_id", userId)
+                    .maybeSingle();
 
-        if (!userRec?.manager_user_id) {
-            alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
-            return;
-        }
+                if (!userRecord?.manager_user_id) {
+                    alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
+                    return;
+                }
 
-        // RPAコマンド登録
-        const { error: insertErr } = await supabase.from("rpa_command_requests").insert({
-            template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
-            requester_id: userRec.user_id,
-            approver_id: userRec.manager_user_id,
-            status: "approved",
-            request_details: {
-                shift_id: shift.shift_id,
-                kaipoke_cs_id: shift.kaipoke_cs_id,
-                shift_start_date: shift.shift_start_date,
-                shift_start_time: shift.shift_start_time,
-                service_code: shift.service_code,
-                postal_code_3: shift.postal_code_3,
-                client_name: shift.client_name,
-                requested_by: userRec.user_id,
-                requested_kaipoke_user_id: userRec.kaipoke_user_id,
-                attend_request: false
+                // rpa_command_requests への登録
+                const { error } = await supabase.from("rpa_command_requests").insert({
+                    template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
+                    requester_id: userRecord.user_id,
+                    approver_id: userRecord.manager_user_id,
+                    status: "approved",
+                    request_details: {
+                        shift_id: shift.shift_id,
+                        kaipoke_cs_id: shift.kaipoke_cs_id,
+                        shift_start_date: shift.shift_start_date,
+                        shift_start_time: shift.shift_start_time,
+                        service_code: shift.service_code,
+                        postal_code_3: shift.postal_code_3,
+                        client_name: shift.client_name,
+                        requested_by: userRecord.user_id,
+                        requested_kaipoke_user_id: userRecord.kaipoke_user_id,
+                        attend_request: false,
+                    },
+                });
+
+                if (error) throw error;
+
+                // LINE WORKS Bot への通知
+                const mentionUser = userRecord.lw_userid ? `<m userId="${userRecord.lw_userid}"></m>` : "利用者";
+                const mentionMgr = userRecord.manager_lw_userid ? `<m userId="${userRecord.manager_lw_userid}"></m>` : "マネジャー";
+                const message = `${mentionUser} さんが 事情 により シフトに入れない とシフト処理指示がありました。代わりに ${mentionMgr} さんにシフトを移します`;
+
+                await fetch('/api/lw-send-botmessage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channelId: shift.channel_id,
+                        text: message,
+                    }),
+                });
+
+                alert("このシフトに入れない処理が完了しました");
+            } catch (e) {
+                alert("エラーが発生しました: " + (e instanceof Error ? e.message : e));
+            } finally {
+                setProcessing(false);
             }
-        });
+        };
 
-        if (insertErr) {
-            alert("送信に失敗しました: " + insertErr.message);
-            return;
-        }
-
-        // LINE WORKS Bot通知
-        const mentionUser = userRec.lw_userid ? `<m userId="${userRec.lw_userid}">さん` : "あなた";
-        const mentionMgr = userRec.manager_lw_userid ? `<m userId="${userRec.manager_lw_userid}">さん` : "マネジャー";
-        const message = `${mentionUser}が${reason}によりシフトに入れないとシフト処理指示がありました。代わりに${mentionMgr}にシフトを移します`;
-
-        const { data: chanData } = await supabase
-            .from("group_lw_channel_view")
-            .select("channel_id")
-            .eq("group_account", shift.kaipoke_cs_id)
-            .maybeSingle();
-
-        if (chanData?.channel_id) {
-            await fetch('/api/lw-send-botmessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ channelId: chanData.channel_id, text: message })
-            });
-        }
-
-        alert("シフト辞退を登録しました");
+        return { executeOptOut, processing };
     }
+
 
     return (
         <div className="content">
@@ -263,7 +259,7 @@ function ShiftDeleteDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)} className="bg-red-500 text-white">このシフトを削除</Button>
+                <Button onClick={() => setOpen(true)} className="bg-red-500 text-white">このシフトに入れない</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogTitle>シフト削除</DialogTitle>
