@@ -23,7 +23,7 @@ const PAGE_SIZE = 50;
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
     const [currentPage, setCurrentPage] = useState(1);
-    const [currentDate, setCurrentDate] = useState<string>("");
+    //const [currentDate, setCurrentDate] = useState<string>("");
     const [userId, setUserId] = useState<string>(""); // auth_user_idを基にユーザーIDを設定
     void userId;
     const [shiftDate, setShiftDate] = useState<Date>(new Date());  // シフトの日付
