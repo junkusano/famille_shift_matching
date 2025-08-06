@@ -123,7 +123,7 @@ export default function ShiftPage() {
     const paginatedShifts = shifts.slice(start, start + PAGE_SIZE);
 
     // "このシフトに入れない" ボタン押下時処理
-    async function handleShiftReject(shift) {
+    async function handleShiftReject(shift, reason) {
         try {
             // 認証情報取得
             const session = await supabase.auth.getSession();
@@ -174,10 +174,7 @@ export default function ShiftPage() {
             const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
-            alert(shift.reason);
-
-            const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${shift.reason}）。代わりに${mentionMgr}にシフトを移します`;
-           
+            const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || '未記入'}）。代わりに${mentionMgr}にシフトを移します`;
 
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
@@ -228,7 +225,7 @@ export default function ShiftPage() {
                             <div className="text-sm">エリア: {shift.address}</div>
                             <div className="text-sm">サービス種別: {shift.service_code}</div>
                             <div className="flex gap-2 mt-4">
-                                <ShiftDeleteDialog shift={shift} onConfirm={() => handleShiftReject(shift)} />
+                                <ShiftDeleteDialog shift={shift} onConfirm={(reason) => handleShiftReject(shift, reason)} />
                             </div>
                             {/* 横並びにする追加ボタン */}
                             <GroupAddButton shift={shift} />
