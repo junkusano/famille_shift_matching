@@ -175,7 +175,8 @@ export default function ShiftPage() {
             const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${shift.reason}）。代わりに${mentionMgr}にシフトを移します`;
-
+            alert(message);
+            
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
