@@ -53,7 +53,7 @@ export default function ShiftPage() {
                 const formattedDate = format(shiftDate, "Y年M月d日");
                 setCurrentDate(formattedDate);  // ここで setCurrentDate を使用
 
-                // 現在の日付を基にシフトを取得する
+                // 現在teの日付を基にシフトを取得する
                 const startOfDay = new Date(shiftDate.setHours(0, 0, 0, 0));  // 今日の00:00
                 //const startOfDay = new Date(shiftDate);
                 //startOfDay.setHours(0, 0, 0, 0);  // 今日の00:00 JST
@@ -128,6 +128,44 @@ export default function ShiftPage() {
                     postal_code_3: s.postal_code_3 || "",
                     district: s.district || "",
                 }));
+
+            //alert("filtered shiftData before map:" + formatted.length);
+
+            const sorted = formatted.sort((a, b) => {
+                const d1 = a.shift_start_date + a.shift_start_time;
+                const d2 = b.shift_start_date + b.shift_start_time;
+                if (d1 !== d2) return d1.localeCompare(d2);
+                if (a.postal_code_3 !== b.postal_code_3) return a.postal_code_3.localeCompare(b.postal_code_3);
+                return a.client_name.localeCompare(b.client_name);
+            });
+
+            //alert("sorted length:" + sorted.length);
+
+            const { data: csInfoData } = await supabase
+                .from("cs_kaipoke_info")
+                .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
+                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
+
+            const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
+
+            const merged = formatted.map(shift => {
+                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
+                return {
+                    ...shift,
+                    cs_name: csInfo?.name ?? '',
+                    commuting_flg: csInfo?.commuting_flg ?? false,
+                    standard_route: csInfo?.standard_route ?? '',
+                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
+                    standard_purpose: csInfo?.standard_purpose ?? '',
+                    biko: csInfo?.biko ?? '',
+                };
+            });
+            setShifts(merged);
+            //setFilteredShifts(merged);
+
+            //setShifts(sorted);
+            //setFilteredShifts(sorted);
+            //setFilterOptions(extractFilterOptions(sorted, postalDistricts));
         }
         fetchData();
     })
