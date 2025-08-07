@@ -349,7 +349,9 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
                 .from("user_entry_united_view")
                 .select("lw_userid")
                 .eq("auth_user_id", userId)
-                .maybeSingle();
+                .eq("group_type", "人事労務サポートルーム")
+                .limit(1)
+                .single(); // 最初の1件を取得（2行あってもOK）
 
             const senderId = userData?.lw_userid;
             if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
