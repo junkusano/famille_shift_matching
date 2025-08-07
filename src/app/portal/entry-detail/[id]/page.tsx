@@ -1028,6 +1028,50 @@ export default function EntryDetailPage() {
         return <p className="p-6 text-red-600 font-bold">このエントリーにはアクセスできません（権限不足）</p>;
     }
 
+
+    //認証ユーザーレコードを削除する
+    const handleDeleteAuthUser = async () => {
+        if (!userRecord?.auth_user_id) {
+            alert('認証ユーザーIDが存在しません。');
+            return;
+        }
+
+        const confirmed = confirm('このユーザーの認証情報を削除しますか？（Authから完全削除）');
+        if (!confirmed) return;
+
+        try {
+            // Supabase Auth管理者APIでユーザー削除
+            const { error: deleteError } = await supabase.auth.admin.deleteUser(userRecord.auth_user_id);
+
+            if (deleteError) {
+                alert('認証ユーザーの削除に失敗しました: ' + deleteError.message);
+                return;
+            }
+
+            alert('認証ユーザーを削除しました');
+
+            // usersテーブルからもauth_user_idとstatusを初期化
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({
+                    auth_user_id: null,
+                    status: 'account_id_create'
+                })
+                .eq('user_id', userRecord.user_id);
+
+            if (updateError) {
+                alert('usersテーブルの更新に失敗しました: ' + updateError.message);
+            } else {
+                await fetchUserRecord(); // 最新状態を反映
+            }
+
+        } catch (e) {
+            console.error('削除処理中にエラーが発生:', e);
+            alert('削除中にエラーが発生しました');
+        }
+    };
+
+
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
             <div className="text-center mb-4">
@@ -1243,7 +1287,13 @@ export default function EntryDetailPage() {
                                         認証メール送信
                                     </button>
                                 )}
-
+                                <button
+                                    onClick={handleDeleteAuthUser}
+                                    className="px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm whitespace-nowrap"
+                                    disabled={!userRecord?.auth_user_id}
+                                >
+                                    認証情報削除
+                                </button>
                                 {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
                                 {lineWorksExists ? (
                                     <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
