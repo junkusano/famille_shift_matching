@@ -130,6 +130,14 @@ export default function ShiftPage() {
     // "このシフトに入れない" ボタン押下時処理
     async function handleShiftReject(shift, reason) {
         try {
+            const shiftStartJst = toJstDate(shift.shift_start_date, shift.shift_start_time);
+            const diffHours = (shiftStartJst.getTime() - Date.now()) / (1000 * 60 * 60);
+
+            if (diffHours < 6) {
+                alert("サービス開始まで6時間を切っているので、ここからシフトを外せません。マネジャーに相談してください");
+                return;
+            }
+
             // 認証情報取得
             const session = await supabase.auth.getSession();
             const userId = session.data?.session?.user?.id;
@@ -143,7 +151,9 @@ export default function ShiftPage() {
                 .from("user_entry_united_view")
                 .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid,manager_kaipoke_user_id")
                 .eq("auth_user_id", userId)
-                .maybeSingle();
+                .eq("group_type", "人事労務サポートルーム")
+                .limit(1)
+                .single(); // 最初の1件を取得（2行あってもOK）
 
             if (!userData?.manager_user_id) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
@@ -405,6 +415,12 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
             </DialogContent>
         </Dialog>
     );
+}
+
+function toJstDate(dateStr: string, timeStr?: string) {
+    const hhmm = (timeStr ?? "00:00").slice(0, 5); // "HH:MM" だけ使う
+    // 秒を付与し、JSTのタイムゾーンオフセットを明示
+    return new Date(`${dateStr}T${hhmm}:00+09:00`);
 }
 
 /*

@@ -21,7 +21,6 @@ export default function FaxSendingPage() {
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-
   const templateId = '2ca8aa86-e907-444c-9cf2-aec69563f9f0'
 
   useEffect(() => {
@@ -84,11 +83,15 @@ export default function FaxSendingPage() {
       const authUserId = session.data?.session?.user?.id;
       if (!authUserId) throw new Error('ログインユーザー未取得');
 
+
+
       const { data: userData, error: userError } = await supabase
         .from('user_entry_united_view')
-        .select('manager_auth_user_id, manager_user_id')
+        .select('manager_auth_user_id, manager_user_id,user_id')
         .eq('auth_user_id', authUserId)
-        .maybeSingle();
+        .eq("group_type", "人事労務サポートルーム")
+        .limit(1)
+        .single(); // 最初の1件を取得（2行あってもOK）
 
       if (userError || !userData?.manager_user_id) {
         throw new Error('マネージャー情報取得エラー');
@@ -102,6 +105,7 @@ export default function FaxSendingPage() {
         request_details: {
           file_urls: uploadedUrls,
           fax_targets: selectedFaxes,
+          requester_user_id: userData.user_id,
         },
       });
 
