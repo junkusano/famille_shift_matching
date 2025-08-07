@@ -13,8 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
-//import { ShiftData } from "@/types/shift";  // typesディレクトリがある場合
-//import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
 import type { ShiftData } from "@/types/shift";
 //import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 
@@ -31,6 +29,7 @@ export default function ShiftPage() {
     void accountId;
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     void kaipokeUserId;
+
 
     // startISO と endISO を使わないなら削除
     useEffect(() => {
@@ -116,6 +115,12 @@ export default function ShiftPage() {
 
     const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
+    const handleDeleteAll = () => {
+        if (!shifts.length) return;
+        if (confirm("本当にこの日の全シフトを削除しますか？")) {
+            shifts.forEach(shift => handleShiftReject(shift, 'お休み希望'));
+        }
+    };
 
 
     // ページネーション
@@ -195,7 +200,7 @@ export default function ShiftPage() {
 
             const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || '未記入'}）。代わりに${mentionMgr}にシフトを移します`;
             //alert(message);
-            alert("channel_id:" + chanData.channel_id);
+            //alert("channel_id:" + chanData.channel_id);
             await fetch('/api/lw-send-botmessage', {
                 method: 'POST',
                 headers: {
@@ -226,7 +231,7 @@ export default function ShiftPage() {
             </div>
 
             <div className="text-right mb-4">
-                <Button onClick={() => alert("全シフトを削除します。")} className="bg-red-500 text-white">
+                <Button onClick={handleDeleteAll} className="bg-red-500 text-white">
                     この日はお休み希望
                 </Button>
             </div>
@@ -382,3 +387,41 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         </Dialog>
     );
 }
+
+/*
+function useShiftsForTheDay(targetDate) {
+    const [shiftsForTheDay, setShiftsForTheDay] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!targetDate) return;
+
+        const fetchShifts = async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const { data, error } = await supabase
+                    .from('shift_view')
+                    .select('*')
+                    .eq('shift_start_date', targetDate);
+
+                if (error) throw error;
+
+                setShiftsForTheDay(data);
+            } catch (err) {
+                console.error('Error fetching shifts for the day:', err);
+                setError(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchShifts();
+    }, [targetDate]);
+
+    return { shiftsForTheDay, loading, error };
+}
+    */
+
