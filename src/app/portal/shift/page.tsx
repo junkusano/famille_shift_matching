@@ -117,7 +117,7 @@ export default function ShiftPage() {
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
     const handleDeleteAll = () => {
         if (!shifts.length) return;
-        if (confirm("本当にこの日の全シフトを削除しますか？")) {
+        if (confirm("本当にこの日の全シフトをお休み処理しますか？")) {
             shifts.forEach(shift => handleShiftReject(shift, 'お休み希望'));
         }
     };
@@ -212,11 +212,32 @@ export default function ShiftPage() {
                 }),
             });
 
+            // 追加通知（Now() + 3日 以内の場合）
+            const shiftDateTime = new Date(`${shift.shift_start_date}T${shift.shift_start_time}`);
+            const threeDaysLater = new Date();
+            threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+            if (shiftDateTime < threeDaysLater) {
+                const altMessage = `${shift.client_name}様の${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないと (${mentionUser} からシフト処理指示がありました（理由: ${reason || '未記入'}）。シフ子からサービス入る希望を出せます。ぜひ　宜しくお願い致します。`;
+
+                await fetch('/api/lw-send-botmessage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        channelId: "146763225",
+                        text: altMessage,
+                    }),
+                });
+            }
+
             alert("✅ シフト外し処理を登録しました");
         } catch (err) {
             console.error(err);
             alert("処理中にエラーが発生しました");
         }
+
     }
 
     return (
@@ -224,7 +245,7 @@ export default function ShiftPage() {
             <div className="content">
                 <div className="flex justify-between mb-4 items-center">
                     <Button onClick={handlePrevDay}>前の日</Button>
-                    <span className="text-xl font-bold">{format(shiftDate, "Y年M月d日")}</span>
+                    <span className="text-xl font-bold">{format(shiftDate, "Y/M/d")}</span>
                     <Button onClick={handleNextDay}>次の日</Button>
                 </div>
                 {/* 以下シフト表示 */}
@@ -261,15 +282,11 @@ export default function ShiftPage() {
             )}
 
             <div className="flex justify-between mt-6">
-                <Button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
-                    前の日
-                </Button>
-                <Button
-                    disabled={start + PAGE_SIZE >= shifts.length}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                    次の日
-                </Button>
+                <div className="flex justify-between mb-4 items-center">
+                    <Button onClick={handlePrevDay}>前の日</Button>
+                    <span className="text-xl font-bold">{format(shiftDate, "Y/M/d")}</span>
+                    <Button onClick={handleNextDay}>次の日</Button>
+                </div>
             </div>
         </div>
     );
@@ -290,13 +307,13 @@ function ShiftDeleteDialog({
                 <Button onClick={() => setOpen(true)} className="bg-red-500 text-white">このシフトに入れない</Button>
             </DialogTrigger>
             <DialogContent>
-                <DialogTitle>シフト削除</DialogTitle>
+                <DialogTitle>シフトに入れない</DialogTitle>
                 <DialogDescription>
                     {shift.client_name} 様のシフトに入れないの処理を実行しますか？
                     <textarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        placeholder="削除理由"
+                        placeholder="シフトに入れない理由"
                         className="w-full mt-2 p-2 border"
                     />
                 </DialogDescription>
