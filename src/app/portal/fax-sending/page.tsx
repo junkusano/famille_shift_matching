@@ -134,7 +134,14 @@ export default function FaxSendingPage() {
       <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
 
       {/* ファイルアップロードUI */}
-      <Input type="file" multiple onChange={handleFileChange} />
+      <Input
+        type="file"
+        multiple onChange={handleFileChange}
+        className="bg-yellow-50
+    border-yellow-200
+    focus-visible:ring-yellow-300
+    file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md
+  "/>
       <div className="space-y-1">
         {files.map((file, idx) => (
           <div key={idx} className="flex justify-between items-center border px-2 py-1 rounded">
@@ -151,7 +158,12 @@ export default function FaxSendingPage() {
           placeholder="事業所名で検索"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-2"
+          className="mb-2
+    bg-yellow-50
+    border-yellow-200
+    placeholder:text-yellow-900/60
+    focus-visible:ring-yellow-300
+  "
         />
 
         <div className="border rounded overflow-y-auto" style={{ maxHeight: 300 }}>
