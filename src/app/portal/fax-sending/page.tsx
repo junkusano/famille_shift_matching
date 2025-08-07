@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useUserRole } from '@/context/RoleContext'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { supabase } from '@/lib/supabaseClient';
 
 // 型定義
 type FaxEntry = {
@@ -51,62 +52,74 @@ export default function FaxSendingPage() {
 
   const handleUploadAndSend = async () => {
     if (files.length === 0 || selectedFaxes.length === 0) {
-      alert('ファイルとFAX送信先を選んでください')
-      return
+      alert('ファイルとFAX送信先を選んでください');
+      return;
     }
 
     try {
-      setUploading(true)
-      const uploadedUrls: string[] = []
+      setUploading(true);
+      const uploadedUrls: string[] = [];
 
       for (const file of files) {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('filename', `fax_${Date.now()}_${file.name}`)
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('filename', `fax_${Date.now()}_${file.name}`);
 
         const res = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
-        })
+        });
 
-        const result = await res.json()
-        if (result.url) uploadedUrls.push(result.url)
-        else console.error('アップロード失敗:', result)
+        const result = await res.json();
+        if (result.url) uploadedUrls.push(result.url);
+        else console.error('アップロード失敗:', result);
       }
 
       if (uploadedUrls.length === 0) {
-        alert('アップロードに失敗しました')
-        return
+        alert('アップロードに失敗しました');
+        return;
       }
 
-      const res = await fetch('/api/rpa_request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_id: templateId,
-          request_details: {
-            file_urls: uploadedUrls,
-            fax_targets: selectedFaxes,
-          },
-        }),
-      })
+      const session = await supabase.auth.getSession();
+      const authUserId = session.data?.session?.user?.id;
+      if (!authUserId) throw new Error('ログインユーザー未取得');
 
-      if (!res.ok) {
-        const errText = await res.text()
-        console.error('送信エラー:', errText)
-        alert('送信に失敗しました')
-      } else {
-        alert('FAX送信リクエストを送信しました')
-        setFiles([])
-        setSelectedFaxes([])
+      const { data: userData, error: userError } = await supabase
+        .from('user_entry_united_view')
+        .select('manager_auth_user_id, manager_user_id')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+
+      if (userError || !userData?.manager_user_id) {
+        throw new Error('マネージャー情報取得エラー');
       }
+
+      const { error: insertError } = await supabase.from('rpa_command_requests').insert({
+        template_id: templateId,
+        requester_id: authUserId,
+        approver_id: userData.manager_auth_user_id,
+        status: 'approved',
+        request_details: {
+          file_urls: uploadedUrls,
+          fax_targets: selectedFaxes,
+        },
+      });
+
+      if (insertError) {
+        throw new Error(`送信に失敗しました: ${insertError.message}`);
+      }
+
+      alert('FAX送信リクエストを送信しました');
+      setFiles([]);
+      setSelectedFaxes([]);
     } catch (e) {
-      console.error('エラー:', e)
-      alert('送信中にエラーが発生しました')
+      console.error('送信エラー:', e);
+      alert('送信中にエラーが発生しました');
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
+
 
   if (!['admin', 'manager'].includes(role)) {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
