@@ -1,33 +1,27 @@
-//import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { createClient } from "@supabase/supabase-js";
-import type { NextApiRequest, NextApiResponse } from 'next';
+// app/api/delete-auth-user/route.ts
 
-// Service Role Key はサーバー側環境変数で管理
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from 'next/server';
+
+// Supabase 管理用クライアント（Service Role Key使用）
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ← service role key を使うこと！
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { authUserId } = req.body;
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { authUserId } = body;
 
   if (!authUserId) {
-    return res.status(400).json({ error: 'authUserId が必要です' });
+    return NextResponse.json({ error: 'authUserId が必要です' }, { status: 400 });
   }
 
-  try {
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
-
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    console.error('ユーザー削除失敗:', err);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true });
 }
