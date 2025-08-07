@@ -188,6 +188,11 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                             <li>
+                                <Link href="/portal/fax-sending" className="text-blue-300 hover:underline">
+                                    fax送付
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/portal/fax" className="text-blue-300 hover:underline">
                                     fax電話帳
                                 </Link>
@@ -298,19 +303,24 @@ export default function PortalLayout({ children }: Props) {
                         )}
                         {(role === 'manager' || role === 'admin') && (
                             <>
-                                <li>                          
+                                <li>
                                     <Link href="/portal/orgIcons" className="text-blue-300 hover:underline">
                                         組織アイコン設定
                                     </Link>
-                                </li> 
-                                <li>                                   
-                                        <Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">
-                                            利用者様情報
-                                        </Link>                                    
+                                </li>
+                                <li>
+                                    <Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">
+                                        利用者様情報
+                                    </Link>
                                 </li>
                                 <li>
                                     <Link href="/portal/phone" className="text-blue-300 hover:underline">
                                         電話帳
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/portal/fax-sending" className="text-blue-300 hover:underline">
+                                        fax送付
                                     </Link>
                                 </li>
                                 <li>
@@ -331,10 +341,10 @@ export default function PortalLayout({ children }: Props) {
                             </>
                         )}
                         <li>
-                        <Link href="/portal/shift" className="text-blue-300 hover:underline">
-                            シフト（お休み希望も）
-                        </Link>
-                    </li>
+                            <Link href="/portal/shift" className="text-blue-300 hover:underline">
+                                シフト（お休み希望も）
+                            </Link>
+                        </li>
                         <li>
                             <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">
                                 ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）
