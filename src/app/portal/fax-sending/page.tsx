@@ -138,7 +138,6 @@ export default function FaxSendingPage() {
         type="file"
         multiple onChange={handleFileChange}
         className="bg-yellow-50
-    border-yellow-200
     focus-visible:ring-yellow-300
     file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md
   "/>
@@ -159,7 +158,6 @@ export default function FaxSendingPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-2
-    bg-yellow-50
     border-yellow-200
     placeholder:text-yellow-900/60
     focus-visible:ring-yellow-300
