@@ -155,7 +155,7 @@ export default function FaxPage() {
           <Input className="h-8 w-full px-2 min-w-0" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
 
-        <div className="col-span-12 md:col-span-3 min-w-0">
+        <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">Email</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
