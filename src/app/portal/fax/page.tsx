@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -51,10 +51,11 @@ export default function FaxPage() {
     fetchFaxList()
   }, [])
 
+  // any を使わないで安全に更新
   const handleEditChange = <K extends keyof FaxEntry>(index: number, key: K, value: FaxEntry[K]) => {
-    const updated = [...faxList]
-    ;(updated[index] as any)[key] = value
-    setFaxList(updated)
+    setFaxList(prev =>
+      prev.map((row, i) => (i === index ? ({ ...row, [key]: value } as FaxEntry) : row))
+    )
   }
 
   const handleSave = async (entry: FaxEntry) => {
@@ -99,8 +100,6 @@ export default function FaxPage() {
       alert(error || '追加に失敗しました')
     }
   }
-
-  const kindMap = useMemo(() => Object.fromEntries(kinds.map(k => [k.id, k.label])), [kinds])
 
   return (
     <div className="p-6 space-y-4">
