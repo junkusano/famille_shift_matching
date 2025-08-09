@@ -197,12 +197,12 @@ export default function FaxPage() {
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '120px' }} />  {/* FAX */}
-            <col style={{ width: '350px' }} />  {/* 事業所名（短め） */}
-            <col style={{ width: '110px' }} />  {/* Email（伸ばしすぎない） */}
-            <col style={{ width: '110px' }} />  {/* 郵便番号 */}
-            <col style={{ width: '160px' }} />  {/* 種別 */}
-            <col style={{ width: '120px' }} />  {/* 操作 */}
+            <col style={{ width: '15%' }} />  {/* FAX */}
+            <col style={{ width: '30%' }} />  {/* 事業所名（短め） */}
+            <col style={{ width: '15%' }} />  {/* Email（伸ばしすぎない） */}
+            <col style={{ width: '15%' }} />  {/* 郵便番号 */}
+            <col style={{ width: '15%' }} />  {/* 種別 */}
+            <col style={{ width: '10%' }} />  {/* 操作 */}
           </colgroup>
 
           <TableHeader>
