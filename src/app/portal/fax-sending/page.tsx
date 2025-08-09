@@ -163,7 +163,7 @@ export default function FaxPage() {
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
           <div className="w-full">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger>
                 <SelectValue placeholder="すべて" />
               </SelectTrigger>
               <SelectContent>
@@ -233,7 +233,7 @@ export default function FaxPage() {
                 <TableCell className="px-1 py-1">
                   <div className="w-full">
                     <Select value={entry.service_kind_id ?? ''} onValueChange={(v) => handleEditChange(index + start, 'service_kind_id', v || null)}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger>
                         <SelectValue placeholder="選択" />
                       </SelectTrigger>
                       <SelectContent>
@@ -270,7 +270,7 @@ export default function FaxPage() {
               <TableCell className="px-1 py-1">
                 <div className="w-full">
                   <Select value={newEntry.service_kind_id ?? ''} onValueChange={(v) => setNewEntry({ ...newEntry, service_kind_id: v || null })}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger>
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
                     <SelectContent>
