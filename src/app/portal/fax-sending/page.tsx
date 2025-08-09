@@ -141,7 +141,7 @@ export default function FaxPage() {
   }
 
   return (
-    <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
+    <div className="overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
       {/* ===== 検索行（各カラムに min-w-0 を“個別”付与） ===== */}
@@ -193,7 +193,7 @@ export default function FaxPage() {
       </div>
 
       {/* ===== テーブル（table-fixed + 各セル min-w-0 で横オーバー根絶） ===== */}
-      <div className="overflow-x-auto">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
