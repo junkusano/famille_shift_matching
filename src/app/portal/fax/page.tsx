@@ -132,7 +132,7 @@ export default function FaxPage() {
                 <Input className="h-8" value={entry.email} onChange={(e) => handleEditChange(index, 'email', e.target.value)} />
               </TableCell>
               <TableCell>
-                <Input className="h-8" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index, 'postal_code', e.target.value)} placeholder="例: 486-0969" />
+                <Input className="h-8" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index, 'postal_code', e.target.value)} placeholder="例: 4860969" />
               </TableCell>
               <TableCell>
                 <div className="min-w-[220px]">
