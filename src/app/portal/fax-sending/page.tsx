@@ -23,7 +23,6 @@ export default function FaxPage() {
   const [faxList, setFaxList] = useState<FaxEntry[]>([])
   const [kinds, setKinds] = useState<ServiceKind[]>([])
 
-  // 新規行
   const [newEntry, setNewEntry] = useState<Omit<FaxEntry, 'id'>>({
     fax: '',
     office_name: '',
@@ -32,7 +31,7 @@ export default function FaxPage() {
     service_kind_id: null,
   })
 
-  // フィルタ
+  // 検索フィルタ
   const [qFax, setQFax] = useState('')
   const [qOffice, setQOffice] = useState('')
   const [qEmail, setQEmail] = useState('')
@@ -61,14 +60,13 @@ export default function FaxPage() {
     fetchFaxList()
   }, [])
 
-  // フィルタ済みデータ
+  // フィルタ済み
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
     const off = qOffice.trim().toLowerCase()
     const eml = qEmail.trim().toLowerCase()
     const pst = qPostal.trim().toLowerCase()
     const kind = qKind
-
     return faxList.filter((row) => {
       if (fax && !row.fax.toLowerCase().includes(fax)) return false
       if (off && !row.office_name.toLowerCase().includes(off)) return false
@@ -79,13 +77,13 @@ export default function FaxPage() {
     })
   }, [faxList, qFax, qOffice, qEmail, qPostal, qKind])
 
-  // ページング
+  // ページング計算
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageClamped = Math.min(page, totalPages)
   const start = (pageClamped - 1) * PAGE_SIZE
   const pageRows = filtered.slice(start, start + PAGE_SIZE)
 
-  // フィルタ変更で1ページ目へ
+  // フィルタ変更時は1ページ目へ
   useEffect(() => {
     setPage(1)
   }, [qFax, qOffice, qEmail, qPostal, qKind])
@@ -141,32 +139,34 @@ export default function FaxPage() {
   }
 
   return (
-    <div className="overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
+    <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
-      {/* ===== 検索行（各カラムに min-w-0 を“個別”付与） ===== */}
-      <div className="grid grid-cols-12 gap-2 items-end">
-        {/* 1段目: 2 / 4 / 6 */}
+      {/* ===== 検索行（デスクトップは1行） ===== */}
+      <div className="grid grid-cols-12 md:grid-cols-12 gap-2 items-end">
+        {/* 2 / 3 / 3 / 1 / 2 / 1 = 12 */}
         <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
-        <div className="col-span-12 md:col-span-4 min-w-0">
+
+        <div className="col-span-12 md:col-span-3 min-w-0">
           <div className="text-[11px] text-muted-foreground">事業所名</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
-        <div className="col-span-12 md:col-span-6 min-w-0">
+
+        <div className="col-span-12 md:col-span-3 min-w-0">
           <div className="text-[11px] text-muted-foreground">Email</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
 
-        {/* 2段目: 2 / 6 / 4 */}
-        <div className="col-span-12 md:col-span-2 min-w-0">
-          <div className="text-[11px] text-muted-foreground">郵便番号</div>
-          <Input className="h-8 w-full px-2 min-w-0" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="例: 486" />
+        <div className="col-span-12 md:col-span-1 min-w-0">
+          <div className="text-[11px] text-muted-foreground">郵便</div>
+          <Input className="h-8 w-full px-2 min-w-0" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="486" />
         </div>
-        <div className="col-span-12 md:col-span-6 min-w-0">
-          <div className="text-[11px] text-muted-foreground">サービス種別</div>
+
+        <div className="col-span-12 md:col-span-2 min-w-0">
+          <div className="text-[11px] text-muted-foreground">種別</div>
           <div className="w-full min-w-0">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
               <SelectTrigger>
@@ -181,7 +181,8 @@ export default function FaxPage() {
             </Select>
           </div>
         </div>
-        <div className="col-span-12 md:col-span-4 md:justify-self-end min-w-0">
+
+        <div className="col-span-12 md:col-span-1 min-w-0 md:justify-self-end">
           <Button
             variant="secondary"
             size="sm"
@@ -192,18 +193,26 @@ export default function FaxPage() {
         </div>
       </div>
 
-      {/* ===== テーブル（table-fixed + 各セル min-w-0 で横オーバー根絶） ===== */}
-      <div>
-        <Table>
+      {/* ===== テーブル（colgroupで固定px配分／Emailに振らない） ===== */}
+      <div className="overflow-x-auto">
+        <Table className="w-full table-fixed">
+          <colgroup>
+            <col style={{ width: '120px' }} />  {/* FAX */}
+            <col style={{ width: '220px' }} />  {/* 事業所名（短め） */}
+            <col style={{ width: '280px' }} />  {/* Email（伸ばしすぎない） */}
+            <col style={{ width: '110px' }} />  {/* 郵便番号 */}
+            <col style={{ width: '160px' }} />  {/* 種別 */}
+            <col style={{ width: '120px' }} />  {/* 操作 */}
+          </colgroup>
+
           <TableHeader>
             <TableRow>
-              {/* 合計100%（事業所名を短く） */}
-              <TableHead className="px-1 py-1 w-[14%]">FAX</TableHead>
-              <TableHead className="px-1 py-1 w-[20%]">事業所名</TableHead>
-              <TableHead className="px-1 py-1 w-[5%]">Email</TableHead>
-              <TableHead className="px-1 py-1 w-[12%]">郵便番号</TableHead>
-              <TableHead className="px-1 py-1 w-[16%]">サービス種別</TableHead>
-              <TableHead className="px-1 py-1 w-[5%]">操作</TableHead>
+              <TableHead className="px-1 py-1">FAX</TableHead>
+              <TableHead className="px-1 py-1">事業所名</TableHead>
+              <TableHead className="px-1 py-1">Email</TableHead>
+              <TableHead className="px-1 py-1">郵便番号</TableHead>
+              <TableHead className="px-1 py-1">サービス種別</TableHead>
+              <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
           </TableHeader>
 

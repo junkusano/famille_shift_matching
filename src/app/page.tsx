@@ -98,7 +98,7 @@ export default function Home() {
           <p>
             厳しさを増す訪問介護業界の中で、ファミーユは毎年着実に成長を続けています。未経験でも安心のマッチング制（通称：シフ子）、スマホだけで登録完了📱、希望に応じたサービス紹介、有給100%消化、充実の資格取得支援など、自分らしく働ける仕組みがあります。
           </p>
-          <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", maxWidth: "100%" }}>
+          <div style={{ position: "relative", paddingBottom: "177.78%", height: 0, overflow: "hidden", maxWidth: "100%" }}>
             <iframe
               src="https://www.youtube.com/embed/Hydp7EY268A?modestbranding=1&rel=0&playsinline=1"
               title="YouTube Shorts"
