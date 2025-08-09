@@ -109,7 +109,7 @@ export default function FaxPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24 px-1 py-1 whitespace-nowrap">FAX</TableHead>
+              <TableHead className="w-32 px-1 py-1 whitespace-nowrap">FAX</TableHead>
               {/* 事業所名：90ch 目標（大きく） */}
               <TableHead className="px-1 py-1 whitespace-nowrap md:w-[90ch] w-[280px]">事業所名</TableHead>
               <TableHead className="w-32 px-1 py-1 whitespace-nowrap">Email</TableHead>
@@ -123,7 +123,7 @@ export default function FaxPage() {
             {faxList.map((entry, index) => (
               <TableRow key={entry.id}>
                 <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <Input className="h-8 w-24 px-2" value={entry.fax} onChange={(e) => handleEditChange(index, 'fax', e.target.value)} />
+                  <Input className="h-8 w-32 px-2" value={entry.fax} onChange={(e) => handleEditChange(index, 'fax', e.target.value)} />
                 </TableCell>
                 <TableCell className="px-1 py-1">
                   {/* 事業所名広め（モバイルは最小幅、md以上で90ch） */}
@@ -162,7 +162,7 @@ export default function FaxPage() {
             {/* 追加行 */}
             <TableRow>
               <TableCell className="px-1 py-1 whitespace-nowrap">
-                <Input className="h-8 w-24 px-2" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
+                <Input className="h-8 w-32 px-2" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
               </TableCell>
               <TableCell className="px-1 py-1">
                 <Input className="h-8 w-[280px] md:w-[90ch] px-2" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
