@@ -1,90 +1,25 @@
-import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/service'; // ✅ サーバー用クライアントに変更
 
-// Supabaseクライアントの生成
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// 型定義
-type FaxEntry = {
-  fax: string; // ← これが主キー
-  office_name: string;
-  email: string;
-  service_kind: string;
-};
-
-// POST: 新規追加
-export async function POST(req: Request) {
-  const body: FaxEntry = await req.json();
-
-  if (!body.fax || !body.office_name) {
-    return NextResponse.json({ error: "FAX番号と事業所名は必須です" }, { status: 400 });
-  }
-
-  const { error } = await supabase.from("fax").insert([body]);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
-}
-
-// GET: 一覧取得
 export async function GET() {
-    
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('fax')
-    .select('*')
-    .order('fax', { ascending: true }); // 必要に応じてorder変更
-
-  if (error) {
-    console.error('Supabase GET error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
+    .select('id, fax, office_name, email, postal_code, service_kind_id')
+    .order('office_name', { ascending: true })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
 }
 
-// PATCH: 更新（faxが主キー）
-export async function PATCH(req: Request) {
-  const body: FaxEntry = await req.json();
-
-  if (!body.fax) {
-    return NextResponse.json({ error: "FAX番号が必要です" }, { status: 400 });
+export async function POST(req: Request) {
+  const body = await req.json()
+  const payload = {
+    fax: (body.fax ?? '') as string,
+    office_name: (body.office_name ?? '') as string,
+    email: (body.email ?? '') as string,
+    postal_code: (body.postal_code ?? null) as string | null,
+    service_kind_id: (body.service_kind_id || null) as string | null,
   }
-
-  const { error } = await supabase
-    .from("fax")
-    .update({
-      office_name: body.office_name,
-      email: body.email,
-      service_kind: body.service_kind,
-    })
-    .eq("fax", body.fax);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
-}
-
-// DELETE: 削除（faxが主キー）
-export async function DELETE(req: Request) {
-  const { fax } = await req.json();
-
-  if (!fax) {
-    return NextResponse.json({ error: "FAX番号が必要です" }, { status: 400 });
-  }
-
-  const { error } = await supabase.from("fax").delete().eq("fax", fax);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
+  const { error } = await supabaseAdmin.from('fax').insert(payload)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
 }
