@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { useUserRole } from "@/context/RoleContext"
 import { supabase } from "@/lib/supabaseClient"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
-// ===== 型定義 =====
+// =========================
+// 型定義
+// =========================
 type FaxEntry = {
   id: string
   fax: string
@@ -27,85 +26,94 @@ type PostalDistrict = { postal_code_3: string; district: string }
 
 type Option = { value: string; label: string }
 
-// ===== 汎用マルチセレクト（Popover + Checkbox） =====
+// =========================
+// 汎用マルチセレクト（ネイティブ <select multiple> 版）
+// =========================
 function MultiSelect({
   placeholder,
   options,
   selected,
   onChange,
   emptyText = "データなし",
+  size = 8,
 }: {
   placeholder: string
   options: Option[]
   selected: string[]
   onChange: (values: string[]) => void
   emptyText?: string
+  size?: number
 }) {
-  const display = selected.length === 0
-    ? placeholder
-    : `${placeholder}（${selected.length}）`
-
-  const toggle = (val: string) => {
-    if (selected.includes(val)) onChange(selected.filter(v => v !== val))
-    else onChange([...selected, val])
+  const allValues = options.map((o) => o.value)
+  const handleChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
+    const values = Array.from(e.target.selectedOptions).map((o) => o.value)
+    onChange(values)
   }
-
-  const allValues = options.map(o => o.value)
-  const isAll = selected.length > 0 && selected.length === allValues.length
-
-  const selectAll = () => onChange(allValues)
-  const clearAll = () => onChange([])
-
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="h-8 w-full justify-between">
-          <span className="truncate text-left">{display}</span>
-          <span className="ml-2">▾</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-2" align="start">
-        <div className="flex items-center justify-between mb-2 gap-2">
-          <Button size="sm" variant="secondary" onClick={selectAll} disabled={options.length === 0}>全選択</Button>
-          <Button size="sm" variant="ghost" onClick={clearAll}>クリア</Button>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground truncate" title={selected.join(", ") || placeholder}>
+          {selected.length === 0 ? placeholder : `${placeholder}（${selected.length}）`}
+        </span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" onClick={() => onChange(allValues)} disabled={options.length === 0}>
+            全選択
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onChange([])}>
+            クリア
+          </Button>
         </div>
-        <ScrollArea className="h-56">
-          {options.length === 0 && (
-            <div className="text-xs text-muted-foreground px-1 py-2">{emptyText}</div>
-          )}
-          <div className="space-y-1">
-            {options.map((opt) => (
-              <label key={opt.value} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted cursor-pointer">
-                <Checkbox checked={selected.includes(opt.value)} onCheckedChange={() => toggle(opt.value)} />
-                <span className="text-sm truncate" title={opt.label}>{opt.label}</span>
-              </label>
-            ))}
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+      </div>
+      {options.length === 0 ? (
+        <div className="text-xs text-muted-foreground px-1 py-2">{emptyText}</div>
+      ) : (
+        <select
+          multiple
+          size={size}
+          value={selected}
+          onChange={handleChange}
+          className="w-full border rounded-md px-2 py-1 text-sm bg-background"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value} title={opt.label}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
   )
 }
 
 export default function FaxSendingPage() {
   const role = useUserRole()
+
+  // =========================
+  // 状態
+  // =========================
   const [faxList, setFaxList] = useState<FaxEntry[]>([])
   const [kinds, setKinds] = useState<ServiceKind[]>([])
   const [districts, setDistricts] = useState<PostalDistrict[]>([])
+
   const [selectedFaxes, setSelectedFaxes] = useState<FaxEntry[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
 
-  // ===== フィルター（順番厳守: FAX → 事業所名 → エリア(複数) → 種別(複数) → クリア） =====
+  // =========================
+  // フィルター（順番厳守: FAX → 事業所名 → エリア(複数) → 種別(複数) → クリア）
+  // =========================
   const [qFax, setQFax] = useState("")
   const [qOffice, setQOffice] = useState("")
   const [qDistrict3, setQDistrict3] = useState<string[]>([]) // 複数（valueは郵便3桁）
   const [qKind, setQKind] = useState<string[]>([]) // 複数（valueはservice_kind_id）
 
+  // =========================
+  // 初期フェッチ
+  // =========================
   useEffect(() => {
-    fetchKinds()
-    fetchDistricts()
-    fetchFaxList()
+    void (async () => {
+      await Promise.all([fetchKinds(), fetchDistricts(), fetchFaxList()])
+    })()
   }, [])
 
   const fetchFaxList = async () => {
@@ -129,12 +137,12 @@ export default function FaxSendingPage() {
     setDistricts(data)
   }
 
-  // 郵便3桁→district名 逆引きマップ
+  // =========================
+  // 表示補完
+  // =========================
   const districtMap = useMemo(() => new Map(districts.map(d => [d.postal_code_3, d.district])), [districts])
-  // 種別id→label マップ
   const kindMap = useMemo(() => new Map(kinds.map(k => [k.id, k.label])), [kinds])
 
-  // 一覧に district名 & 種別ラベルを補完
   const listWithLabels = useMemo(() => {
     return faxList.map(row => {
       const code3 = (row.postal_code ?? '').replace(/\D/g, '').slice(0, 3)
@@ -144,7 +152,9 @@ export default function FaxSendingPage() {
     })
   }, [faxList, districtMap, kindMap])
 
-  // フィルター適用（郵便は3桁完全一致）
+  // =========================
+  // フィルター適用
+  // =========================
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
     const office = qOffice.trim().toLowerCase()
@@ -164,7 +174,9 @@ export default function FaxSendingPage() {
     })
   }, [listWithLabels, qFax, qOffice, qDistrict3, qKind])
 
-  // ===== 選択系 =====
+  // =========================
+  // 選択系
+  // =========================
   const toggleFax = (entry: FaxEntry) => {
     setSelectedFaxes((prev) => {
       const exists = prev.some((f) => f.id === entry.id)
@@ -182,7 +194,9 @@ export default function FaxSendingPage() {
 
   const clearSelected = () => setSelectedFaxes([])
 
-  // ===== ファイル系 =====
+  // =========================
+  // ファイル系
+  // =========================
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
     setFiles((prev) => [...prev, ...Array.from(e.target.files)])
@@ -191,7 +205,9 @@ export default function FaxSendingPage() {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // ===== 送信 =====
+  // =========================
+  // 送信
+  // =========================
   const handleUploadAndSend = async () => {
     if (files.length === 0 || selectedFaxes.length === 0) {
       alert("ファイルとFAX送信先を選んでください")
@@ -249,11 +265,9 @@ export default function FaxSendingPage() {
     }
   }
 
-  if (!["admin", "manager"].includes(role)) {
-    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
-  }
-
-  // ===== オプション配列 =====
+  // =========================
+  // オプション配列（HOOKは早期returnより前に定義）
+  // =========================
   const districtOptions: Option[] = useMemo(() => districts.map(d => ({
     value: d.postal_code_3,
     label: `${d.district}（${d.postal_code_3}xx）`,
@@ -264,11 +278,19 @@ export default function FaxSendingPage() {
     label: k.label,
   })), [kinds])
 
+  // 早期returnはHOOK定義後に行う（HOOKの順序を崩さない）
+  if (!["admin", "manager"].includes(role)) {
+    return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
+  }
+
+  // =========================
+  // UI
+  // =========================
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
 
-      {/* ===== アップロードUI & ファイル一覧 ===== */}
+      {/* アップロードUI & ファイル一覧 */}
       <Input type="file" multiple onChange={handleFileChange} className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md" />
       <div className="space-y-1">
         {files.map((file, idx) => (
@@ -279,7 +301,7 @@ export default function FaxSendingPage() {
         ))}
       </div>
 
-      {/* ===== フィルター行: FAX / 事業所名 / エリア(複数) / 種別(複数) / クリア ===== */}
+      {/* フィルター行: FAX / 事業所名 / エリア(複数) / 種別(複数) / クリア / 全選択 */}
       <div className="grid items-end gap-2 grid-cols-1 md:grid-cols-6 md:[grid-template-columns:15%_25%_18%_18%_auto_auto]">
         <div>
           <div className="text-[11px] text-muted-foreground">FAX</div>
@@ -317,7 +339,7 @@ export default function FaxSendingPage() {
         </div>
       </div>
 
-      {/* ===== 一覧（district表示、emailはツールチップ） ===== */}
+      {/* 一覧（district表示、emailはツールチップ） */}
       <div className="border rounded overflow-y-auto" style={{ maxHeight: 360 }}>
         <Table className="w-full table-fixed">
           <colgroup>
