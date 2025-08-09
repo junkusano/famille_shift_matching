@@ -1,8 +1,7 @@
-import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
-export async function GET(_req: NextRequest) {
+export const GET = async () => {
   const { data, error } = await supabaseAdmin
     .from('service_kinds')
     .select('id, label, sort_order')
