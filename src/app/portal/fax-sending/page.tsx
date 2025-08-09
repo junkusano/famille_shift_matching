@@ -200,7 +200,7 @@ export default function FaxSendingPage() {
         <div>
           <div className="text-[11px] text-muted-foreground">エリア</div>
           <Select value={qDistrict3} onValueChange={(v) => setQDistrict3(v)}>
-            <SelectTrigger>
+            <SelectTrigger className="h-8">
               <SelectValue placeholder="すべて" />
             </SelectTrigger>
             <SelectContent>
@@ -216,7 +216,7 @@ export default function FaxSendingPage() {
         <div>
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
           <Select value={qKind} onValueChange={(v) => setQKind(v)}>
-            <SelectTrigger>
+            <SelectTrigger className="h-8">
               <SelectValue placeholder="すべて" />
             </SelectTrigger>
             <SelectContent>
