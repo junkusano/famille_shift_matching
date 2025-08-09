@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
+
 type FaxEntry = {
   id: string
   fax: string
@@ -66,6 +67,7 @@ export default function FaxPage() {
     })
     if (res.ok) {
       fetchFaxList()
+      alert('保存にしました')
     } else {
       const { error } = await res.json().catch(() => ({ error: '保存に失敗しました' }))
       alert(error || '保存に失敗しました')
@@ -76,6 +78,7 @@ export default function FaxPage() {
     const res = await fetch(`/api/fax/${id}`, { method: 'DELETE' })
     if (res.ok) {
       fetchFaxList()
+      alert('保存にしました')
     } else {
       const { error } = await res.json().catch(() => ({ error: '削除に失敗しました' }))
       alert(error || '削除に失敗しました')
