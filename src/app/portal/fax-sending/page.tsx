@@ -6,14 +6,6 @@ import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
-// 左メニューは layout.tsx 側で 250px 固定（.left-menu）なので、
-// ここではメイン領域内で横オーバーしないことを最優先に設計
-// - 外枠は w-full / overflow-hidden
-// - フィルタ行の内在幅を各カラムで明示的に min-w-0
-// - テーブルは table-fixed + 各セル min-w-0 + 入力 truncate
-// - 事業所名カラムをさらに短縮（22%）
-
-// --- Types ---
 type FaxEntry = {
   id: string
   fax: string
@@ -87,18 +79,17 @@ export default function FaxPage() {
     })
   }, [faxList, qFax, qOffice, qEmail, qPostal, qKind])
 
-  // ページング計算
+  // ページング
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageClamped = Math.min(page, totalPages)
   const start = (pageClamped - 1) * PAGE_SIZE
   const pageRows = filtered.slice(start, start + PAGE_SIZE)
 
-  // フィルタ変更時は1ページ目へ
+  // フィルタ変更で1ページ目へ
   useEffect(() => {
     setPage(1)
   }, [qFax, qOffice, qEmail, qPostal, qKind])
 
-  // 編集系
   const handleEditChange = <K extends keyof FaxEntry>(index: number, key: K, value: FaxEntry[K]) => {
     setFaxList((prev) => prev.map((row, i) => (i === index ? ({ ...row, [key]: value } as FaxEntry) : row)))
   }
@@ -150,35 +141,34 @@ export default function FaxPage() {
   }
 
   return (
-    <div className="w-full overflow-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
+    <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
-      {/* ===== 検索行（2段構成：各カラムで min-w-0 を明示） ===== */}
+      {/* ===== 検索行（各カラムに min-w-0 を“個別”付与） ===== */}
       <div className="grid grid-cols-12 gap-2 items-end">
-        {/* 1段目: 2 / 4 / 6 = 12 */}
+        {/* 1段目: 2 / 4 / 6 */}
         <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">FAX</div>
-          <Input className="h-8 w-full px-2" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
+          <Input className="h-8 w-full px-2 min-w-0" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
         <div className="col-span-12 md:col-span-4 min-w-0">
           <div className="text-[11px] text-muted-foreground">事業所名</div>
-          <Input className="h-8 w-full px-2" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
+          <Input className="h-8 w-full px-2 min-w-0" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
         <div className="col-span-12 md:col-span-6 min-w-0">
           <div className="text-[11px] text-muted-foreground">Email</div>
-          <Input className="h-8 w-full px-2" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
+          <Input className="h-8 w-full px-2 min-w-0" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
 
-        {/* 2段目: 2 / 6 / 4 = 12 */}
+        {/* 2段目: 2 / 6 / 4 */}
         <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">郵便番号</div>
-          <Input className="h-8 w-full px-2" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="例: 486" />
+          <Input className="h-8 w-full px-2 min-w-0" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="例: 486" />
         </div>
         <div className="col-span-12 md:col-span-6 min-w-0">
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
           <div className="w-full min-w-0">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
-              {/* SelectTrigger は className を渡さずに幅はラッパーで管理 */}
               <SelectTrigger>
                 <SelectValue placeholder="すべて" />
               </SelectTrigger>
@@ -191,7 +181,7 @@ export default function FaxPage() {
             </Select>
           </div>
         </div>
-        <div className="col-span-12 md:col-span-4 min-w-0 md:justify-self-end">
+        <div className="col-span-12 md:col-span-4 md:justify-self-end min-w-0">
           <Button
             variant="secondary"
             size="sm"
@@ -202,50 +192,55 @@ export default function FaxPage() {
         </div>
       </div>
 
-      {/* ===== テーブル（横オーバー対策：固定幅 + 各セル min-w-0） ===== */}
+      {/* ===== テーブル（table-fixed + 各セル min-w-0 で横オーバー根絶） ===== */}
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
-              {/* 合計100%  事業所名をさらに短縮 */}
+              {/* 合計100%（事業所名を短く） */}
               <TableHead className="px-1 py-1 w-[14%]">FAX</TableHead>
-              <TableHead className="px-1 py-1 w-[22%]">事業所名</TableHead>
+              <TableHead className="px-1 py-1 w-[20%]">事業所名</TableHead>
               <TableHead className="px-1 py-1 w-[28%]">Email</TableHead>
               <TableHead className="px-1 py-1 w-[12%]">郵便番号</TableHead>
-              <TableHead className="px-1 py-1 w-[14%]">サービス種別</TableHead>
+              <TableHead className="px-1 py-1 w-[16%]">サービス種別</TableHead>
               <TableHead className="px-1 py-1 w-[10%]">操作</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {pageRows.map((entry, index) => (
               <TableRow key={entry.id}>
                 <TableCell className="px-1 py-1 min-w-0">
-                  <Input className="h-8 w-full px-2 truncate" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
+                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
                 </TableCell>
+
                 <TableCell className="px-1 py-1 min-w-0">
                   <Input
-                    className="h-8 w-full px-2 truncate"
+                    className="h-8 w-full px-2 min-w-0 truncate"
                     value={entry.office_name}
                     onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)}
                     title={entry.office_name}
                   />
                 </TableCell>
+
                 <TableCell className="px-1 py-1 min-w-0">
                   <Input
-                    className="h-8 w-full px-2 truncate"
+                    className="h-8 w-full px-2 min-w-0 truncate"
                     value={entry.email}
                     onChange={(e) => handleEditChange(index + start, 'email', e.target.value)}
                     title={entry.email}
                   />
                 </TableCell>
+
                 <TableCell className="px-1 py-1 min-w-0">
                   <Input
-                    className="h-8 w-full px-2 truncate"
+                    className="h-8 w-full px-2 min-w-0 truncate"
                     value={entry.postal_code ?? ''}
                     onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)}
                     placeholder="例: 4860969"
                   />
                 </TableCell>
+
                 <TableCell className="px-1 py-1 min-w-0">
                   <div className="w-full min-w-0">
                     <Select value={entry.service_kind_id ?? ''} onValueChange={(v) => handleEditChange(index + start, 'service_kind_id', v || null)}>
@@ -260,6 +255,7 @@ export default function FaxPage() {
                     </Select>
                   </div>
                 </TableCell>
+
                 <TableCell className="px-1 py-1 min-w-0">
                   <div className="flex gap-1">
                     <Button size="sm" onClick={() => handleSave(entry)}>保存</Button>
@@ -272,16 +268,16 @@ export default function FaxPage() {
             {/* 追加行 */}
             <TableRow>
               <TableCell className="px-1 py-1 min-w-0">
-                <Input className="h-8 w-full px-2" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
+                <Input className="h-8 w-full px-2 min-w-0" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
               </TableCell>
               <TableCell className="px-1 py-1 min-w-0">
-                <Input className="h-8 w-full px-2" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
+                <Input className="h-8 w-full px-2 min-w-0" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
               </TableCell>
               <TableCell className="px-1 py-1 min-w-0">
-                <Input className="h-8 w-full px-2" value={newEntry.email} onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })} placeholder="Email" />
+                <Input className="h-8 w-full px-2 min-w-0" value={newEntry.email} onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })} placeholder="Email" />
               </TableCell>
               <TableCell className="px-1 py-1 min-w-0">
-                <Input className="h-8 w-full px-2" value={newEntry.postal_code ?? ''} onChange={(e) => setNewEntry({ ...newEntry, postal_code: e.target.value })} placeholder="郵便番号" />
+                <Input className="h-8 w-full px-2 min-w-0" value={newEntry.postal_code ?? ''} onChange={(e) => setNewEntry({ ...newEntry, postal_code: e.target.value })} placeholder="郵便番号" />
               </TableCell>
               <TableCell className="px-1 py-1 min-w-0">
                 <div className="w-full min-w-0">
