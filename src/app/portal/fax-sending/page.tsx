@@ -8,48 +8,42 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useUserRole } from "@/context/RoleContext"
 import { supabase } from "@/lib/supabaseClient"
 
-// ===== 型定義 =====
-export type FaxEntry = {
+type FaxEntry = {
   id: string
   fax: string
   office_name: string
   email: string
   postal_code: string | null
+  postal_district?: string | null // APIが返す場合の表示用
   service_kind_id: string | null
-  service_kind_label?: string | null // APIでjoinして返す場合の受け口（任意）
+  service_kind_label?: string | null
 }
 
-export type ServiceKind = { id: string; label: string; sort_order: number }
-
-const toDigits = (v: string) => v.replace(/\D/g, "")
-const toPostal3 = (v?: string | null) => (v ? toDigits(v).slice(0, 3) : "")
+type ServiceKind = { id: string; label: string; sort_order: number }
+type PostalDistrict = { postal_code_3: string; district: string }
 
 export default function FaxSendingPage() {
   const role = useUserRole()
-
-  // データ
   const [faxList, setFaxList] = useState<FaxEntry[]>([])
   const [kinds, setKinds] = useState<ServiceKind[]>([])
-
-  // 選択＆ファイル
+  const [districts, setDistricts] = useState<PostalDistrict[]>([])
   const [selectedFaxes, setSelectedFaxes] = useState<FaxEntry[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
 
-  // ===== フィルター（FAX/Email/郵便3桁/種別/事業所名） =====
+  // ===== フィルター（順番厳守: FAX → 事業所名 → エリア → 種別 → クリア） =====
   const [qFax, setQFax] = useState("")
-  const [qEmail, setQEmail] = useState("")
-  const [qPostal3, setQPostal3] = useState("")
-  const [qKind, setQKind] = useState<string>("")
   const [qOffice, setQOffice] = useState("")
+  const [qDistrict3, setQDistrict3] = useState("") // valueは常に郵便3桁
+  const [qKind, setQKind] = useState<string>("")
 
   useEffect(() => {
     fetchKinds()
+    fetchDistricts()
     fetchFaxList()
   }, [])
 
   const fetchFaxList = async () => {
-    // 期待するレスポンスは FaxEntry[]（service_kind_id, email, postal_code を含む）
     const res = await fetch("/api/fax")
     if (!res.ok) return
     const data = (await res.json()) as FaxEntry[]
@@ -63,35 +57,44 @@ export default function FaxSendingPage() {
     setKinds(data)
   }
 
-  // label補完（APIがlabelを返していない場合のフォールバック）
-  const listWithLabel = useMemo(() => {
-    if (!kinds?.length) return faxList
-    const map = new Map(kinds.map((k) => [k.id, k.label]))
-    return faxList.map((row) => ({
-      ...row,
-      service_kind_label: row.service_kind_label ?? (row.service_kind_id ? map.get(row.service_kind_id) ?? null : null),
-    }))
-  }, [faxList, kinds])
+  const fetchDistricts = async () => {
+    const res = await fetch("/api/postal-districts")
+    if (!res.ok) return
+    const data = (await res.json()) as PostalDistrict[]
+    setDistricts(data)
+  }
 
-  // フィルター適用
+  // 郵便3桁→district名 逆引きマップ
+  const districtMap = useMemo(() => new Map(districts.map(d => [d.postal_code_3, d.district])), [districts])
+
+  // 一覧にdistrict名を付与（APIが返していない場合のフォールバック）
+  const listWithDistrict = useMemo(() => {
+    return faxList.map(row => {
+      const code3 = (row.postal_code ?? '').replace(/\D/g, '').slice(0, 3)
+      const display = row.postal_district ?? (code3 ? districtMap.get(code3) ?? null : null)
+      return { ...row, postal_district: display }
+    })
+  }, [faxList, districtMap])
+
+  // フィルター適用（郵便は3桁完全一致）
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
-    const email = qEmail.trim().toLowerCase()
     const office = qOffice.trim().toLowerCase()
-    const postal3 = toDigits(qPostal3).slice(0, 3)
     const kind = qKind
+    const district3 = qDistrict3
 
-    return listWithLabel.filter((row) => {
+    return listWithDistrict.filter((row) => {
       if (fax && !row.fax.toLowerCase().includes(fax)) return false
-      if (email && !(row.email ?? "").toLowerCase().includes(email)) return false
       if (office && !row.office_name.toLowerCase().includes(office)) return false
-      if (postal3 && toPostal3(row.postal_code) !== postal3) return false
+      if (district3) {
+        const code3 = (row.postal_code ?? '').replace(/\D/g, '').slice(0, 3)
+        if (code3 !== district3) return false
+      }
       if (kind && row.service_kind_id !== kind) return false
       return true
     })
-  }, [listWithLabel, qFax, qEmail, qOffice, qPostal3, qKind])
+  }, [listWithDistrict, qFax, qOffice, qDistrict3, qKind])
 
-  // 選択
   const toggleFax = (entry: FaxEntry) => {
     setSelectedFaxes((prev) => {
       const exists = prev.some((f) => f.id === entry.id)
@@ -124,12 +127,6 @@ export default function FaxSendingPage() {
         const res = await fetch("/api/upload", { method: "POST", body: formData })
         const result = await res.json()
         if (result.url) uploadedUrls.push(result.url)
-        else console.error("アップロード失敗:", result)
-      }
-
-      if (uploadedUrls.length === 0) {
-        alert("アップロードに失敗しました")
-        return
       }
 
       const session = await supabase.auth.getSession()
@@ -155,9 +152,9 @@ export default function FaxSendingPage() {
         status: "approved",
         request_details: {
           file_urls: uploadedUrls,
-          fax_targets: selectedFaxes, // 必要なら送信用に {fax, office_name} へmap
+          fax_targets: selectedFaxes,
           requester_user_id: userData.user_id,
-          filter_snapshot: { qFax, qEmail, qPostal3: toDigits(qPostal3).slice(0, 3), qKind, qOffice },
+          filter_snapshot: { qFax, qOffice, qDistrict3, qKind },
         },
       })
 
@@ -166,9 +163,6 @@ export default function FaxSendingPage() {
       alert("FAX送信リクエストを送信しました")
       setFiles([])
       setSelectedFaxes([])
-    } catch (e) {
-      console.error("送信エラー:", e)
-      alert("送信中にエラーが発生しました")
     } finally {
       setUploading(false)
     }
@@ -182,46 +176,42 @@ export default function FaxSendingPage() {
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
 
-      {/* ===== アップロードUI ===== */}
-      <Input
-        type="file"
-        multiple
-        onChange={handleFileChange}
-        className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md"
-      />
+      {/* ===== アップロードUI & ファイル一覧 ===== */}
+      <Input type="file" multiple onChange={handleFileChange} className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md" />
       <div className="space-y-1">
         {files.map((file, idx) => (
           <div key={idx} className="flex justify-between items-center border px-2 py-1 rounded">
             <span className="text-sm truncate max-w-sm">{file.name}</span>
-            <Button variant="ghost" onClick={() => handleRemoveFile(idx)}>
-              削除
-            </Button>
+            <Button variant="ghost" onClick={() => handleRemoveFile(idx)}>削除</Button>
           </div>
         ))}
       </div>
 
-      {/* ===== フィルター行（FAX/Email/郵便3桁/種別/事業所名） ===== */}
-      <div
-        className="grid items-end gap-2 grid-cols-1 md:grid-cols-6 md:[grid-template-columns:15%_20%_12%_18%_25%_auto]"
-      >
+      {/* ===== フィルター行: FAX / 事業所名 / エリア(Select: district表示, value=3桁) / 種別 / クリア ===== */}
+      <div className="grid items-end gap-2 grid-cols-1 md:grid-cols-5 md:[grid-template-columns:15%_30%_20%_20%_auto]">
         <div>
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
         <div>
-          <div className="text-[11px] text-muted-foreground">Email</div>
-          <Input className="h-8" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="example@..." />
+          <div className="text-[11px] text-muted-foreground">事業所名</div>
+          <Input className="h-8" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
         <div>
-          <div className="text-[11px] text-muted-foreground">郵便(3桁)</div>
-          <Input
-            className="h-8"
-            value={qPostal3}
-            inputMode="numeric"
-            maxLength={3}
-            onChange={(e) => setQPostal3(toDigits(e.target.value).slice(0, 3))}
-            placeholder="486"
-          />
+          <div className="text-[11px] text-muted-foreground">エリア</div>
+          <Select value={qDistrict3} onValueChange={(v) => setQDistrict3(v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="すべて" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">すべて</SelectItem>
+              {districts.map((d) => (
+                <SelectItem key={d.postal_code_3} value={d.postal_code_3}>
+                  {d.district}（{d.postal_code_3}xx）
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
@@ -232,38 +222,30 @@ export default function FaxSendingPage() {
             <SelectContent>
               <SelectItem value="">すべて</SelectItem>
               {kinds.map((k) => (
-                <SelectItem key={k.id} value={k.id}>
-                  {k.label}
-                </SelectItem>
+                <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <div className="text-[11px] text-muted-foreground">事業所名</div>
-          <Input className="h-8" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
-        </div>
         <div className="md:justify-self-end">
-          <Button size="sm" variant="secondary" onClick={() => { setQFax(""); setQEmail(""); setQPostal3(""); setQKind(""); setQOffice("") }}>クリア</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setQFax(""); setQOffice(""); setQDistrict3(""); setQKind("") }}>クリア</Button>
         </div>
       </div>
 
-      {/* ===== FAX送信先一覧 ===== */}
+      {/* ===== 一覧（district表示、emailはツールチップ） ===== */}
       <div className="border rounded overflow-y-auto" style={{ maxHeight: 360 }}>
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "30%" }} />
             <col style={{ width: "20%" }} />
-            <col style={{ width: "15%" }} />
+            <col style={{ width: "40%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "20%" }} />
           </colgroup>
           <TableHeader>
             <TableRow>
               <TableHead>FAX</TableHead>
               <TableHead>事業所名</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>郵便</TableHead>
+              <TableHead>郵便（エリア）</TableHead>
               <TableHead>サービス種別</TableHead>
             </TableRow>
           </TableHeader>
@@ -274,18 +256,13 @@ export default function FaxSendingPage() {
                 <TableRow
                   key={entry.id}
                   onClick={() => toggleFax(entry)}
-                  className={`cursor-pointer ${selected ? "bg-blue-100" : ""}`}
-                  title={`${entry.office_name} (${entry.fax})`}
+                  className={`cursor-pointer ${selected ? 'bg-blue-100' : ''}`}
+                  title={`${entry.office_name} / ${entry.email ?? ''}`}
                 >
                   <TableCell className="truncate">{entry.fax}</TableCell>
-                  <TableCell className="truncate" title={entry.office_name}>
-                    {entry.office_name}
-                  </TableCell>
-                  <TableCell className="truncate" title={entry.email}>
-                    {entry.email}
-                  </TableCell>
-                  <TableCell className="truncate">{entry.postal_code ?? ""}</TableCell>
-                  <TableCell className="truncate">{entry.service_kind_label ?? ""}</TableCell>
+                  <TableCell className="truncate">{entry.office_name}</TableCell>
+                  <TableCell className="truncate">{entry.postal_district ?? ''}</TableCell>
+                  <TableCell className="truncate">{entry.service_kind_label ?? ''}</TableCell>
                 </TableRow>
               )
             })}
@@ -297,9 +274,7 @@ export default function FaxSendingPage() {
         <Button onClick={handleUploadAndSend} disabled={uploading || files.length === 0 || selectedFaxes.length === 0}>
           {uploading ? "送信中..." : "FAX送信リクエストを送る"}
         </Button>
-        <div className="text-xs text-muted-foreground">
-          送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件
-        </div>
+        <div className="text-xs text-muted-foreground">送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件</div>
       </div>
     </div>
   )
