@@ -138,13 +138,12 @@ export default function FaxPage() {
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
       {/* ===== 検索行（md以上は1行：テーブルと同じ％配分） ===== */}
-      <div
+      + <div
         className="
-          grid gap-2 items-end
-          grid-cols-1
-          md:grid-cols-6
-          md:[grid-template-columns:15%_30%_15%_15%_15%_10%]
-        "
+     grid items-end gap-y-2 md:gap-y-2 md:gap-x-2
+     grid-cols-1 md:grid-cols-6
+     md:[grid-template-columns:15%_30%_20%_10%_10%_auto]
+   "
       >
         <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">FAX</div>
@@ -183,14 +182,8 @@ export default function FaxPage() {
           </div>
         </div>
 
-        <div className="min-w-0 md:justify-self-end">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => { setQFax(''); setQOffice(''); setQEmail(''); setQPostal(''); setQKind(''); }}
-          >
-            クリア
-          </Button>
+        <div className="min-w-0 md:justify-self-end md:pr-2 max-w-max">
+          <Button size="sm" variant="secondary">クリア</Button>
         </div>
       </div>
 
