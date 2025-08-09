@@ -141,33 +141,31 @@ export default function FaxPage() {
   }
 
   return (
-    <div className="p-2 md:p-6 space-y-3 md:space-y-4 text-sm">
+    <div className="p-2 md:p-6 space-y-3 md:space-y-4 text-sm max-w-screen-lg mx-auto">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
-      {/* ===== 検索行：flex→grid化で隙間と改行を制御 ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-12 gap-2 items-end">
-        {/* FAX */}
-        <div className="col-span-1 md:col-span-2">
+      {/* ===== 検索行（2行固定） ===== */}
+      <div className="grid grid-cols-12 gap-2 items-end">
+        {/* 1行目: FAX(2) 事業所名(6→要望で2/3に縮小) Email(4) */}
+        <div className="col-span-12 md:col-span-2">
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8 w-full px-2" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
-        {/* 事業所名（広め） */}
-        <div className="col-span-1 sm:col-span-2 md:col-span-5">
+        <div className="col-span-12 md:col-span-4">
           <div className="text-[11px] text-muted-foreground">事業所名</div>
           <Input className="h-8 w-full px-2" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
-        {/* Email */}
-        <div className="col-span-1 md:col-span-3">
+        <div className="col-span-12 md:col-span-6">
           <div className="text-[11px] text-muted-foreground">Email</div>
           <Input className="h-8 w-full px-2" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
-        {/* 郵便番号 */}
-        <div className="col-span-1 md:col-span-1">
+
+        {/* 2行目: 郵便番号(2) 種別(6) クリア(4 右寄せ) */}
+        <div className="col-span-12 md:col-span-2">
           <div className="text-[11px] text-muted-foreground">郵便番号</div>
           <Input className="h-8 w-full px-2" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="例: 486" />
         </div>
-        {/* サービス種別（改行されないよう幅確保） */}
-        <div className="col-span-1 md:col-span-1">
+        <div className="col-span-12 md:col-span-6">
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
           <div className="w-full">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
@@ -183,23 +181,23 @@ export default function FaxPage() {
             </Select>
           </div>
         </div>
-        {/* クリア（右端固定） */}
-        <div className="col-span-2 sm:col-span-1 md:col-span-0 md:col-start-12 justify-self-end">
+        <div className="col-span-12 md:col-span-4 md:justify-self-end">
           <Button variant="secondary" size="sm" onClick={() => { setQFax(''); setQOffice(''); setQEmail(''); setQPostal(''); setQKind(''); }}>クリア</Button>
         </div>
       </div>
 
-      {/* ===== テーブル（横スクロール抑制のためtable-fixed & パーセント幅） ===== */}
+      {/* ===== テーブル（横幅を%で厳密配分 & table-fixed） ===== */}
       <div className="overflow-x-auto">
         <Table className="table-fixed w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="px-1 py-1 whitespace-nowrap w-[10%]">FAX</TableHead>
-              <TableHead className="px-1 py-1 whitespace-nowrap w-[45%]">事業所名</TableHead>
+              {/* 合計100% */}
+              <TableHead className="px-1 py-1 whitespace-nowrap w-[12%]">FAX</TableHead>
+              <TableHead className="px-1 py-1 whitespace-nowrap w-[38%]">事業所名</TableHead>
               <TableHead className="px-1 py-1 whitespace-nowrap w-[20%]">Email</TableHead>
               <TableHead className="px-1 py-1 whitespace-nowrap w-[10%]">郵便番号</TableHead>
-              <TableHead className="px-1 py-1 whitespace-nowrap w-[10%]">サービス種別</TableHead>
-              <TableHead className="px-1 py-1 whitespace-nowrap w-[5%]">操作</TableHead>
+              <TableHead className="px-1 py-1 whitespace-nowrap w-[12%]">サービス種別</TableHead>
+              <TableHead className="px-1 py-1 whitespace-nowrap w-[8%]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
