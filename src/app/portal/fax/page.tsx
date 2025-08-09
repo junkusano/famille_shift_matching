@@ -112,8 +112,8 @@ export default function FaxPage() {
         <TableHeader>
           <TableRow>
             <TableHead className="w-28">FAX</TableHead>
-            <TableHead className="w-64">事業所名</TableHead>
-            <TableHead className="w-40">Email</TableHead>
+            <TableHead className="w-90">事業所名</TableHead>
+            <TableHead className="w-28">Email</TableHead>
             <TableHead className="w-24">郵便番号</TableHead>
             <TableHead>サービス種別</TableHead>
             <TableHead>操作</TableHead>
@@ -126,10 +126,10 @@ export default function FaxPage() {
                 <Input className="h-8 w-28" value={entry.fax} onChange={(e) => handleEditChange(index, 'fax', e.target.value)} />
               </TableCell>
               <TableCell>
-                <Input className="h-8 w-64" value={entry.office_name} onChange={(e) => handleEditChange(index, 'office_name', e.target.value)} />
+                <Input className="h-8 w-90" value={entry.office_name} onChange={(e) => handleEditChange(index, 'office_name', e.target.value)} />
               </TableCell>
               <TableCell>
-                <Input className="h-8 w-40" value={entry.email} onChange={(e) => handleEditChange(index, 'email', e.target.value)} />
+                <Input className="h-8 w-28" value={entry.email} onChange={(e) => handleEditChange(index, 'email', e.target.value)} />
               </TableCell>
               <TableCell>
                 <Input className="h-8 w-24" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index, 'postal_code', e.target.value)} placeholder="例: 4860969" />
@@ -161,10 +161,10 @@ export default function FaxPage() {
               <Input className="h-8 w-28" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
             </TableCell>
             <TableCell>
-              <Input className="h-8 w-64" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
+              <Input className="h-8 w-90" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
             </TableCell>
             <TableCell>
-              <Input className="h-8 w-40" value={newEntry.email} onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })} placeholder="Email" />
+              <Input className="h-8 w-28" value={newEntry.email} onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })} placeholder="Email" />
             </TableCell>
             <TableCell>
               <Input className="h-8 w-24" value={newEntry.postal_code ?? ''} onChange={(e) => setNewEntry({ ...newEntry, postal_code: e.target.value })} placeholder="郵便番号" />
