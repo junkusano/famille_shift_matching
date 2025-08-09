@@ -142,7 +142,7 @@ export default function FaxPage() {
         className="
      grid items-end gap-y-2 md:gap-y-2 md:gap-x-2
      grid-cols-1 md:grid-cols-6
-     md:[grid-template-columns:15%_30%_20%_10%_10%_auto]
+     md:[grid-template-columns:15%_30%_15%_10%_15%_auto]
    "
       >
         <div className="min-w-0">
