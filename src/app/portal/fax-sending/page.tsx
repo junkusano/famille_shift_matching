@@ -194,16 +194,16 @@ export default function FaxPage() {
 
       {/* ===== テーブル（table-fixed + 各セル min-w-0 で横オーバー根絶） ===== */}
       <div className="overflow-x-auto">
-        <Table className="w-full table-fixed">
+        <Table>
           <TableHeader>
             <TableRow>
               {/* 合計100%（事業所名を短く） */}
               <TableHead className="px-1 py-1 w-[14%]">FAX</TableHead>
               <TableHead className="px-1 py-1 w-[20%]">事業所名</TableHead>
-              <TableHead className="px-1 py-1 w-[28%]">Email</TableHead>
+              <TableHead className="px-1 py-1 w-[5%]">Email</TableHead>
               <TableHead className="px-1 py-1 w-[12%]">郵便番号</TableHead>
               <TableHead className="px-1 py-1 w-[16%]">サービス種別</TableHead>
-              <TableHead className="px-1 py-1 w-[10%]">操作</TableHead>
+              <TableHead className="px-1 py-1 w-[5%]">操作</TableHead>
             </TableRow>
           </TableHeader>
 
