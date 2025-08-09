@@ -4,10 +4,13 @@ import React, { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { useUserRole } from "@/context/RoleContext"
 import { supabase } from "@/lib/supabaseClient"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
+// ===== 型定義 =====
 type FaxEntry = {
   id: string
   fax: string
@@ -22,6 +25,68 @@ type FaxEntry = {
 type ServiceKind = { id: string; label: string; sort_order: number }
 type PostalDistrict = { postal_code_3: string; district: string }
 
+type Option = { value: string; label: string }
+
+// ===== 汎用マルチセレクト（Popover + Checkbox） =====
+function MultiSelect({
+  placeholder,
+  options,
+  selected,
+  onChange,
+  emptyText = "データなし",
+}: {
+  placeholder: string
+  options: Option[]
+  selected: string[]
+  onChange: (values: string[]) => void
+  emptyText?: string
+}) {
+  const display = selected.length === 0
+    ? placeholder
+    : `${placeholder}（${selected.length}）`
+
+  const toggle = (val: string) => {
+    if (selected.includes(val)) onChange(selected.filter(v => v !== val))
+    else onChange([...selected, val])
+  }
+
+  const allValues = options.map(o => o.value)
+  const isAll = selected.length > 0 && selected.length === allValues.length
+
+  const selectAll = () => onChange(allValues)
+  const clearAll = () => onChange([])
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-8 w-full justify-between">
+          <span className="truncate text-left">{display}</span>
+          <span className="ml-2">▾</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-2" align="start">
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <Button size="sm" variant="secondary" onClick={selectAll} disabled={options.length === 0}>全選択</Button>
+          <Button size="sm" variant="ghost" onClick={clearAll}>クリア</Button>
+        </div>
+        <ScrollArea className="h-56">
+          {options.length === 0 && (
+            <div className="text-xs text-muted-foreground px-1 py-2">{emptyText}</div>
+          )}
+          <div className="space-y-1">
+            {options.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted cursor-pointer">
+                <Checkbox checked={selected.includes(opt.value)} onCheckedChange={() => toggle(opt.value)} />
+                <span className="text-sm truncate" title={opt.label}>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function FaxSendingPage() {
   const role = useUserRole()
   const [faxList, setFaxList] = useState<FaxEntry[]>([])
@@ -31,11 +96,11 @@ export default function FaxSendingPage() {
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
 
-  // ===== フィルター（順番厳守: FAX → 事業所名 → エリア → 種別 → クリア） =====
+  // ===== フィルター（順番厳守: FAX → 事業所名 → エリア(複数) → 種別(複数) → クリア） =====
   const [qFax, setQFax] = useState("")
   const [qOffice, setQOffice] = useState("")
-  const [qDistrict3, setQDistrict3] = useState("") // valueは常に郵便3桁
-  const [qKind, setQKind] = useState<string>("")
+  const [qDistrict3, setQDistrict3] = useState<string[]>([]) // 複数（valueは郵便3桁）
+  const [qKind, setQKind] = useState<string[]>([]) // 複数（valueはservice_kind_id）
 
   useEffect(() => {
     fetchKinds()
@@ -66,35 +131,40 @@ export default function FaxSendingPage() {
 
   // 郵便3桁→district名 逆引きマップ
   const districtMap = useMemo(() => new Map(districts.map(d => [d.postal_code_3, d.district])), [districts])
+  // 種別id→label マップ
+  const kindMap = useMemo(() => new Map(kinds.map(k => [k.id, k.label])), [kinds])
 
-  // 一覧にdistrict名を付与（APIが返していない場合のフォールバック）
-  const listWithDistrict = useMemo(() => {
+  // 一覧に district名 & 種別ラベルを補完
+  const listWithLabels = useMemo(() => {
     return faxList.map(row => {
       const code3 = (row.postal_code ?? '').replace(/\D/g, '').slice(0, 3)
-      const display = row.postal_district ?? (code3 ? districtMap.get(code3) ?? null : null)
-      return { ...row, postal_district: display }
+      const districtDisplay = row.postal_district ?? (code3 ? districtMap.get(code3) ?? null : null)
+      const kindDisplay = row.service_kind_label ?? (row.service_kind_id ? kindMap.get(row.service_kind_id) ?? null : null)
+      return { ...row, postal_district: districtDisplay, service_kind_label: kindDisplay }
     })
-  }, [faxList, districtMap])
+  }, [faxList, districtMap, kindMap])
 
   // フィルター適用（郵便は3桁完全一致）
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
     const office = qOffice.trim().toLowerCase()
-    const kind = qKind
-    const district3 = qDistrict3
 
-    return listWithDistrict.filter((row) => {
+    return listWithLabels.filter((row) => {
       if (fax && !row.fax.toLowerCase().includes(fax)) return false
       if (office && !row.office_name.toLowerCase().includes(office)) return false
-      if (district3) {
+
+      if (qDistrict3.length) {
         const code3 = (row.postal_code ?? '').replace(/\D/g, '').slice(0, 3)
-        if (code3 !== district3) return false
+        if (!qDistrict3.includes(code3)) return false
       }
-      if (kind && row.service_kind_id !== kind) return false
+      if (qKind.length) {
+        if (!row.service_kind_id || !qKind.includes(row.service_kind_id)) return false
+      }
       return true
     })
-  }, [listWithDistrict, qFax, qOffice, qDistrict3, qKind])
+  }, [listWithLabels, qFax, qOffice, qDistrict3, qKind])
 
+  // ===== 選択系 =====
   const toggleFax = (entry: FaxEntry) => {
     setSelectedFaxes((prev) => {
       const exists = prev.some((f) => f.id === entry.id)
@@ -102,15 +172,26 @@ export default function FaxSendingPage() {
     })
   }
 
+  const selectAllFiltered = () => {
+    setSelectedFaxes((prev) => {
+      const byId = new Map(prev.map(p => [p.id, p]))
+      filtered.forEach(item => byId.set(item.id, item))
+      return Array.from(byId.values())
+    })
+  }
+
+  const clearSelected = () => setSelectedFaxes([])
+
+  // ===== ファイル系 =====
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
     setFiles((prev) => [...prev, ...Array.from(e.target.files)])
   }
-
   const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
+  // ===== 送信 =====
   const handleUploadAndSend = async () => {
     if (files.length === 0 || selectedFaxes.length === 0) {
       alert("ファイルとFAX送信先を選んでください")
@@ -172,6 +253,17 @@ export default function FaxSendingPage() {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>
   }
 
+  // ===== オプション配列 =====
+  const districtOptions: Option[] = useMemo(() => districts.map(d => ({
+    value: d.postal_code_3,
+    label: `${d.district}（${d.postal_code_3}xx）`,
+  })), [districts])
+
+  const kindOptions: Option[] = useMemo(() => kinds.map(k => ({
+    value: k.id,
+    label: k.label,
+  })), [kinds])
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
@@ -187,8 +279,8 @@ export default function FaxSendingPage() {
         ))}
       </div>
 
-      {/* ===== フィルター行: FAX / 事業所名 / エリア(Select: district表示, value=3桁) / 種別 / クリア ===== */}
-      <div className="grid items-end gap-2 grid-cols-1 md:grid-cols-5 md:[grid-template-columns:15%_30%_20%_20%_auto]">
+      {/* ===== フィルター行: FAX / 事業所名 / エリア(複数) / 種別(複数) / クリア ===== */}
+      <div className="grid items-end gap-2 grid-cols-1 md:grid-cols-6 md:[grid-template-columns:15%_25%_18%_18%_auto_auto]">
         <div>
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
@@ -198,37 +290,30 @@ export default function FaxSendingPage() {
           <Input className="h-8" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
         <div>
-          <div className="text-[11px] text-muted-foreground">エリア</div>
-          <Select value={qDistrict3} onValueChange={(v) => setQDistrict3(v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="すべて" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">すべて</SelectItem>
-              {districts.map((d) => (
-                <SelectItem key={d.postal_code_3} value={d.postal_code_3}>
-                  {d.district}（{d.postal_code_3}xx）
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="text-[11px] text-muted-foreground">エリア（複数選択）</div>
+          <MultiSelect
+            placeholder="すべて"
+            options={districtOptions}
+            selected={qDistrict3}
+            onChange={setQDistrict3}
+            emptyText="エリアデータがありません"
+          />
         </div>
         <div>
-          <div className="text-[11px] text-muted-foreground">サービス種別</div>
-          <Select value={qKind} onValueChange={(v) => setQKind(v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="すべて" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">すべて</SelectItem>
-              {kinds.map((k) => (
-                <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="text-[11px] text-muted-foreground">サービス種別（複数選択）</div>
+          <MultiSelect
+            placeholder="すべて"
+            options={kindOptions}
+            selected={qKind}
+            onChange={setQKind}
+            emptyText="種別がありません"
+          />
         </div>
         <div className="md:justify-self-end">
-          <Button size="sm" variant="secondary" onClick={() => { setQFax(""); setQOffice(""); setQDistrict3(""); setQKind("") }}>クリア</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setQFax(""); setQOffice(""); setQDistrict3([]); setQKind([]) }}>クリア</Button>
+        </div>
+        <div className="md:justify-self-end">
+          <Button size="sm" variant="outline" onClick={selectAllFiltered} disabled={filtered.length === 0}>全選択（絞り込み）</Button>
         </div>
       </div>
 
@@ -275,6 +360,9 @@ export default function FaxSendingPage() {
           {uploading ? "送信中..." : "FAX送信リクエストを送る"}
         </Button>
         <div className="text-xs text-muted-foreground">送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件</div>
+        {selectedFaxes.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={clearSelected}>選択解除</Button>
+        )}
       </div>
     </div>
   )
