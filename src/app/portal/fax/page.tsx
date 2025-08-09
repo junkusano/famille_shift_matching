@@ -31,14 +31,12 @@ export default function FaxPage() {
     service_kind_id: null,
   })
 
-  // 検索フィルタ
   const [qFax, setQFax] = useState('')
   const [qOffice, setQOffice] = useState('')
   const [qEmail, setQEmail] = useState('')
   const [qPostal, setQPostal] = useState('')
   const [qKind, setQKind] = useState<string>('')
 
-  // ページング
   const [page, setPage] = useState(1)
 
   const fetchFaxList = async () => {
@@ -60,7 +58,6 @@ export default function FaxPage() {
     fetchFaxList()
   }, [])
 
-  // フィルタ済み
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
     const off = qOffice.trim().toLowerCase()
@@ -77,13 +74,11 @@ export default function FaxPage() {
     })
   }, [faxList, qFax, qOffice, qEmail, qPostal, qKind])
 
-  // ページング計算
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageClamped = Math.min(page, totalPages)
   const start = (pageClamped - 1) * PAGE_SIZE
   const pageRows = filtered.slice(start, start + PAGE_SIZE)
 
-  // フィルタ変更時は1ページ目へ
   useEffect(() => {
     setPage(1)
   }, [qFax, qOffice, qEmail, qPostal, qKind])
@@ -142,30 +137,36 @@ export default function FaxPage() {
     <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
-      {/* ===== 検索行（デスクトップは1行） ===== */}
-      <div className="grid grid-cols-12 md:grid-cols-12 gap-2 items-end">
-        {/* 2 / 3 / 3 / 1 / 2 / 1 = 12 */}
-        <div className="col-span-12 md:col-span-2 min-w-0">
+      {/* ===== 検索行（md以上は1行：テーブルと同じ％配分） ===== */}
+      <div
+        className="
+          grid gap-2 items-end
+          grid-cols-1
+          md:grid-cols-6
+          md:[grid-template-columns:15%_30%_15%_15%_15%_10%]
+        "
+      >
+        <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
 
-        <div className="col-span-12 md:col-span-3 min-w-0">
+        <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">事業所名</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
 
-        <div className="col-span-12 md:col-span-2 min-w-0">
+        <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">Email</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
 
-        <div className="col-span-12 md:col-span-1 min-w-0">
+        <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">郵便</div>
           <Input className="h-8 w-full px-2 min-w-0" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="486" />
         </div>
 
-        <div className="col-span-12 md:col-span-2 min-w-0">
+        <div className="min-w-0">
           <div className="text-[11px] text-muted-foreground">種別</div>
           <div className="w-full min-w-0">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
@@ -182,7 +183,7 @@ export default function FaxPage() {
           </div>
         </div>
 
-        <div className="col-span-12 md:col-span-1 min-w-0 md:justify-self-end">
+        <div className="min-w-0 md:justify-self-end">
           <Button
             variant="secondary"
             size="sm"
@@ -193,16 +194,16 @@ export default function FaxPage() {
         </div>
       </div>
 
-      {/* ===== テーブル（colgroupで固定px配分／Emailに振らない） ===== */}
+      {/* ===== テーブル（％配分に統一） ===== */}
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '15%' }} />  {/* FAX */}
-            <col style={{ width: '30%' }} />  {/* 事業所名（短め） */}
-            <col style={{ width: '15%' }} />  {/* Email（伸ばしすぎない） */}
-            <col style={{ width: '15%' }} />  {/* 郵便番号 */}
-            <col style={{ width: '15%' }} />  {/* 種別 */}
-            <col style={{ width: '10%' }} />  {/* 操作 */}
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '10%' }} />
           </colgroup>
 
           <TableHeader>
@@ -222,34 +223,15 @@ export default function FaxPage() {
                 <TableCell className="px-1 py-1 min-w-0">
                   <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
                 </TableCell>
-
                 <TableCell className="px-1 py-1 min-w-0">
-                  <Input
-                    className="h-8 w-full px-2 min-w-0 truncate"
-                    value={entry.office_name}
-                    onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)}
-                    title={entry.office_name}
-                  />
+                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.office_name} onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)} title={entry.office_name} />
                 </TableCell>
-
                 <TableCell className="px-1 py-1 min-w-0">
-                  <Input
-                    className="h-8 w-full px-2 min-w-0 truncate"
-                    value={entry.email}
-                    onChange={(e) => handleEditChange(index + start, 'email', e.target.value)}
-                    title={entry.email}
-                  />
+                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.email} onChange={(e) => handleEditChange(index + start, 'email', e.target.value)} title={entry.email} />
                 </TableCell>
-
                 <TableCell className="px-1 py-1 min-w-0">
-                  <Input
-                    className="h-8 w-full px-2 min-w-0 truncate"
-                    value={entry.postal_code ?? ''}
-                    onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)}
-                    placeholder="例: 4860969"
-                  />
+                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)} placeholder="例: 4860969" />
                 </TableCell>
-
                 <TableCell className="px-1 py-1 min-w-0">
                   <div className="w-full min-w-0">
                     <Select value={entry.service_kind_id ?? ''} onValueChange={(v) => handleEditChange(index + start, 'service_kind_id', v || null)}>
@@ -264,7 +246,6 @@ export default function FaxPage() {
                     </Select>
                   </div>
                 </TableCell>
-
                 <TableCell className="px-1 py-1 min-w-0">
                   <div className="flex gap-1">
                     <Button size="sm" onClick={() => handleSave(entry)}>保存</Button>
