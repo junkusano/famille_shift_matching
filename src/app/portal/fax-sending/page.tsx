@@ -23,7 +23,6 @@ export default function FaxPage() {
   const [faxList, setFaxList] = useState<FaxEntry[]>([])
   const [kinds, setKinds] = useState<ServiceKind[]>([])
 
-  // 新規行
   const [newEntry, setNewEntry] = useState<Omit<FaxEntry, 'id'>>({
     fax: '',
     office_name: '',
@@ -32,14 +31,12 @@ export default function FaxPage() {
     service_kind_id: null,
   })
 
-  // 検索フィルタ
   const [qFax, setQFax] = useState('')
   const [qOffice, setQOffice] = useState('')
   const [qEmail, setQEmail] = useState('')
   const [qPostal, setQPostal] = useState('')
   const [qKind, setQKind] = useState<string>('')
 
-  // ページング
   const [page, setPage] = useState(1)
 
   const fetchFaxList = async () => {
@@ -61,7 +58,6 @@ export default function FaxPage() {
     fetchFaxList()
   }, [])
 
-  // フィルタ済みデータ
   const filtered = useMemo(() => {
     const fax = qFax.trim().toLowerCase()
     const off = qOffice.trim().toLowerCase()
@@ -79,13 +75,11 @@ export default function FaxPage() {
     })
   }, [faxList, qFax, qOffice, qEmail, qPostal, qKind])
 
-  // ページング計算
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageClamped = Math.min(page, totalPages)
   const start = (pageClamped - 1) * PAGE_SIZE
   const pageRows = filtered.slice(start, start + PAGE_SIZE)
 
-  // フィルタ変更時は1ページ目へ
   useEffect(() => {
     setPage(1)
   }, [qFax, qOffice, qEmail, qPostal, qKind])
@@ -144,32 +138,32 @@ export default function FaxPage() {
     <div className="p-2 md:p-6 space-y-3 md:space-y-4 text-sm max-w-screen-lg mx-auto">
       <h2 className="text-base md:text-lg font-bold">FAX一覧</h2>
 
-      {/* ===== 検索行（2行固定） ===== */}
-      <div className="grid grid-cols-12 gap-2 items-end">
-        {/* 1行目: FAX(2) 事業所名(6→要望で2/3に縮小) Email(4) */}
-        <div className="col-span-12 md:col-span-2">
+      {/* ===== 検索行（内在幅抑制：min-w-0） ===== */}
+      <div className="grid grid-cols-12 gap-2 items-end *:min-w-0">
+        {/* 1行目: FAX(2) 事業所名(4=6の2/3) Email(6→残り) */}
+        <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">FAX</div>
           <Input className="h-8 w-full px-2" value={qFax} onChange={(e) => setQFax(e.target.value)} placeholder="部分検索" />
         </div>
-        <div className="col-span-12 md:col-span-4">
+        <div className="col-span-12 md:col-span-4 min-w-0">
           <div className="text-[11px] text-muted-foreground">事業所名</div>
           <Input className="h-8 w-full px-2" value={qOffice} onChange={(e) => setQOffice(e.target.value)} placeholder="部分検索" />
         </div>
-        <div className="col-span-12 md:col-span-6">
+        <div className="col-span-12 md:col-span-6 min-w-0">
           <div className="text-[11px] text-muted-foreground">Email</div>
           <Input className="h-8 w-full px-2" value={qEmail} onChange={(e) => setQEmail(e.target.value)} placeholder="部分検索" />
         </div>
 
-        {/* 2行目: 郵便番号(2) 種別(6) クリア(4 右寄せ) */}
-        <div className="col-span-12 md:col-span-2">
+        {/* 2行目: 郵便番号(2) 種別(6) クリア(4) */}
+        <div className="col-span-12 md:col-span-2 min-w-0">
           <div className="text-[11px] text-muted-foreground">郵便番号</div>
           <Input className="h-8 w-full px-2" value={qPostal} onChange={(e) => setQPostal(e.target.value)} placeholder="例: 486" />
         </div>
-        <div className="col-span-12 md:col-span-6">
+        <div className="col-span-12 md:col-span-6 min-w-0">
           <div className="text-[11px] text-muted-foreground">サービス種別</div>
           <div className="w-full">
             <Select value={qKind} onValueChange={(v) => setQKind(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="すべて" />
               </SelectTrigger>
               <SelectContent>
@@ -181,14 +175,20 @@ export default function FaxPage() {
             </Select>
           </div>
         </div>
-        <div className="col-span-12 md:col-span-4 md:justify-self-end">
-          <Button variant="secondary" size="sm" onClick={() => { setQFax(''); setQOffice(''); setQEmail(''); setQPostal(''); setQKind(''); }}>クリア</Button>
+        <div className="col-span-12 md:col-span-4 md:justify-self-end min-w-0">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { setQFax(''); setQOffice(''); setQEmail(''); setQPostal(''); setQKind(''); }}
+          >
+            クリア
+          </Button>
         </div>
       </div>
 
-      {/* ===== テーブル（横幅を%で厳密配分 & table-fixed） ===== */}
+      {/* ===== テーブル（横スクロール抑制：wrap/truncate・固定はmd以上） ===== */}
       <div className="overflow-x-auto">
-        <Table className="table-fixed w-full">
+        <Table className="w-full md:table-fixed">
           <TableHeader>
             <TableRow>
               {/* 合計100% */}
@@ -202,23 +202,38 @@ export default function FaxPage() {
           </TableHeader>
           <TableBody>
             {pageRows.map((entry, index) => (
-              <TableRow key={entry.id}>
-                <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <Input className="h-8 w-full px-2" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
+              <TableRow key={entry.id} className="*:align-top">
+                <TableCell className="px-1 py-1">
+                  <Input className="h-8 w-full px-2 truncate" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
+                </TableCell>
+                <TableCell className="px-1 py-1 whitespace-normal">
+                  <Input
+                    className="h-8 w-full px-2 truncate"
+                    value={entry.office_name}
+                    onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)}
+                    title={entry.office_name}
+                  />
+                </TableCell>
+                <TableCell className="px-1 py-1 whitespace-normal">
+                  <Input
+                    className="h-8 w-full px-2 truncate"
+                    value={entry.email}
+                    onChange={(e) => handleEditChange(index + start, 'email', e.target.value)}
+                    title={entry.email}
+                  />
                 </TableCell>
                 <TableCell className="px-1 py-1">
-                  <Input className="h-8 w-full px-2" value={entry.office_name} onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)} />
+                  <Input
+                    className="h-8 w-full px-2 truncate"
+                    value={entry.postal_code ?? ''}
+                    onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)}
+                    placeholder="例: 4860969"
+                  />
                 </TableCell>
-                <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <Input className="h-8 w-full px-2" value={entry.email} onChange={(e) => handleEditChange(index + start, 'email', e.target.value)} />
-                </TableCell>
-                <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <Input className="h-8 w-full px-2" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)} placeholder="例: 4860969" />
-                </TableCell>
-                <TableCell className="px-1 py-1 whitespace-nowrap">
+                <TableCell className="px-1 py-1">
                   <div className="w-full">
                     <Select value={entry.service_kind_id ?? ''} onValueChange={(v) => handleEditChange(index + start, 'service_kind_id', v || null)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="選択" />
                       </SelectTrigger>
                       <SelectContent>
@@ -229,8 +244,8 @@ export default function FaxPage() {
                     </Select>
                   </div>
                 </TableCell>
-                <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <div className="space-x-1">
+                <TableCell className="px-1 py-1">
+                  <div className="flex gap-1">
                     <Button size="sm" onClick={() => handleSave(entry)}>保存</Button>
                     <Button size="sm" variant="destructive" onClick={() => handleDelete(entry.id)}>×</Button>
                   </div>
@@ -240,22 +255,22 @@ export default function FaxPage() {
 
             {/* 追加行 */}
             <TableRow>
-              <TableCell className="px-1 py-1 whitespace-nowrap">
+              <TableCell className="px-1 py-1">
                 <Input className="h-8 w-full px-2" value={newEntry.fax} onChange={(e) => setNewEntry({ ...newEntry, fax: e.target.value })} placeholder="新規FAX" />
               </TableCell>
               <TableCell className="px-1 py-1">
                 <Input className="h-8 w-full px-2" value={newEntry.office_name} onChange={(e) => setNewEntry({ ...newEntry, office_name: e.target.value })} placeholder="事業所名" />
               </TableCell>
-              <TableCell className="px-1 py-1 whitespace-nowrap">
+              <TableCell className="px-1 py-1">
                 <Input className="h-8 w-full px-2" value={newEntry.email} onChange={(e) => setNewEntry({ ...newEntry, email: e.target.value })} placeholder="Email" />
               </TableCell>
-              <TableCell className="px-1 py-1 whitespace-nowrap">
+              <TableCell className="px-1 py-1">
                 <Input className="h-8 w-full px-2" value={newEntry.postal_code ?? ''} onChange={(e) => setNewEntry({ ...newEntry, postal_code: e.target.value })} placeholder="郵便番号" />
               </TableCell>
-              <TableCell className="px-1 py-1 whitespace-nowrap">
+              <TableCell className="px-1 py-1">
                 <div className="w-full">
                   <Select value={newEntry.service_kind_id ?? ''} onValueChange={(v) => setNewEntry({ ...newEntry, service_kind_id: v || null })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
                     <SelectContent>
@@ -266,7 +281,7 @@ export default function FaxPage() {
                   </Select>
                 </div>
               </TableCell>
-              <TableCell className="px-1 py-1 whitespace-nowrap">
+              <TableCell className="px-1 py-1">
                 <Button size="sm" onClick={handleAdd}>追加</Button>
               </TableCell>
             </TableRow>
@@ -277,7 +292,7 @@ export default function FaxPage() {
       {/* ===== ページネーション ===== */}
       <div className="flex items-center justify-between pt-2">
         <div className="text-xs text-muted-foreground">
-          {filtered.length} 件中 {start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} を表示
+          {filtered.length} 件中 {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + PAGE_SIZE, filtered.length)} を表示
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" disabled={pageClamped <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>前へ</Button>
