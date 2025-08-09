@@ -102,6 +102,7 @@ export default function FaxPage() {
   }
 
   return (
+
     <div className="p-6 space-y-4">
       <h2 className="text-lg font-bold">FAX一覧</h2>
       <Table>
@@ -185,6 +186,32 @@ export default function FaxPage() {
           </TableRow>
         </TableBody>
       </Table>
+      <style jsx global>{`
+        /* ====== FaxPage compact styles (mobile-first) ====== */
+        .fax-compact table th,
+        .fax-compact table td {
+          padding-top: 0.25rem;   /* py-1 */
+          padding-bottom: 0.25rem;
+          padding-left: 0.25rem;  /* px-1 */
+          padding-right: 0.25rem;
+        }
+        .fax-compact table { font-size: 0.875rem; } /* text-sm */
+        .fax-compact input { height: 2rem; } /* h-8 相当の保険 */
+
+        /* shadcnのSelectTriggerがclassName不可 → role=comboboxをターゲット */
+        .fax-compact [role='combobox'] {
+          min-height: 2rem; /* h-8 */
+          height: 2rem;
+          padding-top: 0;
+          padding-bottom: 0;
+        }
+
+        /* 狭幅で横溢れする場合のスクロール */
+        .fax-compact .table-wrapper { overflow-x: auto; }
+
+        /* セル内ボタンの間隔最小化 */
+        .fax-compact .space-x-1 > * + * { margin-left: 0.25rem; }
+      `}</style>
     </div>
   )
 }
