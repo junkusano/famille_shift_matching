@@ -200,10 +200,10 @@ export default function FaxPage() {
           <colgroup>
             <col style={{ width: '15%' }} />  {/* FAX */}
             <col style={{ width: '30%' }} />  {/* 事業所名 */}
-            <col style={{ width: '20%' }} />  {/* Email */}
-            <col style={{ width: '10%' }} />  {/* 郵便番号（縮小） */}
-            <col style={{ width: '10%' }} />  {/* 種別（縮小） */}
-            <col style={{ width: '15%' }} />  {/* 操作（クリアやボタン） */}
+            <col style={{ width: '15%' }} />  {/* Email */}
+            <col style={{ width: '15%' }} />  {/* 郵便番号（縮小） */}
+            <col style={{ width: '15%' }} />  {/* 種別（縮小） */}
+            <col style={{ width: '10%' }} />  {/* 操作（クリアやボタン） */}
           </colgroup>
 
           <TableHeader>
