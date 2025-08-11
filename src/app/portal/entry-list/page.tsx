@@ -246,6 +246,7 @@ export default function EntryListPage() {
 
       // 2) バッチで解決して、行ごとにストリーミング反映
       const byId = new Map(initial.map((it) => [it.id, it]));
+      void byId;
 
       await processInBatches(initial, 6, async (entry) => {
         if (cancelled) return;
