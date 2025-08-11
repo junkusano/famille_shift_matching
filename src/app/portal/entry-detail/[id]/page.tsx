@@ -89,27 +89,24 @@ export default function EntryDetailPage() {
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
     //const [email, setEmail] = useState<string>('');
     const [restricted, setRestricted] = useState(false);
-
     const [userId, setUserId] = useState('');
     const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
-
     //const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
     const [orgList, setOrgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
     const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
-
     const [selectedOrg, setSelectedOrg] = useState<string>('');
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
-
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
-
     //const [groupInitLoading, setGroupInitLoading] = useState(false);
     //const [groupInitDone, setGroupInitDone] = useState(false);
-
+    const [attUploading, setAttUploading] = useState<string | null>(null);
+    const [newCertLabel, setNewCertLabel] = useState("");
+    const [newDocLabel, setNewDocLabel] = useState("");
 
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
@@ -124,9 +121,6 @@ export default function EntryDetailPage() {
             alert('雇用区分（職級）を選択してください');
             return;
         }
-
-
-
 
         setCreatingKaipokeUser(true);
 
@@ -1081,9 +1075,9 @@ export default function EntryDetailPage() {
     };
 
     // 資格 追加UI
-    const [newCertLabel, setNewCertLabel] = useState("");
-    const [newDocLabel, setNewDocLabel] = useState("");
+
     // 汎用: 1ファイルを /api/upload に投げて URL を受け取る
+    /*
     const uploadOne = async (file: File, prefix: string) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -1094,10 +1088,10 @@ export default function EntryDetailPage() {
         if (!json?.url) throw new Error("no url returned");
         return json.url as string;
     };
+    */
 
     // 追加：型エイリアス＆アップロード中フラグ
     type AttachmentItem = Attachment;
-    const [attUploading, setAttUploading] = useState<string | null>(null);
 
     // 追加：共通ヘルパ
     const uploadFileViaApi = async (file: File) => {
@@ -1654,7 +1648,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証表'); // ↩︎ 例：固定タイプ
+                                        handleFixedTypeUpload(f, '免許証表'); 
                                         e.currentTarget.value = '';
                                     }}
                                 />
@@ -1688,7 +1682,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証裏'); // ↩︎ 例：固定タイプ
+                                        handleFixedTypeUpload(f, '免許証裏'); 
                                         e.currentTarget.value = '';
                                     }}
                                 />
@@ -1721,7 +1715,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '住民票'); // ↩︎ 例：固定タイプ
+                                        handleFixedTypeUpload(f, '住民票'); 
                                         e.currentTarget.value = '';
                                     }}
                                 />
