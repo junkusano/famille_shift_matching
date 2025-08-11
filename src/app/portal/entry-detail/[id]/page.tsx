@@ -14,6 +14,7 @@ import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
+
 interface Attachment {
     url: string | null;
     type?: string;
@@ -109,6 +110,7 @@ export default function EntryDetailPage() {
     //const [groupInitLoading, setGroupInitLoading] = useState(false);
     //const [groupInitDone, setGroupInitDone] = useState(false);
 
+
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -122,6 +124,9 @@ export default function EntryDetailPage() {
             alert('雇用区分（職級）を選択してください');
             return;
         }
+
+
+
 
         setCreatingKaipokeUser(true);
 
@@ -1075,6 +1080,152 @@ export default function EntryDetailPage() {
         }
     };
 
+    // 資格 追加UI
+    const [newCertLabel, setNewCertLabel] = useState("");
+    const [newDocLabel, setNewDocLabel] = useState("");
+    // 汎用: 1ファイルを /api/upload に投げて URL を受け取る
+    const uploadOne = async (file: File, prefix: string) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("filename", `${prefix}_${Date.now()}_${file.name}`);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("upload failed");
+        const json = await res.json();
+        if (!json?.url) throw new Error("no url returned");
+        return json.url as string;
+    };
+
+    // 追加：型エイリアス＆アップロード中フラグ
+    type AttachmentItem = Attachment;
+    const [attUploading, setAttUploading] = useState<string | null>(null);
+
+    // 追加：共通ヘルパ
+    const uploadFileViaApi = async (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("filename", `${Date.now()}_${file.name}`);
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        if (!res.ok) throw new Error("upload failed");
+        const json = await res.json();
+        return { url: json.url as string, mimeType: (json.mimeType ?? null) as string | null };
+    };
+
+    const upsertAttachment = (
+        list: AttachmentItem[],
+        item: AttachmentItem,
+        key: "type" | "label"
+    ): AttachmentItem[] => {
+        const getKey = (a: AttachmentItem) => (key === "type" ? a.type : a.label);
+        const idx = list.findIndex((a) => getKey(a) === getKey(item));
+        if (idx >= 0) {
+            const next = [...list];
+            next[idx] = { ...list[idx], ...item };
+            return next;
+        }
+        return [...list, item];
+    };
+
+    const saveAttachments = async (next: AttachmentItem[]) => {
+        if (!entry) return;
+        const { error } = await supabase
+            .from("form_entries")
+            .update({ attachments: next })
+            .eq("id", entry.id);
+        if (error) throw error;
+        setEntry({ ...entry, attachments: next });
+    };
+
+    // 追加：削除ハンドラ（参照エラーの解消）
+    const handleDeleteAttachment = async (by: { type?: string; label?: string }) => {
+        if (!entry) return;
+        const current = Array.isArray(entry.attachments)
+            ? (entry.attachments as AttachmentItem[])
+            : [];
+        const next = current.filter((a) =>
+            by.type ? a.type !== by.type : by.label ? a.label !== by.label : true
+        );
+        await saveAttachments(next);
+        alert("削除しました");
+    };
+
+    // （質問への回答に合わせて）const 版ハンドラ
+    const handleFixedTypeUpload = async (
+        file: File,
+        type: "免許証表" | "免許証裏" | "住民票"
+    ) => {
+        if (!entry) return;
+        try {
+            setAttUploading(type);
+            const { url, mimeType } = await uploadFileViaApi(file);
+            const current = Array.isArray(entry.attachments)
+                ? (entry.attachments as AttachmentItem[])
+                : [];
+            const next = upsertAttachment(
+                current,
+                { url, type, label: type, mimeType },
+                "type"
+            );
+            await saveAttachments(next);
+            alert(`${type} をアップロードしました`);
+        } catch (e: any) {
+            alert(`${type} のアップロードに失敗: ${e.message || e}`);
+        } finally {
+            setAttUploading(null);
+        }
+    };
+
+    const handleCertUpload = async (file: File, label: string) => {
+        if (!entry) return;
+        if (!label) {
+            alert("資格のラベルを入力してください");
+            return;
+        }
+        try {
+            setAttUploading(label);
+            const { url, mimeType } = await uploadFileViaApi(file);
+            const current = Array.isArray(entry.attachments)
+                ? (entry.attachments as AttachmentItem[])
+                : [];
+            const next = upsertAttachment(
+                current,
+                { url, type: "資格証", label, mimeType },
+                "label"
+            );
+            await saveAttachments(next);
+            alert(`${label} をアップロードしました`);
+        } catch (e: any) {
+            alert(`アップロードに失敗: ${e.message || e}`);
+        } finally {
+            setAttUploading(null);
+        }
+    };
+
+    const handleOtherDocUpload = async (file: File, label: string) => {
+        if (!entry) return;
+        if (!label) {
+            alert("書類のラベルを入力してください");
+            return;
+        }
+        try {
+            setAttUploading(label);
+            const { url, mimeType } = await uploadFileViaApi(file);
+            const current = Array.isArray(entry.attachments)
+                ? (entry.attachments as AttachmentItem[])
+                : [];
+            const next = upsertAttachment(
+                current,
+                { url, type: "その他", label, mimeType },
+                "label"
+            );
+            await saveAttachments(next);
+            alert(`${label} をアップロードしました`);
+        } catch (e: any) {
+            alert(`アップロードに失敗: ${e.message || e}`);
+        } finally {
+            setAttUploading(null);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
             <div className="text-center mb-4">
@@ -1484,56 +1635,248 @@ export default function EntryDetailPage() {
             <div className="space-y-4">
                 <h2 className="text-lg font-semibold">アップロード画像</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <FileThumbnail
-                        title="免許証（表）"
-                        src={licenseFront?.url ?? undefined}
-                        mimeType={licenseFront?.mimeType ?? undefined}
-                    />
-                    <FileThumbnail
-                        title="免許証（裏）"
-                        src={licenseBack?.url ?? undefined}
-                        mimeType={licenseBack?.mimeType ?? undefined}
-                    />
-                    <FileThumbnail
-                        title="住民票"
-                        src={residenceCard?.url ?? undefined}
-                        mimeType={residenceCard?.mimeType ?? undefined}
-                    />
+                    {/* 免許証 表 */}
+                    <div>
+                        <FileThumbnail
+                            title="免許証（表）"
+                            src={licenseFront?.url ?? undefined}
+                            mimeType={licenseFront?.mimeType ?? undefined}
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                            <label className="inline-block mt-1 px-2 py-1 text-xs bg-blue-600 text-white rounded cursor-pointer">
+                                差し替え / 追加
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (!f) return;
+                                        handleFixedTypeUpload(f, '免許証表');
+                                        e.currentTarget.value = '';
+                                    }}
+                                />
+                            </label>
+                            {licenseFront?.url && (
+                                <button
+                                    className="px-2 py-1 bg-red-600 text-white rounded"
+                                    onClick={() => handleDeleteAttachment({ type: "免許証表" })}
+                                >
+                                    削除
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 免許証 裏 */}
+                    <div>
+                        <FileThumbnail
+                            title="免許証（裏）"
+                            src={licenseBack?.url ?? undefined}
+                            mimeType={licenseBack?.mimeType ?? undefined}
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                            // 免許証（裏）
+                            <label className="inline-block mt-1 px-2 py-1 text-xs bg-blue-600 text-white rounded cursor-pointer">
+                                差し替え / 追加
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (!f) return;
+                                        handleFixedTypeUpload(f, '免許証裏');
+                                        e.currentTarget.value = '';
+                                    }}
+
+                                />
+                            </label>
+                            {licenseBack?.url && (
+                                <button
+                                    className="px-2 py-1 bg-red-600 text-white rounded"
+                                    onClick={() => handleDeleteAttachment({ type: "免許証裏" })}
+                                >
+                                    削除
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 住民票 */}
+                    <div>
+                        <FileThumbnail
+                            title="住民票"
+                            src={residenceCard?.url ?? undefined}
+                            mimeType={residenceCard?.mimeType ?? undefined}
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                            <label className="inline-block mt-1 px-2 py-1 text-xs bg-blue-600 text-white rounded cursor-pointer">
+                                差し替え / 追加
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (!f) return;
+                                        handleFixedTypeUpload(f, '住民票');
+                                        e.currentTarget.value = '';
+                                    }}
+
+                                />
+                            </label>
+                            {residenceCard?.url && (
+                                <button
+                                    className="px-2 py-1 bg-red-600 text-white rounded"
+                                    onClick={() => handleDeleteAttachment({ type: "住民票" })}
+                                >
+                                    削除
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
+
 
             {certifications && certifications.length > 0 && (
                 <div className="space-y-2">
                     <h2 className="text-lg font-semibold">資格証明書</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {certifications.map((cert, idx) => (
-                            <FileThumbnail
-                                key={idx}
-                                title={cert.label ?? cert.type ?? `資格証明書${idx + 1}`}
-                                src={cert.url ?? undefined}
-                                mimeType={cert.mimeType ?? undefined}
-                            />
-                        ))}
+                        {certifications.map((cert, idx) => {
+                            const label = cert.label ?? cert.type ?? `certificate_${idx + 1}`;
+                            return (
+                                <div key={idx}>
+                                    <FileThumbnail
+                                        title={label}
+                                        src={cert.url ?? undefined}
+                                        mimeType={cert.mimeType ?? undefined}
+                                    />
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <label className="inline-block mt-1 px-2 py-1 text-[11px] bg-blue-600 text-white rounded cursor-pointer">
+                                            この資格証を差し替え
+                                            <input
+                                                type="file"
+                                                accept="image/*,application/pdf"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0];
+                                                    if (!f) return;
+                                                    handleCertUpload(f, cert.label ?? `certificate_${idx}`);
+                                                    e.currentTarget.value = '';
+                                                }}
+
+                                            />
+                                        </label>
+                                        <button
+                                            className="px-2 py-1 bg-red-600 text-white rounded"
+                                            onClick={() => handleDeleteAttachment({ label })}
+                                        >
+                                            削除
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
+                    <div className="mt-3 p-3 border rounded bg-gray-50">
+                        <div className="flex items-center gap-2">
+                            <input
+                                className="border rounded px-2 py-1"
+                                placeholder="例: certificate_同行援護(一般)"
+                                value={newCertLabel}
+                                onChange={(e) => setNewCertLabel(e.target.value)}
+                            />
+                            <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
+                                追加アップロード
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleCertUpload(f, newCertLabel.trim());
+                                    }}
+                                />
+                            </label>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            ラベルは後で識別に使います（certificate_ から始めると分かりやすい運用です）
+                        </div>
+                    </div>
+
                 </div>
+
             )}
+
 
             {otherDocs && otherDocs.length > 0 && (
                 <div className="space-y-2">
                     <h2 className="text-lg font-semibold">その他の書類</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {otherDocs.map((doc, idx) => (
-                            <FileThumbnail
-                                key={idx}
-                                title={doc.label ?? doc.type ?? `書類${idx + 1}`}
-                                src={doc.url ?? undefined}
-                                mimeType={doc.mimeType ?? undefined}
-                            />
-                        ))}
+                        {otherDocs.map((doc, idx) => {
+                            const label = doc.label ?? doc.type ?? `doc_${idx + 1}`;
+                            return (
+                                <div key={idx}>
+                                    <FileThumbnail
+                                        title={label}
+                                        src={doc.url ?? undefined}
+                                        mimeType={doc.mimeType ?? undefined}
+                                    />
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer">
+                                            {attUploading === label ? "アップロード中..." : "差し替え"}
+                                            <input
+                                                type="file"
+                                                accept="image/*,application/pdf"
+                                                className="hidden"
+                                                disabled={attUploading !== null}
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0];
+                                                    if (!f) return;
+                                                    handleOtherDocUpload(f, (newDocLabel || '').trim());
+                                                    e.currentTarget.value = '';
+                                                }}
+
+                                            />
+                                        </label>
+                                        <button
+                                            className="px-2 py-1 bg-red-600 text-white rounded"
+                                            onClick={() => handleDeleteAttachment({ label })}
+                                        >
+                                            削除
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
+                    <div className="mt-3 p-3 border rounded bg-gray-50">
+                        <div className="flex items-center gap-2">
+                            <input
+                                className="border rounded px-2 py-1"
+                                placeholder="書類名（例: 雇用条件通知書）"
+                                value={newDocLabel}
+                                onChange={(e) => setNewDocLabel(e.target.value)}
+                            />
+                            <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
+                                追加アップロード
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleOtherDocUpload(f, newDocLabel.trim());
+                                    }}
+                                />
+                            </label>
+                        </div>
+                    </div>
+
                 </div>
             )}
-
 
             <div>
                 <strong>同意内容:</strong>
