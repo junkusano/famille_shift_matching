@@ -1138,14 +1138,13 @@ export default function EntryDetailPage() {
     // 追加：削除ハンドラ（参照エラーの解消）
     const handleDeleteAttachment = async (by: { type?: string; label?: string }) => {
         if (!entry) return;
-        const current = Array.isArray(entry.attachments)
-            ? (entry.attachments as AttachmentItem[])
-            : [];
-        const next = current.filter((a) =>
+        const current = Array.isArray(entry.attachments) ? [...entry.attachments] : [];
+        const next = current.filter(a =>
             by.type ? a.type !== by.type : by.label ? a.label !== by.label : true
         );
-        await saveAttachments(next);
-        alert("削除しました");
+        await supabase.from('form_entries').update({ attachments: next }).eq('id', entry.id);
+        await fetchEntry();
+        alert('添付を削除しました');
     };
 
     // （質問への回答に合わせて）const 版ハンドラ
@@ -1167,8 +1166,9 @@ export default function EntryDetailPage() {
             );
             await saveAttachments(next);
             alert(`${type} をアップロードしました`);
-        } catch (e: any) {
-            alert(`${type} のアップロードに失敗: ${e.message || e}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`アップロードに失敗: ${msg}`);
         } finally {
             setAttUploading(null);
         }
@@ -1193,8 +1193,9 @@ export default function EntryDetailPage() {
             );
             await saveAttachments(next);
             alert(`${label} をアップロードしました`);
-        } catch (e: any) {
-            alert(`アップロードに失敗: ${e.message || e}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`アップロードに失敗: ${msg}`);
         } finally {
             setAttUploading(null);
         }
@@ -1219,8 +1220,9 @@ export default function EntryDetailPage() {
             );
             await saveAttachments(next);
             alert(`${label} をアップロードしました`);
-        } catch (e: any) {
-            alert(`アップロードに失敗: ${e.message || e}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`アップロードに失敗: ${msg}`);
         } finally {
             setAttUploading(null);
         }
@@ -1652,7 +1654,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証表');
+                                        handleFixedTypeUpload(f, '免許証表'); // ↩︎ 例：固定タイプ
                                         e.currentTarget.value = '';
                                     }}
                                 />
@@ -1686,10 +1688,9 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証裏');
+                                        handleFixedTypeUpload(f, '免許証裏'); // ↩︎ 例：固定タイプ
                                         e.currentTarget.value = '';
                                     }}
-
                                 />
                             </label>
                             {licenseBack?.url && (
@@ -1720,10 +1721,9 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '住民票');
+                                        handleFixedTypeUpload(f, '住民票'); // ↩︎ 例：固定タイプ
                                         e.currentTarget.value = '';
                                     }}
-
                                 />
                             </label>
                             {residenceCard?.url && (
@@ -1766,7 +1766,6 @@ export default function EntryDetailPage() {
                                                     handleCertUpload(f, cert.label ?? `certificate_${idx}`);
                                                     e.currentTarget.value = '';
                                                 }}
-
                                             />
                                         </label>
                                         <button
