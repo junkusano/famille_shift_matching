@@ -1648,7 +1648,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証表'); 
+                                        handleFixedTypeUpload(f, '免許証表');
                                         e.currentTarget.value = '';
                                     }}
                                 />
@@ -1672,7 +1672,7 @@ export default function EntryDetailPage() {
                             mimeType={licenseBack?.mimeType ?? undefined}
                         />
                         <div className="mt-2 flex items-center gap-2">
-                            // 免許証（裏）
+                            免許証（裏）
                             <label className="inline-block mt-1 px-2 py-1 text-xs bg-blue-600 text-white rounded cursor-pointer">
                                 差し替え / 追加
                                 <input
@@ -1682,7 +1682,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '免許証裏'); 
+                                        handleFixedTypeUpload(f, '免許証裏');
                                         e.currentTarget.value = '';
                                     }}
                                 />
@@ -1715,7 +1715,7 @@ export default function EntryDetailPage() {
                                     onChange={(e) => {
                                         const f = e.target.files?.[0];
                                         if (!f) return;
-                                        handleFixedTypeUpload(f, '住民票'); 
+                                        handleFixedTypeUpload(f, '住民票');
                                         e.currentTarget.value = '';
                                     }}
                                 />
