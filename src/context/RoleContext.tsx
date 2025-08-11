@@ -10,10 +10,9 @@ export interface RoleContextValue {
   loading: boolean;
 }
 
-// ✅ named export: RoleContext を必ず export
-export const RoleContext = createContext<RoleContextValue | undefined>(undefined);
+// Context自体は非公開にして、hookでのみアクセスさせる
+const RoleContext = createContext<RoleContextValue | undefined>(undefined);
 
-// ✅ named export: RoleProvider / useRoleContext / useUserRole
 export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   const [role, setRole] = useState<Role>(null);
   const [loading, setLoading] = useState(true);
@@ -25,14 +24,18 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // ← スキーマに合わせて 'auth_uid' か 'auth_user_id' を統一
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('users')
           .select('system_role')
-          .eq('auth_uid', user.id)
+          .eq('auth_user_id', user.id)
           .single();
 
-        if (mounted) setRole((data?.system_role as Role) ?? 'member');
+        if (error) {
+          console.error('Role fetch error:', error);
+          if (mounted) setRole('member');
+        } else {
+          if (mounted) setRole((data?.system_role as Role) ?? 'member');
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -47,12 +50,15 @@ export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// 新：{role, loading} が欲しいとき用
+// roleとloading両方使う場合はこちら
 export const useRoleContext = (): RoleContextValue => {
   const ctx = useContext(RoleContext);
   if (!ctx) throw new Error('useRoleContext must be used within RoleProvider');
   return ctx;
 };
 
-// 互換：従来どおり string の role だけ返す（既存ファイルを壊さない）
-export const useUserRole = (): Role => useRoleContext().role;
+// roleだけを返すhook（既存コードのstring型期待に対応）
+export const useUserRole = (): Role => {
+  return useRoleContext().role;
+};
+
