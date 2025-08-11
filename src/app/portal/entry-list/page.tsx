@@ -58,7 +58,7 @@ async function fetchAddressWithRetry(
     return { text: cached.value, status: 'ok' };
   }
 
-  let lastHint = getPrefixHint(zip7);
+  const lastHint = getPrefixHint(zip7); // 再代入しないので const
 
   for (let i = 0; i < maxTry; i++) {
     const controller = new AbortController();
@@ -70,9 +70,9 @@ async function fetchAddressWithRetry(
         zipCache.set(zip7, { value: addr, expires: now + 7 * 24 * 60 * 60 * 1000 }); // 7日TTL
         return { text: addr, status: 'ok' };
       }
-    } catch (_) {
+    } catch {
       clearTimeout(timer);
-      // 続行して再試行
+      // 続行して再試行（ログが必要ならここで console.debug など）
     }
     // Exponential Backoff: 0.4s, 0.8s, 1.6s ...
     await new Promise((r) => setTimeout(r, 2 ** i * 400));
@@ -227,8 +227,6 @@ export default function EntryListPage() {
     const fullName = `${entry.last_name_kanji}${entry.first_name_kanji}${entry.last_name_kana}${entry.first_name_kana}`;
     return fullName.includes(searchText) || entry.address.includes(searchText);
   });
-
-  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="content">
