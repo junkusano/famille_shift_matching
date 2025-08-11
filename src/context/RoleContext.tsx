@@ -3,39 +3,62 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-// ここ👇 export を追加する！
-export const RoleContext = createContext<string | null>(null);
+export type Role = 'admin' | 'manager' | 'member' | null;
 
-export const RoleProvider = ({ children }: { children: React.ReactNode }) => {
-  const [role, setRole] = useState<string | null>(null);
+export interface RoleContextValue {
+  role: Role;
+  loading: boolean;
+}
+
+const Ctx = createContext<RoleContextValue | undefined>(undefined);
+
+export function RoleProvider({ children }: { children: React.ReactNode }) {
+  const [role, setRole] = useState<Role>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('system_role')
-        .eq('auth_user_id', user.id)
-        .single();
+        // ← スキーマに合わせて調整（例: users.auth_uid / system_role）
+        const { data } = await supabase
+          .from('users')
+          .select('system_role')
+          .eq('auth_uid', user.id)
+          .single();
 
-      if (error) {
-        console.error("Role fetch error:", error);
-        setRole('member'); // デフォルト
-      } else {
-        setRole(data?.system_role || 'member');
+        if (mounted) setRole((data?.system_role as Role) ?? 'member');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    };
+    })();
 
-    fetchRole();
+    return () => { mounted = false; };
   }, []);
 
   return (
-    <RoleContext.Provider value={role}>
+    <Ctx.Provider value={{ role, loading }}>
       {children}
-    </RoleContext.Provider>
+    </Ctx.Provider>
   );
-};
+}
 
-export const useUserRole = () => useContext(RoleContext);
+/**
+ * 新フック：{ role, loading } を返す（新コード用）
+ */
+export function useRoleContext(): RoleContextValue {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error('useRoleContext must be used within RoleProvider');
+  return ctx;
+}
+
+/**
+ * 互換フック：従来どおり role（string）だけ返す（既存コード用）
+ * 既存の import { useUserRole } はそのままでOK
+ */
+export function useUserRole(): Role {
+  return useRoleContext().role;
+}
