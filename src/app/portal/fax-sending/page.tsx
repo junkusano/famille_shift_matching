@@ -8,6 +8,11 @@ import { useUserRole } from "@/context/RoleContext"
 import { supabase } from "@/lib/supabaseClient"
 
 // =========================
+// 定数
+// =========================
+const MAX_FILE_SIZE = 1024 * 1024 // 1MB（バイト）
+
+// =========================
 // 型定義
 // =========================
 type FaxEntry = {
@@ -98,6 +103,9 @@ export default function FaxSendingPage() {
   const [selectedFaxes, setSelectedFaxes] = useState<FaxEntry[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
+
+  // 直近のバリデーション結果表示用
+  const [fileWarning, setFileWarning] = useState<string>("")
 
   // =========================
   // フィルター（順番厳守: FAX → 事業所名 → エリア(複数) → 種別(複数) → クリア）
@@ -195,24 +203,80 @@ export default function FaxSendingPage() {
   const clearSelected = () => setSelectedFaxes([])
 
   // =========================
-  // ファイル系
+  // ユーティリティ
+  // =========================
+  const formatBytes = (n: number) => {
+    if (n < 1024) return `${n} B`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+    return `${(n / (1024 * 1024)).toFixed(2)} MB`
+  }
+
+  // =========================
+  // ファイル系（1MB超は除外して警告）
   // =========================
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
-    setFiles((prev) => [...prev, ...Array.from(e.target.files)])
+    const picked = Array.from(e.target.files)
+    const accepted: File[] = []
+    const rejected: { name: string; size: number }[] = []
+
+    for (const f of picked) {
+      if (f.size > MAX_FILE_SIZE) {
+        rejected.push({ name: f.name, size: f.size })
+      } else {
+        accepted.push(f)
+      }
+    }
+
+    setFiles((prev) => [...prev, ...accepted])
+
+    if (rejected.length > 0) {
+      const msg = [
+        "以下のファイルはサイズ上限（1MB）を超えるため除外しました。",
+        ...rejected.map(r => `・${r.name}（${formatBytes(r.size)}）`),
+      ].join("\n")
+      setFileWarning(msg)
+      alert(msg)
+    } else {
+      setFileWarning("")
+    }
+
+    // 選択状態をリセット（同じファイルを続けて選べるように）
+    e.currentTarget.value = ""
   }
+
   const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   // =========================
-  // 送信
+  // 送信（30件超はOK/キャンセル確認、ファイルは念のため再チェック）
   // =========================
   const handleUploadAndSend = async () => {
     if (files.length === 0 || selectedFaxes.length === 0) {
       alert("ファイルとFAX送信先を選んでください")
       return
     }
+
+    // 念のための再チェック（直接 files に入ったケースの保険）
+    const overs = files.filter(f => f.size > MAX_FILE_SIZE)
+    if (overs.length > 0) {
+      const msg = [
+        "1MBを超えるファイルが含まれているため送信できません。",
+        ...overs.map(o => `・${o.name}（${formatBytes(o.size)}）`),
+      ].join("\n")
+      alert(msg)
+      return
+    }
+
+    // 30件超の確認（課金・管理者連絡の注意喚起）
+    if (selectedFaxes.length > 30) {
+      const ok = window.confirm(
+        `送信先が ${selectedFaxes.length} 件あります。\n\n30件以上を一度に送る場合は、チャージが必要です。\n管理者まで連絡をお願いします。\n\nOKで続行 / キャンセルで中止`
+      )
+      if (!ok) return
+    }
+
     try {
       setUploading(true)
       const uploadedUrls: string[] = []
@@ -291,14 +355,27 @@ export default function FaxSendingPage() {
       <h1 className="text-xl font-bold">FAX送信リクエスト</h1>
 
       {/* アップロードUI & ファイル一覧 */}
-      <Input type="file" multiple onChange={handleFileChange} className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md" />
-      <div className="space-y-1">
-        {files.map((file, idx) => (
-          <div key={idx} className="flex justify-between items-center border px-2 py-1 rounded">
-            <span className="text-sm truncate max-w-sm">{file.name}</span>
-            <Button variant="ghost" onClick={() => handleRemoveFile(idx)}>削除</Button>
-          </div>
-        ))}
+      <div className="space-y-2">
+        <Input
+          type="file"
+          multiple
+          onChange={handleFileChange}
+          className="bg-yellow-50 focus-visible:ring-yellow-300 file:bg-yellow-100 file:text-yellow-800 file:font-medium file:px-3 file:py-1 file:rounded-md"
+        />
+        <div className="text-[11px] text-muted-foreground">※ ファイルサイズ上限は1MBです（超過ファイルは自動除外）。</div>
+        {fileWarning && (
+          <div className="text-xs text-red-600 whitespace-pre-wrap">{fileWarning}</div>
+        )}
+        <div className="space-y-1">
+          {files.map((file, idx) => (
+            <div key={idx} className="flex justify-between items-center border px-2 py-1 rounded">
+              <span className="text-sm truncate max-w-sm" title={`${file.name}（${formatBytes(file.size)}）`}>
+                {file.name}（{formatBytes(file.size)}）
+              </span>
+              <Button variant="ghost" onClick={() => handleRemoveFile(idx)}>削除</Button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* フィルター行: FAX / 事業所名 / エリア(複数) / 種別(複数) / クリア / 全選択 */}
@@ -381,7 +458,12 @@ export default function FaxSendingPage() {
         <Button onClick={handleUploadAndSend} disabled={uploading || files.length === 0 || selectedFaxes.length === 0}>
           {uploading ? "送信中..." : "FAX送信リクエストを送る"}
         </Button>
-        <div className="text-xs text-muted-foreground">送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件</div>
+        <div className="text-xs text-muted-foreground">
+          送信先: {selectedFaxes.length} 件 / 添付: {files.length} 件
+          {selectedFaxes.length > 30 && (
+            <span className="ml-2 text-red-600">※30件以上はチャージが必要（管理者へ連絡の上、確認ダイアログでOKしてください）</span>
+          )}
+        </div>
         {selectedFaxes.length > 0 && (
           <Button size="sm" variant="ghost" onClick={clearSelected}>選択解除</Button>
         )}
