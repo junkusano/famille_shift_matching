@@ -14,7 +14,6 @@ import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
-
 interface Attachment {
     url: string | null;
     type?: string;
@@ -70,6 +69,22 @@ type NameInfo = {
     firstKana: string;
     lastKana: string;
 };
+
+// 1〜3行の職歴キーを型で表現
+type WorkIdx = 1 | 2 | 3;
+type WorkKey =
+    | `workplace_${WorkIdx}`
+    | `period_from_${WorkIdx}`
+    | `period_to_${WorkIdx}`;
+
+// DBスキーマに合わせて補強（work_styles/commute_options は text）
+type EntryDetailEx =
+  Omit<EntryDetail, 'work_styles' | 'commute_options'> &
+  Partial<Record<WorkKey, string | null>> & {
+    work_styles: string | null;
+    commute_options?: string | null;
+  };
+
 /*
 interface OrgUnit {
     orgUnitId: string;
@@ -80,10 +95,10 @@ interface OrgUnit {
 }
 */
 
-
 export default function EntryDetailPage() {
     const { id } = useParams();
-    const [entry, setEntry] = useState<EntryDetail | null>(null);
+    //const [entry, setEntry] = useState<EntryDetail | null>(null);
+    const [entry, setEntry] = useState<EntryDetailEx | null>(null);
     const [managerNote, setManagerNote] = useState('');
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
@@ -107,6 +122,17 @@ export default function EntryDetailPage() {
     const [attUploading, setAttUploading] = useState<string | null>(null);
     const [newCertLabel, setNewCertLabel] = useState("");
     const [newDocLabel, setNewDocLabel] = useState("");
+    const getField = <K extends WorkKey>(key: K): string =>
+        (entry?.[key] ?? '') as string;
+    const setField = <K extends WorkKey>(key: K, value: string) => {
+        setEntry(prev => (prev ? ({ ...prev, [key]: value } as EntryDetailEx) : prev));
+    };
+
+    // 追記: ログ用に実行者IDを取るヘルパ
+    const getCurrentUserId = async () => {
+        const s = await supabase.auth.getSession();
+        return s.data?.session?.user?.id ?? 'システム';
+    };
 
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
@@ -488,6 +514,11 @@ export default function EntryDetailPage() {
 
     const updateEntry = async () => {
         if (!entry) return;
+
+        // DBは text カラムのため、配列は結合して保存（UIは配列で保持）
+        const workStylesText = entry.work_styles ?? '';
+const commuteText    = entry.commute_options ?? '';
+
         const { error } = await supabase
             .from("form_entries")
             .update({
@@ -502,19 +533,35 @@ export default function EntryDetailPage() {
                 birth_year: entry.birth_year,
                 birth_month: entry.birth_month,
                 birth_day: entry.birth_day,
-                email: entry.email
-            }) // 必要に応じて他のフィールドも追加
+                email: entry.email,
+
+                // ← 追加
+                motivation: entry.motivation ?? '',
+                work_styles: workStylesText,
+                workstyle_other: entry.workstyle_other ?? '',
+                commute_options: commuteText,
+                health_condition: entry.health_condition ?? '',
+
+                // 職歴（1〜3）
+                workplace_1: entry?.workplace_1 ?? null,
+                period_from_1: entry?.period_from_1 ?? null,
+                period_to_1: entry?.period_to_1 ?? null,
+                workplace_2: entry?.workplace_2 ?? null,
+                period_from_2: entry?.period_from_2 ?? null,
+                period_to_2: entry?.period_to_2 ?? null,
+                workplace_3: entry?.workplace_3 ?? null,
+                period_from_3: entry?.period_from_3 ?? null,
+                period_to_3: entry?.period_to_3 ?? null,
+            })
             .eq("id", entry.id);
 
         if (error) {
             console.error("更新失敗:", error);
+            alert("更新に失敗しました: " + error.message);
         } else {
-            console.log("保存成功");
+            alert("保存しました");
         }
     };
-
-
-
 
     const handleSaveManagerNote = async () => {
         setNoteSaving(true);
@@ -1138,6 +1185,17 @@ export default function EntryDetailPage() {
         );
         await supabase.from('form_entries').update({ attachments: next }).eq('id', entry.id);
         await fetchEntry();
+        const actor = await getCurrentUserId();
+        const what =
+            by.type ? `type=${by.type}` :
+                by.label ? `label=${by.label}` : 'unknown';
+        await addStaffLog({
+            staff_id: entry.id,
+            action_at: new Date().toISOString(),
+            action_detail: `添付削除: ${what}`,
+            registered_by: actor,
+        });
+
         alert('添付を削除しました');
     };
 
@@ -1159,6 +1217,14 @@ export default function EntryDetailPage() {
                 "type"
             );
             await saveAttachments(next);
+            // handleFixedTypeUpload 内、saveAttachments(next) の直後に追加
+            const actor = await getCurrentUserId();
+            await addStaffLog({
+                staff_id: entry.id,
+                action_at: new Date().toISOString(),
+                action_detail: `添付アップロード: ${type}`,
+                registered_by: actor,
+            });
             alert(`${type} をアップロードしました`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1186,6 +1252,14 @@ export default function EntryDetailPage() {
                 "label"
             );
             await saveAttachments(next);
+            const actor = await getCurrentUserId();
+            await addStaffLog({
+                staff_id: entry.id,
+                action_at: new Date().toISOString(),
+                action_detail: `資格証アップロード: ${label}`,
+                registered_by: actor,
+            });
+
             alert(`${label} をアップロードしました`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1213,6 +1287,14 @@ export default function EntryDetailPage() {
                 "label"
             );
             await saveAttachments(next);
+            const actor = await getCurrentUserId();
+            await addStaffLog({
+                staff_id: entry.id,
+                action_at: new Date().toISOString(),
+                action_detail: `その他書類アップロード: ${label}`,
+                registered_by: actor,
+            });
+
             alert(`${label} をアップロードしました`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1410,7 +1492,7 @@ export default function EntryDetailPage() {
                         type="email"
                         className="border rounded px-2 py-1 w-full"
                         value={entry?.email ?? ''}
-                        onChange={(e) => setEntry({ ...entry, email: e.target.value })}
+                        onChange={(e) => setEntry({ ...entry!, email: e.target.value })}
                     />
                     <div className="flex flex-col gap-2">
 
@@ -1539,7 +1621,6 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-sm text-gray-600">職級</label>
                         <select
@@ -1555,7 +1636,6 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-sm text-gray-600">役職</label>
                         <select
@@ -1590,44 +1670,82 @@ export default function EntryDetailPage() {
                         </thead>
                         <tbody>
                             {[1, 2, 3].map((n) => {
-                                const w = entry[`workplace_${n}` as keyof EntryDetail];
-                                const pf = entry[`period_from_${n}` as keyof EntryDetail] as string;
-                                const pt = entry[`period_to_${n}` as keyof EntryDetail] as string;
-                                if (!w) return null;
+                                const wpKey = `workplace_${n}` as WorkKey;
+                                const pfKey = `period_from_${n}` as WorkKey;
+                                const ptKey = `period_to_${n}` as WorkKey;
                                 return (
                                     <tr key={n}>
-                                        <td className="border px-2 py-1">{w as string}</td>
-                                        <td className="border px-2 py-1">{pf ?? ""}</td>
-                                        <td className="border px-2 py-1">{pt ?? ""}</td>
+                                        <td className="border px-2 py-1">
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                value={getField(wpKey)}
+                                                onChange={(e) => setField(wpKey, e.target.value)}
+                                            />
+                                        </td>
+                                        <td className="border px-2 py-1">
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                value={getField(pfKey)}
+                                                onChange={(e) => setField(pfKey, e.target.value)}
+                                            />
+                                        </td>
+                                        <td className="border px-2 py-1">
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                value={getField(ptKey)}
+                                                onChange={(e) => setField(ptKey, e.target.value)}
+                                            />
+                                        </td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
-
             </div>
-
-
-            <div className="flex items-center gap-2">
-                <strong>志望動機:</strong><br />{entry.motivation}
-            </div>
-            <div className="flex items-center gap-2">
-                <strong>働き方の希望:</strong>
+            <div className="space-y-4">
                 <div>
-                    <div>{entry.work_styles && entry.work_styles.length > 0 ? entry.work_styles.join('、') : '―'} <div>自由記述：{entry.workstyle_other ?? '―'}</div> </div>
+                    <label className="block font-semibold mb-1">志望動機</label>
+                    <textarea
+                        className="w-full border rounded p-2"
+                        rows={4}
+                        value={entry?.motivation ?? ''}
+                        onChange={(e) => setEntry(prev => (prev ? { ...prev, motivation: e.target.value } : prev))}
+
+                    />
+                </div>
+                <div>
+                    <label className="block font-semibold mb-1">働き方の希望（カンマ/スペース/読点で区切り）</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={entry?.work_styles ?? ''}
+                        onChange={(e) => setEntry(prev => (prev ? { ...prev, work_styles: e.target.value } : prev))}
+                    />
+                    <div className="text-xs text-gray-500 mt-1">自由記述</div>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={entry.workstyle_other ?? ''}
+                        onChange={(e) => setEntry({ ...entry!, workstyle_other: e.target.value })}
+                    />
+                </div>
+                <div>
+                    <label className="block font-semibold mb-1">通勤方法（カンマ/スペース/読点で区切り）</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={entry?.commute_options ?? ''}
+                        onChange={(e) => setEntry(prev => (prev ? { ...prev, commute_options: e.target.value } : prev))}
+                    />
+                </div>
+                <div>
+                    <label className="block font-semibold mb-1">健康状態</label>
+                    <textarea
+                        className="w-full border rounded p-2"
+                        rows={3}
+                        value={entry.health_condition ?? ''}
+                        onChange={(e) => setEntry({ ...entry!, health_condition: e.target.value })}
+                    />
                 </div>
             </div>
-            <div className="flex items-center gap-2">
-                <strong>通勤方法:</strong>
-                {entry.commute_options && entry.commute_options.length > 0
-                    ? entry.commute_options.join('、')
-                    : '―'}
-            </div>
-            <div className="flex items-center gap-2">
-                <strong>健康状態:</strong> {entry.health_condition}
-            </div>
-
             <div className="space-y-4">
                 <h2 className="text-lg font-semibold">アップロード画像</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1734,9 +1852,10 @@ export default function EntryDetailPage() {
             </div>
 
 
-            {certifications && certifications.length > 0 && (
-                <div className="space-y-2">
-                    <h2 className="text-lg font-semibold">資格証明書</h2>
+            <div className="space-y-2">
+                <h2 className="text-lg font-semibold">資格証明書</h2>
+
+                {certifications.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {certifications.map((cert, idx) => {
                             const label = cert.label ?? cert.type ?? `certificate_${idx + 1}`;
@@ -1773,40 +1892,42 @@ export default function EntryDetailPage() {
                             );
                         })}
                     </div>
-                    <div className="mt-3 p-3 border rounded bg-gray-50">
-                        <div className="flex items-center gap-2">
+                ) : (
+                    <div className="text-sm text-gray-500">まだ登録されていません。</div>
+                )}
+
+                {/* 追加アップロード（0件でも常に表示） */}
+                <div className="mt-3 p-3 border rounded bg-gray-50">
+                    <div className="flex items-center gap-2">
+                        <input
+                            className="border rounded px-2 py-1"
+                            placeholder="例: certificate_同行援護(一般)"
+                            value={newCertLabel}
+                            onChange={(e) => setNewCertLabel(e.target.value)}
+                        />
+                        <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
+                            追加アップロード
                             <input
-                                className="border rounded px-2 py-1"
-                                placeholder="例: certificate_同行援護(一般)"
-                                value={newCertLabel}
-                                onChange={(e) => setNewCertLabel(e.target.value)}
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleCertUpload(f, newCertLabel.trim());
+                                }}
                             />
-                            <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
-                                追加アップロード
-                                <input
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleCertUpload(f, newCertLabel.trim());
-                                    }}
-                                />
-                            </label>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                            ラベルは後で識別に使います（certificate_ から始めると分かりやすい運用です）
-                        </div>
+                        </label>
                     </div>
-
+                    <div className="text-xs text-gray-500 mt-1">
+                        ラベルは後で識別に使います（certificate_ から始める運用が分かりやすいです）
+                    </div>
                 </div>
+            </div>
 
-            )}
+            <div className="space-y-2">
+                <h2 className="text-lg font-semibold">その他の書類</h2>
 
-
-            {otherDocs && otherDocs.length > 0 && (
-                <div className="space-y-2">
-                    <h2 className="text-lg font-semibold">その他の書類</h2>
+                {otherDocs.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {otherDocs.map((doc, idx) => {
                             const label = doc.label ?? doc.type ?? `doc_${idx + 1}`;
@@ -1828,10 +1949,9 @@ export default function EntryDetailPage() {
                                                 onChange={(e) => {
                                                     const f = e.target.files?.[0];
                                                     if (!f) return;
-                                                    handleOtherDocUpload(f, (newDocLabel || '').trim());
+                                                    handleOtherDocUpload(f, label); // ← 既存ラベルで差し替え
                                                     e.currentTarget.value = '';
                                                 }}
-
                                             />
                                         </label>
                                         <button
@@ -1845,31 +1965,34 @@ export default function EntryDetailPage() {
                             );
                         })}
                     </div>
-                    <div className="mt-3 p-3 border rounded bg-gray-50">
-                        <div className="flex items-center gap-2">
-                            <input
-                                className="border rounded px-2 py-1"
-                                placeholder="書類名（例: 雇用条件通知書）"
-                                value={newDocLabel}
-                                onChange={(e) => setNewDocLabel(e.target.value)}
-                            />
-                            <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
-                                追加アップロード
-                                <input
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleOtherDocUpload(f, newDocLabel.trim());
-                                    }}
-                                />
-                            </label>
-                        </div>
-                    </div>
+                ) : (
+                    <div className="text-sm text-gray-500">まだ登録されていません。</div>
+                )}
 
+                {/* 追加アップロード（0件でも常に表示） */}
+                <div className="mt-3 p-3 border rounded bg-gray-50">
+                    <div className="flex items-center gap-2">
+                        <input
+                            className="border rounded px-2 py-1"
+                            placeholder="書類名（例: 雇用条件通知書）"
+                            value={newDocLabel}
+                            onChange={(e) => setNewDocLabel(e.target.value)}
+                        />
+                        <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
+                            追加アップロード
+                            <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleOtherDocUpload(f, newDocLabel.trim());
+                                }}
+                            />
+                        </label>
+                    </div>
                 </div>
-            )}
+            </div>
 
             <div>
                 <strong>同意内容:</strong>
