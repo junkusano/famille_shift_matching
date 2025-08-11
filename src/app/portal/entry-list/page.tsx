@@ -30,11 +30,10 @@ interface EntryData {
 
 type AddrStatus = 'loading' | 'ok' | 'retry_fail';
 
-// --- 郵便番号住所取得 with 再試行＆3桁フォールバック ---
-const zipCache = new Map<string, { value: string; expires: number }>();
-
+// ========================
+//  1) 3桁ヒント辞書
+// ========================
 const prefix3Dict: Record<string, string> = {
-  // 必要に応じて拡充してください
   '060': '北海道（道央）',
   '100': '東京都（島しょ部）',
   '150': '東京都 渋谷区 周辺',
@@ -48,17 +47,69 @@ function getPrefixHint(zip7: string) {
   return prefix3Dict[p3] ?? `〒${p3}*** 周辺`;
 }
 
+// ========================
+//  2) 永続キャッシュ（localStorage）
+//     形式: { [zip7]: { v: address, exp: epoch_ms } }
+// ========================
+const ZIP_CACHE_KEY = 'zipAddrCacheV1';
+const ZIP_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7日
+
+type LSCache = Record<string, { v: string; exp: number }>; 
+
+function readLS(): LSCache {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(ZIP_CACHE_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw) as LSCache;
+    const now = Date.now();
+    // 期限切れを掃除
+    const cleaned: LSCache = {};
+    for (const [k, val] of Object.entries(obj)) {
+      if (val && typeof val.v === 'string' && typeof val.exp === 'number' && val.exp > now) {
+        cleaned[k] = val;
+      }
+    }
+    if (Object.keys(cleaned).length !== Object.keys(obj).length) {
+      localStorage.setItem(ZIP_CACHE_KEY, JSON.stringify(cleaned));
+    }
+    return cleaned;
+  } catch {
+    return {};
+  }
+}
+
+function writeLS(next: LSCache) {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(ZIP_CACHE_KEY, JSON.stringify(next)); } catch { /* noop */ }
+}
+
+function getFromCache(zip7: string): string | null {
+  const store = readLS();
+  const hit = store[zip7];
+  if (hit && hit.exp > Date.now()) return hit.v;
+  return null;
+}
+
+function setToCache(zip7: string, addr: string) {
+  const store = readLS();
+  store[zip7] = { v: addr, exp: Date.now() + ZIP_CACHE_TTL };
+  writeLS(store);
+}
+
+// ========================
+//  3) 再試行付き取得（永続キャッシュ + 3桁ヒント）
+// ========================
 async function fetchAddressWithRetry(
   zip7: string,
   maxTry = 3
 ): Promise<{ text: string; status: 'ok' | 'hint' | 'retry_fail' }> {
-  const now = Date.now();
-  const cached = zipCache.get(zip7);
-  if (cached && cached.expires > now) {
-    return { text: cached.value, status: 'ok' };
+  const cached = getFromCache(zip7);
+  if (cached) {
+    return { text: cached, status: 'ok' };
   }
 
-  const lastHint = getPrefixHint(zip7); // 再代入しないので const
+  const lastHint = getPrefixHint(zip7);
 
   for (let i = 0; i < maxTry; i++) {
     const controller = new AbortController();
@@ -67,18 +118,27 @@ async function fetchAddressWithRetry(
       const addr = await getAddressFromZip(zip7);
       clearTimeout(timer);
       if (addr) {
-        zipCache.set(zip7, { value: addr, expires: now + 7 * 24 * 60 * 60 * 1000 }); // 7日TTL
+        setToCache(zip7, addr);
         return { text: addr, status: 'ok' };
       }
     } catch {
       clearTimeout(timer);
-      // 続行して再試行（ログが必要ならここで console.debug など）
     }
     // Exponential Backoff: 0.4s, 0.8s, 1.6s ...
     await new Promise((r) => setTimeout(r, 2 ** i * 400));
   }
 
   return { text: lastHint, status: 'retry_fail' };
+}
+
+// ========================
+//  4) 並列数制限ユーティリティ
+// ========================
+async function processInBatches<T>(items: T[], batchSize: number, fn: (item: T) => Promise<void>) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(fn));
+  }
 }
 
 export default function EntryListPage() {
@@ -92,11 +152,10 @@ export default function EntryListPage() {
   const pageSize = 50;
   const role = useUserRole();
 
+  // ▼ 権限・並び替え同等（元のまま）
   useEffect(() => {
     const fetchMyLevelSort = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: userRecord } = await supabase
@@ -134,8 +193,8 @@ export default function EntryListPage() {
       const { data, error, count } = await supabase
         .from('form_entries_with_status')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false }) // 登録日が新しい順
-        .order('id', { ascending: true }) // 安定化のための第二キー
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
         .range(from, to);
 
       if (error) {
@@ -147,11 +206,7 @@ export default function EntryListPage() {
           return myLevelSort === null || (entry.level_sort ?? 999999) > myLevelSort;
         });
 
-        const statusOrder: Record<string, number> = {
-          account_id_create: 1,
-          auth_mail_send: 2,
-          joined: 3,
-        };
+        const statusOrder: Record<string, number> = { account_id_create: 1, auth_mail_send: 2, joined: 3 };
 
         const sorted = filtered.sort((a, b) => {
           const sa = a.status === null ? -1 : statusOrder[a.status] ?? 99;
@@ -174,49 +229,52 @@ export default function EntryListPage() {
     }
   }, [role, currentPage, myLevelSort]);
 
+  // ▼ 住所解決：即時ヒント表示 + 並列制限 + ストリーミング更新
   useEffect(() => {
     let cancelled = false;
 
-    const addMapLinks = async () => {
-      // 初期は loading の見た目に
-      const initial = entries.map((e) => ({
-        ...e,
-        shortAddress: e.shortAddress ?? '検索中…',
-        addrStatus: 'loading' as const,
-      }));
+    const run = async () => {
+      if (entries.length === 0) return;
+
+      // 1) まず即時ヒントで描画（検索中…ではなく）
+      const initial = entries.map((e) => {
+        const zipcode = e.postal_code?.toString().padStart(7, '0');
+        const hint = zipcode && zipcode.length === 7 ? getPrefixHint(zipcode) : '郵便番号未設定';
+        return { ...e, shortAddress: hint, addrStatus: 'loading' as const };
+      });
       setEntriesWithMap(initial);
 
-      const updated = await Promise.all(
-        initial.map(async (entry) => {
-          const zipcode = entry.postal_code?.toString().padStart(7, '0');
-          let googleMapUrl: string | undefined = undefined;
-          let shortAddress = entry.shortAddress ?? '検索中…';
-          let addrStatus: AddrStatus = 'loading';
+      // 2) バッチで解決して、行ごとにストリーミング反映
+      const byId = new Map(initial.map((it) => [it.id, it]));
 
-          if (zipcode && zipcode.length === 7) {
-            // Mapリンクは番号だけでも生成（既存処理）
-            googleMapUrl = await getMapLinkFromZip(zipcode);
+      await processInBatches(initial, 6, async (entry) => {
+        if (cancelled) return;
+        const zipcode = entry.postal_code?.toString().padStart(7, '0');
+        if (!zipcode || zipcode.length !== 7) {
+          // 郵便番号なし
+          setEntriesWithMap((prev) => prev.map((p) => (p.id === entry.id ? { ...p, addrStatus: 'retry_fail' } : p)));
+          return;
+        }
 
-            // 再試行つき取得
-            const res = await fetchAddressWithRetry(zipcode);
-            shortAddress = res.text;
-            addrStatus = res.status === 'ok' ? 'ok' : 'retry_fail';
-          } else {
-            shortAddress = '郵便番号未設定';
-            addrStatus = 'retry_fail';
-          }
+        // Map URL はすぐ用意
+        const gmap = await getMapLinkFromZip(zipcode);
+        const res = await fetchAddressWithRetry(zipcode);
 
-          return { ...entry, googleMapUrl, shortAddress, addrStatus };
-        })
-      );
-
-      if (!cancelled) setEntriesWithMap(updated);
+        // 最新のエントリに反映
+        setEntriesWithMap((prev) => prev.map((p) => {
+          if (p.id !== entry.id) return p;
+          return {
+            ...p,
+            googleMapUrl: gmap,
+            shortAddress: res.text,
+            addrStatus: res.status === 'ok' ? 'ok' : 'retry_fail',
+          };
+        }));
+      });
     };
 
-    if (entries.length > 0) addMapLinks();
-    return () => {
-      cancelled = true;
-    };
+    run();
+    return () => { cancelled = true; };
   }, [entries]);
 
   if (!['admin', 'manager'].includes(role)) {
@@ -264,7 +322,7 @@ export default function EntryListPage() {
                 const age =
                   new Date().getFullYear() - entry.birth_year -
                   (new Date().getMonth() + 1 < entry.birth_month ||
-                  (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
+                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
                     ? 1
                     : 0);
 
@@ -318,11 +376,7 @@ export default function EntryListPage() {
       )}
 
       <div className="flex justify-between items-center mt-4">
-        <button
-          disabled={currentPage === 1}
-          onClick={() => setCurrentPage((p) => p - 1)}
-          className="px-3 py-1 border"
-        >
+        <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)} className="px-3 py-1 border">
           ◀ 前へ
         </button>
         <span>
