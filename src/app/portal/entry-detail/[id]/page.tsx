@@ -1207,15 +1207,26 @@ export default function EntryDetailPage() {
     type AttachmentItem = Attachment;
 
     // 追加：共通ヘルパ
+    // 置き換え：必ず mimeType を返す（file.type が空でも拡張子で補完）
     const uploadFileViaApi = async (file: File) => {
         const form = new FormData();
         form.append("file", file);
         form.append("filename", `${Date.now()}_${file.name}`);
+
         const res = await fetch("/api/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("upload failed");
         const json = await res.json();
-        // サーバが返す mimeType が無い場合は input の file.type を使う
-        const mimeType = (file.type || json.mimeType || null) as string | null;
+
+        // file.type が空のブラウザ/環境のために拡張子で補完
+        const lower = file.name.toLowerCase();
+        const guessedFromExt =
+            lower.endsWith(".pdf") ? "application/pdf" :
+                lower.endsWith(".png") ? "image/png" :
+                    lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg" :
+                        null;
+
+        const mimeType = (file.type || json.mimeType || guessedFromExt || null) as string | null;
+
         return { url: json.url as string, mimeType };
     };
 
@@ -2322,7 +2333,6 @@ function StaffLogSection({ staffId }: { staffId: string }) {
 }
 
 // 画像表示＋PDFボタン
-// 画像表示＋PDFボタン
 function FileThumbnail({
     title,
     src,
@@ -2337,10 +2347,9 @@ function FileThumbnail({
         );
     }
 
-    // fileId を URL から抽出（Google Drive の共有 URL を前提）
+    // Google Drive の fileId を URL から抽出
     const fileIdMatch = src.match(/[-\w]{25,}/);
     const fileId = fileIdMatch ? fileIdMatch[0] : null;
-
     if (!fileId) {
         return (
             <div className="text-sm text-center text-red-500">
@@ -2350,17 +2359,24 @@ function FileThumbnail({
         );
     }
 
-    // Google Drive のダウンロードリンク（PDFの場合は download にしてもOK）
-    const driveUrl = mimeType === "application/pdf"
-        ? `https://drive.google.com/uc?export=download&id=${fileId}`
-        : `https://drive.google.com/uc?export=view&id=${fileId}`;
+    // ---- 表示ロジック（強化）----
+    const mt = (mimeType || "").toLowerCase();
+    const titleLower = (title || "").toLowerCase();
 
-    if (mimeType === "application/pdf") {
+    const isPdf = mt === "application/pdf" || /\.pdf$/.test(titleLower);
+    const isImage = mt.startsWith("image/");
+
+    // Drive のビュー/ダウンロードURL
+    const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+    // PDF は常にボタン（画像化しない）
+    if (isPdf) {
         return (
             <div className="text-sm text-center">
                 <p className="mb-1">{title}</p>
                 <a
-                    href={driveUrl}
+                    href={downloadUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
@@ -2371,26 +2387,44 @@ function FileThumbnail({
         );
     }
 
+    // 画像だけ <Image/>、それ以外（docx等）はリンク
+    if (isImage) {
+        return (
+            <div className="text-sm text-center">
+                <p className="mb-1">{title}</p>
+                <Image
+                    src={viewUrl}
+                    alt={title}
+                    width={320}
+                    height={192}
+                    className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
+                />
+                <div className="mt-2">
+                    <a
+                        href={viewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline"
+                    >
+                        ファイルとして開く
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
+    // 不明 or 非画像はリンク表示
     return (
         <div className="text-sm text-center">
             <p className="mb-1">{title}</p>
-            <Image
-                src={driveUrl}
-                alt={title}
-                width={320}
-                height={192}
-                className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform"
-            />
-            <div className="mt-2">
-                <a
-                    href={driveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline"
-                >
-                    ファイルとして開く
-                </a>
-            </div>
+            <a
+                href={downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200"
+            >
+                📎 ファイルを開く
+            </a>
         </div>
     );
 }
