@@ -85,6 +85,16 @@ type EntryDetailEx =
         commute_options?: string | null;
     };
 
+// DB側（work_styles/commute_options は text か text[]）
+type ArrayOrString = string[] | string | null;
+
+type FormEntriesRow =
+    Omit<EntryDetail, 'work_styles' | 'commute_options'> & {
+        work_styles: ArrayOrString;
+        commute_options?: ArrayOrString;
+    } & Partial<Record<WorkKey, string | null>>;
+
+
 /*
 interface OrgUnit {
     orgUnitId: string;
@@ -136,13 +146,14 @@ export default function EntryDetailPage() {
     const splitToArray = (s: string) => s.split(/[、,，\s]+/).filter(Boolean);
 
     // DBレコード -> 画面用（常に文字列で保持）へ正規化
-    const normalizeEntryFromDb = (data: any): EntryDetailEx => {
+    const normalizeEntryFromDb = (data: FormEntriesRow): EntryDetailEx => {
         setWorkStylesIsArray(Array.isArray(data.work_styles));
         setCommuteIsArray(Array.isArray(data.commute_options));
 
         const ws = Array.isArray(data.work_styles)
-            ? (data.work_styles as string[]).join('、')
+            ? data.work_styles.join('、')
             : (data.work_styles ?? '');
+
         const cm = Array.isArray(data.commute_options)
             ? (data.commute_options as string[]).join('、')
             : (data.commute_options ?? '');
