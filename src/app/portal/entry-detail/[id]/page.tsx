@@ -79,11 +79,11 @@ type WorkKey =
 
 // DBスキーマに合わせて補強（work_styles/commute_options は text）
 type EntryDetailEx =
-  Omit<EntryDetail, 'work_styles' | 'commute_options'> &
-  Partial<Record<WorkKey, string | null>> & {
-    work_styles: string | null;
-    commute_options?: string | null;
-  };
+    Omit<EntryDetail, 'work_styles' | 'commute_options'> &
+    Partial<Record<WorkKey, string | null>> & {
+        work_styles: string | null;
+        commute_options?: string | null;
+    };
 
 /*
 interface OrgUnit {
@@ -128,11 +128,40 @@ export default function EntryDetailPage() {
         setEntry(prev => (prev ? ({ ...prev, [key]: value } as EntryDetailEx) : prev));
     };
 
+    // 配列カラムかどうかを実データから判断するフラグ
+    const [workStylesIsArray, setWorkStylesIsArray] = useState(false);
+    const [commuteIsArray, setCommuteIsArray] = useState(false);
+
+    // 文字列→配列の共通変換
+    const splitToArray = (s: string) => s.split(/[、,，\s]+/).filter(Boolean);
+
+    // DBレコード -> 画面用（常に文字列で保持）へ正規化
+    const normalizeEntryFromDb = (data: any): EntryDetailEx => {
+        setWorkStylesIsArray(Array.isArray(data.work_styles));
+        setCommuteIsArray(Array.isArray(data.commute_options));
+
+        const ws = Array.isArray(data.work_styles)
+            ? (data.work_styles as string[]).join('、')
+            : (data.work_styles ?? '');
+        const cm = Array.isArray(data.commute_options)
+            ? (data.commute_options as string[]).join('、')
+            : (data.commute_options ?? '');
+
+        return { ...data, work_styles: ws, commute_options: cm } as EntryDetailEx;
+    };
+
     // 追記: ログ用に実行者IDを取るヘルパ
     const getCurrentUserId = async () => {
         const s = await supabase.auth.getSession();
         return s.data?.session?.user?.id ?? 'システム';
     };
+
+    type DocMasterRow = { category: 'certificate' | 'other'; label: string; sort_order?: number; is_active?: boolean };
+    const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({ certificate: [], other: [] });
+
+    // カスタム入力の ON/OFF
+    const [useCustomCert, setUseCustomCert] = useState(false);
+    const [useCustomOther, setUseCustomOther] = useState(false);
 
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
@@ -302,8 +331,6 @@ export default function EntryDetailPage() {
         fetchMyLevelSort();
     }, []);
 
-
-
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
@@ -334,8 +361,10 @@ export default function EntryDetailPage() {
                 return;
             }
 
-            setEntry(data);
+            // setEntry(data);
+            setEntry(normalizeEntryFromDb(data));
             setManagerNote(data?.manager_note ?? '');
+
         };
 
 
@@ -414,6 +443,23 @@ export default function EntryDetailPage() {
             alert('エラーが発生しました：' + (error.message || ''));
         }
     };
+
+    useEffect(() => {
+        const loadDocMaster = async () => {
+            const { data, error } = await supabase
+                .from('user_doc_master')
+                .select('category,label,is_active,sort_order')
+                .eq('is_active', true)
+                .order('sort_order', { ascending: true });
+
+            if (!error && data) {
+                const cert = (data as DocMasterRow[]).filter(r => r.category === 'certificate').map(r => r.label);
+                const other = (data as DocMasterRow[]).filter(r => r.category === 'other').map(r => r.label);
+                setDocMaster({ certificate: cert, other });
+            }
+        };
+        loadDocMaster();
+    }, []);
 
     const [sendingInvite, setSendingInvite] = useState(false);
     const [inviteSent, setInviteSent] = useState(false);
@@ -515,9 +561,18 @@ export default function EntryDetailPage() {
     const updateEntry = async () => {
         if (!entry) return;
 
-        // DBは text カラムのため、配列は結合して保存（UIは配列で保持）
-        const workStylesText = entry.work_styles ?? '';
-const commuteText    = entry.commute_options ?? '';
+        const wsInput = (entry.work_styles ?? '').trim();
+        const cmInput = (entry.commute_options ?? '').trim();
+
+        const workStylesForDB = workStylesIsArray
+            ? (wsInput ? splitToArray(wsInput) : [])   // DBが text[] のとき
+            : (wsInput || null);                        // DBが text のとき
+
+        const commuteForDB = commuteIsArray
+            ? (cmInput ? splitToArray(cmInput) : [])   // DBが text[] のとき
+            : (cmInput || null);                        // DBが text のとき
+
+        const emailForDB = (entry.email ?? '').trim() || null; // 空はnullに
 
         const { error } = await supabase
             .from("form_entries")
@@ -533,16 +588,14 @@ const commuteText    = entry.commute_options ?? '';
                 birth_year: entry.birth_year,
                 birth_month: entry.birth_month,
                 birth_day: entry.birth_day,
-                email: entry.email,
+                email: emailForDB,
 
-                // ← 追加
                 motivation: entry.motivation ?? '',
-                work_styles: workStylesText,
+                work_styles: workStylesForDB,
                 workstyle_other: entry.workstyle_other ?? '',
-                commute_options: commuteText,
+                commute_options: commuteForDB,
                 health_condition: entry.health_condition ?? '',
 
-                // 職歴（1〜3）
                 workplace_1: entry?.workplace_1 ?? null,
                 period_from_1: entry?.period_from_1 ?? null,
                 period_to_1: entry?.period_to_1 ?? null,
@@ -562,6 +615,7 @@ const commuteText    = entry.commute_options ?? '';
             alert("保存しました");
         }
     };
+
 
     const handleSaveManagerNote = async () => {
         setNoteSaving(true);
@@ -996,7 +1050,8 @@ const commuteText    = entry.commute_options ?? '';
             .select('*')
             .eq('id', id)
             .single();
-        if (!error && data) setEntry(data);
+        // if (!error && data) setEntry(data);
+        if (!error && data) setEntry(normalizeEntryFromDb(data));
     };
 
     // 3. 削除ハンドラ
@@ -1148,7 +1203,9 @@ const commuteText    = entry.commute_options ?? '';
         const res = await fetch("/api/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("upload failed");
         const json = await res.json();
-        return { url: json.url as string, mimeType: (json.mimeType ?? null) as string | null };
+        // サーバが返す mimeType が無い場合は input の file.type を使う
+        const mimeType = (file.type || json.mimeType || null) as string | null;
+        return { url: json.url as string, mimeType };
     };
 
     const upsertAttachment = (
@@ -1899,12 +1956,36 @@ const commuteText    = entry.commute_options ?? '';
                 {/* 追加アップロード（0件でも常に表示） */}
                 <div className="mt-3 p-3 border rounded bg-gray-50">
                     <div className="flex items-center gap-2">
-                        <input
+                        <select
                             className="border rounded px-2 py-1"
-                            placeholder="例: certificate_同行援護(一般)"
-                            value={newCertLabel}
-                            onChange={(e) => setNewCertLabel(e.target.value)}
-                        />
+                            value={useCustomCert ? '__custom__' : (newCertLabel || '')}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '__custom__') {
+                                    setUseCustomCert(true);
+                                    setNewCertLabel('');
+                                } else {
+                                    setUseCustomCert(false);
+                                    setNewCertLabel(v);
+                                }
+                            }}
+                        >
+                            <option value="">書類名を選択</option>
+                            {docMaster.certificate.map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                            <option value="__custom__">（カスタム入力）</option>
+                        </select>
+
+                        {useCustomCert && (
+                            <input
+                                className="border rounded px-2 py-1"
+                                placeholder="例: certificate_同行援護(一般)"
+                                value={newCertLabel}
+                                onChange={(e) => setNewCertLabel(e.target.value)}
+                            />
+                        )}
+
                         <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
                             追加アップロード
                             <input
@@ -1913,13 +1994,17 @@ const commuteText    = entry.commute_options ?? '';
                                 className="hidden"
                                 onChange={(e) => {
                                     const f = e.target.files?.[0];
-                                    if (f) handleCertUpload(f, newCertLabel.trim());
+                                    if (f && (newCertLabel || useCustomCert)) {
+                                        handleCertUpload(f, (newCertLabel || '').trim());
+                                    } else {
+                                        alert('書類名を選択してください');
+                                    }
                                 }}
                             />
                         </label>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                        ラベルは後で識別に使います（certificate_ から始める運用が分かりやすいです）
+                        区分：資格証明書（マスタから選択。必要に応じてカスタム入力も可能）
                     </div>
                 </div>
             </div>
@@ -1972,12 +2057,36 @@ const commuteText    = entry.commute_options ?? '';
                 {/* 追加アップロード（0件でも常に表示） */}
                 <div className="mt-3 p-3 border rounded bg-gray-50">
                     <div className="flex items-center gap-2">
-                        <input
+                        <select
                             className="border rounded px-2 py-1"
-                            placeholder="書類名（例: 雇用条件通知書）"
-                            value={newDocLabel}
-                            onChange={(e) => setNewDocLabel(e.target.value)}
-                        />
+                            value={useCustomOther ? '__custom__' : (newDocLabel || '')}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '__custom__') {
+                                    setUseCustomOther(true);
+                                    setNewDocLabel('');
+                                } else {
+                                    setUseCustomOther(false);
+                                    setNewDocLabel(v);
+                                }
+                            }}
+                        >
+                            <option value="">書類名を選択</option>
+                            {docMaster.other.map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                            <option value="__custom__">（カスタム入力）</option>
+                        </select>
+
+                        {useCustomOther && (
+                            <input
+                                className="border rounded px-2 py-1"
+                                placeholder="例: 雇用条件通知書"
+                                value={newDocLabel}
+                                onChange={(e) => setNewDocLabel(e.target.value)}
+                            />
+                        )}
+
                         <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
                             追加アップロード
                             <input
@@ -1986,10 +2095,17 @@ const commuteText    = entry.commute_options ?? '';
                                 className="hidden"
                                 onChange={(e) => {
                                     const f = e.target.files?.[0];
-                                    if (f) handleOtherDocUpload(f, newDocLabel.trim());
+                                    if (f && (newDocLabel || useCustomOther)) {
+                                        handleOtherDocUpload(f, (newDocLabel || '').trim());
+                                    } else {
+                                        alert('書類名を選択してください');
+                                    }
                                 }}
                             />
                         </label>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                        区分：その他書類（マスタから選択。必要に応じてカスタム入力も可能）
                     </div>
                 </div>
             </div>
