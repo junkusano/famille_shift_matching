@@ -473,7 +473,9 @@ export default function EntryDetailPage() {
     }, []);
 
     const [sendingInvite, setSendingInvite] = useState(false);
+    void sendingInvite;
     const [inviteSent, setInviteSent] = useState(false);
+    void inviteSent;
 
     const handleSendInvite = async () => {
         if (!userId || !entry?.email) {
@@ -1021,6 +1023,7 @@ export default function EntryDetailPage() {
         load();
     }, [userId]);
 
+    /*
     const handleSaveUserInfo = async () => {
         if (!userRecord) return;
         const { error } = await supabase
@@ -1038,6 +1041,7 @@ export default function EntryDetailPage() {
             alert('保存に失敗しました: ' + error.message);
         }
     };
+    */
 
     useEffect(() => {
         if (
