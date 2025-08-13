@@ -1124,20 +1124,30 @@ export default function EntryDetailPage() {
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
-    const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [];
-    const otherDocs = attachmentsArray.filter(
-        (a) =>
-            a.url !== null &&
-            !['免許証表', '免許証裏', '住民票'].includes(a.type ?? '') &&
-            !(a.label && a.label.startsWith('certificate_'))
-    );
-    const licenseFront = attachmentsArray.find((a) => a.type === '免許証表');
-    const licenseBack = attachmentsArray.find((a) => a.type === '免許証裏');
-    const residenceCard = attachmentsArray.find((a) => a.type === '住民票');
-    const certifications = attachmentsArray.filter(
-        (a) =>
-            (a.label && a.label.startsWith('certificate_')) ||
-            (a.type && a.type.includes('資格証'))
+    const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [] as Attachment[];
+
+    // 追加: 判定ヘルパ
+    const isFixedId = (att?: Attachment) =>
+        ['免許証表', '免許証裏', '住民票'].includes(att?.type ?? '');
+
+    const isCert = (att?: Attachment) => {
+        if (!att) return false;
+        // 明示の型を最優先
+        if (att.type === '資格証明書') return true;
+        // ラベル規約
+        if (att.label && att.label.startsWith('certificate_')) return true;
+        // 互換: 文字列一致のみ安全側で許可
+        if (att.type && ['資格証', '資格証明書', 'certificate'].includes(att.type)) return true;
+        return false;
+    };
+
+    const licenseFront = attachmentsArray.find((a: Attachment) => a.type === '免許証表');
+    const licenseBack = attachmentsArray.find((a: Attachment) => a.type === '免許証裏');
+    const residenceCard = attachmentsArray.find((a: Attachment) => a.type === '住民票');
+
+    const certifications = (attachmentsArray as Attachment[]).filter(a => isCert(a));
+    const otherDocs = (attachmentsArray as Attachment[]).filter(a =>
+        a.url !== null && !isFixedId(a) && !isCert(a)
     );
 
     if (restricted) {
@@ -1329,11 +1339,11 @@ export default function EntryDetailPage() {
             const current = Array.isArray(entry.attachments)
                 ? (entry.attachments as AttachmentItem[])
                 : [];
-            const next = upsertAttachment(
-                current,
-                { url, type: "資格証", label, mimeType },
-                "label"
-            );
+            // 変更前（例）:
+            // const next = upsertAttachment(current, { url, mimeType, label }, 'label');
+
+            // 変更後（type を固定）
+            const next = upsertAttachment(current, { url, mimeType, label, type: '資格証明書' }, 'label');
             await saveAttachments(next);
             const actor = await getCurrentUserId();
             await addStaffLog({
@@ -1426,7 +1436,7 @@ export default function EntryDetailPage() {
                     onClick={handleCreateLineWorksAccount}
                     disabled={creatingLineWorks}
                 >
-                    {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
+                    {creatingLineWorks ? '処理中...' : 'LWアカウント生成'}
                 </button>
             )}
 
