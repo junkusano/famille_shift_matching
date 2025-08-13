@@ -1383,6 +1383,76 @@ export default function EntryDetailPage() {
         }
     };
 
+
+    // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
+    const ActionButtons = () => (
+        <div className="flex flex-wrap justify-center items-center gap-3 pt-4">
+            {/* 認証メール送信 */}
+            {userRecord && !userRecord.auth_user_id ? (
+                <button
+                    className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                    onClick={handleSendInvite}
+                    disabled={!userId || !entry?.email}
+                >
+                    認証メール送信
+                </button>
+            ) : (
+                userRecord?.auth_user_id ? (
+                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">認証完了</span>
+                ) : (
+                    <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定）</span>
+                )
+            )}
+
+            {/* 認証情報削除 */}
+            <button
+                onClick={handleDeleteAuthUser}
+                className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm whitespace-nowrap"
+                disabled={!userRecord?.auth_user_id}
+            >
+                認証情報削除
+            </button>
+
+            {/* LINE WORKS アカウント生成 */}
+            {lineWorksExists ? (
+                <span className="px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">LINEWORKS登録済</span>
+            ) : (
+                <button
+                    className="px-3 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
+                    onClick={handleCreateLineWorksAccount}
+                    disabled={creatingLineWorks}
+                >
+                    {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
+                </button>
+            )}
+
+            {/* カイポケユーザー追加 */}
+            <button
+                className="px-3 py-2 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap"
+                disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
+                onClick={handleCreateKaipokeUser}
+            >
+                {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
+            </button>
+
+            {/* 保存 / 戻る */}
+            <button
+                className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
+                onClick={updateEntry}
+            >
+                保存
+            </button>
+            <Link
+                href="/portal/entry-list"
+                className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+                戻る
+            </Link>
+        </div>
+    );
+
+
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
             <div className="text-center mb-4">
@@ -1421,6 +1491,8 @@ export default function EntryDetailPage() {
                     </div>
                 )}
             </div>
+            {/* 顔写真エリアの直後に共通ボタン */}
+            <ActionButtons />
             <h1 className="text-2xl font-bold">エントリー詳細</h1>
             <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-center gap-2">
@@ -2174,31 +2246,8 @@ export default function EntryDetailPage() {
             </div>
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
-            <div className="flex justify-center items-center gap-4 pt-8">
-                {userRecord && !userRecord.auth_user_id && (
-                    <button
-                        className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
-                        onClick={handleSendInvite}
-                        disabled={!userId || !entry?.email}
-                    >
-                        認証メール送信
-                    </button>
-                )}
-
-                <button className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
-                    onClick={updateEntry}
-                >
-                    保存
-                </button>
-
-                <Link
-                    href="/portal/entry-list"
-                    className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 flex items-center gap-2 transition"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
-                    戻る
-                </Link>
-            </div>
+            {/* 顔写真エリアの直後に共通ボタン */}
+            <ActionButtons />
         </div>
     );
 }
