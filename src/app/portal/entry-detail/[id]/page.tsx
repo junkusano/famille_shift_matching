@@ -1435,6 +1435,15 @@ export default function EntryDetailPage() {
                 {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
             </button>
 
+            {/* 雇用契約書メール送信 */}
+            <button
+                onClick={handleSendContractMail}
+                disabled={sendingContract}
+                className="px-3 py-2 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
+            >
+                {sendingContract ? '送信中...' : '雇用契約書メール送信'}
+            </button>
+
             {/* 保存 / 戻る */}
             <button
                 className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800 transition"
@@ -1451,7 +1460,6 @@ export default function EntryDetailPage() {
             </Link>
         </div>
     );
-
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow space-y-6">
@@ -1645,11 +1653,12 @@ export default function EntryDetailPage() {
                         value={entry?.email ?? ''}
                         onChange={(e) => setEntry({ ...entry!, email: e.target.value })}
                     />
+                    {/*
                     <div className="flex flex-col gap-2">
 
                         {userRecord ? (
                             <div className="space-y-2">
-                                {/* 認証状態・ボタン */}
+                                {/* 認証状態・ボタン 
                                 {userRecord.auth_user_id ? (
                                     <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">
                                         認証完了
@@ -1677,7 +1686,7 @@ export default function EntryDetailPage() {
                                 >
                                     認証情報削除
                                 </button>
-                                {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） */}
+                                {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） 
                                 {lineWorksExists ? (
                                     <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
                                         LINEWORKS登録済
@@ -1692,7 +1701,7 @@ export default function EntryDetailPage() {
                                     </button>
                                 )}
 
-                                {/* カイポケユーザー追加ボタン（新規追加！） */}
+                                {/* カイポケユーザー追加ボタン（新規追加！） 
                                 <button
                                     className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
                                     disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
@@ -1706,7 +1715,7 @@ export default function EntryDetailPage() {
                             <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
                         )}
 
-                        {/* 雇用契約書メール送信ボタン */}
+                        {/* 雇用契約書メール送信ボタン 
                         <button
                             onClick={handleSendContractMail}
                             disabled={sendingContract}
@@ -1716,6 +1725,7 @@ export default function EntryDetailPage() {
                         </button>
 
                     </div>
+                    */}
                 </div>
                 {/* ユーザーID表示・入力・決定欄 */}
                 <div className="flex items-center border rounded p-2 gap-2 mt-2">
@@ -1802,12 +1812,14 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
+                    {/*
                     <button
                         className="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
                         onClick={handleSaveUserInfo}
                     >
                         保存
                     </button>
+                    */}
                 </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
