@@ -19,6 +19,28 @@ const GLOBAL_CHILD_ORG_UNITS = [
     '572f07a2-999d-4a48-20fd-0517ecd2d6af' // ファミーユヘルパーサービス愛知
 ];
 
+// ===== 型 =====
+interface EntryViewRow {
+    user_id: string;
+    last_name_kanji: string;
+    first_name_kanji: string;
+    level_sort: number | string;
+    lw_userid?: string | null;
+    org_unit_id?: string | null;
+    group_type?: string | null;
+    is_primary?: boolean | null;
+    end_at?: string | null;
+    updated_at?: string | null;
+}
+interface LwUserIdRow { lw_userid: string }
+
+interface GroupCreatePayload {
+    groupName: string;
+    groupExternalKey: string;
+    administrators: { userId: string }[];
+    members: { id: string; type: 'USER' | 'GROUP' }[];
+}
+
 export async function POST(req: Request) {
     const { userId, orgUnitId, extraMemberIds = [] } = await req.json();
     const accessToken = await getAccessToken();
@@ -26,34 +48,36 @@ export async function POST(req: Request) {
     console.log(`[init-group] lwUserId=${userId}, orgUnitId=${orgUnitId}`);
 
     // === 1) 対象ユーザー情報（ビュー重複に強い取得） ===
-    const { data: entryRows, error: ueErr } = await supabase
+    const { data: entryRowsRaw, error: ueErr } = await supabase
         .from('user_entry_united_view')
         .select('*')
         .eq('group_type', '人事労務サポートルーム')
         .eq('lw_userid', userId);
 
-    if (ueErr || !entryRows || entryRows.length === 0) {
+    if (ueErr || !entryRowsRaw || entryRowsRaw.length === 0) {
         console.error(`user_entry_united_view取得失敗: ${ueErr?.message ?? 'no row'}`);
         return NextResponse.json({ error: 'ユーザー情報取得失敗' }, { status: 400 });
     }
 
+    const entryRows: EntryViewRow[] = entryRowsRaw as EntryViewRow[];
+
     // JS側で primary優先 → 新しい方優先
-    const entryRowsSorted = [...entryRows].sort((a: any, b: any) => {
+    const entryRowsSorted = [...entryRows].sort((a: EntryViewRow, b: EntryViewRow) => {
         const ap = a?.is_primary ? 1 : 0;
         const bp = b?.is_primary ? 1 : 0;
         if (ap !== bp) return bp - ap;
-        const aTime = Date.parse(a?.end_at || a?.updated_at || 0);
-        const bTime = Date.parse(b?.end_at || b?.updated_at || 0);
-        return (bTime || 0) - (aTime || 0);
+        const aTime = Date.parse(a?.end_at ?? a?.updated_at ?? '');
+        const bTime = Date.parse(b?.end_at ?? b?.updated_at ?? '');
+        return (isNaN(bTime) ? 0 : bTime) - (isNaN(aTime) ? 0 : aTime);
     });
     const entryUser = entryRowsSorted[0];
 
     const fullName = `${entryUser.last_name_kanji}${entryUser.first_name_kanji}`;
-    const localUserId = entryUser.user_id as string;
-    const levelSort = parseInt(String(entryUser.level_sort ?? '0'), 10);
+    const localUserId = entryUser.user_id;
+    const levelSort = Number(entryUser.level_sort ?? 0);
 
     // === 2) 同組織 / 上位組織の上位者（1250000は除外） ===
-    const { data: sameOrgUpperUsers = [] } = await supabase
+    const { data: sameOrgUpperRaw } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
         .eq('org_unit_id', orgUnitId)
@@ -62,9 +86,11 @@ export async function POST(req: Request) {
         .neq('level_sort', 1250000)
         .not('lw_userid', 'is', null);
 
+    const sameOrgUpperUsers: LwUserIdRow[] = (sameOrgUpperRaw ?? []) as LwUserIdRow[];
+
     const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
 
-    const { data: upperOrgUpperUsers = [] } = await supabase
+    const { data: upperOrgUpperRaw } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
         .eq('group_type', '人事労務サポートルーム')
@@ -72,6 +98,8 @@ export async function POST(req: Request) {
         .lt('level_sort', levelSort)
         .neq('level_sort', 1250000)
         .not('lw_userid', 'is', null);
+
+    const upperOrgUpperUsers: LwUserIdRow[] = (upperOrgUpperRaw ?? []) as LwUserIdRow[];
 
     // === 3) 固定管理者（usersから取得してユニーク化） ===
     const fixedAdmins = await fetchFixedAdmins(supabase);
@@ -94,7 +122,7 @@ export async function POST(req: Request) {
                 .eq('group_type', '人事労務サポートルーム')
                 .not('lw_userid', 'is', null)
                 .maybeSingle();
-            mgrLwUserId = mgrEntry?.lw_userid ?? null;
+            mgrLwUserId = (mgrEntry?.lw_userid as string | undefined) ?? null;
         }
     } catch (e) {
         console.warn(`mgr_user_id 解決スキップ: ${e instanceof Error ? e.message : String(e)}`);
@@ -103,8 +131,8 @@ export async function POST(req: Request) {
     // === 5) 管理者/メンバー集合（重複排除）===
     const adminIds = new Set<string>([
         ...fixedAdmins,
-        ...sameOrgUpperUsers.map((u: any) => u.lw_userid as string),
-        ...upperOrgUpperUsers.map((u: any) => u.lw_userid as string),
+        ...sameOrgUpperUsers.map((u: LwUserIdRow) => u.lw_userid),
+        ...upperOrgUpperUsers.map((u: LwUserIdRow) => u.lw_userid),
         ...(mgrLwUserId ? [mgrLwUserId] : [])
     ]);
 
@@ -117,8 +145,8 @@ export async function POST(req: Request) {
     const supportMembers = dedupeUsers([
         { id: userId, type: 'USER' as const },
         ...Array.from(adminIds).map(id => ({ id, type: 'USER' as const })),
-        ...sameOrgUpperUsers.map((u: any) => ({ id: u.lw_userid as string, type: 'USER' as const })),
-        ...upperOrgUpperUsers.map((u: any) => ({ id: u.lw_userid as string, type: 'USER' as const })),
+        ...sameOrgUpperUsers.map((u: LwUserIdRow) => ({ id: u.lw_userid, type: 'USER' as const })),
+        ...upperOrgUpperUsers.map((u: LwUserIdRow) => ({ id: u.lw_userid, type: 'USER' as const })),
         ...Array.from(extraSet).map(id => ({ id, type: 'USER' as const }))
     ]);
 
@@ -285,6 +313,19 @@ async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
     return Array.from(new Set((data || []).map(r => r.lw_userid as string)));
 }
 
+function dedupeUsers(list: { id: string; type: 'USER' | 'GROUP' }[]) {
+    const seen = new Set<string>();
+    const out: typeof list = [];
+    for (const m of list) {
+        const key = `${m.type}:${m.id}`;
+        if (!m.id) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(m);
+    }
+    return out;
+}
+
 /** ORGUNIT を親グループに ensure（POST /groups/{parentId}/members） */
 async function ensureChildOrgInGlobalParents(childOrgUnitId: string, token: string) {
     for (const parentId of GLOBAL_PARENT_GROUPS) {
@@ -301,25 +342,4 @@ async function ensureChildOrgInGlobalParents(childOrgUnitId: string, token: stri
             console.error(`[ensure-global] 追加失敗: 親=${parentId} 子(orgunit)=${childOrgUnitId} ${t}`);
         }
     }
-}
-
-// ===== 型 =====
-interface GroupCreatePayload {
-    groupName: string;
-    groupExternalKey: string;
-    administrators: { userId: string }[];
-    members: { id: string; type: 'USER' | 'GROUP' }[];
-}
-
-function dedupeUsers(list: { id: string; type: 'USER' | 'GROUP' }[]) {
-    const seen = new Set<string>();
-    const out: typeof list = [];
-    for (const m of list) {
-        const key = `${m.type}:${m.id}`;
-        if (!m.id) continue;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(m);
-    }
-    return out;
 }
