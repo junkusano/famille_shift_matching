@@ -1671,9 +1671,9 @@ export default function EntryDetailPage() {
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <label className="block text-sm text-gray-600">ステータス</label>
+                    <Label>ステータス</Label>
                     <select
-                        className="border rounded px-2 py-1"
+                        className="border rounded px-2 py-1 w-full"
                         value={userRecord?.status ?? 'account_id_create'}
                         onChange={async (e) => {
                             const next = e.target.value;

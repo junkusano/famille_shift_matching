@@ -2,11 +2,22 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { FIXED_GROUP_MASTERS, HELPER_MANAGER_GROUP_ID, ORG_RECURSION_LIMIT } from '@/lib/lineworks/groupDefaults';
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAccessToken } from '@/lib/getAccessToken';
 
 const DOMAIN_ID = parseInt(process.env.LINEWORKS_DOMAIN_ID || '0', 10);
 const API_BASE = 'https://www.worksapis.com/v1.0';
+
+// 親グループ（固定）
+const GLOBAL_PARENT_GROUPS = [
+    'c4a97fc2-865d-440d-3e60-05043231c290', // 全ヘルパー
+    '8237ba83-f9ca-4c9f-3f15-052e9ea0a678'  // 全社員
+] as const;
+
+// 親に必ずぶら下げたい orgunitid（固定）
+const GLOBAL_CHILD_ORG_UNITS = [
+    '572f07a2-999d-4a48-20fd-0517ecd2d6af' // ファミーユヘルパーサービス愛知
+];
 
 export async function POST(req: Request) {
     const { userId, orgUnitId, extraMemberIds = [] } = await req.json();
@@ -14,47 +25,58 @@ export async function POST(req: Request) {
 
     console.log(`[init-group] lwUserId=${userId}, orgUnitId=${orgUnitId}`);
 
-    // 1) 新規ユーザーの氏名など
-    const { data: entryUser, error: ueErr } = await supabase
+    // === 1) 対象ユーザー情報（ビュー重複に強い取得） ===
+    const { data: entryRows, error: ueErr } = await supabase
         .from('user_entry_united_view')
-        .select('user_id, last_name_kanji, first_name_kanji, level_sort')
-        .eq('group_type', "人事労務サポートルーム")
-        .eq('lw_userid', userId)
-        .order('is_primary', { ascending: false, nullsFirst: false })
-        .order('end_at', { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle();
-    if (ueErr || !entryUser) {
+        .select('*')
+        .eq('group_type', '人事労務サポートルーム')
+        .eq('lw_userid', userId);
+
+    if (ueErr || !entryRows || entryRows.length === 0) {
         console.error(`user_entry_united_view取得失敗: ${ueErr?.message ?? 'no row'}`);
         return NextResponse.json({ error: 'ユーザー情報取得失敗' }, { status: 400 });
     }
+
+    // JS側で primary優先 → 新しい方優先
+    const entryRowsSorted = [...entryRows].sort((a: any, b: any) => {
+        const ap = a?.is_primary ? 1 : 0;
+        const bp = b?.is_primary ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        const aTime = Date.parse(a?.end_at || a?.updated_at || 0);
+        const bTime = Date.parse(b?.end_at || b?.updated_at || 0);
+        return (bTime || 0) - (aTime || 0);
+    });
+    const entryUser = entryRowsSorted[0];
+
     const fullName = `${entryUser.last_name_kanji}${entryUser.first_name_kanji}`;
-    const localUserId = entryUser.user_id;
+    const localUserId = entryUser.user_id as string;
     const levelSort = parseInt(String(entryUser.level_sort ?? '0'), 10);
 
-    // 2) 同組織/上位組織の上位者
+    // === 2) 同組織 / 上位組織の上位者（1250000は除外） ===
     const { data: sameOrgUpperUsers = [] } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
         .eq('org_unit_id', orgUnitId)
-        .eq('group_type', "人事労務サポートルーム")   // ✅ サポートルームだけ
+        .eq('group_type', '人事労務サポートルーム')
         .lt('level_sort', levelSort)
-        .neq('level_sort', 1250000)                   // ✅ 1250000は除外
+        .neq('level_sort', 1250000)
         .not('lw_userid', 'is', null);
 
     const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
+
     const { data: upperOrgUpperUsers = [] } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
-        .eq('group_type', "人事労務サポートルーム")   // ✅ サポートルームだけ
+        .eq('group_type', '人事労務サポートルーム')
         .in('org_unit_id', parentOrgIds.length ? parentOrgIds : ['dummy'])
         .lt('level_sort', levelSort)
-        .neq('level_sort', 1250000)                   // ✅ 1250000は除外
+        .neq('level_sort', 1250000)
         .not('lw_userid', 'is', null);
-    // 3) 固定管理者
+
+    // === 3) 固定管理者（usersから取得してユニーク化） ===
     const fixedAdmins = await fetchFixedAdmins(supabase);
 
-    // 4) ②-1: 上司（orgs.mgr_user_id）→ lw_userid を自動同席（extraMemberIds に無ければ追加）
+    // === 4) 上司（orgs.mgr_user_id → lw_userid） ===
     let mgrLwUserId: string | null = null;
     try {
         const { data: orgRow } = await supabase
@@ -62,13 +84,14 @@ export async function POST(req: Request) {
             .select('mgr_user_id')
             .eq('orgunitid', orgUnitId)
             .maybeSingle();
+
         const mgrUserId = orgRow?.mgr_user_id || null;
         if (mgrUserId) {
             const { data: mgrEntry } = await supabase
-                .from('user_entry_united_view') // lw_userid を持つビューを優先
+                .from('user_entry_united_view')
                 .select('lw_userid')
                 .eq('user_id', mgrUserId)
-                .eq('group_type', "人事労務サポートルーム")
+                .eq('group_type', '人事労務サポートルーム')
                 .not('lw_userid', 'is', null)
                 .maybeSingle();
             mgrLwUserId = mgrEntry?.lw_userid ?? null;
@@ -77,25 +100,25 @@ export async function POST(req: Request) {
         console.warn(`mgr_user_id 解決スキップ: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    // 5) 管理者 & メンバーの最終セット（重複排除）
+    // === 5) 管理者/メンバー集合（重複排除）===
     const adminIds = new Set<string>([
         ...fixedAdmins,
-        ...sameOrgUpperUsers.map(u => u.lw_userid),
-        ...upperOrgUpperUsers.map(u => u.lw_userid),
-        ...(mgrLwUserId ? [mgrLwUserId] : []) // ★ 上長も管理者へ
+        ...sameOrgUpperUsers.map((u: any) => u.lw_userid as string),
+        ...upperOrgUpperUsers.map((u: any) => u.lw_userid as string),
+        ...(mgrLwUserId ? [mgrLwUserId] : [])
     ]);
+
     const extraSet = new Set<string>([
         ...extraMemberIds.filter(Boolean),
         ...(mgrLwUserId ? [mgrLwUserId] : [])
     ]);
 
     const supportAdmins = Array.from(adminIds).map(id => ({ userId: id }));
-    // ②-2: 管理者はメンバーにも必ず入れる
     const supportMembers = dedupeUsers([
         { id: userId, type: 'USER' as const },
         ...Array.from(adminIds).map(id => ({ id, type: 'USER' as const })),
-        ...sameOrgUpperUsers.map(u => ({ id: u.lw_userid, type: 'USER' as const })),
-        ...upperOrgUpperUsers.map(u => ({ id: u.lw_userid, type: 'USER' as const })),
+        ...sameOrgUpperUsers.map((u: any) => ({ id: u.lw_userid as string, type: 'USER' as const })),
+        ...upperOrgUpperUsers.map((u: any) => ({ id: u.lw_userid as string, type: 'USER' as const })),
         ...Array.from(extraSet).map(id => ({ id, type: 'USER' as const }))
     ]);
 
@@ -110,7 +133,7 @@ export async function POST(req: Request) {
     const careerMembers = dedupeUsers([
         { id: userId, type: 'USER' as const },
         { id: HELPER_MANAGER_GROUP_ID, type: 'GROUP' as const },
-        ...fixedAdmins.map(id => ({ id, type: 'USER' as const })) // 管理者もメンバーに
+        ...fixedAdmins.map(id => ({ id, type: 'USER' as const }))
     ]);
 
     const careerGroup: GroupCreatePayload = {
@@ -128,10 +151,13 @@ export async function POST(req: Request) {
         createOrEnsureGroup(careerGroup, accessToken)
     ]);
 
+    // === 6) 親2グループへ orgunit を必ずぶら下げる（type: ORGUNIT）===
     try {
         for (const child of GLOBAL_CHILD_ORG_UNITS) {
-            await ensureChildOrgInGlobalParents(child, accessToken); // ← ここで毎回ensure
+            await ensureChildOrgInGlobalParents(child, accessToken);
         }
+        // 必要なら“今回の所属 orgUnit”も ensure：
+        // await ensureChildOrgInGlobalParents(orgUnitId, accessToken);
         console.log('[ensure-global] 完了');
     } catch (e) {
         console.warn(`[ensure-global] エラー: ${e instanceof Error ? e.message : String(e)}`);
@@ -140,28 +166,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
 }
 
-interface GroupCreatePayload {
-    groupName: string;
-    groupExternalKey: string;
-    administrators: { userId: string }[];
-    members: { id: string; type: 'USER' | 'GROUP' }[];
-}
-
-function dedupeUsers(list: { id: string; type: 'USER' | 'GROUP' }[]) {
-    const seen = new Set<string>();
-    const out: typeof list = [];
-    for (const m of list) {
-        const key = `${m.type}:${m.id}`;
-        if (!m.id) continue;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(m);
-    }
-    return out;
-}
-
+/** 作成 or 既存グループに admin/member を ensure */
 async function createOrEnsureGroup(group: GroupCreatePayload, token: string) {
-    // まず作成
     const createRes = await fetch(`${API_BASE}/groups`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -182,8 +188,7 @@ async function createOrEnsureGroup(group: GroupCreatePayload, token: string) {
     });
 
     if (createRes.status === 409) {
-        // 既存 → メンバーensure
-        console.warn(`[init-group] 既存 (${group.groupName}) → members ensure`);
+        console.warn(`[init-group] 既存 (${group.groupName}) → admins & members ensure`);
         await ensureAdministratorsByExternalKey(group.groupExternalKey, group.administrators, token);
         await ensureMembersByExternalKey(group.groupExternalKey, group.members, token);
         return;
@@ -192,7 +197,8 @@ async function createOrEnsureGroup(group: GroupCreatePayload, token: string) {
     if (!createRes.ok) {
         const msg = await createRes.text();
         console.error(`[init-group] 作成失敗: ${group.groupName} ${msg}`);
-        // 失敗時でも後続でメンバーensure試行（リトライ戦略）
+        // 失敗時でも ensure は試す（部分的に復旧できる場合がある）
+        await ensureAdministratorsByExternalKey(group.groupExternalKey, group.administrators, token);
         await ensureMembersByExternalKey(group.groupExternalKey, group.members, token);
         return;
     }
@@ -200,7 +206,12 @@ async function createOrEnsureGroup(group: GroupCreatePayload, token: string) {
     console.log(`[init-group] 作成成功: ${group.groupName}`);
 }
 
-async function ensureMembersByExternalKey(externalKey: string, members: { id: string; type: 'USER' | 'GROUP' }[], token: string) {
+/** externalKey 指定でメンバーを1件ずつ ensure（POST /groups/externalKey:{key}/members） */
+async function ensureMembersByExternalKey(
+    externalKey: string,
+    members: { id: string; type: 'USER' | 'GROUP' }[],
+    token: string
+) {
     for (const m of members) {
         const res = await fetch(`${API_BASE}/groups/externalKey:${externalKey}/members`, {
             method: 'POST',
@@ -216,89 +227,7 @@ async function ensureMembersByExternalKey(externalKey: string, members: { id: st
     }
 }
 
-async function getParentOrgUnits(supabase: SupabaseClient, orgId: string): Promise<string[]> {
-    const visited = new Set<string>();
-    let current = orgId;
-    let count = 0;
-
-    while (current && count < ORG_RECURSION_LIMIT) {
-        const { data, error } = await supabase
-            .from('orgs')
-            .select('parentorgunitid')
-            .eq('orgunitid', current)
-            .order('is_primary', { ascending: false, nullsFirst: false })
-            .order('updated_at', { ascending: false, nullsFirst: false })
-            .limit(1)
-            .maybeSingle();
-        if (error || !data?.parentorgunitid) break;
-        visited.add(data.parentorgunitid);
-        current = data.parentorgunitid;
-        count++;
-    }
-
-    return Array.from(visited);
-}
-
-async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
-    const { data, error } = await supabase
-        .from('users')                         // ← ここを users に
-        .select('user_id, lw_userid')
-        .in('user_id', FIXED_GROUP_MASTERS)
-        .not('lw_userid', 'is', null);
-
-    if (error) {
-        console.warn('fetchFixedAdmins error:', error.message);
-        return [];
-    }
-
-    // ユニーク化
-    const ids = Array.from(new Set((data || []).map(r => r.lw_userid as string)));
-
-    // （任意）同一 user_id で複数 lw_userid がいたら警告
-    if ((data || []).length !== ids.length) {
-        console.warn('[fetchFixedAdmins] duplicated rows detected for masters:', {
-            total: (data || []).length, unique: ids.length
-        });
-    }
-    return ids;
-}
-
-const GLOBAL_PARENT_GROUPS = [
-    'c4a97fc2-865d-440d-3e60-05043231c290', // 全ヘルパーグループ
-    '8237ba83-f9ca-4c9f-3f15-052e9ea0a678'  // 全社員グループ
-] as const;
-
-// ★ここに固定で入れる（必要なら複数OK）
-const GLOBAL_CHILD_ORG_UNITS = [
-    '572f07a2-999d-4a48-20fd-0517ecd2d6af' // ファミーユヘルパーサービス愛知（orgunitid）
-];
-
-/**
- * orgUnitId から 子グループID を解決して、親グループへ GROUP として ensure する
- * - まずは orgUnitId をそのまま groupId として試す（既に groupId を渡せる運用なら通る）
- * - ダメなら externalKey 想定（例: unit_<orgUnitId>, org_<orgUnitId>）を順に試す
- */
-// ★ orgunit を そのまま 親グループへメンバー追加（type: ORGUNIT）
-async function ensureChildOrgInGlobalParents(
-    childOrgUnitId: string,
-    token: string
-) {
-    for (const parentId of GLOBAL_PARENT_GROUPS) {
-        const res = await fetch(`${API_BASE}/groups/${parentId}/members`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: childOrgUnitId, type: 'ORGUNIT' }) // ← ここ！
-        });
-
-        if (res.ok || res.status === 409) {
-            console.log(`[ensure-global] 追加OK/既存: 親=${parentId} 子(orgunit)=${childOrgUnitId}`);
-        } else {
-            const t = await res.text();
-            console.error(`[ensure-global] 追加失敗: 親=${parentId} 子(orgunit)=${childOrgUnitId} ${t}`);
-        }
-    }
-}
-
+/** externalKey 指定で管理者を1件ずつ ensure（POST /groups/externalKey:{key}/administrators） */
 async function ensureAdministratorsByExternalKey(
     externalKey: string,
     administrators: { userId: string }[],
@@ -318,4 +247,79 @@ async function ensureAdministratorsByExternalKey(
             console.log(`[init-group] 管理者追加OK (${externalKey} :: ${a.userId})`);
         }
     }
+}
+
+/** org階層（親）を上へ辿る */
+async function getParentOrgUnits(supabase: SupabaseClient, orgId: string): Promise<string[]> {
+    const visited = new Set<string>();
+    let current = orgId;
+    let count = 0;
+
+    while (current && count < ORG_RECURSION_LIMIT) {
+        const { data, error } = await supabase
+            .from('orgs')
+            .select('parentorgunitid')
+            .eq('orgunitid', current)
+            .single();
+
+        if (error || !data?.parentorgunitid) break;
+        visited.add(data.parentorgunitid);
+        current = data.parentorgunitid;
+        count++;
+    }
+    return Array.from(visited);
+}
+
+/** 固定マスターの lw_userid を users から収集（ユニーク化） */
+async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('users')
+        .select('user_id, lw_userid')
+        .in('user_id', FIXED_GROUP_MASTERS)
+        .not('lw_userid', 'is', null);
+
+    if (error) {
+        console.warn('fetchFixedAdmins error:', error.message);
+        return [];
+    }
+    return Array.from(new Set((data || []).map(r => r.lw_userid as string)));
+}
+
+/** ORGUNIT を親グループに ensure（POST /groups/{parentId}/members） */
+async function ensureChildOrgInGlobalParents(childOrgUnitId: string, token: string) {
+    for (const parentId of GLOBAL_PARENT_GROUPS) {
+        const res = await fetch(`${API_BASE}/groups/${parentId}/members`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: childOrgUnitId, type: 'ORGUNIT' })
+        });
+
+        if (res.ok || res.status === 409) {
+            console.log(`[ensure-global] 追加OK/既存: 親=${parentId} 子(orgunit)=${childOrgUnitId}`);
+        } else {
+            const t = await res.text();
+            console.error(`[ensure-global] 追加失敗: 親=${parentId} 子(orgunit)=${childOrgUnitId} ${t}`);
+        }
+    }
+}
+
+// ===== 型 =====
+interface GroupCreatePayload {
+    groupName: string;
+    groupExternalKey: string;
+    administrators: { userId: string }[];
+    members: { id: string; type: 'USER' | 'GROUP' }[];
+}
+
+function dedupeUsers(list: { id: string; type: 'USER' | 'GROUP' }[]) {
+    const seen = new Set<string>();
+    const out: typeof list = [];
+    for (const m of list) {
+        const key = `${m.type}:${m.id}`;
+        if (!m.id) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(m);
+    }
+    return out;
 }
