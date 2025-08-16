@@ -63,6 +63,7 @@ interface UserRecord {
     org_unit_id?: string | null;
     level_id?: string | null;
     position_id?: string | null;
+    status?: string;
 }
 
 type NameInfo = {
@@ -740,8 +741,8 @@ export default function EntryDetailPage() {
 
             const { error: statusError } = await supabase
                 .from('users')
-                .update({ status: '4' })
-                .eq('user_id', entry.id);
+                .update({ status: 'lw_registered' })
+                .eq('user_id', userId);
 
             if (statusError) {
                 console.error('ステータス更新エラー:', statusError.message);
@@ -854,14 +855,39 @@ export default function EntryDetailPage() {
             }
 
             console.log('🟢 続けてグループ初期化を開始します');
+            let mgrLwUserId: string | null = null;
+            try {
+                const { data: orgRow } = await supabase
+                    .from('orgs')
+                    .select('mgr_user_id')
+                    .eq('orgunitid', selectedOrg)
+                    .maybeSingle();
+
+                const mgrUserId = orgRow?.mgr_user_id ?? null;
+                if (mgrUserId) {
+                    const { data: mgrView } = await supabase
+                        .from('user_entry_united_view')
+                        .select('lw_userid')
+                        .eq('user_id', mgrUserId)
+                        .not('lw_userid', 'is', null)
+                        .maybeSingle();
+
+                    if (mgrView?.lw_userid) {
+                        mgrLwUserId = mgrView.lw_userid;  // ← ここで代入
+                    }
+                }
+            } catch (e) {
+                console.warn(`mgr_user_id 解決スキップ: ${e instanceof Error ? e.message : String(e)}`);
+            }
 
             try {
-                const groupRes = await fetch('/api/init-group', {
+                const groupRes = await fetch('/api/lineworks/init-group', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userId: data.userId,  // ✅ lw_userid（UUID）を渡す
-                        orgUnitId: selectedOrg
+                        orgUnitId: selectedOrg,
+                        extraMemberIds: [mgrLwUserId].filter(Boolean) // ②-1: 上司も同席
                     })
                 });
 
@@ -914,80 +940,6 @@ export default function EntryDetailPage() {
 
         return data.file_id; // ← 完全URLがすでに格納されている
     };
-
-    //LINE WORKSの写真アップロード処理
-    // LINE WORKSの写真アップロード処理（ログ強化版）
-    /*const uploadLineWorksIcon = async (userId: string, iconUrl: string) => {
-        alert('uploadLineWorksIconk開始');
-        console.log("\u{1F4F7} 写真アップロード処理開始: userId =", userId);
-        console.log("\u{1F4C2} 画像URL:", iconUrl);
-
-        try {
-            // 画像ファイルのバイトを取得
-            /*
-            const imageRes = await fetch(iconUrl);
-            console.log("\u{1F4C4} 画像取得レスポンス:", imageRes.status);
-            if (!imageRes.ok) throw new Error("画像URLからの取得に失敗しました");
-
-            const imageBlob = await imageRes.blob();
-            console.log("\u{1F4DD} 画像サイズ (bytes):", imageBlob.size);
-            
-
-
-            // アップロードURLを取得
-            const fileName = iconUrl; // 今回は一旦 URL をそのまま渡してみる
-            const accessToken = await getAccessToken(); // ← Supabaseからトークン取得
-            alert('🟢 アクセストークン取得完了');
-
-            const uploadMetaRes = await fetch(`https://www.worksapis.com/v1.0/users/${encodeURIComponent(userId)}/photo`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    fileName,
-                    fileSize: 20000
-                })
-            });
-
-            // ステータスだけ先に表示
-            alert(`レスポンスステータス: ${uploadMetaRes.status}`);
-
-            // 本文を取得
-            const data = await uploadMetaRes.json();
-
-            // JSON.stringify で表示できる形に変換
-            alert(`レスポンス内容: ${JSON.stringify(data, null, 2)}`);
-            console.log("\u{1F4E1} アップロードURL取得ステータス:", uploadMetaRes.status);
-            const uploadData = await uploadMetaRes.json();
-            console.log("\u{1F4E6} uploadUrl 取得結果:", uploadData);
-
-            const uploadUrl = uploadData.uploadUrl;
-            if (!uploadUrl) throw new Error('Upload URL not received');
-
-            // 実際のPUTアップロード
-            const putRes = await fetch(uploadUrl, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'image/jpeg'
-                },
-                //body: imageBlob
-            });
-
-            console.log("\u{1F4E4} PUT アップロードステータス:", putRes.status);
-            if (!putRes.ok) throw new Error('画像アップロードに失敗しました');
-
-            console.log("\u{2705} LINE WORKSアイコンを設定しました");
-            alert('LINE WORKSアイコンを設定しました');
-        } catch (err) {
-            console.error('\u{26D4} アイコン設定エラー:', err);
-            alert('LINE WORKSアイコンの設定に失敗しました');
-        }
-    };
-    */
-
-
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
@@ -1022,26 +974,6 @@ export default function EntryDetailPage() {
 
         load();
     }, [userId]);
-
-    /*
-    const handleSaveUserInfo = async () => {
-        if (!userRecord) return;
-        const { error } = await supabase
-            .from('users')
-            .update({
-                org_unit_id: selectedOrg,
-                level_id: selectedLevel,
-                position_id: selectedPosition,
-            })
-            .eq('user_id', userRecord.user_id);
-
-        if (!error) {
-            alert('保存しました');
-        } else {
-            alert('保存に失敗しました: ' + error.message);
-        }
-    };
-    */
 
     useEffect(() => {
         if (
@@ -1200,22 +1132,6 @@ export default function EntryDetailPage() {
             alert('削除中にエラーが発生しました。');
         }
     };
-
-    // 資格 追加UI
-
-    // 汎用: 1ファイルを /api/upload に投げて URL を受け取る
-    /*
-    const uploadOne = async (file: File, prefix: string) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("filename", `${prefix}_${Date.now()}_${file.name}`);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("upload failed");
-        const json = await res.json();
-        if (!json?.url) throw new Error("no url returned");
-        return json.url as string;
-    };
-    */
 
     // 追加：型エイリアス＆アップロード中フラグ
     type AttachmentItem = Attachment;
@@ -1667,79 +1583,6 @@ export default function EntryDetailPage() {
                         value={entry?.email ?? ''}
                         onChange={(e) => setEntry({ ...entry!, email: e.target.value })}
                     />
-                    {/*
-                    <div className="flex flex-col gap-2">
-
-                        {userRecord ? (
-                            <div className="space-y-2">
-                                {/* 認証状態・ボタン 
-                                {userRecord.auth_user_id ? (
-                                    <span className="px-2 py-1 rounded bg-gray-200 text-green-700 font-bold">
-                                        認証完了
-                                    </span>
-                                ) : sendingInvite ? (
-                                    <button className="px-4 py-1 bg-green-700 text-white rounded" disabled>
-                                        認証メール送信中...
-                                    </button>
-                                ) : inviteSent ? (
-                                    <span className="px-2 py-1 rounded bg-yellow-200 text-yellow-700 whitespace-nowrap">
-                                        認証メール送信済
-                                    </span>
-                                ) : (
-                                    <button
-                                        className="px-2 py-0.5 bg-green-700 text-white rounded hover:bg-green-800 text-sm whitespace-nowrap"
-                                        onClick={handleSendInvite}
-                                    >
-                                        認証メール送信
-                                    </button>
-                                )}
-                                <button
-                                    onClick={handleDeleteAuthUser}
-                                    className="px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm whitespace-nowrap"
-                                    disabled={!userRecord?.auth_user_id}
-                                >
-                                    認証情報削除
-                                </button>
-                                {/* LINE WORKS アカウント生成ボタン（users レコードがある場合のみ表示） 
-                                {lineWorksExists ? (
-                                    <span className="block px-2 py-1 rounded bg-gray-200 text-blue-700 font-bold">
-                                        LINEWORKS登録済
-                                    </span>
-                                ) : (
-                                    <button
-                                        className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-800 text-sm whitespace-nowrap"
-                                        onClick={handleCreateLineWorksAccount}
-                                        disabled={creatingLineWorks}
-                                    >
-                                        {creatingLineWorks ? '処理中...' : 'LINEWORKSアカウント生成'}
-                                    </button>
-                                )}
-
-                                {/* カイポケユーザー追加ボタン（新規追加！） 
-                                <button
-                                    className="px-2 py-0.5 bg-orange-700 text-white rounded hover:bg-orange-800 text-sm whitespace-nowrap ml-2"
-                                    disabled={!selectedOrg || !selectedLevel || creatingKaipokeUser}
-                                    onClick={handleCreateKaipokeUser}
-                                >
-                                    {creatingKaipokeUser ? '登録中...' : 'カイポケユーザー追加'}
-                                </button>
-
-                            </div>
-                        ) : (
-                            <span className="text-sm text-gray-500">ユーザーID未登録（まずIDを決定してください）</span>
-                        )}
-
-                        {/* 雇用契約書メール送信ボタン 
-                        <button
-                            onClick={handleSendContractMail}
-                            disabled={sendingContract}
-                            className="px-2 py-0.5 bg-purple-700 text-white rounded shadow hover:bg-purple-800 text-sm whitespace-nowrap"
-                        >
-                            {sendingContract ? '送信中...' : '雇用契約書ﾒｰﾙ送信'}
-                        </button>
-
-                    </div>
-                    */}
                 </div>
                 {/* ユーザーID表示・入力・決定欄 */}
                 <div className="flex items-center border rounded p-2 gap-2 mt-2">
@@ -1826,14 +1669,36 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
-                    {/*
-                    <button
-                        className="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        onClick={handleSaveUserInfo}
-                    >
-                        保存
-                    </button>
-                    */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <label className="text-xs text-gray-500">ステータス</label>
+                        <select
+                            className="border rounded px-2 py-1"
+                            value={userRecord?.status ?? 'account_id_create'}
+                            onChange={async (e) => {
+                                const next = e.target.value;
+                                const { error } = await supabase
+                                    .from('users')
+                                    .update({ status: next })
+                                    .eq('user_id', userRecord ? userRecord.user_id : userId);
+                                if (error) {
+                                    alert('ステータス更新に失敗: ' + error.message);
+                                } else {
+                                    setUserRecord(prev => prev ? { ...prev, status: next } : prev);
+                                    alert('ステータスを更新しました');
+                                }
+                            }}
+                        >
+                            {[
+                                'account_id_create',
+                                'auth_mail_send',
+                                'auth_completed',
+                                'lw_registered',
+                                'kaipoke_requested',
+                                'active',
+                                'inactive'
+                            ].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
                 </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
