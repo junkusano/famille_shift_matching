@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     const { data: entryUser, error: ueErr } = await supabase
         .from('user_entry_united_view')
         .select('user_id, last_name_kanji, first_name_kanji, level_sort')
+        .eq('group_type', "人事労務サポートルーム")
         .eq('lw_userid', userId)
         .single();
     if (ueErr || !entryUser) {
@@ -33,17 +34,20 @@ export async function POST(req: Request) {
         .from('user_entry_united_view')
         .select('lw_userid')
         .eq('org_unit_id', orgUnitId)
+        .eq('group_type', "人事労務サポートルーム")   // ✅ サポートルームだけ
         .lt('level_sort', levelSort)
+        .neq('level_sort', 1250000)                   // ✅ 1250000は除外
         .not('lw_userid', 'is', null);
 
     const parentOrgIds = await getParentOrgUnits(supabase, orgUnitId);
     const { data: upperOrgUpperUsers = [] } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
+        .eq('group_type', "人事労務サポートルーム")   // ✅ サポートルームだけ
         .in('org_unit_id', parentOrgIds.length ? parentOrgIds : ['dummy'])
         .lt('level_sort', levelSort)
+        .neq('level_sort', 1250000)                   // ✅ 1250000は除外
         .not('lw_userid', 'is', null);
-
     // 3) 固定管理者
     const fixedAdmins = await fetchFixedAdmins(supabase);
 
@@ -231,6 +235,7 @@ async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
     const { data } = await supabase
         .from('user_entry_united_view')
         .select('lw_userid')
+        .eq('group_type', "人事労務サポートルーム")
         .in('user_id', FIXED_GROUP_MASTERS)
         .not('lw_userid', 'is', null);
     return (data || []).map(u => u.lw_userid);

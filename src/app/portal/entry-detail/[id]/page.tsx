@@ -1669,36 +1669,36 @@ export default function EntryDetailPage() {
                             ))}
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 mt-2">
-                        <label className="text-xs text-gray-500">ステータス</label>
-                        <select
-                            className="border rounded px-2 py-1"
-                            value={userRecord?.status ?? 'account_id_create'}
-                            onChange={async (e) => {
-                                const next = e.target.value;
-                                const { error } = await supabase
-                                    .from('users')
-                                    .update({ status: next })
-                                    .eq('user_id', userRecord ? userRecord.user_id : userId);
-                                if (error) {
-                                    alert('ステータス更新に失敗: ' + error.message);
-                                } else {
-                                    setUserRecord(prev => prev ? { ...prev, status: next } : prev);
-                                    alert('ステータスを更新しました');
-                                }
-                            }}
-                        >
-                            {[
-                                'account_id_create',
-                                'auth_mail_send',
-                                'auth_completed',
-                                'lw_registered',
-                                'kaipoke_requested',
-                                'active',
-                                'inactive'
-                            ].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <label className="block text-sm text-gray-600">ステータス</label>
+                    <select
+                        className="border rounded px-2 py-1"
+                        value={userRecord?.status ?? 'account_id_create'}
+                        onChange={async (e) => {
+                            const next = e.target.value;
+                            const { error } = await supabase
+                                .from('users')
+                                .update({ status: next })
+                                .eq('user_id', userRecord ? userRecord.user_id : userId);
+                            if (error) {
+                                alert('ステータス更新に失敗: ' + error.message);
+                            } else {
+                                setUserRecord(prev => prev ? { ...prev, status: next } : prev);
+                                alert('ステータスを更新しました');
+                            }
+                        }}
+                    >
+                        {[
+                            'account_id_create',
+                            'auth_mail_send',
+                            'auth_completed',
+                            'lw_registered',
+                            'kaipoke_requested',
+                            'active',
+                            'inactive'
+                        ].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
                 </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
