@@ -181,11 +181,11 @@ export async function POST(req: Request) {
 
     // === 6) 親2グループへ orgunit を必ずぶら下げる（type: ORGUNIT）===
     try {
-        for (const child of GLOBAL_CHILD_ORG_UNITS) {
-            await ensureChildOrgInGlobalParents(child, accessToken);
-        }
-        // 必要なら“今回の所属 orgUnit”も ensure：
-        // await ensureChildOrgInGlobalParents(orgUnitId, accessToken);
+        // 固定の orgunit に加えて、今回の所属 orgUnit も ensure する
+        const targets = new Set<string>([...GLOBAL_CHILD_ORG_UNITS, orgUnitId]);
+        await Promise.all(
+            Array.from(targets).map(id => ensureChildOrgInGlobalParents(id, accessToken))
+        );
         console.log('[ensure-global] 完了');
     } catch (e) {
         console.warn(`[ensure-global] エラー: ${e instanceof Error ? e.message : String(e)}`);

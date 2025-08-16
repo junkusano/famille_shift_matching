@@ -1670,10 +1670,10 @@ export default function EntryDetailPage() {
                         </select>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <Label>ステータス</Label>
+                <div className="flex items-center gap-2">
+                    <Label className="w-24">ステータス</Label>
                     <select
-                        className="border rounded px-2 py-1 w-full"
+                        className="flex-1 border rounded px-2 py-1"
                         value={userRecord?.status ?? 'account_id_create'}
                         onChange={async (e) => {
                             const next = e.target.value;
@@ -1697,7 +1697,11 @@ export default function EntryDetailPage() {
                             'kaipoke_requested',
                             'active',
                             'inactive'
-                        ].map(s => <option key={s} value={s}>{s}</option>)}
+                        ].map(s => (
+                            <option key={s} value={s}>
+                                {s}
+                            </option>
+                        ))}
                     </select>
                 </div>
                 <div className="md:col-span-2 space-y-1">
