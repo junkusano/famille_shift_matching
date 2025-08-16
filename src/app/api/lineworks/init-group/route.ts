@@ -20,7 +20,10 @@ export async function POST(req: Request) {
         .select('user_id, last_name_kanji, first_name_kanji, level_sort')
         .eq('group_type', "人事労務サポートルーム")
         .eq('lw_userid', userId)
-        .single();
+        .order('is_primary', { ascending: false, nullsFirst: false })
+        .order('end_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
     if (ueErr || !entryUser) {
         console.error(`user_entry_united_view取得失敗: ${ueErr?.message ?? 'no row'}`);
         return NextResponse.json({ error: 'ユーザー情報取得失敗' }, { status: 400 });
@@ -78,7 +81,8 @@ export async function POST(req: Request) {
     const adminIds = new Set<string>([
         ...fixedAdmins,
         ...sameOrgUpperUsers.map(u => u.lw_userid),
-        ...upperOrgUpperUsers.map(u => u.lw_userid)
+        ...upperOrgUpperUsers.map(u => u.lw_userid),
+        ...(mgrLwUserId ? [mgrLwUserId] : []) // ★ 上長も管理者へ
     ]);
     const extraSet = new Set<string>([
         ...extraMemberIds.filter(Boolean),
@@ -180,6 +184,7 @@ async function createOrEnsureGroup(group: GroupCreatePayload, token: string) {
     if (createRes.status === 409) {
         // 既存 → メンバーensure
         console.warn(`[init-group] 既存 (${group.groupName}) → members ensure`);
+        await ensureAdministratorsByExternalKey(group.groupExternalKey, group.administrators, token);
         await ensureMembersByExternalKey(group.groupExternalKey, group.members, token);
         return;
     }
@@ -221,7 +226,10 @@ async function getParentOrgUnits(supabase: SupabaseClient, orgId: string): Promi
             .from('orgs')
             .select('parentorgunitid')
             .eq('orgunitid', current)
-            .single();
+            .order('is_primary', { ascending: false, nullsFirst: false })
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle();
         if (error || !data?.parentorgunitid) break;
         visited.add(data.parentorgunitid);
         current = data.parentorgunitid;
@@ -232,15 +240,28 @@ async function getParentOrgUnits(supabase: SupabaseClient, orgId: string): Promi
 }
 
 async function fetchFixedAdmins(supabase: SupabaseClient): Promise<string[]> {
-    const { data } = await supabase
-        .from('user_entry_united_view')
-        .select('lw_userid')
-        .eq('group_type', "人事労務サポートルーム")
+    const { data, error } = await supabase
+        .from('users')                         // ← ここを users に
+        .select('user_id, lw_userid')
         .in('user_id', FIXED_GROUP_MASTERS)
         .not('lw_userid', 'is', null);
-    return (data || []).map(u => u.lw_userid);
-}
 
+    if (error) {
+        console.warn('fetchFixedAdmins error:', error.message);
+        return [];
+    }
+
+    // ユニーク化
+    const ids = Array.from(new Set((data || []).map(r => r.lw_userid as string)));
+
+    // （任意）同一 user_id で複数 lw_userid がいたら警告
+    if ((data || []).length !== ids.length) {
+        console.warn('[fetchFixedAdmins] duplicated rows detected for masters:', {
+            total: (data || []).length, unique: ids.length
+        });
+    }
+    return ids;
+}
 
 const GLOBAL_PARENT_GROUPS = [
     'c4a97fc2-865d-440d-3e60-05043231c290', // 全ヘルパーグループ
@@ -257,69 +278,44 @@ const GLOBAL_CHILD_ORG_UNITS = [
  * - まずは orgUnitId をそのまま groupId として試す（既に groupId を渡せる運用なら通る）
  * - ダメなら externalKey 想定（例: unit_<orgUnitId>, org_<orgUnitId>）を順に試す
  */
+// ★ orgunit を そのまま 親グループへメンバー追加（type: ORGUNIT）
 async function ensureChildOrgInGlobalParents(
     childOrgUnitId: string,
     token: string
 ) {
-    const childCandidates: Array<{ type: 'ID' | 'EXTERNAL_KEY'; value: string }> = [
-        { type: 'ID', value: childOrgUnitId },
-        { type: 'EXTERNAL_KEY', value: `unit_${childOrgUnitId}` },
-        { type: 'EXTERNAL_KEY', value: `org_${childOrgUnitId}` },
-    ];
-
-    // 子グループIDの最終決定
-    let childGroupId: string | null = null;
-
-    // 1) まずは “ID として” 直接追加を試す（成功したら確定）
-    for (const parentId of GLOBAL_PARENT_GROUPS) {
-        const tryRes = await fetch(`${API_BASE}/groups/${parentId}/members`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: childOrgUnitId, type: 'GROUP' })
-        });
-        if (tryRes.ok || tryRes.status === 409) {
-            childGroupId = childOrgUnitId;
-            console.log(`[ensure-global] 直接IDで成功/既存: 親=${parentId} 子=${childOrgUnitId}`);
-            // 他の親にも流用できるので break はしない（この loop は都度追加）
-        } else {
-            const t = await tryRes.text();
-            console.warn(`[ensure-global] 直接ID 失敗: 親=${parentId} 子=${childOrgUnitId} ${t}`);
-        }
-    }
-
-    // 2) 外部キー経由の解決（まだ決まってなければ）
-    if (!childGroupId) {
-        for (const c of childCandidates.filter(c => c.type === 'EXTERNAL_KEY')) {
-            const infoRes = await fetch(`${API_BASE}/groups/externalKey:${c.value}`, {
-                method: 'GET',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (infoRes.ok) {
-                const info = await infoRes.json();
-                childGroupId = info?.groupId || info?.id || null;
-                console.log(`[ensure-global] externalKey 解決: ${c.value} -> ${childGroupId}`);
-                if (childGroupId) break;
-            }
-        }
-    }
-
-    if (!childGroupId) {
-        console.error('[ensure-global] 子グループIDの解決に失敗: orgUnitId=', childOrgUnitId);
-        return;
-    }
-
-    // 3) 親グループへ ensure（重複は409でOK）
     for (const parentId of GLOBAL_PARENT_GROUPS) {
         const res = await fetch(`${API_BASE}/groups/${parentId}/members`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: childGroupId, type: 'GROUP' })
+            body: JSON.stringify({ id: childOrgUnitId, type: 'ORGUNIT' }) // ← ここ！
         });
+
         if (res.ok || res.status === 409) {
-            console.log(`[ensure-global] 追加OK/既存: 親=${parentId} 子=${childGroupId}`);
+            console.log(`[ensure-global] 追加OK/既存: 親=${parentId} 子(orgunit)=${childOrgUnitId}`);
         } else {
             const t = await res.text();
-            console.error(`[ensure-global] 追加失敗: 親=${parentId} 子=${childGroupId} ${t}`);
+            console.error(`[ensure-global] 追加失敗: 親=${parentId} 子(orgunit)=${childOrgUnitId} ${t}`);
+        }
+    }
+}
+
+async function ensureAdministratorsByExternalKey(
+    externalKey: string,
+    administrators: { userId: string }[],
+    token: string
+) {
+    for (const a of administrators) {
+        if (!a?.userId) continue;
+        const res = await fetch(`${API_BASE}/groups/externalKey:${externalKey}/administrators`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(a)
+        });
+        if (!res.ok) {
+            const t = await res.text();
+            console.error(`[init-group] 管理者追加失敗 (${externalKey} :: ${a.userId}) ${t}`);
+        } else {
+            console.log(`[init-group] 管理者追加OK (${externalKey} :: ${a.userId})`);
         }
     }
 }
