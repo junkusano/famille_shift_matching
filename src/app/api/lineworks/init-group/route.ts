@@ -11,7 +11,8 @@ const API_BASE = 'https://www.worksapis.com/v1.0';
 // 親グループ（固定）
 const GLOBAL_PARENT_GROUPS = [
     'c4a97fc2-865d-440d-3e60-05043231c290', // 全ヘルパー
-    '8237ba83-f9ca-4c9f-3f15-052e9ea0a678'  // 全社員
+    '8237ba83-f9ca-4c9f-3f15-052e9ea0a678',  // 全社員
+    'ddc1ce56-fef0-480d-3220-05f8ed15163d'  // 訪問記録エラー通知
 ] as const;
 
 // 親に必ずぶら下げたい orgunitid（固定）
@@ -186,6 +187,8 @@ export async function POST(req: Request) {
         await Promise.all(
             Array.from(targets).map(id => ensureChildOrgInGlobalParents(id, accessToken))
         );
+        // ② ユーザー本人を直接、親グループに追加（ここが“確実に入る”肝）
+        await ensureUserInGlobalParents(userId, accessToken);
         console.log('[ensure-global] 完了');
     } catch (e) {
         console.warn(`[ensure-global] エラー: ${e instanceof Error ? e.message : String(e)}`);
@@ -340,6 +343,23 @@ async function ensureChildOrgInGlobalParents(childOrgUnitId: string, token: stri
         } else {
             const t = await res.text();
             console.error(`[ensure-global] 追加失敗: 親=${parentId} 子(orgunit)=${childOrgUnitId} ${t}`);
+        }
+    }
+}
+
+/** USER を親グループに ensure（POST /groups/{parentId}/members） */
+async function ensureUserInGlobalParents(lwUserId: string, token: string): Promise<void> {
+    for (const parentId of GLOBAL_PARENT_GROUPS) {
+        const res = await fetch(`${API_BASE}/groups/${parentId}/members`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: lwUserId, type: 'USER' })
+        });
+        if (res.ok || res.status === 409) {
+            console.log(`[ensure-global-user] 追加OK/既存: 親=${parentId} 子(user)=${lwUserId}`);
+        } else {
+            const t = await res.text();
+            console.error(`[ensure-global-user] 追加失敗: 親=${parentId} 子(user)=${lwUserId} ${t}`);
         }
     }
 }
