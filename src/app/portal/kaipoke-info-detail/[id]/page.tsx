@@ -143,23 +143,26 @@ export default function KaipokeInfoDetailPage() {
         const loadTimeAdjust = async () => {
             const { data, error } = await supabase
                 .from('user_time_adjustability')
-                .select('id,label,sort_order') // ← sort_order が無い場合は外してOK
-                .order('sort_order', { ascending: true }) // ← 無いならこの行も削除
+                .select('id,label,sort_order')      // 無ければ 'id,label' にして .order('sort_order') を外す
+                .order('sort_order', { ascending: true })
                 .order('label', { ascending: true });
 
             if (error) {
                 console.error('time_adjustability load error', error);
                 alert(`時間調整候補の取得に失敗: ${error.message}`);
-                setTimeAdjustOptions([]); // 明示
+                setTimeAdjustOptions([]);
                 return;
             }
 
-            const rows = (data ?? []).map((r: any) => ({
-                id: String(r.id),           // 型を string に揃える
+            type TimeAdjustabilityRowDb = { id: string | number; label: string | null };
+            const rows = ((data ?? []) as TimeAdjustabilityRowDb[]).map((r) => ({
+                id: String(r.id),
                 label: String(r.label ?? ''),
             }));
+
             setTimeAdjustOptions(rows);
         };
+
 
         fetchRow();
         loadDocMaster();
