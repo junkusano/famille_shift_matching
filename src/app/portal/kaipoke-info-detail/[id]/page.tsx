@@ -25,11 +25,11 @@ function toLocalInputValue(iso: string) {
 function parseAcquired(raw: string | undefined | null): string {
     const s = (raw ?? '').replace(/\D/g, '');
     if (/^\d{8}$/.test(s)) {
-        const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
+        const y = s.slice(0,4), m = s.slice(4,6), d = s.slice(6,8);
         return `${y}-${m}-${d}T00:00:00+09:00`;
     }
     if (/^\d{6}$/.test(s)) {
-        const y = s.slice(0, 4), m = s.slice(4, 6);
+        const y = s.slice(0,4), m = s.slice(4,6);
         return `${y}-${m}-01T00:00:00+09:00`;
     }
     return new Date().toISOString();
@@ -38,8 +38,8 @@ function parseAcquired(raw: string | undefined | null): string {
 function formatAcquired(iso: string) {
     const d = new Date(iso);
     const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
     // 月指定(01日固定)っぽければ YYYY/MM 表示
     return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
 }
@@ -156,7 +156,7 @@ export default function KaipokeInfoDetailPage() {
     const documentsArray = useMemo<Attachment[]>(() => {
         const arr: unknown[] = Array.isArray(row?.documents) ? (row?.documents as unknown[]) : [];
         // 後方互換: id/日付が無い要素に補完して返す
-        return arr.map((d, i) => {
+        return arr.map((d) => {
             const doc = d as Partial<Attachment>;
             return {
                 id: doc.id ?? crypto.randomUUID(),
@@ -166,7 +166,7 @@ export default function KaipokeInfoDetailPage() {
                 mimeType: doc.mimeType ?? null,
                 uploaded_at: doc.uploaded_at ?? new Date().toISOString(),
                 acquired_at: doc.acquired_at ?? doc.uploaded_at ?? new Date().toISOString(),
-            } satisfies Attachment;
+            } as Attachment;
         });
     }, [row?.documents]);
 
