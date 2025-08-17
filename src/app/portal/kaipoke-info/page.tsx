@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import toast from 'react-hot-toast'
+import Link from 'next/link'   // ← 追加
 
 type KaipokeInfo = {
   id: string
@@ -168,12 +169,21 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2 text-center align-top" rowSpan={2}>
-                    <button
-                      onClick={() => handleSave(item)}
-                      className="bg-blue-500 text-white px-3 py-1 rounded"
-                    >
-                      保存
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleSave(item)}
+                        className="bg-blue-500 text-white px-3 py-1 rounded"
+                      >
+                        保存
+                      </button>
+
+                      <Link
+                        href={`/portal/kaipoke-info-detail/${item.id}`}
+                        className="bg-green-500 text-white px-3 py-1 rounded text-center"
+                      >
+                        詳細
+                      </Link>
+                    </div>
                   </td>
                 </tr>
                 <tr key={item.id + '-bottom'} className="bg-gray-50">
