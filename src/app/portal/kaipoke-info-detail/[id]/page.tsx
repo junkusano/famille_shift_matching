@@ -25,11 +25,11 @@ function toLocalInputValue(iso: string) {
 function parseAcquired(raw: string | undefined | null): string {
     const s = (raw ?? '').replace(/\D/g, '');
     if (/^\d{8}$/.test(s)) {
-        const y = s.slice(0,4), m = s.slice(4,6), d = s.slice(6,8);
+        const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
         return `${y}-${m}-${d}T00:00:00+09:00`;
     }
     if (/^\d{6}$/.test(s)) {
-        const y = s.slice(0,4), m = s.slice(4,6);
+        const y = s.slice(0, 4), m = s.slice(4, 6);
         return `${y}-${m}-01T00:00:00+09:00`;
     }
     return new Date().toISOString();
@@ -38,8 +38,8 @@ function parseAcquired(raw: string | undefined | null): string {
 function formatAcquired(iso: string) {
     const d = new Date(iso);
     const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     // 月指定(01日固定)っぽければ YYYY/MM 表示
     return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
 }
@@ -143,9 +143,22 @@ export default function KaipokeInfoDetailPage() {
         const loadTimeAdjust = async () => {
             const { data, error } = await supabase
                 .from('user_time_adjustability')
-                .select('id,label')
-                .order('sort_order');
-            if (!error && data) setTimeAdjustOptions(data as TimeAdjustRow[]);
+                .select('id,label,sort_order') // ← sort_order が無い場合は外してOK
+                .order('sort_order', { ascending: true }) // ← 無いならこの行も削除
+                .order('label', { ascending: true });
+
+            if (error) {
+                console.error('time_adjustability load error', error);
+                alert(`時間調整候補の取得に失敗: ${error.message}`);
+                setTimeAdjustOptions([]); // 明示
+                return;
+            }
+
+            const rows = (data ?? []).map((r: any) => ({
+                id: String(r.id),           // 型を string に揃える
+                label: String(r.label ?? ''),
+            }));
+            setTimeAdjustOptions(rows);
         };
 
         fetchRow();
@@ -171,6 +184,7 @@ export default function KaipokeInfoDetailPage() {
     }, [row?.documents]);
 
     /** ------------- 共通ヘルパ ------------- */
+    // 既存の uploadFileViaApi をこれに置き換え
     const uploadFileViaApi = async (file: File) => {
         const form = new FormData();
         form.append('file', file);
@@ -179,10 +193,18 @@ export default function KaipokeInfoDetailPage() {
             method: 'POST',
             body: form,
         });
-        if (!res.ok) throw new Error('アップロードに失敗しました');
-        const json = await res.json();
-        return { url: json.url as string, mimeType: json.mimeType as string | null };
+
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`アップロードAPI失敗: status=${res.status} ${text}`);
+        }
+        const json = await res.json().catch(() => null);
+        if (!json || !json.url) {
+            throw new Error('アップロードAPIの戻り値に url がありません');
+        }
+        return { url: json.url as string, mimeType: (json.mimeType as string) ?? null };
     };
+
 
     const saveDocuments = async (next: Attachment[]) => {
         if (!row) return;
@@ -326,7 +348,15 @@ export default function KaipokeInfoDetailPage() {
                         onChange={(e) => setRow({ ...row, service_kind: e.target.value })}
                     />
                 </div>
-
+                {/* 郵便番号 */}
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">郵便番号</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.postal_code ?? ''}
+                        onChange={(e) => setRow({ ...row, postal_code: e.target.value })}
+                    />
+                </div>
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">メール</label>
                     <input
@@ -363,14 +393,25 @@ export default function KaipokeInfoDetailPage() {
                 </select>
             </div>
 
-            {/* 郵便番号 */}
+
+            {/* 時間調整マスタ */}
             <div className="space-y-2">
-                <label className="block text-sm text-gray-600">郵便番号</label>
-                <input
-                    className="w-full border rounded px-2 py-1"
-                    value={row.postal_code ?? ''}
-                    onChange={(e) => setRow({ ...row, postal_code: e.target.value })}
-                />
+                <label className="block text-sm text-gray-600">時間調整（候補）</label>
+                <select
+                    className="border rounded px-2 py-1"
+                    value={row.time_adjustability_id ?? ''}   // string を想定
+                    onChange={(e) => setRow({ ...row, time_adjustability_id: e.target.value || null })}
+                >
+                    <option value="">未設定</option>
+                    {timeAdjustOptions.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                </select>
+                {timeAdjustOptions.length === 0 && (
+                    <div className="text-xs text-red-600 mt-1">
+                        候補が0件です（マスタ未登録・権限・取得エラーの可能性）。コンソール/アラートをご確認ください。
+                    </div>
+                )}
             </div>
 
             {/* 標準ルート / 通勤可否 / 手段 / 目的 */}
@@ -417,12 +458,21 @@ export default function KaipokeInfoDetailPage() {
                                                 onChange={async (e) => {
                                                     const f = e.target.files?.[0];
                                                     if (!f) return;
-                                                    const { url, mimeType } = await uploadFileViaApi(f);
-                                                    const next = documentsArray.map(d => d.id === doc.id ? { ...d, url, mimeType, uploaded_at: new Date().toISOString() } : d);
-                                                    await saveDocuments(next);
-                                                    alert(`${label} を差し替えました`);
-                                                    e.currentTarget.value = '';
+                                                    try {
+                                                        const { url, mimeType } = await uploadFileViaApi(f);
+                                                        const next = documentsArray.map(d =>
+                                                            d.id === doc.id ? { ...d, url, mimeType, uploaded_at: new Date().toISOString() } : d
+                                                        );
+                                                        await saveDocuments(next);
+                                                        alert(`${label} を差し替えました`);
+                                                    } catch (err) {
+                                                        const msg = err instanceof Error ? err.message : String(err);
+                                                        alert(`差し替えに失敗: ${msg}`);
+                                                    } finally {
+                                                        e.currentTarget.value = '';
+                                                    }
                                                 }}
+
                                             />
                                         </label>
                                         <button className="px-2 py-1 border rounded" onClick={() => handleDeleteById(doc.id)}>
@@ -492,28 +542,26 @@ export default function KaipokeInfoDetailPage() {
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
-                                    await handleOtherDocUpload(file, useCustomOther ? newDocLabel : newDocLabel);
-                                    e.currentTarget.value = '';
+                                    try {
+                                        const label = (useCustomOther ? newDocLabel : newDocLabel).trim();
+                                        if (!label) {
+                                            alert('書類名を選択または入力してください');
+                                            e.currentTarget.value = '';
+                                            return;
+                                        }
+                                        await handleOtherDocUpload(file, label);
+                                    } catch (err) {
+                                        const msg = err instanceof Error ? err.message : String(err);
+                                        alert(`アップロードに失敗: ${msg}`);
+                                    } finally {
+                                        e.currentTarget.value = '';
+                                    }
                                 }}
+
                             />
                         </label>
                     </div>
                 </div>
-            </div>
-
-            {/* 時間調整マスタ */}
-            <div className="space-y-2">
-                <label className="block text-sm text-gray-600">時間調整（候補）</label>
-                <select
-                    className="border rounded px-2 py-1"
-                    value={row.time_adjustability_id ?? ''}
-                    onChange={(e) => setRow({ ...row, time_adjustability_id: e.target.value || null })}
-                >
-                    <option value="">未設定</option>
-                    {timeAdjustOptions.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                </select>
             </div>
         </div>
     );
