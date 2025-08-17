@@ -13,27 +13,48 @@ import { supabase } from '@/lib/supabaseClient';
 function toLocalInputValue(iso: string) {
     try {
         const d = new Date(iso);
-        const pad = (n: number) => String(n).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        const mm = pad(d.getMonth() + 1);
-        const dd = pad(d.getDate());
-        const hh = pad(d.getHours());
-        const mi = pad(d.getMinutes());
-        return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+        const tzOffset = d.getTimezoneOffset();
+        const local = new Date(d.getTime() - tzOffset * 60 * 1000);
+        return local.toISOString().slice(0, 16);
     } catch {
         return '';
     }
+};
+
+/** 補助: YYYYMM または YYYYMMDD を ISO(+09:00)へ */
+function parseAcquired(raw: string | undefined | null): string {
+    const s = (raw ?? '').replace(/\D/g, '');
+    if (/^\d{8}$/.test(s)) {
+        const y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
+        return `${y}-${m}-${d}T00:00:00+09:00`;
+    }
+    if (/^\d{6}$/.test(s)) {
+        const y = s.slice(0, 4), m = s.slice(4, 6);
+        return `${y}-${m}-01T00:00:00+09:00`;
+    }
+    return new Date().toISOString();
 }
 
+function formatAcquired(iso: string) {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    // 月指定(01日固定)っぽければ YYYY/MM 表示
+    return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
+}
 
 /** -----------------------------
  *  型定義
  *  ----------------------------- */
 type Attachment = {
+    id: string;                 // 一意ID（重複ラベル対応）
     url: string | null;
-    label?: string;
+    label?: string;             // 書類名（同名可）
     type?: string;
     mimeType?: string | null;
+    uploaded_at: string;        // 保存日時（ISO）
+    acquired_at: string;        // 取得日（ISO）
 };
 
 type KaipokeInfo = {
@@ -82,6 +103,9 @@ export default function KaipokeInfoDetailPage() {
     const [row, setRow] = useState<KaipokeInfo | null>(null);
     const [saving, setSaving] = useState(false);
 
+    // 取得日の簡易入力(YYYYMM or YYYYMMDD)
+    const [acquiredRaw, setAcquiredRaw] = useState<string>('');
+
     // 書類マスタ（entry と同じ user_doc_master を使用）
     const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({
         certificate: [],
@@ -90,27 +114,17 @@ export default function KaipokeInfoDetailPage() {
     const [useCustomOther, setUseCustomOther] = useState(false);
     const [newDocLabel, setNewDocLabel] = useState('');
 
-    // 時間変更可否マスタ
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
 
-    // 初期ロード
     useEffect(() => {
+        if (!id) return;
         const fetchRow = async () => {
-            if (!id) return;
             const { data, error } = await supabase
                 .from('cs_kaipoke_info')
                 .select('*')
                 .eq('id', id)
-                .single();
-
-            if (error) {
-                console.error('fetch error:', error.message);
-                return;
-            }
-
-            // documents は配列で持つ
-            const docs = Array.isArray(data.documents) ? (data.documents as Attachment[]) : [];
-            setRow({ ...data, documents: docs } as KaipokeInfo);
+                .maybeSingle();
+            if (!error && data) setRow(data as unknown as KaipokeInfo);
         };
 
         const loadDocMaster = async () => {
@@ -128,9 +142,8 @@ export default function KaipokeInfoDetailPage() {
 
         const loadTimeAdjust = async () => {
             const { data, error } = await supabase
-                .from('cs_kaipoke_time_adjustability')
+                .from('user_time_adjustability')
                 .select('id,label')
-                .eq('is_active', true)
                 .order('sort_order');
             if (!error && data) setTimeAdjustOptions(data as TimeAdjustRow[]);
         };
@@ -141,31 +154,34 @@ export default function KaipokeInfoDetailPage() {
     }, [id]);
 
     const documentsArray = useMemo<Attachment[]>(() => {
-        return Array.isArray(row?.documents) ? (row?.documents as Attachment[]) : [];
+        const arr: unknown[] = Array.isArray(row?.documents) ? (row?.documents as unknown[]) : [];
+        // 後方互換: id/日付が無い要素に補完して返す
+        return arr.map((d, i) => {
+            const doc = d as Partial<Attachment>;
+            return {
+                id: doc.id ?? crypto.randomUUID(),
+                url: doc.url ?? null,
+                label: doc.label,
+                type: doc.type,
+                mimeType: doc.mimeType ?? null,
+                uploaded_at: doc.uploaded_at ?? new Date().toISOString(),
+                acquired_at: doc.acquired_at ?? doc.uploaded_at ?? new Date().toISOString(),
+            } satisfies Attachment;
+        });
     }, [row?.documents]);
 
     /** ------------- 共通ヘルパ ------------- */
     const uploadFileViaApi = async (file: File) => {
         const form = new FormData();
         form.append('file', file);
-        form.append('filename', `${Date.now()}_${file.name}`);
 
-        const res = await fetch('/api/upload', { method: 'POST', body: form });
-        if (!res.ok) throw new Error('upload failed');
+        const res = await fetch('/api/upload/drive', {
+            method: 'POST',
+            body: form,
+        });
+        if (!res.ok) throw new Error('アップロードに失敗しました');
         const json = await res.json();
-
-        // file.type が空のケースの補完
-        const lower = file.name.toLowerCase();
-        const guess = lower.endsWith('.pdf')
-            ? 'application/pdf'
-            : lower.endsWith('.png')
-                ? 'image/png'
-                : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
-                    ? 'image/jpeg'
-                    : null;
-
-        const mimeType = (file.type || json.mimeType || guess || null) as string | null;
-        return { url: json.url as string, mimeType };
+        return { url: json.url as string, mimeType: json.mimeType as string | null };
     };
 
     const saveDocuments = async (next: Attachment[]) => {
@@ -178,14 +194,7 @@ export default function KaipokeInfoDetailPage() {
         setRow({ ...row, documents: next });
     };
 
-    const upsertAttachment = (list: Attachment[], item: Attachment, key: 'label' | 'type') => {
-        const getKey = (a: Attachment) => (key === 'label' ? a.label : a.type);
-        const idx = list.findIndex((a) => getKey(a) === getKey(item));
-        if (idx >= 0) {
-            const next = [...list];
-            next[idx] = { ...list[idx], ...item };
-            return next;
-        }
+    const addAttachment = (list: Attachment[], item: Attachment) => {
         return [...list, item];
     };
 
@@ -197,15 +206,22 @@ export default function KaipokeInfoDetailPage() {
         }
         const { url, mimeType } = await uploadFileViaApi(file);
         const current = documentsArray;
-        const next = upsertAttachment(current, { url, label, type: 'その他', mimeType }, 'label');
+        const nowIso = new Date().toISOString();
+        const item: Attachment = {
+            id: crypto.randomUUID(),
+            url, label, type: 'その他', mimeType,
+            uploaded_at: nowIso,
+            acquired_at: parseAcquired(acquiredRaw)
+        };
+        const next = addAttachment(current, item);
         await saveDocuments(next);
         alert(`${label} をアップロードしました`);
     };
 
-    const handleDeleteAttachment = async (by: { label?: string; type?: string }) => {
+    const handleDeleteById = async (id: string) => {
         if (!row) return;
         const current = documentsArray;
-        const next = current.filter((a) => (by.label ? a.label !== by.label : by.type ? a.type !== by.type : true));
+        const next = current.filter((a) => a.id !== id);
         await saveDocuments(next);
         alert('書類を削除しました');
     };
@@ -224,25 +240,21 @@ export default function KaipokeInfoDetailPage() {
                     end_at: row.end_at || null,
                     service_kind: (row.service_kind ?? '').trim() || null,
                     email: (row.email ?? '').trim() || null,
-                    biko: row.biko ?? null,
+                    biko: (row.biko ?? '').trim() || null,
                     gender_request: row.gender_request || null,
                     postal_code: (row.postal_code ?? '').trim() || null,
-                    standard_route: row.standard_route ?? null,
-                    commuting_flg: !!row.commuting_flg,
-                    standard_trans_ways: row.standard_trans_ways ?? null,
-                    standard_purpose: row.standard_purpose ?? null,
-                    time_adjustability_id: row.time_adjustability_id || null, // ★修正：FK を保存
-
-                    // documents は別ハンドラでも更新しているが、同時に送ってもOK
-                    documents: documentsArray,
+                    standard_route: (row.standard_route ?? '').trim() || null,
+                    commuting_flg: row.commuting_flg ?? null,
+                    standard_trans_ways: (row.standard_trans_ways ?? '').trim() || null,
+                    standard_purpose: (row.standard_purpose ?? '').trim() || null,
+                    time_adjustability_id: row.time_adjustability_id || null,
                 })
                 .eq('id', row.id);
-
-            if (error) {
-                alert(`保存に失敗しました：${error.message}`);
-            } else {
-                alert('保存しました');
-            }
+            if (error) throw new Error(error.message);
+            alert('保存しました');
+        } catch (e) {
+            const err = e instanceof Error ? e : new Error(String(e));
+            alert(`保存に失敗: ${err.message}`);
         } finally {
             setSaving(false);
         }
@@ -251,16 +263,16 @@ export default function KaipokeInfoDetailPage() {
     if (!row) return <div className="p-4">読み込み中...</div>;
 
     return (
-        <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow space-y-6">
-            <div className="flex items-center justify-between gap-3">
-                <h1 className="text-2xl font-bold">カイポケ情報 詳細</h1>
+        <div className="p-4 space-y-6">
+            <div className="flex items-center justify-between">
+                <h1 className="text-xl font-bold">CS詳細</h1>
                 <div className="flex items-center gap-2">
                     <button
+                        className="px-4 py-2 border rounded shadow hover:bg-gray-50"
                         onClick={handleSaveAll}
                         disabled={saving}
-                        className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800"
                     >
-                        {saving ? '保存中...' : '保存'}
+                        {saving ? '保存中…' : '保存'}
                     </button>
                     <Link href="/portal/kaipoke-info" className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700">
                         戻る
@@ -277,101 +289,110 @@ export default function KaipokeInfoDetailPage() {
 
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">利用者様名</label>
-                    <input className="w-full border rounded px-2 py-1" value={row.name ?? ''} onChange={(e) => setRow({ ...row, name: e.target.value })} />
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.name ?? ''}
+                        onChange={(e) => setRow({ ...row, name: e.target.value })}
+                    />
                 </div>
 
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">カイポケ内部ID</label>
-                    <input className="w-full border rounded px-2 py-1" value={row.kaipoke_cs_id ?? ''} onChange={(e) => setRow({ ...row, kaipoke_cs_id: e.target.value })} />
+                    <label className="block text-sm text-gray-600">カイポケCS ID</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.kaipoke_cs_id ?? ''}
+                        onChange={(e) => setRow({ ...row, kaipoke_cs_id: e.target.value })}
+                    />
                 </div>
 
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">サービス種別</label>
-                    <input className="w-full border rounded px-2 py-1" value={row.service_kind ?? ''} onChange={(e) => setRow({ ...row, service_kind: e.target.value })} />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">最終利用予定日（end_at）</label>
+                    <label className="block text-sm text-gray-600">終了日</label>
                     <input
                         type="datetime-local"
                         className="w-full border rounded px-2 py-1"
                         value={row.end_at ? toLocalInputValue(row.end_at) : ''}
                         onChange={(e) => {
-                            const v = e.target.value ? new Date(e.target.value).toISOString() : null;
-                            setRow({ ...row, end_at: v });
+                            const v = e.target.value;
+                            setRow({ ...row, end_at: v ? new Date(v).toISOString() : null });
                         }}
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">郵便番号</label>
+                    <label className="block text-sm text-gray-600">サービス区分</label>
                     <input
                         className="w-full border rounded px-2 py-1"
-                        value={row.postal_code ?? ''}
-                        onChange={(e) => setRow({ ...row, postal_code: e.target.value.replace(/[^0-9\-]/g, '') })}
-                        placeholder="000-0000"
-                        maxLength={8}
+                        value={row.service_kind ?? ''}
+                        onChange={(e) => setRow({ ...row, service_kind: e.target.value })}
                     />
                 </div>
 
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">メール</label>
-                    <input type="email" className="w-full border rounded px-2 py-1" value={row.email ?? ''} onChange={(e) => setRow({ ...row, email: e.target.value })} />
+                    <input
+                        type="email"
+                        className="w-full border rounded px-2 py-1"
+                        value={row.email ?? ''}
+                        onChange={(e) => setRow({ ...row, email: e.target.value })}
+                    />
                 </div>
+            </div>
 
+            {/* 備考 */}
+            <div className="space-y-2">
+                <label className="block text-sm text-gray-600">備考</label>
+                <textarea
+                    className="w-full border rounded p-2"
+                    rows={3}
+                    value={row.biko ?? ''}
+                    onChange={(e) => setRow({ ...row, biko: e.target.value })}
+                />
+            </div>
+
+            {/* 希望性別 */}
+            <div className="space-y-2">
+                <label className="block text-sm text-gray-600">希望性別</label>
+                <select
+                    className="border rounded px-2 py-1"
+                    value={row.gender_request ?? ''}
+                    onChange={(e) => setRow({ ...row, gender_request: e.target.value || null })}
+                >
+                    {GENDER_OPTIONS.map((g) => (
+                        <option key={g.id} value={g.id}>{g.label}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* 郵便番号 */}
+            <div className="space-y-2">
+                <label className="block text-sm text-gray-600">郵便番号</label>
+                <input
+                    className="w-full border rounded px-2 py-1"
+                    value={row.postal_code ?? ''}
+                    onChange={(e) => setRow({ ...row, postal_code: e.target.value })}
+                />
+            </div>
+
+            {/* 標準ルート / 通勤可否 / 手段 / 目的 */}
+            <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">性別希望</label>
-                    <select className="w-full border rounded px-2 py-1" value={row.gender_request ?? ''} onChange={(e) => setRow({ ...row, gender_request: e.target.value })}>
-                        {GENDER_OPTIONS.map((o) => (
-                            <option key={o.id} value={o.id}>
-                                {o.label}
-                            </option>
-                        ))}
+                    <label className="block text-sm text-gray-600">標準ルート（初期値）</label>
+                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_route ?? ''} onChange={(e) => setRow({ ...row, standard_route: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">通勤可否（初期値）</label>
+                    <select className="border rounded px-2 py-1" value={row.commuting_flg ? '1' : '0'} onChange={(e) => setRow({ ...row, commuting_flg: e.target.value === '1' })}>
+                        <option value="0">不可</option>
+                        <option value="1">可</option>
                     </select>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">通所・通学フラグ</label>
-                    <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={!!row.commuting_flg} onChange={(e) => setRow({ ...row, commuting_flg: e.target.checked })} />
-                        <span className="text-sm text-gray-600">通所/通学あり</span>
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">時間変更可否（マスタ選択）</label>
-                    <div className="flex gap-2">
-                        <select
-                            value={row.time_adjustability_id ?? ''}
-                            onChange={(e) => setRow({ ...row, time_adjustability_id: e.target.value || null })}
-                            className="border rounded px-2 py-1"
-                        >
-                            <option value="">（選択）</option>
-                            {timeAdjustOptions.map((opt) => (
-                                <option key={opt.id} value={opt.id}>
-                                    {opt.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                <div className="md:col-span-2 space-y-2">
-                    <label className="block text-sm text-gray-600">備考</label>
-                    <textarea className="w-full border rounded px-2 py-1 h-24" value={row.biko ?? ''} onChange={(e) => setRow({ ...row, biko: e.target.value })} />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">ルート（初期値）</label>
-                    <textarea className="w-full border rounded px-2 py-1 h-20" value={row.standard_route ?? ''} onChange={(e) => setRow({ ...row, standard_route: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">手段（初期値）</label>
-                    <textarea className="w-full border rounded px-2 py-1 h-20" value={row.standard_trans_ways ?? ''} onChange={(e) => setRow({ ...row, standard_trans_ways: e.target.value })} />
+                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_trans_ways ?? ''} onChange={(e) => setRow({ ...row, standard_trans_ways: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">目的（初期値）</label>
-                    <textarea className="w-full border rounded px-2 py-1 h-20" value={row.standard_purpose ?? ''} onChange={(e) => setRow({ ...row, standard_purpose: e.target.value })} />
+                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_purpose ?? ''} onChange={(e) => setRow({ ...row, standard_purpose: e.target.value })} />
                 </div>
             </div>
 
@@ -384,8 +405,8 @@ export default function KaipokeInfoDetailPage() {
                         {documentsArray.map((doc, idx) => {
                             const label = doc.label ?? doc.type ?? `doc_${idx + 1}`;
                             return (
-                                <div key={idx}>
-                                    <FileThumbnail title={label} src={doc.url ?? undefined} mimeType={doc.mimeType ?? undefined} />
+                                <div key={doc.id}>
+                                    <FileThumbnail title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`} src={doc.url ?? undefined} mimeType={doc.mimeType ?? undefined} />
                                     <div className="mt-2 flex items-center gap-2">
                                         <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer">
                                             差し替え
@@ -397,18 +418,14 @@ export default function KaipokeInfoDetailPage() {
                                                     const f = e.target.files?.[0];
                                                     if (!f) return;
                                                     const { url, mimeType } = await uploadFileViaApi(f);
-                                                    const next = upsertAttachment(
-                                                        documentsArray,
-                                                        { url, label, type: doc.type ?? 'その他', mimeType },
-                                                        'label'
-                                                    );
+                                                    const next = documentsArray.map(d => d.id === doc.id ? { ...d, url, mimeType, uploaded_at: new Date().toISOString() } : d);
                                                     await saveDocuments(next);
                                                     alert(`${label} を差し替えました`);
                                                     e.currentTarget.value = '';
                                                 }}
                                             />
                                         </label>
-                                        <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={() => handleDeleteAttachment({ label })}>
+                                        <button className="px-2 py-1 border rounded" onClick={() => handleDeleteById(doc.id)}>
                                             削除
                                         </button>
                                     </div>
@@ -420,8 +437,23 @@ export default function KaipokeInfoDetailPage() {
                     <div className="text-sm text-gray-500">まだ登録されていません。</div>
                 )}
 
-                {/* 追加アップロード */}
+                <div className="mt-2">
+                    <button className="px-3 py-1 border rounded text-red-700 border-red-300 hover:bg-red-50" onClick={async () => { if (!row) return; if (!confirm("書類JSONを全て削除します。よろしいですか？")) return; await saveDocuments([]); alert("書類を全削除しました"); }}>書類JSONを初期化（全削除）</button>
+                </div>
+
+                {/* 追加アップロード（取得日: YYYYMM or YYYYMMDD を入力可能） */}
                 <div className="mt-3 p-3 border rounded bg-gray-50">
+                    <div className="mb-2">
+                        <label className="block text-sm text-gray-600">取得日（YYYYMM または YYYYMMDD）</label>
+                        <input
+                            type="text"
+                            className="border rounded px-2 py-1 w-48"
+                            placeholder="例: 202508 または 20250817"
+                            value={acquiredRaw}
+                            onChange={(e) => setAcquiredRaw(e.target.value)}
+                        />
+                        <span className="ml-2 text-xs text-gray-500">保存時は {formatAcquired(parseAcquired(acquiredRaw))} として記録</span>
+                    </div>
                     <div className="flex items-center gap-2">
                         <select
                             className="border rounded px-2 py-1"
@@ -437,54 +469,59 @@ export default function KaipokeInfoDetailPage() {
                                 }
                             }}
                         >
-                            <option value="">書類名を選択</option>
-                            {docMaster.other.map((name) => (
-                                <option key={name} value={name}>
-                                    {name}
-                                </option>
+                            <option value="">（書類名を選択）</option>
+                            {docMaster.other.map((l) => (
+                                <option key={l} value={l}>{l}</option>
                             ))}
-                            <option value="__custom__">（カスタム入力）</option>
+                            <option value="__custom__">（自由入力）</option>
                         </select>
-
-
                         {useCustomOther && (
                             <input
                                 className="border rounded px-2 py-1"
-                                placeholder="例：支援計画書（控）"
+                                placeholder="書類名を入力"
                                 value={newDocLabel}
                                 onChange={(e) => setNewDocLabel(e.target.value)}
                             />
                         )}
-
-                        <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
-                            追加アップロード
+                        <label className="px-3 py-1 bg-green-600 text-white rounded cursor-pointer">
+                            アップロード
                             <input
                                 type="file"
                                 accept="image/*,application/pdf"
                                 className="hidden"
                                 onChange={async (e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f && (newDocLabel || useCustomOther)) {
-                                        await handleOtherDocUpload(f, (newDocLabel || '').trim());
-                                    } else {
-                                        alert('書類名を選択してください');
-                                    }
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    await handleOtherDocUpload(file, useCustomOther ? newDocLabel : newDocLabel);
+                                    e.currentTarget.value = '';
                                 }}
                             />
                         </label>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                        区分：その他書類（エントリー詳細と同じマスタ <code>user_doc_master</code> を利用）
-                    </div>
                 </div>
+            </div>
+
+            {/* 時間調整マスタ */}
+            <div className="space-y-2">
+                <label className="block text-sm text-gray-600">時間調整（候補）</label>
+                <select
+                    className="border rounded px-2 py-1"
+                    value={row.time_adjustability_id ?? ''}
+                    onChange={(e) => setRow({ ...row, time_adjustability_id: e.target.value || null })}
+                >
+                    <option value="">未設定</option>
+                    {timeAdjustOptions.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                </select>
             </div>
         </div>
     );
 }
 
-/** -----------------------------
- *  FileThumbnail: 画像表示＋PDFボタン（entry-detailと同設計）
- *  ----------------------------- */
+/**
+ * 簡易サムネイル
+ */
 function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
     if (!src) {
         return (
@@ -501,56 +538,33 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
     const fileId = fileIdMatch ? fileIdMatch[0] : null;
     if (!fileId) {
         return (
-            <div className="text-sm text-center text-red-500">
+            <div className="text-sm text-center text-gray-500">
                 {title}
                 <br />
-                無効なURL
+                表示できません
             </div>
         );
     }
 
-    const mt = (mimeType || '').toLowerCase();
-    const titleLower = (title || '').toLowerCase();
-
-    const isPdf = mt === 'application/pdf' || /\.pdf$/.test(titleLower);
-    const isImage = mt.startsWith('image/');
-
-    const viewUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-
-    if (isPdf) {
-        return (
-            <div className="text-sm text-center">
-                <p className="mb-1">{title}</p>
-                <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200">
-                    📄 PDF/ファイルを開く
-                </a>
-            </div>
-        );
-    }
-
-    if (isImage) {
-        return (
-            <div className="text-sm text-center">
-                <p className="mb-1">{title}</p>
-                <Image src={viewUrl} alt={title} width={320} height={192} className="w-full h-auto max-h-48 object-contain rounded border hover:scale-105 transition-transform" />
-                <div className="mt-2">
-                    <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                        ファイルとして開く
-                    </a>
-                </div>
-            </div>
-        );
-    }
+    const isPdf = (mimeType ?? '').includes('pdf');
 
     return (
-        <div className="text-sm text-center">
-            <p className="mb-1">{title}</p>
-            <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-block p-2 border rounded bg-gray-100 hover:bg-gray-200">
-                📎 ファイルを開く
-            </a>
+        <div className="border rounded p-2 bg-white">
+            <div className="text-xs text-gray-600 mb-1">{title}</div>
+            {isPdf ? (
+                <iframe
+                    src={`https://drive.google.com/file/d/${fileId}/preview`}
+                    className="w-full h-40 border"
+                />
+            ) : (
+                <Image
+                    src={`https://drive.google.com/uc?export=view&id=${fileId}`}
+                    alt={title}
+                    width={400}
+                    height={300}
+                    className="w-full h-40 object-contain"
+                />
+            )}
         </div>
     );
 }
-
-// （toLocalInputValue は先頭側に移動済み）
