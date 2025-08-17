@@ -1,3 +1,4 @@
+//portal/kaipoke-info/
 'use client'
 
 import { useEffect, useState } from 'react'
