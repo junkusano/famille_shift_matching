@@ -142,8 +142,9 @@ export default function KaipokeInfoDetailPage() {
 
         const loadTimeAdjust = async () => {
             const { data, error } = await supabase
-                .from('user_time_adjustability')
-                .select('id,label,sort_order')      // 無ければ 'id,label' にして .order('sort_order') を外す
+                .from('cs_kaipoke_time_adjustability') // ← ココを修正
+                .select('id,label,sort_order,is_active')
+                .eq('is_active', true)
                 .order('sort_order', { ascending: true })
                 .order('label', { ascending: true });
 
@@ -154,15 +155,13 @@ export default function KaipokeInfoDetailPage() {
                 return;
             }
 
-            type TimeAdjustabilityRowDb = { id: string | number; label: string | null };
-            const rows = ((data ?? []) as TimeAdjustabilityRowDb[]).map((r) => ({
+            type Row = { id: string | number; label: string | null };
+            const rows = ((data ?? []) as Row[]).map(r => ({
                 id: String(r.id),
                 label: String(r.label ?? ''),
             }));
-
             setTimeAdjustOptions(rows);
         };
-
 
         fetchRow();
         loadDocMaster();
@@ -187,26 +186,33 @@ export default function KaipokeInfoDetailPage() {
     }, [row?.documents]);
 
     /** ------------- 共通ヘルパ ------------- */
-    // 既存の uploadFileViaApi をこれに置き換え
+    // entry-detail と同じ実装に統一
     const uploadFileViaApi = async (file: File) => {
         const form = new FormData();
-        form.append('file', file);
+        form.append("file", file);
+        form.append("filename", `${Date.now()}_${file.name}`);
 
-        const res = await fetch('/api/upload/drive', {
-            method: 'POST',
-            body: form,
-        });
-
+        const res = await fetch("/api/upload", { method: "POST", body: form });
         if (!res.ok) {
-            const text = await res.text().catch(() => '');
+            const text = await res.text().catch(() => "");
             throw new Error(`アップロードAPI失敗: status=${res.status} ${text}`);
         }
-        const json = await res.json().catch(() => null);
-        if (!json || !json.url) {
-            throw new Error('アップロードAPIの戻り値に url がありません');
-        }
-        return { url: json.url as string, mimeType: (json.mimeType as string) ?? null };
+        const json = await res.json();
+
+        // file.type が空の環境向け: 拡張子から推定
+        const lower = file.name.toLowerCase();
+        const guessed =
+            lower.endsWith(".pdf") ? "application/pdf" :
+                lower.endsWith(".png") ? "image/png" :
+                    (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) ? "image/jpeg" :
+                        null;
+
+        const mimeType = (file.type || json.mimeType || guessed || null) as string | null;
+        if (!json.url) throw new Error("アップロードAPIの戻り値に url がありません");
+
+        return { url: json.url as string, mimeType };
     };
+
 
 
     const saveDocuments = async (next: Attachment[]) => {
@@ -475,7 +481,6 @@ export default function KaipokeInfoDetailPage() {
                                                         e.currentTarget.value = '';
                                                     }
                                                 }}
-
                                             />
                                         </label>
                                         <button className="px-2 py-1 border rounded" onClick={() => handleDeleteById(doc.id)}>
@@ -546,7 +551,7 @@ export default function KaipokeInfoDetailPage() {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     try {
-                                        const label = (useCustomOther ? newDocLabel : newDocLabel).trim();
+                                        const label = (useCustomOther ? newDocLabel : newDocLabel).trim(); // ← ここは実際は newDocLabel を使えばOK
                                         if (!label) {
                                             alert('書類名を選択または入力してください');
                                             e.currentTarget.value = '';
@@ -560,6 +565,7 @@ export default function KaipokeInfoDetailPage() {
                                         e.currentTarget.value = '';
                                     }
                                 }}
+
 
                             />
                         </label>
