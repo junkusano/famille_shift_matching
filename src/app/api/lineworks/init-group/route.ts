@@ -50,9 +50,8 @@ export async function POST(req: Request) {
 
     // === 1) 対象ユーザー情報（ビュー重複に強い取得） ===
     const { data: entryRowsRaw, error: ueErr } = await supabase
-        .from('user_entry_united_view')
+        .from('users')
         .select('*')
-        .eq('group_type', '人事労務サポートルーム')
         .eq('lw_userid', userId);
 
     if (ueErr || !entryRowsRaw || entryRowsRaw.length === 0) {
