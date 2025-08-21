@@ -254,7 +254,7 @@ export default function KaipokeInfoPage() {
 
                 {/* 下段：操作列と重ならないよう colSpan=7 に修正（従来は8） */}
                 <tr className="bg-gray-50">
-                  <td colSpan={7} className="border p-2">
+                  <td colSpan={8} className="border p-2">
                     <div className="grid grid-cols-4 gap-3 md:gap-4">
                       <div>
                         <label className="text-sm">備考：</label>
