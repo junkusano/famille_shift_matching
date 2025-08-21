@@ -1,6 +1,7 @@
-'use client';
+//portal/entry/detail[id]/
 
-import { useEffect, useState, useCallback } from 'react';
+'use client';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
@@ -14,12 +15,17 @@ import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
+// 既存 interface Attachment を置き換え
 interface Attachment {
+    id: string;                  // ★一意ID
     url: string | null;
     type?: string;
     label?: string;
     mimeType?: string | null;
+    uploaded_at: string;         // ★アップロード日時 ISO
+    acquired_at: string;         // ★取得日 ISO（YYYYMM/YYYMMDD入力→補完）
 }
+
 
 interface EntryDetail {
     id: string;
@@ -1056,7 +1062,25 @@ export default function EntryDetailPage() {
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
-    const attachmentsArray = Array.isArray(entry.attachments) ? entry.attachments : [] as Attachment[];
+    // attachmentsArray の直後で map 補完
+    const attachmentsArray: Attachment[] = useMemo(() => {
+        const raw: unknown[] = Array.isArray(entry?.attachments) ? entry!.attachments : [];
+        return raw.map((a) => {
+            const p = a as Partial<Attachment>;
+            const now = new Date().toISOString();
+            return {
+                id: p.id ?? crypto.randomUUID(),
+                url: p.url ?? null,
+                type: p.type,
+                label: p.label,
+                mimeType: p.mimeType ?? null,
+                uploaded_at: p.uploaded_at ?? now,
+                acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
+            };
+        });
+    }, [entry?.attachments]);
+
+
 
     // 追加: 判定ヘルパ
     const isFixedId = (att?: Attachment) =>
@@ -1175,15 +1199,28 @@ export default function EntryDetailPage() {
         return [...list, item];
     };
 
-    const saveAttachments = async (next: AttachmentItem[]) => {
+    // 置き換え：配列保存ヘルパはそのまま
+    const saveAttachments = async (next: Attachment[]) => {
         if (!entry) return;
         const { error } = await supabase
             .from("form_entries")
             .update({ attachments: next })
             .eq("id", entry.id);
         if (error) throw error;
-        setEntry({ ...entry, attachments: next });
+
+        // Entry の型に合わせて attachments: Attachment[] をそのまま渡す
+        setEntry(prev => prev ? { ...prev, attachments: next } : prev);
     };
+
+
+    // 削除は id で
+    const handleDeleteAttachmentById = async (id: string) => {
+        if (!entry) return;
+        const next = attachmentsArray.filter(a => a.id !== id);
+        await saveAttachments(next);
+        alert('添付を削除しました');
+    };
+
 
     // 追加：削除ハンドラ（参照エラーの解消）
     const handleDeleteAttachment = async (by: { type?: string; label?: string }) => {
@@ -1217,16 +1254,36 @@ export default function EntryDetailPage() {
         try {
             setAttUploading(type);
             const { url, mimeType } = await uploadFileViaApi(file);
-            const current = Array.isArray(entry.attachments)
-                ? (entry.attachments as AttachmentItem[])
-                : [];
-            const next = upsertAttachment(
-                current,
-                { url, type, label: type, mimeType },
-                "type"
-            );
+            const now = new Date().toISOString();
+
+            const existing = attachmentsArray.find(a => a.type === type);
+
+            let next: Attachment[];
+            if (existing) {
+                // 既存を上書き（id, acquired_at は維持）
+                next = attachmentsArray.map(a =>
+                    a.id === existing.id
+                        ? { ...a, url, mimeType, uploaded_at: now }
+                        : a
+                );
+            } else {
+                // 新規追加（必須プロパティを全て付与）
+                next = [
+                    ...attachmentsArray,
+                    {
+                        id: crypto.randomUUID(),
+                        url,
+                        type,
+                        label: type,
+                        mimeType,
+                        uploaded_at: now,
+                        acquired_at: parseAcquired(acquiredRaw) // 未入力なら当日補完
+                    }
+                ];
+            }
+
             await saveAttachments(next);
-            // handleFixedTypeUpload 内、saveAttachments(next) の直後に追加
+
             const actor = await getCurrentUserId();
             await addStaffLog({
                 staff_id: entry.id,
@@ -1234,8 +1291,9 @@ export default function EntryDetailPage() {
                 action_detail: `添付アップロード: ${type}`,
                 registered_by: actor,
             });
+
             alert(`${type} をアップロードしました`);
-        } catch (err: unknown) {
+        } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             alert(`アップロードに失敗: ${msg}`);
         } finally {
@@ -1243,76 +1301,56 @@ export default function EntryDetailPage() {
         }
     };
 
+    // 取得日の簡易入力（画面ステート）
+    const [acquiredRaw, setAcquiredRaw] = useState('');
+
+    // 資格
     const handleCertUpload = async (file: File, label: string) => {
         if (!entry) return;
-        if (!label) {
-            alert("資格のラベルを入力してください");
-            return;
-        }
+        if (!label.trim()) return alert("資格のラベルを入力してください");
         try {
             setAttUploading(label);
             const { url, mimeType } = await uploadFileViaApi(file);
-            const current = Array.isArray(entry.attachments)
-                ? (entry.attachments as AttachmentItem[])
-                : [];
-            // 変更前（例）:
-            // const next = upsertAttachment(current, { url, mimeType, label }, 'label');
-
-            // 変更後（type を固定）
-            const next = upsertAttachment(current, { url, mimeType, label, type: '資格証明書' }, 'label');
-            await saveAttachments(next);
-            const actor = await getCurrentUserId();
-            await addStaffLog({
-                staff_id: entry.id,
-                action_at: new Date().toISOString(),
-                action_detail: `資格証アップロード: ${label}`,
-                registered_by: actor,
-            });
-
+            const now = new Date().toISOString();
+            const item: Attachment = {
+                id: crypto.randomUUID(),
+                url, mimeType,
+                type: '資格証明書',
+                label: label.trim(),
+                uploaded_at: now,
+                acquired_at: parseAcquired(acquiredRaw),
+            };
+            await saveAttachments([...attachmentsArray, item]); // ★追加
             alert(`${label} をアップロードしました`);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
             alert(`アップロードに失敗: ${msg}`);
-        } finally {
-            setAttUploading(null);
         }
     };
 
+    // その他
     const handleOtherDocUpload = async (file: File, label: string) => {
         if (!entry) return;
-        if (!label) {
-            alert("書類のラベルを入力してください");
-            return;
-        }
+        if (!label.trim()) return alert("書類のラベルを入力してください");
         try {
             setAttUploading(label);
             const { url, mimeType } = await uploadFileViaApi(file);
-            const current = Array.isArray(entry.attachments)
-                ? (entry.attachments as AttachmentItem[])
-                : [];
-            const next = upsertAttachment(
-                current,
-                { url, type: "その他", label, mimeType },
-                "label"
-            );
-            await saveAttachments(next);
-            const actor = await getCurrentUserId();
-            await addStaffLog({
-                staff_id: entry.id,
-                action_at: new Date().toISOString(),
-                action_detail: `その他書類アップロード: ${label}`,
-                registered_by: actor,
-            });
-
+            const now = new Date().toISOString();
+            const item: Attachment = {
+                id: crypto.randomUUID(),
+                url, mimeType,
+                type: 'その他',
+                label: label.trim(),
+                uploaded_at: now,
+                acquired_at: parseAcquired(acquiredRaw),
+            };
+            await saveAttachments([...attachmentsArray, item]); // ★追加
             alert(`${label} をアップロードしました`);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
             alert(`アップロードに失敗: ${msg}`);
-        } finally {
-            setAttUploading(null);
-        }
+        } finally { setAttUploading(null); }
     };
-
 
     // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
     const ActionButtons = () => (
@@ -1908,31 +1946,49 @@ export default function EntryDetailPage() {
                             return (
                                 <div key={idx}>
                                     <FileThumbnail
-                                        title={label}
+                                        title={`${label}（取得: ${formatAcquired(cert.acquired_at)}）`}
                                         src={cert.url ?? undefined}
                                         mimeType={cert.mimeType ?? undefined}
                                     />
+                                    {/* 取得日（YYYYMM or YYYYMMDD） */}
+                                    <div className="text-xs text-gray-600">
+                                        取得日:
+                                        <input
+                                            type="text"
+                                            className="ml-2 border rounded px-2 py-1 w-40"
+                                            placeholder="例: 202508 または 20250817"
+                                            value={acquiredRaw}
+                                            onChange={(e) => setAcquiredRaw(e.target.value)}
+                                        />
+                                        <span className="ml-2 text-gray-400">
+                                            保存時は {formatAcquired(parseAcquired(acquiredRaw))} として記録
+                                        </span>
+                                    </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        <label className="inline-block mt-1 px-2 py-1 text-[11px] bg-blue-600 text-white rounded cursor-pointer">
-                                            この資格証を差し替え
+                                        // 一覧の各カード内
+                                        <label className="...">
+                                            差し替え
                                             <input
                                                 type="file"
                                                 accept="image/*,application/pdf"
                                                 className="hidden"
-                                                onChange={(e) => {
+                                                onChange={async (e) => {
                                                     const f = e.target.files?.[0];
                                                     if (!f) return;
-                                                    handleCertUpload(f, cert.label ?? `certificate_${idx}`);
-                                                    e.currentTarget.value = '';
+                                                    try {
+                                                        const { url, mimeType } = await uploadFileViaApi(f);
+                                                        const next = attachmentsArray.map(a =>
+                                                            a.id === cert.id ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() } : a
+                                                        );
+                                                        await saveAttachments(next);
+                                                        alert('差し替えました');
+                                                    } finally { e.currentTarget.value = ''; }
                                                 }}
                                             />
                                         </label>
-                                        <button
-                                            className="px-2 py-1 bg-red-600 text-white rounded"
-                                            onClick={() => handleDeleteAttachment({ label })}
-                                        >
-                                            削除
-                                        </button>
+
+                                        <button className="..." onClick={() => handleDeleteAttachmentById(cert.id)}>削除</button>
+
                                     </div>
                                 </div>
                             );
@@ -2008,32 +2064,49 @@ export default function EntryDetailPage() {
                             return (
                                 <div key={idx}>
                                     <FileThumbnail
-                                        title={label}
+                                        title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`}
                                         src={doc.url ?? undefined}
                                         mimeType={doc.mimeType ?? undefined}
                                     />
+                                    {/* 取得日（YYYYMM or YYYYMMDD） */}
+                                    <div className="text-xs text-gray-600">
+                                        取得日:
+                                        <input
+                                            type="text"
+                                            className="ml-2 border rounded px-2 py-1 w-40"
+                                            placeholder="例: 202508 または 20250817"
+                                            value={acquiredRaw}
+                                            onChange={(e) => setAcquiredRaw(e.target.value)}
+                                        />
+                                        <span className="ml-2 text-gray-400">
+                                            保存時は {formatAcquired(parseAcquired(acquiredRaw))} として記録
+                                        </span>
+                                    </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer">
-                                            {attUploading === label ? "アップロード中..." : "差し替え"}
+                                        // 一覧の各カード内
+                                        <label className="...">
+                                            差し替え
                                             <input
                                                 type="file"
                                                 accept="image/*,application/pdf"
                                                 className="hidden"
-                                                disabled={attUploading !== null}
-                                                onChange={(e) => {
+                                                onChange={async (e) => {
                                                     const f = e.target.files?.[0];
                                                     if (!f) return;
-                                                    handleOtherDocUpload(f, label); // ← 既存ラベルで差し替え
-                                                    e.currentTarget.value = '';
+                                                    try {
+                                                        const { url, mimeType } = await uploadFileViaApi(f);
+                                                        const next = attachmentsArray.map(a =>
+                                                            a.id === doc.id ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() } : a
+                                                        );
+                                                        await saveAttachments(next);
+                                                        alert('差し替えました');
+                                                    } finally { e.currentTarget.value = ''; }
                                                 }}
                                             />
                                         </label>
-                                        <button
-                                            className="px-2 py-1 bg-red-600 text-white rounded"
-                                            onClick={() => handleDeleteAttachment({ label })}
-                                        >
-                                            削除
-                                        </button>
+
+                                        <button className="..." onClick={() => handleDeleteAttachmentById(doc.id)}>削除</button>
+
                                     </div>
                                 </div>
                             );
@@ -2398,3 +2471,15 @@ function getUserIdSuggestions(
 }
 
 
+function parseAcquired(raw: string | undefined | null): string {
+    const s = (raw ?? '').replace(/\D/g, '');
+    if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
+    if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
+    return new Date().toISOString();
+}
+function formatAcquired(iso: string) {
+    const d = new Date(iso), y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
+}
