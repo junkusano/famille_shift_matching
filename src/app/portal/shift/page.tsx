@@ -31,6 +31,8 @@ import {
     isSameMonth,
 } from "date-fns";
 import { ja } from "date-fns/locale";
+import ShiftCard from "@/components/shift/ShiftCard";
+import GroupAddButton from "@/components/shift/GroupAddButton";
 
 const PAGE_SIZE = 50;
 
@@ -476,25 +478,15 @@ export default function ShiftPage() {
                 <div className="text-sm text-gray-500">シフトがありません</div>
             ) : (
                 paginatedShifts.map((shift) => (
-                    <Card key={shift.shift_id} className="shadow">
-                        <CardContent>
-                            <div className="text-sm font-semibold">
-                                {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
-                            </div>
-                            <div className="text-sm">利用者: {shift.client_name}</div>
-                            <div className="text-sm">エリア: {shift.address}</div>
-                            <div className="text-sm">サービス種別: {shift.service_code}</div>
-                            <div className="flex gap-2 mt-4">
-                                <ShiftDeleteDialog shift={shift} onConfirm={(shiftObj, reason) => handleShiftReject(shiftObj, reason)} />
-                            </div>
-
-                            {/* 横並びにする追加ボタン */}
-                            <GroupAddButton shift={shift} />
-                        </CardContent>
-                    </Card>
+                    <ShiftCard
+                        key={shift.shift_id}
+                        shift={shift}
+                        mode="reject"
+                        onReject={(reason) => handleShiftReject(shift, reason)} // 既存関数を接続
+                        extraActions={<GroupAddButton shift={shift} />}
+                    />
                 ))
             )}
-
             <div className="content">
                 <DateNavigator
                     date={shiftDate}
@@ -543,6 +535,7 @@ function ShiftDeleteDialog({
     );
 }
 
+/*
 function GroupAddButton({ shift }: { shift: ShiftData }) {
     const [open, setOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -621,6 +614,7 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         </Dialog>
     );
 }
+*/
 
 function toJstDate(dateStr: string, timeStr?: string) {
     const hhmm = (timeStr ?? "00:00").slice(0, 5); // "HH:MM" だけ使う
