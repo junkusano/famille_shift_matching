@@ -1,3 +1,4 @@
+//portal/layout
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -31,7 +32,6 @@ export default function PortalLayout({ children }: Props) {
     const [secureImageUrl, setSecureImageUrl] = useState<string | null>(null);
     void secureImageUrl;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-
 
 
     // 画像削除
@@ -110,7 +110,18 @@ export default function PortalLayout({ children }: Props) {
     return (
         <div className="flex portal-container min-h-screen">
             {/* ハンバーガーメニュー */}
-            <button className="hamburger" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            <button
+                className="hamburger"
+                onClick={() =>
+                    setIsMenuOpen((prev) => {
+                        const next = !prev;
+                        if (typeof document !== 'undefined') {
+                            document.body.style.overflow = next ? 'hidden' : '';
+                        }
+                        return next;
+                    })
+                }
+            >
                 ☰
             </button>
 
