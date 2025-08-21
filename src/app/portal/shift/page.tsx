@@ -1,3 +1,4 @@
+//portal/shift
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,6 +18,51 @@ import type { ShiftData } from "@/types/shift";
 //import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 
 const PAGE_SIZE = 50;
+
+// 追加：日付ナビゲーター（ファイル先頭のコンポーネント群の下あたりに）
+function DateNavigator({
+    date,
+    onPrev,
+    onNext,
+}: {
+    date: Date;
+    onPrev: () => void;
+    onNext: () => void;
+}) {
+    return (
+        <div className="grid grid-cols-3 items-center w-full mb-4">
+            <div className="justify-self-start">
+                <Button
+                    size="sm"
+                    onClick={onPrev}
+                    aria-label="前の日へ"
+                    className="px-2 py-1"
+                >
+                    {/* モバイルは記号、md以上でテキスト */}
+                    <span className="md:hidden">&laquo;</span>
+                    <span className="hidden md:inline">前の日</span>
+                </Button>
+            </div>
+
+            <div className="justify-self-center text-xl font-bold whitespace-nowrap">
+                {/* Y ではなく yyyy を使用 */}
+                {format(date, "yyyy/M/d")}
+            </div>
+
+            <div className="justify-self-end">
+                <Button
+                    size="sm"
+                    onClick={onNext}
+                    aria-label="次の日へ"
+                    className="px-2 py-1"
+                >
+                    <span className="md:hidden">&raquo;</span>
+                    <span className="hidden md:inline">次の日</span>
+                </Button>
+            </div>
+        </div>
+    );
+}
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]); // ShiftData 型を使用
@@ -253,14 +299,13 @@ export default function ShiftPage() {
     return (
         <div className="content">
             <div className="content">
-                <div className="flex justify-between mb-4 items-center">
-                    <Button onClick={handlePrevDay}>前の日</Button>
-                    <span className="text-xl font-bold">{format(shiftDate, "Y/M/d")}</span>
-                    <Button onClick={handleNextDay}>次の日</Button>
-                </div>
-                {/* 以下シフト表示 */}
+                <DateNavigator
+                    date={shiftDate}
+                    onPrev={handlePrevDay}
+                    onNext={handleNextDay}
+                />
             </div>
-
+            {/* 以下シフト表示 */}
             <div className="text-right mb-4">
                 <Button onClick={handleDeleteAll} className="bg-red-500 text-white">
                     この日はお休み希望
@@ -291,12 +336,12 @@ export default function ShiftPage() {
                 ))
             )}
 
-            <div className="flex justify-between mt-6">
-                <div className="flex justify-between mb-4 items-center">
-                    <Button onClick={handlePrevDay}>前の日</Button>
-                    <span className="text-xl font-bold">{format(shiftDate, "Y/M/d")}</span>
-                    <Button onClick={handleNextDay}>次の日</Button>
-                </div>
+            <div className="content">
+                <DateNavigator
+                    date={shiftDate}
+                    onPrev={handlePrevDay}
+                    onNext={handleNextDay}
+                />
             </div>
         </div>
     );
