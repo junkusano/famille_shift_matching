@@ -12,10 +12,25 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { format, addDays, subDays } from "date-fns";
+//import { format, addDays, subDays } from "date-fns";
 import Image from 'next/image';
 import type { ShiftData } from "@/types/shift";
 //import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
+
+import {
+    format,
+    addDays,
+    subDays,
+    startOfMonth,
+    endOfMonth,
+    startOfWeek,
+    endOfWeek,
+    eachDayOfInterval,
+    addMonths,
+    subMonths,
+    isSameMonth,
+} from "date-fns";
+import { ja } from "date-fns/locale";
 
 const PAGE_SIZE = 50;
 
@@ -24,41 +39,111 @@ function DateNavigator({
     date,
     onPrev,
     onNext,
+    onToggleMonth,
 }: {
     date: Date;
     onPrev: () => void;
     onNext: () => void;
+    onToggleMonth: () => void;
 }) {
     return (
         <div className="grid grid-cols-3 items-center w-full mb-4">
             <div className="justify-self-start">
-                <Button
-                    size="sm"
-                    onClick={onPrev}
-                    aria-label="前の日へ"
-                    className="px-2 py-1"
-                >
-                    {/* モバイルは記号、md以上でテキスト */}
+                <Button size="sm" onClick={onPrev} aria-label="前の日へ" className="px-2 py-1">
                     <span className="md:hidden">&laquo;</span>
                     <span className="hidden md:inline">前の日</span>
                 </Button>
             </div>
-
-            <div className="justify-self-center text-xl font-bold whitespace-nowrap">
-                {/* Y ではなく yyyy を使用 */}
-                {format(date, "yyyy/M/d")}
+            {/* 中央の日付をボタン化→タップで月カレンダー開閉 */}
+            <div className="justify-self-center">
+                <button
+                    onClick={onToggleMonth}
+                    className="text-xl font-bold whitespace-nowrap underline decoration-dotted"
+                    aria-label="月カレンダーを開く"
+                >
+                    {format(date, "yyyy/M/d", { locale: ja })}
+                </button>
             </div>
 
             <div className="justify-self-end">
-                <Button
-                    size="sm"
-                    onClick={onNext}
-                    aria-label="次の日へ"
-                    className="px-2 py-1"
-                >
+                <Button size="sm" onClick={onNext} aria-label="次の日へ" className="px-2 py-1">
                     <span className="md:hidden">&raquo;</span>
                     <span className="hidden md:inline">次の日</span>
                 </Button>
+            </div>
+        </div>
+    );
+}
+
+function MonthCalendar({
+    month,
+    counts,
+    onDayPick,
+    onPrevMonth,
+    onNextMonth,
+    onClose,
+}: {
+    month: Date;
+    counts: Record<string, number>;
+    onDayPick: (d: Date) => void;
+    onPrevMonth: () => void;
+    onNextMonth: () => void;
+    onClose: () => void;
+}) {
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 }); // 日曜始まり
+    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 0 });
+    const days = eachDayOfInterval({ start, end });
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-start justify-center p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-3 shadow-xl">
+                {/* ヘッダ */}
+                <div className="flex items-center justify-between mb-2">
+                    <Button size="sm" variant="outline" onClick={onPrevMonth} aria-label="前の月">
+                        <span className="md:hidden">&laquo;</span><span className="hidden md:inline">前の月</span>
+                    </Button>
+                    <div className="font-bold">{format(month, "yyyy年MM月", { locale: ja })}</div>
+                    <Button size="sm" variant="outline" onClick={onNextMonth} aria-label="次の月">
+                        <span className="md:hidden">&raquo;</span><span className="hidden md:inline">次の月</span>
+                    </Button>
+                </div>
+
+                {/* 曜日ヘッダ */}
+                <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+                    {["日", "月", "火", "水", "木", "金", "土"].map((w) => (
+                        <div key={w} className="py-1">{w}</div>
+                    ))}
+                </div>
+
+                {/* 日グリッド */}
+                <div className="grid grid-cols-7 gap-1">
+                    {days.map((d) => {
+                        const key = format(d, "yyyy-MM-dd");
+                        const n = counts[key] ?? 0;
+                        const dim = !isSameMonth(d, month);
+                        return (
+                            <div key={key} className={`rounded-lg p-1 ${dim ? "opacity-40" : ""}`}>
+                                <div className="text-right text-[11px] text-gray-600">{format(d, "d")}</div>
+                                {n > 0 ? (
+                                    <button
+                                        className="w-full mt-1 rounded-md border text-sm py-1 hover:bg-gray-50 active:scale-[0.99]"
+                                        onClick={() => onDayPick(d)}
+                                        aria-label={`${format(d, "M/d")} のサービス件数 ${n}`}
+                                    >
+                                        {n}
+                                    </button>
+                                ) : (
+                                    <div className="h-[30px]" />
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* 閉じる */}
+                <div className="mt-3 text-right">
+                    <Button size="sm" variant="secondary" onClick={onClose}>閉じる</Button>
+                </div>
             </div>
         </div>
     );
@@ -75,6 +160,70 @@ export default function ShiftPage() {
     void accountId;
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     void kaipokeUserId;
+
+    // ShiftPage 内の state に追加
+    const [showMonth, setShowMonth] = useState(false);
+    const [monthCursor, setMonthCursor] = useState<Date>(new Date()); // カレンダー表示中の月
+    const [monthCounts, setMonthCounts] = useState<Record<string, number>>({});
+
+    // 月カレンダー用：その月のシフトを取得し、ログインユーザー分のみ日別件数に集計
+    async function fetchMonthCounts(targetMonth: Date) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: userRecord } = await supabase
+            .from("users")
+            .select("user_id")
+            .eq("auth_user_id", user.id)
+            .single();
+
+        if (!userRecord?.user_id) return;
+
+        const start = startOfMonth(targetMonth);
+        const end = endOfMonth(targetMonth);
+        const startISO = new Date(start.getTime() - 9 * 60 * 60 * 1000).toISOString(); // JST→UTC
+        void startISO;
+        const endISO = new Date(end.getTime() + (24 * 60 * 60 - 1) * 1000 - 9 * 60 * 60 * 1000).toISOString();
+        void endISO;
+
+        type ShiftRecord = {
+            shift_start_date: string;
+            staff_01_user_id: string | null;
+            staff_02_user_id: string | null;
+            staff_03_user_id: string | null;
+        };
+
+        const allMonth: ShiftRecord[] = [];
+        // 万一レコードが多い場合に備えてページング（1000件刻み）
+        for (let i = 0; i < 10; i++) {
+            const { data, error } = await supabase
+                .from("shift_csinfo_postalname_view")
+                .select("shift_id, shift_start_date, shift_start_time, staff_01_user_id, staff_02_user_id, staff_03_user_id")
+                .gte("shift_start_date", format(start, "yyyy-MM-dd"))
+                .lte("shift_start_date", format(end, "yyyy-MM-dd"))
+                .order("shift_start_date", { ascending: true })
+                .range(i * 1000, (i + 1) * 1000 - 1);
+
+            if (error || !data?.length) break;
+            allMonth.push(...data);
+        }
+
+        const mine = allMonth.filter(
+            s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
+        );
+
+        const counts: Record<string, number> = {};
+        for (const s of mine) {
+            const key = s.shift_start_date; // "YYYY-MM-DD"
+            counts[key] = (counts[key] ?? 0) + 1;
+        }
+        setMonthCounts(counts);
+    }
+
+    // 月が開いた／切り替わったら読み込み
+    useEffect(() => {
+        if (showMonth) { void fetchMonthCounts(monthCursor); }
+    }, [showMonth, monthCursor]);
 
 
     // startISO と endISO を使わないなら削除
@@ -303,6 +452,7 @@ export default function ShiftPage() {
                     date={shiftDate}
                     onPrev={handlePrevDay}
                     onNext={handleNextDay}
+                    onToggleMonth={() => { setMonthCursor(shiftDate); setShowMonth((v) => !v); }}
                 />
             </div>
             {/* 以下シフト表示 */}
@@ -311,7 +461,16 @@ export default function ShiftPage() {
                     この日はお休み希望
                 </Button>
             </div>
-
+            {showMonth && (
+                <MonthCalendar
+                    month={monthCursor}
+                    counts={monthCounts}
+                    onDayPick={(d) => { setShiftDate(d); setShowMonth(false); }}
+                    onPrevMonth={() => setMonthCursor((m) => subMonths(m, 1))}
+                    onNextMonth={() => setMonthCursor((m) => addMonths(m, 1))}
+                    onClose={() => setShowMonth(false)}
+                />
+            )}
             {/* シフトが0件でも表示 */}
             {paginatedShifts.length === 0 ? (
                 <div className="text-sm text-gray-500">シフトがありません</div>
@@ -341,6 +500,7 @@ export default function ShiftPage() {
                     date={shiftDate}
                     onPrev={handlePrevDay}
                     onNext={handleNextDay}
+                    onToggleMonth={() => { setMonthCursor(shiftDate); setShowMonth((v) => !v); }}
                 />
             </div>
         </div>
