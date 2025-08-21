@@ -349,6 +349,29 @@ export default function EntryDetailPage() {
         fetchMyLevelSort();
     }, []);
 
+    useEffect(() => {
+        const fetchEntryWithStatus = async () => {
+            const { data, error } = await supabase
+                .from('form_entries_with_status')
+                .select('*')
+                .eq('id', id)
+                .single();
+            if (error) {
+                console.error('取得エラー:', error.message);
+                return;
+            }
+            const entryLevelSort = data.level_sort ?? 999999;
+            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+                setRestricted(true);
+                return;
+            }
+            setEntry(normalizeEntryFromDb(data));
+            setManagerNote(data?.manager_note ?? '');
+        };
+
+        if (id) fetchEntryWithStatus();
+    }, [id, myLevelSort]); // ← myLevelSort を追加
+
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
         setExistingIds(data?.map((row: { user_id: string }) => row.user_id) ?? []);
@@ -997,15 +1020,18 @@ export default function EntryDetailPage() {
     // 写真再アップロー
 
     // 2. Entryの再取得関数
-    const fetchEntry = async () => {
+    const fetchEntry = useCallback(async () => {
         const { data, error } = await supabase
             .from('form_entries')
             .select('*')
             .eq('id', id)
             .single();
-        // if (!error && data) setEntry(data);
         if (!error && data) setEntry(normalizeEntryFromDb(data));
-    };
+    }, [id]);
+
+    useEffect(() => {
+        fetchEntry();
+    }, [fetchEntry]); // ← これで警告解消
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
@@ -1055,31 +1081,25 @@ export default function EntryDetailPage() {
         }
     };
 
-    // 5. useEffectでEntry初期取得
-    useEffect(() => {
-        fetchEntry();
-    }, [id]);
-
     if (!entry) return <p className="p-4">読み込み中...</p>;
 
-    // attachmentsArray の直後で map 補完
-    const attachmentsArray: Attachment[] = useMemo(() => {
-        const raw: unknown[] = Array.isArray(entry?.attachments) ? entry!.attachments : [];
-        return raw.map((a) => {
-            const p = a as Partial<Attachment>;
-            const now = new Date().toISOString();
-            return {
-                id: p.id ?? crypto.randomUUID(),
-                url: p.url ?? null,
-                type: p.type,
-                label: p.label,
-                mimeType: p.mimeType ?? null,
-                uploaded_at: p.uploaded_at ?? now,
-                acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
-            };
-        });
-    }, [entry?.attachments]);
+    // 取得日の簡易入力（常にトップで）
+    const [acquiredRaw, setAcquiredRaw] = useState('');
 
+    // attachmentsArray（常にトップで）
+    const attachmentsArray: Attachment[] = useMemo(() => {
+        const raw = Array.isArray(entry?.attachments) ? (entry!.attachments as Partial<Attachment>[]) : [];
+        const now = new Date().toISOString();
+        return raw.map((p) => ({
+            id: p.id ?? crypto.randomUUID(),
+            url: p.url ?? null,
+            type: p.type,
+            label: p.label,
+            mimeType: p.mimeType ?? null,
+            uploaded_at: p.uploaded_at ?? now,
+            acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
+        }));
+    }, [entry?.attachments]);
 
 
     // 追加: 判定ヘルパ
@@ -1208,10 +1228,9 @@ export default function EntryDetailPage() {
             .eq("id", entry.id);
         if (error) throw error;
 
-        // Entry の型に合わせて attachments: Attachment[] をそのまま渡す
-        setEntry(prev => prev ? { ...prev, attachments: next } : prev);
+        // entry を安全に更新
+        setEntry(prev => (prev ? { ...prev, attachments: next } : prev));
     };
-
 
     // 削除は id で
     const handleDeleteAttachmentById = async (id: string) => {
@@ -1254,30 +1273,32 @@ export default function EntryDetailPage() {
         try {
             setAttUploading(type);
             const { url, mimeType } = await uploadFileViaApi(file);
-            const now = new Date().toISOString();
 
-            const existing = attachmentsArray.find(a => a.type === type);
+            // 既存を探す
+            const current = attachmentsArray;
+            const now = new Date().toISOString();
+            const existing = current.find(a => a.type === type);
 
             let next: Attachment[];
             if (existing) {
-                // 既存を上書き（id, acquired_at は維持）
-                next = attachmentsArray.map(a =>
+                // 既存レコードを差し替え
+                next = current.map(a =>
                     a.id === existing.id
-                        ? { ...a, url, mimeType, uploaded_at: now }
+                        ? { ...a, url, mimeType, uploaded_at: now } // acquired_at はそのまま保持
                         : a
                 );
             } else {
-                // 新規追加（必須プロパティを全て付与）
+                // 新規追加（必要なら）
                 next = [
-                    ...attachmentsArray,
+                    ...current,
                     {
                         id: crypto.randomUUID(),
                         url,
+                        mimeType,
                         type,
                         label: type,
-                        mimeType,
                         uploaded_at: now,
-                        acquired_at: parseAcquired(acquiredRaw) // 未入力なら当日補完
+                        acquired_at: now, // 取得日が不明なら暫定で now
                     }
                 ];
             }
@@ -1287,11 +1308,10 @@ export default function EntryDetailPage() {
             const actor = await getCurrentUserId();
             await addStaffLog({
                 staff_id: entry.id,
-                action_at: new Date().toISOString(),
+                action_at: now,
                 action_detail: `添付アップロード: ${type}`,
                 registered_by: actor,
             });
-
             alert(`${type} をアップロードしました`);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1300,9 +1320,6 @@ export default function EntryDetailPage() {
             setAttUploading(null);
         }
     };
-
-    // 取得日の簡易入力（画面ステート）
-    const [acquiredRaw, setAcquiredRaw] = useState('');
 
     // 資格
     const handleCertUpload = async (file: File, label: string) => {
@@ -1535,7 +1552,7 @@ export default function EntryDetailPage() {
                     <Label>生年月日:</Label>
                     <Input
                         id="birth_year"
-                        type="number" // ← ここがポイント！
+                        type="number"
                         className="h-9 w-10 text-sm"
                         value={entry?.birth_year ?? ""}
                         onChange={(e) =>
@@ -1544,7 +1561,7 @@ export default function EntryDetailPage() {
                     />
                     <Input
                         id="birth_month"
-                        type="number" // ← ここがポイント！
+                        type="number"
                         className="h-9 w-8 text-sm text-center"
                         value={entry?.birth_month ?? ""}
                         onChange={(e) =>
@@ -1553,7 +1570,7 @@ export default function EntryDetailPage() {
                     />
                     <Input
                         id="birth_day"
-                        type="number" // ← ここがポイント！
+                        type="number"
                         className="h-9 w-8 text-sm text-center"
                         value={entry?.birth_day ?? ""}
                         onChange={(e) =>
@@ -1941,16 +1958,15 @@ export default function EntryDetailPage() {
 
                 {certifications.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {certifications.map((cert, idx) => {
-                            const label = cert.label ?? cert.type ?? `certificate_${idx + 1}`;
+                        {certifications.map((doc, idx) => {
+                            const label = doc.label ?? doc.type ?? `certificate_${idx + 1}`;
                             return (
-                                <div key={idx}>
+                                <div key={doc.id}>
                                     <FileThumbnail
-                                        title={`${label}（取得: ${formatAcquired(cert.acquired_at)}）`}
-                                        src={cert.url ?? undefined}
-                                        mimeType={cert.mimeType ?? undefined}
+                                        title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`}
+                                        src={doc.url ?? undefined}
+                                        mimeType={doc.mimeType ?? undefined}
                                     />
-                                    {/* 取得日（YYYYMM or YYYYMMDD） */}
                                     <div className="text-xs text-gray-600">
                                         取得日:
                                         <input
@@ -1965,7 +1981,7 @@ export default function EntryDetailPage() {
                                         </span>
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        // 一覧の各カード内
+                                        {/* 一覧の各カード内 */}
                                         <label className="...">
                                             差し替え
                                             <input
@@ -1978,17 +1994,19 @@ export default function EntryDetailPage() {
                                                     try {
                                                         const { url, mimeType } = await uploadFileViaApi(f);
                                                         const next = attachmentsArray.map(a =>
-                                                            a.id === cert.id ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() } : a
+                                                            a.id === doc.id
+                                                                ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() }
+                                                                : a
                                                         );
                                                         await saveAttachments(next);
                                                         alert('差し替えました');
-                                                    } finally { e.currentTarget.value = ''; }
+                                                    } finally {
+                                                        e.currentTarget.value = '';
+                                                    }
                                                 }}
                                             />
                                         </label>
-
-                                        <button className="..." onClick={() => handleDeleteAttachmentById(cert.id)}>削除</button>
-
+                                        <button className="..." onClick={() => handleDeleteAttachmentById(doc.id)}>削除</button>
                                     </div>
                                 </div>
                             );
@@ -2030,19 +2048,37 @@ export default function EntryDetailPage() {
                                 onChange={(e) => setNewCertLabel(e.target.value)}
                             />
                         )}
-
                         <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
                             追加アップロード
                             <input
                                 type="file"
                                 accept="image/*,application/pdf"
                                 className="hidden"
-                                onChange={(e) => {
+                                disabled={attUploading !== null}
+                                onChange={async (e) => {
                                     const f = e.target.files?.[0];
-                                    if (f && (newCertLabel || useCustomCert)) {
-                                        handleCertUpload(f, (newCertLabel || '').trim());
-                                    } else {
-                                        alert('書類名を選択してください');
+                                    if (!f) return;
+                                    try {
+                                        setAttUploading("追加アップロード");
+                                        const { url, mimeType } = await uploadFileViaApi(f);
+                                        const now = new Date().toISOString();
+                                        const item: Attachment = {
+                                            id: crypto.randomUUID(),
+                                            url,
+                                            mimeType,
+                                            type: "その他",      
+                                            label: "追加アップロード",
+                                            uploaded_at: now,
+                                            acquired_at: now,
+                                        };
+                                        await saveAttachments([...attachmentsArray, item]);
+                                        alert("アップロードしました");
+                                    } catch (err) {
+                                        const msg = err instanceof Error ? err.message : String(err);
+                                        alert(`アップロードに失敗: ${msg}`);
+                                    } finally {
+                                        setAttUploading(null);
+                                        e.currentTarget.value = ""; 
                                     }
                                 }}
                             />
