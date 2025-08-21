@@ -1178,7 +1178,7 @@ export default function EntryDetailPage() {
     };
 
     // 追加：型エイリアス＆アップロード中フラグ
-    type AttachmentItem = Attachment;
+    //type AttachmentItem = Attachment;
 
     // 追加：共通ヘルパ
     // 置き換え：必ず mimeType を返す（file.type が空でも拡張子で補完）
@@ -2106,7 +2106,7 @@ export default function EntryDetailPage() {
                                         </span>
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        // 一覧の各カード内
+                                    　　{/* 一覧の各カード内　*/}
                                         <label className="...">
                                             差し替え
                                             <input
