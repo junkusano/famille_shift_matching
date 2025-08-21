@@ -181,6 +181,25 @@ export default function EntryDetailPage() {
     const [useCustomCert, setUseCustomCert] = useState(false);
     const [useCustomOther, setUseCustomOther] = useState(false);
 
+
+    // 取得日の簡易入力（常にトップで）
+    const [acquiredRaw, setAcquiredRaw] = useState('');
+
+    // attachmentsArray（常にトップで）
+    const attachmentsArray: Attachment[] = useMemo(() => {
+        const raw = Array.isArray(entry?.attachments) ? (entry!.attachments as Partial<Attachment>[]) : [];
+        const now = new Date().toISOString();
+        return raw.map((p) => ({
+            id: p.id ?? crypto.randomUUID(),
+            url: p.url ?? null,
+            type: p.type,
+            label: p.label,
+            mimeType: p.mimeType ?? null,
+            uploaded_at: p.uploaded_at ?? now,
+            acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
+        }));
+    }, [entry?.attachments]);
+
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
             alert('必要な情報が不足しています。');
@@ -1030,8 +1049,8 @@ export default function EntryDetailPage() {
     }, [id]);
 
     useEffect(() => {
-        fetchEntry();
-    }, [fetchEntry]); // ← これで警告解消
+        if (id) fetchEntry();
+    }, [id, fetchEntry, myLevelSort]);
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
@@ -1082,25 +1101,6 @@ export default function EntryDetailPage() {
     };
 
     if (!entry) return <p className="p-4">読み込み中...</p>;
-
-    // 取得日の簡易入力（常にトップで）
-    const [acquiredRaw, setAcquiredRaw] = useState('');
-
-    // attachmentsArray（常にトップで）
-    const attachmentsArray: Attachment[] = useMemo(() => {
-        const raw = Array.isArray(entry?.attachments) ? (entry!.attachments as Partial<Attachment>[]) : [];
-        const now = new Date().toISOString();
-        return raw.map((p) => ({
-            id: p.id ?? crypto.randomUUID(),
-            url: p.url ?? null,
-            type: p.type,
-            label: p.label,
-            mimeType: p.mimeType ?? null,
-            uploaded_at: p.uploaded_at ?? now,
-            acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
-        }));
-    }, [entry?.attachments]);
-
 
     // 追加: 判定ヘルパ
     const isFixedId = (att?: Attachment) =>
@@ -1204,6 +1204,7 @@ export default function EntryDetailPage() {
         return { url: json.url as string, mimeType };
     };
 
+    /*
     const upsertAttachment = (
         list: AttachmentItem[],
         item: AttachmentItem,
@@ -1218,6 +1219,7 @@ export default function EntryDetailPage() {
         }
         return [...list, item];
     };
+    */
 
     // 置き換え：配列保存ヘルパはそのまま
     const saveAttachments = async (next: Attachment[]) => {
@@ -2058,28 +2060,13 @@ export default function EntryDetailPage() {
                                 onChange={async (e) => {
                                     const f = e.target.files?.[0];
                                     if (!f) return;
-                                    try {
-                                        setAttUploading("追加アップロード");
-                                        const { url, mimeType } = await uploadFileViaApi(f);
-                                        const now = new Date().toISOString();
-                                        const item: Attachment = {
-                                            id: crypto.randomUUID(),
-                                            url,
-                                            mimeType,
-                                            type: "その他",      
-                                            label: "追加アップロード",
-                                            uploaded_at: now,
-                                            acquired_at: now,
-                                        };
-                                        await saveAttachments([...attachmentsArray, item]);
-                                        alert("アップロードしました");
-                                    } catch (err) {
-                                        const msg = err instanceof Error ? err.message : String(err);
-                                        alert(`アップロードに失敗: ${msg}`);
-                                    } finally {
-                                        setAttUploading(null);
-                                        e.currentTarget.value = ""; 
+                                    if (!newCertLabel.trim() && !useCustomCert) {
+                                        alert('書類名を選択してください');
+                                        e.currentTarget.value = '';
+                                        return;
                                     }
+                                    await handleCertUpload(f, (newCertLabel || '').trim());
+                                    e.currentTarget.value = '';
                                 }}
                             />
                         </label>
