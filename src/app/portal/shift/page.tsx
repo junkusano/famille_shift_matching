@@ -11,9 +11,9 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+//import { Card, CardContent } from "@/components/ui/card";
 //import { format, addDays, subDays } from "date-fns";
-import Image from 'next/image';
+//import Image from 'next/image';
 import type { ShiftData } from "@/types/shift";
 //import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 
@@ -498,7 +498,7 @@ export default function ShiftPage() {
         </div>
     );
 }
-function ShiftDeleteDialog({
+/*function ShiftDeleteDialog({
     shift,
     onConfirm
 }: {
@@ -534,6 +534,7 @@ function ShiftDeleteDialog({
         </Dialog>
     );
 }
+*/
 
 /*
 function GroupAddButton({ shift }: { shift: ShiftData }) {
