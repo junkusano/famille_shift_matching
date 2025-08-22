@@ -354,36 +354,6 @@ export default function ShiftPage() {
     const myWindows = computeFreeWindowsForSelectedDate(shifts, shiftDate);
     void myWindows;
 
-    function FreeTimeButtons() {
-        if (shifts.length === 0) {
-            return (
-                <div className="my-3">
-                    <Button onClick={() => openFinder(null, null)}>空き時間のシフトを見つける</Button>
-                </div>
-            );
-        }
-        return (
-            <div className="space-y-2 my-3">
-                <Button onClick={() => openFinder(null, toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time))}>
-                    （前）空き時間のシフトを見つける
-                </Button>
-                {shifts.map((s, i) => {
-                    if (i === shifts.length - 1) return null;
-                    const endCurr = toJstDate(s.shift_start_date, s.shift_end_time);
-                    const startNext = toJstDate(shifts[i + 1].shift_start_date, shifts[i + 1].shift_start_time);
-                    return (
-                        <Button key={s.shift_id} onClick={() => openFinder(endCurr, startNext)}>
-                            （間）空き時間のシフトを見つける
-                        </Button>
-                    );
-                })}
-                <Button onClick={() => openFinder(toJstDate(shifts[shifts.length - 1].shift_start_date, shifts[shifts.length - 1].shift_end_time), null)}>
-                    （後）空き時間のシフトを見つける
-                </Button>
-            </div>
-        );
-    }
-
     async function openFinder(start: Date | null, end: Date | null) {
         setFinderWindow({ start, end });
         setShowFinder(true);
