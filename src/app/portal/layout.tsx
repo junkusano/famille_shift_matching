@@ -12,6 +12,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { ReactNode } from 'react';
+import AlertBar from '@/components/AlertBar';
 
 interface UserData {
     last_name_kanji: string;
@@ -392,6 +393,7 @@ export default function PortalLayout({ children }: Props) {
             {/* メインコンテンツ */}
             <div className="flex-1 flex flex-col min-h-screen">
                 <div className="flex-1">
+                    <AlertBar />
                     {children}
                 </div>
                 <Footer />
