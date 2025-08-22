@@ -17,13 +17,11 @@ type Mode = "request" | "reject";
 type Props = {
   shift: ShiftData;
   mode: Mode;
-  // /portal/shift-coordinate 側: 希望送信
-  onRequest?: (attendRequest: boolean) => void;
-  creatingRequest?: boolean; // 送信中表示
-  // /portal/shift 側: 外し（理由必須）
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void; // ←引数拡張
+  creatingRequest?: boolean;
   onReject?: (reason: string) => void;
-  // 右横に並べたい追加ボタン（例: GroupAddButton）
   extraActions?: React.ReactNode;
+  timeAdjustable?: boolean; // ←追加
 };
 
 /** 1件のシフト表示＋モーダル操作を共通化 */
@@ -34,13 +32,14 @@ export default function ShiftCard({
   creatingRequest,
   onReject,
   extraActions,
+  timeAdjustable,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
-
   const openDialog = () => setOpen(true);
   const closeDialog = () => setOpen(false);
+  const [timeAdjustNote, setTimeAdjustNote] = useState(""); // ←追加
 
   // 共通のミニダイアログ（通学/備考）
   const MiniInfo = () => (
@@ -72,8 +71,8 @@ export default function ShiftCard({
             shift.gender_request_name === "男性希望"
               ? "blue"
               : shift.gender_request_name === "女性希望"
-              ? "red"
-              : "black",
+                ? "red"
+                : "black",
         }}
       >
         性別希望: {shift.gender_request_name}
@@ -97,8 +96,15 @@ export default function ShiftCard({
   return (
     <Card className="shadow">
       <CardContent className="p-4">
-        <div className="text-sm font-semibold">
-          {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold">
+            {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
+          </div>
+          {timeAdjustable && (
+            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300">
+              時間調整必要
+            </span>
+          )}
         </div>
         <div className="text-sm">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
@@ -136,6 +142,16 @@ export default function ShiftCard({
                       />
                       同行を希望する
                     </label>
+                    {/* 追加：希望の時間調整 */}
+                    <div className="mt-4">
+                      <label className="text-sm font-medium">希望の時間調整（任意）</label>
+                      <textarea
+                        value={timeAdjustNote}
+                        onChange={(e) => setTimeAdjustNote(e.target.value)}
+                        placeholder="例）開始を15分後ろに出来れば可 など"
+                        className="w-full mt-1 p-2 border rounded"
+                      />
+                    </div>
                   </DialogDescription>
                   <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={closeDialog}>
@@ -143,8 +159,8 @@ export default function ShiftCard({
                     </Button>
                     <Button
                       onClick={() => {
-                        onRequest?.(attendRequest);
-                        closeDialog();
+                        onRequest?.(attendRequest, timeAdjustNote || undefined);
+                        setOpen(false);
                       }}
                       disabled={!!creatingRequest}
                     >
