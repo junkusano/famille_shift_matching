@@ -4,12 +4,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-//import { Card, CardContent } from "@/components/ui/card";
-//import { format, addDays, subDays } from "date-fns";
-//import Image from 'next/image';
 import type { ShiftData } from "@/types/shift";
-//import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
-
 import {
     format,
     addDays,
@@ -491,165 +486,9 @@ export default function ShiftPage() {
         </div>
     );
 }
-/*function ShiftDeleteDialog({
-    shift,
-    onConfirm
-}: {
-    shift: ShiftData;
-    onConfirm: (shift: ShiftData, reason: string) => void;
-}) {
-    const [open, setOpen] = useState(false);
-    const [reason, setReason] = useState("");
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)} className="bg-red-500 text-white">このシフトに入れない</Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>シフトに入れない</DialogTitle>
-                <DialogDescription>
-                    {shift.client_name} 様のシフトに入れないの処理を実行しますか？
-                    <textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="シフトに入れない理由"
-                        className="w-full mt-2 p-2 border"
-                    />
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button onClick={() => setOpen(false)}>キャンセル</Button>
-                    <Button onClick={() => { onConfirm(shift, reason); setOpen(false); }} disabled={!reason}>
-                        処理実行を確定
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-*/
-
-/*
-function GroupAddButton({ shift }: { shift: ShiftData }) {
-    const [open, setOpen] = useState(false);
-    const [processing, setProcessing] = useState(false);
-
-    const handleConfirm = async () => {
-        setProcessing(true);
-        try {
-            const session = await supabase.auth.getSession();
-            const userId = session.data?.session?.user?.id;
-            if (!userId) throw new Error("ユーザー情報取得失敗");
-
-            const { data: chanData } = await supabase
-                .from("group_lw_channel_view")
-                .select("group_id")
-                .eq("group_account", shift.kaipoke_cs_id)
-                .maybeSingle();
-
-            const { data: userData } = await supabase
-                .from("user_entry_united_view")
-                .select("lw_userid")
-                .eq("auth_user_id", userId)
-                .eq("group_type", "人事労務サポートルーム")
-                .limit(1)
-                .single(); // 最初の1件を取得（2行あってもOK）
-
-            const senderId = userData?.lw_userid;
-            if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
-
-            const res = await fetch('/api/lw-group-user-add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    groupId: chanData.group_id,
-                    userId: senderId,
-                }),
-            });
-
-            const text = await res.text();
-            if (!res.ok) {
-                if (text.includes('Group member already exist')) {
-                    alert('✅ すでにグループメンバーに追加されています。');
-                } else {
-                    alert(`❌ グループ追加失敗: ${text}`);
-                }
-            } else {
-                alert('✅ グループに追加されました');
-            }
-        } catch (e) {
-            alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
-        } finally {
-            setProcessing(false);
-            setOpen(false);
-        }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
-                    <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
-                    <span>グループ追加</span>
-                </button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>メンバー追加確認</DialogTitle>
-                <DialogDescription>
-                    {shift.client_name} 様の情報連携グループにメンバー追加しますか？
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
-                    <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
-                        {processing ? '追加中...' : 'OK'}
-                    </button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-*/
 
 function toJstDate(dateStr: string, timeStr?: string) {
     const hhmm = (timeStr ?? "00:00").slice(0, 5); // "HH:MM" だけ使う
     // 秒を付与し、JSTのタイムゾーンオフセットを明示
     return new Date(`${dateStr}T${hhmm}:00+09:00`);
 }
-
-/*
-function useShiftsForTheDay(targetDate) {
-    const [shiftsForTheDay, setShiftsForTheDay] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        if (!targetDate) return;
-
-        const fetchShifts = async () => {
-            setLoading(true);
-            setError(null);
-
-            try {
-                const { data, error } = await supabase
-                    .from('shift_view')
-                    .select('*')
-                    .eq('shift_start_date', targetDate);
-
-                if (error) throw error;
-
-                setShiftsForTheDay(data);
-            } catch (err) {
-                console.error('Error fetching shifts for the day:', err);
-                setError(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchShifts();
-    }, [targetDate]);
-
-    return { shiftsForTheDay, loading, error };
-}
-    */
-

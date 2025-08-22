@@ -3,23 +3,26 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import {
+/*import {
     Dialog,
     DialogTrigger,
     DialogContent,
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+*/
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+//import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
-import Image from 'next/image';
+//import Image from 'next/image';
 //import { useMemo } from "react";
 //import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
 //import { format as formatTz } from "date-fns-tz";
+import ShiftCard from "@/components/shift/ShiftCard";
+import GroupAddButton from "@/components/shift/GroupAddButton";
 
 
 const PAGE_SIZE = 100;
@@ -341,97 +344,14 @@ export default function ShiftPage() {
             <ShiftWishWidget filterOptions={filterOptions} />
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {paginatedShifts.map((shift) => (
-                    <Card key={shift.shift_id} className="shadow">
-                        <CardContent className="p-4">
-                            <div className="text-sm font-semibold">
-                                {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
-                            </div>
-                            <div className="text-sm">種別: {shift.service_code}</div>
-                            <div className="text-sm">郵便番号: {shift.address}</div>
-                            <div className="text-sm">エリア: {shift.district}</div>
-                            <div className="text-sm">
-                                利用者名: {shift.client_name} 様
-                                {shift.commuting_flg && (
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
-                                        </DialogTrigger>
-                                        <DialogContent
-                                            style={{
-                                                position: 'fixed',
-                                                top: '50%',
-                                                left: 'calc(50% + 1.5em)',         // ← 左に寄せすぎを補正
-                                                transform: 'translate(-50%, -50%)',
-                                                width: '90vw',
-                                                maxWidth: '480px',
-                                                maxHeight: '90vh',
-                                                overflowY: 'auto',
-                                                zIndex: 9999,
-                                                backgroundColor: 'white',
-                                                borderRadius: '8px',
-                                                padding: '1.5rem',
-                                            }}
-                                        >
-
-                                            <div className="text-sm">
-                                                <strong>通所経路等</strong>
-                                                <p>{[shift.standard_route, shift.standard_trans_ways, shift.standard_purpose].filter(Boolean).join(' / ')}</p>
-                                            </div>
-                                        </DialogContent>
-
-                                    </Dialog>
-                                )}
-                            </div>
-                            <div className="text-sm" style={{
-                                color: shift.gender_request_name === "男性希望" ? "blue" :
-                                    shift.gender_request_name === "女性希望" ? "red" : "black"
-                            }}>
-                                性別希望: {shift.gender_request_name}
-                                {shift.biko && (
-                                    <Dialog>
-                                        <DialogTrigger asChild>
-                                            <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
-                                        </DialogTrigger>
-                                        <DialogContent
-                                            style={{
-                                                position: 'fixed',
-                                                top: '50%',
-                                                left: 'calc(50% + 1.5em)',         // ← 左に寄せすぎを補正
-                                                transform: 'translate(-50%, -50%)',
-                                                width: '90vw',
-                                                maxWidth: '480px',
-                                                maxHeight: '90vh',
-                                                overflowY: 'auto',
-                                                zIndex: 9999,
-                                                backgroundColor: 'white',
-                                                borderRadius: '8px',
-                                                padding: '1.5rem',
-                                            }}
-                                        >
-
-                                            <div className="text-sm">
-                                                <strong>備考</strong>
-                                                <p>{shift.biko}</p>
-                                            </div>
-                                        </DialogContent>
-
-                                    </Dialog>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
-                                <ShiftRequestDialog
-                                    shift={shift}
-                                    creating={creatingShiftRequest}
-                                    onConfirm={(attendRequest) => {
-                                        handleShiftRequest(shift, attendRequest); // ✅ 直接渡す
-                                    }}
-                                />
-                                {/* 横並びにする追加ボタン */}
-                                <GroupAddButton shift={shift} />
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <ShiftCard
+                        key={shift.shift_id}
+                        shift={shift}
+                        mode="request"
+                        creatingRequest={creatingShiftRequest}
+                        onRequest={(attend) => handleShiftRequest(shift, attend)}
+                        extraActions={<GroupAddButton shift={shift} />}
+                    />
                 ))}
             </div>
 
@@ -450,6 +370,7 @@ export default function ShiftPage() {
     );
 }
 
+/*
 function ShiftRequestDialog({
     onConfirm,
     creating,
@@ -594,7 +515,7 @@ function GroupAddButton({ shift }: { shift: ShiftData }) {
         </Dialog>
     );
 }
-
+*/
 
 function ShiftWishWidget({
     filterOptions,
