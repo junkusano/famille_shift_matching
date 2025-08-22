@@ -344,6 +344,7 @@ export default function ShiftPage() {
 
     const [showFinder, setShowFinder] = useState(false);
     const [finderWindow, setFinderWindow] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+    const [finderAnchor, setFinderAnchor] = useState<string | null>(null); // ←どこに出すか
     const [candidateShifts, setCandidateShifts] = useState<ShiftData[]>([]);
     const [candidateFilter] = useState<{ postal?: string[]; gender?: string[]; service?: string[] }>({});
     void candidateFilter; // 現状未使用
@@ -354,8 +355,9 @@ export default function ShiftPage() {
     const myWindows = computeFreeWindowsForSelectedDate(shifts, shiftDate);
     void myWindows;
 
-    async function openFinder(start: Date | null, end: Date | null) {
+    async function openFinder(start: Date | null, end: Date | null, anchor: string) {
         setFinderWindow({ start, end });
+        setFinderAnchor(anchor);
         setShowFinder(true);
 
         const fetched = await fetchCandidatesForDay(shiftDate);
@@ -374,25 +376,23 @@ export default function ShiftPage() {
             <div className="mt-2 p-3 rounded-xl border bg-[#f7fafc]">
                 <div className="text-sm font-semibold mb-2">候補（空き時間に入れるシフト）</div>
                 <FinderFilterBar />
-                <div className="max-w-full overflow-x-auto overflow-y-hidden">
-                    <div className="inline-flex w-max gap-3 snap-x snap-mandatory pr-2">
+                <div className="w-full overflow-x-auto overflow-y-hidden overscroll-x-contain">
+                    <div className="flex flex-nowrap gap-3 snap-x snap-mandatory pr-2">
                         {candidateShifts.map((shift) => (
-                            <div key={shift.shift_id} className="snap-start">
-                                <div className="min-w-[280px]">
-                                    <ShiftCard
-                                        shift={shift}
-                                        mode="request"
-                                        creatingRequest={creatingShiftRequest}
-                                        onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
-                                        extraActions={<GroupAddButton shift={shift} />}
-                                        timeAdjustable={isTimeAdjustNeeded(shift, finderWindow, csAdjustMap)}
-                                    />
-                                </div>
+                            <div key={shift.shift_id} className="snap-start shrink-0 w-[280px]">
+                                <ShiftCard
+                                    shift={shift}
+                                    mode="request"
+                                    creatingRequest={creatingShiftRequest}
+                                    onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
+                                    extraActions={<GroupAddButton shift={shift} />}
+                                    timeAdjustable={isTimeAdjustNeeded(shift, finderWindow, csAdjustMap)}
+                                />
                             </div>
                         ))}
                     </div>
                 </div>
-            </div>
+            </div >
         );
     }
 
@@ -696,7 +696,9 @@ export default function ShiftPage() {
                 <>
                     <div className="text-sm text-gray-500">シフトがありません</div>
                     <div className="mt-3">
-                        <Button onClick={() => openFinder(null, null)}>空き時間のシフトを見つける</Button>
+                        <Button onClick={() => openFinder(null, null, "no-shift")}>
+                            空き時間のシフトを見つける
+                        </Button>
                     </div>
                 </>
             ) : (
@@ -707,12 +709,15 @@ export default function ShiftPage() {
                             onClick={() =>
                                 openFinder(
                                     null,
-                                    toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time)
+                                    toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time),
+                                    "before-first"         // ←アンカー名
                                 )
                             }
                         >
                             空き時間のシフトを見つける
                         </Button>
+                        { /* 直下に “同じ場所にだけ” Finder を出す */}
+                        {showFinder && finderAnchor === "before-first" && <FinderStrip />}
                     </div>
 
                     {/* 各シフトカード + 直後にボタン（= 間 と 最後の後ろ をカバー） */}
@@ -723,7 +728,7 @@ export default function ShiftPage() {
                             idx >= 0 && idx < shifts.length - 1
                                 ? toJstDate(shifts[idx + 1].shift_start_date, shifts[idx + 1].shift_start_time)
                                 : null; // 最後のシフトの後ろは end=null で「終日後ろ」探索に
-
+                        const anchor = `after:${shift.shift_id}`;
                         return (
                             <div key={shift.shift_id} className="mb-4">
                                 <ShiftCard
@@ -733,10 +738,12 @@ export default function ShiftPage() {
                                     extraActions={<GroupAddButton shift={shift} />}
                                 />
                                 <div className="mt-2">
-                                    <Button onClick={() => openFinder(endCurr, startNext)}>
+                                    <Button onClick={() => openFinder(endCurr, startNext, anchor)}>
                                         空き時間のシフトを見つける
                                     </Button>
                                 </div>
+                                { /* クリックした“このカードの直後”にだけ表示 */}
+                                {showFinder && finderAnchor === anchor && <FinderStrip />}
                             </div>
                         );
                     })}
