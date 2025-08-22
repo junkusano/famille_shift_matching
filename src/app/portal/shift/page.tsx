@@ -404,18 +404,20 @@ export default function ShiftPage() {
             <div className="mt-2 p-3 rounded-xl border bg-[#f7fafc]">
                 <div className="text-sm font-semibold mb-2">候補（空き時間に入れるシフト）</div>
                 <FinderFilterBar />
-                <div className="overflow-x-auto">
-                    <div className="flex gap-3 min-w-max">
+                <div className="max-w-full overflow-x-auto overflow-y-hidden">
+                    <div className="inline-flex w-max gap-3 snap-x snap-mandatory pr-2">
                         {candidateShifts.map((shift) => (
-                            <div key={shift.shift_id} className="min-w-[280px]">
-                                <ShiftCard
-                                    shift={shift}
-                                    mode="request"
-                                    creatingRequest={creatingShiftRequest}
-                                    onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
-                                    extraActions={<GroupAddButton shift={shift} />}
-                                    timeAdjustable={isTimeAdjustNeeded(shift, finderWindow, csAdjustMap)}
-                                />
+                            <div key={shift.shift_id} className="snap-start">
+                                <div className="min-w-[280px]">
+                                    <ShiftCard
+                                        shift={shift}
+                                        mode="request"
+                                        creatingRequest={creatingShiftRequest}
+                                        onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
+                                        extraActions={<GroupAddButton shift={shift} />}
+                                        timeAdjustable={isTimeAdjustNeeded(shift, finderWindow, csAdjustMap)}
+                                    />
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -719,24 +721,61 @@ export default function ShiftPage() {
                 />
             )}
 
-            {/* 空き時間シフト導線 */}
-            <FreeTimeButtons />
+            {/* --- 空き時間シフト導線（ボタンは冒頭1回＋各シフトの“後ろ”に出す） --- */}
+            {shifts.length === 0 ? (
+                <>
+                    <div className="text-sm text-gray-500">シフトがありません</div>
+                    <div className="mt-3">
+                        <Button onClick={() => openFinder(null, null)}>空き時間のシフトを見つける</Button>
+                    </div>
+                </>
+            ) : (
+                <>
+                    {/* 冒頭：その日の最初のシフトより前の空き */}
+                    <div className="my-3">
+                        <Button
+                            onClick={() =>
+                                openFinder(
+                                    null,
+                                    toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time)
+                                )
+                            }
+                        >
+                            空き時間のシフトを見つける
+                        </Button>
+                    </div>
+
+                    {/* 各シフトカード + 直後にボタン（= 間 と 最後の後ろ をカバー） */}
+                    {paginatedShifts.map((shift) => {
+                        const idx = shifts.findIndex((s) => s.shift_id === shift.shift_id);
+                        const endCurr = toJstDate(shift.shift_start_date, shift.shift_end_time);
+                        const startNext =
+                            idx >= 0 && idx < shifts.length - 1
+                                ? toJstDate(shifts[idx + 1].shift_start_date, shifts[idx + 1].shift_start_time)
+                                : null; // 最後のシフトの後ろは end=null で「終日後ろ」探索に
+
+                        return (
+                            <div key={shift.shift_id} className="mb-4">
+                                <ShiftCard
+                                    shift={shift}
+                                    mode="reject"
+                                    onReject={(reason) => handleShiftReject(shift, reason)}
+                                    extraActions={<GroupAddButton shift={shift} />}
+                                />
+                                <div className="mt-2">
+                                    <Button onClick={() => openFinder(endCurr, startNext)}>
+                                        空き時間のシフトを見つける
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </>
+            )}
+
+            {/* Finder（横スクロール帯） */}
             {showFinder && <FinderStrip />}
 
-            {/* 自分のシフト一覧 */}
-            {paginatedShifts.length === 0 ? (
-                <div className="text-sm text-gray-500">シフトがありません</div>
-            ) : (
-                paginatedShifts.map((shift) => (
-                    <ShiftCard
-                        key={shift.shift_id}
-                        shift={shift}
-                        mode="reject"
-                        onReject={(reason) => void handleShiftReject(shift, reason)}
-                        extraActions={<GroupAddButton shift={shift} />}
-                    />
-                ))
-            )}
 
             <div className="content">
                 <DateNavigator
