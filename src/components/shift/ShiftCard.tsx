@@ -91,7 +91,7 @@ function readBool(obj: unknown, key: string): boolean | undefined {
   const rec = obj as UnknownRecord;
   return coerceBoolean(rec[key]);
 }
-
+/*
 function pickIdString(obj: unknown, keys: readonly string[]): string | undefined {
   if (typeof obj !== "object" || obj === null) return undefined;
   const rec = obj as UnknownRecord;
@@ -106,6 +106,7 @@ function pickIdString(obj: unknown, keys: readonly string[]): string | undefined
   }
   return undefined;
 }
+*/
 
 function guessAdjustableFromText(text: string): boolean {
   const t = text.toLowerCase();
