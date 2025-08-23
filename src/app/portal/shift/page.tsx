@@ -366,20 +366,25 @@ export default function ShiftPage() {
         setCandidateShifts(filterByWindow(merged, start, end));
     }
 
-    function FinderFilterBar() {
-        return null; // 後日実装（エリア・性別・サービス）
-    }
-
     function FinderStrip() {
         if (!showFinder) return null;
         return (
             <div className="mt-2 p-3 rounded-xl border bg-[#f7fafc]">
-                <div className="text-sm font-semibold mb-2">候補（空き時間に入れるシフト）</div>
-                <FinderFilterBar />
-                <div className="w-full overflow-x-auto overflow-y-hidden overscroll-x-contain">
-                    <div className="flex flex-nowrap gap-3 snap-x snap-mandatory pr-2">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm font-semibold">候補（空き時間に入れるシフト）</div>
+                    <button
+                        className="text-xs px-2 py-1 border rounded hover:bg-gray-50"
+                        onClick={() => { setShowFinder(false); setFinderAnchor(null); }}
+                    >
+                        閉じる
+                    </button>
+                </div>
+
+                {/* ★帯だけ横スクロールに固定 */}
+                <div className="shift-rail">
+                    <div className="shift-rail__inner">
                         {candidateShifts.map((shift) => (
-                            <div key={shift.shift_id} className="snap-start shrink-0 w-[280px]">
+                            <div key={shift.shift_id} className="shift-rail__item">
                                 <ShiftCard
                                     shift={shift}
                                     mode="request"
@@ -392,9 +397,10 @@ export default function ShiftPage() {
                         ))}
                     </div>
                 </div>
-            </div >
+            </div>
         );
     }
+
 
     async function handleShiftRequestWithAlert(
         shift: ShiftData,
@@ -472,6 +478,13 @@ export default function ShiftPage() {
         }
         setMonthCounts(counts);
     }
+
+    useEffect(() => {
+        // 日付切替時に前回の帯を閉じる＆内容クリア
+        setShowFinder(false);
+        setFinderAnchor(null);
+        setCandidateShifts([]);
+    }, [shiftDate]);
 
     useEffect(() => {
         if (showMonth) { void fetchMonthCounts(monthCursor); }
@@ -749,10 +762,6 @@ export default function ShiftPage() {
                     })}
                 </>
             )}
-
-            {/* Finder（横スクロール帯） */}
-            {showFinder && <FinderStrip />}
-
 
             <div className="content">
                 <DateNavigator

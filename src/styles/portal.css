@@ -211,3 +211,25 @@
         display: none !important;
     }
 }
+
+
+/* === 横スクロール帯（候補カード専用） === */
+.shift-rail {
+  max-inline-size: 100%;          /* 親領域を超えない */
+  overflow-x: auto;               /* 横だけスクロール */
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges; /* スクロールバー出入りでレイアウトが揺れない */
+}
+
+.shift-rail__inner {
+  display: flex;
+  flex-wrap: nowrap;              /* 折り返さない（横に並べる） */
+  gap: 0.75rem;
+  padding-right: 0.5rem;          /* 末尾の余白（任意） */
+}
+
+.shift-rail__item {
+  flex: 0 0 280px;                /* 1カード幅を固定 */
+  min-width: 280px;               /* 念のため */
+}
