@@ -66,6 +66,13 @@ type CsKaipokeInfoRow = {
     time_adjust_json?: unknown;
 };
 
+type AdjustSpec = {
+    label?: string;
+    advance?: number; // 早めにずらせる[h]
+    back?: number;    // 遅くずらせる[h]
+    biko?: string;
+};
+
 // ===== 空き時間候補取得まわりのヘルパ =====
 
 // 当日自分シフトから空き窓を計算（前/間/後） — いまは未使用
@@ -166,26 +173,72 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
 }
 
 // cs_kaipoke_info の「時間調整」情報をマージ
+// 置き換え: mergeCsAdjustability
 async function mergeCsAdjustability(list: ShiftData[]): Promise<{
-    map: Record<string, CsKaipokeInfoRow | { time_adjust_json?: unknown }>;
+    map: Record<string, AdjustSpec>;
     merged: ShiftData[];
 }> {
-    const ids = Array.from(new Set(list.map((s) => s.kaipoke_cs_id))).filter(Boolean);
-    if (!ids.length) return { map: {}, merged: list };
+    const csIds = Array.from(new Set(list.map(s => s.kaipoke_cs_id))).filter(Boolean);
+    if (!csIds.length) return { map: {}, merged: list };
 
-    const { data } = await supabase
+    // cs_kaipoke_info から biko と time_adjustability_id を取得
+    const { data: csRows } = await supabase
         .from("cs_kaipoke_info")
-        .select(
-            "kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko, time_adjust_json"
-        )
-        .in("kaipoke_cs_id", ids);
+        .select("kaipoke_cs_id, biko, time_adjustability_id")
+        .in("kaipoke_cs_id", csIds);
 
-    const map: Record<string, CsKaipokeInfoRow | { time_adjust_json?: unknown }> = {};
-    (data as CsKaipokeInfoRow[] | null)?.forEach((row) => {
-        map[row.kaipoke_cs_id] = row.time_adjust_json ? { ...row } : { ...row };
+    const byCs: Record<
+        string,
+        { biko?: string; time_adjustability_id?: string | null }
+    > = {};
+    (csRows ?? []).forEach(r => {
+        byCs[r.kaipoke_cs_id] = {
+            biko: r.biko ?? "",
+            time_adjustability_id: r.time_adjustability_id ?? null,
+        };
     });
 
-    return { map, merged: list };
+    // 参照されている adjustability をまとめて取得
+    const adjustIds = Array.from(
+        new Set((csRows ?? []).map(r => r.time_adjustability_id).filter(Boolean))
+    ) as string[];
+
+    let adjustById: Record<string, { label: string; advance: number; back: number }> = {};
+    if (adjustIds.length) {
+        const { data: adjRows } = await supabase
+            .from("cs_kaipoke_time_adjustability")
+            .select("time_adjustability_id, label, Advance_adjustability, Backwoard_adjustability")
+            .in("time_adjustability_id", adjustIds);
+
+        (adjRows ?? []).forEach(r => {
+            adjustById[r.time_adjustability_id] = {
+                label: r.label ?? "",
+                advance: Number(r.Advance_adjustability ?? 0),     // 早め
+                back: Number(r.Backwoard_adjustability ?? 0),       // 遅め
+            };
+        });
+    }
+
+    // cs_id -> { adjust可否, biko } の集約
+    const map: Record<string, { label?: string; advance?: number; back?: number; biko?: string }> = {};
+    csIds.forEach(csId => {
+        const cs = byCs[csId] ?? {};
+        const adj = cs.time_adjustability_id ? adjustById[cs.time_adjustability_id] : undefined;
+        map[csId] = {
+            label: adj?.label,
+            advance: adj?.advance ?? 0,
+            back: adj?.back ?? 0,
+            biko: cs.biko ?? "",
+        };
+    });
+
+    // 候補 shift に biko を補完
+    const merged = list.map(s => ({
+        ...s,
+        biko: s.biko && s.biko.trim() ? s.biko : (map[s.kaipoke_cs_id]?.biko ?? ""),
+    }));
+
+    return { map, merged };
 }
 
 // 指定の空き窓（start/end の間）に完全に収まる候補だけ返す
@@ -200,17 +253,48 @@ function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null)
     });
 }
 
-// 「完全には収まらないが、時間調整があれば入れそうなら true」
+// 追加: 2時刻の差を[h]で返す（正の値だけ使う）
+function hoursDiff(a: Date, b: Date) {
+    return Math.abs(a.getTime() - b.getTime()) / (1000 * 60 * 60);
+}
+
+// 置き換え: isTimeAdjustNeeded
 function isTimeAdjustNeeded(
     shift: ShiftData,
     window: { start: Date | null; end: Date | null },
-    csAdjustMap: Record<string, CsKaipokeInfoRow | { time_adjust_json?: unknown }>
+    csAdjustMap: Record<string, { label?: string; advance?: number; back?: number; biko?: string }>
 ): boolean {
     const st = toJstDate(shift.shift_start_date, shift.shift_start_time);
     const ed = toJstDate(shift.shift_start_date, shift.shift_end_time);
+
+    // そもそも完全に収まっていれば「時間調整不要」
     const fits = (!window.start || st >= window.start) && (!window.end || ed <= window.end);
     if (fits) return false;
-    return Boolean(csAdjustMap[shift.kaipoke_cs_id]);
+
+    const spec = csAdjustMap[shift.kaipoke_cs_id];
+    if (!spec) return false; // 情報がなければ不可扱い
+
+    const allowAdvance = Number(spec.advance ?? 0); // 早め（前倒し）
+    const allowBack = Number(spec.back ?? 0);       // 遅め（後ろ倒し）
+
+    // 必要な移動量を計算
+    let needEarlier = 0; // 早めたい量[h]
+    let needLater = 0;   // 遅らせたい量[h]
+
+    if (window.start && st < window.start) {
+        // 窓の開始より前に始まっている → 開始を遅らせる必要あり
+        needLater = hoursDiff(st, window.start);
+    }
+    if (window.end && ed > window.end) {
+        // 窓の終了をはみ出している → 開始を早める必要あり
+        needEarlier = hoursDiff(ed, window.end);
+    }
+
+    // 片側だけのはみ出しにも対応、両側は両方満たす必要あり
+    const okLater = needLater === 0 || needLater <= allowBack;
+    const okEarlier = needEarlier === 0 || needEarlier <= allowAdvance;
+
+    return okLater && okEarlier;
 }
 
 // ===================== UI部品 =====================
@@ -349,7 +433,7 @@ export default function ShiftPage() {
     const [candidateFilter] = useState<{ postal?: string[]; gender?: string[]; service?: string[] }>({});
     void candidateFilter; // 現状未使用
     const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
-    const [csAdjustMap, setCsAdjustMap] = useState<Record<string, CsKaipokeInfoRow | { time_adjust_json?: unknown }>>({});
+    const [csAdjustMap, setCsAdjustMap] = useState<Record<string, AdjustSpec>>({});
 
     // 自分の当日シフトから空き窓算出（将来拡張用）
     const myWindows = computeFreeWindowsForSelectedDate(shifts, shiftDate);
@@ -573,6 +657,11 @@ export default function ShiftPage() {
                     female_flg: Boolean(s.female_flg),
                     postal_code_3: s.postal_code_3 ?? "",
                     district: s.district ?? "",
+                    commuting_flg: Boolean(s.commuting_flg),
+                    standard_route: s.standard_route ?? "",
+                    standard_trans_ways: s.standard_trans_ways ?? "",
+                    standard_purpose: s.standard_purpose ?? "",
+                    biko: s.biko ?? "",
                 }))
             );
         };
