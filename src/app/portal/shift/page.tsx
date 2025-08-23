@@ -253,6 +253,7 @@ function fitsWindow(s: ShiftData, start: Date | null, end: Date | null) {
 }
 
 // 指定の空き窓（start/end の間）に完全に収まる候補だけ返す
+/*
 function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null): ShiftData[] {
     if (!start && !end) return list;
     return list.filter((s) => {
@@ -263,6 +264,7 @@ function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null)
         return true;
     });
 }
+*/
 
 // 追加: 2時刻の差を[h]で返す（正の値だけ使う）
 function hoursDiff(a: Date, b: Date) {
