@@ -51,6 +51,41 @@ function coerceBool(v: unknown): boolean | undefined {
   }
   return undefined;
 }
+// 追加：オブジェクトのどこにあっても kaipoke_cs_id を再帰で探す（配列対応・循環防止）
+function deepFindKaipokeCsId(node: unknown, maxDepth = 5): string | undefined {
+  const seen = new Set<unknown>();
+  const KEYS = [
+    "kaipoke_cs_id", "kaipokeCsId",
+    "cs_id", "client_cs_id", "clientCsId",
+    "kaipokeId", "kaipoke_id",
+  ];
+  function walk(n: unknown, d: number): string | undefined {
+    if (n === null || typeof n !== "object" || d > maxDepth || seen.has(n)) return undefined;
+    seen.add(n);
+    const rec = n as Record<string, unknown>;
+
+    // 直撃
+    for (const k of KEYS) {
+      const v = rec[k];
+      if (typeof v === "string" && v.trim() !== "") return v.trim();
+      if (typeof v === "number") return String(v);
+    }
+
+    // 子要素を探索（オブジェクト & 配列）
+    for (const k in rec) {
+      const got = walk(rec[k], d + 1);
+      if (got) return got;
+    }
+    if (Array.isArray(n)) {
+      for (const item of n as unknown[]) {
+        const got = walk(item, d + 1);
+        if (got) return got;
+      }
+    }
+    return undefined;
+  }
+  return walk(node, 0);
+}
 function pickStr(obj: unknown, key: string): string | undefined {
   if (!obj || typeof obj !== "object") return undefined;
   const v = (obj as UnknownRecord)[key];
@@ -129,7 +164,7 @@ export default function ShiftCard({
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
   // 1) shift から cs_id を取得（この前提だけに限定）
-  const csId = useMemo(() => extractKaipokeCsId(shift), [shift]);
+  const csId = useMemo(() => deepFindKaipokeCsId(shift), [shift]);
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
