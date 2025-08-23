@@ -97,6 +97,12 @@ function canFitWindow(
 
 // ===== 空き時間候補取得まわりのヘルパ =====
 
+function hasAdjustCapability(spec?: AdjustSpec) {
+    const a = Number(spec?.advance ?? 0);
+    const b = Number(spec?.back ?? 0);
+    return a !== 0 || b !== 0;
+}
+
 // 当日自分シフトから空き窓を計算（前/間/後） — いまは未使用
 function computeFreeWindowsForSelectedDate(
     shifts: ShiftData[],
@@ -519,18 +525,26 @@ export default function ShiftPage() {
                 {/* ★帯だけ横スクロール */}
                 <div className="shift-rail">
                     <div className="shift-rail__inner">
-                        {candidateShifts.map((shift) => (
-                            <div key={shift.shift_id} className="shift-rail__item">
-                                <ShiftCard
-                                    shift={shift}
-                                    mode="request"
-                                    creatingRequest={creatingShiftRequest}
-                                    onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
-                                    extraActions={<GroupAddButton shift={shift} />}
-                                    timeAdjustable={isTimeAdjustNeeded(shift, finderWindow, csAdjustMap)}
-                                />
-                            </div>
-                        ))}
+                        {candidateShifts.map((shift) => {
+                            const spec = csAdjustMap[shift.kaipoke_cs_id];
+                            const capability = spec ? hasAdjustCapability(spec) : undefined; // 情報なければ undefined で親上書きしない
+                            const label = spec?.label || undefined;
+
+                            return (
+                                <div key={shift.shift_id} className="shift-rail__item">
+                                    <ShiftCard
+                                        shift={shift}
+                                        mode="request"
+                                        creatingRequest={creatingShiftRequest}
+                                        onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
+                                        extraActions={<GroupAddButton shift={shift} />}
+                                        timeAdjustable={capability}
+                                        timeAdjustText={label}
+                                    />
+                                </div>
+                            );
+                        })}
+
                     </div>
                 </div>
             </div>
