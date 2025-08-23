@@ -12,23 +12,47 @@ import {
 } from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
 
+// 表示モード（申請 or 断り）
 type Mode = "request" | "reject";
 
+// Props 定義
 type Props = {
   shift: ShiftData;
   mode: Mode;
-  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void; // 既存
-  creatingRequest?: boolean;
-  onReject?: (reason: string) => void;
-  extraActions?: React.ReactNode;
-  timeAdjustable?: boolean; // 既存（trueでピンク背景＆バッジ）
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void; // 希望送信時のコールバック
+  creatingRequest?: boolean; // 送信中フラグ
+  onReject?: (reason: string) => void; // 断り理由の送信
+  extraActions?: React.ReactNode; // 右側に並べる追加ボタン群
+  timeAdjustable?: boolean; // true でピンク背景 & バッジ
   /**
-   * ★追加（最小変更）：時間調整の内容テキストを外から渡せるように
-   * 例: "早め15分 / 遅め30分" や "±15分 可" など。
-   * 未指定時はデフォルト文言（"時間調整が可能です"）。
+   * 時間調整の内容テキスト（任意）。未指定時は shift 内の timeAdjustNote / time_adjust_note を自動参照し、
+   * それも無ければ "時間調整が可能です" を表示します。
    */
   timeAdjustText?: string;
 };
+
+// ===== ヘルパ（any禁止・安全アクセス） =====
+type UnknownRecord = Record<string, unknown>;
+
+function pickBoolean(obj: unknown, keys: readonly string[]): boolean | undefined {
+  if (typeof obj !== "object" || obj === null) return undefined;
+  const rec = obj as UnknownRecord;
+  for (const k of keys) {
+    const v = rec[k];
+    if (typeof v === "boolean") return v;
+  }
+  return undefined;
+}
+
+function pickString(obj: unknown, keys: readonly string[]): string | undefined {
+  if (typeof obj !== "object" || obj === null) return undefined;
+  const rec = obj as UnknownRecord;
+  for (const k of keys) {
+    const v = rec[k];
+    if (typeof v === "string" && v.trim() !== "") return v;
+  }
+  return undefined;
+}
 
 /** 1件のシフト表示＋モーダル操作を共通化 */
 export default function ShiftCard({
@@ -39,16 +63,35 @@ export default function ShiftCard({
   onReject,
   extraActions,
   timeAdjustable,
-  timeAdjustText, // ← 追加
+  timeAdjustText,
 }: Props) {
+  // ===== ローカル状態 =====
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
-  const openDialog = () => setOpen(true);
-  const closeDialog = () => setOpen(false);
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
-  // 共通のミニダイアログ（通学/備考）
+  // ===== ユーティリティ =====
+  const openDialog = () => setOpen(true);
+  const closeDialog = () => setOpen(false);
+
+  // ▼ props か shift の値から時間調整可/テキストを導出（呼び出し側の修正なしで動く）
+  const derivedTimeAdjustable: boolean =
+    typeof timeAdjustable === "boolean"
+      ? timeAdjustable
+      : (pickBoolean(shift, [
+          "time_adjustable",
+          "timeAdjustable",
+          "time_adjust",
+          "timeAdjust",
+        ]) ?? Boolean(pickString(shift, ["timeAdjustNote", "time_adjust_note"])));
+
+  const derivedTimeAdjustText: string =
+    timeAdjustText ??
+    pickString(shift, ["timeAdjustNote", "time_adjust_note"]) ??
+    "時間調整が可能です";
+
+  // ===== サブ表示（通学/備考） =====
   const MiniInfo = () => (
     <>
       <div className="text-sm">
@@ -101,28 +144,37 @@ export default function ShiftCard({
   );
 
   return (
-    <Card className={`shadow ${timeAdjustable ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
+    <Card
+      className={`shadow ${
+        derivedTimeAdjustable ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""
+      }`}
+    >
       <CardContent className="p-4">
-        <div className="flex items-center gap-2">
+        {/* ヘッダ行 */}
+        <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">
-            {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
+            {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～
+            {shift.shift_end_time?.slice(0, 5)}
           </div>
-          {timeAdjustable && (
+
+          {derivedTimeAdjustable && (
             <span
               className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300"
-              title={timeAdjustText}
+              title={derivedTimeAdjustText}
             >
-              {timeAdjustText ?? "時間調整が可能です"}
+              {derivedTimeAdjustText}
             </span>
           )}
         </div>
-        <div className="text-sm">種別: {shift.service_code}</div>
+
+        {/* 基本情報 */}
+        <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
         <MiniInfo />
 
+        {/* アクション行 */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
-          {/* アクションボタン（モードで出し分け） */}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               {mode === "request" ? (
@@ -152,7 +204,7 @@ export default function ShiftCard({
                       />
                       同行を希望する
                     </label>
-                    {/* 追加：希望の時間調整 */}
+                    {/* 任意の時間調整希望 */}
                     <div className="mt-4">
                       <label className="text-sm font-medium">希望の時間調整（任意）</label>
                       <textarea
