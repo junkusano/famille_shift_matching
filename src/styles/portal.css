@@ -214,25 +214,17 @@
 }
 
 
-/* === 横スクロール帯（候補カード専用）=== */
-.shift-rail {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;     /* 帯だけ横スクロール */
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
+/* === Finder（候補帯）の固定幅 === */
+.finder-fixed {
+  width: 360px;         /* スマホ幅 */
+  max-width: 360px;
+  margin-left: auto;    /* 中央寄せ */
+  margin-right: auto;
 }
 
-/* 方式A: inline-flex + min-width:max-content（今のまま） */
-.shift-rail__inner {
-  display: inline-flex;
-  min-width: max-content; 
-  gap: 0.75rem;
-  padding-right: 0.5rem;
-}
-
-.shift-rail__item {
-  flex: 0 0 280px;
-  min-width: 280px;
+@media (min-width: 768px) {
+  .finder-fixed {
+    width: 980px;       /* PC幅（必要なら好みで 960/1024 に調整） */
+    max-width: 980px;
+  }
 }
