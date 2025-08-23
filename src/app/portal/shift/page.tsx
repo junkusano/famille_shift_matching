@@ -369,18 +369,18 @@ export default function ShiftPage() {
     function FinderStrip() {
         if (!showFinder) return null;
         return (
-            <div className="mt-2 p-3 rounded-xl border bg-[#f7fafc]">
+            <div className="mt-2 p-3 rounded-xl border bg-[#f7fafc] w-full max-w-full">
                 <div className="flex items-center justify-between mb-2">
                     <div className="text-sm font-semibold">候補（空き時間に入れるシフト）</div>
                     <button
                         className="text-xs px-2 py-1 border rounded hover:bg-gray-50"
-                        onClick={() => { setShowFinder(false); setFinderAnchor(null); }}
+                        onClick={() => { setShowFinder(false); setFinderAnchor(null); setCandidateShifts([]); }}
                     >
-                        閉じる
+                        候補を閉じる
                     </button>
                 </div>
 
-                {/* ★帯だけ横スクロールに固定 */}
+                {/* ★帯だけ横スクロール */}
                 <div className="shift-rail">
                     <div className="shift-rail__inner">
                         {candidateShifts.map((shift) => (
