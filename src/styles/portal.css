@@ -228,3 +228,36 @@
     max-width: 980px;
   }
 }
+
+/* === 横スクロール帯（候補カード専用）=== */
+.shift-rail {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
+}
+
+/* ← ここをGridにするのがポイント */
+.shift-rail__inner {
+  display: grid;
+  grid-auto-flow: column;     /* 横方向へ列を自動追加 */
+  grid-auto-columns: 280px;   /* 1カード = 280px に固定 */
+  gap: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+/* アイテムはもう幅指定不要（あってもOK） */
+.shift-rail__item {
+  /* 何も書かなくてOK。付けるなら： */
+  /* overflow: hidden;  <- 子のはみ出し保険 */
+}
+
+/* 念のため、カード本体にはみ出しがあっても横幅を超えないように */
+.shift-rail__item > * {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
