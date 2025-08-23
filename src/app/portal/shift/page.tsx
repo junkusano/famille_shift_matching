@@ -68,12 +68,32 @@ type CsKaipokeInfoRow = {
 };
 */
 
-type AdjustSpec = {
-    label?: string;
-    advance?: number; // 早めにずらせる[h]
-    back?: number;    // 遅くずらせる[h]
-    biko?: string;
-};
+type AdjustSpec = { label?: string; advance?: number; back?: number; biko?: string };
+
+
+function canFitWindow(
+    shift: ShiftData,
+    window: { start: Date | null; end: Date | null },
+    spec?: AdjustSpec
+): boolean {
+    const st = toJstDate(shift.shift_start_date, shift.shift_start_time);
+    const ed = toJstDate(shift.shift_start_date, shift.shift_end_time);
+
+    // そのまま収まる
+    const fits = (!window.start || st >= window.start) && (!window.end || ed <= window.end);
+    if (fits) return true;
+
+    if (!spec) return false; // 調整情報なければ不可
+
+    // どれだけ動かせばよいか（h）
+    const needLater = window.start && st < window.start ? Math.abs(st.getTime() - window.start.getTime()) / 36e5 : 0;
+    const needEarlier = window.end && ed > window.end ? Math.abs(ed.getTime() - window.end.getTime()) / 36e5 : 0;
+
+    const allowBack = Number(spec.back ?? 0); // 開始を遅らせる（後ろ倒し）
+    const allowAdvance = Number(spec.advance ?? 0); // 開始を早める（前倒し）
+
+    return (needLater <= allowBack) && (needEarlier <= allowAdvance);
+}
 
 // ===== 空き時間候補取得まわりのヘルパ =====
 
@@ -460,15 +480,14 @@ export default function ShiftPage() {
         setShowFinder(true);
 
         const fetched = await fetchCandidatesForDay(shiftDate);
-        const { map, merged } = await mergeCsAdjustability(fetched);
+        const { map, merged } = await mergeCsAdjustability(fetched); // map: Record<string, AdjustSpec>
         setCsAdjustMap(map);
 
-        // ✨ 完全一致 OR 調整で入れる ものだけ表示
-        const candidates = merged.filter(s =>
-            fitsWindow(s, start, end) || isTimeAdjustNeeded(s, { start, end }, map)
-        );
-        setCandidateShifts(candidates);
+        // ← ここを差し替え：調整で入れるものも通す
+        const filtered = merged.filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
+        setCandidateShifts(filtered);
     }
+
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
         // すでに同じ場所が開いていれば閉じる

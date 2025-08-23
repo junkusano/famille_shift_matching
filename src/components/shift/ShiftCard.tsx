@@ -17,11 +17,17 @@ type Mode = "request" | "reject";
 type Props = {
   shift: ShiftData;
   mode: Mode;
-  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void; // ←引数拡張
+  onRequest?: (attendRequest: boolean, timeAdjustNote?: string) => void; // 既存
   creatingRequest?: boolean;
   onReject?: (reason: string) => void;
   extraActions?: React.ReactNode;
-  timeAdjustable?: boolean; // ←追加
+  timeAdjustable?: boolean; // 既存（trueでピンク背景＆バッジ）
+  /**
+   * ★追加（最小変更）：時間調整の内容テキストを外から渡せるように
+   * 例: "早め15分 / 遅め30分" や "±15分 可" など。
+   * 未指定時はデフォルト文言（"時間調整が可能です"）。
+   */
+  timeAdjustText?: string;
 };
 
 /** 1件のシフト表示＋モーダル操作を共通化 */
@@ -33,13 +39,14 @@ export default function ShiftCard({
   onReject,
   extraActions,
   timeAdjustable,
+  timeAdjustText, // ← 追加
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const openDialog = () => setOpen(true);
   const closeDialog = () => setOpen(false);
-  const [timeAdjustNote, setTimeAdjustNote] = useState(""); // ←追加
+  const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
   // 共通のミニダイアログ（通学/備考）
   const MiniInfo = () => (
@@ -71,8 +78,8 @@ export default function ShiftCard({
             shift.gender_request_name === "男性希望"
               ? "blue"
               : shift.gender_request_name === "女性希望"
-                ? "red"
-                : "black",
+              ? "red"
+              : "black",
         }}
       >
         性別希望: {shift.gender_request_name}
@@ -101,8 +108,11 @@ export default function ShiftCard({
             {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
           </div>
           {timeAdjustable && (
-            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300">
-              時間調整が可能です
+            <span
+              className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300"
+              title={timeAdjustText}
+            >
+              {timeAdjustText ?? "時間調整が可能です"}
             </span>
           )}
         </div>
