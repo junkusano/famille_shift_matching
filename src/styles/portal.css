@@ -67,6 +67,7 @@
     overflow-y: auto;
     height: 95%;
     */
+    min-width: 0;   /* ← 超重要 */
 }
 
 .user-profile {
@@ -215,22 +216,23 @@
 
 /* === 横スクロール帯（候補カード専用）=== */
 .shift-rail {
-  width: 100%;                    /* 枠の幅は親の幅にフィット */
-  max-width: 100%;                /* 親幅を超えない（横に広がらない） */
-  overflow-x: auto;               /* ここだけ横スクロール */
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;     /* 帯だけ横スクロール */
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable both-edges;
 }
 
+/* 方式A: inline-flex + min-width:max-content（今のまま） */
 .shift-rail__inner {
-  display: inline-flex;           /* 行内フレックスにして幅をコンテンツに合わせる */
-  min-width: max-content;         /* 子の合計幅に広がる（親がスクロールを出す） */
+  display: inline-flex;
+  min-width: max-content; 
   gap: 0.75rem;
   padding-right: 0.5rem;
 }
 
 .shift-rail__item {
-  flex: 0 0 280px;                /* 各カードの幅 */
+  flex: 0 0 280px;
   min-width: 280px;
 }

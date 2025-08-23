@@ -366,6 +366,17 @@ export default function ShiftPage() {
         setCandidateShifts(filterByWindow(merged, start, end));
     }
 
+    async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
+        // すでに同じ場所が開いていれば閉じる
+        if (showFinder && finderAnchor === anchor) {
+            setShowFinder(false);
+            setFinderAnchor(null);
+            setCandidateShifts([]);
+            return;
+        }
+        await openFinder(start, end, anchor);
+    }
+
     function FinderStrip() {
         if (!showFinder) return null;
         return (
@@ -569,6 +580,19 @@ export default function ShiftPage() {
         void fetchData();
     }, [shiftDate]);
 
+    useEffect(() => {
+        if (!showFinder) return;
+        const validAnchors = new Set<string>([
+            "no-shift", "before-first",
+            ...shifts.map(s => `after:${s.shift_id}`)
+        ]);
+        if (!validAnchors.has(finderAnchor ?? "")) {
+            setShowFinder(false);
+            setFinderAnchor(null);
+            setCandidateShifts([]);
+        }
+    }, [shifts, showFinder, finderAnchor]);
+
     const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
     const handleDeleteAll = () => {
@@ -679,8 +703,8 @@ export default function ShiftPage() {
     }
 
     return (
-        <div className="content">
-            <div className="content">
+        <div className="content min-w-0">
+            <div className="content min-w-0">
                 <DateNavigator
                     date={shiftDate}
                     onPrev={handlePrevDay}
@@ -709,9 +733,10 @@ export default function ShiftPage() {
                 <>
                     <div className="text-sm text-gray-500">シフトがありません</div>
                     <div className="mt-3">
-                        <Button onClick={() => openFinder(null, null, "no-shift")}>
+                        <Button onClick={() => toggleFinder(null, null, "no-shift")}>
                             空き時間のシフトを見つける
                         </Button>
+                        {showFinder && finderAnchor === "no-shift" && <FinderStrip />}
                     </div>
                 </>
             ) : (
@@ -719,13 +744,11 @@ export default function ShiftPage() {
                     {/* 冒頭：その日の最初のシフトより前の空き */}
                     <div className="my-3">
                         <Button
-                            onClick={() =>
-                                openFinder(
-                                    null,
-                                    toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time),
-                                    "before-first"         // ←アンカー名
-                                )
-                            }
+                            onClick={() => toggleFinder(
+                                null,
+                                toJstDate(shifts[0].shift_start_date, shifts[0].shift_start_time),
+                                "before-first"
+                            )}
                         >
                             空き時間のシフトを見つける
                         </Button>
@@ -751,7 +774,7 @@ export default function ShiftPage() {
                                     extraActions={<GroupAddButton shift={shift} />}
                                 />
                                 <div className="mt-2">
-                                    <Button onClick={() => openFinder(endCurr, startNext, anchor)}>
+                                    <Button onClick={() => toggleFinder(endCurr, startNext, anchor)}>
                                         空き時間のシフトを見つける
                                     </Button>
                                 </div>
