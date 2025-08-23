@@ -96,13 +96,13 @@ function canFitWindow(
 }
 
 // ===== 空き時間候補取得まわりのヘルパ =====
-
+/*
 function hasAdjustCapability(spec?: AdjustSpec) {
     const a = Number(spec?.advance ?? 0); // 早め
     const b = Number(spec?.back ?? 0);    // 遅め
     return a !== 0 || b !== 0;
 }
-
+*/
 // 当日自分シフトから空き窓を計算（前/間/後） — いまは未使用
 function computeFreeWindowsForSelectedDate(
     shifts: ShiftData[],
