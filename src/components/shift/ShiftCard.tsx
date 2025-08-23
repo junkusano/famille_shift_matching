@@ -101,6 +101,7 @@ function pickNum(obj: unknown, key: string): number | undefined {
 }
 
 /** shift から kaipoke_cs_id を拾う（トップレベル優先。必要ならネストも見る） */
+/*
 function extractKaipokeCsId(shift: unknown): string | undefined {
   if (!shift || typeof shift !== "object") return undefined;
   const r = shift as UnknownRecord;
@@ -115,6 +116,7 @@ function extractKaipokeCsId(shift: unknown): string | undefined {
 
   return undefined;
 }
+  */
 
 /* 簡易キャッシュ（ビルド間で共有しない揮発キャッシュ） */
 const infoIdCache = new Map<string, string>(); // cs_id -> time_adjustability_id
