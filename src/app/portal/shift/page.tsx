@@ -21,6 +21,7 @@ import {
 import { ja } from "date-fns/locale";
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
+import { constants } from "node:buffer";
 
 const PAGE_SIZE = 50;
 
@@ -53,7 +54,7 @@ type PostalDistrictRow = {
     postal_code_3: string;
     district: string;
 };
-
+/*
 type CsKaipokeInfoRow = {
     kaipoke_cs_id: string;
     name: string | null;
@@ -65,6 +66,7 @@ type CsKaipokeInfoRow = {
     // 「時間調整」カラム名は仮。存在しない場合は undefined になる想定
     time_adjust_json?: unknown;
 };
+*/
 
 type AdjustSpec = {
     label?: string;
@@ -196,6 +198,7 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
             biko: r.biko ?? "",
             time_adjustability_id: r.time_adjustability_id ?? null,
         };
+
     });
 
     // 参照されている adjustability をまとめて取得
@@ -203,7 +206,7 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
         new Set((csRows ?? []).map(r => r.time_adjustability_id).filter(Boolean))
     ) as string[];
 
-    let adjustById: Record<string, { label: string; advance: number; back: number }> = {};
+    const adjustById: Record<string, { label: string; advance: number; back: number }> = {};
     if (adjustIds.length) {
         const { data: adjRows } = await supabase
             .from("cs_kaipoke_time_adjustability")
