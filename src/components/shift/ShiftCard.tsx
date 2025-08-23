@@ -11,9 +11,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
-import { supabase } from "@/lib/supabaseClient"; // マスター直取得用（任意）
+import { supabase } from "@/lib/supabaseClient";
 
-// ===== 型 =====
 type Mode = "request" | "reject";
 
 type Props = {
@@ -23,20 +22,12 @@ type Props = {
   creatingRequest?: boolean;
   onReject?: (reason: string) => void;
   extraActions?: React.ReactNode;
-  /** true なら強制的にバッジON（親優先） */
-  timeAdjustable?: boolean;
-  /** バッジ表示文言（親優先） */
-  timeAdjustText?: string;
-  /**
-   * 可能なら親からマスターマップを渡す（推奨）。
-   * key: time_adjustability_id（文字列化）, value: { label, is_adjustable?, badge_text? }
-   */
+  timeAdjustable?: boolean; // 親で強制ON/OFF
+  timeAdjustText?: string;  // 親で表示文言
   timeAdjustMaster?: Record<string, { label: string; is_adjustable?: boolean; badge_text?: string }>;
-  /** Supabaseテーブル名（未指定なら "m_time_adjustability" を参照） */
-  timeAdjustabilityTableName?: string;
+  timeAdjustabilityTableName?: string; // 既定: m_time_adjustability
 };
 
-// ===== ヘルパ（any禁止） =====
 type UnknownRecord = Record<string, unknown>;
 
 function coerceBoolean(v: unknown): boolean | undefined {
@@ -92,26 +83,13 @@ function pickIdString(obj: unknown, keys: readonly string[]): string | undefined
 
 function guessAdjustableFromText(text: string): boolean {
   const t = text.toLowerCase();
-  // NGワード優先
   if (t.includes("不可") || t.includes("ng")) return false;
-  // OKを示す語群
-  if (
-    t.includes("可") ||
-    t.includes("調整") ||
-    t.includes("±") ||
-    t.includes("前後") ||
-    t.includes("ok") ||
-    t.includes("要相談")
-  ) {
-    return true;
-  }
-  return true; // 不明なら可で表示（必要なら false に変更）
+  if (t.includes("可") || t.includes("調整") || t.includes("±") || t.includes("前後") || t.includes("ok") || t.includes("要相談")) return true;
+  return true; // 不明は可で仮表示（必要なら false に変更）
 }
 
-// マスター行のキャッシュ（クライアント内）
 const timeAdjCache = new Map<string, { label: string; isAdjustable: boolean; badgeText?: string }>();
 
-/** 1件のシフト表示＋モーダル操作を共通化 */
 export default function ShiftCard({
   shift,
   mode,
@@ -124,13 +102,11 @@ export default function ShiftCard({
   timeAdjustMaster,
   timeAdjustabilityTableName = "m_time_adjustability",
 }: Props) {
-  // ===== ローカル状態 =====
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
-  // マスター参照結果
   const [masterLabel, setMasterLabel] = useState<string | undefined>(undefined);
   const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(undefined);
   const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(undefined);
@@ -138,19 +114,12 @@ export default function ShiftCard({
   const openDialog = () => setOpen(true);
   const closeDialog = () => setOpen(false);
 
-  // shift から ID を抽出
   const timeAdjId = useMemo(
-    () =>
-      pickIdString(shift, [
-        "time_adjustability_id",
-        "timeAdjustabilityId",
-        "time_adjustability",
-        "timeAdjustability",
-      ]),
+    () => pickIdString(shift, ["time_adjustability_id", "timeAdjustabilityId", "time_adjustability", "timeAdjustability"]),
     [shift]
   );
 
-  // 親がマップをくれた場合はそれを優先
+  // 1) 親からのマップ優先
   useEffect(() => {
     if (!timeAdjId || !timeAdjustMaster) return;
     const row = timeAdjustMaster[String(timeAdjId)];
@@ -158,17 +127,15 @@ export default function ShiftCard({
     const badge = row.badge_text || row.label;
     setMasterBadgeText(badge);
     setMasterLabel(row.label);
-    setMasterAdjustable(
-      typeof row.is_adjustable === "boolean" ? row.is_adjustable : guessAdjustableFromText(badge)
-    );
+    setMasterAdjustable(typeof row.is_adjustable === "boolean" ? row.is_adjustable : guessAdjustableFromText(badge));
   }, [timeAdjId, timeAdjustMaster]);
 
-  // マップが無い場合は Supabase を単発参照（キャッシュ付き）
+  // 2) マップが無い場合は Supabase 参照（RLSで非公開だと取得できない点に注意）
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!timeAdjId) return;
-      if (timeAdjustMaster) return; // すでに親から来ている
+      if (timeAdjustMaster) return; // すでに親から供給
       if (timeAdjCache.has(timeAdjId)) {
         const c = timeAdjCache.get(timeAdjId)!;
         if (!cancelled) {
@@ -185,8 +152,7 @@ export default function ShiftCard({
           .eq("id", timeAdjId)
           .maybeSingle();
         if (error) {
-          // 失敗しても致命ではない（ログのみ）
-          console.warn("time_adjustability fetch error", error);
+          console.debug("m_time_adjustability select error", error);
           return;
         }
         if (!data) return;
@@ -202,7 +168,7 @@ export default function ShiftCard({
           setMasterAdjustable(isAdj);
         }
       } catch (e) {
-        console.warn("time_adjustability fetch exception", e);
+        console.debug("m_time_adjustability fetch exception", e);
       }
     })();
     return () => {
@@ -210,114 +176,51 @@ export default function ShiftCard({
     };
   }, [timeAdjId, timeAdjustMaster, timeAdjustabilityTableName]);
 
-  // 既存の多様なブール・テキストからも拾う（後方互換）
+  // 3) 旧フィールドのフォールバック
   const fallbackBool = useMemo(
-    () =>
-      pickBooleanish(shift, [
-        "time_adjustable",
-        "timeAdjustable",
-        "time_adjust",
-        "timeAdjust",
-        "can_time_adjust",
-      ]) ?? Boolean(pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"])),
+    () => pickBooleanish(shift, ["time_adjustable", "timeAdjustable", "time_adjust", "timeAdjust", "can_time_adjust"]) ?? Boolean(pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"])),
     [shift]
   );
 
-  // 最終判定（親 > マスター > フォールバック）
-  const derivedTimeAdjustable: boolean =
+  const hasId = Boolean(timeAdjId);
+
+  // 4) 最終判定（親 > マスター > フォールバック > IDがあるなら楽観表示）
+  const showBadge: boolean =
     typeof timeAdjustable === "boolean"
       ? timeAdjustable
-      : (masterAdjustable ?? fallbackBool ?? false);
+      : (masterAdjustable ?? fallbackBool ?? (hasId ? true : false));
 
-  const derivedTimeAdjustText: string =
-    (timeAdjustText ?? masterBadgeText ?? pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"]) ??
-      (masterLabel ? `${masterLabel}` : undefined)) ?? "時間調整が可能です";
-
-  // ===== サブ表示（通学/備考） =====
-  const MiniInfo = () => (
-    <>
-      <div className="text-sm">
-        利用者名: {shift.client_name} 様
-        {shift.commuting_flg && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[480px]">
-              <div className="text-sm">
-                <strong>通所経路等</strong>
-                <p>
-                  {[shift.standard_route, shift.standard_trans_ways, shift.standard_purpose]
-                    .filter(Boolean)
-                    .join(" / ")}
-                </p>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
-      <div
-        className="text-sm"
-        style={{
-          color:
-            shift.gender_request_name === "男性希望"
-              ? "blue"
-              : shift.gender_request_name === "女性希望"
-              ? "red"
-              : "black",
-        }}
-      >
-        性別希望: {shift.gender_request_name}
-        {shift.biko && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[480px]">
-              <div className="text-sm">
-                <strong>備考</strong>
-                <p>{shift.biko}</p>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
-    </>
-  );
+  const badgeText: string =
+    (timeAdjustText ?? masterBadgeText ?? pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"]) ?? (hasId ? "時間調整（マスター未取得）" : undefined)) || "時間調整が可能です";
 
   return (
-    <Card className={`shadow ${derivedTimeAdjustable ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
+    <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
-        {/* ヘッダ行 */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">
             {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
           </div>
-
-          {derivedTimeAdjustable && (
-            <span
-              className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300"
-              title={derivedTimeAdjustText}
-            >
-              {derivedTimeAdjustText}
+          {showBadge && (
+            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300" title={badgeText}>
+              {badgeText}
             </span>
           )}
         </div>
 
-        {/* 基本情報 */}
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
-        <MiniInfo />
 
-        {/* アクション行 */}
+        {/* 付随情報（必要なら戻す） */}
+        {/* 通学/備考のダイアログは一旦簡略化。復活が必要ならここに MiniInfo を戻す */}
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               {mode === "request" ? (
-                <Button onClick={openDialog}>このシフトを希望する</Button>
+                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
               ) : (
-                <Button className="bg-red-500 text-white" onClick={openDialog}>
+                <Button className="bg-red-500 text-white" onClick={() => setOpen(true)}>
                   このシフトに入れない
                 </Button>
               )}
@@ -333,32 +236,17 @@ export default function ShiftCard({
                       利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
                     </div>
                     <label className="flex items-center mt-4 gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={attendRequest}
-                        onChange={(e) => setAttendRequest(e.target.checked)}
-                      />
+                      <input type="checkbox" checked={attendRequest} onChange={(e) => setAttendRequest(e.target.checked)} />
                       同行を希望する
                     </label>
                     <div className="mt-4">
                       <label className="text-sm font-medium">希望の時間調整（任意）</label>
-                      <textarea
-                        value={timeAdjustNote}
-                        onChange={(e) => setTimeAdjustNote(e.target.value)}
-                        placeholder="例）開始を15分後ろに出来れば可 など"
-                        className="w-full mt-1 p-2 border rounded"
-                      />
+                      <textarea value={timeAdjustNote} onChange={(e) => setTimeAdjustNote(e.target.value)} placeholder="例）開始を15分後ろに出来れば可 など" className="w-full mt-1 p-2 border rounded" />
                     </div>
                   </DialogDescription>
                   <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={closeDialog}>キャンセル</Button>
-                    <Button
-                      onClick={() => {
-                        onRequest?.(attendRequest, timeAdjustNote || undefined);
-                        setOpen(false);
-                      }}
-                      disabled={!!creatingRequest}
-                    >
+                    <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
+                    <Button onClick={() => { onRequest?.(attendRequest, timeAdjustNote || undefined); setOpen(false); }} disabled={!!creatingRequest}>
                       {creatingRequest ? "送信中..." : "希望を送信"}
                     </Button>
                   </div>
@@ -368,24 +256,11 @@ export default function ShiftCard({
                   <DialogTitle>シフトに入れない</DialogTitle>
                   <DialogDescription>
                     {shift.client_name} 様のシフトを外します。理由を入力してください。
-                    <textarea
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="シフトに入れない理由"
-                      className="w-full mt-2 p-2 border"
-                    />
+                    <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="シフトに入れない理由" className="w-full mt-2 p-2 border" />
                   </DialogDescription>
                   <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={closeDialog}>キャンセル</Button>
-                    <Button
-                      disabled={!reason}
-                      onClick={() => {
-                        onReject?.(reason);
-                        closeDialog();
-                      }}
-                    >
-                      処理実行を確定
-                    </Button>
+                    <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
+                    <Button disabled={!reason} onClick={() => { onReject?.(reason); setOpen(false); }}>処理実行を確定</Button>
                   </div>
                 </>
               )}
