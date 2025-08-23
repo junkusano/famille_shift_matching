@@ -264,6 +264,7 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     return { map, merged };
 }
 
+/*
 function fitsWindow(s: ShiftData, start: Date | null, end: Date | null) {
     const st = toJstDate(s.shift_start_date, s.shift_start_time);
     const ed = toJstDate(s.shift_start_date, s.shift_end_time);
@@ -271,6 +272,7 @@ function fitsWindow(s: ShiftData, start: Date | null, end: Date | null) {
     if (end && ed > end) return false;
     return true;
 }
+*/
 
 // 指定の空き窓（start/end の間）に完全に収まる候補だけ返す
 /*
