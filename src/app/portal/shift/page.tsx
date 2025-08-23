@@ -98,8 +98,8 @@ function canFitWindow(
 // ===== 空き時間候補取得まわりのヘルパ =====
 
 function hasAdjustCapability(spec?: AdjustSpec) {
-    const a = Number(spec?.advance ?? 0);
-    const b = Number(spec?.back ?? 0);
+    const a = Number(spec?.advance ?? 0); // 早め
+    const b = Number(spec?.back ?? 0);    // 遅め
     return a !== 0 || b !== 0;
 }
 
@@ -532,9 +532,8 @@ export default function ShiftPage() {
                     <div className="shift-rail__inner">
                         {candidateShifts.map((shift) => {
                             const spec = csAdjustMap[shift.kaipoke_cs_id];
-                            const capability = spec ? hasAdjustCapability(spec) : undefined; // 情報なければ undefined で親上書きしない
+                            const capability = spec ? hasAdjustCapability(spec) : undefined; // 情報なしなら undefined（親上書きしない）
                             const label = spec?.label || undefined;
-
                             return (
                                 <div key={shift.shift_id} className="shift-rail__item">
                                     <ShiftCard
@@ -543,13 +542,13 @@ export default function ShiftPage() {
                                         creatingRequest={creatingShiftRequest}
                                         onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
                                         extraActions={<GroupAddButton shift={shift} />}
+                                        // ★ここが重要：必要かどうか ではなく「可能かどうか」
                                         timeAdjustable={capability}
-                                        timeAdjustText={label}
+                                        timeAdjustText={label}  // 例: "±1.0Hまで可"
                                     />
                                 </div>
                             );
                         })}
-
                     </div>
                 </div>
             </div>
