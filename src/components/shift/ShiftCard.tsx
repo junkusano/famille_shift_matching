@@ -94,7 +94,7 @@ export default function ShiftCard({
   );
 
   return (
-    <Card className="shadow">
+    <Card className={`shadow ${timeAdjustable ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold">
@@ -102,7 +102,7 @@ export default function ShiftCard({
           </div>
           {timeAdjustable && (
             <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300">
-              時間調整必要
+              時間調整が可能です
             </span>
           )}
         </div>

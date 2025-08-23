@@ -244,6 +244,14 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     return { map, merged };
 }
 
+function fitsWindow(s: ShiftData, start: Date | null, end: Date | null) {
+    const st = toJstDate(s.shift_start_date, s.shift_start_time);
+    const ed = toJstDate(s.shift_start_date, s.shift_end_time);
+    if (start && st < start) return false;
+    if (end && ed > end) return false;
+    return true;
+}
+
 // 指定の空き窓（start/end の間）に完全に収まる候補だけ返す
 function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null): ShiftData[] {
     if (!start && !end) return list;
@@ -436,12 +444,14 @@ export default function ShiftPage() {
     const [candidateFilter] = useState<{ postal?: string[]; gender?: string[]; service?: string[] }>({});
     void candidateFilter; // 現状未使用
     const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
-    const [csAdjustMap, setCsAdjustMap] = useState<Record<string, AdjustSpec>>({});
+    const [csAdjustMap, setCsAdjustMap] = useState<Record<string, { label?: string; advance?: number; back?: number; biko?: string }>>({});
+
 
     // 自分の当日シフトから空き窓算出（将来拡張用）
     const myWindows = computeFreeWindowsForSelectedDate(shifts, shiftDate);
     void myWindows;
 
+    // openFinder の中身を修正
     async function openFinder(start: Date | null, end: Date | null, anchor: string) {
         setFinderWindow({ start, end });
         setFinderAnchor(anchor);
@@ -450,7 +460,12 @@ export default function ShiftPage() {
         const fetched = await fetchCandidatesForDay(shiftDate);
         const { map, merged } = await mergeCsAdjustability(fetched);
         setCsAdjustMap(map);
-        setCandidateShifts(filterByWindow(merged, start, end));
+
+        // ✨ 完全一致 OR 調整で入れる ものだけ表示
+        const candidates = merged.filter(s =>
+            fitsWindow(s, start, end) || isTimeAdjustNeeded(s, { start, end }, map)
+        );
+        setCandidateShifts(candidates);
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
