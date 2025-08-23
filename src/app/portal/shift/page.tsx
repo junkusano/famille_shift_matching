@@ -228,6 +228,7 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     });
 
     // 参照されている adjustability をまとめて取得
+    // 参照されている adjustability をまとめて取得
     const adjustIds = Array.from(
         new Set((csRows ?? []).map(r => r.time_adjustability_id).filter(Boolean))
     ) as string[];
@@ -236,14 +237,19 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     if (adjustIds.length) {
         const { data: adjRows } = await supabase
             .from("cs_kaipoke_time_adjustability")
-            .select("time_adjustability_id, label, Advance_adjustability, Backwoard_adjustability")
-            .in("time_adjustability_id", adjustIds);
+            .select("id, label, Advance_adjustability, Backwoard_adjustability")
+            .in("id", adjustIds);                     // ← ここを 'id' に
 
-        (adjRows ?? []).forEach(r => {
-            adjustById[r.time_adjustability_id] = {
+        (adjRows ?? []).forEach((r: {
+            id: string;
+            label: string | null;
+            Advance_adjustability: number | string | null;
+            Backwoard_adjustability: number | string | null;
+        }) => {
+            adjustById[r.id] = {
                 label: r.label ?? "",
-                advance: Number(r.Advance_adjustability ?? 0),     // 早め
-                back: Number(r.Backwoard_adjustability ?? 0),       // 遅め
+                advance: Number(r.Advance_adjustability ?? 0),
+                back: Number(r.Backwoard_adjustability ?? 0),
             };
         });
     }
@@ -532,8 +538,8 @@ export default function ShiftPage() {
                     <div className="shift-rail__inner">
                         {candidateShifts.map((shift) => {
                             const spec = csAdjustMap[shift.kaipoke_cs_id];
-                            const capability = spec ? hasAdjustCapability(spec) : undefined; // 情報なしなら undefined（親上書きしない）
-                            const label = spec?.label || undefined;
+                            const hasCap = !!spec && (Number(spec.advance ?? 0) !== 0 || Number(spec.back ?? 0) !== 0);
+
                             return (
                                 <div key={shift.shift_id} className="shift-rail__item">
                                     <ShiftCard
@@ -542,9 +548,8 @@ export default function ShiftPage() {
                                         creatingRequest={creatingShiftRequest}
                                         onRequest={(attend, note) => handleShiftRequestWithAlert(shift, attend, note)}
                                         extraActions={<GroupAddButton shift={shift} />}
-                                        // ★ここが重要：必要かどうか ではなく「可能かどうか」
-                                        timeAdjustable={capability}
-                                        timeAdjustText={label}  // 例: "±1.0Hまで可"
+                                        // ★ 可能な時だけ上書き。不可/不明時は一切渡さず（= ShiftCard の自動解決に任せる）
+                                        {...(hasCap ? { timeAdjustable: true, timeAdjustText: (spec?.label || "時間調整可能") } : {})}
                                     />
                                 </div>
                             );
