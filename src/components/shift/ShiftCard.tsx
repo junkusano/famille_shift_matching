@@ -22,21 +22,31 @@ type Props = {
   creatingRequest?: boolean;
   onReject?: (reason: string) => void;
   extraActions?: React.ReactNode;
-  timeAdjustable?: boolean; // 親で強制ON/OFF
-  timeAdjustText?: string;  // 親で表示文言
-  timeAdjustMaster?: Record<string, { label: string; is_adjustable?: boolean; badge_text?: string }>;
-  timeAdjustabilityTableName?: string; // 既定: m_time_adjustability
+  /** 親で強制ON/OFF */
+  timeAdjustable?: boolean;
+  /** 親で表示文言 */
+  timeAdjustText?: string;
+  /** 親からマスター（id→行）を渡すとDBアクセス不要に */
+  timeAdjustMaster?: Record<
+    string,
+    { label: string; is_adjustable?: boolean; badge_text?: string }
+  >;
+  /** Supabaseテーブル名（未指定なら m_time_adjustability） */
+  timeAdjustabilityTableName?: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
+
+/* ===================== 共通ヘルパ ===================== */
+const DEFAULT_BADGE_TEXT = "時間変更調整";
 
 function coerceBoolean(v: unknown): boolean | undefined {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return Number.isFinite(v) ? v !== 0 : undefined;
   if (typeof v === "string") {
     const s = v.trim().toLowerCase();
-    if (["1", "true", "t", "yes", "y", "on"].includes(s)) return true;
-    if (["0", "false", "f", "no", "n", "off", ""].includes(s)) return false;
+    if (["1", "true", "t", "yes", "y", "on", "可", "ok"].includes(s)) return true;
+    if (["0", "false", "f", "no", "n", "off", "", "不可", "ng"].includes(s)) return false;
     const n = Number(s);
     if (!Number.isNaN(n)) return n !== 0;
   }
@@ -66,6 +76,22 @@ function pickNonEmptyString(obj: unknown, keys: readonly string[]): string | und
   return undefined;
 }
 
+function readString(obj: unknown, key: string): string | undefined {
+  if (typeof obj !== "object" || obj === null) return undefined;
+  const rec = obj as UnknownRecord;
+  const v = rec[key];
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (t !== "") return t;
+  }
+  return undefined;
+}
+function readBool(obj: unknown, key: string): boolean | undefined {
+  if (typeof obj !== "object" || obj === null) return undefined;
+  const rec = obj as UnknownRecord;
+  return coerceBoolean(rec[key]);
+}
+
 function pickIdString(obj: unknown, keys: readonly string[]): string | undefined {
   if (typeof obj !== "object" || obj === null) return undefined;
   const rec = obj as UnknownRecord;
@@ -84,12 +110,74 @@ function pickIdString(obj: unknown, keys: readonly string[]): string | undefined
 function guessAdjustableFromText(text: string): boolean {
   const t = text.toLowerCase();
   if (t.includes("不可") || t.includes("ng")) return false;
-  if (t.includes("可") || t.includes("調整") || t.includes("±") || t.includes("前後") || t.includes("ok") || t.includes("要相談")) return true;
+  if (
+    t.includes("可") ||
+    t.includes("調整") ||
+    t.includes("±") ||
+    t.includes("前後") ||
+    t.includes("ok") ||
+    t.includes("要相談")
+  )
+    return true;
   return true; // 不明は可で仮表示（必要なら false に変更）
 }
 
-const timeAdjCache = new Map<string, { label: string; isAdjustable: boolean; badgeText?: string }>();
+/** ネスト or 直値 どちらでも time_adjustability を抽出 */
+function extractTimeAdjustFromShift(shift: unknown): {
+  id?: string;
+  badge?: string;
+  adjustable?: boolean;
+} {
+  if (typeof shift !== "object" || shift === null) return {};
+  const rec = shift as UnknownRecord;
 
+  // 1) ネスト: time_adjustability / timeAdjustability が { id, label, badge_text, is_adjustable }
+  let nested = rec["time_adjustability"];
+  if (!nested) nested = rec["timeAdjustability"];
+  if (nested && typeof nested === "object") {
+    const o = nested as UnknownRecord;
+    const id =
+      typeof o.id === "string" && o.id.trim() !== ""
+        ? o.id.trim()
+        : typeof o.id === "number"
+        ? String(o.id)
+        : undefined;
+    const badge =
+      (typeof o.badge_text === "string" && o.badge_text.trim() !== "" && o.badge_text.trim()) ||
+      (typeof o.label === "string" && o.label.trim() !== "" && o.label.trim()) ||
+      (typeof o.name === "string" && o.name.trim() !== "" && o.name.trim());
+    const adjustable =
+      typeof o.is_adjustable === "boolean"
+        ? o.is_adjustable
+        : badge
+        ? guessAdjustableFromText(badge)
+        : undefined;
+    return { id, badge, adjustable };
+  }
+
+  // 2) 直値: *_id 系
+  const rawId =
+    rec["time_adjustability_id"] ??
+    rec["timeAdjustabilityId"] ??
+    rec["time_adjustability"] ??
+    rec["timeAdjustability"];
+  const id =
+    typeof rawId === "string"
+      ? rawId
+      : typeof rawId === "number"
+      ? String(rawId)
+      : undefined;
+
+  return { id };
+}
+
+/* ===================== キャッシュ ===================== */
+const timeAdjCache = new Map<
+  string,
+  { label: string; isAdjustable: boolean; badgeText?: string }
+>();
+
+/* ===================== Component ===================== */
 export default function ShiftCard({
   shift,
   mode,
@@ -107,15 +195,12 @@ export default function ShiftCard({
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
-  const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(undefined);
-  const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(undefined);
-
-  // ====== MiniInfo（利用者名・通学・備考）
+  // MiniInfo（利用者名・通学・備考）
   const MiniInfo = () => (
     <>
       <div className="text-sm">
         利用者名: {shift.client_name ?? "—"} 様
-         {(pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false) && (
+        {(pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false) && (
           <Dialog>
             <DialogTrigger asChild>
               <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
@@ -164,30 +249,39 @@ export default function ShiftCard({
     </>
   );
 
-  // ====== time_adjustability 判定（id→マスター）
-  const timeAdjId = useMemo(
-    () => pickIdString(shift, ["time_adjustability_id", "timeAdjustabilityId", "time_adjustability", "timeAdjustability"]),
-    [shift]
+  /* ====== time_adjustability（ネスト/直値どちらでも） ====== */
+  const nested = useMemo(() => extractTimeAdjustFromShift(shift), [shift]);
+
+  // マスターからの値（初期はネストの値をそのまま採用）
+  const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(
+    nested.badge
+  );
+  const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(
+    nested.adjustable
   );
 
   // 1) 親からのマップ優先
   useEffect(() => {
-    if (!timeAdjId || !timeAdjustMaster) return;
-    const row = timeAdjustMaster[String(timeAdjId)];
+    if (!nested.id || !timeAdjustMaster) return;
+    const row = timeAdjustMaster[String(nested.id)];
     if (!row) return;
     const badge = row.badge_text || row.label;
     setMasterBadgeText(badge);
-    setMasterAdjustable(typeof row.is_adjustable === "boolean" ? row.is_adjustable : guessAdjustableFromText(badge));
-  }, [timeAdjId, timeAdjustMaster]);
+    setMasterAdjustable(
+      typeof row.is_adjustable === "boolean"
+        ? row.is_adjustable
+        : guessAdjustableFromText(badge || "")
+    );
+  }, [nested.id, timeAdjustMaster]);
 
-  // 2) マップが無い場合は Supabase 参照（RLSで非公開だと取得できない点に注意）
+  // 2) 親マップが無い場合、Supabaseで単発取得（キャッシュあり）
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!timeAdjId) return;
-      if (timeAdjustMaster) return; // 親から供給済み
-      if (timeAdjCache.has(timeAdjId)) {
-        const c = timeAdjCache.get(timeAdjId)!;
+      if (!nested.id) return;
+      if (timeAdjustMaster) return; // すでに親から供給済み
+      if (timeAdjCache.has(nested.id)) {
+        const c = timeAdjCache.get(nested.id)!;
         if (!cancelled) {
           setMasterBadgeText(c.badgeText ?? c.label);
           setMasterAdjustable(c.isAdjustable);
@@ -198,49 +292,61 @@ export default function ShiftCard({
         const { data, error } = await supabase
           .from(timeAdjustabilityTableName)
           .select("id,label,badge_text,is_adjustable")
-          .eq("id", timeAdjId)
+          .eq("id", nested.id)
           .maybeSingle();
-        if (error) {
-          console.debug("m_time_adjustability select error", error);
-          return;
-        }
-        if (!data) return;
+        if (error || !data) return;
         const rec = data as UnknownRecord;
-        const label = typeof rec.label === "string" ? rec.label : String(timeAdjId);
-        const badge = typeof rec.badge_text === "string" && rec.badge_text.trim() !== "" ? rec.badge_text : label;
-        const isAdj = typeof rec.is_adjustable === "boolean" ? rec.is_adjustable : guessAdjustableFromText(badge);
-        const cached = { label, isAdjustable: isAdj, badgeText: badge };
-        timeAdjCache.set(timeAdjId, cached);
+        const label =
+          typeof rec.label === "string" ? rec.label : String(nested.id);
+        const badge =
+          typeof rec.badge_text === "string" && rec.badge_text.trim() !== ""
+            ? rec.badge_text
+            : label;
+        const isAdj =
+          typeof rec.is_adjustable === "boolean"
+            ? rec.is_adjustable
+            : guessAdjustableFromText(badge);
+        timeAdjCache.set(nested.id, { label, isAdjustable: isAdj, badgeText: badge });
         if (!cancelled) {
           setMasterBadgeText(badge);
           setMasterAdjustable(isAdj);
         }
-      } catch (e) {
-        console.debug("m_time_adjustability fetch exception", e);
+      } catch {
+        /* no-op */
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [timeAdjId, timeAdjustMaster, timeAdjustabilityTableName]);
+  }, [nested.id, timeAdjustMaster, timeAdjustabilityTableName]);
 
   // 3) 旧フィールドのフォールバック
   const fallbackBool = useMemo(
-    () => pickBooleanish(shift, ["time_adjustable", "timeAdjustable", "time_adjust", "timeAdjust", "can_time_adjust"]) ?? Boolean(pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"])),
+    () =>
+      (readBool(shift, "time_adjustable") ??
+        readBool(shift, "timeAdjustable") ??
+        readBool(shift, "time_adjust") ??
+        readBool(shift, "timeAdjust") ??
+        readBool(shift, "can_time_adjust")) ??
+      Boolean(readString(shift, "timeAdjustNote") ?? readString(shift, "time_adjust_note")),
     [shift]
   );
 
-  const hasId = Boolean(timeAdjId);
-
-  // 4) 最終判定（親 > マスター > フォールバック > IDがあるなら暫定表示）
+  // 4) 最終判定（親 > マスター > フォールバック > ネスト/IDがあれば暫定表示）
   const showBadge: boolean =
     typeof timeAdjustable === "boolean"
       ? timeAdjustable
-      : (masterAdjustable ?? fallbackBool ?? (hasId ? true : false));
+      : (masterAdjustable ?? fallbackBool ?? (nested.id || nested.badge ? true : false));
 
+  // バッジ文言（親 > マスター > ネスト > 旧フィールド > 既定）
   const badgeText: string =
-    (timeAdjustText ?? masterBadgeText ?? pickNonEmptyString(shift, ["timeAdjustNote", "time_adjust_note"]) ?? (hasId ? "時間調整（マスター未取得）" : undefined)) || "時間調整が可能です";
+    timeAdjustText ??
+    masterBadgeText ??
+    nested.badge ??
+    (readString(shift, "timeAdjustNote") ?? readString(shift, "time_adjust_note")) ??
+    DEFAULT_BADGE_TEXT;
 
+  /* ===================== Render ===================== */
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
@@ -250,7 +356,10 @@ export default function ShiftCard({
             {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
           </div>
           {showBadge && (
-            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300" title={badgeText}>
+            <span
+              className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300"
+              title={badgeText}
+            >
               {badgeText}
             </span>
           )}
@@ -261,7 +370,7 @@ export default function ShiftCard({
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
 
-        {/* ここで MiniInfo を確実に表示 */}
+        {/* 利用者名/備考など */}
         <div className="mt-2 space-y-1">
           <MiniInfo />
         </div>
@@ -289,17 +398,34 @@ export default function ShiftCard({
                       利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
                     </div>
                     <label className="flex items-center mt-4 gap-2 text-sm">
-                      <input type="checkbox" checked={attendRequest} onChange={(e) => setAttendRequest(e.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={attendRequest}
+                        onChange={(e) => setAttendRequest(e.target.checked)}
+                      />
                       同行を希望する
                     </label>
                     <div className="mt-4">
                       <label className="text-sm font-medium">希望の時間調整（任意）</label>
-                      <textarea value={timeAdjustNote} onChange={(e) => setTimeAdjustNote(e.target.value)} placeholder="例）開始を15分後ろに出来れば可 など" className="w-full mt-1 p-2 border rounded" />
+                      <textarea
+                        value={timeAdjustNote}
+                        onChange={(e) => setTimeAdjustNote(e.target.value)}
+                        placeholder="例）開始を15分後ろに出来れば可 など"
+                        className="w-full mt-1 p-2 border rounded"
+                      />
                     </div>
                   </DialogDescription>
                   <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
-                    <Button onClick={() => { onRequest?.(attendRequest, timeAdjustNote || undefined); setOpen(false); }} disabled={!!creatingRequest}>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                      キャンセル
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        onRequest?.(attendRequest, timeAdjustNote || undefined);
+                        setOpen(false);
+                      }}
+                      disabled={!!creatingRequest}
+                    >
                       {creatingRequest ? "送信中..." : "希望を送信"}
                     </Button>
                   </div>
@@ -309,11 +435,26 @@ export default function ShiftCard({
                   <DialogTitle>シフトに入れない</DialogTitle>
                   <DialogDescription>
                     {shift.client_name} 様のシフトを外します。理由を入力してください。
-                    <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="シフトに入れない理由" className="w-full mt-2 p-2 border" />
+                    <textarea
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="シフトに入れない理由"
+                      className="w-full mt-2 p-2 border"
+                    />
                   </DialogDescription>
                   <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>キャンセル</Button>
-                    <Button disabled={!reason} onClick={() => { onReject?.(reason); setOpen(false); }}>処理実行を確定</Button>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                      キャンセル
+                    </Button>
+                    <Button
+                      disabled={!reason}
+                      onClick={() => {
+                        onReject?.(reason);
+                        setOpen(false);
+                      }}
+                    >
+                      処理実行を確定
+                    </Button>
                   </div>
                 </>
               )}
