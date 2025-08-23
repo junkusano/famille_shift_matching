@@ -295,9 +295,11 @@ function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null)
 */
 
 // 追加: 2時刻の差を[h]で返す（正の値だけ使う）
+/*
 function hoursDiff(a: Date, b: Date) {
     return Math.abs(a.getTime() - b.getTime()) / (1000 * 60 * 60);
 }
+    */
 
 // 置き換え: isTimeAdjustNeeded
 /*
