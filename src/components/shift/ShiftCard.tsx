@@ -40,7 +40,7 @@ type Props = {
 
 type UnknownRecord = Record<string, unknown>;
 
-/* =============== ヘルパ =============== */
+/* ===================== ヘルパ ===================== */
 const DEFAULT_BADGE_TEXT = "時間変更調整";
 
 function coerceBoolean(v: unknown): boolean | undefined {
@@ -91,7 +91,7 @@ function readBool(obj: unknown, key: string): boolean | undefined {
   const rec = obj as UnknownRecord;
   return coerceBoolean(rec[key]);
 }
-function num(v: unknown): number | undefined {
+function toNum(v: unknown): number | undefined {
   if (typeof v === "number") return v;
   if (typeof v === "string") {
     const n = Number(v);
@@ -100,39 +100,67 @@ function num(v: unknown): number | undefined {
   return undefined;
 }
 
-/** time_adjustability_id を 1)トップレベル 2) cs_kaipoke_info / kaipoke_info の順に探索 */
-function extractTimeAdjustabilityId(shift: unknown): string | undefined {
-  if (typeof shift !== "object" || shift === null) return undefined;
-  const rec = shift as UnknownRecord;
+/** どの階層にあっても time_adjustability_id / マスター行を抽出（配列も再帰探索、循環防止あり） */
+function deepExtractTimeAdjust(obj: unknown, maxDepth = 5): {
+  id?: string;         // time_adjustability_id
+  label?: string;      // マスターのラベル
+  adv?: number;        // Advance_adjustability
+  back?: number;       // Backwoard_adjustability
+} {
+  const seen = new Set<unknown>();
 
-  let raw =
-    rec["time_adjustability_id"] ??
-    rec["timeAdjustabilityId"] ??
-    rec["time_adjustability"] ??
-    rec["timeAdjustability"];
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  if (typeof raw === "number") return String(raw);
+  function helper(node: unknown, depth: number): { id?: string; label?: string; adv?: number; back?: number } {
+    if (node === null || typeof node !== "object" || depth > maxDepth || seen.has(node)) return {};
+    seen.add(node);
+    const rec = node as UnknownRecord;
 
-  const info = (rec["cs_kaipoke_info"] ?? rec["kaipoke_info"]) as UnknownRecord | undefined;
-  if (info && typeof info === "object") {
-    raw =
-      info["time_adjustability_id"] ??
-      info["timeAdjustabilityId"] ??
-      info["time_adjustability"] ??
-      info["timeAdjustability"];
-    if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-    if (typeof raw === "number") return String(raw);
+    // 1) 直に *_id がある
+    const rawId =
+      rec["time_adjustability_id"] ??
+      rec["timeAdjustabilityId"] ??
+      rec["time_adjustability"] ??
+      rec["timeAdjustability"];
+    if (typeof rawId === "string" && rawId.trim() !== "") return { id: rawId.trim() };
+    if (typeof rawId === "number") return { id: String(rawId) };
+
+    // 2) マスター行っぽい塊（label + Advance/Backwoard）
+    const hasLabel = typeof rec["label"] === "string" && (rec["label"] as string).trim() !== "";
+    const adv = toNum(rec["Advance_adjustability"]);
+    const back = toNum(rec["Backwoard_adjustability"]);
+    const masterId =
+      (typeof rec["id"] === "string" && (rec["id"] as string).trim() !== "" && (rec["id"] as string).trim()) ||
+      (typeof rec["id"] === "number" && String(rec["id"]));
+    if (hasLabel && (adv !== undefined || back !== undefined)) {
+      return {
+        id: masterId,
+        label: (rec["label"] as string).trim(),
+        adv: adv ?? 0,
+        back: back ?? 0,
+      };
+    }
+
+    // 3) 子要素を再帰探索（オブジェクト & 配列）
+    for (const key in rec) {
+      const val = rec[key];
+      const got = helper(val, depth + 1);
+      if (got.id || got.label) return got;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node as unknown[]) {
+        const got = helper(item, depth + 1);
+        if (got.id || got.label) return got;
+      }
+    }
+    return {};
   }
-  return undefined;
+
+  return helper(obj, 0);
 }
 
-/* =============== キャッシュ =============== */
-const timeAdjCache = new Map<
-  string,
-  { label: string; adv?: number; back?: number }
->();
+/* ===================== キャッシュ ===================== */
+const timeAdjCache = new Map<string, { label: string; adv?: number; back?: number }>();
 
-/* =============== Component =============== */
+/* ===================== Component ===================== */
 export default function ShiftCard({
   shift,
   mode,
@@ -204,48 +232,53 @@ export default function ShiftCard({
     </>
   );
 
-  /* ====== time_adjustability（ID取得→ラベル/可否を解決） ====== */
-  const timeAdjId = useMemo(() => extractTimeAdjustabilityId(shift), [shift]);
+  /* ====== time_adjustability（深掘り抽出 → ラベル/可否を解決） ====== */
+  const deep = useMemo(() => deepExtractTimeAdjust(shift), [shift]);
 
-  const [resolvedLabel, setResolvedLabel] = useState<string | undefined>(undefined);
-  const [resolvedAdjustable, setResolvedAdjustable] = useState<boolean | undefined>(undefined);
+  const [resolvedLabel, setResolvedLabel] = useState<string | undefined>(deep.label);
+  const [resolvedAdjustable, setResolvedAdjustable] = useState<boolean | undefined>(
+    typeof deep.adv === "number" || typeof deep.back === "number"
+      ? ((deep.adv ?? 0) !== 0 || (deep.back ?? 0) !== 0)
+      : undefined
+  );
 
   // 1) 親マップを優先
   useEffect(() => {
-    if (!timeAdjId || !timeAdjustMaster) return;
-    const row = timeAdjustMaster[String(timeAdjId)];
+    if (!deep.id || !timeAdjustMaster) return;
+    const row = timeAdjustMaster[String(deep.id)];
     if (!row) return;
-    const adv = num(row.Advance_adjustability) ?? 0;
-    const back = num(row.Backwoard_adjustability) ?? 0;
+    const adv = toNum(row.Advance_adjustability) ?? 0;
+    const back = toNum(row.Backwoard_adjustability) ?? 0;
     setResolvedLabel(row.label);
     setResolvedAdjustable(adv !== 0 || back !== 0);
-  }, [timeAdjId, timeAdjustMaster]);
+  }, [deep.id, timeAdjustMaster]);
 
   // 2) 親マップが無ければ Supabase 単発（キャッシュあり）
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!timeAdjId) return;
+      if (!deep.id) return;
       if (timeAdjustMaster) return; // 親から供給済
-      if (timeAdjCache.has(timeAdjId)) {
-        const c = timeAdjCache.get(timeAdjId)!;
+      if (resolvedLabel !== undefined && resolvedAdjustable !== undefined) return; // 深掘りで取得済
+      if (timeAdjCache.has(deep.id)) {
+        const c = timeAdjCache.get(deep.id)!;
         if (!cancelled) {
           setResolvedLabel(c.label);
-          setResolvedAdjustable((c.adv ?? 0) !== 0 || (c.back ?? 0) !== 0);
+          setResolvedAdjustable(((c.adv ?? 0) !== 0) || ((c.back ?? 0) !== 0));
         }
         return;
       }
       const { data, error } = await supabase
         .from(timeAdjustabilityTableName)
         .select("id,label,Advance_adjustability,Backwoard_adjustability")
-        .eq("id", timeAdjId)
+        .eq("id", deep.id)
         .maybeSingle();
       if (error || !data) return;
       const rec = data as UnknownRecord;
-      const label = typeof rec.label === "string" ? rec.label : String(timeAdjId);
-      const adv = num(rec["Advance_adjustability"]) ?? 0;
-      const back = num(rec["Backwoard_adjustability"]) ?? 0;
-      timeAdjCache.set(timeAdjId, { label, adv, back });
+      const label = typeof rec["label"] === "string" ? (rec["label"] as string) : String(deep.id);
+      const adv = toNum(rec["Advance_adjustability"]) ?? 0;
+      const back = toNum(rec["Backwoard_adjustability"]) ?? 0;
+      timeAdjCache.set(deep.id, { label, adv, back });
       if (!cancelled) {
         setResolvedLabel(label);
         setResolvedAdjustable(adv !== 0 || back !== 0);
@@ -254,7 +287,7 @@ export default function ShiftCard({
     return () => {
       cancelled = true;
     };
-  }, [timeAdjId, timeAdjustMaster, timeAdjustabilityTableName]);
+  }, [deep.id, resolvedLabel, resolvedAdjustable, timeAdjustMaster, timeAdjustabilityTableName]);
 
   // 3) 旧フィールドのフォールバック（※無くてもOK）
   const fallbackBool = useMemo(
@@ -268,20 +301,20 @@ export default function ShiftCard({
     [shift]
   );
 
-  // 4) 最終判定（親 > マスター > フォールバック > IDがあれば暫定表示）
+  // 4) 最終判定（親 > マスター/深掘り > フォールバック > IDが見つかれば暫定表示）
   const showBadge: boolean =
     typeof timeAdjustable === "boolean"
       ? timeAdjustable
-      : (resolvedAdjustable ?? fallbackBool ?? (timeAdjId ? true : false));
+      : (resolvedAdjustable ?? fallbackBool ?? (deep.id ? true : false));
 
-  // バッジ文言（親 > マスター > 旧フィールド文言 > 既定）
+  // バッジ文言（親 > マスター/深掘り > 旧フィールド文言 > 既定）
   const badgeText: string =
     timeAdjustText ??
     resolvedLabel ??
     (readString(shift, "timeAdjustNote") ?? readString(shift, "time_adjust_note")) ??
     DEFAULT_BADGE_TEXT;
 
-  /* =============== Render =============== */
+  /* ===================== Render ===================== */
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
