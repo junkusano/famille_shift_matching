@@ -107,12 +107,8 @@ export default function ShiftCard({
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
-  const [masterLabel, setMasterLabel] = useState<string | undefined>(undefined);
   const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(undefined);
   const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(undefined);
-
-  const openDialog = () => setOpen(true);
-  const closeDialog = () => setOpen(false);
 
   const timeAdjId = useMemo(
     () => pickIdString(shift, ["time_adjustability_id", "timeAdjustabilityId", "time_adjustability", "timeAdjustability"]),
@@ -126,7 +122,6 @@ export default function ShiftCard({
     if (!row) return;
     const badge = row.badge_text || row.label;
     setMasterBadgeText(badge);
-    setMasterLabel(row.label);
     setMasterAdjustable(typeof row.is_adjustable === "boolean" ? row.is_adjustable : guessAdjustableFromText(badge));
   }, [timeAdjId, timeAdjustMaster]);
 
@@ -140,7 +135,6 @@ export default function ShiftCard({
         const c = timeAdjCache.get(timeAdjId)!;
         if (!cancelled) {
           setMasterBadgeText(c.badgeText ?? c.label);
-          setMasterLabel(c.label);
           setMasterAdjustable(c.isAdjustable);
         }
         return;
@@ -164,7 +158,6 @@ export default function ShiftCard({
         timeAdjCache.set(timeAdjId, cached);
         if (!cancelled) {
           setMasterBadgeText(badge);
-          setMasterLabel(label);
           setMasterAdjustable(isAdj);
         }
       } catch (e) {
@@ -210,9 +203,6 @@ export default function ShiftCard({
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
-
-        {/* 付随情報（必要なら戻す） */}
-        {/* 通学/備考のダイアログは一旦簡略化。復活が必要ならここに MiniInfo を戻す */}
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
