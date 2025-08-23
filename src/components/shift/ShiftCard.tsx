@@ -22,22 +22,25 @@ type Props = {
   creatingRequest?: boolean;
   onReject?: (reason: string) => void;
   extraActions?: React.ReactNode;
+
   /** 親で強制ON/OFF */
   timeAdjustable?: boolean;
   /** 親で表示文言 */
   timeAdjustText?: string;
-  /** 親からマスター（id→行）を渡すとDBアクセス不要に */
+  /** 親からマスター（id→行）を渡すとDBアクセス不要に
+   *  例: { "uuid": { label: "±1.0Hまで可", Advance_adjustability: 1, Backwoard_adjustability: 1 } }
+   */
   timeAdjustMaster?: Record<
     string,
-    { label: string; is_adjustable?: boolean; badge_text?: string }
+    { label: string; Advance_adjustability?: number | string; Backwoard_adjustability?: number | string }
   >;
-  /** Supabaseテーブル名（未指定なら m_time_adjustability） */
+  /** Supabaseテーブル名（未指定なら cs_kaipoke_time_adjustability） */
   timeAdjustabilityTableName?: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
 
-/* ===================== 共通ヘルパ ===================== */
+/* =============== ヘルパ =============== */
 const DEFAULT_BADGE_TEXT = "時間変更調整";
 
 function coerceBoolean(v: unknown): boolean | undefined {
@@ -52,7 +55,6 @@ function coerceBoolean(v: unknown): boolean | undefined {
   }
   return undefined;
 }
-
 function pickBooleanish(obj: unknown, keys: readonly string[]): boolean | undefined {
   if (typeof obj !== "object" || obj === null) return undefined;
   const rec = obj as UnknownRecord;
@@ -62,7 +64,6 @@ function pickBooleanish(obj: unknown, keys: readonly string[]): boolean | undefi
   }
   return undefined;
 }
-
 function pickNonEmptyString(obj: unknown, keys: readonly string[]): string | undefined {
   if (typeof obj !== "object" || obj === null) return undefined;
   const rec = obj as UnknownRecord;
@@ -75,7 +76,6 @@ function pickNonEmptyString(obj: unknown, keys: readonly string[]): string | und
   }
   return undefined;
 }
-
 function readString(obj: unknown, key: string): string | undefined {
   if (typeof obj !== "object" || obj === null) return undefined;
   const rec = obj as UnknownRecord;
@@ -91,94 +91,48 @@ function readBool(obj: unknown, key: string): boolean | undefined {
   const rec = obj as UnknownRecord;
   return coerceBoolean(rec[key]);
 }
-/*
-function pickIdString(obj: unknown, keys: readonly string[]): string | undefined {
-  if (typeof obj !== "object" || obj === null) return undefined;
-  const rec = obj as UnknownRecord;
-  for (const k of keys) {
-    const v = rec[k];
-    if (v === undefined || v === null) continue;
-    if (typeof v === "string") {
-      const t = v.trim();
-      if (t !== "") return t;
-    }
-    if (typeof v === "number") return String(v);
+function num(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    if (!Number.isNaN(n)) return n;
   }
   return undefined;
 }
-*/
 
-function guessAdjustableFromText(text: string): boolean {
-  const t = text.toLowerCase();
-  if (t.includes("不可") || t.includes("ng")) return false;
-  if (
-    t.includes("可") ||
-    t.includes("調整") ||
-    t.includes("±") ||
-    t.includes("前後") ||
-    t.includes("ok") ||
-    t.includes("要相談")
-  )
-    return true;
-  return true; // 不明は可で仮表示（必要なら false に変更）
-}
-
-/** ネスト or 直値 どちらでも time_adjustability を抽出 */
-function extractTimeAdjustFromShift(shift: unknown): {
-  id?: string;
-  badge?: string;
-  adjustable?: boolean;
-} {
-  if (typeof shift !== "object" || shift === null) return {};
+/** time_adjustability_id を 1)トップレベル 2) cs_kaipoke_info / kaipoke_info の順に探索 */
+function extractTimeAdjustabilityId(shift: unknown): string | undefined {
+  if (typeof shift !== "object" || shift === null) return undefined;
   const rec = shift as UnknownRecord;
 
-  // 1) ネスト: time_adjustability / timeAdjustability が { id, label, badge_text, is_adjustable }
-  let nested = rec["time_adjustability"];
-  if (!nested) nested = rec["timeAdjustability"];
-  if (nested && typeof nested === "object") {
-    const o = nested as UnknownRecord;
-    const id =
-      typeof o.id === "string" && o.id.trim() !== ""
-        ? o.id.trim()
-        : typeof o.id === "number"
-        ? String(o.id)
-        : undefined;
-    const badge =
-      (typeof o.badge_text === "string" && o.badge_text.trim() !== "" && o.badge_text.trim()) ||
-      (typeof o.label === "string" && o.label.trim() !== "" && o.label.trim()) ||
-      (typeof o.name === "string" && o.name.trim() !== "" && o.name.trim());
-    const adjustable =
-      typeof o.is_adjustable === "boolean"
-        ? o.is_adjustable
-        : badge
-        ? guessAdjustableFromText(badge)
-        : undefined;
-    return { id, badge, adjustable };
-  }
-
-  // 2) 直値: *_id 系
-  const rawId =
+  let raw =
     rec["time_adjustability_id"] ??
     rec["timeAdjustabilityId"] ??
     rec["time_adjustability"] ??
     rec["timeAdjustability"];
-  const id =
-    typeof rawId === "string"
-      ? rawId
-      : typeof rawId === "number"
-      ? String(rawId)
-      : undefined;
+  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
+  if (typeof raw === "number") return String(raw);
 
-  return { id };
+  const info = (rec["cs_kaipoke_info"] ?? rec["kaipoke_info"]) as UnknownRecord | undefined;
+  if (info && typeof info === "object") {
+    raw =
+      info["time_adjustability_id"] ??
+      info["timeAdjustabilityId"] ??
+      info["time_adjustability"] ??
+      info["timeAdjustability"];
+    if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
+    if (typeof raw === "number") return String(raw);
+  }
+  return undefined;
 }
 
-/* ===================== キャッシュ ===================== */
+/* =============== キャッシュ =============== */
 const timeAdjCache = new Map<
   string,
-  { label: string; isAdjustable: boolean; badgeText?: string }
+  { label: string; adv?: number; back?: number }
 >();
 
-/* ===================== Component ===================== */
+/* =============== Component =============== */
 export default function ShiftCard({
   shift,
   mode,
@@ -189,14 +143,14 @@ export default function ShiftCard({
   timeAdjustable,
   timeAdjustText,
   timeAdjustMaster,
-  timeAdjustabilityTableName = "m_time_adjustability",
+  timeAdjustabilityTableName = "cs_kaipoke_time_adjustability",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
-  // MiniInfo（利用者名・通学・備考）
+  // 利用者名/備考など
   const MiniInfo = () => (
     <>
       <div className="text-sm">
@@ -250,78 +204,59 @@ export default function ShiftCard({
     </>
   );
 
-  /* ====== time_adjustability（ネスト/直値どちらでも） ====== */
-  const nested = useMemo(() => extractTimeAdjustFromShift(shift), [shift]);
+  /* ====== time_adjustability（ID取得→ラベル/可否を解決） ====== */
+  const timeAdjId = useMemo(() => extractTimeAdjustabilityId(shift), [shift]);
 
-  // マスターからの値（初期はネストの値をそのまま採用）
-  const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(
-    nested.badge
-  );
-  const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(
-    nested.adjustable
-  );
+  const [resolvedLabel, setResolvedLabel] = useState<string | undefined>(undefined);
+  const [resolvedAdjustable, setResolvedAdjustable] = useState<boolean | undefined>(undefined);
 
-  // 1) 親からのマップ優先
+  // 1) 親マップを優先
   useEffect(() => {
-    if (!nested.id || !timeAdjustMaster) return;
-    const row = timeAdjustMaster[String(nested.id)];
+    if (!timeAdjId || !timeAdjustMaster) return;
+    const row = timeAdjustMaster[String(timeAdjId)];
     if (!row) return;
-    const badge = row.badge_text || row.label;
-    setMasterBadgeText(badge);
-    setMasterAdjustable(
-      typeof row.is_adjustable === "boolean"
-        ? row.is_adjustable
-        : guessAdjustableFromText(badge || "")
-    );
-  }, [nested.id, timeAdjustMaster]);
+    const adv = num(row.Advance_adjustability) ?? 0;
+    const back = num(row.Backwoard_adjustability) ?? 0;
+    setResolvedLabel(row.label);
+    setResolvedAdjustable(adv !== 0 || back !== 0);
+  }, [timeAdjId, timeAdjustMaster]);
 
-  // 2) 親マップが無い場合、Supabaseで単発取得（キャッシュあり）
+  // 2) 親マップが無ければ Supabase 単発（キャッシュあり）
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!nested.id) return;
-      if (timeAdjustMaster) return; // すでに親から供給済み
-      if (timeAdjCache.has(nested.id)) {
-        const c = timeAdjCache.get(nested.id)!;
+      if (!timeAdjId) return;
+      if (timeAdjustMaster) return; // 親から供給済
+      if (timeAdjCache.has(timeAdjId)) {
+        const c = timeAdjCache.get(timeAdjId)!;
         if (!cancelled) {
-          setMasterBadgeText(c.badgeText ?? c.label);
-          setMasterAdjustable(c.isAdjustable);
+          setResolvedLabel(c.label);
+          setResolvedAdjustable((c.adv ?? 0) !== 0 || (c.back ?? 0) !== 0);
         }
         return;
       }
-      try {
-        const { data, error } = await supabase
-          .from(timeAdjustabilityTableName)
-          .select("id,label,badge_text,is_adjustable")
-          .eq("id", nested.id)
-          .maybeSingle();
-        if (error || !data) return;
-        const rec = data as UnknownRecord;
-        const label =
-          typeof rec.label === "string" ? rec.label : String(nested.id);
-        const badge =
-          typeof rec.badge_text === "string" && rec.badge_text.trim() !== ""
-            ? rec.badge_text
-            : label;
-        const isAdj =
-          typeof rec.is_adjustable === "boolean"
-            ? rec.is_adjustable
-            : guessAdjustableFromText(badge);
-        timeAdjCache.set(nested.id, { label, isAdjustable: isAdj, badgeText: badge });
-        if (!cancelled) {
-          setMasterBadgeText(badge);
-          setMasterAdjustable(isAdj);
-        }
-      } catch {
-        /* no-op */
+      const { data, error } = await supabase
+        .from(timeAdjustabilityTableName)
+        .select("id,label,Advance_adjustability,Backwoard_adjustability")
+        .eq("id", timeAdjId)
+        .maybeSingle();
+      if (error || !data) return;
+      const rec = data as UnknownRecord;
+      const label = typeof rec.label === "string" ? rec.label : String(timeAdjId);
+      const adv = num(rec["Advance_adjustability"]) ?? 0;
+      const back = num(rec["Backwoard_adjustability"]) ?? 0;
+      timeAdjCache.set(timeAdjId, { label, adv, back });
+      if (!cancelled) {
+        setResolvedLabel(label);
+        setResolvedAdjustable(adv !== 0 || back !== 0);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [nested.id, timeAdjustMaster, timeAdjustabilityTableName]);
+  }, [timeAdjId, timeAdjustMaster, timeAdjustabilityTableName]);
 
-  // 3) 旧フィールドのフォールバック
+  // 3) 旧フィールドのフォールバック（※無くてもOK）
   const fallbackBool = useMemo(
     () =>
       (readBool(shift, "time_adjustable") ??
@@ -333,21 +268,20 @@ export default function ShiftCard({
     [shift]
   );
 
-  // 4) 最終判定（親 > マスター > フォールバック > ネスト/IDがあれば暫定表示）
+  // 4) 最終判定（親 > マスター > フォールバック > IDがあれば暫定表示）
   const showBadge: boolean =
     typeof timeAdjustable === "boolean"
       ? timeAdjustable
-      : (masterAdjustable ?? fallbackBool ?? (nested.id || nested.badge ? true : false));
+      : (resolvedAdjustable ?? fallbackBool ?? (timeAdjId ? true : false));
 
-  // バッジ文言（親 > マスター > ネスト > 旧フィールド > 既定）
+  // バッジ文言（親 > マスター > 旧フィールド文言 > 既定）
   const badgeText: string =
     timeAdjustText ??
-    masterBadgeText ??
-    nested.badge ??
+    resolvedLabel ??
     (readString(shift, "timeAdjustNote") ?? readString(shift, "time_adjust_note")) ??
     DEFAULT_BADGE_TEXT;
 
-  /* ===================== Render ===================== */
+  /* =============== Render =============== */
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
@@ -357,10 +291,7 @@ export default function ShiftCard({
             {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
           </div>
           {showBadge && (
-            <span
-              className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300"
-              title={badgeText}
-            >
+            <span className="text-[11px] px-2 py-0.5 rounded bg-pink-100 border border-pink-300" title={badgeText}>
               {badgeText}
             </span>
           )}
