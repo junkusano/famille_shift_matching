@@ -300,6 +300,7 @@ function hoursDiff(a: Date, b: Date) {
 }
 
 // 置き換え: isTimeAdjustNeeded
+/*
 function isTimeAdjustNeeded(
     shift: ShiftData,
     window: { start: Date | null; end: Date | null },
@@ -337,6 +338,7 @@ function isTimeAdjustNeeded(
 
     return okLater && okEarlier;
 }
+*/
 
 // ===================== UI部品 =====================
 
@@ -469,6 +471,7 @@ export default function ShiftPage() {
 
     const [showFinder, setShowFinder] = useState(false);
     const [finderWindow, setFinderWindow] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+    void finderWindow;
     const [finderAnchor, setFinderAnchor] = useState<string | null>(null); // ←どこに出すか
     const [candidateShifts, setCandidateShifts] = useState<ShiftData[]>([]);
     const [candidateFilter] = useState<{ postal?: string[]; gender?: string[]; service?: string[] }>({});
