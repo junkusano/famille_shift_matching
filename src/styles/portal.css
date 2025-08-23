@@ -229,35 +229,34 @@
   }
 }
 
-/* === 横スクロール帯（候補カード専用）=== */
+/* === 横スクロール帯（候補カード専用：nowrap 版）=== */
 .shift-rail {
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: auto;               /* ← ここがスクロール発生源 */
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable both-edges;
 }
 
-/* ← ここをGridにするのがポイント */
 .shift-rail__inner {
-  display: grid;
-  grid-auto-flow: column;     /* 横方向へ列を自動追加 */
-  grid-auto-columns: 280px;   /* 1カード = 280px に固定 */
-  gap: 0.75rem;
-  padding-right: 0.5rem;
+  white-space: nowrap;            /* ← 折り返さない */
 }
 
-/* アイテムはもう幅指定不要（あってもOK） */
 .shift-rail__item {
-  /* 何も書かなくてOK。付けるなら： */
-  /* overflow: hidden;  <- 子のはみ出し保険 */
+  display: inline-block;          /* ← 横に並べる */
+  vertical-align: top;
+  width: 280px;                   /* ← 1カード幅を固定 */
+  margin-right: 0.75rem;          /* gap相当 */
+  white-space: normal;            /* 子要素は折返しOKに戻す */
 }
 
-/* 念のため、カード本体にはみ出しがあっても横幅を超えないように */
+/* 念のため、カード本体がはみ出さない保険 */
 .shift-rail__item > * {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
 }
+
+.content { min-width: 0; }
