@@ -110,6 +110,61 @@ export default function ShiftCard({
   const [masterBadgeText, setMasterBadgeText] = useState<string | undefined>(undefined);
   const [masterAdjustable, setMasterAdjustable] = useState<boolean | undefined>(undefined);
 
+  // ====== MiniInfo（利用者名・通学・備考）
+  const MiniInfo = () => (
+    <>
+      <div className="text-sm">
+        利用者名: {shift.client_name ?? "—"} 様
+         {(pickBooleanish(shift, ["commuting_flg", "commutingFlg"]) ?? false) && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[480px]">
+              <div className="text-sm space-y-2">
+                <div>
+                  <strong>通所経路等</strong>
+                  <p>
+                    {[shift.standard_route, shift.standard_trans_ways, shift.standard_purpose]
+                      .filter(Boolean)
+                      .join(" / ") || "—"}
+                  </p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+      <div
+        className="text-sm"
+        style={{
+          color:
+            shift.gender_request_name === "男性希望"
+              ? "blue"
+              : shift.gender_request_name === "女性希望"
+              ? "red"
+              : "black",
+        }}
+      >
+        性別希望: {shift.gender_request_name ?? "—"}
+        {pickNonEmptyString(shift, ["biko"]) && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[480px]">
+              <div className="text-sm">
+                <strong>備考</strong>
+                <p>{pickNonEmptyString(shift, ["biko"])}</p>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    </>
+  );
+
+  // ====== time_adjustability 判定（id→マスター）
   const timeAdjId = useMemo(
     () => pickIdString(shift, ["time_adjustability_id", "timeAdjustabilityId", "time_adjustability", "timeAdjustability"]),
     [shift]
@@ -130,7 +185,7 @@ export default function ShiftCard({
     let cancelled = false;
     (async () => {
       if (!timeAdjId) return;
-      if (timeAdjustMaster) return; // すでに親から供給
+      if (timeAdjustMaster) return; // 親から供給済み
       if (timeAdjCache.has(timeAdjId)) {
         const c = timeAdjCache.get(timeAdjId)!;
         if (!cancelled) {
@@ -177,7 +232,7 @@ export default function ShiftCard({
 
   const hasId = Boolean(timeAdjId);
 
-  // 4) 最終判定（親 > マスター > フォールバック > IDがあるなら楽観表示）
+  // 4) 最終判定（親 > マスター > フォールバック > IDがあるなら暫定表示）
   const showBadge: boolean =
     typeof timeAdjustable === "boolean"
       ? timeAdjustable
@@ -189,6 +244,7 @@ export default function ShiftCard({
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
       <CardContent className="p-4">
+        {/* ヘッダ行 */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">
             {shift.shift_start_date} {shift.shift_start_time?.slice(0, 5)}～{shift.shift_end_time?.slice(0, 5)}
@@ -200,10 +256,17 @@ export default function ShiftCard({
           )}
         </div>
 
+        {/* 基本情報 */}
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
 
+        {/* ここで MiniInfo を確実に表示 */}
+        <div className="mt-2 space-y-1">
+          <MiniInfo />
+        </div>
+
+        {/* アクション */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
