@@ -1,3 +1,4 @@
+//types/shift
 export interface SupabaseShiftRaw {
   shift_id: string;
   shift_start_date: string;
@@ -41,4 +42,5 @@ export interface ShiftData {
   standard_trans_ways?: string;
   standard_purpose?: string;
   biko?: string;
+  level_sort_order?: number | null;
 }
