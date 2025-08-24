@@ -100,10 +100,12 @@ export default function ShiftPage() {
 
             // ② LSO フィルタ（null は許可、数値は 3,500,000 以下のみ）
             //    未アサイン（staff_01_user_id === "-"）も従来どおり通します。
-            const formattedLso = formatted.filter(s =>
-                s.staff_01_user_id === "-" ||
-                (s.level_sort_order !== null && s.level_sort_order <= 3_500_000)
-            );
+            // ② LSO フィルタ（置き換え）:contentReference[oaicite:1]{index=1}
+            const formattedLso = formatted.filter(s => {
+                const lso = s.level_sort_order;
+                return lso === null || (typeof lso === "number" && lso <= 3_500_000);
+            });
+
 
             // ③ 並び替え（必要に応じて）
             const sorted = formattedLso.sort((a, b) => {

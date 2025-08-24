@@ -496,15 +496,14 @@ export default function ShiftPage() {
             return Array.from(set).sort();
         });
 
-        // ★ level_sort_order フィルタを追加
+        // level_sort_order フィルタ（このままでOK）:contentReference[oaicite:5]{index=5}
         const filtered2 = filtered.filter(s => {
             const lso = s.level_sort_order;
             return lso === null || (typeof lso === "number" && lso <= 3_500_000);
         });
-
-        // この filtered2 を以降に渡す
         setRawCandidates(filtered2);
         setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
+
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
