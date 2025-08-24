@@ -317,18 +317,22 @@ export default function ShiftCard({
   };
 
   // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
-if (mode === "request") {
-  const raw = (shift as any).level_sort_order; // ← ここは any 不可なら unknown でもOK
-  const lso =
-    typeof raw === "number" ? raw :
-    typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) :
-    raw === null ? null :
-    undefined; // undefined は不許可
+  // ShiftCard.tsx （request 判定部）
 
-  const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
-  if (!canShow) return null;
-}
+  if (mode === "request") {
+    // shift は ShiftData 型なのでそのまま参照可能
+    const raw = shift.level_sort_order;
+    const lso =
+      typeof raw === "number" ? raw :
+        typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw))
+          ? Number(raw)
+          : raw === null
+            ? null
+            : undefined; // undefined は不許可
 
+    const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
+    if (!canShow) return null;
+  }
 
   /* ------- Render ------- */
   return (
