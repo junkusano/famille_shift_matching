@@ -271,7 +271,7 @@ export default function ShiftCard({
                 <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
               </DialogTrigger>
               <DialogPortal>
-                <DialogContent className="z-[100]">
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-auto mr-4">
                   <div className="text-sm space-y-2">
                     <div>
                       <strong>通所経路等</strong>
@@ -302,7 +302,7 @@ export default function ShiftCard({
                 <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
               </DialogTrigger>
               <DialogPortal>
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px]">
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-auto mr-4">
                   <div className="text-sm">
                     <strong>備考</strong>
                     <p>{biko}</p>
@@ -366,7 +366,7 @@ export default function ShiftCard({
               )}
             </DialogTrigger>
             <DialogPortal>
-              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px]">
+              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-auto mr-4">
                 {mode === "request" ? (
                   <>
                     <DialogTitle>このシフトを希望しますか？</DialogTitle>
