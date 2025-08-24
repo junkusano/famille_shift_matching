@@ -322,10 +322,10 @@ export default function ShiftCard({
 
   useEffect(() => {
     let cancelled = false;
-    setAllow(null); // ローディング開始
+    setAllow(null); // ロード中フラグ
 
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("shift_csinfo_postalname_view")
         .select("level_sort_order")
         .eq("shift_id", shift.shift_id)
@@ -333,18 +333,24 @@ export default function ShiftCard({
 
       if (cancelled) return;
 
-      const n = Number(data?.level_sort_order);
-      // 数値で取れて、かつ 3,500,000 以下 だけ「表示許可」
-      setAllow(Number.isFinite(n) && n <= 3_500_000);
+      if (error) {
+        console.error(error);
+        setAllow(false);
+        return;
+      }
+
+      const lso: number | null = data?.level_sort_order ?? null;
+      // ★ int4 なのでそのまま比較でOK
+      setAllow(lso === null || lso <= 3500000);
     })();
 
     return () => { cancelled = true; };
   }, [shift.shift_id]);
 
-  // request モードの可視判定（これだけ）
+  // --- request モードの可視判定 ---
   if (mode === "request") {
-    if (allow === null) return null;  // 読み込み中は出さない
-    if (!allow) return null;          // 許可されなければ出さない
+    if (allow === null) return null; // 読み込み中は表示しない
+    if (!allow) return null;         // 条件を満たさなければ非表示
   }
 
   /* ------- Render ------- */
