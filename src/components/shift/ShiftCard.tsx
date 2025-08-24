@@ -328,45 +328,35 @@ export default function ShiftCard({
     );
   };
 
-  // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
-  // 1) state を追加
-  const [lsoResolved, setLsoResolved] = useState<number | null | undefined>(undefined);
-  const [lsoLoading, setLsoLoading] = useState(true);
+  // これだけ持つ：true=表示, false=非表示, null=読込中
+  const [allow, setAllow] = useState<boolean | null>(null);
 
-  // 2) 取得ロジック
   useEffect(() => {
     let cancelled = false;
+    setAllow(null); // ローディング開始
+
     (async () => {
-      setLsoLoading(true);
-      // まず props の値を正規化
-      const now = normalizeLso(shift.level_sort_order);
-      if (now !== undefined) {
-        if (!cancelled) { setLsoResolved(now); setLsoLoading(false); }
-        return;
-      }
-      // undefined のときだけ view から補完
       const { data } = await supabase
         .from("shift_csinfo_postalname_view")
         .select("level_sort_order")
         .eq("shift_id", shift.shift_id)
         .maybeSingle();
 
-      if (!cancelled) {
-        setLsoResolved(normalizeLso(data?.level_sort_order) ?? null);
-        setLsoLoading(false);
-      }
+      if (cancelled) return;
+
+      const n = Number(data?.level_sort_order);
+      // 数値で取れて、かつ 3,500,000 以下 だけ「表示許可」
+      setAllow(Number.isFinite(n) && n <= 3_500_000);
     })();
+
     return () => { cancelled = true; };
-  }, [shift.shift_id, shift.level_sort_order]);
+  }, [shift.shift_id]);
 
-  // 3) request モードのゲート
+  // request モードの可視判定（これだけ）
   if (mode === "request") {
-    if (lsoLoading) return null; // ← 取得完了まで描画しない
-    const lso = lsoResolved;
-    const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
-    if (!canShow) return null;
+    if (allow === null) return null;  // 読み込み中は出さない
+    if (!allow) return null;          // 許可されなければ出さない
   }
-
 
   /* ------- Render ------- */
   return (
