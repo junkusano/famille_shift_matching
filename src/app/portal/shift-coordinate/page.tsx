@@ -84,7 +84,7 @@ export default function ShiftPage() {
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order <= 3500000 ))
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
