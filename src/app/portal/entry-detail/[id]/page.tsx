@@ -378,7 +378,7 @@ export default function EntryDetailPage() {
                 .single();
             if (error) return;
 
-            const entryLevelSort = data.level_sort ?? 999999;
+            const entryLevelSort = data.level_sort ?? 99999999;
             if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
                 setRestricted(true);
                 return;
