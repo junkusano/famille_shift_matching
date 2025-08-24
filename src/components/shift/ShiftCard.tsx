@@ -316,16 +316,33 @@ export default function ShiftCard({
     );
   };
 
-  // ★ ShiftCard 内、returnの直前に追加
-  const lso = shift.level_sort_order ?? null;
-  const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-    .every(v => !v || v === "-");
-
-  const canShowByLevel = lso !== null ? lso <= 3_500_000 : false;
-  const canShow = canShowByLevel || noAssignees;
-
-  if (mode === "request" && !canShow) {
+  // 安全に level_sort_order を取得（型に無くてもOK）
+  function getLevelSortOrder(src: unknown): number | null {
+    if (src && typeof src === "object") {
+      const rec = src as Record<string, unknown>;
+      const cand =
+        rec["level_sort_order"] ??
+        rec["levelSortOrder"] ??
+        ((rec["level"] as Record<string, unknown> | undefined)?.["sort_order"]);
+      const num = typeof cand === "number" ? cand
+        : typeof cand === "string" ? Number(cand)
+          : NaN;
+      return Number.isFinite(num) ? num : null;
+    }
     return null;
+  }
+
+  // ★ 表示ガード（request のときだけ）
+  if (mode === "request") {
+    const lso = getLevelSortOrder(shift);
+    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+      .every(v => !v || v === "-");
+
+    // ← ここを「未定義は通す(true)」に変更
+    const canShowByLevel = (lso === null) ? true : lso <= 3_500_000;
+    const canShow = canShowByLevel || noAssignees;
+
+    if (!canShow) return null;
   }
 
   /* ------- Render ------- */
