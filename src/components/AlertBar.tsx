@@ -67,6 +67,8 @@ export default function AlertBar() {
     return filtered.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   }, [allRows, role]);
 
+  if (!loading && rows.length === 0) return null;
+  
   // 未処理件数
   const openCount = useMemo(() => rows.filter((r) => r.status === "open").length, [rows]);
 

@@ -198,7 +198,7 @@ export default function EntryDetailPage() {
             uploaded_at: p.uploaded_at ?? now,
             acquired_at: p.acquired_at ?? p.uploaded_at ?? now,
         }));
-    }, [entry?.attachments]);
+    }, [entry]);
 
     const handleCreateKaipokeUser = async () => {
         if (!entry || !userId) {
@@ -369,27 +369,26 @@ export default function EntryDetailPage() {
     }, []);
 
     useEffect(() => {
-        const fetchEntryWithStatus = async () => {
+        if (!id) return;
+        (async () => {
             const { data, error } = await supabase
                 .from('form_entries_with_status')
                 .select('*')
                 .eq('id', id)
                 .single();
-            if (error) {
-                console.error('取得エラー:', error.message);
-                return;
-            }
+            if (error) return;
+
             const entryLevelSort = data.level_sort ?? 999999;
-            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+            if (myLevelSort !== null && entryLevelSort < myLevelSort) {
                 setRestricted(true);
                 return;
             }
+            setRestricted(false);
             setEntry(normalizeEntryFromDb(data));
             setManagerNote(data?.manager_note ?? '');
-        };
+        })();
+    }, [id, myLevelSort]);  // ★依存を揃える
 
-        if (id) fetchEntryWithStatus();
-    }, [id, myLevelSort]); // ← myLevelSort を追加
 
     const fetchExistingIds = async () => {
         const { data } = await supabase.from('users').select('user_id');
@@ -416,7 +415,7 @@ export default function EntryDetailPage() {
 
             // level_sort による制限
             const entryLevelSort = data.level_sort ?? 999999;
-            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+            if (myLevelSort !== null && entryLevelSort < myLevelSort) {
                 setRestricted(true);
                 return;
             }
@@ -1129,7 +1128,7 @@ export default function EntryDetailPage() {
     if (restricted) {
         return <p className="p-6 text-red-600 font-bold">このエントリーにはアクセスできません（権限不足）</p>;
     }
-
+    if (!entry) return <p className="p-4">読み込み中...</p>;
 
     //認証ユーザーレコードを削除する
     const handleDeleteAuthUser = async () => {
@@ -2106,7 +2105,7 @@ export default function EntryDetailPage() {
                                         </span>
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                    　　{/* 一覧の各カード内　*/}
+                                        {/* 一覧の各カード内　*/}
                                         <label className="...">
                                             差し替え
                                             <input
