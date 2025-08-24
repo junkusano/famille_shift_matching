@@ -1043,7 +1043,7 @@ export default function EntryDetailPage() {
     // 写真再アップロー
 
     // 2. Entryの再取得関数
-    /*
+    
     const fetchEntry = useCallback(async () => {
         const { data, error } = await supabase
             .from('form_entries')
@@ -1056,7 +1056,7 @@ export default function EntryDetailPage() {
     useEffect(() => {
         if (id) fetchEntry();
     }, [id, fetchEntry, myLevelSort]);
-    */
+    
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
