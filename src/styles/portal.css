@@ -260,3 +260,8 @@
 }
 
 .content { min-width: 0; }
+
+.alert-count-red {
+  color: red;
+  font-weight: bold;
+}
