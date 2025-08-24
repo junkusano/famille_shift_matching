@@ -317,20 +317,17 @@ export default function ShiftCard({
   };
 
   // ★ ShiftCard 内、returnの直前に追加
-  // 表示条件： level_sort_order <= 3,500,000  または  3枠とも未担当
   const lso = (shift as any)?.level_sort_order; // 型に無くても落ちないよう any 経由で参照
   const hasLso = typeof lso === "number";
   const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
     .every(v => !v || v === "-");
 
-  // level_sort_order が取れたらそれで判定、取れない場合は「未担当のみ」許可
   const canShowByLevel = hasLso ? lso <= 3_500_000 : false;
   const canShow = canShowByLevel || noAssignees;
 
   if (mode === "request" && !canShow) {
-    return null; // カード自体を非表示
+    return null; // ★ 条件を満たさないときはカードごと非表示
   }
-
   /* ------- Render ------- */
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
