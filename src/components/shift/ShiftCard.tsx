@@ -170,7 +170,7 @@ export default function ShiftCard({
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
-  
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -316,15 +316,19 @@ export default function ShiftCard({
     );
   };
 
-  if (mode === "request") {
-    const lso = typeof shift.level_sort_order === "number" ? shift.level_sort_order : null;
-    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every(v => !v || v === "-");
+  // ★ ShiftCard 内、returnの直前に追加
+  // 表示条件： level_sort_order <= 3,500,000  または  3枠とも未担当
+  const lso = (shift as any)?.level_sort_order; // 型に無くても落ちないよう any 経由で参照
+  const hasLso = typeof lso === "number";
+  const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+    .every(v => !v || v === "-");
 
-    const canShow = (lso !== null && lso <= 3_500_000) || noAssignees;
-    if (!canShow) {
-      return null; // 条件を満たさないときはカードごと非表示
-    }
+  // level_sort_order が取れたらそれで判定、取れない場合は「未担当のみ」許可
+  const canShowByLevel = hasLso ? lso <= 3_500_000 : false;
+  const canShow = canShowByLevel || noAssignees;
+
+  if (mode === "request" && !canShow) {
+    return null; // カード自体を非表示
   }
 
   /* ------- Render ------- */
