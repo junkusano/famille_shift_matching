@@ -341,7 +341,7 @@ export default function ShiftCard({
 
       const lso: number | null = data?.level_sort_order ?? null;
       // ★ int4 なのでそのまま比較でOK
-      setAllow(lso === null || lso <= 3500000);
+      setAllow(lso <= 3500000);
     })();
 
     return () => { cancelled = true; };
