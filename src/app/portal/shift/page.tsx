@@ -411,6 +411,23 @@ export default function ShiftPage() {
     const [serviceOptions, setServiceOptions] = useState<string[]>([]);
     const genderOptions = ["男性希望", "女性希望", "指定なし"] as const;
 
+    // 候補の“元配列”を保持
+    const [rawCandidates, setRawCandidates] = useState<ShiftData[]>([]);
+
+    const normalizeGender = (g: string) => (g?.trim() === "" ? "指定なし" : g.trim());
+    const VALID_GENDERS = new Set(["男性希望", "女性希望", "指定なし"]);
+
+    function getEffectiveFilters() {
+        const areaSet = new Set(areaOptions.map(o => o.code));
+        const svcSet = new Set(serviceOptions);
+        return {
+            area: filterArea.filter(v => areaSet.has(v)),
+            svc: filterService.filter(v => svcSet.has(v)),
+            gender: filterGender
+                .map(v => v.trim())
+                .filter(v => VALID_GENDERS.has(v)),
+        };
+    }
     // 保存キー
     const storageKey = useMemo(
         () => (userId ? `shift-candidate-filters:${userId}` : null),
@@ -421,13 +438,16 @@ export default function ShiftPage() {
     void myWindows;
 
     function applyCandidateFilters(list: ShiftData[]) {
+        const { area, svc, gender } = getEffectiveFilters();
+        const noFilters = area.length === 0 && svc.length === 0 && gender.length === 0;
+        if (noFilters) return list; // ← ここが超重要
+
         return list.filter((s) => {
-            if (filterArea.length > 0 && !filterArea.includes(s.postal_code_3 || "")) return false;
-            if (filterService.length > 0 && !filterService.includes(s.service_code || "")) return false;
-            if (filterGender.length > 0) {
-                const g = (s.gender_request_name || "").trim();
-                const normalized = g === "" ? "指定なし" : g;
-                if (!filterGender.includes(normalized)) return false;
+            if (area.length > 0 && !area.includes(s.postal_code_3 || "")) return false;
+            if (svc.length > 0 && !svc.includes(s.service_code || "")) return false;
+            if (gender.length > 0) {
+                const g = normalizeGender(s.gender_request_name || "");
+                if (!gender.includes(g)) return false;
             }
             return true;
         });
@@ -451,6 +471,10 @@ export default function ShiftPage() {
             .filter(s => !myShiftIds.has(s.shift_id))
             .filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
 
+        // ...filtered を作った直後（areaOptions / serviceOptions の set 後）に：
+        const { area, svc, gender } = getEffectiveFilters();
+        const noFilters = area.length === 0 && svc.length === 0 && gender.length === 0;
+
         // ★エリア選択肢の抽出（postal_code_3 + district）
         // エリア選択肢
         setAreaOptions(() => {
@@ -471,7 +495,8 @@ export default function ShiftPage() {
         });
 
         // フィルタ適用
-        setCandidateShifts(applyCandidateFilters(filtered));
+        setRawCandidates(filtered); // ← 追加（任意）
+        setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
@@ -553,6 +578,18 @@ export default function ShiftPage() {
         } finally {
             setCreatingShiftRequest(false);
         }
+    }
+
+    function clearFilters() {
+        setFilterArea([]);
+        setFilterService([]);
+        setFilterGender([]);
+        // 保存しているものもクリア
+        if (storageKey) {
+            localStorage.removeItem(storageKey);
+        }
+        // 候補を表示中なら元一覧に戻す
+        setCandidateShifts(rawCandidates);
     }
 
     // 月カレンダー用：その月のシフトを取得し、ログインユーザー分のみ日別件数に集計
@@ -698,6 +735,11 @@ export default function ShiftPage() {
 
         void fetchData();
     }, [shiftDate]);
+
+    useEffect(() => {
+        if (!showFinder) return;
+        setCandidateShifts(applyCandidateFilters(rawCandidates));
+    }, [showFinder, rawCandidates, filterArea, filterService, filterGender]);
 
     useEffect(() => {
         if (!showFinder) return;
@@ -917,6 +959,21 @@ export default function ShiftPage() {
                         <div className="text-xs text-gray-500 mt-1">
                             条件はこのユーザーで保存され、次回以降も引き継がれます。
                         </div>
+
+                        <div className="text-xs text-gray-500 mt-1">
+                            条件はこのユーザーで保存され、次回以降も引き継がれます。
+                        </div>
+
+                        <div className="mt-2">
+                            <button
+                                type="button"
+                                onClick={clearFilters}
+                                className="px-3 py-1 text-sm rounded bg-gray-400 text-white hover:bg-gray-500"
+                            >
+                                条件をクリア
+                            </button>
+                        </div>
+
                     </div>
                 )}
             </div>
