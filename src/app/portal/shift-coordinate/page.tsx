@@ -36,12 +36,8 @@ export default function ShiftPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            // JST 今日の YYYY-MM-DD
-            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
-                .toISOString()
-                .split("T")[0];
+            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-            // ユーザー
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -54,7 +50,7 @@ export default function ShiftPage() {
             setAccountId(userRecord?.user_id || "");
             setKaipokeUserId(userRecord?.kaipoke_user_id || "");
 
-            // 全件（今後日付で更に絞るならここで）
+            // 直近データ取得
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
@@ -72,19 +68,18 @@ export default function ShiftPage() {
                 .order("postal_code_3");
 
             if (!allShifts.length) {
-                setShifts([]);
-                setFilteredShifts([]);
+                setShifts([]); setFilteredShifts([]);
                 setFilterOptions({ dateOptions: [], serviceOptions: [], postalOptions: [], nameOptions: [], genderOptions: [] });
                 return;
             }
 
-            // ① 正規化（level_sort_order は number|null に揃えるが、以降の絞り込みには使わない）
+            // 正規化（LSO は number|null にするが以降は使わない）
             const formatted = (allShifts as SupabaseShiftRaw[]).map((s): ShiftData => ({
                 shift_id: s.shift_id,
                 shift_start_date: s.shift_start_date,
                 shift_start_time: s.shift_start_time,
                 shift_end_time: s.shift_end_time,
-                service_code: s.service_code,
+                service_code: s.service_code || "",
                 kaipoke_cs_id: s.kaipoke_cs_id,
                 staff_01_user_id: s.staff_01_user_id,
                 staff_02_user_id: s.staff_02_user_id,
@@ -92,21 +87,23 @@ export default function ShiftPage() {
                 address: s.postal_code || "",
                 client_name: s.name || "",
                 gender_request_name: s.gender_request_name || "",
-                male_flg: s.male_flg || false,
-                female_flg: s.female_flg || false,
+                male_flg: !!s.male_flg,
+                female_flg: !!s.female_flg,
                 postal_code_3: s.postal_code_3 || "",
                 district: s.district || "",
                 level_sort_order:
                     s.level_sort_order === null || s.level_sort_order === undefined
                         ? null
-                        : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
+                        : (Number.isFinite(Number(String(s.level_sort_order).replace(/[_,]/g, "")))
+                            ? Number(String(s.level_sort_order).replace(/[_,]/g, ""))
+                            : null),
             }));
 
-            // ② 未アサインのみ（★ LSO 条件は完全に外す）
-            const formattedUnassigned = formatted.filter(s => s.staff_01_user_id === "-");
+            // ★ LSO は使わず、未アサインのみ
+            const unassigned = formatted.filter(s => s.staff_01_user_id === "-");
 
-            // ③ 並び替え
-            const sorted = formattedUnassigned.sort((a, b) => {
+            // 並び替え
+            const sorted = unassigned.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
                 if (d1 !== d2) return d1.localeCompare(d2);
@@ -114,37 +111,39 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            // ④ cs 情報マージ
-            const csIds = Array.from(new Set(formattedUnassigned.map(f => f.kaipoke_cs_id))).filter(Boolean);
+            // cs 追加情報
+            const csIds = Array.from(new Set(unassigned.map(f => f.kaipoke_cs_id))).filter(Boolean);
             const { data: csInfoData } = await supabase
                 .from("cs_kaipoke_info")
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
-                .in("kaipoke_cs_id", csIds.length ? csIds : ["__dummy__"]); // 空配列ガード
+                .in("kaipoke_cs_id", csIds.length ? csIds : ["__dummy__"]);
 
-            const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
-
-            const merged = formattedUnassigned.map(shift => {
-                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
+            const m = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
+            const merged = unassigned.map(shift => {
+                const cs = m.get(shift.kaipoke_cs_id);
                 return {
                     ...shift,
-                    cs_name: csInfo?.name ?? "",
-                    commuting_flg: csInfo?.commuting_flg ?? false,
-                    standard_route: csInfo?.standard_route ?? "",
-                    standard_trans_ways: csInfo?.standard_trans_ways ?? "",
-                    standard_purpose: csInfo?.standard_purpose ?? "",
-                    biko: csInfo?.biko ?? "",
+                    cs_name: cs?.name ?? "",
+                    commuting_flg: !!cs?.commuting_flg,
+                    standard_route: cs?.standard_route ?? "",
+                    standard_trans_ways: cs?.standard_trans_ways ?? "",
+                    standard_purpose: cs?.standard_purpose ?? "",
+                    biko: cs?.biko ?? "",
                 };
             });
 
-            // ⑤ 反映
             setShifts(merged);
             setFilteredShifts(merged);
             setFilterOptions(extractFilterOptions(sorted, postalDistricts));
+
+            // —— デバッグ：分布を一時出力（完了したら消してOK）
+            const cntNull = merged.filter(s => s.level_sort_order === null).length;
+            const cntNum = merged.filter(s => typeof s.level_sort_order === "number").length;
+            console.log("[/shift-coordinate] merged:", merged.length, { lsoNull: cntNull, lsoNumber: cntNum });
         };
 
         fetchData();
     }, []);
-
 
     const applyFilters = () => {
         const result = shifts.filter((s) =>
