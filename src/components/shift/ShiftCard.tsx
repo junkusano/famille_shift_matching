@@ -51,6 +51,17 @@ function coerceBool(v: unknown): boolean | undefined {
   }
   return undefined;
 }
+
+function normalizeLso(v: unknown): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 // 追加：オブジェクトのどこにあっても kaipoke_cs_id を再帰で探す（配列対応・循環防止）
 function deepFindKaipokeCsId(node: unknown, maxDepth = 5): string | undefined {
   const seen = new Set<unknown>();
@@ -319,20 +330,36 @@ export default function ShiftCard({
   // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
   // ShiftCard.tsx （request 判定部）
 
-  if (mode === "request") {
-    // shift は ShiftData 型なのでそのまま参照可能
-    const raw = shift.level_sort_order;
-    const lso =
-      typeof raw === "number" ? raw :
-        typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw))
-          ? Number(raw)
-          : raw === null
-            ? null
-            : undefined; // undefined は不許可
+  // ★ return 直前の request モード判定を丸ごと置換（現在のブロックは ここです） 
+  const [lsoResolved, setLsoResolved] = useState<number | null | undefined>(
+    normalizeLso(shift.level_sort_order)
+  );
 
+  useEffect(() => {
+    // 既に number/null なら追加取得不要
+    const now = normalizeLso(shift.level_sort_order);
+    if (now !== undefined) { setLsoResolved(now); return; }
+
+    // undefined のときだけ、view から補完取得（/shift-coordinate は map で渡していないため） 
+    (async () => {
+      const { data } = await supabase
+        .from("shift_csinfo_postalname_view")       // どちらのページもこの view を使っている  
+        .select("level_sort_order")
+        .eq("shift_id", shift.shift_id)
+        .maybeSingle();
+
+      setLsoResolved(normalizeLso(data?.level_sort_order) ?? null);
+    })();
+  }, [shift.shift_id, shift.level_sort_order]);
+
+  // --- 可視判定 ---
+  if (mode === "request") {
+    // 仕様：NULL または 3,500,000 以下のみ表示。undefined は非表示。
+    const lso = lsoResolved;
     const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
     if (!canShow) return null;
   }
+
 
   /* ------- Render ------- */
   return (
