@@ -49,6 +49,8 @@ const SEVERITY_BADGE: Record<number, string> = {
 
 export default function AlertBar() {
     const { role } = useRoleContext(); // 'admin' | 'manager' | 'staff' など
+    // これだけで “role 未確定/未保有なら一切動かない”
+    if (!role) return null;
     const [rows, setRows] = useState<AlertRow[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -59,6 +61,7 @@ export default function AlertBar() {
     const canEditAll = role === 'admin' || role === 'manager';
 
     const fetchAlerts = async () => {
+        if (!role) return;
         setLoading(true);
         // RLSでroleフィルタされる前提（アプリ側フィルタも保険で実施）
         const { data, error } = await supabase
@@ -69,7 +72,8 @@ export default function AlertBar() {
             .limit(100);
 
         if (error) {
-            console.error(error);
+            console.warn('alert_log read error', error);
+            setRows([]);
             setLoading(false);
             return;
         }
@@ -83,6 +87,7 @@ export default function AlertBar() {
     };
 
     useEffect(() => {
+        if (!role) return;
         fetchAlerts();
         // Realtime購読（任意）
         const ch = supabase

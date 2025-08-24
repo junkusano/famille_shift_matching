@@ -153,7 +153,7 @@ export default function EntryDetailPage() {
     const splitToArray = (s: string) => s.split(/[、,，\s]+/).filter(Boolean);
 
     // DBレコード -> 画面用（常に文字列で保持）へ正規化
-    const normalizeEntryFromDb = useCallback((data: FormEntriesRow): EntryDetailEx => {
+    const normalizeEntryFromDb = (data: FormEntriesRow): EntryDetailEx => {
         setWorkStylesIsArray(Array.isArray(data.work_styles));
         setCommuteIsArray(Array.isArray(data.commute_options));
 
@@ -166,8 +166,7 @@ export default function EntryDetailPage() {
             : (data.commute_options ?? '');
 
         return { ...data, work_styles: ws, commute_options: cm } as EntryDetailEx;
-    }, [setWorkStylesIsArray, setCommuteIsArray]);
-
+    };
 
     // 追記: ログ用に実行者IDを取るヘルパ
     const getCurrentUserId = async () => {
@@ -403,40 +402,34 @@ export default function EntryDetailPage() {
 
 
     useEffect(() => {
-        const entryId = Array.isArray(id) ? id[0] : id;
-        if (!entryId) return;
-
         const fetchEntry = async () => {
             const { data, error } = await supabase
-                .from('form_entries_with_status')
+                .from('form_entries_with_status')  // ← `with_status` に変更必須！
                 .select('*')
-                .eq('id', entryId)
+                .eq('id', id)
                 .single();
 
             if (error) {
                 console.error('取得エラー:', error.message);
                 return;
             }
-            if (!data) return;
 
-            const entryLevelSort: number | null = (data as any).level_sort ?? null;
-
-            // 自分のレベルが判明していて、かつ相手に level_sort がある場合だけ比較
-            if (myLevelSort !== null && entryLevelSort !== null) {
-                // 小さいほど“強い”権限 → 自分より上位なら不可
-                if (entryLevelSort < myLevelSort) {
-                    setRestricted(true);
-                    return;
-                }
+            // level_sort による制限
+            const entryLevelSort = data.level_sort ?? 999999;
+            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+                setRestricted(true);
+                return;
             }
 
-            setRestricted(false);
-            setEntry(normalizeEntryFromDb(data as FormEntriesRow));
-            setManagerNote((data as any)?.manager_note ?? '');
+            // setEntry(data);
+            setEntry(normalizeEntryFromDb(data));
+            setManagerNote(data?.manager_note ?? '');
+
         };
 
-        fetchEntry();
-    }, [id, myLevelSort, normalizeEntryFromDb]);
+
+        if (id) fetchEntry();
+    }, [id]);
 
     useEffect(() => {
         if (entry && existingIds.length) {
@@ -1046,7 +1039,6 @@ export default function EntryDetailPage() {
     // 写真再アップロー
 
     // 2. Entryの再取得関数
-
     const fetchEntry = useCallback(async () => {
         const { data, error } = await supabase
             .from('form_entries')
@@ -1059,7 +1051,6 @@ export default function EntryDetailPage() {
     useEffect(() => {
         if (id) fetchEntry();
     }, [id, fetchEntry, myLevelSort]);
-
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
@@ -2115,7 +2106,7 @@ export default function EntryDetailPage() {
                                         </span>
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                        {/* 一覧の各カード内　*/}
+                                    　　{/* 一覧の各カード内　*/}
                                         <label className="...">
                                             差し替え
                                             <input
