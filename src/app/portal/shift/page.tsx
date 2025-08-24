@@ -501,6 +501,10 @@ export default function ShiftPage() {
             const lso = s.level_sort_order;
             return lso === null || (typeof lso === "number" && lso <= 3_500_000);
         });
+
+        setRawCandidates(filtered);
+        setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
+
         setRawCandidates(filtered2);
         setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
 

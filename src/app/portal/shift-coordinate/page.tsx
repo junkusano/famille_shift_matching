@@ -98,14 +98,13 @@ export default function ShiftPage() {
                         : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
             }));
 
-            // ② LSO フィルタ（null は許可、数値は 3,500,000 以下のみ）
-            //    未アサイン（staff_01_user_id === "-"）も従来どおり通します。
-            // ② LSO フィルタ（置き換え）:contentReference[oaicite:1]{index=1}
-            const formattedLso = formatted.filter(s => {
-                const lso = s.level_sort_order;
-                return lso === null || (typeof lso === "number" && lso <= 3_500_000);
-            });
+            // ② LSO フィルタ（null は許可、数値は 3,500,000 以下のみ）＋ 未アサインのみ
+            const passLso = (lso: number | null) =>
+                lso === null || (typeof lso === "number" && lso <= 3_500_000);
 
+            const formattedLso = formatted.filter(s =>
+                s.staff_01_user_id === "-" && passLso(s.level_sort_order)
+            );
 
             // ③ 並び替え（必要に応じて）
             const sorted = formattedLso.sort((a, b) => {
