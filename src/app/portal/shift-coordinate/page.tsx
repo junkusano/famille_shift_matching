@@ -36,7 +36,12 @@ export default function ShiftPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+            // JST 今日の YYYY-MM-DD
+            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
+                .toISOString()
+                .split("T")[0];
+
+            // ユーザー
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -45,9 +50,11 @@ export default function ShiftPage() {
                 .select("user_id, kaipoke_user_id")
                 .eq("auth_user_id", user.id)
                 .single();
+
             setAccountId(userRecord?.user_id || "");
             setKaipokeUserId(userRecord?.kaipoke_user_id || "");
 
+            // 全件（今後日付で更に絞るならここで）
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
@@ -60,44 +67,46 @@ export default function ShiftPage() {
                 allShifts.push(...data);
             }
 
-            //alert("allShifts length:" + allShifts?.length);
-
             const { data: postalDistricts } = await supabase
                 .from("postal_district")
                 .select("postal_code_3, district")
                 .order("postal_code_3");
 
-            if (!allShifts) return;
+            if (!allShifts.length) return;
 
-            const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
-                .map((s): ShiftData => ({
-                    shift_id: s.shift_id,
-                    shift_start_date: s.shift_start_date,
-                    shift_start_time: s.shift_start_time,
-                    shift_end_time: s.shift_end_time,
-                    service_code: s.service_code,
-                    kaipoke_cs_id: s.kaipoke_cs_id,
-                    staff_01_user_id: s.staff_01_user_id,
-                    staff_02_user_id: s.staff_02_user_id,
-                    staff_03_user_id: s.staff_03_user_id,
-                    address: s.postal_code || "",
-                    client_name: s.name || "",
-                    gender_request_name: s.gender_request_name || "",
-                    male_flg: s.male_flg || false,
-                    female_flg: s.female_flg || false,
-                    postal_code_3: s.postal_code_3 || "",
-                    district: s.district || "",
-                    level_sort_order:
-                        s.level_sort_order === null || s.level_sort_order === undefined
-                            ? null
-                            : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
+            // ① 正規化（ここで level_sort_order を number|null に統一）
+            const formatted = (allShifts as SupabaseShiftRaw[]).map((s): ShiftData => ({
+                shift_id: s.shift_id,
+                shift_start_date: s.shift_start_date,
+                shift_start_time: s.shift_start_time,
+                shift_end_time: s.shift_end_time,
+                service_code: s.service_code,
+                kaipoke_cs_id: s.kaipoke_cs_id,
+                staff_01_user_id: s.staff_01_user_id,
+                staff_02_user_id: s.staff_02_user_id,
+                staff_03_user_id: s.staff_03_user_id,
+                address: s.postal_code || "",
+                client_name: s.name || "",
+                gender_request_name: s.gender_request_name || "",
+                male_flg: s.male_flg || false,
+                female_flg: s.female_flg || false,
+                postal_code_3: s.postal_code_3 || "",
+                district: s.district || "",
+                level_sort_order:
+                    s.level_sort_order === null || s.level_sort_order === undefined
+                        ? null
+                        : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
+            }));
 
-                }));
+            // ② LSO フィルタ（null は許可、数値は 3,500,000 以下のみ）
+            //    未アサイン（staff_01_user_id === "-"）も従来どおり通します。
+            const formattedLso = formatted.filter(s =>
+                s.staff_01_user_id === "-" ||
+                (s.level_sort_order !== null && s.level_sort_order <= 3_500_000)
+            );
 
-            //alert("filtered shiftData before map:" + formatted.length);
-
-            const sorted = formatted.sort((a, b) => {
+            // ③ 並び替え（必要に応じて）
+            const sorted = formattedLso.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
                 if (d1 !== d2) return d1.localeCompare(d2);
@@ -105,16 +114,15 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            //alert("sorted length:" + sorted.length);
-
+            // ④ cs 情報をマージ（表示用の補足）
             const { data: csInfoData } = await supabase
                 .from("cs_kaipoke_info")
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
-                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
+                .in("kaipoke_cs_id", formattedLso.map(f => f.kaipoke_cs_id));
 
             const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
 
-            const merged = formatted.map(shift => {
+            const merged = formattedLso.map(shift => {
                 const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
                 return {
                     ...shift,
@@ -126,11 +134,10 @@ export default function ShiftPage() {
                     biko: csInfo?.biko ?? '',
                 };
             });
+
+            // ⑤ 反映
             setShifts(merged);
             setFilteredShifts(merged);
-
-            //setShifts(sorted);
-            //setFilteredShifts(sorted);
             setFilterOptions(extractFilterOptions(sorted, postalDistricts));
         };
 

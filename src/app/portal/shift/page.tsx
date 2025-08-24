@@ -145,7 +145,6 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
     const filtered = all.filter(
         (s) => s.staff_01_user_id === "-" // ← LSO 条件は削除。最終判定は ShiftCard に委譲
     );
-
     const { data: postalDistricts } = await supabase
         .from("postal_district")
         .select("postal_code_3, district")
@@ -497,9 +496,15 @@ export default function ShiftPage() {
             return Array.from(set).sort();
         });
 
-        // フィルタ適用
-        setRawCandidates(filtered); // ← 追加（任意）
-        setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
+        // ★ level_sort_order フィルタを追加
+        const filtered2 = filtered.filter(s => {
+            const lso = s.level_sort_order;
+            return lso === null || (typeof lso === "number" && lso <= 3_500_000);
+        });
+
+        // この filtered2 を以降に渡す
+        setRawCandidates(filtered2);
+        setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
