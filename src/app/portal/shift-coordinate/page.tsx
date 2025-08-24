@@ -3,13 +3,27 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+/*import {
+    Dialog,
+    DialogTrigger,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+*/
 import { Button } from "@/components/ui/button";
+//import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
+//import Image from 'next/image';
+//import { useMemo } from "react";
+//import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
+//import { format as formatTz } from "date-fns-tz";
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
+
 
 const PAGE_SIZE = 100;
 
@@ -37,7 +51,6 @@ export default function ShiftPage() {
     useEffect(() => {
         const fetchData = async () => {
             const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
-
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -46,11 +59,9 @@ export default function ShiftPage() {
                 .select("user_id, kaipoke_user_id")
                 .eq("auth_user_id", user.id)
                 .single();
-
             setAccountId(userRecord?.user_id || "");
             setKaipokeUserId(userRecord?.kaipoke_user_id || "");
 
-            // 直近データ取得
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
@@ -58,52 +69,44 @@ export default function ShiftPage() {
                     .select("*")
                     .gte("shift_start_date", jstNow)
                     .range(i * 1000, (i + 1) * 1000 - 1);
+
                 if (error || !data?.length) break;
                 allShifts.push(...data);
             }
+
+            //alert("allShifts length:" + allShifts?.length);
 
             const { data: postalDistricts } = await supabase
                 .from("postal_district")
                 .select("postal_code_3, district")
                 .order("postal_code_3");
 
-            if (!allShifts.length) {
-                setShifts([]); setFilteredShifts([]);
-                setFilterOptions({ dateOptions: [], serviceOptions: [], postalOptions: [], nameOptions: [], genderOptions: [] });
-                return;
-            }
+            if (!allShifts) return;
 
-            // 正規化（LSO は number|null にするが以降は使わない）
-            const formatted = (allShifts as SupabaseShiftRaw[]).map((s): ShiftData => ({
-                shift_id: s.shift_id,
-                shift_start_date: s.shift_start_date,
-                shift_start_time: s.shift_start_time,
-                shift_end_time: s.shift_end_time,
-                service_code: s.service_code || "",
-                kaipoke_cs_id: s.kaipoke_cs_id,
-                staff_01_user_id: s.staff_01_user_id,
-                staff_02_user_id: s.staff_02_user_id,
-                staff_03_user_id: s.staff_03_user_id,
-                address: s.postal_code || "",
-                client_name: s.name || "",
-                gender_request_name: s.gender_request_name || "",
-                male_flg: !!s.male_flg,
-                female_flg: !!s.female_flg,
-                postal_code_3: s.postal_code_3 || "",
-                district: s.district || "",
-                level_sort_order:
-                    s.level_sort_order === null || s.level_sort_order === undefined
-                        ? null
-                        : (Number.isFinite(Number(String(s.level_sort_order).replace(/[_,]/g, "")))
-                            ? Number(String(s.level_sort_order).replace(/[_,]/g, ""))
-                            : null),
-            }));
+            const formatted = (allShifts as SupabaseShiftRaw[])
+                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+                .map((s): ShiftData => ({
+                    shift_id: s.shift_id,
+                    shift_start_date: s.shift_start_date,
+                    shift_start_time: s.shift_start_time,
+                    shift_end_time: s.shift_end_time,
+                    service_code: s.service_code,
+                    kaipoke_cs_id: s.kaipoke_cs_id,
+                    staff_01_user_id: s.staff_01_user_id,
+                    staff_02_user_id: s.staff_02_user_id,
+                    staff_03_user_id: s.staff_03_user_id,
+                    address: s.postal_code || "",
+                    client_name: s.name || "",
+                    gender_request_name: s.gender_request_name || "",
+                    male_flg: s.male_flg || false,
+                    female_flg: s.female_flg || false,
+                    postal_code_3: s.postal_code_3 || "",
+                    district: s.district || "",
+                }));
 
-            // ★ LSO は使わず、未アサインのみ
-            const unassigned = formatted.filter(s => s.staff_01_user_id === "-");
+            //alert("filtered shiftData before map:" + formatted.length);
 
-            // 並び替え
-            const sorted = unassigned.sort((a, b) => {
+            const sorted = formatted.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
                 if (d1 !== d2) return d1.localeCompare(d2);
@@ -111,35 +114,33 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            // cs 追加情報
-            const csIds = Array.from(new Set(unassigned.map(f => f.kaipoke_cs_id))).filter(Boolean);
+            //alert("sorted length:" + sorted.length);
+
             const { data: csInfoData } = await supabase
                 .from("cs_kaipoke_info")
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
-                .in("kaipoke_cs_id", csIds.length ? csIds : ["__dummy__"]);
+                .in("kaipoke_cs_id", formatted.map(f => f.kaipoke_cs_id));
 
-            const m = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
-            const merged = unassigned.map(shift => {
-                const cs = m.get(shift.kaipoke_cs_id);
+            const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
+
+            const merged = formatted.map(shift => {
+                const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
                 return {
                     ...shift,
-                    cs_name: cs?.name ?? "",
-                    commuting_flg: !!cs?.commuting_flg,
-                    standard_route: cs?.standard_route ?? "",
-                    standard_trans_ways: cs?.standard_trans_ways ?? "",
-                    standard_purpose: cs?.standard_purpose ?? "",
-                    biko: cs?.biko ?? "",
+                    cs_name: csInfo?.name ?? '',
+                    commuting_flg: csInfo?.commuting_flg ?? false,
+                    standard_route: csInfo?.standard_route ?? '',
+                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
+                    standard_purpose: csInfo?.standard_purpose ?? '',
+                    biko: csInfo?.biko ?? '',
                 };
             });
-
             setShifts(merged);
             setFilteredShifts(merged);
-            setFilterOptions(extractFilterOptions(sorted, postalDistricts));
 
-            // —— デバッグ：分布を一時出力（完了したら消してOK）
-            const cntNull = merged.filter(s => s.level_sort_order === null).length;
-            const cntNum = merged.filter(s => typeof s.level_sort_order === "number").length;
-            console.log("[/shift-coordinate] merged:", merged.length, { lsoNull: cntNull, lsoNumber: cntNum });
+            //setShifts(sorted);
+            //setFilteredShifts(sorted);
+            setFilterOptions(extractFilterOptions(sorted, postalDistricts));
         };
 
         fetchData();

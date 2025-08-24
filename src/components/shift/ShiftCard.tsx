@@ -170,7 +170,6 @@ export default function ShiftCard({
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -315,16 +314,6 @@ export default function ShiftCard({
       </>
     );
   };
-
-  // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
-  /*
-  if (mode === "request") {
-    const lso: number | null | undefined = shift.level_sort_order;
-    // nullは許可、数値は3,500,000以下のみ許可。undefinedは不許可。
-    const canShow = lso === null || (typeof lso === "number" && lso <= 3500000);
-    if (!canShow) return null;
-  }
-    */
 
   /* ------- Render ------- */
   return (
