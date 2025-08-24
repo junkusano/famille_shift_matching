@@ -472,10 +472,6 @@ export default function ShiftPage() {
 
         // フィルタ適用
         setCandidateShifts(applyCandidateFilters(filtered));
-
-
-        // ★フィルタ適用後に表示
-        setCandidateShifts(applyCandidateFilters(filtered));
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
