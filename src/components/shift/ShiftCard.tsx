@@ -52,17 +52,6 @@ function coerceBool(v: unknown): boolean | undefined {
   return undefined;
 }
 
-// 先頭の helpers あたりに置く
-function normalizeLso(v: unknown): number | null | undefined {
-  if (v === null) return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
-  if (typeof v === "string") {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  return undefined;
-}
-
 // 追加：オブジェクトのどこにあっても kaipoke_cs_id を再帰で探す（配列対応・循環防止）
 function deepFindKaipokeCsId(node: unknown, maxDepth = 5): string | undefined {
   const seen = new Set<unknown>();
