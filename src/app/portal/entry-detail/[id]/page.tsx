@@ -415,18 +415,22 @@ export default function EntryDetailPage() {
             }
 
             // level_sort による制限
-            const entryLevelSort = data.level_sort ?? 999999;
-            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
-                setRestricted(true);
-                return;
+            const entryLevelSort: number | null = data.level_sort ?? null;
+            if (myLevelSort !== null && entryLevelSort !== null) {
+                // 小さいほど“強い”権限という前提：自分より「上位(数値が小さい)」は閲覧禁止
+                if (entryLevelSort < myLevelSort) {
+                    setRestricted(true);
+                    return;
+                }
             }
+            // ★ここまで来たら閲覧可。念のため解除しておく
+            setRestricted(false);
 
             // setEntry(data);
             setEntry(normalizeEntryFromDb(data));
             setManagerNote(data?.manager_note ?? '');
 
         };
-
 
         if (id) fetchEntry();
     }, [id]);
@@ -1039,6 +1043,7 @@ export default function EntryDetailPage() {
     // 写真再アップロー
 
     // 2. Entryの再取得関数
+    /*
     const fetchEntry = useCallback(async () => {
         const { data, error } = await supabase
             .from('form_entries')
@@ -1051,6 +1056,7 @@ export default function EntryDetailPage() {
     useEffect(() => {
         if (id) fetchEntry();
     }, [id, fetchEntry, myLevelSort]);
+    */
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
@@ -2106,7 +2112,7 @@ export default function EntryDetailPage() {
                                         </span>
                                     </div>
                                     <div className="mt-2 flex items-center gap-2">
-                                    　　{/* 一覧の各カード内　*/}
+                                        {/* 一覧の各カード内　*/}
                                         <label className="...">
                                             差し替え
                                             <input
