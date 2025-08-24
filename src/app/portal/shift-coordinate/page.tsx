@@ -3,27 +3,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-/*import {
-    Dialog,
-    DialogTrigger,
-    DialogContent,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
-*/
 import { Button } from "@/components/ui/button";
-//import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
-//import Image from 'next/image';
-//import { useMemo } from "react";
-//import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
-//import { format as formatTz } from "date-fns-tz";
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
-
 
 const PAGE_SIZE = 100;
 

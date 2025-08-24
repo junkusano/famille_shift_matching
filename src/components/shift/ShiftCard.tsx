@@ -316,16 +316,14 @@ export default function ShiftCard({
     );
   };
 
-  // components/shift/ShiftCard.tsx で return の直前に
+  // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
   if (mode === "request") {
-    // ShiftData に level_sort_order が追加されているので、そのまま参照可能
     const lso: number | null | undefined = shift.level_sort_order;
-
-    // null の場合は「NULL 扱い」とする
-    const canShow = lso === null || lso === undefined || lso <= 3_500_000;
-
+    // nullは許可、数値は3,500,000以下のみ許可。undefinedは不許可。
+    const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
     if (!canShow) return null;
   }
+
 
   /* ------- Render ------- */
   return (
