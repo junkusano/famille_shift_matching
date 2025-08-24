@@ -51,7 +51,6 @@ function coerceBool(v: unknown): boolean | undefined {
   }
   return undefined;
 }
-
 // 追加：オブジェクトのどこにあっても kaipoke_cs_id を再帰で探す（配列対応・循環防止）
 function deepFindKaipokeCsId(node: unknown, maxDepth = 5): string | undefined {
   const seen = new Set<unknown>();
@@ -317,39 +316,12 @@ export default function ShiftCard({
     );
   };
 
-  // ShiftCard.tsx の allow 用 useEffect を置き換え
-  const [allow, setAllow] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setAllow(null); // ローディング
-
-    (async () => {
-      const { data, error } = await supabase
-        .from("shift_csinfo_postalname_view")
-        .select("shift_id, level_sort_order")
-        .eq("shift_id", shift.shift_id);
-
-      console.log("DEBUG shift_id", shift.shift_id, data, error);
-      if (cancelled) return;
-
-      if (error) {
-        console.error("[LSO query error]", error);
-        setAllow(false);
-        return;
-      }
-
-      // 数値行が1件でも取れたら表示許可、取れなければ禁止
-      setAllow(!!data && data.length > 0);
-    })();
-
-    return () => { cancelled = true; };
-  }, [shift.shift_id]);
-
-  // request モードのゲート
+  // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
   if (mode === "request") {
-    if (allow === null) return null; // ロード中は表示しない
-    if (!allow) return null;         // 条件に合わなければ非表示
+    const lso: number | null | undefined = shift.level_sort_order;
+    // nullは許可、数値は3,500,000以下のみ許可。undefinedは不許可。
+    const canShow = lso === null || (typeof lso === "number" && lso <= 3500000);
+    if (!canShow) return null;
   }
 
   /* ------- Render ------- */
