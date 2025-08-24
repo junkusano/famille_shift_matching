@@ -497,16 +497,18 @@ export default function ShiftPage() {
         });
 
         // level_sort_order フィルタ（このままでOK）:contentReference[oaicite:5]{index=5}
+        /*
         const filtered2 = filtered.filter(s => {
             const lso = s.level_sort_order;
             return lso === null || (typeof lso === "number" && lso <= 3_500_000);
         });
+        */
 
         setRawCandidates(filtered);
         setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
 
-        setRawCandidates(filtered2);
-        setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
+        //setRawCandidates(filtered2);
+        //setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
 
     }
 
