@@ -317,12 +317,17 @@ export default function ShiftCard({
   };
 
   // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
-  if (mode === "request") {
-    const lso: number | null | undefined = shift.level_sort_order;
-    // nullは許可、数値は3,500,000以下のみ許可。undefinedは不許可。
-    const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
-    if (!canShow) return null;
-  }
+if (mode === "request") {
+  const raw = (shift as any).level_sort_order; // ← ここは any 不可なら unknown でもOK
+  const lso =
+    typeof raw === "number" ? raw :
+    typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) :
+    raw === null ? null :
+    undefined; // undefined は不許可
+
+  const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
+  if (!canShow) return null;
+}
 
 
   /* ------- Render ------- */
