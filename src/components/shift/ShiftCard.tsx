@@ -318,15 +318,13 @@ export default function ShiftCard({
 
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
-    const lso = shift.level_sort_order ?? null;
+    const lso =
+      typeof (shift as any).level_sort_order === "number"
+        ? (shift as any).level_sort_order
+        : null;
 
-    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every(v => !v || v === "-");
-
-    // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
-    const canShowByLevel = (lso !== null) && (lso <= 3_500_000);
-    const canShow = noAssignees || canShowByLevel;
-
+    // requestモードは「<= 3,500,000」または「NULL」だけ表示
+    const canShow = lso === null || lso <= 3_500_000;
     if (!canShow) return null;
   }
 
