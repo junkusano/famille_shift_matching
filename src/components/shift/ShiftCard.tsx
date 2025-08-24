@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
+  Dialog, DialogTrigger, DialogContent, DialogPortal, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
 import { supabase } from "@/lib/supabaseClient";
@@ -274,14 +270,16 @@ export default function ShiftCard({
               <DialogTrigger asChild>
                 <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
               </DialogTrigger>
-              <DialogContent className="max-w-[480px]">
-                <div className="text-sm space-y-2">
-                  <div>
-                    <strong>通所経路等</strong>
-                    <p>{routeText}</p>
+              <DialogPortal>
+                <DialogContent className="z-[100]">
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <strong>通所経路等</strong>
+                      <p>{routeText}</p>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
+                </DialogContent>
+              </DialogPortal>
             </Dialog>
           )}
         </div>
@@ -303,12 +301,14 @@ export default function ShiftCard({
               <DialogTrigger asChild>
                 <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
               </DialogTrigger>
-              <DialogContent className="max-w-[480px]">
-                <div className="text-sm">
-                  <strong>備考</strong>
-                  <p>{biko}</p>
-                </div>
-              </DialogContent>
+              <DialogPortal>
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px]">
+                  <div className="text-sm">
+                    <strong>備考</strong>
+                    <p>{biko}</p>
+                  </div>
+                </DialogContent>
+              </DialogPortal>
             </Dialog>
           )}
         </div>
@@ -365,78 +365,79 @@ export default function ShiftCard({
                 </Button>
               )}
             </DialogTrigger>
-
-            <DialogContent className="max-w-[480px]">
-              {mode === "request" ? (
-                <>
-                  <DialogTitle>このシフトを希望しますか？</DialogTitle>
-                  <DialogDescription>
-                    希望を送信すると、シフトコーディネート申請が開始されます。
-                    <div className="mt-2 text-sm text-gray-500">
-                      利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+            <DialogPortal>
+              <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px]">
+                {mode === "request" ? (
+                  <>
+                    <DialogTitle>このシフトを希望しますか？</DialogTitle>
+                    <DialogDescription>
+                      希望を送信すると、シフトコーディネート申請が開始されます。
+                      <div className="mt-2 text-sm text-gray-500">
+                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
+                      </div>
+                      <label className="flex items-center mt-4 gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={attendRequest}
+                          onChange={(e) => setAttendRequest(e.target.checked)}
+                        />
+                        同行を希望する
+                      </label>
+                      <div className="mt-4">
+                        <label className="text-sm font-medium">希望の時間調整（任意）</label>
+                        <textarea
+                          value={timeAdjustNote}
+                          onChange={(e) => setTimeAdjustNote(e.target.value)}
+                          placeholder="例）開始を15分後ろに出来れば可 など"
+                          className="w-full mt-1 p-2 border rounded"
+                        />
+                      </div>
+                    </DialogDescription>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        キャンセル
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          onRequest?.(attendRequest, timeAdjustNote || undefined);
+                          setOpen(false);
+                        }}
+                        disabled={!!creatingRequest}
+                      >
+                        {creatingRequest ? "送信中..." : "希望を送信"}
+                      </Button>
                     </div>
-                    <label className="flex items-center mt-4 gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={attendRequest}
-                        onChange={(e) => setAttendRequest(e.target.checked)}
-                      />
-                      同行を希望する
-                    </label>
-                    <div className="mt-4">
-                      <label className="text-sm font-medium">希望の時間調整（任意）</label>
+                  </>
+                ) : (
+                  <>
+                    <DialogTitle>シフトに入れない</DialogTitle>
+                    <DialogDescription>
+                      {shift.client_name} 様のシフトを外します。理由を入力してください。
                       <textarea
-                        value={timeAdjustNote}
-                        onChange={(e) => setTimeAdjustNote(e.target.value)}
-                        placeholder="例）開始を15分後ろに出来れば可 など"
-                        className="w-full mt-1 p-2 border rounded"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="シフトに入れない理由"
+                        className="w-full mt-2 p-2 border"
                       />
+                    </DialogDescription>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        キャンセル
+                      </Button>
+                      <Button
+                        disabled={!reason}
+                        onClick={() => {
+                          onReject?.(reason);
+                          setOpen(false);
+                        }}
+                      >
+                        処理実行を確定
+                      </Button>
                     </div>
-                  </DialogDescription>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      キャンセル
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        onRequest?.(attendRequest, timeAdjustNote || undefined);
-                        setOpen(false);
-                      }}
-                      disabled={!!creatingRequest}
-                    >
-                      {creatingRequest ? "送信中..." : "希望を送信"}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <DialogTitle>シフトに入れない</DialogTitle>
-                  <DialogDescription>
-                    {shift.client_name} 様のシフトを外します。理由を入力してください。
-                    <textarea
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="シフトに入れない理由"
-                      className="w-full mt-2 p-2 border"
-                    />
-                  </DialogDescription>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      キャンセル
-                    </Button>
-                    <Button
-                      disabled={!reason}
-                      onClick={() => {
-                        onReject?.(reason);
-                        setOpen(false);
-                      }}
-                    >
-                      処理実行を確定
-                    </Button>
-                  </div>
-                </>
-              )}
-            </DialogContent>
+                  </>
+                )}
+              </DialogContent>
+            </DialogPortal>
           </Dialog>
 
           {extraActions}
