@@ -47,7 +47,6 @@ type ShiftViewRow = {
     standard_trans_ways: string | null;
     standard_purpose: string | null;
     biko: string | null;
-    level_sort_order?: number | null;
 };
 
 type PostalDistrictRow = {
@@ -177,11 +176,6 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         standard_trans_ways: s.standard_trans_ways ?? "",
         standard_purpose: s.standard_purpose ?? "",
         biko: s.biko ?? "",
-        level_sort_order:
-            s.level_sort_order === null || s.level_sort_order === undefined
-                ? null
-                : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
-
     }));
 
     return mapped;
