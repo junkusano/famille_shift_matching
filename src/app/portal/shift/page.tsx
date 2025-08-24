@@ -409,13 +409,13 @@ export default function ShiftPage() {
     // 選択肢
     const [areaOptions, setAreaOptions] = useState<Array<{ code: string; label: string }>>([]);
     const [serviceOptions, setServiceOptions] = useState<string[]>([]);
-    const genderOptions = ["男性希望", "女性希望", "指定なし"] as const;
+    const genderOptions = ["男性希望", "女性希望", "男女問わず"] as const;
 
     // 候補の“元配列”を保持
     const [rawCandidates, setRawCandidates] = useState<ShiftData[]>([]);
 
-    const normalizeGender = (g: string) => (g?.trim() === "" ? "指定なし" : g.trim());
-    const VALID_GENDERS = new Set(["男性希望", "女性希望", "指定なし"]);
+    const normalizeGender = (g: string) => (g?.trim() === "" ? "男女問わず" : g.trim());
+    const VALID_GENDERS = new Set(["男性希望", "女性希望", "男女問わず"]);
 
     function getEffectiveFilters() {
         const areaSet = new Set(areaOptions.map(o => o.code));
