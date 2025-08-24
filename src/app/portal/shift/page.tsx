@@ -1,7 +1,7 @@
 // /portal/shift
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import type { ShiftData } from "@/types/shift";
@@ -54,19 +54,6 @@ type PostalDistrictRow = {
     postal_code_3: string;
     district: string;
 };
-/*
-type CsKaipokeInfoRow = {
-    kaipoke_cs_id: string;
-    name: string | null;
-    commuting_flg: boolean | null;
-    standard_route: string | null;
-    standard_trans_ways: string | null;
-    standard_purpose: string | null;
-    biko: string | null;
-    // 「時間調整」カラム名は仮。存在しない場合は undefined になる想定
-    time_adjust_json?: unknown;
-};
-*/
 
 type AdjustSpec = { label?: string; advance?: number; back?: number; biko?: string };
 
@@ -99,14 +86,7 @@ function canFitWindow(
     return (needLater <= allowBack) && (needEarlier <= allowAdvance);
 }
 
-// ===== 空き時間候補取得まわりのヘルパ =====
-/*
-function hasAdjustCapability(spec?: AdjustSpec) {
-    const a = Number(spec?.advance ?? 0); // 早め
-    const b = Number(spec?.back ?? 0);    // 遅め
-    return a !== 0 || b !== 0;
-}
-*/
+
 // 当日自分シフトから空き窓を計算（前/間/後） — いまは未使用
 function computeFreeWindowsForSelectedDate(
     shifts: ShiftData[],
@@ -280,78 +260,6 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     return { map, merged };
 }
 
-/*
-function fitsWindow(s: ShiftData, start: Date | null, end: Date | null) {
-    const st = toJstDate(s.shift_start_date, s.shift_start_time);
-    const ed = toJstDate(s.shift_start_date, s.shift_end_time);
-    if (start && st < start) return false;
-    if (end && ed > end) return false;
-    return true;
-}
-*/
-
-// 指定の空き窓（start/end の間）に完全に収まる候補だけ返す
-/*
-function filterByWindow(list: ShiftData[], start: Date | null, end: Date | null): ShiftData[] {
-    if (!start && !end) return list;
-    return list.filter((s) => {
-        const st = toJstDate(s.shift_start_date, s.shift_start_time);
-        const ed = toJstDate(s.shift_start_date, s.shift_end_time);
-        if (start && st < start) return false;
-        if (end && ed > end) return false;
-        return true;
-    });
-}
-*/
-
-// 追加: 2時刻の差を[h]で返す（正の値だけ使う）
-/*
-function hoursDiff(a: Date, b: Date) {
-    return Math.abs(a.getTime() - b.getTime()) / (1000 * 60 * 60);
-}
-    */
-
-// 置き換え: isTimeAdjustNeeded
-/*
-function isTimeAdjustNeeded(
-    shift: ShiftData,
-    window: { start: Date | null; end: Date | null },
-    csAdjustMap: Record<string, { label?: string; advance?: number; back?: number; biko?: string }>
-): boolean {
-    const st = toJstDate(shift.shift_start_date, shift.shift_start_time);
-    const ed = toJstDate(shift.shift_start_date, shift.shift_end_time);
-
-    // そもそも完全に収まっていれば「時間調整不要」
-    const fits = (!window.start || st >= window.start) && (!window.end || ed <= window.end);
-    if (fits) return false;
-
-    const spec = csAdjustMap[shift.kaipoke_cs_id];
-    if (!spec) return false; // 情報がなければ不可扱い
-
-    const allowAdvance = Number(spec.advance ?? 0); // 早め（前倒し）
-    const allowBack = Number(spec.back ?? 0);       // 遅め（後ろ倒し）
-
-    // 必要な移動量を計算
-    let needEarlier = 0; // 早めたい量[h]
-    let needLater = 0;   // 遅らせたい量[h]
-
-    if (window.start && st < window.start) {
-        // 窓の開始より前に始まっている → 開始を遅らせる必要あり
-        needLater = hoursDiff(st, window.start);
-    }
-    if (window.end && ed > window.end) {
-        // 窓の終了をはみ出している → 開始を早める必要あり
-        needEarlier = hoursDiff(ed, window.end);
-    }
-
-    // 片側だけのはみ出しにも対応、両側は両方満たす必要あり
-    const okLater = needLater === 0 || needLater <= allowBack;
-    const okEarlier = needEarlier === 0 || needEarlier <= allowAdvance;
-
-    return okLater && okEarlier;
-}
-*/
-
 // ===================== UI部品 =====================
 
 function DateNavigator({
@@ -490,11 +398,53 @@ export default function ShiftPage() {
     void candidateFilter; // 現状未使用
     const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
     const [csAdjustMap, setCsAdjustMap] = useState<Record<string, { label?: string; advance?: number; back?: number; biko?: string }>>({});
+    // 追加：候補フィルターUI・値
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [filterArea, setFilterArea] = useState<string[]>([]);
+    const [filterStartHour, setFilterStartHour] = useState<number | null>(null);
+    const [filterEndHour, setFilterEndHour] = useState<number | null>(null);
+    const [filterGender, setFilterGender] = useState<string[]>([]);
 
+    // 追加：エリアの選択肢（postal_code_3, district）
+    const [areaOptions, setAreaOptions] = useState<Array<{ code: string; label: string }>>([]);
+    // 追加：性別選択肢
+    const genderOptions = ["男性希望", "女性希望", "指定なし"] as const;
+
+    // 追加：ユーザー別保存キー
+    const storageKey = useMemo(
+        () => (userId ? `shift-candidate-filters:${userId}` : null),
+        [userId]
+    );
 
     // 自分の当日シフトから空き窓算出（将来拡張用）
     const myWindows = computeFreeWindowsForSelectedDate(shifts, shiftDate);
     void myWindows;
+
+    function applyCandidateFilters(list: ShiftData[]) {
+        return list.filter((s) => {
+            // エリア
+            if (filterArea.length > 0 && !filterArea.includes(s.postal_code_3 || "")) {
+                return false;
+            }
+            // 時間（開始・終了がともに時刻枠に収まるか）
+            if (filterStartHour !== null || filterEndHour !== null) {
+                const st = toJstDate(s.shift_start_date, s.shift_start_time);
+                const ed = toJstDate(s.shift_start_date, s.shift_end_time);
+                const sh = st.getHours();
+                const eh = ed.getHours() + (ed.getMinutes() > 0 ? 1 : 0); // 端数は切り上げ気味に
+
+                if (filterStartHour !== null && sh < filterStartHour) return false;
+                if (filterEndHour !== null && eh > filterEndHour) return false;
+            }
+            // 性別希望
+            if (filterGender.length > 0) {
+                const g = (s.gender_request_name || "").trim();
+                const normalized = g === "" ? "指定なし" : g;
+                if (!filterGender.includes(normalized)) return false;
+            }
+            return true;
+        });
+    }
 
     // openFinder の中身を修正
     async function openFinder(start: Date | null, end: Date | null, anchor: string) {
@@ -508,13 +458,25 @@ export default function ShiftPage() {
 
         // 自分が担当しているものを除外（staff_01/02/03 に一致するもの）
         const myShiftIds = new Set(shifts.map(s => s.shift_id)); // 念のため、画面に出てる自分シフトも除外
+        // 既存の filtered 生成（自分担当除外・窓内判定など）はそのまま
         const filtered = merged
             .filter(s => !isMyAssignment(s, userId))
             .filter(s => !myShiftIds.has(s.shift_id))
-            // 空き窓に入る（調整を使ってでも入れる）ものだけに絞る
             .filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
 
-        setCandidateShifts(filtered);
+        // ★エリア選択肢の抽出（postal_code_3 + district）
+        setAreaOptions(() => {
+            const m = new Map<string, string>();
+            filtered.forEach(s => {
+                const code = s.postal_code_3 || "";
+                if (!code) return;
+                if (!m.has(code)) m.set(code, `${code}（${s.district || ""}）`);
+            });
+            return Array.from(m, ([code, label]) => ({ code, label }));
+        });
+
+        // ★フィルタ適用後に表示
+        setCandidateShifts(applyCandidateFilters(filtered));
     }
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
@@ -755,6 +717,39 @@ export default function ShiftPage() {
         }
     }, [shifts, showFinder, finderAnchor]);
 
+    // 初期ロード：localStorage から値を復元
+    useEffect(() => {
+        if (!storageKey) return;
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            setFilterArea(parsed.area ?? []);
+            setFilterStartHour(typeof parsed.startHour === "number" ? parsed.startHour : null);
+            setFilterEndHour(typeof parsed.endHour === "number" ? parsed.endHour : null);
+            setFilterGender(Array.isArray(parsed.gender) ? parsed.gender : []);
+        } catch { }
+    }, [storageKey]);
+
+    // 保存：値が変わるたび保存
+    useEffect(() => {
+        if (!storageKey) return;
+        const payload = {
+            area: filterArea,
+            startHour: filterStartHour,
+            endHour: filterEndHour,
+            gender: filterGender,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+    }, [storageKey, filterArea, filterStartHour, filterEndHour, filterGender]);
+
+    useEffect(() => {
+        if (!showFinder || candidateShifts.length === 0) return;
+        // 直近の候補に対して再フィルタ（元の一覧は保持していないため、
+        // ここでは簡便に現在表示分へ再適用。必要なら元配列を別stateで保持してもOK）
+        setCandidateShifts(prev => applyCandidateFilters(prev));
+    }, [showFinder, filterArea, filterStartHour, filterEndHour, filterGender]);
+
     const handlePrevDay = () => setShiftDate(subDays(shiftDate, 1));
     const handleNextDay = () => setShiftDate(addDays(shiftDate, 1));
     const handleDeleteAll = () => {
@@ -866,6 +861,89 @@ export default function ShiftPage() {
 
     return (
         <div className="content min-w-0">
+
+            {/* ▼ 空き時間のシフト候補：条件UI（最上部 / 折りたたみ） */}
+            <div className="mb-4">
+                <button
+                    className="text-sm underline decoration-dotted"
+                    onClick={() => setFilterOpen(v => !v)}
+                    aria-expanded={filterOpen}
+                >
+                    {filterOpen ? "▲条件設定を閉じる" : "▼空き時間のシフト候補の条件設定をする"}
+                </button>
+
+                {filterOpen && (
+                    <div className="mt-2 p-3 rounded-xl border bg-[#fafafa]">
+                        {/* エリア（複数選択） */}
+                        <div className="mb-3">
+                            <label className="block text-xs mb-1">エリア（複数選択）</label>
+                            <select
+                                multiple
+                                className="w-full border rounded p-2 h-[7rem]"
+                                value={filterArea}
+                                onChange={(e) =>
+                                    setFilterArea(Array.from(e.target.selectedOptions, o => o.value))
+                                }
+                            >
+                                {areaOptions.map(opt => (
+                                    <option key={opt.code} value={opt.code}>{opt.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 時間帯 */}
+                        <div className="mb-3 flex items-center gap-2">
+                            <label className="text-xs">時間（開始～終了・どちらか片方でも可）</label>
+                            <select
+                                className="border rounded p-1"
+                                value={filterStartHour ?? ""}
+                                onChange={(e) =>
+                                    setFilterStartHour(e.target.value === "" ? null : Number(e.target.value))
+                                }
+                            >
+                                <option value="">指定なし</option>
+                                {Array.from({ length: 24 }, (_, i) => i).map(h => (
+                                    <option key={h} value={h}>{h}時</option>
+                                ))}
+                            </select>
+                            <span>～</span>
+                            <select
+                                className="border rounded p-1"
+                                value={filterEndHour ?? ""}
+                                onChange={(e) =>
+                                    setFilterEndHour(e.target.value === "" ? null : Number(e.target.value))
+                                }
+                            >
+                                <option value="">指定なし</option>
+                                {Array.from({ length: 24 }, (_, i) => i).map(h => (
+                                    <option key={h} value={h}>{h}時</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 性別希望（複数選択） */}
+                        <div className="mb-1">
+                            <label className="block text-xs mb-1">性別希望（複数選択）</label>
+                            <select
+                                multiple
+                                className="w-full border rounded p-2 h-[5.5rem]"
+                                value={filterGender}
+                                onChange={(e) =>
+                                    setFilterGender(Array.from(e.target.selectedOptions, o => o.value))
+                                }
+                            >
+                                {genderOptions.map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="text-xs text-gray-500 mt-1">
+                            条件はこのユーザーで保存され、次回以降も引き継がれます。
+                        </div>
+                    </div>
+                )}
+            </div>
             <div className="content min-w-0">
                 <DateNavigator
                     date={shiftDate}
