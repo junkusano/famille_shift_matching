@@ -52,6 +52,7 @@ function coerceBool(v: unknown): boolean | undefined {
   return undefined;
 }
 
+// 先頭の helpers あたりに置く
 function normalizeLso(v: unknown): number | null | undefined {
   if (v === null) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
@@ -328,38 +329,39 @@ export default function ShiftCard({
   };
 
   // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
-  // ShiftCard.tsx （request 判定部）
-
-  // ★ return 直前の request モード判定を丸ごと置換（現在のブロックは ここです） 
-  const [lsoResolved, setLsoResolved] = useState<number | null | undefined>(
-    normalizeLso(shift.level_sort_order)
-  );
+  const [lsoResolved, setLsoResolved] = useState<number | null | undefined>(undefined);
+  const [lsoLoading, setLsoLoading] = useState(true);
 
   useEffect(() => {
-    // 既に number/null なら追加取得不要
-    const now = normalizeLso(shift.level_sort_order);
-    if (now !== undefined) { setLsoResolved(now); return; }
-
-    // undefined のときだけ、view から補完取得（/shift-coordinate は map で渡していないため） 
+    let cancelled = false;
     (async () => {
+      setLsoLoading(true);
+      // props に入っていても無視し、常に view を真実とする
       const { data } = await supabase
-        .from("shift_csinfo_postalname_view")       // どちらのページもこの view を使っている  
+        .from("shift_csinfo_postalname_view")
         .select("level_sort_order")
         .eq("shift_id", shift.shift_id)
         .maybeSingle();
 
-      setLsoResolved(normalizeLso(data?.level_sort_order) ?? null);
+      if (!cancelled) {
+        const parsed = normalizeLso(data?.level_sort_order);
+        setLsoResolved(parsed ?? null); // 数値化できなければ「NULL」扱い
+        setLsoLoading(false);
+      }
     })();
-  }, [shift.shift_id, shift.level_sort_order]);
+    return () => { cancelled = true; };
+  }, [shift.shift_id]);
 
-  // --- 可視判定 ---
+  // --- requestモードの可視判定 ---
+  // 取得前は描画しない（= “全部出る” チラつきを防止）
   if (mode === "request") {
-    // 仕様：NULL または 3,500,000 以下のみ表示。undefined は非表示。
+    if (lsoLoading) return null;
+
+    // 仕様：NULL または 3,500,000 以下のみ表示
     const lso = lsoResolved;
     const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
     if (!canShow) return null;
   }
-
 
   /* ------- Render ------- */
   return (

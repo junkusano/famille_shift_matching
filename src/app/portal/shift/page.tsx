@@ -143,9 +143,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
     }
 
     const filtered = all.filter(
-        (s) => s.staff_01_user_id === "-" || (
-            (s.level_sort_order ?? 9999999) < 5_000_000 && (s.level_sort_order ?? 0) !== 1_250_000
-        )
+        (s) => s.staff_01_user_id === "-" // ← LSO 条件は削除。最終判定は ShiftCard に委譲
     );
 
     const { data: postalDistricts } = await supabase

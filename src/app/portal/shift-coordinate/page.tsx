@@ -70,7 +70,7 @@ export default function ShiftPage() {
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.staff_01_user_id === "-" || (s.level_sort_order < 5000000 && s.level_sort_order !== 1250000))
+                .filter((s) => s.staff_01_user_id === "-" /* ← ここだけ残す。LSO条件は削除 */)
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -88,11 +88,7 @@ export default function ShiftPage() {
                     female_flg: s.female_flg || false,
                     postal_code_3: s.postal_code_3 || "",
                     district: s.district || "",
-                    level_sort_order:
-                        s.level_sort_order === null || s.level_sort_order === undefined
-                            ? null
-                            : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
-
+                    // ★ level_sort_order は渡さない
                 }));
 
             //alert("filtered shiftData before map:" + formatted.length);
