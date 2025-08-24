@@ -62,7 +62,6 @@ export default function ShiftPage() {
                     .select("*")
                     .gte("shift_start_date", jstNow)
                     .range(i * 1000, (i + 1) * 1000 - 1);
-
                 if (error || !data?.length) break;
                 allShifts.push(...data);
             }
@@ -72,9 +71,14 @@ export default function ShiftPage() {
                 .select("postal_code_3, district")
                 .order("postal_code_3");
 
-            if (!allShifts.length) return;
+            if (!allShifts.length) {
+                setShifts([]);
+                setFilteredShifts([]);
+                setFilterOptions({ dateOptions: [], serviceOptions: [], postalOptions: [], nameOptions: [], genderOptions: [] });
+                return;
+            }
 
-            // ① 正規化（ここで level_sort_order を number|null に統一）
+            // ① 正規化（level_sort_order は number|null に揃えるが、以降の絞り込みには使わない）
             const formatted = (allShifts as SupabaseShiftRaw[]).map((s): ShiftData => ({
                 shift_id: s.shift_id,
                 shift_start_date: s.shift_start_date,
@@ -98,16 +102,11 @@ export default function ShiftPage() {
                         : (Number.isFinite(Number(s.level_sort_order)) ? Number(s.level_sort_order) : null),
             }));
 
-            // ② LSO フィルタ（null は許可、数値は 3,500,000 以下のみ）＋ 未アサインのみ
-            const passLso = (lso: number | null) =>
-                lso === null || (typeof lso === "number" && lso <= 3_500_000);
+            // ② 未アサインのみ（★ LSO 条件は完全に外す）
+            const formattedUnassigned = formatted.filter(s => s.staff_01_user_id === "-");
 
-            const formattedLso = formatted.filter(s =>
-                s.staff_01_user_id === "-" && passLso(s.level_sort_order)
-            );
-
-            // ③ 並び替え（必要に応じて）
-            const sorted = formattedLso.sort((a, b) => {
+            // ③ 並び替え
+            const sorted = formattedUnassigned.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
                 if (d1 !== d2) return d1.localeCompare(d2);
@@ -115,24 +114,25 @@ export default function ShiftPage() {
                 return a.client_name.localeCompare(b.client_name);
             });
 
-            // ④ cs 情報をマージ（表示用の補足）
+            // ④ cs 情報マージ
+            const csIds = Array.from(new Set(formattedUnassigned.map(f => f.kaipoke_cs_id))).filter(Boolean);
             const { data: csInfoData } = await supabase
                 .from("cs_kaipoke_info")
                 .select("kaipoke_cs_id, name, commuting_flg, standard_route, standard_trans_ways, standard_purpose, biko")
-                .in("kaipoke_cs_id", formattedLso.map(f => f.kaipoke_cs_id));
+                .in("kaipoke_cs_id", csIds.length ? csIds : ["__dummy__"]); // 空配列ガード
 
             const csInfoMap = new Map(csInfoData?.map(info => [info.kaipoke_cs_id, info]) ?? []);
 
-            const merged = formattedLso.map(shift => {
+            const merged = formattedUnassigned.map(shift => {
                 const csInfo = csInfoMap.get(shift.kaipoke_cs_id);
                 return {
                     ...shift,
-                    cs_name: csInfo?.name ?? '',
+                    cs_name: csInfo?.name ?? "",
                     commuting_flg: csInfo?.commuting_flg ?? false,
-                    standard_route: csInfo?.standard_route ?? '',
-                    standard_trans_ways: csInfo?.standard_trans_ways ?? '',
-                    standard_purpose: csInfo?.standard_purpose ?? '',
-                    biko: csInfo?.biko ?? '',
+                    standard_route: csInfo?.standard_route ?? "",
+                    standard_trans_ways: csInfo?.standard_trans_ways ?? "",
+                    standard_purpose: csInfo?.standard_purpose ?? "",
+                    biko: csInfo?.biko ?? "",
                 };
             });
 
@@ -144,6 +144,7 @@ export default function ShiftPage() {
 
         fetchData();
     }, []);
+
 
     const applyFilters = () => {
         const result = shifts.filter((s) =>

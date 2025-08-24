@@ -496,6 +496,9 @@ export default function ShiftPage() {
             return Array.from(set).sort();
         });
 
+        setRawCandidates(filtered);
+        setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
+
         // level_sort_order フィルタ（このままでOK）:contentReference[oaicite:5]{index=5}
         /*
         const filtered2 = filtered.filter(s => {
@@ -503,9 +506,6 @@ export default function ShiftPage() {
             return lso === null || (typeof lso === "number" && lso <= 3_500_000);
         });
         */
-
-        setRawCandidates(filtered);
-        setCandidateShifts(noFilters ? filtered : applyCandidateFilters(filtered));
 
         //setRawCandidates(filtered2);
         //setCandidateShifts(noFilters ? filtered2 : applyCandidateFilters(filtered2));
