@@ -324,7 +324,7 @@ export default function ShiftCard({
       .every(v => !v || v === "-");
 
     // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
-    const canShowByLevel = (lso !== null) && (lso <= 3_500_000);
+    const canShowByLevel = (lso !== null) && (lso <= 3500000);
     const canShow = noAssignees || canShowByLevel;
 
     if (!canShow) return null;
