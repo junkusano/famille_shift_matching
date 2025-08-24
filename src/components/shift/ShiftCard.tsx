@@ -327,13 +327,10 @@ export default function ShiftCard({
     (async () => {
       const { data, error } = await supabase
         .from("shift_csinfo_postalname_view")
-        .select("level_sort_order")
-        .eq("shift_id", shift.shift_id)
-        .not("level_sort_order", "is", null)       // ← NULLは最初から除外
-        .lte("level_sort_order", 3500000)          // ← 閾値以下
-        .order("level_sort_order", { ascending: true, nullsFirst: false })
-        .limit(1);                                  // ← 数値の最小1件だけ
+        .select("shift_id, level_sort_order")
+        .eq("shift_id", shift.shift_id);
 
+      console.log("DEBUG shift_id", shift.shift_id, data, error);
       if (cancelled) return;
 
       if (error) {
