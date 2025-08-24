@@ -317,28 +317,33 @@ export default function ShiftCard({
     );
   };
 
-  // ★ この useEffect を ShiftCard.tsx の allow 用に置き換え
+  // ShiftCard.tsx の allow 用 useEffect を置き換え
   const [allow, setAllow] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setAllow(null); // 読み込み中
+    setAllow(null); // ローディング
 
     (async () => {
-      // ❶ null を除外したい（切り分け用・今の症状を止める）
       const { data, error } = await supabase
         .from("shift_csinfo_postalname_view")
-        .select("shift_id")
+        .select("level_sort_order")
         .eq("shift_id", shift.shift_id)
-        .or("level_sort_order.is.null,level_sort_order.lte.3500000")
-        .maybeSingle();
+        .not("level_sort_order", "is", null)       // ← NULLは最初から除外
+        .lte("level_sort_order", 3500000)          // ← 閾値以下
+        .order("level_sort_order", { ascending: true, nullsFirst: false })
+        .limit(1);                                  // ← 数値の最小1件だけ
+
       if (cancelled) return;
+
       if (error) {
-        console.error(error);
+        console.error("[LSO query error]", error);
         setAllow(false);
         return;
       }
-      setAllow(!!data); // 条件に合う行が返ってきたら表示OK
+
+      // 数値行が1件でも取れたら表示許可、取れなければ禁止
+      setAllow(!!data && data.length > 0);
     })();
 
     return () => { cancelled = true; };
@@ -346,9 +351,10 @@ export default function ShiftCard({
 
   // request モードのゲート
   if (mode === "request") {
-    if (allow === null) return null; // ロード中は非表示でチラつき防止
+    if (allow === null) return null; // ロード中は表示しない
     if (!allow) return null;         // 条件に合わなければ非表示
   }
+
   /* ------- Render ------- */
   return (
     <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
