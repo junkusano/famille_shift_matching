@@ -70,6 +70,10 @@ type CsKaipokeInfoRow = {
 
 type AdjustSpec = { label?: string; advance?: number; back?: number; biko?: string };
 
+function isMyAssignment(s: ShiftData, myId?: string | null) {
+    if (!myId) return false;
+    return [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(myId);
+}
 
 function canFitWindow(
     shift: ShiftData,
@@ -502,11 +506,16 @@ export default function ShiftPage() {
         const { map, merged } = await mergeCsAdjustability(fetched); // map: Record<string, AdjustSpec>
         setCsAdjustMap(map);
 
-        // ← ここを差し替え：調整で入れるものも通す
-        const filtered = merged.filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
+        // 自分が担当しているものを除外（staff_01/02/03 に一致するもの）
+        const myShiftIds = new Set(shifts.map(s => s.shift_id)); // 念のため、画面に出てる自分シフトも除外
+        const filtered = merged
+            .filter(s => !isMyAssignment(s, userId))
+            .filter(s => !myShiftIds.has(s.shift_id))
+            // 空き窓に入る（調整を使ってでも入れる）ものだけに絞る
+            .filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
+
         setCandidateShifts(filtered);
     }
-
 
     async function toggleFinder(start: Date | null, end: Date | null, anchor: string) {
         // すでに同じ場所が開いていれば閉じる
