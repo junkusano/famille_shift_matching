@@ -379,7 +379,7 @@ export default function EntryDetailPage() {
             if (error) return;
 
             const entryLevelSort = data.level_sort ?? 999999;
-            if (myLevelSort !== null && entryLevelSort < myLevelSort) {
+            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
                 setRestricted(true);
                 return;
             }
@@ -399,37 +399,37 @@ export default function EntryDetailPage() {
         fetchExistingIds();
     }, []);
 
-
-    useEffect(() => {
-        const fetchEntry = async () => {
-            const { data, error } = await supabase
-                .from('form_entries_with_status')  // ← `with_status` に変更必須！
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (error) {
-                console.error('取得エラー:', error.message);
-                return;
-            }
-
-            // level_sort による制限
-            const entryLevelSort = data.level_sort ?? 999999;
-            if (myLevelSort !== null && entryLevelSort < myLevelSort) {
-                setRestricted(true);
-                return;
-            }
-
-            // setEntry(data);
-            setEntry(normalizeEntryFromDb(data));
-            setManagerNote(data?.manager_note ?? '');
-
-        };
-
-
-        if (id) fetchEntry();
-    }, [id]);
-
+    /*
+        useEffect(() => {
+            const fetchEntry = async () => {
+                const { data, error } = await supabase
+                    .from('form_entries_with_status')  // ← `with_status` に変更必須！
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+    
+                if (error) {
+                    console.error('取得エラー:', error.message);
+                    return;
+                }
+    
+                // level_sort による制限
+                const entryLevelSort = data.level_sort ?? 999999;
+                if (myLevelSort !== null && entryLevelSort < myLevelSort) {
+                    setRestricted(true);
+                    return;
+                }
+    
+                // setEntry(data);
+                setEntry(normalizeEntryFromDb(data));
+                setManagerNote(data?.manager_note ?? '');
+    
+            };
+    
+    
+            if (id) fetchEntry();
+        }, [id]);
+    */
     useEffect(() => {
         if (entry && existingIds.length) {
             const nameInfo = {
@@ -1046,10 +1046,11 @@ export default function EntryDetailPage() {
             .single();
         if (!error && data) setEntry(normalizeEntryFromDb(data));
     }, [id]);
-
+    /*
     useEffect(() => {
         if (id) fetchEntry();
     }, [id, fetchEntry, myLevelSort]);
+    */
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
