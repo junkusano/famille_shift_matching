@@ -329,14 +329,22 @@ export default function ShiftCard({
   };
 
   // components/shift/ShiftCard.tsx （return直前の判定だけ差し替え）
+  // 1) state を追加
   const [lsoResolved, setLsoResolved] = useState<number | null | undefined>(undefined);
   const [lsoLoading, setLsoLoading] = useState(true);
 
+  // 2) 取得ロジック
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLsoLoading(true);
-      // props に入っていても無視し、常に view を真実とする
+      // まず props の値を正規化
+      const now = normalizeLso(shift.level_sort_order);
+      if (now !== undefined) {
+        if (!cancelled) { setLsoResolved(now); setLsoLoading(false); }
+        return;
+      }
+      // undefined のときだけ view から補完
       const { data } = await supabase
         .from("shift_csinfo_postalname_view")
         .select("level_sort_order")
@@ -344,24 +352,21 @@ export default function ShiftCard({
         .maybeSingle();
 
       if (!cancelled) {
-        const parsed = normalizeLso(data?.level_sort_order);
-        setLsoResolved(parsed ?? null); // 数値化できなければ「NULL」扱い
+        setLsoResolved(normalizeLso(data?.level_sort_order) ?? null);
         setLsoLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [shift.shift_id]);
+  }, [shift.shift_id, shift.level_sort_order]);
 
-  // --- requestモードの可視判定 ---
-  // 取得前は描画しない（= “全部出る” チラつきを防止）
+  // 3) request モードのゲート
   if (mode === "request") {
-    if (lsoLoading) return null;
-
-    // 仕様：NULL または 3,500,000 以下のみ表示
+    if (lsoLoading) return null; // ← 取得完了まで描画しない
     const lso = lsoResolved;
     const canShow = lso === null || (typeof lso === "number" && lso <= 3_500_000);
     if (!canShow) return null;
   }
+
 
   /* ------- Render ------- */
   return (
