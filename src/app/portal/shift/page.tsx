@@ -179,6 +179,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         standard_trans_ways: s.standard_trans_ways ?? "",
         standard_purpose: s.standard_purpose ?? "",
         biko: s.biko ?? "",
+        level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
     }));
 
     return mapped;
