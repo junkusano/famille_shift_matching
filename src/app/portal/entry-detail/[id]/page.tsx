@@ -8,12 +8,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { addStaffLog } from '@/lib/addStaffLog';
 import hepburn from 'hepburn';
-//import { createLineWorksUser } from '@/lib/lineworks/create-user';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import DocUploader, { DocItem } from "@/components/DocUploader";
 
 // 既存 interface Attachment を置き換え
 interface Attachment {
@@ -26,6 +26,15 @@ interface Attachment {
     acquired_at: string;         // ★取得日 ISO（YYYYMM/YYYMMDD入力→補完）
 }
 
+type LegacyAttachment = Partial<{
+    id: string;
+    url: string | null;
+    label: string;
+    type: string;
+    mimeType: string | null;
+    uploaded_at: string;
+    acquired_at: string;
+}>;
 
 interface EntryDetail {
     id: string;
@@ -90,6 +99,7 @@ type EntryDetailEx =
     Partial<Record<WorkKey, string | null>> & {
         work_styles: string | null;
         commute_options?: string | null;
+        certificates?: DocItem[]; // ★ 追加
     };
 
 // DB側（work_styles/commute_options は text か text[]）
@@ -136,8 +146,8 @@ export default function EntryDetailPage() {
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
     //const [groupInitLoading, setGroupInitLoading] = useState(false);
     //const [groupInitDone, setGroupInitDone] = useState(false);
-    const [attUploading, setAttUploading] = useState<string | null>(null);
-    const [newCertLabel, setNewCertLabel] = useState("");
+    //const [attUploading, setAttUploading] = useState<string | null>(null);
+    //const [newCertLabel, setNewCertLabel] = useState("");
     const [newDocLabel, setNewDocLabel] = useState("");
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
@@ -178,7 +188,7 @@ export default function EntryDetailPage() {
     const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({ certificate: [], other: [] });
 
     // カスタム入力の ON/OFF
-    const [useCustomCert, setUseCustomCert] = useState(false);
+    //const [useCustomCert, setUseCustomCert] = useState(false);
     const [useCustomOther, setUseCustomOther] = useState(false);
 
 
@@ -286,6 +296,64 @@ export default function EntryDetailPage() {
         } finally {
             setCreatingKaipokeUser(false);
         }
+    };
+
+    const [certificates, setCertificates] = useState<DocItem[]>([]);
+
+    useEffect(() => {
+        if (!entry) return;
+
+        // 型安全な判定関数
+        const isCert = (a: LegacyAttachment): boolean => {
+            const t = a?.type ?? "";
+            const l = a?.label ?? "";
+            return (
+                t === "資格証明書" ||
+                l.startsWith("certificate_") ||
+                t === "資格証" ||
+                t === "certificate"
+            );
+        };
+
+        const nowIso = new Date().toISOString();
+
+        // 1) certificates があればそれを採用
+        const fromCert = Array.isArray(entry.certificates)
+            ? (entry.certificates as DocItem[])
+            : [];
+        if (fromCert.length > 0) {
+            setCertificates(fromCert);
+            return;
+        }
+
+        // 2) なければ attachments から資格分だけ抽出して DocItem に正規化
+        const att: LegacyAttachment[] = Array.isArray(entry.attachments)
+            ? (entry.attachments as LegacyAttachment[])
+            : [];
+
+        const picked: DocItem[] = att
+            .filter(isCert)
+            .map((p): DocItem => ({
+                id: p.id ?? crypto.randomUUID(),
+                url: p.url ?? null,
+                label: p.label,
+                type: "資格証明書",
+                mimeType: p.mimeType ?? null,
+                uploaded_at: p.uploaded_at ?? nowIso,
+                acquired_at: p.acquired_at ?? p.uploaded_at ?? nowIso,
+            }));
+
+        setCertificates(picked);
+    }, [entry]);
+
+    const saveCertificates = async () => {
+        if (!entry) return;
+        const { error } = await supabase
+            .from("form_entries")
+            .update({ certificates })
+            .eq("id", entry.id);
+        if (error) alert("資格証の保存に失敗: " + error.message);
+        else alert("資格証を保存しました");
     };
 
     useEffect(() => {
@@ -1273,7 +1341,6 @@ export default function EntryDetailPage() {
     ) => {
         if (!entry) return;
         try {
-            setAttUploading(type);
             const { url, mimeType } = await uploadFileViaApi(file);
 
             // 既存を探す
@@ -1319,7 +1386,7 @@ export default function EntryDetailPage() {
             const msg = err instanceof Error ? err.message : String(err);
             alert(`アップロードに失敗: ${msg}`);
         } finally {
-            setAttUploading(null);
+
         }
     };
 
@@ -1328,7 +1395,6 @@ export default function EntryDetailPage() {
         if (!entry) return;
         if (!label.trim()) return alert("資格のラベルを入力してください");
         try {
-            setAttUploading(label);
             const { url, mimeType } = await uploadFileViaApi(file);
             const now = new Date().toISOString();
             const item: Attachment = {
@@ -1352,7 +1418,6 @@ export default function EntryDetailPage() {
         if (!entry) return;
         if (!label.trim()) return alert("書類のラベルを入力してください");
         try {
-            setAttUploading(label);
             const { url, mimeType } = await uploadFileViaApi(file);
             const now = new Date().toISOString();
             const item: Attachment = {
@@ -1368,7 +1433,9 @@ export default function EntryDetailPage() {
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             alert(`アップロードに失敗: ${msg}`);
-        } finally { setAttUploading(null); }
+        } finally {
+
+        }
     };
 
     // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
@@ -1954,128 +2021,19 @@ export default function EntryDetailPage() {
                 </div>
             </div>
 
-
-            <div className="space-y-2">
-                <h2 className="text-lg font-semibold">資格証明書</h2>
-
-                {certifications.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {certifications.map((doc, idx) => {
-                            const label = doc.label ?? doc.type ?? `certificate_${idx + 1}`;
-                            return (
-                                <div key={doc.id}>
-                                    <FileThumbnail
-                                        title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`}
-                                        src={doc.url ?? undefined}
-                                        mimeType={doc.mimeType ?? undefined}
-                                    />
-                                    <div className="text-xs text-gray-600">
-                                        取得日:
-                                        <input
-                                            type="text"
-                                            className="ml-2 border rounded px-2 py-1 w-40"
-                                            placeholder="例: 202508 または 20250817"
-                                            value={acquiredRaw}
-                                            onChange={(e) => setAcquiredRaw(e.target.value)}
-                                        />
-                                        <span className="ml-2 text-gray-400">
-                                            保存時は {formatAcquired(parseAcquired(acquiredRaw))} として記録
-                                        </span>
-                                    </div>
-                                    <div className="mt-2 flex items-center gap-2">
-                                        {/* 一覧の各カード内 */}
-                                        <label className="...">
-                                            差し替え
-                                            <input
-                                                type="file"
-                                                accept="image/*,application/pdf"
-                                                className="hidden"
-                                                onChange={async (e) => {
-                                                    const f = e.target.files?.[0];
-                                                    if (!f) return;
-                                                    try {
-                                                        const { url, mimeType } = await uploadFileViaApi(f);
-                                                        const next = attachmentsArray.map(a =>
-                                                            a.id === doc.id
-                                                                ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() }
-                                                                : a
-                                                        );
-                                                        await saveAttachments(next);
-                                                        alert('差し替えました');
-                                                    } finally {
-                                                        e.currentTarget.value = '';
-                                                    }
-                                                }}
-                                            />
-                                        </label>
-                                        <button className="..." onClick={() => handleDeleteAttachmentById(doc.id)}>削除</button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-sm text-gray-500">まだ登録されていません。</div>
-                )}
-
-                {/* 追加アップロード（0件でも常に表示） */}
-                <div className="mt-3 p-3 border rounded bg-gray-50">
-                    <div className="flex items-center gap-2">
-                        <select
-                            className="border rounded px-2 py-1"
-                            value={useCustomCert ? '__custom__' : (newCertLabel || '')}
-                            onChange={(e) => {
-                                const v = e.target.value;
-                                if (v === '__custom__') {
-                                    setUseCustomCert(true);
-                                    setNewCertLabel('');
-                                } else {
-                                    setUseCustomCert(false);
-                                    setNewCertLabel(v);
-                                }
-                            }}
-                        >
-                            <option value="">書類名を選択</option>
-                            {docMaster.certificate.map((name) => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
-                            <option value="__custom__">（カスタム入力）</option>
-                        </select>
-
-                        {useCustomCert && (
-                            <input
-                                className="border rounded px-2 py-1"
-                                placeholder="例: certificate_同行援護(一般)"
-                                value={newCertLabel}
-                                onChange={(e) => setNewCertLabel(e.target.value)}
-                            />
-                        )}
-                        <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
-                            追加アップロード
-                            <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                className="hidden"
-                                disabled={attUploading !== null}
-                                onChange={async (e) => {
-                                    const f = e.target.files?.[0];
-                                    if (!f) return;
-                                    if (!newCertLabel.trim() && !useCustomCert) {
-                                        alert('書類名を選択してください');
-                                        e.currentTarget.value = '';
-                                        return;
-                                    }
-                                    await handleCertUpload(f, (newCertLabel || '').trim());
-                                    e.currentTarget.value = '';
-                                }}
-                            />
-                        </label>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                        区分：資格証明書（マスタから選択。必要に応じてカスタム入力も可能）
-                    </div>
-                </div>
-            </div>
+            <DocUploader
+                title="資格情報（certificates列）"
+                value={certificates}
+                onChange={setCertificates}
+                docMaster={{ certificate: docMaster.certificate }}   // 既存のマスタを流用
+                docCategory="certificate"                            // ラベル選択のカテゴリ
+            />
+            <button
+                onClick={saveCertificates}
+                className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
+            >
+                資格証を保存
+            </button>
 
             <div className="space-y-2">
                 <h2 className="text-lg font-semibold">その他の書類</h2>
