@@ -448,7 +448,7 @@ export default function EntryPage() {
                 </h1>
                 <p className="text-sm text-gray-600 mb-4">
                     <span className="text-red-500">*</span> 印の項目は必須です。
-                </p>certificate_$
+                </p>
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     {/* 1. 基本情報 */}
                     <div>
