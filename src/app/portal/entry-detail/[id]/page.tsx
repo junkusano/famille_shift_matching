@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import DocUploader, { DocItem } from "@/components/DocUploader";
 
+
 // 既存 interface Attachment を置き換え
 interface Attachment {
     id: string;                  // ★一意ID
@@ -111,32 +112,18 @@ type FormEntriesRow =
         commute_options?: ArrayOrString;
     } & Partial<Record<WorkKey, string | null>>;
 
-
-/*
-interface OrgUnit {
-    orgUnitId: string;
-    orgUnitName: string;
-    parentOrgUnitId?: string;
-    parentOrgUnitName?: string; // ←これを追加！
-    // 他に必要な項目があればここに
-}
-*/
-
 export default function EntryDetailPage() {
     const { id } = useParams();
-    //const [entry, setEntry] = useState<EntryDetail | null>(null);
     const [entry, setEntry] = useState<EntryDetailEx | null>(null);
     const [managerNote, setManagerNote] = useState('');
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteMsg, setNoteMsg] = useState<string | null>(null);
-    //const [email, setEmail] = useState<string>('');
     const [restricted, setRestricted] = useState(false);
     const [userId, setUserId] = useState('');
     const [userIdLoading, setUserIdLoading] = useState(false);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
-    //const [orgList, setOrgList] = useState<{ orgUnitId: string; orgUnitName: string }[]>([]);
     const [orgList, setOrgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
     const [positionList, setPositionList] = useState<{ positionId: string; positionName: string }[]>([]);
@@ -144,11 +131,7 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
-    //const [groupInitLoading, setGroupInitLoading] = useState(false);
-    //const [groupInitDone, setGroupInitDone] = useState(false);
-    //const [attUploading, setAttUploading] = useState<string | null>(null);
-    //const [newCertLabel, setNewCertLabel] = useState("");
-    const [newDocLabel, setNewDocLabel] = useState("");
+    //const [newDocLabel, setNewDocLabel] = useState("");
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
     const setField = <K extends WorkKey>(key: K, value: string) => {
@@ -189,11 +172,11 @@ export default function EntryDetailPage() {
 
     // カスタム入力の ON/OFF
     //const [useCustomCert, setUseCustomCert] = useState(false);
-    const [useCustomOther, setUseCustomOther] = useState(false);
+    //const [useCustomOther, setUseCustomOther] = useState(false);
 
 
     // 取得日の簡易入力（常にトップで）
-    const [acquiredRaw, setAcquiredRaw] = useState('');
+    //const [acquiredRaw, setAcquiredRaw] = useState('');
 
     // attachmentsArray（常にトップで）
     const attachmentsArray: Attachment[] = useMemo(() => {
@@ -356,6 +339,55 @@ export default function EntryDetailPage() {
         else alert("資格証を保存しました");
     };
 
+    // その他書類を DocUploader 用に state 化
+    const [otherDocsState, setOtherDocsState] = useState<DocItem[]>([]);
+
+    useEffect(() => {
+        // attachments から「固定ID(免許/住民票)でも資格でもない」ものだけを DocItem に正規化
+        const nowIso = new Date().toISOString();
+        const others: DocItem[] = (attachmentsArray as Attachment[])
+            .filter(a => a.url !== null && !isFixedId(a) && !isCert(a))
+            .map(p => ({
+                id: p.id ?? crypto.randomUUID(),
+                url: p.url ?? null,
+                label: p.label,
+                type: 'other',                // 内部区分（DocUploader の docCategory と一致させる）
+                mimeType: p.mimeType ?? null,
+                uploaded_at: p.uploaded_at ?? nowIso,
+                acquired_at: p.acquired_at ?? p.uploaded_at ?? nowIso,
+            }));
+        setOtherDocsState(others);
+    }, [attachmentsArray]);
+
+    const saveOtherDocs = async () => {
+        if (!entry) return;
+        // 免許証/住民票などは現状維持
+        const fixed = (attachmentsArray as Attachment[]).filter(a => isFixedId(a));
+        // DocUploader で編集したその他を Attachment へ戻す（type は「その他」に統一）
+        const others: Attachment[] = otherDocsState.map(d => ({
+            id: d.id,
+            url: d.url,
+            label: d.label,
+            type: 'その他',
+            mimeType: d.mimeType ?? null,
+            uploaded_at: d.uploaded_at,
+            acquired_at: d.acquired_at,
+        }));
+        const merged = [...fixed, ...others];
+
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ attachments: merged })
+            .eq('id', entry.id);
+
+        if (error) {
+            alert('その他書類の保存に失敗: ' + error.message);
+        } else {
+            setEntry(prev => (prev ? { ...prev, attachments: merged } : prev));
+            alert('その他書類を保存しました');
+        }
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             // OrgUnits
@@ -467,37 +499,6 @@ export default function EntryDetailPage() {
         fetchExistingIds();
     }, []);
 
-    /*
-        useEffect(() => {
-            const fetchEntry = async () => {
-                const { data, error } = await supabase
-                    .from('form_entries_with_status')  // ← `with_status` に変更必須！
-                    .select('*')
-                    .eq('id', id)
-                    .single();
-    
-                if (error) {
-                    console.error('取得エラー:', error.message);
-                    return;
-                }
-    
-                // level_sort による制限
-                const entryLevelSort = data.level_sort ?? 999999;
-                if (myLevelSort !== null && entryLevelSort < myLevelSort) {
-                    setRestricted(true);
-                    return;
-                }
-    
-                // setEntry(data);
-                setEntry(normalizeEntryFromDb(data));
-                setManagerNote(data?.manager_note ?? '');
-    
-            };
-    
-    
-            if (id) fetchEntry();
-        }, [id]);
-    */
     useEffect(() => {
         if (entry && existingIds.length) {
             const nameInfo = {
@@ -1114,11 +1115,6 @@ export default function EntryDetailPage() {
             .single();
         if (!error && data) setEntry(normalizeEntryFromDb(data));
     }, [id]);
-    /*
-    useEffect(() => {
-        if (id) fetchEntry();
-    }, [id, fetchEntry, myLevelSort]);
-    */
 
     // 3. 削除ハンドラ
     const handleDeletePhoto = async () => {
@@ -1243,9 +1239,6 @@ export default function EntryDetailPage() {
         }
     };
 
-    // 追加：型エイリアス＆アップロード中フラグ
-    //type AttachmentItem = Attachment;
-
     // 追加：共通ヘルパ
     // 置き換え：必ず mimeType を返す（file.type が空でも拡張子で補完）
     const uploadFileViaApi = async (file: File) => {
@@ -1270,23 +1263,6 @@ export default function EntryDetailPage() {
         return { url: json.url as string, mimeType };
     };
 
-    /*
-    const upsertAttachment = (
-        list: AttachmentItem[],
-        item: AttachmentItem,
-        key: "type" | "label"
-    ): AttachmentItem[] => {
-        const getKey = (a: AttachmentItem) => (key === "type" ? a.type : a.label);
-        const idx = list.findIndex((a) => getKey(a) === getKey(item));
-        if (idx >= 0) {
-            const next = [...list];
-            next[idx] = { ...list[idx], ...item };
-            return next;
-        }
-        return [...list, item];
-    };
-    */
-
     // 置き換え：配列保存ヘルパはそのまま
     const saveAttachments = async (next: Attachment[]) => {
         if (!entry) return;
@@ -1301,12 +1277,14 @@ export default function EntryDetailPage() {
     };
 
     // 削除は id で
+    /*
     const handleDeleteAttachmentById = async (id: string) => {
         if (!entry) return;
         const next = attachmentsArray.filter(a => a.id !== id);
         await saveAttachments(next);
         alert('添付を削除しました');
     };
+    */
 
 
     // 追加：削除ハンドラ（参照エラーの解消）
@@ -1389,6 +1367,7 @@ export default function EntryDetailPage() {
     };
 
     // その他
+    /*
     const handleOtherDocUpload = async (file: File, label: string) => {
         if (!entry) return;
         if (!label.trim()) return alert("書類のラベルを入力してください");
@@ -1412,6 +1391,7 @@ export default function EntryDetailPage() {
 
         }
     };
+    */
 
     // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
     const ActionButtons = () => (
@@ -2013,119 +1993,19 @@ export default function EntryDetailPage() {
             <div className="space-y-2">
                 <h2 className="text-lg font-semibold">その他の書類</h2>
 
-                {otherDocs.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {otherDocs.map((doc, idx) => {
-                            const label = doc.label ?? doc.type ?? `doc_${idx + 1}`;
-                            return (
-                                <div key={idx}>
-                                    <FileThumbnail
-                                        title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`}
-                                        src={doc.url ?? undefined}
-                                        mimeType={doc.mimeType ?? undefined}
-                                    />
-                                    {/* 取得日（YYYYMM or YYYYMMDD） */}
-                                    <div className="text-xs text-gray-600">
-                                        取得日:
-                                        <input
-                                            type="text"
-                                            className="ml-2 border rounded px-2 py-1 w-40"
-                                            placeholder="例: 202508 または 20250817"
-                                            value={acquiredRaw}
-                                            onChange={(e) => setAcquiredRaw(e.target.value)}
-                                        />
-                                        <span className="ml-2 text-gray-400">
-                                            保存時は {formatAcquired(parseAcquired(acquiredRaw))} として記録
-                                        </span>
-                                    </div>
-                                    <div className="mt-2 flex items-center gap-2">
-                                        {/* 一覧の各カード内　*/}
-                                        <label className="...">
-                                            差し替え
-                                            <input
-                                                type="file"
-                                                accept="image/*,application/pdf"
-                                                className="hidden"
-                                                onChange={async (e) => {
-                                                    const f = e.target.files?.[0];
-                                                    if (!f) return;
-                                                    try {
-                                                        const { url, mimeType } = await uploadFileViaApi(f);
-                                                        const next = attachmentsArray.map(a =>
-                                                            a.id === doc.id ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() } : a
-                                                        );
-                                                        await saveAttachments(next);
-                                                        alert('差し替えました');
-                                                    } finally { e.currentTarget.value = ''; }
-                                                }}
-                                            />
-                                        </label>
-
-                                        <button className="..." onClick={() => handleDeleteAttachmentById(doc.id)}>削除</button>
-
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-sm text-gray-500">まだ登録されていません。</div>
-                )}
-
-                {/* 追加アップロード（0件でも常に表示） */}
-                <div className="mt-3 p-3 border rounded bg-gray-50">
-                    <div className="flex items-center gap-2">
-                        <select
-                            className="border rounded px-2 py-1"
-                            value={useCustomOther ? '__custom__' : (newDocLabel || '')}
-                            onChange={(e) => {
-                                const v = e.target.value;
-                                if (v === '__custom__') {
-                                    setUseCustomOther(true);
-                                    setNewDocLabel('');
-                                } else {
-                                    setUseCustomOther(false);
-                                    setNewDocLabel(v);
-                                }
-                            }}
-                        >
-                            <option value="">書類名を選択</option>
-                            {docMaster.other.map((name) => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
-                            <option value="__custom__">（カスタム入力）</option>
-                        </select>
-
-                        {useCustomOther && (
-                            <input
-                                className="border rounded px-2 py-1"
-                                placeholder="例: 雇用条件通知書"
-                                value={newDocLabel}
-                                onChange={(e) => setNewDocLabel(e.target.value)}
-                            />
-                        )}
-
-                        <label className="px-2 py-1 bg-green-700 text-white rounded cursor-pointer">
-                            追加アップロード
-                            <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f && (newDocLabel || useCustomOther)) {
-                                        handleOtherDocUpload(f, (newDocLabel || '').trim());
-                                    } else {
-                                        alert('書類名を選択してください');
-                                    }
-                                }}
-                            />
-                        </label>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                        区分：その他書類（マスタから選択。必要に応じてカスタム入力も可能）
-                    </div>
-                </div>
+                <DocUploader
+                    title="その他の書類（attachments列）"
+                    value={otherDocsState}
+                    onChange={setOtherDocsState}
+                    docMaster={{ other: docMaster.other }}   // マスタ流用
+                    docCategory="other"                      // カテゴリは other
+                />
+                <button
+                    onClick={saveOtherDocs}
+                    className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
+                >
+                    その他書類を保存
+                </button>
             </div>
 
             <div>
@@ -2433,9 +2313,11 @@ function parseAcquired(raw: string | undefined | null): string {
     if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
     return new Date().toISOString();
 }
+/*
 function formatAcquired(iso: string) {
     const d = new Date(iso), y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
 }
+*/
