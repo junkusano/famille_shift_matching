@@ -1184,9 +1184,10 @@ export default function EntryDetailPage() {
     const licenseFront = attachmentsArray.find((a: Attachment) => a.type === '免許証表');
     const licenseBack = attachmentsArray.find((a: Attachment) => a.type === '免許証裏');
     const residenceCard = attachmentsArray.find((a: Attachment) => a.type === '住民票');
-    const otherDocs = (attachmentsArray as Attachment[]).filter(a =>
+    /*const otherDocs = (attachmentsArray as Attachment[]).filter(a =>
         a.url !== null && !isFixedId(a) && !isCert(a)
     );
+    */
 
     if (restricted) {
         return <p className="p-6 text-red-600 font-bold">このエントリーにはアクセスできません（権限不足）</p>;
@@ -2306,13 +2307,14 @@ function getUserIdSuggestions(
     return candidates.filter(c => !existingIds.includes(c));
 }
 
-
+/*
 function parseAcquired(raw: string | undefined | null): string {
     const s = (raw ?? '').replace(/\D/g, '');
     if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
     if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
     return new Date().toISOString();
 }
+    */
 /*
 function formatAcquired(iso: string) {
     const d = new Date(iso), y = d.getFullYear();
