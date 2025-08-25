@@ -9,7 +9,7 @@ import Link from "next/link";
 import { convertDriveUrlToDirectView } from "@/lib/drive"
 import Footer from '@/components/Footer'; // ← 追加
 import { addStaffLog } from '@/lib/addStaffLog';
-import { parseDocAcquired } from "@/components/DocUploader";
+//import { parseDocAcquired } from "@/components/DocUploader";
 
 export default function EntryPage() {
 
@@ -114,31 +114,6 @@ export default function EntryPage() {
             .from("form_entries")
             .select("id")
             .eq("phone", cleanPhone);
-
-        const nowIso = new Date().toISOString();
-        type Attachment = {
-            id: string; url: string | null; label?: string; type?: string;
-            mimeType?: string | null; uploaded_at: string; acquired_at: string;
-        };
-
-        const certificationUrls: (string | null)[] = Array.from(
-            { length: docMaster.certificate.length },
-            () => null
-        );
-
-        for (let i = 0; i < docMaster.certificate.length; i++) {
-            const certFile = form.get(`certificate_${i}`) as File | null;
-            if (certFile && certFile.size > 0) {
-                try {
-                    const up = await uploadFile(`certificate_${i}`, certFile); // string|null
-                    certificationUrls[i] = up ? convertDriveUrlToDirectView(up) : null;
-                } catch (err) {
-                    console.error(`certificate_${i} アップロード失敗:`, err);
-                    alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
-                    return;
-                }
-            }
-        }
 
         if (phoneErr) {
             alert("電話番号重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + phoneErr.message);
@@ -248,29 +223,50 @@ export default function EntryPage() {
         const licenseBackUrl = convertDriveUrlToDirectView(await uploadFile("licenseBack", licenseBack));
         const photoUrl = convertDriveUrlToDirectView(await uploadFile("photo", photoFile));
         const residenceCardUrl = convertDriveUrlToDirectView(await uploadFile("residenceCard", residenceCard));
+        const certificationUrls: (string | null)[] = Array.from(
+            { length: docMaster.certificate.length },
+            () => null
+        );
+
+        for (let i = 0; i < docMaster.certificate.length; i++) {
+            const certFile = form.get(`certificate_${i}`) as File | null;
+            if (certFile && certFile.size > 0) {
+                try {
+                    const up = await uploadFile(`certificate_${i}`, certFile); // string|null
+                    certificationUrls[i] = up ? convertDriveUrlToDirectView(up) : null;
+                } catch (err) {
+                    console.error(`certificate_${i} アップロード失敗:`, err);
+                    alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
+                    return;
+                }
+            }
+        }
 
         // attachments 多次元配列生成
-        // これで置き換え（免許/住民票の push は削除）
+        const nowIso = new Date().toISOString();
+
+        type Attachment = {
+            id: string; url: string | null; label?: string; type?: string;
+            mimeType?: string | null; uploaded_at: string; acquired_at: string;
+        };
+
         const attachments: Attachment[] = [];
         for (let i = 0; i < docMaster.certificate.length; i++) {
             const certUrl = certificationUrls[i];
             if (!certUrl) continue;
 
-            const raw = String(form.get(`certificate_date_${i}`) ?? "");
-            const acquired = raw ? parseDocAcquired(raw) : nowIso;
             const certFile = form.get(`certificate_${i}`) as File | null;
 
             attachments.push({
                 id: crypto.randomUUID(),
                 url: certUrl,
-                label: docMaster.certificate[i],   // ★マスター表記
+                label: docMaster.certificate[i],   // マスター表記で保存
                 type: "資格証明書",
                 mimeType: certFile?.type ?? null,
                 uploaded_at: nowIso,
-                acquired_at: acquired,
+                acquired_at: nowIso,               // ★取得日は申込日に固定
             });
         }
-
 
 
         // work_style配列取得
@@ -663,12 +659,7 @@ export default function EntryPage() {
                                     accept="image/*,.pdf"
                                     className="w-full border rounded p-2"
                                 />
-                                <input
-                                    type="text"
-                                    name={`certificate_date_${idx}`}        // ← 取得日（任意）
-                                    placeholder="取得日（YYYYMM または YYYYMMDD）"
-                                    className="mt-1 w-60 border rounded p-2 text-sm"
-                                />
+
                             </div>
                         ))}
                     </div>
