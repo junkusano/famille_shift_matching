@@ -1,15 +1,15 @@
+//entry
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-//import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
-import Link from "next/link"; // 追加
-//import { NextResponse } from "next/server";
+import Link from "next/link";
 import { convertDriveUrlToDirectView } from "@/lib/drive"
 import Footer from '@/components/Footer'; // ← 追加
 import { addStaffLog } from '@/lib/addStaffLog';
+import { parseDocAcquired } from "@/components/DocUploader";
 
 export default function EntryPage() {
 
@@ -19,8 +19,6 @@ export default function EntryPage() {
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
     const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
-
-
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
 
@@ -47,6 +45,23 @@ export default function EntryPage() {
         }
     }, [postalCode, fetchAddressFromPostalCode]);
 
+    const [docMaster, setDocMaster] = useState<{ certificate: string[] }>({ certificate: [] });
+
+    useEffect(() => {
+        const loadDocMaster = async () => {
+            const { data, error } = await supabase
+                .from("user_doc_master")
+                .select("category,label,is_active,sort_order")
+                .eq("category", "certificate")
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true });
+
+            if (!error && data) {
+                setDocMaster({ certificate: data.map(r => r.label) });
+            }
+        };
+        loadDocMaster();
+    }, []);
 
     // エントリーフォーム送信時の主処理
     // - 入力バリデーション
@@ -100,6 +115,31 @@ export default function EntryPage() {
             .select("id")
             .eq("phone", cleanPhone);
 
+        const nowIso = new Date().toISOString();
+        type Attachment = {
+            id: string; url: string | null; label?: string; type?: string;
+            mimeType?: string | null; uploaded_at: string; acquired_at: string;
+        };
+
+        const certificationUrls: (string | null)[] = Array.from(
+            { length: docMaster.certificate.length },
+            () => null
+        );
+
+        for (let i = 0; i < docMaster.certificate.length; i++) {
+            const certFile = form.get(`certificate_${i}`) as File | null;
+            if (certFile && certFile.size > 0) {
+                try {
+                    const up = await uploadFile(`certificate_${i}`, certFile); // string|null
+                    certificationUrls[i] = up ? convertDriveUrlToDirectView(up) : null;
+                } catch (err) {
+                    console.error(`certificate_${i} アップロード失敗:`, err);
+                    alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
+                    return;
+                }
+            }
+        }
+
         if (phoneErr) {
             alert("電話番号重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + phoneErr.message);
             setIsSubmitting(false);
@@ -133,18 +173,6 @@ export default function EntryPage() {
             setIsSubmitting(false);
             return;
         }
-
-        /*
-        if (nameBirthDup && nameBirthDup.length > 0) {
-            if (nameBirthDup.some(e => e.auth_id)) {
-                alert("すでにスタッフとしての登録があります。ポータルページへログインしてください。");
-            } else {
-                alert("すでにエントリー済みです。お問い合わせください（担当新川：090-9140-2642）");
-            }
-            setIsSubmitting(false);
-            return;
-        }
-        */
 
         setIsSubmitting(true); // ← 送信開始
 
@@ -184,7 +212,7 @@ export default function EntryPage() {
         }
 
         const noCert = form.get("noCertifications") === "on";
-        const hasCert = Array.from({ length: 13 }, (_, i) => form.get(`certificate_${i}`) as File)
+        const hasCert = Array.from({ length: docMaster.certificate.length }, (_, i) => form.get(`certificate_${i}`) as File)
             .some(file => file && file.size > 0);
 
         if (!noCert && !hasCert) {
@@ -221,42 +249,28 @@ export default function EntryPage() {
         const photoUrl = convertDriveUrlToDirectView(await uploadFile("photo", photoFile));
         const residenceCardUrl = convertDriveUrlToDirectView(await uploadFile("residenceCard", residenceCard));
 
-        // 資格証明書のURLもすべて変換
-        const certificationUrls: string[] = [];
-        for (let i = 0; i < 13; i++) {
-            const certFile = form.get(`certificate_${i}`) as File;
-
-            // ❗ サイズゼロや未選択ファイルはスキップ
-            if (!certFile || certFile.size === 0) continue;
-
-            try {
-                const certUrl = await uploadFile(`certificate_${i}`, certFile);
-                if (certUrl) certificationUrls.push(convertDriveUrlToDirectView(certUrl));
-            } catch (err) {
-                console.error(`certificate_${i} アップロード失敗:`, err);
-                alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
-                return;
-            }
-        }
-
         // attachments 多次元配列生成
-        const attachments = [];
-        if (licenseFrontUrl) attachments.push({ type: "免許証表", url: licenseFrontUrl, mimeType: licenseFront?.type || "" });
-        if (licenseBackUrl) attachments.push({ type: "免許証裏", url: licenseBackUrl, mimeType: licenseBack?.type || "" });
-        if (residenceCardUrl) attachments.push({ type: "住民票", url: residenceCardUrl, mimeType: residenceCard?.type || "" });
-
-        for (let i = 0; i < 13; i++) {
-            const certFile = form.get(`certificate_${i}`) as File;
+        // これで置き換え（免許/住民票の push は削除）
+        const attachments: Attachment[] = [];
+        for (let i = 0; i < docMaster.certificate.length; i++) {
             const certUrl = certificationUrls[i];
-            if (certUrl) {
-                attachments.push({
-                    type: "資格証明書",
-                    label: `certificate_${i}`,
-                    url: certUrl,
-                    mimeType: certFile?.type || ""
-                });
-            }
+            if (!certUrl) continue;
+
+            const raw = String(form.get(`certificate_date_${i}`) ?? "");
+            const acquired = raw ? parseDocAcquired(raw) : nowIso;
+            const certFile = form.get(`certificate_${i}`) as File | null;
+
+            attachments.push({
+                id: crypto.randomUUID(),
+                url: certUrl,
+                label: docMaster.certificate[i],   // ★マスター表記
+                type: "資格証明書",
+                mimeType: certFile?.type ?? null,
+                uploaded_at: nowIso,
+                acquired_at: acquired,
+            });
         }
+
 
 
         // work_style配列取得
@@ -295,10 +309,9 @@ export default function EntryPage() {
             workplace_3: form.get("workplace_3"),
             period_from_3: form.get("periodFrom_3"),
             period_to_3: form.get("periodTo_3"),
-            certifications: certificationUrls.map((url, idx) => ({
-                label: `certificate_${idx}`,
-                url,
-            })),
+            certifications: certificationUrls
+                .map((url, idx) => (url ? { label: docMaster.certificate[idx], url } : null))
+                .filter(Boolean),
             agreed_at: new Date().toISOString(), // ← 同意日時
             consent_snapshot: JSON.stringify({
                 agreeTerms: "入力内容に虚偽がないことを確認しました。",
@@ -435,7 +448,7 @@ export default function EntryPage() {
                 </h1>
                 <p className="text-sm text-gray-600 mb-4">
                     <span className="text-red-500">*</span> 印の項目は必須です。
-                </p>
+                </p>certificate_$
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     {/* 1. 基本情報 */}
                     <div>
@@ -638,45 +651,26 @@ export default function EntryPage() {
                             ※就業後、勤務に影響する健康上の情報を申告されなかった場合、雇用契約の無効・解除の対象となることがあります。
                         </p>
                     </div>
-
-
                     {/* 7. 資格証明書 */}
                     <div>
-                        <h2 className="text-lg font-semibold mb-2">7. 資格証明書<span className="text-red-500">*</span></h2>
-                        <label className="block text-sm mb-2">
-                            <input type="checkbox" name="noCertifications" className="mr-2" />
-                            介護に関する資格証を現在所持していない（エントリー後、採用面接のフローに進みます）
-                        </label>
-                        <div className="space-y-4">
-                            <label className="block text-sm font-medium">
-                                所持している資格証明書をアップロードしてください（該当するもののみ）。
-                            </label>
-                            {[
-                                "介護福祉士",
-                                "実務者研修終了",
-                                "初任者研修（ヘルパー2級）",
-                                "正看護師",
-                                "准看護師",
-                                "同行援護資格（一般過程）",
-                                "同行援護資格（応用過程）",
-                                "行動援護（高度行動障害）資格",
-                                "2年以上の障害児・障害者サービス実施経験証明書",
-                                "1年以上の障害児・障害者サービス実施経験証明書",
-                                "その他介護に関する資格証明書①",
-                                "その他介護に関する資格証明書②",
-                                "その他介護に関する資格証明書③"
-                            ].map((label, idx) => (
-                                <div key={idx}>
-                                    <label className="block text-sm font-medium">{label}</label>
-                                    <input
-                                        type="file"
-                                        name={`certificate_${idx}`}
-                                        accept="image/*,.pdf"
-                                        className="w-full border rounded p-2"
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                        <h2 className="text-lg font-semibold mb-2">7. 資格証明書</h2>
+                        {docMaster.certificate.map((label, idx) => (
+                            <div key={idx} className="mb-3">
+                                <label className="block text-sm font-medium">{label}</label>
+                                <input
+                                    type="file"
+                                    name={`certificate_${idx}`}
+                                    accept="image/*,.pdf"
+                                    className="w-full border rounded p-2"
+                                />
+                                <input
+                                    type="text"
+                                    name={`certificate_date_${idx}`}        // ← 取得日（任意）
+                                    placeholder="取得日（YYYYMM または YYYYMMDD）"
+                                    className="mt-1 w-60 border rounded p-2 text-sm"
+                                />
+                            </div>
+                        ))}
                     </div>
 
                     {/* 8. 身分証明書 */}

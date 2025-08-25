@@ -131,7 +131,6 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
-    //const [newDocLabel, setNewDocLabel] = useState("");
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
     const setField = <K extends WorkKey>(key: K, value: string) => {
@@ -169,14 +168,6 @@ export default function EntryDetailPage() {
 
     type DocMasterRow = { category: 'certificate' | 'other'; label: string; sort_order?: number; is_active?: boolean };
     const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({ certificate: [], other: [] });
-
-    // カスタム入力の ON/OFF
-    //const [useCustomCert, setUseCustomCert] = useState(false);
-    //const [useCustomOther, setUseCustomOther] = useState(false);
-
-
-    // 取得日の簡易入力（常にトップで）
-    //const [acquiredRaw, setAcquiredRaw] = useState('');
 
     // attachmentsArray（常にトップで）
     const attachmentsArray: Attachment[] = useMemo(() => {
@@ -1184,10 +1175,6 @@ export default function EntryDetailPage() {
     const licenseFront = attachmentsArray.find((a: Attachment) => a.type === '免許証表');
     const licenseBack = attachmentsArray.find((a: Attachment) => a.type === '免許証裏');
     const residenceCard = attachmentsArray.find((a: Attachment) => a.type === '住民票');
-    /*const otherDocs = (attachmentsArray as Attachment[]).filter(a =>
-        a.url !== null && !isFixedId(a) && !isCert(a)
-    );
-    */
 
     if (restricted) {
         return <p className="p-6 text-red-600 font-bold">このエントリーにはアクセスできません（権限不足）</p>;
@@ -1277,17 +1264,6 @@ export default function EntryDetailPage() {
         setEntry(prev => (prev ? { ...prev, attachments: next } : prev));
     };
 
-    // 削除は id で
-    /*
-    const handleDeleteAttachmentById = async (id: string) => {
-        if (!entry) return;
-        const next = attachmentsArray.filter(a => a.id !== id);
-        await saveAttachments(next);
-        alert('添付を削除しました');
-    };
-    */
-
-
     // 追加：削除ハンドラ（参照エラーの解消）
     const handleDeleteAttachment = async (by: { type?: string; label?: string }) => {
         if (!entry) return;
@@ -1366,33 +1342,6 @@ export default function EntryDetailPage() {
 
         }
     };
-
-    // その他
-    /*
-    const handleOtherDocUpload = async (file: File, label: string) => {
-        if (!entry) return;
-        if (!label.trim()) return alert("書類のラベルを入力してください");
-        try {
-            const { url, mimeType } = await uploadFileViaApi(file);
-            const now = new Date().toISOString();
-            const item: Attachment = {
-                id: crypto.randomUUID(),
-                url, mimeType,
-                type: 'その他',
-                label: label.trim(),
-                uploaded_at: now,
-                acquired_at: parseAcquired(acquiredRaw),
-            };
-            await saveAttachments([...attachmentsArray, item]); // ★追加
-            alert(`${label} をアップロードしました`);
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(`アップロードに失敗: ${msg}`);
-        } finally {
-
-        }
-    };
-    */
 
     // ★ 上下に同じボタン群を出す（ユーザーID決定は含めない）
     const ActionButtons = () => (
@@ -2307,19 +2256,3 @@ function getUserIdSuggestions(
     return candidates.filter(c => !existingIds.includes(c));
 }
 
-/*
-function parseAcquired(raw: string | undefined | null): string {
-    const s = (raw ?? '').replace(/\D/g, '');
-    if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
-    if (/^\d{6}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-01T00:00:00+09:00`;
-    return new Date().toISOString();
-}
-    */
-/*
-function formatAcquired(iso: string) {
-    const d = new Date(iso), y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
-}
-*/
