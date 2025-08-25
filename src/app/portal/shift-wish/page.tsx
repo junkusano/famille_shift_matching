@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Send, EyeOff, Eye } from "lucide-react";
 
-// ブラウザ組み込みAPIを利用してファイル保存
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -51,8 +50,12 @@ export default function ShiftWishPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: ShiftWishRow[] = await res.json();
         setRows(data);
-      } catch (e: any) {
-        setError(e.message);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError(String(e));
+        }
       } finally {
         setLoading(false);
       }
