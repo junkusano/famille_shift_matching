@@ -1188,8 +1188,6 @@ export default function EntryDetailPage() {
     const licenseFront = attachmentsArray.find((a: Attachment) => a.type === '免許証表');
     const licenseBack = attachmentsArray.find((a: Attachment) => a.type === '免許証裏');
     const residenceCard = attachmentsArray.find((a: Attachment) => a.type === '住民票');
-
-    const certifications = (attachmentsArray as Attachment[]).filter(a => isCert(a));
     const otherDocs = (attachmentsArray as Attachment[]).filter(a =>
         a.url !== null && !isFixedId(a) && !isCert(a)
     );
@@ -1387,29 +1385,6 @@ export default function EntryDetailPage() {
             alert(`アップロードに失敗: ${msg}`);
         } finally {
 
-        }
-    };
-
-    // 資格
-    const handleCertUpload = async (file: File, label: string) => {
-        if (!entry) return;
-        if (!label.trim()) return alert("資格のラベルを入力してください");
-        try {
-            const { url, mimeType } = await uploadFileViaApi(file);
-            const now = new Date().toISOString();
-            const item: Attachment = {
-                id: crypto.randomUUID(),
-                url, mimeType,
-                type: '資格証明書',
-                label: label.trim(),
-                uploaded_at: now,
-                acquired_at: parseAcquired(acquiredRaw),
-            };
-            await saveAttachments([...attachmentsArray, item]); // ★追加
-            alert(`${label} をアップロードしました`);
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(`アップロードに失敗: ${msg}`);
         }
     };
 
