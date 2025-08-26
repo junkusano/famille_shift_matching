@@ -108,13 +108,17 @@ export default function DocUploader({
         return new Date().toISOString();
     };
 
-    const formatAcquired = (iso: string) => {
+    const formatAcquired = (iso?: string) => {
+        if (!iso) return '未設定';
         const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '未設定';
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, "0");
         const day = String(d.getDate()).padStart(2, "0");
         return day === "01" ? `${y}/${m}` : `${y}/${m}/${day}`;
     };
+
+    // Thumb 呼び出しのタイトル生成もそのままでOK（formatAcquiredが対応）
 
     const isPlaceholderId = (id?: string) => !!id && id.startsWith("__placeholder__:");
 
@@ -170,31 +174,26 @@ export default function DocUploader({
 
     const handleAdd = async (file: File) => {
         const label = (useCustom ? customLabel : selectedLabel).trim();
-        if (!label) {
-            alert("書類名を選択または入力してください");
-            return;
-        }
-        setBusyId("__new__");
+        if (!label) { alert('書類名を選択または入力してください'); return; }
+        setBusyId('__new__');
         try {
             const { url, mimeType } = await uploadFileViaApi(file);
-            const now = new Date().toISOString();
             const item: DocItem = {
                 id: crypto.randomUUID(),
                 url,
                 mimeType,
                 type: docCategory,
                 label,
-                uploaded_at: now,
-                acquired_at: parseAcquired(acquiredRaw),
+                uploaded_at: new Date().toISOString(),
+                ...(acquiredRaw ? { acquired_at: parseAcquired(acquiredRaw) } : {}), // ← 未入力なら付けない
             };
             onChange([...list, item]);
-            setAcquiredRaw("");
-            setSelectedLabel("");
-            setCustomLabel("");
-        } finally {
-            setBusyId(null);
-        }
+            setAcquiredRaw('');
+            setSelectedLabel('');
+            setCustomLabel('');
+        } finally { setBusyId(null); }
     };
+
 
     const handleAddWithLabel = async (label: string, file: File) => {
         setBusyId("__new__");
