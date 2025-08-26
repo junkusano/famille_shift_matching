@@ -22,12 +22,13 @@ export type DocItem = {
 export type DocMaster = { [category: string]: string[] };
 
 export type DocUploaderProps = {
+    title?: string;
     value: DocItem[];
     onChange: (next: DocItem[]) => void;
     docMaster: DocMaster;
-    docCategory: string;        // user_doc_master.category （例: "certificate" | "other" | "cs_doc"）
-    uploadApiPath?: string;
-    title?: string;
+    docCategory: string;
+    uploadApiPath: string;
+    showPlaceholders?: boolean;
 };
 
 export default function DocUploader({
@@ -37,6 +38,7 @@ export default function DocUploader({
     docCategory,
     uploadApiPath = "/api/upload",
     title = "書類アップロード",
+    showPlaceholders = false,
 }: DocUploaderProps) {
     const [acquiredRaw, setAcquiredRaw] = useState("");
     const [useCustom, setUseCustom] = useState(false);
@@ -135,9 +137,18 @@ export default function DocUploader({
         }
     };
 
+    const labels = Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : [];
+
+    const itemsToRender = showPlaceholders
+        ? // すべてのラベルをスロット化（従来動作）
+        labels.map((label) => value.find(v => v.label === label) ?? { label, url: null, id: undefined, type: '資格証明書' })
+        : // 提出済みのみ（url など実体があるもの）を表示
+        value.filter(v => v && (v.url || v.id));  // ← ここがポイント
+
     return (
         <div className="space-y-2">
-            <h2 className="text-lg font-semibold">{title}</h2>
+            {title && <h3 className="text-lg font-semibold">{title}</h3>}
+
 
             {list.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -170,6 +181,7 @@ export default function DocUploader({
             ) : (
                 <div className="text-sm text-gray-500">まだ登録されていません。</div>
             )}
+
 
             <div className="mt-3 p-3 border rounded bg-gray-50">
                 <div className="mb-2">

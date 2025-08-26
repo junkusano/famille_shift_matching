@@ -167,6 +167,7 @@ export default function PortalHome() {
           docMaster={{ certificate: docMaster.certificate }}
           docCategory="certificate"
           uploadApiPath="/api/upload"
+          showPlaceholders={false}
         />
         <button
           onClick={handleSave}
