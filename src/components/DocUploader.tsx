@@ -28,7 +28,7 @@ export type DocUploaderProps = {
     docMaster: DocMaster;
     docCategory: string;
     uploadApiPath: string;
-    showPlaceholders?: boolean;
+    showPlaceholders?: boolean; // true: マスタ全件を“空スロット含め”表示 / false: 提出済みのみ表示
 };
 
 export default function DocUploader({
@@ -42,9 +42,11 @@ export default function DocUploader({
 }: DocUploaderProps) {
     const [acquiredRaw, setAcquiredRaw] = useState("");
     const [useCustom, setUseCustom] = useState(false);
-    const [newLabel, setNewLabel] = useState("");
+    const [selectedLabel, setSelectedLabel] = useState("");
+    const [customLabel, setCustomLabel] = useState("");
     const [busyId, setBusyId] = useState<string | null>(null);
 
+    // 正規化
     const list = useMemo<DocItem[]>(() => {
         const arr = Array.isArray(value) ? value : [];
         return arr.map((d) => ({
@@ -94,6 +96,8 @@ export default function DocUploader({
         return day === "01" ? `${y}/${m}` : `${y}/${m}/${day}`;
     };
 
+    const isPlaceholderId = (id?: string) => !!id && id.startsWith("__placeholder__:");
+
     const handleReplace = async (id: string, file: File) => {
         setBusyId(id);
         try {
@@ -110,8 +114,30 @@ export default function DocUploader({
         onChange(next);
     };
 
+    const labels = Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : [];
+
+    // 表示対象: showPlaceholders=false は提出済みのみ、true はマスタ全件にプレースホルダを補完
+    const renderList: DocItem[] = useMemo(() => {
+        if (!showPlaceholders) return list;
+        const now = new Date().toISOString();
+        return labels.map((label) => {
+            const existing = list.find((v) => v.label === label);
+            return (
+                existing ?? {
+                    id: `__placeholder__:${label}`,
+                    url: null,
+                    label,
+                    type: docCategory,
+                    mimeType: null,
+                    uploaded_at: now,
+                    acquired_at: now,
+                }
+            );
+        });
+    }, [showPlaceholders, labels, list, docCategory]);
+
     const handleAdd = async (file: File) => {
-        const label = (useCustom ? newLabel : newLabel).trim();
+        const label = (useCustom ? customLabel : selectedLabel).trim();
         if (!label) {
             alert("書類名を選択または入力してください");
             return;
@@ -131,30 +157,47 @@ export default function DocUploader({
             };
             onChange([...list, item]);
             setAcquiredRaw("");
-            setNewLabel("");
+            setSelectedLabel("");
+            setCustomLabel("");
         } finally {
             setBusyId(null);
         }
     };
 
-    const labels = Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : [];
-
-    const itemsToRender = showPlaceholders
-        ? // すべてのラベルをスロット化（従来動作）
-        labels.map((label) => value.find(v => v.label === label) ?? { label, url: null, id: undefined, type: '資格証明書' })
-        : // 提出済みのみ（url など実体があるもの）を表示
-        value.filter(v => v && (v.url || v.id));  // ← ここがポイント
+    const handleAddWithLabel = async (label: string, file: File) => {
+        setBusyId("__new__");
+        try {
+            const { url, mimeType } = await uploadFileViaApi(file);
+            const now = new Date().toISOString();
+            const item: DocItem = {
+                id: crypto.randomUUID(),
+                url,
+                mimeType,
+                type: docCategory,
+                label,
+                uploaded_at: now,
+                acquired_at: parseAcquired(acquiredRaw),
+            };
+            onChange([...list, item]);
+            setAcquiredRaw("");
+        } finally {
+            setBusyId(null);
+        }
+    };
 
     return (
         <div className="space-y-2">
             {title && <h3 className="text-lg font-semibold">{title}</h3>}
 
-
-            {list.length > 0 ? (
+            {renderList.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {list.map((doc) => (
-                        <div key={doc.id} className="border rounded p-2 bg-white">
-                            <Thumb title={`${doc.label ?? doc.type ?? "doc"}（取得: ${formatAcquired(doc.acquired_at)}）`} src={doc.url ?? undefined} mimeType={doc.mimeType ?? undefined} />
+                    {renderList.map((doc, idx) => (
+                        <div key={doc.id ?? `${doc.label}-${idx}`} className="border rounded p-2 bg-white">
+                            <Thumb
+                                title={`${doc.label ?? doc.type ?? "doc"}（取得: ${formatAcquired(doc.acquired_at)}）`}
+                                src={doc.url ?? undefined}
+                                mimeType={doc.mimeType ?? undefined}
+                            />
                             <div className="mt-2 flex items-center gap-2">
                                 <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer text-xs">
                                     差し替え
@@ -166,14 +209,24 @@ export default function DocUploader({
                                         onChange={(e) => {
                                             const f = e.target.files?.[0];
                                             if (!f) return;
-                                            void handleReplace(doc.id, f);
+                                            if (isPlaceholderId(doc.id)) {
+                                                void handleAddWithLabel(doc.label ?? docCategory, f);
+                                            } else {
+                                                void handleReplace(doc.id, f);
+                                            }
                                             e.currentTarget.value = "";
                                         }}
                                     />
                                 </label>
-                                <button className="px-2 py-1 border rounded text-xs" onClick={() => handleDelete(doc.id)} disabled={busyId !== null}>
-                                    削除
-                                </button>
+                                {!isPlaceholderId(doc.id) && doc.url && (
+                                    <button
+                                        className="px-2 py-1 border rounded text-xs"
+                                        onClick={() => handleDelete(doc.id)}
+                                        disabled={busyId !== null}
+                                    >
+                                        削除
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -181,7 +234,6 @@ export default function DocUploader({
             ) : (
                 <div className="text-sm text-gray-500">まだ登録されていません。</div>
             )}
-
 
             <div className="mt-3 p-3 border rounded bg-gray-50">
                 <div className="mb-2">
@@ -197,15 +249,15 @@ export default function DocUploader({
                 <div className="flex items-center gap-2">
                     <select
                         className="border rounded px-2 py-1"
-                        value={useCustom ? "__custom__" : newLabel || ""}
+                        value={useCustom ? "__custom__" : selectedLabel}
                         onChange={(e) => {
                             const v = e.target.value;
                             if (v === "__custom__") {
                                 setUseCustom(true);
-                                setNewLabel("");
+                                setSelectedLabel("");
                             } else {
                                 setUseCustom(false);
-                                setNewLabel(v);
+                                setSelectedLabel(v);
                             }
                         }}
                     >
@@ -221,8 +273,8 @@ export default function DocUploader({
                         <input
                             className="border rounded px-2 py-1"
                             placeholder={`例: ${docCategory}_書類名`}
-                            value={newLabel}
-                            onChange={(e) => setNewLabel(e.target.value)}
+                            value={customLabel}
+                            onChange={(e) => setCustomLabel(e.target.value)}
                         />
                     )}
                     <label className="px-3 py-1 bg-green-600 text-white rounded cursor-pointer text-sm">
@@ -308,7 +360,7 @@ export type Attachment = {
     acquired_at: string;
 };
 
-// ★ 追加：DocItem -> Attachment 変換
+// DocItem -> Attachment 変換
 export const toAttachment = (d: DocItem, fallbackType = "その他"): Attachment => ({
     id: d.id,
     url: d.url,
@@ -319,7 +371,7 @@ export const toAttachment = (d: DocItem, fallbackType = "その他"): Attachment
     acquired_at: d.acquired_at,
 });
 
-// ★ 既存の取得日ヘルパを再利用できるよう export
+// 既存の取得日ヘルパを再利用できるよう export
 export const parseDocAcquired = (raw?: string | null) => {
     const s = (raw ?? "").replace(/\D/g, "");
     if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00+09:00`;
