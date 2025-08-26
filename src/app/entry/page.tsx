@@ -305,10 +305,12 @@ export default function EntryPage() {
             workplace_3: form.get("workplace_3"),
             period_from_3: form.get("periodFrom_3"),
             period_to_3: form.get("periodTo_3"),
+            /*   attachementsに一本化
             certifications: certificationUrls
                 .map((url, idx) => (url ? { label: docMaster.certificate[idx], url } : null))
                 .filter(Boolean),
             agreed_at: new Date().toISOString(), // ← 同意日時
+            */
             consent_snapshot: JSON.stringify({
                 agreeTerms: "入力内容に虚偽がないことを確認しました。",
                 agreePrivacy: "プライバシーポリシーを読み、内容に同意します。",
