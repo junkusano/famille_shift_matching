@@ -27,7 +27,7 @@ export type DocUploaderProps = {
     onChange: (next: DocItem[]) => void;
     docMaster: DocMaster;
     docCategory: string;
-    uploadApiPath: string;
+    uploadApiPath?: string;
     showPlaceholders?: boolean; // true: マスタ全件を“空スロット含め”表示 / false: 提出済みのみ表示
 };
 
@@ -114,7 +114,10 @@ export default function DocUploader({
         onChange(next);
     };
 
-    const labels = Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : [];
+    const labels = useMemo(
+        () => (Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : []),
+        [docMaster, docCategory]
+    );
 
     // 表示対象: showPlaceholders=false は提出済みのみ、true はマスタ全件にプレースホルダを補完
     const renderList: DocItem[] = useMemo(() => {
