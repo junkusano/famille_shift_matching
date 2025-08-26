@@ -46,17 +46,27 @@ export default function DocUploader({
     const [customLabel, setCustomLabel] = useState("");
     const [busyId, setBusyId] = useState<string | null>(null);
 
-    // 正規化
+    // list の直前に 2つのヘルパーを追加（重複していれば追加しない）
+    const extractFileId = (u?: string | null) => {
+        if (!u) return null;
+        const m = u.match(/[-\w]{25,}/);
+        return m ? m[0] : null;
+    };
+    const stableIdOf = (d: Partial<DocItem>) =>
+        d.id ?? (d.url ? `u:${extractFileId(d.url)}` : d.label ? `l:${d.label}` : undefined);
+
+    // ★ ここが list の唯一の定義（置き換え版）
     const list = useMemo<DocItem[]>(() => {
         const arr = Array.isArray(value) ? value : [];
+        const now = new Date().toISOString();
         return arr.map((d) => ({
-            id: d.id ?? crypto.randomUUID(),
+            id: stableIdOf(d) ?? crypto.randomUUID(), // ← 安定ID
             url: d.url ?? null,
             label: d.label,
             type: d.type ?? docCategory,
             mimeType: d.mimeType ?? null,
-            uploaded_at: d.uploaded_at ?? new Date().toISOString(),
-            acquired_at: d.acquired_at ?? d.uploaded_at ?? new Date().toISOString(),
+            uploaded_at: d.uploaded_at ?? now,
+            acquired_at: d.acquired_at ?? d.uploaded_at ?? now,
         }));
     }, [value, docCategory]);
 
@@ -110,9 +120,10 @@ export default function DocUploader({
     };
 
     const handleDelete = async (id: string) => {
-        const next = list.filter((a) => a.id !== id);
+        const next = list.filter((a) => a.id !== id && `u:${extractFileId(a.url)}` !== id);
         onChange(next);
     };
+
 
     const labels = useMemo(
         () => (Array.isArray(docMaster?.[docCategory]) ? docMaster[docCategory] : []),
