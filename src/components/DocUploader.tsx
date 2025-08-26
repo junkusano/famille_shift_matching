@@ -9,14 +9,25 @@
 import React, { useMemo, useState } from "react";
 import Image from "next/image";
 
+// どちらも uploaded_at / acquired_at を ? に
 export type DocItem = {
     id: string;
     url: string | null;
     label?: string;
     type?: string;
     mimeType?: string | null;
-    uploaded_at: string;
-    acquired_at: string;
+    uploaded_at?: string;   // ← optional
+    acquired_at?: string;   // ← optional
+};
+
+export type Attachment = {
+    id: string;
+    url: string | null;
+    label?: string;
+    type?: string;
+    mimeType?: string | null;
+    uploaded_at?: string;   // ← optional
+    acquired_at?: string;   // ← optional
 };
 
 export type DocMaster = { [category: string]: string[] };
@@ -58,15 +69,14 @@ export default function DocUploader({
     // ★ ここが list の唯一の定義（置き換え版）
     const list = useMemo<DocItem[]>(() => {
         const arr = Array.isArray(value) ? value : [];
-        const now = new Date().toISOString();
         return arr.map((d) => ({
-            id: stableIdOf(d) ?? crypto.randomUUID(), // ← 安定ID
+            id: stableIdOf(d) ?? crypto.randomUUID(),
             url: d.url ?? null,
             label: d.label,
             type: d.type ?? docCategory,
             mimeType: d.mimeType ?? null,
-            uploaded_at: d.uploaded_at ?? now,
-            acquired_at: d.acquired_at ?? d.uploaded_at ?? now,
+            uploaded_at: d.uploaded_at,               // ← 既存値そのまま
+            acquired_at: d.acquired_at ?? d.uploaded_at, // ← 既存から補うだけ。無ければ未設定
         }));
     }, [value, docCategory]);
 
@@ -130,25 +140,33 @@ export default function DocUploader({
         [docMaster, docCategory]
     );
 
-    // 表示対象: showPlaceholders=false は提出済みのみ、true はマスタ全件にプレースホルダを補完
-    const renderList: DocItem[] = useMemo(() => {
+    // showPlaceholders=true のときだけ “スロット化 + 重複収束”
+    const renderList = useMemo<DocItem[]>(() => {
         if (!showPlaceholders) return list;
+
+        const pickBest = (cands: DocItem[]) => {
+            // URLあり > uploaded_atあり > 先頭
+            return cands.find(c => c.url) ?? cands.find(c => c.uploaded_at) ?? cands[0];
+        };
+
         const now = new Date().toISOString();
         return labels.map((label) => {
-            const existing = list.find((v) => v.label === label);
-            return (
-                existing ?? {
+            const cands = list.filter(v => v.label === label);
+            if (cands.length === 0) {
+                return {
                     id: `__placeholder__:${label}`,
                     url: null,
                     label,
                     type: docCategory,
                     mimeType: null,
-                    uploaded_at: now,
-                    acquired_at: now,
-                }
-            );
+                    uploaded_at: undefined,
+                    acquired_at: undefined,
+                };
+            }
+            return pickBest(cands);
         });
     }, [showPlaceholders, labels, list, docCategory]);
+
 
     const handleAdd = async (file: File) => {
         const label = (useCustom ? customLabel : selectedLabel).trim();
@@ -362,17 +380,6 @@ function Thumb({ title, src, mimeType }: { title: string; src?: string; mimeType
         </div>
     );
 }
-
-// 追加：保存用の統一型（EntryDetail側のAttachmentに合わせる）
-export type Attachment = {
-    id: string;
-    url: string | null;
-    label?: string;
-    type?: string;
-    mimeType?: string | null;
-    uploaded_at: string;
-    acquired_at: string;
-};
 
 // DocItem -> Attachment 変換
 export const toAttachment = (d: DocItem, fallbackType = "その他"): Attachment => ({
