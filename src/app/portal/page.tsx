@@ -184,7 +184,7 @@ export default function PortalHome() {
       {/* あなたの資格からの判定だけ残す */}
       {services.length > 0 && (
         <div className="mt-4 p-3 border rounded">
-          <div className="font-semibold">あなたの資格から判定（提供可能サービス）</div>
+          <div className="font-semibold">入れるサービス（あなたの資格から判定）</div>
           <ul className="list-disc pl-5">
             {services.map((s) => (
               <li key={s}>{s}</li>
