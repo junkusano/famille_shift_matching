@@ -112,6 +112,13 @@ type FormEntriesRow =
         commute_options?: ArrayOrString;
     } & Partial<Record<WorkKey, string | null>>;
 
+// URL から Google Drive fileId を抽出
+function extractFileId(u?: string | null): string | null {
+    if (!u) return null;
+    const m = u.match(/(?:\/d\/|[?&]id=)([-\w]{25,})/);
+    return m ? m[1] : null;
+}
+
 
 export default function EntryDetailPage() {
     const { id } = useParams();
@@ -273,7 +280,7 @@ export default function EntryDetailPage() {
         }
     };
 
-    // 先頭（import 群の下あたり、コンポーネント外）
+    // 表記ゆれを“正”に寄せる
     const canonType = (
         t?: string | null
     ): '資格証明書' | '免許証表' | '免許証裏' | '住民票' | 'その他' => {
@@ -286,8 +293,9 @@ export default function EntryDetailPage() {
         return 'その他';
     };
 
-    const extractFileId = (u?: string | null) =>
-        u ? (u.match(/[-\w]{25,}/)?.[0] ?? null) : null;
+    // 指定カテゴリ（日本語）に属するか
+    const isInCategory = (a: Attachment, catJP: ReturnType<typeof canonType>) =>
+        canonType(a?.type) === catJP;
 
     // 資格証：変更即保存
     const onCertificatesChange = async (next: DocItem[]) => {
@@ -310,32 +318,12 @@ export default function EntryDetailPage() {
         }
     };
 
-    // --- attachments 保存ユーティリティ（カテゴリ単位で置換）
-    const isInCategory = (a: Attachment, docCategory: 'certificate' | 'other') =>
-        docCategory === 'certificate' ? a.type === '資格証明書' : a.type === 'その他';
-
     // 既存の saveAttachmentsForCategory をこの中身に置換（1つだけ残す）
     const saveAttachmentsForCategory = async (
         category: 'certificate' | 'other',
         nextDocs: DocItem[]
     ) => {
         if (!entry) return;
-
-        // これを使って type の表記ゆれを正規化
-        const canonType = (
-            t?: string | null
-        ): '資格証明書' | '免許証表' | '免許証裏' | '住民票' | 'その他' => {
-            const s = (t ?? '').trim().toLowerCase();
-            if (s === 'certificate' || s === '資格証' || s === '資格証明書') return '資格証明書';
-            if (s === '免許証表' || s === 'license_front') return '免許証表';
-            if (s === '免許証裏' || s === 'license_back') return '免許証裏';
-            if (s === '住民票' || s === 'residence') return '住民票';
-            if (s === 'その他' || s === 'other') return 'その他';
-            return 'その他';
-        };
-
-        const extractFileId = (u?: string | null) =>
-            u ? (u.match(/[-\w]{25,}/)?.[0] ?? null) : null;
 
         const catJP: '資格証明書' | 'その他' =
             category === 'certificate' ? '資格証明書' : 'その他';
@@ -345,7 +333,7 @@ export default function EntryDetailPage() {
             : [];
 
         // 'certificate' も '資格証明書' もまとめて除外
-        const others = base.filter(a => canonType(a.type) !== catJP);
+        const others = base.filter(a => !isInCategory(a, catJP));
 
         const now = new Date().toISOString();
         const mapped: Attachment[] = nextDocs.map(d => ({
@@ -359,14 +347,14 @@ export default function EntryDetailPage() {
         }));
 
         // 正規化 + 重複除去（type|label|fileId）
-        const merged0 = [...others, ...mapped].map(a => ({ ...a, type: canonType(a.type) }));
+        const merged0 = [...others, ...mapped];
         const seen = new Set<string>();
         const merged: Attachment[] = [];
         for (const a of merged0) {
-            const key = `${a.type}|${a.label ?? ''}|${extractFileId(a.url) ?? ''}`;
+            const key = `${canonType(a.type)}|${a.label ?? ''}|${extractFileId(a.url) ?? ''}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            merged.push(a);
+            merged.push({ ...a, type: canonType(a.type) });
         }
 
         const { error } = await supabase
@@ -384,38 +372,21 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         if (!entry) return;
+        const att = Array.isArray(entry.attachments) ? entry.attachments : [];
 
-        // attachments だけを見る
-        const att: LegacyAttachment[] = Array.isArray(entry.attachments)
-            ? (entry.attachments as LegacyAttachment[])
-            : [];
-
-        // 型安全な判定（資格だけ抽出）
-        const isCert = (a: LegacyAttachment): boolean => {
-            const t = a?.type ?? "";
-            const l = a?.label ?? "";
-            return (
-                t === "資格証明書" ||
-                t === "資格証" ||
-                t === "certificate" ||
-                l.startsWith("certificate_")
-            );
-        };
-
-        // DocItem へ正規化（不用意に今日で埋めない）
-        const picked: DocItem[] = att
-            .filter(isCert)
-            .map((p): DocItem => ({
-                id: p.id ?? crypto.randomUUID(),
-                url: p.url ?? null,
-                label: p.label,
-                type: "資格証明書",
-                mimeType: p.mimeType ?? null,
-                uploaded_at: p.uploaded_at,                 // 既存値そのまま
-                acquired_at: p.acquired_at ?? p.uploaded_at // 既存から補うだけ
+        const certItems: DocItem[] = att
+            .filter(a => isInCategory(a as Attachment, '資格証明書')) // ★ここで使用
+            .map(a => ({
+                id: a.id ?? crypto.randomUUID(),
+                url: a.url ?? null,
+                label: a.label ?? undefined,
+                type: '資格証明書',               // canon に合わせて固定
+                mimeType: a.mimeType ?? null,
+                uploaded_at: a.uploaded_at,
+                acquired_at: a.acquired_at ?? a.uploaded_at,
             }));
 
-        setCertificates(picked);
+        setCertificates(certItems);
     }, [entry]);
 
     const saveCertificates = async () => {
@@ -2252,8 +2223,8 @@ function FileThumbnail({
     }
 
     // Google Drive の fileId を URL から抽出
-    const fileIdMatch = src.match(/[-\w]{25,}/);
-    const fileId = fileIdMatch ? fileIdMatch[0] : null;
+    //const fileIdMatch = src.match(/[-\w]{25,}/);
+    const fileId = extractFileId(src);
     if (!fileId) {
         return (
             <div className="text-sm text-center text-red-500">
