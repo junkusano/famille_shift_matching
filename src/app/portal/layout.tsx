@@ -353,7 +353,7 @@ export default function PortalLayout({ children }: Props) {
                                     </Link>
                                 </li>
                                 <li>
-                                    <Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">
+                                    <Link href="/portal/shift-wish" className="text-blue-300 hover:underline">
                                         シフトWish
                                     </Link>
                                 </li>

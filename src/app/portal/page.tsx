@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabaseClient';
 import DocUploader, { type DocItem, type Attachment, toAttachment } from '@/components/DocUploader';
 import {
   determineServicesFromCertificates,
-  listAllServiceKeys,
   type DocMasterRow as CertMasterRow,
   type ServiceKey,
 } from '@/lib/certificateJudge';
@@ -34,14 +33,12 @@ export default function PortalHome() {
     other: [],
   });
 
-  // 追加：判定用にマスタ行を保持
+  // 判定用のマスタ行
   const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
-  // 追加：マスタ由来の doc_group（重複なし一覧）
-  const [allServiceKeys, setAllServiceKeys] = useState<string[]>([]);
   // あなたの資格からの提供可能サービス（重複なし）
   const [services, setServices] = useState<ServiceKey[]>([]);
 
-  // ユーザー & 提出済み添付の読み込み
+  // ユーザー & 添付の読み込み
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) {
@@ -111,9 +108,6 @@ export default function PortalHome() {
         .filter((r) => r.category === 'other' && r.is_active !== false)
         .map((r) => r.label ?? '');
       setDocMaster({ certificate: cert, other });
-
-      // 可能なサービス（doc_group）一覧（重複なし）
-      setAllServiceKeys(listAllServiceKeys(rows));
     };
 
     void loadDocMaster();
@@ -187,21 +181,7 @@ export default function PortalHome() {
         />
       </div>
 
-      {/* マスタ由来：可能なサービス（doc_group）重複なく表示 */}
-      <div className="mt-6 border rounded p-3">
-        <div className="font-semibold mb-1">可能なサービス（doc_group）</div>
-        {allServiceKeys.length === 0 ? (
-          <div className="text-gray-500 text-sm">doc_group が設定された資格が見つかりません</div>
-        ) : (
-          <ul className="list-disc pl-5">
-            {allServiceKeys.map((k) => (
-              <li key={k}>{k}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* あなたの資格からの判定 */}
+      {/* あなたの資格からの判定だけ残す */}
       {services.length > 0 && (
         <div className="mt-4 p-3 border rounded">
           <div className="font-semibold">あなたの資格から判定（提供可能サービス）</div>
