@@ -1,29 +1,31 @@
+// src/app/api/shift-wish/[id]/route.ts
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// ★ server only：環境変数で安全に
+// 注意 環境変数はVercel等のプロジェクト設定に登録してください
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  // 削除は管理操作なので service_role を推奨（RLSを気にしない）
+  // RLSを気にせず確実に削除する場合は service_role を使用
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
-  const id = params.id
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+// 独自のコンテキスト型で十分 公式型に依存しない
+type Ctx = { params: { id: string } }
 
-  // 実テーブルに対して削除（一覧は view を読んでOK）
-  const { error } = await supabase
-    .from('shift-wish')
-    .delete()
-    .eq('id', id)
+export async function DELETE(_req: Request, { params }: Ctx) {
+  const id = params?.id
+  if (!id) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  }
+
+  // 実テーブルを削除 ビューではなく shift-wish に対して実行
+  const { error } = await supabase.from('shift-wish').delete().eq('id', id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  // 204で返す（ボディなし）
+
+  // 本文無しで成功を返却
   return new NextResponse(null, { status: 204 })
 }
