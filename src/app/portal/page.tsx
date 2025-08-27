@@ -6,7 +6,12 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import DocUploader, { type DocItem, type Attachment, toAttachment } from '@/components/DocUploader';
-import { determineServicesFromCertificates, type ServiceKey, type DocMasterRow as MasterRow } from '@/lib/certificateJudge';
+import {
+  determineServicesFromCertificates,
+  listAllServiceKeys,
+  type DocMasterRow as CertMasterRow,
+  type ServiceKey,
+} from '@/lib/certificateJudge';
 
 type UserRow = {
   id: string;
@@ -19,44 +24,52 @@ type UserRow = {
   attachments: Attachment[] | null;
 };
 
-type DocMasterRow = MasterRow;
-
-/*
-type DocMasterRow = {
-  category: string;
-  label: string;
-  is_active?: boolean;
-  sort_order?: number;
-};
-*/
-
 export default function PortalHome() {
   const router = useRouter();
+
   const [me, setMe] = useState<UserRow | null>(null);
   const [certs, setCerts] = useState<DocItem[]>([]);
   const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({
     certificate: [],
     other: [],
   });
+
+  // 追加：判定用にマスタ行を保持
+  const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
+  // 追加：マスタ由来の doc_group（重複なし一覧）
+  const [allServiceKeys, setAllServiceKeys] = useState<string[]>([]);
+  // あなたの資格からの提供可能サービス（重複なし）
   const [services, setServices] = useState<ServiceKey[]>([]);
 
-  // 読み込み
+  // ユーザー & 提出済み添付の読み込み
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) { router.push('/login'); return; }
+    if (!auth.user) {
+      router.push('/login');
+      return;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('form_entries')
-      .select('id, auth_uid, last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url, attachments')
+      .select(
+        'id, auth_uid, last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url, attachments'
+      )
       .eq('auth_uid', auth.user.id)
       .maybeSingle();
+
+    if (error) {
+      console.error('form_entries load error:', error);
+      return;
+    }
 
     if (data) {
       const row = data as UserRow;
       setMe(row);
+
+      // 「資格証明書」だけ DocItem 化
       const list: DocItem[] = (row.attachments ?? [])
-        .filter(a => a?.type === '資格証明書')
-        .map(a => ({
+        .filter((a) => a?.type === '資格証明書')
+        .map((a) => ({
           id: a.id,
           url: a.url,
           label: a.label,
@@ -65,36 +78,53 @@ export default function PortalHome() {
           uploaded_at: a.uploaded_at,
           acquired_at: a.acquired_at ?? a.uploaded_at,
         }));
+
       setCerts(list);
     }
   }, [router]);
-  useEffect(() => { void load(); }, [load]);
 
-  // ← ここをあなたの useEffect と差し替え
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // マスタの読み込み（doc_group を alias で service_key として取得）
   useEffect(() => {
     const loadDocMaster = async () => {
       const { data, error } = await supabase
         .from('user_doc_master')
-        .select('category,label,is_active,sort_order,service_key:doc_group') // ← ここだけ変更
+        .select('category,label,is_active,sort_order,service_key:doc_group')
         .order('sort_order', { ascending: true });
 
-      if (error) { console.error('user_doc_master load error:', error); return; }
+      if (error) {
+        console.error('user_doc_master load error:', error);
+        return;
+      }
 
-      const rows = (data ?? []) as DocMasterRow[];
-      const cert = rows.filter(r => r.category === 'certificate').map(r => r.label);
-      const other = rows.filter(r => r.category === 'other').map(r => r.label);
+      const rows = (data ?? []) as CertMasterRow[];
+      setMasterRows(rows);
+
+      // DocUploader 用のラベル配列
+      const cert = rows
+        .filter((r) => r.category === 'certificate' && r.is_active !== false)
+        .map((r) => r.label ?? '');
+      const other = rows
+        .filter((r) => r.category === 'other' && r.is_active !== false)
+        .map((r) => r.label ?? '');
       setDocMaster({ certificate: cert, other });
 
-      // ← サービス判定もここで実行（me/certs 読み込み後にも再実行）
-      setServices(determineServicesFromCertificates(
-        certs, // DocUploader に渡している提出済み資格
-        rows
-      ));
+      // 可能なサービス（doc_group）一覧（重複なし）
+      setAllServiceKeys(listAllServiceKeys(rows));
     };
+
     void loadDocMaster();
   }, []);
 
-  // onChange で即 DB 保存（リロードで戻らない）
+  // 提出済み資格 or マスタが変わったら、提供可能サービスを再判定
+  useEffect(() => {
+    setServices(determineServicesFromCertificates(certs, masterRows));
+  }, [certs, masterRows]);
+
+  // 保存系
   const isInCategory = (a: Attachment, docCategory: string) =>
     docCategory === 'certificate' ? a.type === '資格証明書' : a.type === docCategory;
 
@@ -102,11 +132,13 @@ export default function PortalHome() {
     formEntryId: string,
     currentAll: Attachment[] | null | undefined,
     docCategory: string,
-    nextDocs: DocItem[]
+    nextDocs: DocItem[],
   ) => {
     const base = Array.isArray(currentAll) ? currentAll : [];
-    const others = base.filter(a => !isInCategory(a, docCategory));
-    const mapped = nextDocs.map(d => toAttachment(d, docCategory === 'certificate' ? '資格証明書' : docCategory));
+    const others = base.filter((a) => !isInCategory(a, docCategory));
+    const mapped = nextDocs.map((d) =>
+      toAttachment(d, docCategory === 'certificate' ? '資格証明書' : docCategory),
+    );
     const merged: Attachment[] = [...others, ...mapped];
     const { error } = await supabase.from('form_entries').update({ attachments: merged }).eq('id', formEntryId);
     if (error) throw error;
@@ -118,7 +150,7 @@ export default function PortalHome() {
     if (!me) return;
     try {
       const merged = await saveAttachmentsForCategory(me.id, me.attachments, 'certificate', next);
-      setMe(prev => (prev ? { ...prev, attachments: merged } : prev));
+      setMe((prev) => (prev ? { ...prev, attachments: merged } : prev));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       alert('保存に失敗しました: ' + msg);
@@ -136,8 +168,12 @@ export default function PortalHome() {
 
       <div className="mt-4">
         <div className="text-lg font-semibold">氏名</div>
-        <div>{me.last_name_kanji ?? ''} {me.first_name_kanji ?? ''}</div>
-        <div className="mt-1 text-sm text-gray-500">ふりがな：{me.last_name_kana ?? ''} {me.first_name_kana ?? ''}</div>
+        <div>
+          {me.last_name_kanji ?? ''} {me.first_name_kanji ?? ''}
+        </div>
+        <div className="mt-1 text-sm text-gray-500">
+          ふりがな：{me.last_name_kana ?? ''} {me.first_name_kana ?? ''}
+        </div>
       </div>
 
       <div className="mt-8">
@@ -150,11 +186,29 @@ export default function PortalHome() {
           showPlaceholders={false}
         />
       </div>
+
+      {/* マスタ由来：可能なサービス（doc_group）重複なく表示 */}
+      <div className="mt-6 border rounded p-3">
+        <div className="font-semibold mb-1">可能なサービス（doc_group）</div>
+        {allServiceKeys.length === 0 ? (
+          <div className="text-gray-500 text-sm">doc_group が設定された資格が見つかりません</div>
+        ) : (
+          <ul className="list-disc pl-5">
+            {allServiceKeys.map((k) => (
+              <li key={k}>{k}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* あなたの資格からの判定 */}
       {services.length > 0 && (
         <div className="mt-4 p-3 border rounded">
-          <div className="font-semibold">提供可能サービス</div>
+          <div className="font-semibold">あなたの資格から判定（提供可能サービス）</div>
           <ul className="list-disc pl-5">
-            {services.map(s => <li key={s}>{s}</li>)}
+            {services.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
           </ul>
         </div>
       )}
