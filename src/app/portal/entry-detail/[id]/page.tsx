@@ -27,6 +27,7 @@ interface Attachment {
     acquired_at: string;         // ★取得日 ISO（YYYYMM/YYYMMDD入力→補完）
 }
 
+/*
 type LegacyAttachment = Partial<{
     id: string;
     url: string | null;
@@ -36,6 +37,7 @@ type LegacyAttachment = Partial<{
     uploaded_at: string;
     acquired_at: string;
 }>;
+*/
 
 interface EntryDetail {
     id: string;
