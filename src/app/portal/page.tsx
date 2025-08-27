@@ -18,39 +18,23 @@ type UserRow = {
   attachments: Attachment[] | null;
 };
 
-type DocMasterRow = { category: string; label: string; is_active?: boolean; sort_order?: number };
-
-// attachments のカテゴリ判定（証明書だけ特別扱い）
-const isInCategory = (a: Attachment, docCategory: string) => {
-  if (!a) return false;
-  if (docCategory === 'certificate') return a.type === '資格証明書';
-  return a.type === docCategory;
+type DocMasterRow = {
+  category: string;
+  label: string;
+  is_active?: boolean;
+  sort_order?: number;
 };
-
-// DocUploader の値を attachments にマージして保存
-async function saveAttachmentsForCategory(
-  formEntryId: string,
-  currentAll: Attachment[] | null | undefined,
-  docCategory: string,
-  nextDocs: DocItem[]
-) {
-  const base = Array.isArray(currentAll) ? currentAll : [];
-  const others = base.filter((a) => !isInCategory(a, docCategory));
-  const mapped = nextDocs.map((d) => toAttachment(d, docCategory === 'certificate' ? '資格証明書' : docCategory));
-  const merged: Attachment[] = [...others, ...mapped];
-
-  const { error } = await supabase.from('form_entries').update({ attachments: merged }).eq('id', formEntryId);
-  if (error) throw error;
-  return merged;
-}
 
 export default function PortalHome() {
   const router = useRouter();
   const [me, setMe] = useState<UserRow | null>(null);
   const [certs, setCerts] = useState<DocItem[]>([]);
-  const [docMaster, setDocMaster] = useState<{ certificate: string[] }>({ certificate: [] });
+  const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({
+    certificate: [],
+    other: [],
+  });
 
-  // ユーザーと attachments 読み込み
+  // 読み込み
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) { router.push('/login'); return; }
@@ -64,11 +48,9 @@ export default function PortalHome() {
     if (data) {
       const row = data as UserRow;
       setMe(row);
-
-      // attachments -> DocItem（資格証明書だけ抽出）
       const list: DocItem[] = (row.attachments ?? [])
-        .filter((a) => a?.type === '資格証明書')
-        .map((a) => ({
+        .filter(a => a?.type === '資格証明書')
+        .map(a => ({
           id: a.id,
           url: a.url,
           label: a.label,
@@ -80,33 +62,55 @@ export default function PortalHome() {
       setCerts(list);
     }
   }, [router]);
-
   useEffect(() => { void load(); }, [load]);
 
-  // マスタ（user_doc_master → certificate のみ sort_order 昇順）
+  // ← ここをあなたの useEffect と差し替え
   useEffect(() => {
-    const run = async () => {
-      const { data } = await supabase
+    const loadDocMaster = async () => {
+      const { data, error } = await supabase
         .from('user_doc_master')
         .select('category,label,is_active,sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
-      const cert = (data ?? [])
-        .filter((r: DocMasterRow) => r.category === 'certificate')
-        .map((r: DocMasterRow) => r.label);
-      setDocMaster({ certificate: cert });
+      if (error) {
+        console.error('user_doc_master load error:', error);
+        return;
+      }
+
+      const rows = (data ?? []) as DocMasterRow[];
+      const cert = rows.filter(r => r.category === 'certificate').map(r => r.label);
+      const other = rows.filter(r => r.category === 'other').map(r => r.label);
+      setDocMaster({ certificate: cert, other });
     };
-    void run();
+    void loadDocMaster();
   }, []);
 
-  // DocUploader の変更を即DBへ保存
+  // onChange で即 DB 保存（リロードで戻らない）
+  const isInCategory = (a: Attachment, docCategory: string) =>
+    docCategory === 'certificate' ? a.type === '資格証明書' : a.type === docCategory;
+
+  const saveAttachmentsForCategory = async (
+    formEntryId: string,
+    currentAll: Attachment[] | null | undefined,
+    docCategory: string,
+    nextDocs: DocItem[]
+  ) => {
+    const base = Array.isArray(currentAll) ? currentAll : [];
+    const others = base.filter(a => !isInCategory(a, docCategory));
+    const mapped = nextDocs.map(d => toAttachment(d, docCategory === 'certificate' ? '資格証明書' : docCategory));
+    const merged: Attachment[] = [...others, ...mapped];
+    const { error } = await supabase.from('form_entries').update({ attachments: merged }).eq('id', formEntryId);
+    if (error) throw error;
+    return merged;
+  };
+
   const onCertsChange = async (next: DocItem[]) => {
     setCerts(next);
     if (!me) return;
     try {
       const merged = await saveAttachmentsForCategory(me.id, me.attachments, 'certificate', next);
-      setMe((prev) => (prev ? { ...prev, attachments: merged } : prev));
+      setMe(prev => (prev ? { ...prev, attachments: merged } : prev));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       alert('保存に失敗しました: ' + msg);
@@ -128,7 +132,6 @@ export default function PortalHome() {
         <div className="mt-1 text-sm text-gray-500">ふりがな：{me.last_name_kana ?? ''} {me.first_name_kana ?? ''}</div>
       </div>
 
-      {/* 資格：提出済みのみ表示、変更は即保存 */}
       <div className="mt-8">
         <DocUploader
           title="資格情報（attachments 連携）"
@@ -136,7 +139,6 @@ export default function PortalHome() {
           onChange={onCertsChange}
           docMaster={{ certificate: docMaster.certificate }}
           docCategory="certificate"
-          // uploadApiPath は DocUploader 側でデフォルト (/api/upload) を持っているので省略可
           showPlaceholders={false}
         />
       </div>

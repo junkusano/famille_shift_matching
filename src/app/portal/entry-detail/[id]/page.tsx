@@ -112,6 +112,8 @@ type FormEntriesRow =
         commute_options?: ArrayOrString;
     } & Partial<Record<WorkKey, string | null>>;
 
+type DocMasterRow = { category: string; label: string; is_active?: boolean; sort_order?: number };
+
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetailEx | null>(null);
@@ -270,6 +272,67 @@ export default function EntryDetailPage() {
         } finally {
             setCreatingKaipokeUser(false);
         }
+    };
+
+    // 資格証：変更即保存
+    const onCertificatesChange = async (next: DocItem[]) => {
+        setCertificates(next);
+        try {
+            await saveAttachmentsForCategory('certificate', next);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            alert('資格証の保存に失敗: ' + msg);
+        }
+    };
+
+    const onOtherDocsChange = async (next: DocItem[]) => {
+        setOtherDocsState(next);
+        try {
+            await saveAttachmentsForCategory('other', next);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            alert('その他書類の保存に失敗: ' + msg);
+        }
+    };
+
+    // --- attachments 保存ユーティリティ（カテゴリ単位で置換）
+    const isInCategory = (a: Attachment, docCategory: 'certificate' | 'other') =>
+        docCategory === 'certificate' ? a.type === '資格証明書' : a.type === 'その他';
+
+    const saveAttachmentsForCategory = async (
+        docCategory: 'certificate' | 'other',
+        nextDocs: DocItem[]
+    ) => {
+        if (!entry) return;
+        const base = Array.isArray(entry.attachments) ? entry.attachments : [];
+
+        // 対象カテゴリだけ抜き替え（免許/住民票など固定枠は温存されます）
+        const others = base.filter(a => !isInCategory(a as Attachment, docCategory));
+
+        // DocItem -> Attachment へ正規化
+        const nowIso = new Date().toISOString();
+        const mapped: Attachment[] = nextDocs.map(d => ({
+            id: d.id,
+            url: d.url ?? null,
+            label: d.label,
+            type: docCategory === 'certificate' ? '資格証明書' : 'その他',
+            mimeType: d.mimeType ?? null,
+            uploaded_at: d.uploaded_at ?? nowIso,
+            acquired_at: d.acquired_at ?? d.uploaded_at ?? nowIso,
+        }));
+
+        const merged = [...others, ...mapped];
+
+        const { error } = await supabase
+            .from('form_entries')
+            .update({ attachments: merged })
+            .eq('id', entry.id);
+
+        if (error) throw error;
+
+        // 画面にも即反映（リロード不要）
+        setEntry(prev => (prev ? { ...prev, attachments: merged } : prev));
+        return merged;
     };
 
     const [certificates, setCertificates] = useState<DocItem[]>([]);
@@ -571,13 +634,20 @@ export default function EntryDetailPage() {
                 .eq('is_active', true)
                 .order('sort_order', { ascending: true });
 
-            if (!error && data) {
-                const cert = (data as DocMasterRow[]).filter(r => r.category === 'certificate').map(r => r.label);
-                const other = (data as DocMasterRow[]).filter(r => r.category === 'other').map(r => r.label);
-                setDocMaster({ certificate: cert, other });
+            if (error) {
+                console.error('user_doc_master load error:', error);
+                return;
             }
+
+            const rows = (data ?? []) as DocMasterRow[];
+            const cert = rows.filter(r => r.category === 'certificate').map(r => r.label);
+            const other = rows.filter(r => r.category === 'other').map(r => r.label);
+
+            // 既存のステート形に合わせて更新
+            setDocMaster({ certificate: cert, other });
         };
-        loadDocMaster();
+
+        void loadDocMaster();
     }, []);
 
     const [sendingInvite, setSendingInvite] = useState(false);
@@ -1929,9 +1999,9 @@ export default function EntryDetailPage() {
             <DocUploader
                 title="資格情報（certificates列）"
                 value={certificates}
-                onChange={setCertificates}
-                docMaster={{ certificate: docMaster.certificate }}   // 既存のマスタを流用
-                docCategory="certificate"                            // ラベル選択のカテゴリ
+                onChange={onCertificatesChange}
+                docMaster={{ certificate: docMaster.certificate }}
+                docCategory="certificate"
             />
             <button
                 onClick={saveCertificates}
@@ -1946,9 +2016,9 @@ export default function EntryDetailPage() {
                 <DocUploader
                     title="その他の書類（attachments列）"
                     value={otherDocsState}
-                    onChange={setOtherDocsState}
-                    docMaster={{ other: docMaster.other }}   // マスタ流用
-                    docCategory="other"                      // カテゴリは other
+                    onChange={onOtherDocsChange}
+                    docMaster={{ other: docMaster.other }}
+                    docCategory="other"
                 />
                 <button
                     onClick={saveOtherDocs}
