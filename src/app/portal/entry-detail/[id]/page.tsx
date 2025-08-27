@@ -274,6 +274,7 @@ export default function EntryDetailPage() {
     };
 
     // 資格証：変更即保存
+    /*
     const onCertificatesChange = async (next: DocItem[]) => {
         setCertificates(next);
         try {
@@ -283,6 +284,7 @@ export default function EntryDetailPage() {
             alert('資格証の保存に失敗: ' + msg);
         }
     };
+    */
 
     const onOtherDocsChange = async (next: DocItem[]) => {
         setOtherDocsState(next);
