@@ -273,8 +273,23 @@ export default function EntryDetailPage() {
         }
     };
 
+    // 先頭（import 群の下あたり、コンポーネント外）
+    const canonType = (
+        t?: string | null
+    ): '資格証明書' | '免許証表' | '免許証裏' | '住民票' | 'その他' => {
+        const s = (t ?? '').trim().toLowerCase();
+        if (s === 'certificate' || s === '資格証' || s === '資格証明書') return '資格証明書';
+        if (s === '免許証表' || s === 'license_front') return '免許証表';
+        if (s === '免許証裏' || s === 'license_back') return '免許証裏';
+        if (s === '住民票' || s === 'residence') return '住民票';
+        if (s === 'その他' || s === 'other') return 'その他';
+        return 'その他';
+    };
+
+    const extractFileId = (u?: string | null) =>
+        u ? (u.match(/[-\w]{25,}/)?.[0] ?? null) : null;
+
     // 資格証：変更即保存
-    /*
     const onCertificatesChange = async (next: DocItem[]) => {
         setCertificates(next);
         try {
@@ -284,7 +299,6 @@ export default function EntryDetailPage() {
             alert('資格証の保存に失敗: ' + msg);
         }
     };
-    */
 
     const onOtherDocsChange = async (next: DocItem[]) => {
         setOtherDocsState(next);
@@ -300,29 +314,60 @@ export default function EntryDetailPage() {
     const isInCategory = (a: Attachment, docCategory: 'certificate' | 'other') =>
         docCategory === 'certificate' ? a.type === '資格証明書' : a.type === 'その他';
 
+    // 既存の saveAttachmentsForCategory をこの中身に置換（1つだけ残す）
     const saveAttachmentsForCategory = async (
-        docCategory: 'certificate' | 'other',
+        category: 'certificate' | 'other',
         nextDocs: DocItem[]
     ) => {
         if (!entry) return;
-        const base = Array.isArray(entry.attachments) ? entry.attachments : [];
 
-        // 対象カテゴリだけ抜き替え（免許/住民票など固定枠は温存されます）
-        const others = base.filter(a => !isInCategory(a as Attachment, docCategory));
+        // これを使って type の表記ゆれを正規化
+        const canonType = (
+            t?: string | null
+        ): '資格証明書' | '免許証表' | '免許証裏' | '住民票' | 'その他' => {
+            const s = (t ?? '').trim().toLowerCase();
+            if (s === 'certificate' || s === '資格証' || s === '資格証明書') return '資格証明書';
+            if (s === '免許証表' || s === 'license_front') return '免許証表';
+            if (s === '免許証裏' || s === 'license_back') return '免許証裏';
+            if (s === '住民票' || s === 'residence') return '住民票';
+            if (s === 'その他' || s === 'other') return 'その他';
+            return 'その他';
+        };
 
-        // DocItem -> Attachment へ正規化
-        const nowIso = new Date().toISOString();
+        const extractFileId = (u?: string | null) =>
+            u ? (u.match(/[-\w]{25,}/)?.[0] ?? null) : null;
+
+        const catJP: '資格証明書' | 'その他' =
+            category === 'certificate' ? '資格証明書' : 'その他';
+
+        const base: Attachment[] = Array.isArray(entry.attachments)
+            ? (entry.attachments as Attachment[])
+            : [];
+
+        // 'certificate' も '資格証明書' もまとめて除外
+        const others = base.filter(a => canonType(a.type) !== catJP);
+
+        const now = new Date().toISOString();
         const mapped: Attachment[] = nextDocs.map(d => ({
-            id: d.id,
+            id: d.id ?? crypto.randomUUID(),
             url: d.url ?? null,
             label: d.label,
-            type: docCategory === 'certificate' ? '資格証明書' : 'その他',
+            type: catJP,                          // ← DBには日本語で保存
             mimeType: d.mimeType ?? null,
-            uploaded_at: d.uploaded_at ?? nowIso,
-            acquired_at: d.acquired_at ?? d.uploaded_at ?? nowIso,
+            uploaded_at: d.uploaded_at ?? now,
+            acquired_at: d.acquired_at ?? d.uploaded_at,
         }));
 
-        const merged = [...others, ...mapped];
+        // 正規化 + 重複除去（type|label|fileId）
+        const merged0 = [...others, ...mapped].map(a => ({ ...a, type: canonType(a.type) }));
+        const seen = new Set<string>();
+        const merged: Attachment[] = [];
+        for (const a of merged0) {
+            const key = `${a.type}|${a.label ?? ''}|${extractFileId(a.url) ?? ''}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            merged.push(a);
+        }
 
         const { error } = await supabase
             .from('form_entries')
@@ -331,9 +376,8 @@ export default function EntryDetailPage() {
 
         if (error) throw error;
 
-        // 画面にも即反映（リロード不要）
+        // 画面側も即同期
         setEntry(prev => (prev ? { ...prev, attachments: merged } : prev));
-        return merged;
     };
 
     const [certificates, setCertificates] = useState<DocItem[]>([]);
@@ -375,13 +419,8 @@ export default function EntryDetailPage() {
     }, [entry]);
 
     const saveCertificates = async () => {
-        if (!entry) return;
-        const { error } = await supabase
-            .from("form_entries")
-            .update({ certificates })
-            .eq("id", entry.id);
-        if (error) alert("資格証の保存に失敗: " + error.message);
-        else alert("資格証を保存しました");
+        await saveAttachmentsForCategory('certificate', certificates);
+        alert("資格証を保存しました");
     };
 
     // その他書類を DocUploader 用に state 化
@@ -1990,7 +2029,7 @@ export default function EntryDetailPage() {
             <DocUploader
                 title="資格情報（attachments列）"
                 value={certificates}
-                onChange={setCertificates}      // まずは“表示だけ”に集中：保存は後で
+                onChange={onCertificatesChange}     // まずは“表示だけ”に集中：保存は後で
                 docMaster={{ certificate: docMaster.certificate }}
                 docCategory="certificate"
                 showPlaceholders={false}        // 未提出スロットを出さない
