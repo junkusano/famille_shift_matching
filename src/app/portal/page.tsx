@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import DocUploader, { type DocItem, type Attachment, toAttachment } from '@/components/DocUploader';
+import { determineServicesFromCertificates, type ServiceKey, type DocMasterRow as MasterRow } from '@/lib/certificateJudge';
 
 type UserRow = {
   id: string;
@@ -18,12 +19,16 @@ type UserRow = {
   attachments: Attachment[] | null;
 };
 
+type DocMasterRow = MasterRow;
+
+/*
 type DocMasterRow = {
   category: string;
   label: string;
   is_active?: boolean;
   sort_order?: number;
 };
+*/
 
 export default function PortalHome() {
   const router = useRouter();
@@ -33,6 +38,7 @@ export default function PortalHome() {
     certificate: [],
     other: [],
   });
+  const [services, setServices] = useState<ServiceKey[]>([]);
 
   // 読み込み
   const load = useCallback(async () => {
@@ -69,19 +75,22 @@ export default function PortalHome() {
     const loadDocMaster = async () => {
       const { data, error } = await supabase
         .from('user_doc_master')
-        .select('category,label,is_active,sort_order')
+        .select('category,label,is_active,sort_order,group')   // ← group を追加
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
-      if (error) {
-        console.error('user_doc_master load error:', error);
-        return;
-      }
+      if (error) { console.error('user_doc_master load error:', error); return; }
 
       const rows = (data ?? []) as DocMasterRow[];
       const cert = rows.filter(r => r.category === 'certificate').map(r => r.label);
       const other = rows.filter(r => r.category === 'other').map(r => r.label);
       setDocMaster({ certificate: cert, other });
+
+      // ← サービス判定もここで実行（me/certs 読み込み後にも再実行）
+      setServices(determineServicesFromCertificates(
+        certs, // DocUploader に渡している提出済み資格
+        rows
+      ));
     };
     void loadDocMaster();
   }, []);
@@ -142,6 +151,14 @@ export default function PortalHome() {
           showPlaceholders={false}
         />
       </div>
+      {services.length > 0 && (
+        <div className="mt-4 p-3 border rounded">
+          <div className="font-semibold">提供可能サービス</div>
+          <ul className="list-disc pl-5">
+            {services.map(s => <li key={s}>{s}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
