@@ -4,10 +4,27 @@
 // 汎用コンポーネント: JSONBカラムを使ったファイルUpload/削除/表示/更新
 // - 資格証, その他書類, CS書類などすべてに対応
 // - propsで columnName / docCategory / title を指定
-// - JSON構造は {id,url,label,type,mimeType,uploaded_at,acquired_at}
+// - JSON構造は {id,url,label,type,mimeType,uploaded_at,acquired_at,size}
 
 import React, { useMemo, useState } from "react";
 import Image from "next/image";
+
+// ===== 上限（Vercel考慮: 4MB）
+const MAX_FILE_MB = 4;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+const formatBytes = (n: number) => {
+  if (!Number.isFinite(n)) return "";
+  const u = ["B", "KB", "MB", "GB"]; let i = 0; let x = n;
+  while (x >= 1024 && i < u.length - 1) { x /= 1024; i++; }
+  return `${x.toFixed(1)} ${u[i]}`;
+};
+const ensureSizeOK = (file: File) => {
+  if (file.size > MAX_FILE_BYTES) {
+    alert(`ファイルが大きすぎます（${formatBytes(file.size)}）。${MAX_FILE_MB}MBまでです。`);
+    return false;
+  }
+  return true;
+};
 
 // ===== 型（uploaded_at / acquired_at は optional）
 export type DocItem = {
@@ -18,6 +35,7 @@ export type DocItem = {
   mimeType?: string | null;
   uploaded_at?: string;
   acquired_at?: string;
+  size?: number; // 新規アップロード時のみ保持
 };
 
 export type Attachment = {
@@ -43,7 +61,12 @@ export type DocUploaderProps = {
 };
 
 // ===== ユーティリティ（コンポーネント外に定義して useMemo 依存を安定化）
-const extractFileId = (u?: string | null) => (u ? (u.match(/[-\w]{25,}/)?.[0] ?? null) : null);
+const extractFileId = (u?: string | null) => {
+  if (!u) return null;
+  const m = u.match(/(?:\/d\/|[?&]id=)([-\w]{25,})/); // /d/<id> or ?id=<id>
+  return m ? m[1] : null;
+};
+
 const stableIdOf = (d: Partial<DocItem>) =>
   d.id ?? (d.url ? `u:${extractFileId(d.url)}` : d.label ? `l:${d.label}` : undefined);
 
@@ -73,6 +96,7 @@ export default function DocUploader({
       mimeType: d.mimeType ?? null,
       uploaded_at: d.uploaded_at,
       acquired_at: d.acquired_at ?? d.uploaded_at,
+      size: d.size,
     }));
   }, [value, docCategory]);
 
@@ -120,10 +144,11 @@ export default function DocUploader({
   const isPlaceholderId = (id?: string) => !!id && id.startsWith("__placeholder__:");
 
   const handleReplace = async (id: string, file: File) => {
+    if (!ensureSizeOK(file)) return;
     setBusyId(id);
     try {
       const { url, mimeType } = await uploadFileViaApi(file);
-      const next = list.map((a) => (a.id === id ? { ...a, url, mimeType, uploaded_at: new Date().toISOString() } : a));
+      const next = list.map((a) => (a.id === id ? { ...a, url, mimeType, size: file.size, uploaded_at: new Date().toISOString() } : a));
       onChange(next);
     } finally {
       setBusyId(null);
@@ -131,7 +156,7 @@ export default function DocUploader({
   };
 
   const handleDelete = (id: string) => {
-    const next = list.filter((a) => a.id !== id && `u:${extractFileId(a.url)}` !== id);
+    const next = list.filter((a) => a.id !== id && `u:${extractFileId(a.url ?? null)}` !== id);
     onChange(next);
   };
 
@@ -156,13 +181,14 @@ export default function DocUploader({
           mimeType: null,
           uploaded_at: undefined,
           acquired_at: undefined,
-        };
+        } as DocItem;
       }
       return pickBest(cands);
     });
   }, [showPlaceholders, labels, list, docCategory]);
 
   const handleAdd = async (file: File) => {
+    if (!ensureSizeOK(file)) return;
     const label = (useCustom ? customLabel : selectedLabel).trim();
     if (!label) {
       alert("書類名を選択または入力してください");
@@ -179,6 +205,7 @@ export default function DocUploader({
         type: docCategory,
         label,
         uploaded_at: new Date().toISOString(),
+        size: file.size,
         ...(acquired ? { acquired_at: acquired } : {}),
       };
       onChange([...list, item]);
@@ -191,6 +218,7 @@ export default function DocUploader({
   };
 
   const handleAddWithLabel = async (label: string, file: File) => {
+    if (!ensureSizeOK(file)) return;
     setBusyId("__new__");
     try {
       const { url, mimeType } = await uploadFileViaApi(file);
@@ -202,6 +230,7 @@ export default function DocUploader({
         type: docCategory,
         label,
         uploaded_at: new Date().toISOString(),
+        size: file.size,
         ...(acquired ? { acquired_at: acquired } : {}),
       };
       onChange([...list, item]);
@@ -213,14 +242,14 @@ export default function DocUploader({
   
   return (
     <div className="space-y-2">
-      {title && <h3 className="text-lg font-semibold">{title}</h3>}
+      {title && <h3 className="text-lg font-semibold">{title} <span className="text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span></h3>}
 
       {renderList.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {renderList.map((doc, idx) => (
             <div key={doc.id ?? `${doc.label}-${idx}`} className="border rounded p-2 bg-white">
               <Thumb
-                title={`${doc.label ?? doc.type ?? "doc"}（取得: ${formatAcquired(doc.acquired_at)}）`}
+                title={`${doc.label ?? doc.type ?? "doc"}（取得: ${formatAcquired(doc.acquired_at)}${doc.size ? `・${formatBytes(doc.size)}` : ""}）`}
                 src={doc.url ?? undefined}
                 mimeType={doc.mimeType ?? undefined}
               />
@@ -313,13 +342,14 @@ export default function DocUploader({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (!ensureSizeOK(file)) { e.currentTarget.value = ""; return; }
                 void handleAdd(file);
                 e.currentTarget.value = "";
               }}
             />
           </label>
         </div>
-        <div className="text-xs text-gray-500 mt-1">区分：{docCategory}（マスタから選択。必要に応じてカスタム入力も可能）</div>
+        <div className="text-xs text-gray-500 mt-1">区分：{docCategory}（マスタから選択。必要に応じてカスタム入力も可能） / 上限 {MAX_FILE_MB}MB</div>
       </div>
     </div>
   );
@@ -335,8 +365,7 @@ function Thumb({ title, src, mimeType }: { title: string; src?: string; mimeType
       </div>
     );
   }
-  const fileIdMatch = src.match(/[-\w]{25,}/);
-  const fileId = fileIdMatch ? fileIdMatch[0] : null;
+  const fileId = extractFileId(src);
   if (!fileId) {
     return (
       <div className="text-sm text-center text-red-500">
