@@ -339,34 +339,24 @@ export default function EntryDetailPage() {
     useEffect(() => {
         if (!entry) return;
 
-        // 型安全な判定関数
+        // attachments だけを見る
+        const att: LegacyAttachment[] = Array.isArray(entry.attachments)
+            ? (entry.attachments as LegacyAttachment[])
+            : [];
+
+        // 型安全な判定（資格だけ抽出）
         const isCert = (a: LegacyAttachment): boolean => {
             const t = a?.type ?? "";
             const l = a?.label ?? "";
             return (
                 t === "資格証明書" ||
-                l.startsWith("certificate_") ||
                 t === "資格証" ||
-                t === "certificate"
+                t === "certificate" ||
+                l.startsWith("certificate_")
             );
         };
 
-        const nowIso = new Date().toISOString();
-
-        // 1) certificates があればそれを採用
-        const fromCert = Array.isArray(entry.certificates)
-            ? (entry.certificates as DocItem[])
-            : [];
-        if (fromCert.length > 0) {
-            setCertificates(fromCert);
-            return;
-        }
-
-        // 2) なければ attachments から資格分だけ抽出して DocItem に正規化
-        const att: LegacyAttachment[] = Array.isArray(entry.attachments)
-            ? (entry.attachments as LegacyAttachment[])
-            : [];
-
+        // DocItem へ正規化（不用意に今日で埋めない）
         const picked: DocItem[] = att
             .filter(isCert)
             .map((p): DocItem => ({
@@ -375,8 +365,8 @@ export default function EntryDetailPage() {
                 label: p.label,
                 type: "資格証明書",
                 mimeType: p.mimeType ?? null,
-                uploaded_at: p.uploaded_at ?? nowIso,
-                acquired_at: p.acquired_at ?? p.uploaded_at ?? nowIso,
+                uploaded_at: p.uploaded_at,                 // 既存値そのまま
+                acquired_at: p.acquired_at ?? p.uploaded_at // 既存から補うだけ
             }));
 
         setCertificates(picked);
@@ -1996,11 +1986,12 @@ export default function EntryDetailPage() {
             </div>
 
             <DocUploader
-                title="資格情報（certificates列）"
+                title="資格情報（attachments列）"
                 value={certificates}
-                onChange={onCertificatesChange}
+                onChange={setCertificates}      // まずは“表示だけ”に集中：保存は後で
                 docMaster={{ certificate: docMaster.certificate }}
                 docCategory="certificate"
+                showPlaceholders={false}        // 未提出スロットを出さない
             />
             <button
                 onClick={saveCertificates}
