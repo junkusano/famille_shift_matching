@@ -12,7 +12,7 @@ import { addStaffLog } from '@/lib/addStaffLog';
 //import { parseDocAcquired } from "@/components/DocUploader";
 
 export default function EntryPage() {
-
+    const MAX_FILE_MB = 4;
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState<FormData | null>(null);
@@ -651,10 +651,18 @@ export default function EntryPage() {
                     </div>
                     {/* 7. 資格証明書 */}
                     <div>
-                        <h2 className="text-lg font-semibold mb-2">7. 資格証明書</h2>
+                        <h2 className="text-lg font-semibold mb-2">
+                            7. 資格証明書
+                            <span className="ml-2 text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </h2>
+                        <p className="text-xs text-gray-600 -mt-1 mb-2">
+                            PDF / 画像、各ファイル {MAX_FILE_MB}MB まで
+                        </p>
                         {docMaster.certificate.map((label, idx) => (
                             <div key={idx} className="mb-3">
-                                <label className="block text-sm font-medium">{label}</label>
+                                <label className="block text-sm font-medium">
+                                    {label} <span className="text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                                </label>
                                 <input
                                     type="file"
                                     name={`certificate_${idx}`}
@@ -668,24 +676,45 @@ export default function EntryPage() {
 
                     {/* 8. 身分証明書 */}
                     <div>
-                        <h2 className="text-lg font-semibold mb-2">8. 身分証明書<span className="text-red-500">*</span></h2>
+                        <h2 className="text-lg font-semibold mb-2">
+                            8. 身分証明書<span className="text-red-500">*</span>
+                            <span className="ml-2 text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </h2>
                         <p className="text-sm text-gray-700 mb-2">
                             下記いずれか（免許証の場合には裏表が必要）を必ず提出してください。車での通勤を希望する方は免許証の表裏両面が必須です。
                         </p>
-                        <label className="block text-sm font-medium">運転免許証（表）</label>
+                        <p className="text-xs text-gray-600 -mt-1 mb-2">
+                            PDF / 画像、各ファイル {MAX_FILE_MB}MB まで
+                        </p>
+                        <label className="block text-sm font-medium">
+                            運転免許証（表） <span className="text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </label>
                         <input type="file" name="licenseFront" accept="image/*,.pdf" className="w-full border rounded p-2 mb-2" />
-                        <label className="block text-sm font-medium">運転免許証（裏）</label>
+                        <label className="block text-sm font-medium">
+                            運転免許証（裏） <span className="text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </label>
                         <input type="file" name="licenseBack" accept="image/*,.pdf" className="w-full border rounded p-2 mb-2" />
-                        <label className="block text-sm font-medium">住民票（任意・免許証がない場合）</label>
+                        <label className="block text-sm font-medium">
+                            住民票（任意・免許証がない場合） <span className="text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </label>
                         <input type="file" name="residenceCard" accept="image/*,.pdf" className="w-full border rounded p-2" />
                     </div>
                     {/* 9. 顔写真アップロード */}
                     <div>
-                        <h2 className="text-lg font-semibold mb-2">9. 顔写真アップロード</h2>
+                        <h2 className="text-lg font-semibold mb-2">
+                            9. 顔写真アップロード
+                            <span className="ml-2 text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </h2>
                         <p className="text-sm text-gray-700 mb-2">
                             面談・本人確認の参考として顔写真のアップロードをお願いしています（証明写真やスナップ写真でも可）。
                         </p>
-                        <label className="block text-sm font-medium">顔写真<span className="text-red-500">*</span></label>
+                        <p className="text-xs text-gray-600 -mt-1 mb-2">
+                            画像のみ、{MAX_FILE_MB}MB まで
+                        </p>
+                        <label className="block text-sm font-medium">
+                            顔写真<span className="text-red-500">*</span>
+                            <span className="ml-2 text-xs text-gray-500">（上限 {MAX_FILE_MB}MB）</span>
+                        </label>
                         <input type="file" name="photo" accept="image/*" className="w-full border rounded p-2" />
                     </div>
                     {/* 10. 確認事項・同意 */}
