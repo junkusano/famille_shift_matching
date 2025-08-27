@@ -558,6 +558,7 @@ export default function ShiftPage() {
         attendRequest: boolean,
         timeAdjustNote?: string
     ) {
+        void attendRequest;
         setCreatingShiftRequest(true);
         try {
             // ここで rpa_command_requests へ登録（テンプレ等は実装側で揃える）
