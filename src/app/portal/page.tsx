@@ -75,8 +75,7 @@ export default function PortalHome() {
     const loadDocMaster = async () => {
       const { data, error } = await supabase
         .from('user_doc_master')
-        .select('category,label,is_active,sort_order,group')   // ← group を追加
-        .eq('is_active', true)
+        .select('category,label,is_active,sort_order,service_key:doc_group') // ← ここだけ変更
         .order('sort_order', { ascending: true });
 
       if (error) { console.error('user_doc_master load error:', error); return; }
