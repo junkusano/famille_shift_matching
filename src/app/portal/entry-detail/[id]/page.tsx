@@ -112,7 +112,6 @@ type FormEntriesRow =
         commute_options?: ArrayOrString;
     } & Partial<Record<WorkKey, string | null>>;
 
-type DocMasterRow = { category: string; label: string; is_active?: boolean; sort_order?: number };
 
 export default function EntryDetailPage() {
     const { id } = useParams();
