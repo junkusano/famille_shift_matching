@@ -13,10 +13,12 @@ type UpdatePayload = {
   require_doc_group: string | null
 }
 
-// PUT: 更新（第2引数はインライン型で！）
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const supabase = getServiceClient()
-  const id = params.id
+// PUT: 更新
+export async function PUT(req: Request) {
+  // URLからidを抽出
+  const url = new URL(req.url)
+  const parts = url.pathname.split('/')
+  const id = parts[parts.length - 1]
 
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
@@ -25,8 +27,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: 'service_code は必須です' }, { status: 400 })
   }
 
+  const supabase = getServiceClient()
   const payload: UpdatePayload = {
-    service_code: String(body.service_code).trim(),
+    service_code: body.service_code.trim(),
     require_doc_group: body.require_doc_group ?? null,
   }
 
@@ -41,13 +44,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json(data)
 }
 
-// DELETE: 削除（こちらもインライン型で統一）
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const supabase = getServiceClient()
-  const id = params.id
+// DELETE: 削除
+export async function DELETE(req: Request) {
+  const url = new URL(req.url)
+  const parts = url.pathname.split('/')
+  const id = parts[parts.length - 1]
+
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
+  const supabase = getServiceClient()
   const { error } = await supabase.from('shift_service_code').delete().eq('id', id)
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
