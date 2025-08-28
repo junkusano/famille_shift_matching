@@ -14,6 +14,11 @@ import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import DocUploader, { DocItem } from "@/components/DocUploader";
+import {
+    determineServicesFromCertificates,
+    type DocMasterRow as CertMasterRow,
+    type ServiceKey,
+} from '@/lib/certificateJudge';
 
 
 // 既存 interface Attachment を置き換え
@@ -121,7 +126,6 @@ function extractFileId(u?: string | null): string | null {
     return m ? m[1] : null;
 }
 
-
 export default function EntryDetailPage() {
     const { id } = useParams();
     const [entry, setEntry] = useState<EntryDetailEx | null>(null);
@@ -141,6 +145,8 @@ export default function EntryDetailPage() {
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [selectedPosition, setSelectedPosition] = useState<string>('');
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
+    const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
+    const [services, setServices] = useState<ServiceKey[]>([]);
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
     const setField = <K extends WorkKey>(key: K, value: string) => {
@@ -176,7 +182,7 @@ export default function EntryDetailPage() {
         return s.data?.session?.user?.id ?? 'システム';
     };
 
-    type DocMasterRow = { category: 'certificate' | 'other'; label: string; sort_order?: number; is_active?: boolean };
+    //type DocMasterRow = { category: 'certificate' | 'other'; label: string; sort_order?: number; is_active?: boolean };
     const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({ certificate: [], other: [] });
 
     // attachmentsArray（常にトップで）
@@ -390,6 +396,10 @@ export default function EntryDetailPage() {
 
         setCertificates(certItems);
     }, [entry]);
+
+    useEffect(() => {
+        setServices(determineServicesFromCertificates(certificates, masterRows));
+    }, [certificates, masterRows]);
 
     const saveCertificates = async () => {
         await saveAttachmentsForCategory('certificate', certificates);
@@ -647,12 +657,12 @@ export default function EntryDetailPage() {
         }
     };
 
+    // 既存の loadDocMaster useEffect を置き換え or 修正
     useEffect(() => {
         const loadDocMaster = async () => {
             const { data, error } = await supabase
                 .from('user_doc_master')
-                .select('category,label,is_active,sort_order')
-                .eq('is_active', true)
+                .select('category,label,is_active,sort_order,service_key:doc_group') // ← 追加
                 .order('sort_order', { ascending: true });
 
             if (error) {
@@ -660,16 +670,21 @@ export default function EntryDetailPage() {
                 return;
             }
 
-            const rows = (data ?? []) as DocMasterRow[];
-            const cert = rows.filter(r => r.category === 'certificate').map(r => r.label);
-            const other = rows.filter(r => r.category === 'other').map(r => r.label);
+            const rows = (data ?? []) as CertMasterRow[];
+            setMasterRows(rows);
 
-            // 既存のステート形に合わせて更新
+            const cert = rows
+                .filter((r) => r.category === 'certificate' && r.is_active !== false)
+                .map((r) => r.label ?? '');
+            const other = rows
+                .filter((r) => r.category === 'other' && r.is_active !== false)
+                .map((r) => r.label ?? '');
             setDocMaster({ certificate: cert, other });
         };
 
         void loadDocMaster();
     }, []);
+
 
     const [sendingInvite, setSendingInvite] = useState(false);
     void sendingInvite;
@@ -2031,6 +2046,20 @@ export default function EntryDetailPage() {
             >
                 資格証を保存
             </button>
+            {/* ▼ ここから：資格判定結果の表示（資格情報の下） */}
+            {services.length > 0 && (
+                <div className="mt-4 p-3 border rounded bg-white">
+                    <div className="font-semibold">
+                        入れるサービス（{entry.last_name_kanji ?? ''}{entry.first_name_kanji ?? ''} さんの資格から判定）
+                    </div>
+                    <ul className="list-disc pl-5 mt-2">
+                        {services.map((s) => (
+                            <li key={s}>{s}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            {/* ▲ ここまで */}
 
             <div className="space-y-2">
                 <h2 className="text-lg font-semibold">その他の書類</h2>
