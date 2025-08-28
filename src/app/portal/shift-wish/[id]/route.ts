@@ -21,8 +21,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
 
-  // 実テーブルに対して削除（ビューではなく "shift-wish"）
-  const { error } = await supabase.from('shift-wishes').delete().eq('id', id)
+  // 実テーブルに対して削除（ビューではなく "shift_wish"）
+  const { error } = await supabase.from('shift_wishes').delete().eq('id', id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
