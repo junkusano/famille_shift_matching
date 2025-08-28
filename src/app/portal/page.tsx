@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import DocUploader, { type DocItem, type Attachment, toAttachment } from '@/components/DocUploader';
+import DocUploader, { type DocItem, type Attachment } from '@/components/DocUploader';
 import {
   determineServicesFromCertificates,
   type DocMasterRow as CertMasterRow,
@@ -33,8 +33,10 @@ export default function PortalHome() {
     other: [],
   });
 
+  /*
   const isCertificateType = (t?: string | null) =>
     t === '資格証明書' || t === 'certificate' || t === 'certification';
+  */
 
   // 判定用のマスタ行
   const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
@@ -84,7 +86,7 @@ export default function PortalHome() {
 
       // 「資格証明書」だけ DocItem 化
       const list: DocItem[] = (row.attachments ?? [])
-        .filter((a) => a?.type === '資格証明書')  // ← 等価のみ
+        .filter((a) => a?.type === '資格証明書')
         .map((a) => ({
           id: a.id,
           url: a.url,
@@ -94,8 +96,6 @@ export default function PortalHome() {
           uploaded_at: a.uploaded_at,
           acquired_at: a.acquired_at ?? a.uploaded_at,
         }));
-
-
 
       setCerts(list);
     }
@@ -157,7 +157,7 @@ export default function PortalHome() {
       id: d.id,
       url: d.url,
       label: d.label,
-      type: docCategory === 'certificate' ? '資格証明書' : docCategory, // ★ 強制
+      type: docCategory === 'certificate' ? '資格証明書' : docCategory, // ← 強制固定
       mimeType: d.mimeType ?? null,
       uploaded_at: d.uploaded_at,
       acquired_at: d.acquired_at,
