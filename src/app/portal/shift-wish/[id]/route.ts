@@ -22,7 +22,7 @@ export async function DELETE(
   }
 
   // 実テーブルに対して削除（ビューではなく "shift-wish"）
-  const { error } = await supabase.from('shift-wish').delete().eq('id', id)
+  const { error } = await supabase.from('shift-wishes').delete().eq('id', id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
