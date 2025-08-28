@@ -535,16 +535,34 @@ export default function EntryDetailPage() {
                 .single();
             if (error) return;
 
-            const entryLevelSort = data.level_sort ?? 99999999;
-            if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
-                setRestricted(true);
-                return;
+            // 自分のユーザーレコード取得
+            const { data: { user } } = await supabase.auth.getUser();
+            let isAdmin = false;
+            if (user) {
+                const { data: record } = await supabase
+                    .from('users')
+                    .select('system_role')
+                    .eq('auth_user_id', user.id)
+                    .single();
+                if (record?.system_role === 'admin') {
+                    isAdmin = true;
+                }
             }
+
+            // ★ adminは常に unrestricted
+            if (!isAdmin) {
+                const entryLevelSort = data.level_sort ?? 99999999;
+                if (myLevelSort !== null && entryLevelSort <= myLevelSort) {
+                    setRestricted(true);
+                    return;
+                }
+            }
+
             setRestricted(false);
             setEntry(normalizeEntryFromDb(data));
             setManagerNote(data?.manager_note ?? '');
         })();
-    }, [id, myLevelSort]);  // ★依存を揃える
+    }, [id, myLevelSort]);
 
 
     const fetchExistingIds = async () => {
