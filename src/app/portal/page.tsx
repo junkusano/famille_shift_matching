@@ -83,18 +83,18 @@ export default function PortalHome() {
       setMe(row);
 
       // 「資格証明書」だけ DocItem 化
-      // ユーザー & 添付の読み込み 内の「資格証明書だけ DocItem 化」部分を差し替え
       const list: DocItem[] = (row.attachments ?? [])
-        .filter((a) => isCertificateType(a?.type))   // ← ここを拡張
+        .filter((a) => a?.type === '資格証明書')  // ← 等価のみ
         .map((a) => ({
           id: a.id,
           url: a.url,
           label: a.label,
-          type: '資格証明書',                       // ← UI上の一貫性のため表示は固定
+          type: '資格証明書',
           mimeType: a.mimeType ?? null,
           uploaded_at: a.uploaded_at,
           acquired_at: a.acquired_at ?? a.uploaded_at,
         }));
+
 
 
       setCerts(list);
@@ -141,9 +141,7 @@ export default function PortalHome() {
 
   // 保存系
   const isInCategory = (a: Attachment, docCategory: string) =>
-    docCategory === 'certificate'
-      ? isCertificateType(a.type)   // ← helperを使って certificate/certification も拾う
-      : a.type === docCategory;
+    docCategory === 'certificate' ? a.type === '資格証明書' : a.type === docCategory;
 
   const saveAttachmentsForCategory = async (
     formEntryId: string,
@@ -153,14 +151,27 @@ export default function PortalHome() {
   ) => {
     const base = Array.isArray(currentAll) ? currentAll : [];
     const others = base.filter((a) => !isInCategory(a, docCategory));
-    const mapped = nextDocs.map((d) =>
-      toAttachment(d, docCategory === 'certificate' ? '資格証明書' : docCategory),
-    );
+
+    // ← ここを toAttachment ではなく「type を強制固定」で作る
+    const mapped: Attachment[] = nextDocs.map((d) => ({
+      id: d.id,
+      url: d.url,
+      label: d.label,
+      type: docCategory === 'certificate' ? '資格証明書' : docCategory, // ★ 強制
+      mimeType: d.mimeType ?? null,
+      uploaded_at: d.uploaded_at,
+      acquired_at: d.acquired_at,
+    }));
+
     const merged: Attachment[] = [...others, ...mapped];
-    const { error } = await supabase.from('form_entries').update({ attachments: merged }).eq('id', formEntryId);
+    const { error } = await supabase
+      .from('form_entries')
+      .update({ attachments: merged })
+      .eq('id', formEntryId);
     if (error) throw error;
     return merged;
   };
+
 
   const onCertsChange = async (next: DocItem[]) => {
     setCerts(next);
