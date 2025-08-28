@@ -1,5 +1,5 @@
 // src/app/api/shift-service-code/[id]/route.ts
-import { NextResponse, NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 function getServiceClient() {
@@ -13,12 +13,10 @@ type UpdatePayload = {
   require_doc_group: string | null
 }
 
-type RouteContext = { params: { id: string } }
-
-// PUT: 更新
-export async function PUT(req: NextRequest, context: RouteContext) {
+// PUT: 更新（第2引数はインライン型で！）
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const supabase = getServiceClient()
-  const { id } = context.params
+  const id = params.id
 
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
@@ -43,11 +41,10 @@ export async function PUT(req: NextRequest, context: RouteContext) {
   return NextResponse.json(data)
 }
 
-// DELETE: 削除
-export async function DELETE(_req: NextRequest, context: RouteContext) {
+// DELETE: 削除（こちらもインライン型で統一）
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const supabase = getServiceClient()
-  const { id } = context.params
-
+  const id = params.id
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
   const { error } = await supabase.from('shift_service_code').delete().eq('id', id)
