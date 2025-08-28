@@ -1,3 +1,5 @@
+//api/fax
+
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'; // ✅ サーバー用クライアントに変更
 
