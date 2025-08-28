@@ -33,6 +33,9 @@ export default function PortalHome() {
     other: [],
   });
 
+  const isCertificateType = (t?: string | null) =>
+    t === '資格証明書' || t === 'certificate' || t === 'certification';
+
   // 判定用のマスタ行
   const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
   // あなたの資格からの提供可能サービス（重複なし）
@@ -61,20 +64,38 @@ export default function PortalHome() {
 
     if (data) {
       const row = data as UserRow;
+
+      if ((row.attachments ?? []).some(a => a?.type === 'certificate' || a?.type === 'certification')) {
+        const fixed = (row.attachments ?? []).map(a =>
+          (a?.type === 'certificate' || a?.type === 'certification')
+            ? { ...a, type: '資格証明書' }
+            : a
+        );
+        const { error: fixErr } = await supabase
+          .from('form_entries')
+          .update({ attachments: fixed })
+          .eq('id', row.id);
+        if (!fixErr) {
+          row.attachments = fixed; // ローカル状態も同期
+        }
+      }
+
       setMe(row);
 
       // 「資格証明書」だけ DocItem 化
+      // ユーザー & 添付の読み込み 内の「資格証明書だけ DocItem 化」部分を差し替え
       const list: DocItem[] = (row.attachments ?? [])
-        .filter((a) => a?.type === '資格証明書')
+        .filter((a) => isCertificateType(a?.type))   // ← ここを拡張
         .map((a) => ({
           id: a.id,
           url: a.url,
           label: a.label,
-          type: a.type,
+          type: '資格証明書',                       // ← UI上の一貫性のため表示は固定
           mimeType: a.mimeType ?? null,
           uploaded_at: a.uploaded_at,
           acquired_at: a.acquired_at ?? a.uploaded_at,
         }));
+
 
       setCerts(list);
     }
@@ -120,7 +141,9 @@ export default function PortalHome() {
 
   // 保存系
   const isInCategory = (a: Attachment, docCategory: string) =>
-    docCategory === 'certificate' ? a.type === '資格証明書' : a.type === docCategory;
+    docCategory === 'certificate'
+      ? isCertificateType(a.type)   // ← helperを使って certificate/certification も拾う
+      : a.type === docCategory;
 
   const saveAttachmentsForCategory = async (
     formEntryId: string,
