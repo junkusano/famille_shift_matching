@@ -1,5 +1,5 @@
-// app/api/shift-service-code/[id]/route.ts
-import { NextResponse } from 'next/server'
+// src/app/api/shift-service-code/[id]/route.ts
+import { NextResponse, NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 function getServiceClient() {
@@ -8,18 +8,26 @@ function getServiceClient() {
   return createClient(url, key)
 }
 
+type UpdatePayload = {
+  service_code: string
+  require_doc_group: string | null
+}
+
+type RouteContext = { params: { id: string } }
+
 // PUT: 更新
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, context: RouteContext) {
   const supabase = getServiceClient()
-  const body = await req.json()
-  const id = params.id
+  const { id } = context.params
 
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
-  if (!body?.service_code) {
+
+  const body = (await req.json()) as Partial<UpdatePayload>
+  if (!body?.service_code || body.service_code.trim() === '') {
     return NextResponse.json({ error: 'service_code は必須です' }, { status: 400 })
   }
 
-  const payload = {
+  const payload: UpdatePayload = {
     service_code: String(body.service_code).trim(),
     require_doc_group: body.require_doc_group ?? null,
   }
@@ -36,9 +44,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 // DELETE: 削除
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, context: RouteContext) {
   const supabase = getServiceClient()
-  const id = params.id
+  const { id } = context.params
+
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
   const { error } = await supabase.from('shift_service_code').delete().eq('id', id)
