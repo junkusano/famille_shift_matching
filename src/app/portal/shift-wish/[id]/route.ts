@@ -10,9 +10,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// 独自のコンテキスト型で十分 公式型に依存しない
-type Ctx = { params: { id: string } }
-
 export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
