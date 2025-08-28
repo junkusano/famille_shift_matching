@@ -13,8 +13,12 @@ const supabase = createClient(
 // 独自のコンテキスト型で十分 公式型に依存しない
 type Ctx = { params: { id: string } }
 
-export async function DELETE(_req: Request, { params }: Ctx) {
-  const id = params?.id
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+  
   if (!id) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
@@ -27,5 +31,5 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   // 本文無しで成功を返却
-  return new NextResponse(null, { status: 204 })
+  return NextResponse.json({ success: true, id }, { status: 200 });
 }
