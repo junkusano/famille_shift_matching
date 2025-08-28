@@ -8,6 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  determineServicesFromCertificates,
+  type DocMasterRow as CertMasterRow,
+  type ServiceKey,
+} from "@/lib/certificateJudge";
+import type { DocItem, Attachment } from "@/components/DocUploader";
+
 
 type Mode = "request" | "reject";
 
@@ -96,24 +103,6 @@ function pickNum(obj: unknown, key: string): number | undefined {
   return undefined;
 }
 
-/** shift から kaipoke_cs_id を拾う（トップレベル優先。必要ならネストも見る） */
-/*
-function extractKaipokeCsId(shift: unknown): string | undefined {
-  if (!shift || typeof shift !== "object") return undefined;
-  const r = shift as UnknownRecord;
-  let raw = r["kaipoke_cs_id"] ?? r["kaipokeCsId"];
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  if (typeof raw === "number") return String(raw);
-
-  const info = r["cs_kaipoke_info"];
-  raw = info && (info as UnknownRecord)["kaipoke_cs_id"];
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  if (typeof raw === "number") return String(raw);
-
-  return undefined;
-}
-  */
-
 /* 簡易キャッシュ（ビルド間で共有しない揮発キャッシュ） */
 const infoIdCache = new Map<string, string>(); // cs_id -> time_adjustability_id
 const masterCache = new Map<string, { label: string; adv: number; back: number }>();
@@ -166,6 +155,54 @@ export default function ShiftCard({
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
+
+  const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: me } = await supabase
+        .from("form_entries")
+        .select("attachments")
+        .eq("auth_uid", user.id)
+        .maybeSingle();
+
+      // 追加：資格添付の型ガード
+      const CERT_TYPES = new Set(["資格証明書", "certificate", "certification"]);
+      const isCertificateAttachment = (a: Attachment | null | undefined): a is Attachment => {
+        const t = a?.type ?? null;
+        return typeof t === "string" && CERT_TYPES.has(t);
+      };
+
+
+      const attachments: Attachment[] = Array.isArray(me?.attachments) ? me!.attachments! : [];
+      const certDocs: DocItem[] = attachments
+        .filter(isCertificateAttachment)
+        .map((a) => ({
+          id: a.id,
+          url: a.url,
+          label: a.label ?? null,
+          type: "資格証明書",
+          mimeType: a.mimeType ?? null,
+          uploaded_at: a.uploaded_at ?? null,
+          acquired_at: a.acquired_at ?? a.uploaded_at ?? null,
+        }));
+
+      const { data: master } = await supabase
+        .from("user_doc_master")
+        .select("category,label,is_active,sort_order,service_key:doc_group")
+        .order("sort_order", { ascending: true });
+
+      setMyServiceKeys(determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]));
+    })();
+  }, []);
+
+  const eligible = useMemo(() => {
+    const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
+    if (!key) return true; // 未設定＝資格不要
+    return myServiceKeys.includes(key as ServiceKey);
+  }, [shift, myServiceKeys]);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,7 +370,11 @@ export default function ShiftCard({
 
   /* ------- Render ------- */
   return (
-    <Card className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""}`}>
+    <Card
+      className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""} ${!eligible ? "bg-gray-100" : ""}`}
+      style={!eligible ? { opacity: 0.7 } : undefined}
+    >
+
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">
@@ -345,7 +386,11 @@ export default function ShiftCard({
             </span>
           )}
         </div>
-
+        {mode === "request" && !eligible && (
+          <div className="mt-3 text-sm text-red-600 font-semibold">
+            保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。
+          </div>
+        )}
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
@@ -399,13 +444,18 @@ export default function ShiftCard({
                       </Button>
                       <Button
                         onClick={() => {
-                          onRequest?.(attendRequest, timeAdjustNote || undefined);
+                          const warn = !eligible
+                            ? "※保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。\n"
+                            : "";
+                          const composed = (warn + (timeAdjustNote || "")).trim();
+                          onRequest?.(attendRequest, composed || undefined);
                           setOpen(false);
                         }}
                         disabled={!!creatingRequest}
                       >
                         {creatingRequest ? "送信中..." : "希望を送信"}
                       </Button>
+
                     </div>
                   </>
                 ) : (
