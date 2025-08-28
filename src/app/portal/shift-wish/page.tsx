@@ -156,7 +156,7 @@ type DocMasterRow = { category: "certificate" | "other"; label: string; sort_ord
     const ok = confirm("このシフト希望を削除します。よろしいですか？");
     if (!ok) return;
     try {
-      const res = await fetch(`/api/shift-wish/${id}`, { method: "DELETE" });
+      await fetch(`/portal/shift-wish/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `DELETE ${res.status}`);
