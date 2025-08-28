@@ -217,6 +217,11 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                             <li>
+                                <Link href="/portal/shift-service-code" className="text-blue-300 hover:underline">
+                                    サービスコード管理
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/portal/shift-wish" className="text-blue-300 hover:underline">
                                     シフトWish
                                 </Link>
@@ -350,6 +355,11 @@ export default function PortalLayout({ children }: Props) {
                                 <li>
                                     <Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">
                                         RPAテンプレ管理
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/portal/shift-service-code" className="text-blue-300 hover:underline">
+                                        サービスコード管理
                                     </Link>
                                 </li>
                                 <li>
