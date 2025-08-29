@@ -209,25 +209,9 @@ export default function ShiftCard({
 
   const eligible = useMemo(() => {
     const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
-    const result =
-      !key
-        ? true // 未設定＝資格不要
-        : myServiceKeys.includes(key as ServiceKey);
-
-    // ★ログとアラート
-    console.log("[eligible-check]", {
-      shift_id: shift.shift_id,
-      require_doc_group: key,
-      myServiceKeys,
-      result,
-    });
-    alert(
-      `判定: ${result}\nshift_id: ${shift.shift_id}\nrequire_doc_group: ${key}\nmyServiceKeys: ${JSON.stringify(
-        myServiceKeys,
-      )}`
-    );
-
-    return result;
+    if (!key) return true;                  // 未設定＝資格不要
+    if (myServiceKeys === null) return true; // 判定不能＝警告しない
+    return myServiceKeys.includes(key as ServiceKey);
   }, [shift, myServiceKeys]);
 
   useEffect(() => {
