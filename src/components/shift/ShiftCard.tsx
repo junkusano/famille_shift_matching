@@ -15,6 +15,11 @@ import {
 } from "@/lib/certificateJudge";
 import type { DocItem, Attachment } from "@/components/DocUploader";
 
+// ShiftCard.tsx のファイル先頭（importの下）
+let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
+let __keysPromise: Promise<ServiceKey[]> | null = null;
+
+
 
 type Mode = "request" | "reject";
 
@@ -160,50 +165,49 @@ export default function ShiftCard({
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // 既にキャッシュがあれば即反映
+      if (__keysCache !== undefined) { setMyServiceKeys(__keysCache); return; }
+      // 進行中があれば待つ
+      if (__keysPromise) {
+        try { const keys = await __keysPromise; __keysCache = keys; setMyServiceKeys(keys); }
+        catch { __keysCache = null; setMyServiceKeys(null); }
+        return;
+      }
+      // ここから初回取得
+      __keysPromise = (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("no user");
 
-      const { data: me } = await supabase
-        .from("form_entries")
-        .select("attachments")
-        .eq("auth_uid", user.id)
-        .maybeSingle();
+        const { data: me } = await supabase
+          .from("form_entries")
+          .select("attachments")
+          .eq("auth_uid", user.id)
+          .maybeSingle();
 
-      // 追加：資格添付の型ガード
-      // type/label のどちらかに「資格」相当が入っていればOKにする（誤脱落防止）
-      const isCertificateAttachment = (a: Attachment | null | undefined): a is Attachment => {
-        if (!a) return false;
-        const t = (a.type ?? "").toString().toLowerCase();
-        const l = (a.label ?? "").toString().toLowerCase();
-        return ["資格", "certificate", "certification"].some(k => t.includes(k) || l.includes(k));
-      };
-
-
-      const attachments: Attachment[] = Array.isArray(me?.attachments) ? (me!.attachments as Attachment[]) : [];
-      const certDocs: DocItem[] = attachments
-        .filter(isCertificateAttachment)
-        .map((a) => ({
-          id: a.id,
-          url: a.url,
-          label: a.label ?? null,
-          type: "資格証明書",
-          mimeType: a.mimeType ?? null,
-          uploaded_at: a.uploaded_at ?? null,
+        const attachments: Attachment[] = Array.isArray(me?.attachments) ? (me!.attachments as Attachment[]) : [];
+        const isCertificateAttachment = (a: Attachment | null | undefined): a is Attachment => {
+          if (!a) return false;
+          const t = (a.type ?? "").toLowerCase(); const l = (a.label ?? "").toLowerCase();
+          return ["資格", "certificate", "certification"].some(k => t.includes(k) || l.includes(k));
+        };
+        const certDocs: DocItem[] = attachments.filter(isCertificateAttachment).map(a => ({
+          id: a.id, url: a.url, label: a.label ?? null, type: "資格証明書",
+          mimeType: a.mimeType ?? null, uploaded_at: a.uploaded_at ?? null,
           acquired_at: a.acquired_at ?? a.uploaded_at ?? null,
         }));
 
-      const { data: master } = await supabase
-        .from("user_doc_master")
-        .select("category,label,is_active,sort_order,service_key:doc_group")
-        .order("sort_order", { ascending: true });
+        const { data: master } = await supabase
+          .from("user_doc_master")
+          .select("category,label,is_active,sort_order,service_key:doc_group")
+          .order("sort_order", { ascending: true });
 
-      try {
-        const keys = determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]);
-        setMyServiceKeys(keys);
-      } catch {
-        // 何かあっても「判定不能」として扱う
-        setMyServiceKeys(null);
-      }
+        const keys = determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]) ?? [];
+        return keys;
+      })();
+
+      try { const keys = await __keysPromise; __keysCache = keys; setMyServiceKeys(keys); }
+      catch { __keysCache = null; setMyServiceKeys(null); }
+      finally { __keysPromise = null; }
     })();
   }, []);
 
