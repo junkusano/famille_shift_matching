@@ -209,9 +209,25 @@ export default function ShiftCard({
 
   const eligible = useMemo(() => {
     const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
-    if (!key) return true;                  // 未設定＝資格不要
-    if (myServiceKeys === null) return true; // 判定不能＝警告しない
-    return myServiceKeys.includes(key as ServiceKey);
+    const result =
+      !key
+        ? true // 未設定＝資格不要
+        : myServiceKeys.includes(key as ServiceKey);
+
+    // ★ログとアラート
+    console.log("[eligible-check]", {
+      shift_id: shift.shift_id,
+      require_doc_group: key,
+      myServiceKeys,
+      result,
+    });
+    alert(
+      `判定: ${result}\nshift_id: ${shift.shift_id}\nrequire_doc_group: ${key}\nmyServiceKeys: ${JSON.stringify(
+        myServiceKeys,
+      )}`
+    );
+
+    return result;
   }, [shift, myServiceKeys]);
 
   useEffect(() => {
@@ -400,11 +416,6 @@ export default function ShiftCard({
             </span>
           )}
         </div>
-        {mode === "request" && !eligible && (
-          <div className="mt-3 text-sm text-red-600 font-semibold">
-            保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。
-          </div>
-        )}
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
         <div className="text-sm">郵便番号: {shift.address}</div>
         <div className="text-sm">エリア: {shift.district}</div>
@@ -426,6 +437,11 @@ export default function ShiftCard({
             </DialogTrigger>
             <DialogPortal>
               <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
+                {mode === "request" && !eligible && (
+                  <div className="mt-3 text-sm text-red-600 font-semibold">
+                    保有する資格ではこのサービスに入れない可能性があります。マネジャーに確認もしくは、保有資格の確認をポータルHomeで行ってください。
+                  </div>
+                )}
                 {mode === "request" ? (
                   <>
                     <DialogTitle>このシフトを希望しますか？</DialogTitle>
