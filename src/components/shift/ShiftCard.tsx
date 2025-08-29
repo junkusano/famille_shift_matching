@@ -371,8 +371,12 @@ export default function ShiftCard({
   /* ------- Render ------- */
   return (
     <Card
-      className={`shadow ${showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""} ${!eligible ? "bg-gray-100" : ""}`}
-      style={!eligible ? { opacity: 0.7 } : undefined}
+      className={[
+        "shadow",
+        (!eligible ? "bg-gray-100" : ""),
+        (eligible && showBadge ? "bg-pink-50 border-pink-300 ring-1 ring-pink-200" : ""),
+      ].join(" ")}
+      style={!eligible ? { opacity: 0.7, filter: "grayscale(0.1)" } : undefined}
     >
 
       <CardContent className="p-4">

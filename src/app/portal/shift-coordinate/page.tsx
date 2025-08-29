@@ -3,34 +3,19 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-/*import {
-    Dialog,
-    DialogTrigger,
-    DialogContent,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
-*/
 import { Button } from "@/components/ui/button";
-//import { Card, CardContent } from "@/components/ui/card";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
-//import Image from 'next/image';
-//import { useMemo } from "react";
-//import { Dialog as PopDialog, DialogTrigger as PopDialogTrigger, DialogContent as PopDialogContent } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
-//import { format as formatTz } from "date-fns-tz";
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
-
 
 const PAGE_SIZE = 100;
 
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
-    //const [selectedShift, setSelectedShift] = useState<ShiftData | null>(null);
     const [accountId, setAccountId] = useState<string>("");
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     const [currentPage, setCurrentPage] = useState(1);
@@ -84,7 +69,7 @@ export default function ShiftPage() {
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.level_sort_order <= 3500000 ||  s.staff_01_user_id === "-" )
+                .filter((s) => s.level_sort_order <= 3500000 || s.staff_01_user_id === "-")
                 .map((s): ShiftData => ({
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
@@ -102,6 +87,9 @@ export default function ShiftPage() {
                     female_flg: s.female_flg || false,
                     postal_code_3: s.postal_code_3 || "",
                     district: s.district || "",
+                    require_doc_group: (typeof s.require_doc_group === "string" && s.require_doc_group.trim() !== "")
+                        ? s.require_doc_group
+                        : null,
                 }));
 
             //alert("filtered shiftData before map:" + formatted.length);
@@ -370,152 +358,6 @@ export default function ShiftPage() {
     );
 }
 
-/*
-function ShiftRequestDialog({
-    onConfirm,
-    creating,
-    shift,
-}: {
-    onConfirm: (attendRequest: boolean) => void;
-    creating: boolean;
-    shift: ShiftData;
-}) {
-    const [open, setOpen] = useState(false);
-    const [attendRequest, setAttendRequest] = useState(false);
-
-    const handleCancel = () => setOpen(false);
-    const handleConfirm = () => {
-        onConfirm(attendRequest);
-        setOpen(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-            </DialogTrigger>
-            <DialogContent
-                className="dialog-content"
-                style={{
-                    position: 'fixed',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '90vw',           // ← 👈 幅を明示的に制限
-                    maxWidth: '480px',       // ← 👈 最大幅をPC用に調整
-                    maxHeight: '90vh',
-                    overflowY: 'auto',
-                    zIndex: 9999,
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    padding: '1.5rem',
-                }}
-            >
-                <DialogTitle>このシフトを希望しますか？</DialogTitle>
-                <DialogDescription>
-                    希望を送信すると、シフトコーディネート申請が開始されます。
-                    <div className="mt-2 text-sm text-gray-500">
-                        利用者: {shift.client_name} / 日付: {shift.shift_start_date} / サービス: {shift.service_code}
-                    </div>
-                    <label className="flex items-center mt-4 gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={attendRequest}
-                            onChange={(e) => setAttendRequest(e.target.checked)}
-                        />
-                        同行を希望する
-                    </label>
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={handleCancel}>キャンセル</Button>
-                    <Button onClick={handleConfirm} disabled={creating}>
-                        {creating ? "送信中..." : "希望を送信"}
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function GroupAddButton({ shift }: { shift: ShiftData }) {
-    const [open, setOpen] = useState(false);
-    const [processing, setProcessing] = useState(false);
-
-    const handleConfirm = async () => {
-        setProcessing(true);
-        try {
-            const session = await supabase.auth.getSession();
-            const userId = session.data?.session?.user?.id;
-            if (!userId) throw new Error("ユーザー情報取得失敗");
-
-            const { data: chanData } = await supabase
-                .from("group_lw_channel_view")
-                .select("group_id")
-                .eq("group_account", shift.kaipoke_cs_id)
-                .maybeSingle();
-
-            const { data: userData } = await supabase
-                .from("user_entry_united_view")
-                .select("lw_userid")
-                .eq("auth_user_id", userId)
-                .eq("group_type", "人事労務サポートルーム")
-                .limit(1)
-                .single(); // 最初の1件を取得（2行あってもOK）
-
-            const senderId = userData?.lw_userid;
-            if (!chanData?.group_id || !senderId) throw new Error("groupId または userId が不明です");
-
-            const res = await fetch('/api/lw-group-user-add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    groupId: chanData.group_id,
-                    userId: senderId,
-                }),
-            });
-
-            const text = await res.text();
-            if (!res.ok) {
-                if (text.includes('Group member already exist')) {
-                    alert('✅ すでにグループメンバーに追加されています。');
-                } else {
-                    alert(`❌ グループ追加失敗: ${text}`);
-                }
-            } else {
-                alert('✅ グループに追加されました');
-            }
-        } catch (e) {
-            alert('エラー: ' + (e instanceof Error ? e.message : '不明なエラー'));
-        } finally {
-            setProcessing(false);
-            setOpen(false);
-        }
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
-                    <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />
-                    <span>グループ追加</span>
-                </button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogTitle>メンバー追加確認</DialogTitle>
-                <DialogDescription>
-                    {shift.client_name} 様の情報連携グループにメンバー追加しますか？
-                </DialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                    <button onClick={() => setOpen(false)} className="border rounded px-3 py-1 text-sm">キャンセル</button>
-                    <button onClick={handleConfirm} disabled={processing} className="bg-blue-600 text-white rounded px-4 py-1 text-sm">
-                        {processing ? '追加中...' : 'OK'}
-                    </button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-*/
 
 function ShiftWishWidget({
     filterOptions,

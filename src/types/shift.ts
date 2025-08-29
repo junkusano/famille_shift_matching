@@ -17,6 +17,7 @@ export interface SupabaseShiftRaw {
   postal_code_3?: string;
   district?: string;
   level_sort_order?: number;
+  require_doc_group?: string | null;
 }
 
 export interface ShiftData {
@@ -43,4 +44,5 @@ export interface ShiftData {
   standard_purpose?: string;
   biko?: string;
   level_sort_order?: number | null;
+  require_doc_group?: string | null;
 }
