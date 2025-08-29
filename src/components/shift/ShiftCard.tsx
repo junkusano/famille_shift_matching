@@ -156,7 +156,8 @@ export default function ShiftCard({
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
 
-  const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[]>([]);
+  // null = まだ未判定 / 取得失敗（判定不能）
+  const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -169,14 +170,16 @@ export default function ShiftCard({
         .maybeSingle();
 
       // 追加：資格添付の型ガード
-      const CERT_TYPES = new Set(["資格証明書", "certificate", "certification"]);
+      // type/label のどちらかに「資格」相当が入っていればOKにする（誤脱落防止）
       const isCertificateAttachment = (a: Attachment | null | undefined): a is Attachment => {
-        const t = a?.type ?? null;
-        return typeof t === "string" && CERT_TYPES.has(t);
+        if (!a) return false;
+        const t = (a.type ?? "").toString().toLowerCase();
+        const l = (a.label ?? "").toString().toLowerCase();
+        return ["資格", "certificate", "certification"].some(k => t.includes(k) || l.includes(k));
       };
 
 
-      const attachments: Attachment[] = Array.isArray(me?.attachments) ? me!.attachments! : [];
+      const attachments: Attachment[] = Array.isArray(me?.attachments) ? (me!.attachments as Attachment[]) : [];
       const certDocs: DocItem[] = attachments
         .filter(isCertificateAttachment)
         .map((a) => ({
@@ -194,13 +197,20 @@ export default function ShiftCard({
         .select("category,label,is_active,sort_order,service_key:doc_group")
         .order("sort_order", { ascending: true });
 
-      setMyServiceKeys(determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]));
+      try {
+        const keys = determineServicesFromCertificates(certDocs, (master ?? []) as CertMasterRow[]);
+        setMyServiceKeys(keys);
+      } catch {
+        // 何かあっても「判定不能」として扱う
+        setMyServiceKeys(null);
+      }
     })();
   }, []);
 
   const eligible = useMemo(() => {
     const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
-    if (!key) return true; // 未設定＝資格不要
+    if (!key) return true;                  // 未設定＝資格不要
+    if (myServiceKeys === null) return true; // 判定不能＝警告しない
     return myServiceKeys.includes(key as ServiceKey);
   }, [shift, myServiceKeys]);
 
