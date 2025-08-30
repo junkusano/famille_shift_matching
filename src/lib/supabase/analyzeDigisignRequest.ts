@@ -1,141 +1,182 @@
-//"C:\Users\USER\famille_shift_matching\src\lib\supabase\analyzeDigisignRequest.ts"
+// ======================================================
+// analyzeDigisignRequest.ts
+// 目的：LINE WORKSトーク（msg_lw_log）から「PDF添付のみ」を抽出し、
+//       rpa_command_requests に status="approved" でUPSERT登録する。
+// 備考：Supabase呼び出しは本ファイルで完結。cronはこの関数を呼ぶだけ。
+// ======================================================
+
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
 
-// -----------------------------
-// 型定義
-// -----------------------------
-export type MessageRow = {
-    channel_id: string;
-    message_id: string;
-    user_id: string; // 添付したユーザー
-    text?: string | null;
-    created_at?: string | null;
-    attachments?: Array<{
-        url?: string | null;
-        mimeType?: string | null;
-        fileName?: string | null;
-        uploaded_at?: string | null;
-    }>;
+// ---------- 型 ----------
+export type MsgRow = {
+  id: number;
+  timestamp: string | null;
+  event_type: string | null;
+  user_id: string;        // 申請者
+  channel_id: string;
+  domain_id: string | null;
+  message: string | null; // URLなどが入る場合あり（空のことも多い）
+  file_id: string | null; // 添付がある場合に入る（LWのファイルID）
+  members: unknown;
+  status: number | null;
 };
 
-// -----------------------------
-// 共通ユーティリティ
-// -----------------------------
-const isPdf = (url?: string | null, mime?: string | null, name?: string | null) => {
-    const m = (mime || "").toLowerCase();
-    if (m.includes("application/pdf")) return true;
-    const u = (url || "").toLowerCase();
-    if (u.endsWith(".pdf")) return true;
-    const n = (name || "").toLowerCase();
-    if (n.endsWith(".pdf")) return true;
-    return false;
+export type RequestDetails = {
+  source: "lineworks_channel_pdf";
+  channel_id: string;
+  message_id: string;         // msg_lw_log.id を文字列で
+  uploader_user_id: string;
+  file_url: string;           // RPAが直接取得に使うURL
+  file_mime: string | null;   // 厳密判定時にContent-Typeを入れる
+  file_name: string | null;   // わかれば設定（通常null）
+  uploaded_at: string | null; // msg_lw_log.timestamp
+  file_id?: string | null;    // LWのfile_idも残す（後工程用）
+  download_url?: string | null;
 };
 
-const buildDetails = (args: {
-    channel_id: string;
-    message_id: string;
-    uploader_user_id: string;
-    file_url: string;
-    file_mime?: string | null;
-    file_name?: string | null;
-    uploaded_at?: string | null;
-}) => ({
-    source: "lineworks_channel_pdf",
-    channel_id: args.channel_id,
-    message_id: args.message_id,
-    uploader_user_id: args.uploader_user_id,
-    file_url: args.file_url,
-    file_mime: args.file_mime ?? null,
-    file_name: args.file_name ?? null,
-    uploaded_at: args.uploaded_at ?? null,
-});
+export type RpaPayload = {
+  template_id: string;
+  requester_id: string;
+  status: "approved";
+  original_message_id: string;
+  file_url: string;
+  request_details: RequestDetails;
+};
 
-// -----------------------------
-// Digisign 用既存関数（例）
-// -----------------------------
-export async function analyzeDigisignRequest() {
-    // TODO: 既存の Digisign 関連処理をここに残す
-    // supabaseAdmin を使って request を抽出・RPA登録
-    return { ok: true };
+export type DispatchResult = { inserted: number; skipped: number };
+
+// ---------- 設定 ----------
+const DEFAULT_CHANNEL_ID = "a134fad8-e459-4ea3-169d-be6f5c0a6aad";
+const DEFAULT_TEMPLATE_ID = "5c623c6e-c99e-4455-8e50-68ffd92aa77a";
+const MESSAGES_TABLE_DEFAULT = "msg_lw_log";
+const RPA_TABLE_DEFAULT = "rpa_command_requests";
+
+// Line Works Files API URLを組み立て（botNoは環境変数で上書き可）
+const LW_BOT_NO = process.env.LW_BOT_NO ?? "6807751";
+const worksFileDownloadUrl = (botNo: string, channelId: string, fileId: string) =>
+  `https://www.worksapis.com/v1.0/bots/${botNo}/channels/${channelId}/files/${fileId}`;
+
+// （任意）厳密PDF判定を有効化するフラグ：trueならWorks APIにHEAD/GETしてContent-Type確認
+const STRICT_PDF = (process.env.LW_STRICT_PDF ?? "false").toLowerCase() === "true";
+// Works APIのトークン（サービスアカウントなど）。STRICT_PDF=trueのときに使用。
+const WORKS_API_TOKEN = process.env.WORKS_API_TOKEN ?? "";
+
+// ---------- ユーティリティ ----------
+/** Works APIでContent-Typeを確認（STRICT_PDF=trueのときのみ使用） */
+async function confirmPdfByHead(url: string): Promise<{ ok: boolean; mime: string | null }> {
+  if (!STRICT_PDF) return { ok: true, mime: null };
+  if (!WORKS_API_TOKEN) return { ok: true, mime: null }; // トークン未設定時はスキップ（緩め）
+
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: { Authorization: `Bearer ${WORKS_API_TOKEN}` },
+    });
+    const mime = res.headers.get("content-type");
+    const ok = !!mime && mime.toLowerCase().includes("application/pdf");
+    return { ok, mime: mime ?? null };
+  } catch {
+    // 取得失敗時は除外せず通す（運用に応じて false にしても良い）
+    return { ok: true, mime: null };
+  }
 }
 
-// -----------------------------
-// LINE WORKS: PDF添付を抽出してRPA登録
-// -----------------------------
-export async function extractPdfFromChannelAndDispatchRPA(opts: {
-    channelId: string; // 例: "a134fad8-e459-4ea3-169d-be6f5c0a6aad"
-    since?: string; // ISO文字列 (省略可)
-    until?: string; // ISO文字列 (省略可)
-    messagesTable?: string; // 例: "msg_lw_log_with_group_account_rows"
-    rpaTable?: string; // 例: "rpa_command_requests"
-    templateId?: string; // 省略時は固定UUID
-}) {
-    const MESSAGES = opts.messagesTable ?? "msg_lw_log_with_group_account_rows";
-    const RPA = opts.rpaTable ?? "rpa_command_requests";
-    const TEMPLATE_ID = opts.templateId ?? "5c623c6e-c99e-4455-8e50-68ffd92aa77a";
+// ---------- 本体：LINE WORKS PDF → RPA登録 ----------
+export async function dispatchLineworksPdfToRPA(input?: {
+  channelId?: string;
+  templateId?: string;
+  since?: string;            // 絞り込み（timestamp >= since）
+  until?: string;            // 絞り込み（timestamp <= until）
+  messagesTable?: string;    // 既定 msg_lw_log
+  rpaTable?: string;         // 既定 rpa_command_requests
+  pageSize?: number;         // 既定 5000
+}): Promise<DispatchResult> {
+  const channelId =
+    input?.channelId ?? process.env.TARGET_CHANNEL_ID ?? DEFAULT_CHANNEL_ID;
 
-    // 1) メッセージ取得
-    let q = supabase
-        .from(MESSAGES)
-        .select("channel_id,message_id,user_id,text,created_at,attachments")
-        .eq("channel_id", opts.channelId);
+  const templateId =
+    input?.templateId ?? process.env.RPA_TEMPLATE_ID ?? DEFAULT_TEMPLATE_ID;
 
-    if (opts.since) q = q.gte("created_at", opts.since);
-    if (opts.until) q = q.lte("created_at", opts.until);
+  const messagesTable = input?.messagesTable ?? MESSAGES_TABLE_DEFAULT;
+  const rpaTable = input?.rpaTable ?? RPA_TABLE_DEFAULT;
+  const since = input?.since;
+  const until = input?.until;
+  const pageSize = input?.pageSize ?? 5000;
 
-    const { data: rows, error } = await q;
-    if (error) throw error;
+  // 1) 対象メッセージ取得（file_idがNULLでない＝添付あり）
+  let q = supabase
+    .from(messagesTable)
+    .select(
+      "id,timestamp,event_type,user_id,channel_id,domain_id,message,file_id,members,status"
+    )
+    .eq("channel_id", channelId)
+    .not("file_id", "is", null); // 添付ありに限定
 
-    // 2) PDF抽出
-    type RpaUpsertPayload = {
-        template_id: string;
-        requester_id: string;
-        status: "approved";
-        original_message_id: string;
-        file_url: string;
-        request_details: Record<string, unknown>;
-    };
+  if (since) q = q.gte("timestamp", since);
+  if (until) q = q.lte("timestamp", until);
 
-    const payloads: RpaUpsertPayload[] = [];
-    for (const r of (rows ?? []) as MessageRow[]) {
-        const atts = Array.isArray(r.attachments) ? r.attachments : [];
-        for (const a of atts) {
-            if (!a?.url) continue;
-            if (!isPdf(a.url, a.mimeType, a.fileName)) continue;
+  const { data, error } = await q.limit(pageSize);
+  if (error) {
+    const details = typeof error === "object" ? JSON.stringify(error) : String(error);
+    throw new Error(`select from ${messagesTable} failed: ${details}`);
+  }
 
-            payloads.push({
-                template_id: TEMPLATE_ID,
-                requester_id: r.user_id,
-                status: "approved" as const,
-                original_message_id: r.message_id,
-                file_url: a.url,
-                request_details: buildDetails({
-                    channel_id: r.channel_id,
-                    message_id: r.message_id,
-                    uploader_user_id: r.user_id,
-                    file_url: a.url!,
-                    file_mime: a.mimeType ?? null,
-                    file_name: a.fileName ?? null,
-                    uploaded_at: a.uploaded_at ?? r.created_at ?? null,
-                }),
-            });
-        }
-    }
+  const rows: MsgRow[] = Array.isArray(data) ? (data as MsgRow[]) : [];
+  if (rows.length === 0) return { inserted: 0, skipped: 0 };
 
-    if (payloads.length === 0) return { inserted: 0, skipped: 0 };
+  // 2) PDFのみ抽出（必要に応じてContent-Typeを確認）
+  const payloads: RpaPayload[] = [];
+  for (const r of rows) {
+    if (!r.file_id) continue;
 
-    // 3) RPAリクエストへ UPSERT
-    const { data: ins, error: insErr } = await supabase
-        .from(RPA)
-        .upsert(payloads, {
-            onConflict: "template_id,original_message_id,file_url",
-            ignoreDuplicates: true,
-        })
-        .select("id");
+    // Line Worksファイルの取得URL（RPA側でダウンロードに使う）
+    const fileUrl = worksFileDownloadUrl(LW_BOT_NO, r.channel_id, r.file_id);
 
-    if (insErr) throw insErr;
+    // 厳密チェック（任意）：Content-Type が application/pdf か確認
+    const pdfCheck = await confirmPdfByHead(fileUrl);
+    if (!pdfCheck.ok) continue;
 
-    const inserted = ins?.length ?? 0;
-    const skipped = payloads.length - inserted;
-    return { inserted, skipped };
+    payloads.push({
+      template_id: templateId,
+      requester_id: r.user_id,                 // 添付ユーザー＝申請者
+      status: "approved",
+      original_message_id: String(r.id),       // 幂等キーの一部
+      file_url: fileUrl,
+      request_details: {
+        source: "lineworks_channel_pdf",
+        channel_id: r.channel_id,
+        message_id: String(r.id),
+        uploader_user_id: r.user_id,
+        file_url: fileUrl,
+        file_mime: pdfCheck.mime,              // 確認できたら格納（通常nullでもOK）
+        file_name: null,
+        uploaded_at: r.timestamp ?? null,
+        file_id: r.file_id,
+        download_url: fileUrl,
+      },
+    });
+  }
+
+  if (payloads.length === 0) return { inserted: 0, skipped: 0 };
+
+  // 3) RPAテーブルにUPSERT（重複防止：template_id, original_message_id, file_url）
+  const { data: upData, error: upError } = await supabase
+    .from(rpaTable)
+    .upsert(payloads, {
+      onConflict: "template_id,original_message_id,file_url",
+      ignoreDuplicates: true,
+    })
+    .select("id");
+
+  if (upError) {
+    const details = typeof upError === "object" ? JSON.stringify(upError) : String(upError);
+    throw new Error(`upsert into ${rpaTable} failed: ${details}`);
+  }
+
+  const inserted = Array.isArray(upData) ? upData.length : 0;
+  const skipped = payloads.length - inserted;
+  return { inserted, skipped };
 }
+
+// ---------- （既存のDigiサイン処理があるならこの下に保持） ----------
+// export async function analyzeDigisignRequest() { ... }
