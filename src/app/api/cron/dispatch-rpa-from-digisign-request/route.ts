@@ -22,56 +22,55 @@ const DEFAULT_TEMPLATE_ID = "5c623c6e-c99e-4455-8e50-68ffd92aa77a";
 
 // --- シンプルな認証（既存cronと同等の想定） ---
 function verifyCronAuth(req: NextRequest): boolean {
-  const bearer = req.headers.get("authorization") || "";
-  const secret = process.env.CRON_SECRET || "";
-  return !!secret && bearer === `Bearer ${secret}`;
+    const bearer = req.headers.get("authorization") || "";
+    const secret = process.env.CRON_SECRET || "";
+    return !!secret && bearer === `Bearer ${secret}`;
 }
 
 export async function GET(req: NextRequest) {
-  if (!verifyCronAuth(req)) {
-    return new NextResponse("unauthorized", { status: 401 });
-  }
+    if (!verifyCronAuth(req)) {
+        return new NextResponse("unauthorized", { status: 401 });
+    }
 
-  const url = new URL(req.url);
-  const since = url.searchParams.get("since") || undefined;
-  const until = url.searchParams.get("until") || undefined;
+    const url = new URL(req.url);
+    const since = url.searchParams.get("since") || undefined;
+    const until = url.searchParams.get("until") || undefined;
 
-  // クエリ or .env で上書き可（検証運用向け）
-  const channelId =
-    url.searchParams.get("channelId") ||
-    process.env.TARGET_CHANNEL_ID ||
-    DEFAULT_CHANNEL_ID;
+    // クエリ or .env で上書き可（検証運用向け）
+    const channelId =
+        url.searchParams.get("channelId") ||
+        process.env.TARGET_CHANNEL_ID ||
+        DEFAULT_CHANNEL_ID;
 
-  const templateId =
-    url.searchParams.get("templateId") ||
-    process.env.RPA_TEMPLATE_ID ||
-    DEFAULT_TEMPLATE_ID;
+    const templateId =
+        url.searchParams.get("templateId") ||
+        process.env.RPA_TEMPLATE_ID ||
+        DEFAULT_TEMPLATE_ID;
 
-  try {
-    const result = await dispatchPdfFromChannel({
-      channelId,
-      templateId,
-      since,
-      until,
-      // messagesTable: "msg_lw_log_with_group_account_rows", // 変更したい場合のみ指定
-      // rpaTable: "rpa_command_requests",                      // デフォルトでOK
-    });
+    try {
+        const result = await dispatchPdfFromChannel({
+            channelId,
+            templateId,
+            since,
+            until,
+            // messagesTable: "msg_lw_log_with_group_account_rows", // 変更したい場合のみ指定
+            // rpaTable: "rpa_command_requests",                      // デフォルトでOK
+        });
 
-    return NextResponse.json({
-      ok: true,
-      channelId,
-      templateId,
-      since: since ?? null,
-      until: until ?? null,
-      inserted: result.inserted,
-      skipped: result.skipped,
-    });
-  } catch (e: any) {
-    console.error("[cron] dispatch-rpa-from-digisign-request error:", e);
-    return new NextResponse(`error: ${e?.message ?? "unknown"}`, {
-      status: 500,
-    });
-  }
+        return NextResponse.json({
+            ok: true,
+            channelId,
+            templateId,
+            since: since ?? null,
+            until: until ?? null,
+            inserted: result.inserted,
+            skipped: result.skipped,
+        });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[cron] dispatch-rpa-from-digisign-request error:", e);
+        return new NextResponse(`error: ${msg}`, { status: 500 });
+    }
 }
 
 export const POST = GET;
