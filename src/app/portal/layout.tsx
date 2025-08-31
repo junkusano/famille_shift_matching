@@ -222,6 +222,11 @@ export default function PortalLayout({ children }: Props) {
                                 </Link>
                             </li>
                             <li>
+                                <Link href="/portal/shift-record-def" className="text-blue-300 hover:underline">
+                                    訪問記録定義
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/portal/shift-wish" className="text-blue-300 hover:underline">
                                     シフトWish
                                 </Link>
@@ -360,6 +365,11 @@ export default function PortalLayout({ children }: Props) {
                                 <li>
                                     <Link href="/portal/shift-service-code" className="text-blue-300 hover:underline">
                                         サービスコード管理
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/portal/shift-record-def" className="text-blue-300 hover:underline">
+                                        訪問記録定義
                                     </Link>
                                 </li>
                                 <li>
