@@ -82,10 +82,9 @@ export default function ShiftRecordDefPage(): React.ReactElement {
                     <TabsTrigger value="s">小カテゴリ（S）</TabsTrigger>
                     <TabsTrigger value="defs">項目定義</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="l"><div>大カテゴリタブ内容をここに実装</div></TabsContent>
-                <TabsContent value="s"><div>小カテゴリタブ内容をここに実装</div></TabsContent>
-                <TabsContent value="defs"><div>項目定義タブ内容をここに実装</div></TabsContent>
+                <TabsContent value="l"><TabL /></TabsContent>
+                <TabsContent value="s"><TabS /></TabsContent>
+                <TabsContent value="defs"><TabDefs /></TabsContent>
             </Tabs>
         </div>
     )
