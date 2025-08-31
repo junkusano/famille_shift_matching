@@ -1,3 +1,4 @@
+//api/shift-record-def/item-defs
 import { NextResponse } from "next/server"
 import { supabaseAdmin as db } from "@/lib/supabase/service"
 
