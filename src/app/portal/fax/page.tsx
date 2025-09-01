@@ -84,8 +84,10 @@ export default function FaxPage() {
     setPage(1)
   }, [qFax, qOffice, qEmail, qPostal, qKind])
 
-  const handleEditChange = <K extends keyof FaxEntry>(index: number, key: K, value: FaxEntry[K]) => {
-    setFaxList((prev) => prev.map((row, i) => (i === index ? ({ ...row, [key]: value } as FaxEntry) : row)))
+  const handleEditChange = <K extends keyof FaxEntry>(id: string, key: K, value: FaxEntry[K]) => {
+    setFaxList((prev) =>
+      prev.map((row) => (row.id === id ? ({ ...row, [key]: value } as FaxEntry) : row)),
+    )
   }
 
   const handleSave = async (entry: FaxEntry) => {
@@ -184,7 +186,15 @@ export default function FaxPage() {
         </div>
 
         <div className="min-w-0 md:justify-self-end md:pr-2 max-w-max">
-          <Button size="sm" variant="secondary">クリア</Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setQFax(''); setQOffice(''); setQEmail(''); setQPostal(''); setQKind('');
+            }}
+          >
+            クリア
+          </Button>
         </div>
       </div>
 
@@ -212,43 +222,6 @@ export default function FaxPage() {
           </TableHeader>
 
           <TableBody>
-            {pageRows.map((entry, index) => (
-              <TableRow key={entry.id}>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.fax} onChange={(e) => handleEditChange(index + start, 'fax', e.target.value)} />
-                </TableCell>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.office_name} onChange={(e) => handleEditChange(index + start, 'office_name', e.target.value)} title={entry.office_name} />
-                </TableCell>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.email} onChange={(e) => handleEditChange(index + start, 'email', e.target.value)} title={entry.email} />
-                </TableCell>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <Input className="h-8 w-full px-2 min-w-0 truncate" value={entry.postal_code ?? ''} onChange={(e) => handleEditChange(index + start, 'postal_code', e.target.value)} placeholder="例: 4860969" />
-                </TableCell>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <div className="w-full min-w-0">
-                    <Select value={entry.service_kind_id ?? ''} onValueChange={(v) => handleEditChange(index + start, 'service_kind_id', v || null)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {kinds.map((k) => (
-                          <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </TableCell>
-                <TableCell className="px-1 py-1 min-w-0">
-                  <div className="flex gap-1">
-                    <Button size="sm" onClick={() => handleSave(entry)}>保存</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(entry.id)}>×</Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-
             {/* 追加行 */}
             <TableRow>
               <TableCell className="px-1 py-1 min-w-0">
@@ -281,6 +254,71 @@ export default function FaxPage() {
                 <Button size="sm" onClick={handleAdd}>追加</Button>
               </TableCell>
             </TableRow>
+            {/*レコード列*/}
+            {pageRows.map((entry, index) => (
+              <TableRow key={entry.id}>
+                <TableCell className="px-1 py-1 min-w-0">
+                  <Input
+                    className="h-8 w-full px-2 min-w-0 truncate"
+                    value={entry.fax}
+                    onChange={(e) => handleEditChange(entry.id, 'fax', e.target.value)}
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1 min-w-0">
+                  <Input
+                    className="h-8 w-full px-2 min-w-0 truncate"
+                    value={entry.office_name}
+                    onChange={(e) => handleEditChange(entry.id, 'office_name', e.target.value)}
+                    title={entry.office_name}
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1 min-w-0">
+                  <Input
+                    className="h-8 w-full px-2 min-w-0 truncate"
+                    value={entry.email}
+                    onChange={(e) => handleEditChange(entry.id, 'email', e.target.value)}
+                    title={entry.email}
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1 min-w-0">
+                  <Input
+                    className="h-8 w-full px-2 min-w-0 truncate"
+                    value={entry.postal_code ?? ''}
+                    onChange={(e) => handleEditChange(entry.id, 'postal_code', e.target.value)}
+                    placeholder="例: 4860969"
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1 min-w-0">
+                  <div className="w-full min-w-0">
+                    <Select
+                      value={entry.service_kind_id ?? ''}
+                      onValueChange={(v) => handleEditChange(entry.id, 'service_kind_id', v || null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {kinds.map((k) => (
+                          <SelectItem key={k.id} value={k.id}>
+                            {k.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TableCell>
+                <TableCell className="px-1 py-1 min-w-0">
+                  <div className="flex gap-1">
+                    <Button size="sm" onClick={() => handleSave(entry)}>保存</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDelete(entry.id)}>×</Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
