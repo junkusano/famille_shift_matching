@@ -5,29 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
-const [shiftInfo, setShiftInfo] = useState<Record<string, unknown> | null>(null);
-useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shiftId = params.get("shift_id");
-    if (!shiftId) return;
-    (async () => {
-        // 好みのエンドポイントに合わせて調整
-        const r = await fetch(`/api/shifts/summary?shift_id=${encodeURIComponent(shiftId)}`);
-        if (r.ok) setShiftInfo(await r.json());
-    })();
-}, []);
-
-function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
-    return tpl.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
-        const v = ctx?.[key];
-        if (v == null) return "";
-        if (typeof v === "string") return v;
-        if (typeof v === "number" || typeof v === "boolean") return String(v);
-        return "";
-    });
-}
-
-
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
 export type ShiftRecordCategoryL = { id: string; code?: string; name: string; sort_order?: number };
 export type ShiftRecordCategoryS = { id: string; l_id: string; code?: string; name: string; sort_order?: number };
@@ -60,6 +37,7 @@ export default function ShiftRecord({
     recordId?: string;
     onSavedStatusChange?: (s: SaveState) => void;
 }) {
+    const shiftInfo = useShiftInfo(shiftId);
     // ====== 定義ロード ======
     const [defs, setDefs] = useState<{ L: ShiftRecordCategoryL[]; S: ShiftRecordCategoryS[]; items: ShiftRecordItemDef[] }>({
         L: [],
@@ -277,6 +255,7 @@ export default function ShiftRecord({
                                                 def={def}
                                                 value={values[def.id]}
                                                 onChange={handleChange}
+                                                shiftInfo={shiftInfo}
                                             />
                                         ))}
                                     </div>
@@ -301,13 +280,12 @@ function SaveIndicator({ state }: { state: SaveState }) {
 }
 
 function FieldRow({
-    def,
-    value,
-    onChange,
+    def, value, onChange, shiftInfo,
 }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
+    shiftInfo: Record<string, unknown> | null;
 }) {
     return (
         <div className="flex flex-col gap-1">
@@ -315,20 +293,19 @@ function FieldRow({
                 {def.label}
                 {def.required && <span className="ml-1 text-red-500">*</span>}
             </label>
-            <ItemInput def={def} value={value} onChange={onChange} />
+            <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} />
             {def.description && <p className="text-[11px] text-gray-500">{def.description}</p>}
         </div>
     );
 }
 
 function ItemInput({
-    def,
-    value,
-    onChange,
+    def, value, onChange, shiftInfo,
 }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
+    shiftInfo: Record<string, unknown> | null;
 }) {
     const t = def.input_type;
     const vStr = (value ?? "") as string;
@@ -336,9 +313,11 @@ function ItemInput({
     void vBool;
 
     if (t === "display") {
+        // v → value に修正（元コードは未定義変数 v を参照）
         let text = def.display_text ?? (typeof value === "string" ? value : "");
 
-        const opt = (def.options ?? {}) as Record<string, unknown>;
+        const opt = (def.options ?? def.options_json ?? {}) as Record<string, unknown>;
+
         if (typeof opt.template === "string" && shiftInfo) {
             text = renderTemplate(opt.template, shiftInfo);
         } else if (Array.isArray(opt.ref) && shiftInfo) {
@@ -601,3 +580,25 @@ function normalizeBinaryValue(v: unknown, yesVal: string, noVal: string): string
     return "";
 }
 void normalizeBinaryValue;
+
+function useShiftInfo(shiftId: string) {
+    const [shiftInfo, setShiftInfo] = useState<Record<string, unknown> | null>(null);
+    useEffect(() => {
+        if (!shiftId) return;
+        (async () => {
+            const r = await fetch(`/api/shifts/summary?shift_id=${encodeURIComponent(shiftId)}`);
+            if (r.ok) setShiftInfo(await r.json());
+        })();
+    }, [shiftId]);
+    return shiftInfo;
+}
+
+function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
+    return tpl.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
+        const v = ctx?.[key];
+        if (v == null) return "";
+        if (typeof v === "string") return v;
+        if (typeof v === "number" || typeof v === "boolean") return String(v);
+        return "";
+    });
+}
