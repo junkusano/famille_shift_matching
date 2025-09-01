@@ -240,7 +240,7 @@ export default function ShiftRecord({
                                     <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {(itemsByS[s.id] ?? []).map((def) => (
                                             <FieldRow
-                                                key={def.id}
+                                                key={`${def.s_id}-${def.id}`}              // ← 衝突回避
                                                 def={def}
                                                 value={values[def.id]}
                                                 onChange={handleChange}
@@ -311,31 +311,30 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
-        // options(jsonb) 優先（互換で options_json も見る）
         const raw = def.options ?? def.options_json;
         const opts = parseOptionsFlexible(raw);
 
         if (opts.length >= 2) {
             const [optYes, optNo] = opts;
 
-            // ★ ここを変更：値が空なら無(optNo)を初期選択にする
-            let cur: string;
-            if (value === undefined || value === null || value === "") {
-                cur = String(optNo.value);  // デフォルトを「無」に
-            } else {
-                cur = String(value);
-            }
-
+            // 値が空なら「無」を初期表示（必要なければ消せます）
+            const cur = String(value ?? String(optNo.value));
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
 
-            const groupName = `bin-${def.id}`; // 項目ごとにユニーク
+            // ★ 衝突防止：s_id と def.id を連結して必ず一意にする
+            const groupName = `bin-${def.s_id}-${def.id}`;
             const select = (val: string) => onChange(def, val);
+
+            // inputのidもユニークに（ラベル関連付け用）
+            const idYes = `${groupName}-yes`;
+            const idNo = `${groupName}-no`;
 
             return (
                 <div className="flex items-center gap-6" role="radiogroup" aria-label={def.label}>
-                    <label className="inline-flex items-center gap-2">
+                    <label htmlFor={idYes} className="inline-flex items-center gap-2">
                         <input
+                            id={idYes}
                             type="radio"
                             name={groupName}
                             value={String(optYes.value)}
@@ -344,8 +343,10 @@ function ItemInput({
                         />
                         <span className="text-sm">{optYes.label}</span>
                     </label>
-                    <label className="inline-flex items-center gap-2">
+
+                    <label htmlFor={idNo} className="inline-flex items-center gap-2">
                         <input
+                            id={idNo}
                             type="radio"
                             name={groupName}
                             value={String(optNo.value)}
@@ -357,7 +358,20 @@ function ItemInput({
                 </div>
             );
         }
+
+        // optionsが無い場合のフォールバック（単一チェック）
+        return (
+            <label className="inline-flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={String(value ?? "") === "1"}
+                    onChange={(e) => onChange(def, e.target.checked ? "1" : "")}
+                />
+                <span className="text-sm">はい / 実施</span>
+            </label>
+        );
     }
+
 
     if (t === "select") {
         const raw = def.options ?? def.options_json;
