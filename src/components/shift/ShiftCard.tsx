@@ -14,7 +14,7 @@ import {
   type ServiceKey,
 } from "@/lib/certificateJudge";
 import type { DocItem, Attachment } from "@/components/DocUploader";
-//import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
+import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
 
 // ShiftCard.tsx のファイル先頭（importの下）
 let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
@@ -508,7 +508,9 @@ export default function ShiftCard({
               </DialogContent>
             </DialogPortal>
           </Dialog>
-
+          {mode === "reject" && (
+            <ShiftRecordLinkButton shiftId={shift.shift_id ?? shift.id} />
+          )}
           {extraActions}
         </div>
       </CardContent>
