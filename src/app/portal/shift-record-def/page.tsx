@@ -602,54 +602,6 @@ function TabDefs(): React.ReactElement {
                     <div className="text-[11px] text-muted-foreground">検索（code / label / unit / input_type）</div>
                     <Input className="h-8" value={q} onChange={(e) => setQ(e.target.value)} placeholder="vital_temp / 体温 / ℃ など" />
                 </div>
-                {/* ▼ display 用オプションのヘルプ（新規 1 カラム） */}
-                <div className="hidden sm:block">
-                    <details className="text-xs">
-                        <summary className="cursor-pointer select-none">▼ display の options(JSON) ルール</summary>
-                        <div className="mt-2 space-y-2">
-                            <div>
-                                <div className="text-[11px] text-muted-foreground">① テンプレ置換（推奨）</div>
-                                <pre className="bg-gray-50 border rounded p-2 text-[11px] whitespace-pre-wrap">
-                                    {`{ "template": "{{shift_start_date}} {{shift_start_time}} ~ {{shift_end_time}}" }`}
-                                </pre>
-                                <div className="text-[11px] text-muted-foreground">
-                                    例）日時を 1 行で表示。{"{{key}}"} は Shift 情報のフィールド名。
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[11px] text-muted-foreground">② 参照配列（連結表示）</div>
-                                <pre className="bg-gray-50 border rounded p-2 text-[11px] whitespace-pre-wrap">
-                                    {`{ "ref": ["client_name", "service_code"] }`}
-                                </pre>
-                                <div className="text-[11px] text-muted-foreground">
-                                    ref の順に取り出して空白区切りで表示。
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[11px] text-muted-foreground">③ ラベル合成</div>
-                                <pre className="bg-gray-50 border rounded p-2 text-[11px] whitespace-pre-wrap">
-                                    {`{ "template": "利用者: {{client_name}} 様" }`}
-                                </pre>
-                            </div>
-
-                            <div>
-                                <div className="text-[11px] text-muted-foreground">④ 担当名（APIで解決済み想定）</div>
-                                <pre className="bg-gray-50 border rounded p-2 text-[11px] whitespace-pre-wrap">
-                                    {`{ "template": "担当: {{staff_01_user_name}}" }`}
-                                </pre>
-                                <div className="text-[11px] text-muted-foreground">
-                                    ※ staff_01_user_id→名前の解決は /api/shifts/summary 側で行うと簡単。
-                                </div>
-                            </div>
-
-                            <div className="text-[11px] text-muted-foreground">
-                                ※ type は <code>display</code> を選択。<code>options(JSON)</code> が未指定なら <code>display_text</code> を表示。
-                            </div>
-                        </div>
-                    </details>
-                </div>
                 <div className="sm:justify-self-end">
                     <Button size="sm" variant="secondary" onClick={() => { setQ(""); setQL(""); setQS("") }}>クリア</Button>
                 </div>
@@ -686,6 +638,67 @@ function TabDefs(): React.ReactElement {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
+                        <TableRow>
+                            <TableCell colSpan={10}>
+                                <details className="group text-xs">
+                                    <summary className="cursor-pointer select-none leading-6 hover:opacity-80">
+                                        ▼ display の options(JSON) ヘルプ
+                                    </summary>
+
+                                    {/* ← デフォルト非表示。open の時だけ表示 */}
+                                    <div className="mt-2 hidden group-open:block">
+                                        {/* 縦長対策：高さ制限＋スクロール */}
+                                        <div className="border rounded-lg bg-white p-2 max-h-64 overflow-auto">
+                                            {/* 2カラム配置（狭い幅では1カラム） */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+
+                                                {/* ① テンプレ置換（推奨） */}
+                                                <section className="border rounded p-2 bg-gray-50">
+                                                    <div className="font-medium mb-1">① テンプレ置換</div>
+                                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                                        {"{{key}}"} は Shift 情報のフィールド名。
+                                                    </p>
+                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
+                                                        {`{ "template": "{{shift_start_date}} {{shift_start_time}} ~ {{shift_end_time}}" }`}
+                                                    </pre>
+                                                </section>
+
+                                                {/* ② 参照配列（連結） */}
+                                                <section className="border rounded p-2 bg-gray-50">
+                                                    <div className="font-medium mb-1">② 参照配列（連結）</div>
+                                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                                        ref の順で値を取り出し、空白区切りで表示。
+                                                    </p>
+                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
+                                                        {`{ "ref": ["client_name", "service_code"] }`}
+                                                    </pre>
+                                                </section>
+
+                                                {/* ③ ラベル合成 */}
+                                                <section className="border rounded p-2 bg-gray-50">
+                                                    <div className="font-medium mb-1">③ ラベル合成</div>
+                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
+                                                        {`{ "template": "利用者: {{client_name}} 様" }`}
+                                                    </pre>
+                                                </section>
+
+                                                {/* ④ 担当名（API解決前提） */}
+                                                <section className="border rounded p-2 bg-gray-50">
+                                                    <div className="font-medium mb-1">④ 担当名（API解決）</div>
+                                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                                        staff_01_user_id→名前の解決は /api/shifts/summary 側が簡単。
+                                                    </p>
+                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
+                                                        {`{ "template": "担当: {{staff_01_user_name}}" }`}
+                                                    </pre>
+                                                </section>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </TableCell>
+                        </TableRow>
                         {pageRows.map((r) => (
                             <React.Fragment key={r.id}>
                                 {/* 1行目：基本項目 + sort + 操作 */}
