@@ -479,7 +479,7 @@ function TabDefs(): React.ReactElement {
 
         // S の sort_order を参照するマップ
         const sOrderMap = new Map(catsS.map(s => [s.id, s.sort_order]))
-        const sOrder = (id?: string | null) =>
+        const sVal = (id?: string | null) =>
             id ? (sOrderMap.get(id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
 
         return rows
@@ -494,13 +494,17 @@ function TabDefs(): React.ReactElement {
                     x.input_type.toLowerCase().includes(k)
                 )
             })
-            // 並び順：S.sort_order → item.sort_order → code（タイブレーク）
+            // 並び順：S.sort_order → item.sort_order → code（すべて昇順）
             .sort((a, b) => {
-                const sa = sOrder(a.s_id)
-                const sb = sOrder(b.s_id)
-                if (sa !== sb) return sa - sb
-                if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
-                return a.code.localeCompare(b.code)
+                const sa = sVal(a.s_id)
+                const sb = sVal(b.s_id)
+                if (sa !== sb) return sa - sb              // S.sort_order 昇順
+
+                const ia = Number(a.sort_order ?? 0)
+                const ib = Number(b.sort_order ?? 0)
+                if (ia !== ib) return ia - ib              // item.sort_order 昇順
+
+                return a.code.localeCompare(b.code)        // タイブレーク
             })
     }, [rows, q, qL, qS, catsS])
 
