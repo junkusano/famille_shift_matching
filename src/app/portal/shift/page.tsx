@@ -26,6 +26,7 @@ import GroupAddButton from "@/components/shift/GroupAddButton";
 const PAGE_SIZE = 50;
 
 type ShiftViewRow = {
+    id: string;
     shift_id: string;
     shift_start_date: string;      // YYYY-MM-DD
     shift_start_time: string;      // HH:MM:SS
@@ -159,6 +160,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
     );
 
     const mapped: ShiftData[] = filtered.map((s) => ({
+        id: String(s.id ?? s.shift_id),
         shift_id: s.shift_id,
         shift_start_date: s.shift_start_date,
         shift_start_time: s.shift_start_time,

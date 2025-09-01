@@ -1,6 +1,6 @@
 //types/shift
 export interface SupabaseShiftRaw {
-  id: string; 
+  id?: string; 
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
@@ -22,7 +22,7 @@ export interface SupabaseShiftRaw {
 }
 
 export interface ShiftData {
-  id: string; 
+  id?: string; 
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
