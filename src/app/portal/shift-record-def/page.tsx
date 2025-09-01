@@ -473,20 +473,37 @@ function TabDefs(): React.ReactElement {
     }
     useEffect(() => { fetchAll() }, [])
 
+    // TabDefs 内だけに置く（rows は item 定義の配列）
     const filtered = useMemo(() => {
         const k = q.trim().toLowerCase()
-        return rows.filter((x) => {
-            if (qL && x.l_id !== qL) return false
-            if (qS && x.s_id !== qS) return false
-            if (!k) return true
-            return (
-                x.code.toLowerCase().includes(k) ||
-                x.label.toLowerCase().includes(k) ||
-                (x.unit ?? "").toLowerCase().includes(k) ||
-                x.input_type.toLowerCase().includes(k)
-            )
-        })
-    }, [rows, q, qL, qS])
+
+        // S の sort_order を参照するマップ
+        const sOrderMap = new Map(catsS.map(s => [s.id, s.sort_order]))
+        const sOrder = (id?: string | null) =>
+            id ? (sOrderMap.get(id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER
+
+        return rows
+            .filter((x) => {
+                if (qL && x.l_id !== qL) return false
+                if (qS && x.s_id !== qS) return false
+                if (!k) return true
+                return (
+                    x.code.toLowerCase().includes(k) ||
+                    x.label.toLowerCase().includes(k) ||
+                    (x.unit ?? "").toLowerCase().includes(k) ||
+                    x.input_type.toLowerCase().includes(k)
+                )
+            })
+            // 並び順：S.sort_order → item.sort_order → code（タイブレーク）
+            .sort((a, b) => {
+                const sa = sOrder(a.s_id)
+                const sb = sOrder(b.s_id)
+                if (sa !== sb) return sa - sb
+                if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+                return a.code.localeCompare(b.code)
+            })
+    }, [rows, q, qL, qS, catsS])
+
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
     const handleEdit = (id: string, patch: Partial<WithOptionsText>) => {
