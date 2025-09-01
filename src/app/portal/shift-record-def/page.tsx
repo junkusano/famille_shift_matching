@@ -210,7 +210,7 @@ function TabL(): React.ReactElement {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pageRows.map((r, idx) => (
+                        {pageRows.map((r) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
                                 <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
@@ -367,7 +367,7 @@ function TabS(): React.ReactElement {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pageRows.map((r, idx) => (
+                        {pageRows.map((r) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1">
                                     <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>    
@@ -608,7 +608,7 @@ function TabDefs(): React.ReactElement {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pageRows.map((r, idx) => (
+                        {pageRows.map((r) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1">
                                     <Select value={r.l_id ?? ""} onValueChange={(v) => handleEdit(r.id, { l_id: v || null })}>
