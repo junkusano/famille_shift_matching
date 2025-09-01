@@ -310,12 +310,11 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
-        // 2件の options を前提（例: [{label:"有",value:"0"},{label:"無",value:"1"}]）
-        const opts = normalizeOptions(def.options_json);
+        // CSVから来る options_json が「文字列」でも確実に配列へ
+        const opts = parseOptionsFlexible(def.options_json);
+
         if (opts.length >= 2) {
             const [optYes, optNo] = opts;
-
-            // 現在値を正規化（boolean or string どちらでもOK）
             const cur =
                 typeof value === "boolean"
                     ? (value ? String(optYes.value) : String(optNo.value))
@@ -324,8 +323,8 @@ function ItemInput({
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
 
-            const select = (val: string) => onChange(def, val);      // 片方を選択
-            const clear = () => onChange(def, "");                   // 解除（両方オフ）
+            const select = (val: string) => onChange(def, val);
+            const clear = () => onChange(def, "");
 
             return (
                 <div className="flex items-center gap-6">
@@ -350,7 +349,7 @@ function ItemInput({
             );
         }
 
-        // フォールバック：options が無い場合は従来の単一チェック
+        // フォールバック：options が取れない時のみ
         return (
             <label className="inline-flex items-center gap-2">
                 <input
@@ -362,6 +361,7 @@ function ItemInput({
             </label>
         );
     }
+
     if (t === "select") {
         const optsRaw = Array.isArray(def.options_json) ? def.options_json : tryParseJSON(def.options_json);
         const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
@@ -461,4 +461,60 @@ function normalizeOptions(raw: unknown): { label: string; value: string }[] {
         }
     }
     return out;
+}
+
+function parseOptionsFlexible(v: unknown): { label: string; value: string }[] {
+  // 1) まずは通常の JSON.parse を試す（既存）
+  const parsed = Array.isArray(v) ? v : tryParseJSON(v);
+  let opts = normalizeOptions(parsed);
+  if (opts.length > 0) return opts;
+
+  // 2) 文字列の“ゆるい”書式を救済
+  if (typeof v === "string") {
+    const s = loosenJSONString(v);
+    // 配列でなければ配列に包む/区切りを補う
+    const asArray = coerceToArrayJSON(s);
+    const parsed2 = tryParseJSON(asArray);
+    opts = normalizeOptions(parsed2);
+    if (opts.length > 0) return opts;
+
+    // 3) さらに簡易: 「有,無」や「有／無」をカンマ分割
+    const simple = s.replace(/[／|｜]/g, ",");
+    if (!simple.includes("{")) {
+      const parts = simple.split(/[,\s、]+/).filter(Boolean);
+      if (parts.length >= 2) {
+        return parts.slice(0, 2).map((p, i) => ({ label: p, value: String(i) }));
+      }
+    }
+    // 4) 「有:0,無:1」形式
+    const kv = simple.split(/[,\s、]+/).map((t) => t.split(":"));
+    if (kv.every((x) => x.length === 2)) {
+      return kv.map(([k, v]) => ({ label: k, value: String(v) }));
+    }
+  }
+  return [];
+}
+
+function loosenJSONString(input: string): string {
+  // 全角クォート→半角、全角カンマ→半角、末尾/先頭の余分を除去
+  return input
+    .replace(/[“”＂]/g, '"')
+    .replace(/[‘’＇]/g, "'")
+    .replace(/，/g, ",")
+    .trim();
+}
+
+function coerceToArrayJSON(s: string): string {
+  const t = s.trim();
+  // 既に配列ならそのまま
+  if (t.startsWith("[") && t.endsWith("]")) return t;
+
+  // 連続するオブジェクト {..}{..} → {..},{..} に補正して配列化
+  if (t.startsWith("{") && t.endsWith("}")) {
+    const withCommas = t.replace(/}\s*{/g, "},{");
+    return `[${withCommas}]`;
+  }
+
+  // 素の「有,無」などはこの後の簡易分割に回す
+  return t;
 }
