@@ -52,7 +52,7 @@ export default function ShiftRecord({
           fetch("/api/shift-record-def/item-defs").then((r) => r.json()),
         ]);
         if (!cancelled) setDefs({ L: l ?? [], S: s ?? [], items: d ?? [] });
-      } catch (e) {
+      } catch {
         if (!cancelled) setDefsError("定義の取得に失敗しました");
       } finally {
         if (!cancelled) setLoadingDefs(false);
