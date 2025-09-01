@@ -62,12 +62,7 @@ export default function FamilleBadge() {
     <div className="flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-md p-4 w-[320px] min-h-[560px] text-center border border-green-500">
         <div className="flex justify-start mb-2">
-          <img
-            src="/famille_aichi_logo.png"
-            alt="famille ロゴ"
-            width={100}
-            height={150}
-          />
+          <Image src="/famille_aichi_logo.png" alt="famille ロゴ" width={100} height={150} />
         </div>
 
         <h1 className="text-xl font-bold text-green-700 mb-1">famille バッジ</h1>

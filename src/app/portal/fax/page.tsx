@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
+
 type FaxEntry = {
   id: string
   fax: string
@@ -255,7 +256,7 @@ export default function FaxPage() {
               </TableCell>
             </TableRow>
             {/*レコード列*/}
-            {pageRows.map((entry, index) => (
+            {pageRows.map((entry) => (
               <TableRow key={entry.id}>
                 <TableCell className="px-1 py-1 min-w-0">
                   <Input

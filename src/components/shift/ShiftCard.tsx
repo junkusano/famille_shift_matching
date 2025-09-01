@@ -19,9 +19,6 @@ import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
 // ShiftCard.tsx のファイル先頭（importの下）
 let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
 let __keysPromise: Promise<ServiceKey[]> | null = null;
-
-
-
 type Mode = "request" | "reject";
 
 type Props = {
@@ -48,6 +45,11 @@ type UnknownRecord = Record<string, unknown>;
 const DEFAULT_BADGE_TEXT = "時間調整可能";
 const TBL_INFO = "cs_kaipoke_info";
 const TBL_ADJ = "cs_kaipoke_time_adjustability";
+
+function isMyAssignmentRejectMode(s: ShiftData, myId?: string | null) {
+  if (!myId) return false;
+  return [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(myId);
+}
 
 function coerceBool(v: unknown): boolean | undefined {
   if (typeof v === "boolean") return v;
@@ -161,6 +163,24 @@ export default function ShiftCard({
 
   // 2) cs_id -> time_adjustability_id
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
+
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setMyUserId(null); return; }
+        const { data: me } = await supabase
+          .from("users")
+          .select("user_id")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        setMyUserId(me?.user_id ?? null);
+      } catch {
+        setMyUserId(null);
+      }
+    })();
+  }, []);
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
@@ -380,6 +400,13 @@ export default function ShiftCard({
     const canShow = noAssignees || canShowByLevel;
 
     if (!canShow) return null;
+  }
+
+  // reject モード：自分が担当していないカードは非表示
+  if (mode === "reject") {
+    // myUserId の取得前は一瞬判定不能なので描画を抑止（チラつき防止）
+    if (myUserId === null) return null;
+    if (!isMyAssignmentRejectMode(shift, myUserId)) return null;
   }
 
 
