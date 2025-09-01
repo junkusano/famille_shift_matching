@@ -268,7 +268,7 @@ export default function RpaRequestListPage() {
       </div>
 
       {/* ===== テーブル（先頭に“追加行”を配置） ===== */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-md border">
         <Table className="w-full table-fixed">
           <colgroup>
             <col style={{ width: '12%' }} /> {/* 申請者 */}
@@ -283,7 +283,7 @@ export default function RpaRequestListPage() {
             <col style={{ width: '8%' }} />  {/* 操作 */}
           </colgroup>
 
-          <TableHeader>
+          <TableHeader className="[&_tr]:border-b">
             <TableRow>
               <TableHead className="px-1 py-1">申請者</TableHead>
               <TableHead className="px-1 py-1">承認者</TableHead>
@@ -298,7 +298,7 @@ export default function RpaRequestListPage() {
             </TableRow>
           </TableHeader>
 
-          <TableBody>
+          <TableBody className="[&_tr]:border-b">
             {/* 追加行（テーブル先頭） */}
             <TableRow>
               <TableCell className="px-1 py-1">
@@ -349,7 +349,7 @@ export default function RpaRequestListPage() {
                   rows={3}
                   className="resize-none"
                   value={JSON.stringify(newEntry.request_details ?? {}, null, 2)}
-                  onChange={(e) => { try { setNewEntry(p => ({ ...p, request_details: JSON.parse(e.target.value) })) } catch {} }}
+                  onChange={(e) => { try { setNewEntry(p => ({ ...p, request_details: JSON.parse(e.target.value) })) } catch { } }}
                   placeholder='{"arg":"value"}'
                 />
               </TableCell>
@@ -358,11 +358,17 @@ export default function RpaRequestListPage() {
                   rows={3}
                   className="resize-none"
                   value={JSON.stringify(newEntry.result_details ?? {}, null, 2)}
-                  onChange={(e) => { try { setNewEntry(p => ({ ...p, result_details: JSON.parse(e.target.value) })) } catch {} }}
+                  onChange={(e) => { try { setNewEntry(p => ({ ...p, result_details: JSON.parse(e.target.value) })) } catch { } }}
                 />
               </TableCell>
               <TableCell className="px-1 py-1">
-                <Input className="h-8 px-2" value={newEntry.result_summary ?? ''} onChange={(e) => setNewEntry(p => ({ ...p, result_summary: e.target.value }))} />
+                <Textarea
+                  rows={3}
+                  className="resize-none"
+                  value={newEntry.result_summary ?? ''}
+                  onChange={(e) => setNewEntry(p => ({ ...p, result_summary: e.target.value }))}
+                  placeholder="実行結果の要約"
+                />
               </TableCell>
               <TableCell className="px-1 py-1 text-muted-foreground">—</TableCell>
               <TableCell className="px-1 py-1">
@@ -436,7 +442,7 @@ export default function RpaRequestListPage() {
                     rows={3}
                     className="resize-none"
                     value={JSON.stringify(editedRows[r.id]?.request_details ?? r.request_details ?? {}, null, 2)}
-                    onChange={(e) => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch {} }}
+                    onChange={(e) => { try { handleFieldChange(r.id, 'request_details', JSON.parse(e.target.value)) } catch { } }}
                   />
                 </TableCell>
 
@@ -445,16 +451,19 @@ export default function RpaRequestListPage() {
                     rows={3}
                     className="resize-none"
                     value={JSON.stringify(editedRows[r.id]?.result_details ?? r.result_details ?? {}, null, 2)}
-                    onChange={(e) => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch {} }}
+                    onChange={(e) => { try { handleFieldChange(r.id, 'result_details', JSON.parse(e.target.value)) } catch { } }}
                   />
                 </TableCell>
 
                 <TableCell className="px-1 py-1">
-                  <Input
-                    className="h-8 px-2"
-                    value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''}
-                    onChange={(e) => handleFieldChange(r.id, 'result_summary', e.target.value)}
-                  />
+                  <TableCell className="px-1 py-1">
+                    <Textarea
+                      rows={3}
+                      className="resize-none"
+                      value={editedRows[r.id]?.result_summary ?? r.result_summary ?? ''}
+                      onChange={(e) => handleFieldChange(r.id, 'result_summary', e.target.value)}
+                    />
+                  </TableCell>
                 </TableCell>
 
                 <TableCell className="px-1 py-1">{new Date(r.created_at).toLocaleString('ja-JP')}</TableCell>
