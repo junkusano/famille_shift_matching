@@ -310,32 +310,27 @@ function ItemInput({
         );
     }
 
+    // ...ItemInput 内 t === "checkbox" のところ
     if (t === "checkbox") {
-        // options(jsonb) 優先（互換で options_json も見る）
         const raw = def.options ?? def.options_json;
         const opts = parseOptionsFlexible(raw);
 
         if (opts.length >= 2) {
-            // 正規化（label/value を揃える）
-            let [optYes, optNo] = [
-                { label: String(opts[0].label), value: String(opts[0].value) },
-                { label: String(opts[1].label), value: String(opts[1].value) },
-            ];
+            // ここを変更：optYes は const、optNo は let（後で補正し得るため）
+            const optYes = { label: String(opts[0].label), value: String(opts[0].value) };
+            let optNo = { label: String(opts[1].label), value: String(opts[1].value) };
 
-            // ★ ガード：2択の value が同一なら No 側の値を安全に補正（0なら1、それ以外は "_no" 付与）
+            // 値が同一なら No 側だけ補正
             if (optYes.value === optNo.value) {
-                optNo = {
-                    ...optNo,
-                    value: optYes.value === "0" ? "1" : optYes.value === "1" ? "0" : `${optNo.value}_no`,
-                };
+                optNo = { ...optNo, value: optYes.value === "0" ? "1" : optYes.value === "1" ? "0" : `${optNo.value}_no` };
             }
 
-            // 値が空なら「No 側」を初期表示（不要ならこの1行を String(value ?? "") に戻す）
+            // 値が空なら No 側を既定に（不要なら String(value ?? "") に戻してOK）
             const cur = String(value ?? optNo.value);
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
 
-            const groupName = `bin-${def.s_id}-${def.id}`; // 項目ごとにユニーク
+            const groupName = `bin-${def.s_id}-${def.id}`;
             const select = (val: string) => onChange(def, val);
 
             const idYes = `${groupName}-yes`;
@@ -370,7 +365,7 @@ function ItemInput({
             );
         }
 
-        // optionsが無い場合のフォールバック（単独チェック）
+        // options が無い場合のフォールバック
         return (
             <label className="inline-flex items-center gap-2">
                 <input
