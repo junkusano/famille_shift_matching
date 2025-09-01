@@ -71,6 +71,7 @@ export default function ShiftPage() {
             const formatted = (allShifts as SupabaseShiftRaw[])
                 .filter((s) => s.level_sort_order <= 3500000 || s.staff_01_user_id === "-")
                 .map((s): ShiftData => ({
+                    id: String(s.id ?? s.shift_id),  
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
                     shift_start_time: s.shift_start_time,
