@@ -2,6 +2,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+// 並び順ユーティリティ
+const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
+
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
 export type ShiftRecordCategoryL = { id: string; code?: string; name: string; sort_order?: number };
 export type ShiftRecordCategoryS = { id: string; l_id: string; code?: string; name: string; sort_order?: number };
@@ -13,9 +16,10 @@ export type ShiftRecordItemDef = {
     description?: string;
     input_type: "checkbox" | "select" | "number" | "text" | "textarea" | "image" | "display";
     required?: boolean;
+    sort_order?: number;  // ★ 追加
     // select用
-    options?: unknown; // string[] | {label:string,value:string}[] などを想定（API側の実体に依存）
-    options_json?: unknown; // 互換のため残す（将来削除可）
+    options?: unknown;
+    options_json?: unknown;
     // number用
     min?: number; max?: number; step?: number;
     // display用
@@ -162,7 +166,13 @@ export default function ShiftRecord({
         defs.items.forEach((it) => {
             (map[it.s_id] ||= []).push(it);
         });
-        Object.values(map).forEach((arr) => arr.sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")));
+        // ここを label順 → sort_order昇順（コードでタイブレーク）に
+        Object.values(map).forEach((arr) =>
+            arr.sort((a, b) =>
+                byAsc(a.sort_order, b.sort_order) ||
+                String(a.code ?? "").localeCompare(String(b.code ?? ""))
+            )
+        );
         return map;
     }, [defs.items]);
 
