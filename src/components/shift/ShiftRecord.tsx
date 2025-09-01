@@ -14,7 +14,8 @@ export type ShiftRecordItemDef = {
     input_type: "checkbox" | "select" | "number" | "text" | "textarea" | "image" | "display";
     required?: boolean;
     // select用
-    options_json?: unknown; // string[] | {label:string,value:string}[] などを想定（API側の実体に依存）
+    options?: unknown; // string[] | {label:string,value:string}[] などを想定（API側の実体に依存）
+    options_json?: unknown; // 互換のため残す（将来削除可）
     // number用
     min?: number; max?: number; step?: number;
     // display用
@@ -310,8 +311,8 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
-        // CSVから来る options_json が「文字列」でも確実に配列へ
-        const opts = parseOptionsFlexible(def.options_json);
+        // CSVから来る options が「文字列」でも確実に配列へ
+        const opts = parseOptionsFlexible(def.options ?? def.options_json);
 
         if (opts.length >= 2) {
             const [optYes, optNo] = opts;
@@ -363,7 +364,8 @@ function ItemInput({
     }
 
     if (t === "select") {
-        const optsRaw = Array.isArray(def.options_json) ? def.options_json : tryParseJSON(def.options_json);
+        const raw = def.options ?? def.options_json;
+        const optsRaw = Array.isArray(raw) ? raw : tryParseJSON(raw);
         const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
         return (
             <select
@@ -464,57 +466,57 @@ function normalizeOptions(raw: unknown): { label: string; value: string }[] {
 }
 
 function parseOptionsFlexible(v: unknown): { label: string; value: string }[] {
-  // 1) まずは通常の JSON.parse を試す（既存）
-  const parsed = Array.isArray(v) ? v : tryParseJSON(v);
-  let opts = normalizeOptions(parsed);
-  if (opts.length > 0) return opts;
-
-  // 2) 文字列の“ゆるい”書式を救済
-  if (typeof v === "string") {
-    const s = loosenJSONString(v);
-    // 配列でなければ配列に包む/区切りを補う
-    const asArray = coerceToArrayJSON(s);
-    const parsed2 = tryParseJSON(asArray);
-    opts = normalizeOptions(parsed2);
+    // 1) まずは通常の JSON.parse を試す（既存）
+    const parsed = Array.isArray(v) ? v : tryParseJSON(v);
+    let opts = normalizeOptions(parsed);
     if (opts.length > 0) return opts;
 
-    // 3) さらに簡易: 「有,無」や「有／無」をカンマ分割
-    const simple = s.replace(/[／|｜]/g, ",");
-    if (!simple.includes("{")) {
-      const parts = simple.split(/[,\s、]+/).filter(Boolean);
-      if (parts.length >= 2) {
-        return parts.slice(0, 2).map((p, i) => ({ label: p, value: String(i) }));
-      }
+    // 2) 文字列の“ゆるい”書式を救済
+    if (typeof v === "string") {
+        const s = loosenJSONString(v);
+        // 配列でなければ配列に包む/区切りを補う
+        const asArray = coerceToArrayJSON(s);
+        const parsed2 = tryParseJSON(asArray);
+        opts = normalizeOptions(parsed2);
+        if (opts.length > 0) return opts;
+
+        // 3) さらに簡易: 「有,無」や「有／無」をカンマ分割
+        const simple = s.replace(/[／|｜]/g, ",");
+        if (!simple.includes("{")) {
+            const parts = simple.split(/[,\s、]+/).filter(Boolean);
+            if (parts.length >= 2) {
+                return parts.slice(0, 2).map((p, i) => ({ label: p, value: String(i) }));
+            }
+        }
+        // 4) 「有:0,無:1」形式
+        const kv = simple.split(/[,\s、]+/).map((t) => t.split(":"));
+        if (kv.every((x) => x.length === 2)) {
+            return kv.map(([k, v]) => ({ label: k, value: String(v) }));
+        }
     }
-    // 4) 「有:0,無:1」形式
-    const kv = simple.split(/[,\s、]+/).map((t) => t.split(":"));
-    if (kv.every((x) => x.length === 2)) {
-      return kv.map(([k, v]) => ({ label: k, value: String(v) }));
-    }
-  }
-  return [];
+    return [];
 }
 
 function loosenJSONString(input: string): string {
-  // 全角クォート→半角、全角カンマ→半角、末尾/先頭の余分を除去
-  return input
-    .replace(/[“”＂]/g, '"')
-    .replace(/[‘’＇]/g, "'")
-    .replace(/，/g, ",")
-    .trim();
+    // 全角クォート→半角、全角カンマ→半角、末尾/先頭の余分を除去
+    return input
+        .replace(/[“”＂]/g, '"')
+        .replace(/[‘’＇]/g, "'")
+        .replace(/，/g, ",")
+        .trim();
 }
 
 function coerceToArrayJSON(s: string): string {
-  const t = s.trim();
-  // 既に配列ならそのまま
-  if (t.startsWith("[") && t.endsWith("]")) return t;
+    const t = s.trim();
+    // 既に配列ならそのまま
+    if (t.startsWith("[") && t.endsWith("]")) return t;
 
-  // 連続するオブジェクト {..}{..} → {..},{..} に補正して配列化
-  if (t.startsWith("{") && t.endsWith("}")) {
-    const withCommas = t.replace(/}\s*{/g, "},{");
-    return `[${withCommas}]`;
-  }
+    // 連続するオブジェクト {..}{..} → {..},{..} に補正して配列化
+    if (t.startsWith("{") && t.endsWith("}")) {
+        const withCommas = t.replace(/}\s*{/g, "},{");
+        return `[${withCommas}]`;
+    }
 
-  // 素の「有,無」などはこの後の簡易分割に回す
-  return t;
+    // 素の「有,無」などはこの後の簡易分割に回す
+    return t;
 }
