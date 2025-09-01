@@ -309,19 +309,58 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
+        // 2件の options を前提（例: [{label:"有",value:"0"},{label:"無",value:"1"}]）
+        const opts = normalizeOptions(def.options_json);
+        if (opts.length >= 2) {
+            const [optYes, optNo] = opts;
+
+            // 現在値を正規化（boolean or string どちらでもOK）
+            const cur =
+                typeof value === "boolean"
+                    ? (value ? String(optYes.value) : String(optNo.value))
+                    : String(value ?? "");
+
+            const isYes = cur === String(optYes.value);
+            const isNo = cur === String(optNo.value);
+
+            const select = (val: string) => onChange(def, val);      // 片方を選択
+            const clear = () => onChange(def, "");                   // 解除（両方オフ）
+
+            return (
+                <div className="flex items-center gap-6">
+                    <label className="inline-flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={isYes}
+                            onChange={() => (isYes ? clear() : select(String(optYes.value)))}
+                        />
+                        <span className="text-sm">{optYes.label}</span>
+                    </label>
+
+                    <label className="inline-flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={isNo}
+                            onChange={() => (isNo ? clear() : select(String(optNo.value)))}
+                        />
+                        <span className="text-sm">{optNo.label}</span>
+                    </label>
+                </div>
+            );
+        }
+
+        // フォールバック：options が無い場合は従来の単一チェック
         return (
             <label className="inline-flex items-center gap-2">
                 <input
                     type="checkbox"
-                    className="w-4 h-4"
-                    checked={vBool}
+                    checked={Boolean(value)}
                     onChange={(e) => onChange(def, e.target.checked)}
                 />
                 <span className="text-sm">はい / 実施</span>
             </label>
         );
     }
-
     if (t === "select") {
         const optsRaw = Array.isArray(def.options_json) ? def.options_json : tryParseJSON(def.options_json);
         const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
