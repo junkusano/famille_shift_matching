@@ -311,22 +311,33 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
+        // options(jsonb) 優先（互換で options_json も見る）
         const raw = def.options ?? def.options_json;
         const opts = parseOptionsFlexible(raw);
 
         if (opts.length >= 2) {
-            const [optYes, optNo] = opts;
+            // 正規化（label/value を揃える）
+            let [optYes, optNo] = [
+                { label: String(opts[0].label), value: String(opts[0].value) },
+                { label: String(opts[1].label), value: String(opts[1].value) },
+            ];
 
-            // 値が空なら「無」を初期表示（必要なければ消せます）
-            const cur = String(value ?? String(optNo.value));
+            // ★ ガード：2択の value が同一なら No 側の値を安全に補正（0なら1、それ以外は "_no" 付与）
+            if (optYes.value === optNo.value) {
+                optNo = {
+                    ...optNo,
+                    value: optYes.value === "0" ? "1" : optYes.value === "1" ? "0" : `${optNo.value}_no`,
+                };
+            }
+
+            // 値が空なら「No 側」を初期表示（不要ならこの1行を String(value ?? "") に戻す）
+            const cur = String(value ?? optNo.value);
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
 
-            // ★ 衝突防止：s_id と def.id を連結して必ず一意にする
-            const groupName = `bin-${def.s_id}-${def.id}`;
+            const groupName = `bin-${def.s_id}-${def.id}`; // 項目ごとにユニーク
             const select = (val: string) => onChange(def, val);
 
-            // inputのidもユニークに（ラベル関連付け用）
             const idYes = `${groupName}-yes`;
             const idNo = `${groupName}-no`;
 
@@ -337,9 +348,9 @@ function ItemInput({
                             id={idYes}
                             type="radio"
                             name={groupName}
-                            value={String(optYes.value)}
+                            value={optYes.value}
                             checked={isYes}
-                            onChange={() => select(String(optYes.value))}
+                            onChange={() => select(optYes.value)}
                         />
                         <span className="text-sm">{optYes.label}</span>
                     </label>
@@ -349,9 +360,9 @@ function ItemInput({
                             id={idNo}
                             type="radio"
                             name={groupName}
-                            value={String(optNo.value)}
+                            value={optNo.value}
                             checked={isNo}
-                            onChange={() => select(String(optNo.value))}
+                            onChange={() => select(optNo.value)}
                         />
                         <span className="text-sm">{optNo.label}</span>
                     </label>
@@ -359,7 +370,7 @@ function ItemInput({
             );
         }
 
-        // optionsが無い場合のフォールバック（単一チェック）
+        // optionsが無い場合のフォールバック（単独チェック）
         return (
             <label className="inline-flex items-center gap-2">
                 <input
@@ -371,7 +382,6 @@ function ItemInput({
             </label>
         );
     }
-
 
     if (t === "select") {
         const raw = def.options ?? def.options_json;
