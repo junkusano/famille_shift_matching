@@ -317,16 +317,21 @@ function ItemInput({
 
         if (opts.length >= 2) {
             const [optYes, optNo] = opts;
-            // 初期値の正規化（true/false, 1/0, "有/無" など → yes/no 値）
-            const cur = normalizeBinaryValue(value, String(optYes.value), String(optNo.value));
+
+            // ★ ここを変更：値が空なら無(optNo)を初期選択にする
+            let cur: string;
+            if (value === undefined || value === null || value === "") {
+                cur = String(optNo.value);  // デフォルトを「無」に
+            } else {
+                cur = String(value);
+            }
+
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
-            const select = (val: string) => onChange(def, val);
-            const clear = () => onChange(def, "");
 
-            // ★ ラジオで確実に相互排他（name は def.id で項目ごとにユニーク）
-            // required=false の場合は「未選択」に戻す隠しラジオを用意（ボタンで切替）
-            const groupName = `bin-${def.id}`;
+            const groupName = `bin-${def.id}`; // 項目ごとにユニーク
+            const select = (val: string) => onChange(def, val);
+
             return (
                 <div className="flex items-center gap-6" role="radiogroup" aria-label={def.label}>
                     <label className="inline-flex items-center gap-2">
@@ -349,106 +354,88 @@ function ItemInput({
                         />
                         <span className="text-sm">{optNo.label}</span>
                     </label>
-                    {!def.required && (
-                        <>
-                            {/* 未選択状態を保持するための不可視ラジオ */}
-                            <input
-                                type="radio"
-                                name={groupName}
-                                value=""
-                                checked={!isYes && !isNo}
-                                onChange={() => clear()}
-                                className="hidden"
-                                aria-hidden="true"
-                                tabIndex={-1}
-                            />
-                            <button type="button" className="text-xs underline text-gray-500" onClick={clear}>
-                                クリア
-                            </button>
-                        </>
-                    )}
                 </div>
             );
         }
     }
-    
-if (t === "select") {
-    const raw = def.options ?? def.options_json;
-    const optsRaw = Array.isArray(raw) ? raw : tryParseJSON(raw);
-    const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
-    return (
-        <select
-            className="border rounded px-2 py-1 text-sm"
-            value={vStr ?? ""}
-            onChange={(e) => onChange(def, e.target.value)}
-        >
-            <option value="">— 選択してください —</option>
-            {opts.map((o) => (
-                <option key={o.value} value={o.value}>
-                    {o.label}
-                </option>
-            ))}
-        </select>
-    );
-}
 
-if (t === "number") {
+    if (t === "select") {
+        const raw = def.options ?? def.options_json;
+        const optsRaw = Array.isArray(raw) ? raw : tryParseJSON(raw);
+        const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
+        return (
+            <select
+                className="border rounded px-2 py-1 text-sm"
+                value={vStr ?? ""}
+                onChange={(e) => onChange(def, e.target.value)}
+            >
+                <option value="">— 選択してください —</option>
+                {opts.map((o) => (
+                    <option key={o.value} value={o.value}>
+                        {o.label}
+                    </option>
+                ))}
+            </select>
+        );
+    }
+
+    if (t === "number") {
+        return (
+            <input
+                type="number"
+                className="border rounded px-2 py-1 text-sm"
+                value={String(vStr ?? "")}
+                min={def.min}
+                max={def.max}
+                step={def.step}
+                onChange={(e) => onChange(def, e.target.value === "" ? "" : Number(e.target.value))}
+            />
+        );
+    }
+
+    if (t === "textarea") {
+        return (
+            <textarea
+                className="border rounded px-2 py-1 text-sm min-h-[84px]"
+                value={vStr}
+                onChange={(e) => onChange(def, e.target.value)}
+            />
+        );
+    }
+
+    if (t === "image") {
+        // 将来：ドキュメントアップローダと接続。ここではURL直入力/ドラッグ&ドロップの土台だけ。
+        return (
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <input
+                        type="url"
+                        className="border rounded px-2 py-1 text-sm flex-1"
+                        placeholder="画像URL（将来はアップローダ連携）"
+                        value={vStr}
+                        onChange={(e) => onChange(def, e.target.value)}
+                    />
+                </div>
+                {vStr ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={vStr} alt="preview" className="max-h-40 rounded border" />
+                ) : (
+                    <div className="text-[11px] text-gray-500">画像URLを入力するとプレビューします。</div>
+                )}
+            </div>
+        );
+    }
+
+    // デフォルトは text
     return (
         <input
-            type="number"
+            type="text"
             className="border rounded px-2 py-1 text-sm"
-            value={String(vStr ?? "")}
-            min={def.min}
-            max={def.max}
-            step={def.step}
-            onChange={(e) => onChange(def, e.target.value === "" ? "" : Number(e.target.value))}
-        />
-    );
-}
-
-if (t === "textarea") {
-    return (
-        <textarea
-            className="border rounded px-2 py-1 text-sm min-h-[84px]"
             value={vStr}
             onChange={(e) => onChange(def, e.target.value)}
         />
     );
 }
-
-if (t === "image") {
-    // 将来：ドキュメントアップローダと接続。ここではURL直入力/ドラッグ&ドロップの土台だけ。
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center gap-2">
-                <input
-                    type="url"
-                    className="border rounded px-2 py-1 text-sm flex-1"
-                    placeholder="画像URL（将来はアップローダ連携）"
-                    value={vStr}
-                    onChange={(e) => onChange(def, e.target.value)}
-                />
-            </div>
-            {vStr ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={vStr} alt="preview" className="max-h-40 rounded border" />
-            ) : (
-                <div className="text-[11px] text-gray-500">画像URLを入力するとプレビューします。</div>
-            )}
-        </div>
-    );
-}
-
-// デフォルトは text
-return (
-    <input
-        type="text"
-        className="border rounded px-2 py-1 text-sm"
-        value={vStr}
-        onChange={(e) => onChange(def, e.target.value)}
-    />
-);
-    }
 
 // ===== util =====
 function tryParseJSON(v: unknown): unknown {
@@ -551,3 +538,4 @@ function normalizeBinaryValue(v: unknown, yesVal: string, noVal: string): string
     if (NO.has(s)) return noVal;
     return "";
 }
+void normalizeBinaryValue;
