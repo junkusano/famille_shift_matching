@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export default function ShiftRecordLinkButton({
-  shiftId, label = "訪問記録", hrefBase = "/portal/shift-records",
+  shiftId, label = "訪問記録（工事中）", hrefBase = "/portal/shift-records",
 }: { shiftId: string; label?: string; hrefBase?: string }) {
   const router = useRouter();
   return (

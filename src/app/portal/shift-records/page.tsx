@@ -42,7 +42,7 @@ export default function ShiftRecordsPage() {
       >
         <div className="bg-white rounded-2xl shadow-xl w-[min(1024px,96vw)] max-h-[90vh] overflow-auto p-3 sm:p-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base sm:text-lg font-semibold">訪問記録</h2>
+            <h2 className="text-base sm:text-lg font-semibold">訪問記録（工事中）</h2>
             <button className="text-sm px-3 py-1 border rounded" onClick={() => router.back()}>× 閉じる</button>
           </div>
           <ShiftRecord shiftId={shiftId} />
