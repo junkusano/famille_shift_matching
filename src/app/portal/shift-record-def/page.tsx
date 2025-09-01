@@ -72,6 +72,9 @@ type ItemDefCreate = {
     options: Record<string, unknown>
 }
 
+const INPUT_TYPES = ["checkbox", "select", "number", "text", "textarea", "image", "display"] as const
+export type InputType = typeof INPUT_TYPES[number]
+
 export default function ShiftRecordDefPage(): React.ReactElement {
     return (
         <div className="w-full overflow-x-hidden px-2 md:px-4 py-3 md:py-4 space-y-3 md:space-y-4 text-sm">
@@ -149,8 +152,8 @@ function TabL(): React.ReactElement {
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
     const handleEdit = <K extends keyof ShiftRecordCategoryL>(id: string, key: K, val: ShiftRecordCategoryL[K]) => {
-  setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryL : r)))
-}
+        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryL : r)))
+    }
     const save = async (row: ShiftRecordCategoryL) => {
         const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(row)
@@ -293,8 +296,8 @@ function TabS(): React.ReactElement {
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
     const handleEdit = <K extends keyof ShiftRecordCategoryS>(id: string, key: K, val: ShiftRecordCategoryS[K]) => {
-  setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryS : r)))
-}
+        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryS : r)))
+    }
 
     const save = async (row: ShiftRecordCategoryS) => {
         const r = await fetch(`/api/shift-record-def/category-s/${row.id}`, {
@@ -370,7 +373,7 @@ function TabS(): React.ReactElement {
                         {pageRows.map((r) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>    
+                                    <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
@@ -435,8 +438,10 @@ function TabS(): React.ReactElement {
 void TabS
 
 // ====== 項目定義タブ ======
+/*
 const INPUT_TYPES = ["checkbox", "select", "number", "text", "textarea", "image", "display"] as const
 type InputType = typeof INPUT_TYPES[number]
+*/
 
 function TabDefs(): React.ReactElement {
     const [rows, setRows] = useState<WithOptionsText[]>([])
@@ -485,8 +490,8 @@ function TabDefs(): React.ReactElement {
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
     const handleEdit = (id: string, patch: Partial<WithOptionsText>) => {
-  setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch }) : r)))
-}
+        setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch }) : r)))
+    }
 
     type WithOptionsText = ShiftRecordItemDef & { _options_text?: string }
 
@@ -583,19 +588,22 @@ function TabDefs(): React.ReactElement {
 
             <div className="overflow-x-auto">
                 <Table className="w-full table-fixed">
+                  // TabDefs 内 Table の colgroup を置き換え
                     <colgroup>
                         <col style={{ width: "12%" }} /> {/* L */}
                         <col style={{ width: "12%" }} /> {/* S */}
-                        <col style={{ width: "14%" }} /> {/* code */}
-                        <col style={{ width: "16%" }} /> {/* label */}
-                        <col style={{ width: "10%" }} /> {/* input_type */}
-                        <col style={{ width: "8%" }} />  {/* unit */}
-                        <col style={{ width: "8%" }} />  {/* required */}
-                        <col style={{ width: "8%" }} />  {/* active */}
-                        <col style={{ width: "12%" }} /> {/* sort */}
+                        <col style={{ width: "10%" }} /> {/* code（縮小） */}
+                        <col style={{ width: "14%" }} /> {/* label（やや縮小） */}
+                        <col style={{ width: "10%" }} /> {/* type */}
+                        <col style={{ width: "6%" }} /> {/* unit（縮小） */}
+                        <col style={{ width: "6%" }} /> {/* req（縮小） */}
+                        <col style={{ width: "6%" }} /> {/* active（縮小） */}
+                        <col style={{ width: "8%" }} /> {/* sort（分離） */}
+                        <col style={{ width: "6%" }} /> {/* 操作（分離） */}
                     </colgroup>
+
                     <TableHeader>
-                        <TableRow>
+                        <TableRow className="border-b">
                             <TableHead className="px-1 py-1">L</TableHead>
                             <TableHead className="px-1 py-1">S</TableHead>
                             <TableHead className="px-1 py-1">code</TableHead>
@@ -604,139 +612,99 @@ function TabDefs(): React.ReactElement {
                             <TableHead className="px-1 py-1">unit</TableHead>
                             <TableHead className="px-1 py-1">req</TableHead>
                             <TableHead className="px-1 py-1">active</TableHead>
-                            <TableHead className="px-1 py-1">sort / 操作</TableHead>
+                            <TableHead className="px-1 py-1">sort</TableHead>
+                            <TableHead className="px-1 py-1">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {pageRows.map((r) => (
-                            <TableRow key={r.id}>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={r.l_id ?? ""} onValueChange={(v) => handleEdit(r.id, { l_id: v || null })}>
-                                        <SelectTrigger><SelectValue placeholder="(null)" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="">(null)</SelectItem>
-                                            {catsL.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={r.s_id ?? ""} onValueChange={(v) => handleEdit(r.id, { s_id: v || null })}> 
-                                        <SelectContent>
-                                            <SelectItem value="">(null)</SelectItem>
-                                            {catsS.filter(s => !r.l_id || s.l_id === r.l_id).map((s) => (
-                                                <SelectItem key={s.id} value={s.id}>{nameL(s.l_id)} / {s.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, { code: e.target.value })} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.label} onChange={(e) => handleEdit(r.id, { label: e.target.value })} /></TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={r.input_type} onValueChange={(v) => handleEdit(r.id, { input_type: v as InputType })}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            {INPUT_TYPES.map(t => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.unit ?? ""} onChange={(e) => handleEdit(r.id, { unit: e.target.value || null })} /></TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={String(r.required ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, { required: v === "1" })}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">true</SelectItem>
-                                            <SelectItem value="0">false</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, { active: v === "1" })}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">true</SelectItem>
-                                            <SelectItem value="0">false</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <div className="grid grid-cols-2 items-center gap-1">
-                                        <Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, { sort_order: Number(e.target.value) })} />
-                                        <SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} />
-                                        <div className="col-span-2">
-                                            <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
-                                            <Textarea className="h-20" value={r._options_text ?? JSON.stringify(r.options ?? {}, null, 2)} onChange={(e) => handleEdit(r.id, { _options_text: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                            <React.Fragment key={r.id}>
+                                {/* 1行目：基本項目 + sort + 操作 */}
+                                <TableRow className="border-b">
+                                    <TableCell className="px-1 py-1">...L 選択...</TableCell>
+                                    <TableCell className="px-1 py-1">...S 選択...</TableCell>
+                                    <TableCell className="px-1 py-1">
+                                        <Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, { code: e.target.value })} />
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1">
+                                        <Input className="h-8" value={r.label} onChange={(e) => handleEdit(r.id, { label: e.target.value })} />
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1">...type Select...</TableCell>
+                                    <TableCell className="px-1 py-1">
+                                        <Input className="h-8" value={r.unit ?? ""} onChange={(e) => handleEdit(r.id, { unit: e.target.value || null })} />
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1">...req Select...</TableCell>
+                                    <TableCell className="px-1 py-1">...active Select...</TableCell>
 
-                        {/* 追加行 */}
-                        <TableRow>
-                            <TableCell className="px-1 py-1">
-                                <Select value={newRow.l_id ?? ""} onValueChange={(v) => setNewRow({ ...newRow, l_id: v || null })}>
-                                    <SelectTrigger><SelectValue placeholder="(null)" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="">(null)</SelectItem>
-                                        {catsL.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell className="px-1 py-1">
-                                <Select value={newRow.s_id ?? ""} onValueChange={(v) => setNewRow({ ...newRow, s_id: v || null })}>
-                                    <SelectTrigger><SelectValue placeholder="(null)" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="">(null)</SelectItem>
-                                        {catsS.filter(s => !newRow.l_id || s.l_id === newRow.l_id).map((s) => (
-                                            <SelectItem key={s.id} value={s.id}>{nameL(s.l_id)} / {s.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell className="px-1 py-1"><Input className="h-8" value={newRow.code ?? ""} onChange={(e) => setNewRow({ ...newRow, code: e.target.value })} placeholder="vital_temp" /></TableCell>
-                            <TableCell className="px-1 py-1"><Input className="h-8" value={newRow.label ?? ""} onChange={(e) => setNewRow({ ...newRow, label: e.target.value })} placeholder="体温" /></TableCell>
-                            <TableCell className="px-1 py-1">
-                                <Select value={(newRow.input_type ?? "text") as InputType} onValueChange={(v) => setNewRow({ ...newRow, input_type: v as InputType })}>
-                                    <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                    <SelectContent>
-                                        {INPUT_TYPES.map(t => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell className="px-1 py-1"><Input className="h-8" value={newRow.unit ?? ""} onChange={(e) => setNewRow({ ...newRow, unit: e.target.value || null })} placeholder="℃ など" /></TableCell>
-                            <TableCell className="px-1 py-1">
-                                <Select value={String(newRow.required ? 1 : 0)} onValueChange={(v) => setNewRow({ ...newRow, required: v === "1" })}>
-                                    <SelectTrigger><SelectValue placeholder="false" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">true</SelectItem>
-                                        <SelectItem value="0">false</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell className="px-1 py-1">
-                                <Select value={String(newRow.active === false ? 0 : 1)} onValueChange={(v) => setNewRow({ ...newRow, active: v === "1" })}>
-                                    <SelectTrigger><SelectValue placeholder="true" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">true</SelectItem>
-                                        <SelectItem value="0">false</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell className="px-1 py-1">
-                                <div className="grid grid-cols-2 items-center gap-1">
-                                    <Input className="h-8" type="number" value={newRow.sort_order ?? 1000} onChange={(e) => setNewRow({ ...newRow, sort_order: Number(e.target.value) })} />
-                                    <Button size="sm" onClick={add}>追加</Button>
-                                    <div className="col-span-2">
+                                    {/* sort 列（分離） */}
+                                    <TableCell className="px-1 py-1">
+                                        <Input className="h-8" type="number" value={r.sort_order}
+                                            onChange={(e) => handleEdit(r.id, { sort_order: Number(e.target.value) })} />
+                                    </TableCell>
+
+                                    {/* 操作 列（分離） */}
+                                    <TableCell className="px-1 py-1">
+                                        <SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} />
+                                    </TableCell>
+                                </TableRow>
+
+                                {/* 2行目：options(JSON) を横長で */}
+                                <TableRow className="border-b">
+                                    <TableCell className="px-1 py-1" colSpan={10}>
                                         <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
                                         <Textarea
                                             className="h-20"
-                                            value={newRow._options_text ?? "{}"}
-                                            onChange={(e) => setNewRow({ ...newRow, _options_text: e.target.value })}
+                                            value={r._options_text ?? JSON.stringify(r.options ?? {}, null, 2)}
+                                            onChange={(e) => handleEdit(r.id, { _options_text: e.target.value })}
                                         />
-                                    </div>
-                                </div>
+                                    </TableCell>
+                                </TableRow>
+                            </React.Fragment>
+                        ))}
+                        {/* 追加行 1段目 */}
+                        <TableRow className="border-b">
+                            <TableCell className="px-1 py-1">...L 選択...</TableCell>
+                            <TableCell className="px-1 py-1">...S 選択...</TableCell>
+                            <TableCell className="px-1 py-1"> <Input
+                                className="h-8"
+                                value={newRow.code ?? ""}
+                                onChange={(e) => setNewRow({ ...newRow, code: e.target.value })}
+                                placeholder="vital_temp"
+                            /></TableCell>
+                            <TableCell className="px-1 py-1"><Input
+                                className="h-8"
+                                value={newRow.label ?? ""}
+                                onChange={(e) => setNewRow({ ...newRow, label: e.target.value })}
+                            /></TableCell>
+                            <TableCell className="px-1 py-1">...type Select...</TableCell>
+                            <TableCell className="px-1 py-1"><Input
+                                className="h-8"
+                                value={newRow.label ?? ""}
+                                onChange={(e) => setNewRow({ ...newRow, unit: e.target.value })}
+                            /></TableCell>
+                            <TableCell className="px-1 py-1">...req Select...</TableCell>
+                            <TableCell className="px-1 py-1">...active Select...</TableCell>
+                            <TableCell className="px-1 py-1">
+                                <Input className="h-8" type="number" value={newRow.sort_order ?? 1000}
+                                    onChange={(e) => setNewRow({ ...newRow, sort_order: Number(e.target.value) })} />
+                            </TableCell>
+                            <TableCell className="px-1 py-1">
+                                <Button size="sm" onClick={add}>追加</Button>
                             </TableCell>
                         </TableRow>
+
+                        {/* 追加行 2段目：options(JSON) */}
+                        <TableRow className="border-b">
+                            <TableCell className="px-1 py-1" colSpan={10}>
+                                <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
+                                <Textarea
+                                    className="h-20"
+                                    value={newRow._options_text ?? "{}"}
+                                    onChange={(e) => setNewRow({ ...newRow, _options_text: e.target.value })}
+                                />
+                            </TableCell>
+                        </TableRow>
+
                     </TableBody>
                 </Table>
             </div>
