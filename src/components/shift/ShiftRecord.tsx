@@ -5,6 +5,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
+const [shiftInfo, setShiftInfo] = useState<Record<string, unknown> | null>(null);
+useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shiftId = params.get("shift_id");
+    if (!shiftId) return;
+    (async () => {
+        // 好みのエンドポイントに合わせて調整
+        const r = await fetch(`/api/shifts/summary?shift_id=${encodeURIComponent(shiftId)}`);
+        if (r.ok) setShiftInfo(await r.json());
+    })();
+}, []);
+
+function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
+    return tpl.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
+        const v = ctx?.[key];
+        if (v == null) return "";
+        if (typeof v === "string") return v;
+        if (typeof v === "number" || typeof v === "boolean") return String(v);
+        return "";
+    });
+}
+
+
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
 export type ShiftRecordCategoryL = { id: string; code?: string; name: string; sort_order?: number };
 export type ShiftRecordCategoryS = { id: string; l_id: string; code?: string; name: string; sort_order?: number };
@@ -18,8 +41,8 @@ export type ShiftRecordItemDef = {
     required?: boolean;
     sort_order?: number;  // ★ 追加
     // select用
-    options?: unknown;
-    options_json?: unknown;
+    options?: Record<string, unknown>;
+    options_json?: Record<string, unknown>;
     // number用
     min?: number; max?: number; step?: number;
     // display用
@@ -313,11 +336,21 @@ function ItemInput({
     void vBool;
 
     if (t === "display") {
-        return (
-            <div className="px-2 py-1 text-sm bg-gray-50 border rounded">
-                {String(def.display_text ?? vStr ?? "—")}
-            </div>
-        );
+        let text = def.display_text ?? (typeof value === "string" ? value : "");
+
+        const opt = (def.options ?? {}) as Record<string, unknown>;
+        if (typeof opt.template === "string" && shiftInfo) {
+            text = renderTemplate(opt.template, shiftInfo);
+        } else if (Array.isArray(opt.ref) && shiftInfo) {
+            const parts = opt.ref
+                .filter((k): k is string => typeof k === "string")
+                .map((k) => shiftInfo[k])
+                .map((v) => (v == null ? "" : String(v)))
+                .filter(Boolean);
+            if (parts.length) text = parts.join(" ");
+        }
+
+        return <div className="text-sm whitespace-pre-wrap break-words">{text || "—"}</div>;
     }
 
     // ...ItemInput 内 t === "checkbox" のところ
