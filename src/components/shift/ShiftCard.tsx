@@ -423,9 +423,6 @@ export default function ShiftCard({
                   このシフトに入れない
                 </Button>
               )}
-              {mode === "reject" && (
-                <ShiftRecordLinkButton shiftId={shift.shift_id ?? shift.id} />
-              )}
             </DialogTrigger>
             <DialogPortal>
               <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
