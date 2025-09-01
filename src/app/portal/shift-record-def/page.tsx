@@ -148,10 +148,9 @@ function TabL(): React.ReactElement {
     }, [rows, q])
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
-    const handleEdit = <K extends keyof ShiftRecordCategoryL>(i: number, key: K, val: ShiftRecordCategoryL[K]) => {
-        setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [key]: val } as ShiftRecordCategoryL : r)))
-    }
-
+    const handleEdit = <K extends keyof ShiftRecordCategoryL>(id: string, key: K, val: ShiftRecordCategoryL[K]) => {
+  setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryL : r)))
+}
     const save = async (row: ShiftRecordCategoryL) => {
         const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(row)
@@ -213,11 +212,11 @@ function TabL(): React.ReactElement {
                     <TableBody>
                         {pageRows.map((r, idx) => (
                             <TableRow key={r.id}>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(idx + start, "code", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(idx + start, "name", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(idx + start, "sort_order", Number(e.target.value))} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(idx + start, "active", v === "1")}>
+                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="1">true</SelectItem>
@@ -293,9 +292,9 @@ function TabS(): React.ReactElement {
     }, [rows, q, qL])
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
-    const handleEdit = <K extends keyof ShiftRecordCategoryS>(i: number, key: K, val: ShiftRecordCategoryS[K]) => {
-        setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [key]: val } as ShiftRecordCategoryS : r)))
-    }
+    const handleEdit = <K extends keyof ShiftRecordCategoryS>(id: string, key: K, val: ShiftRecordCategoryS[K]) => {
+  setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryS : r)))
+}
 
     const save = async (row: ShiftRecordCategoryS) => {
         const r = await fetch(`/api/shift-record-def/category-s/${row.id}`, {
@@ -371,18 +370,18 @@ function TabS(): React.ReactElement {
                         {pageRows.map((r, idx) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={r.l_id} onValueChange={(v) => handleEdit(idx + start, "l_id", v)}>
+                                    <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>    
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(idx + start, "code", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(idx + start, "name", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(idx + start, "sort_order", Number(e.target.value))} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(idx + start, "active", v === "1")}>
+                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="1">true</SelectItem>
@@ -485,9 +484,9 @@ function TabDefs(): React.ReactElement {
     }, [rows, q, qL, qS])
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
-    const handleEdit = (i: number, patch: Partial<WithOptionsText>) => {
-        setRows((prev) => prev.map((r, idx) => (idx === i ? ({ ...r, ...patch }) : r)))
-    }
+    const handleEdit = (id: string, patch: Partial<WithOptionsText>) => {
+  setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch }) : r)))
+}
 
     type WithOptionsText = ShiftRecordItemDef & { _options_text?: string }
 
@@ -612,7 +611,7 @@ function TabDefs(): React.ReactElement {
                         {pageRows.map((r, idx) => (
                             <TableRow key={r.id}>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={r.l_id ?? ""} onValueChange={(v) => handleEdit(idx + start, { l_id: v || null })}>
+                                    <Select value={r.l_id ?? ""} onValueChange={(v) => handleEdit(r.id, { l_id: v || null })}>
                                         <SelectTrigger><SelectValue placeholder="(null)" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="">(null)</SelectItem>
@@ -621,8 +620,7 @@ function TabDefs(): React.ReactElement {
                                     </Select>
                                 </TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={r.s_id ?? ""} onValueChange={(v) => handleEdit(idx + start, { s_id: v || null })}>
-                                        <SelectTrigger><SelectValue placeholder="(null)" /></SelectTrigger>
+                                    <Select value={r.s_id ?? ""} onValueChange={(v) => handleEdit(r.id, { s_id: v || null })}> 
                                         <SelectContent>
                                             <SelectItem value="">(null)</SelectItem>
                                             {catsS.filter(s => !r.l_id || s.l_id === r.l_id).map((s) => (
@@ -631,19 +629,19 @@ function TabDefs(): React.ReactElement {
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(idx + start, { code: e.target.value })} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.label} onChange={(e) => handleEdit(idx + start, { label: e.target.value })} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, { code: e.target.value })} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.label} onChange={(e) => handleEdit(r.id, { label: e.target.value })} /></TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={r.input_type} onValueChange={(v) => handleEdit(idx + start, { input_type: v as InputType })}>
+                                    <Select value={r.input_type} onValueChange={(v) => handleEdit(r.id, { input_type: v as InputType })}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             {INPUT_TYPES.map(t => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.unit ?? ""} onChange={(e) => handleEdit(idx + start, { unit: e.target.value || null })} /></TableCell>
+                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.unit ?? ""} onChange={(e) => handleEdit(r.id, { unit: e.target.value || null })} /></TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={String(r.required ? 1 : 0)} onValueChange={(v) => handleEdit(idx + start, { required: v === "1" })}>
+                                    <Select value={String(r.required ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, { required: v === "1" })}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="1">true</SelectItem>
@@ -652,7 +650,7 @@ function TabDefs(): React.ReactElement {
                                     </Select>
                                 </TableCell>
                                 <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(idx + start, { active: v === "1" })}>
+                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, { active: v === "1" })}>
                                         <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="1">true</SelectItem>
@@ -662,15 +660,11 @@ function TabDefs(): React.ReactElement {
                                 </TableCell>
                                 <TableCell className="px-1 py-1">
                                     <div className="grid grid-cols-2 items-center gap-1">
-                                        <Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(idx + start, { sort_order: Number(e.target.value) })} />
+                                        <Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, { sort_order: Number(e.target.value) })} />
                                         <SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} />
                                         <div className="col-span-2">
                                             <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
-                                            <Textarea
-                                                className="h-20"
-                                                value={r._options_text ?? JSON.stringify(r.options ?? {}, null, 2)}
-                                                onChange={(e) => handleEdit(idx + start, { _options_text: e.target.value })}
-                                            />
+                                            <Textarea className="h-20" value={r._options_text ?? JSON.stringify(r.options ?? {}, null, 2)} onChange={(e) => handleEdit(r.id, { _options_text: e.target.value })} />
                                         </div>
                                     </div>
                                 </TableCell>

@@ -311,15 +311,14 @@ function ItemInput({
     }
 
     if (t === "checkbox") {
-        // CSVから来る options が「文字列」でも確実に配列へ
-        const opts = parseOptionsFlexible(def.options ?? def.options_json);
+        // options(jsonb) 優先（互換で options_json も見る）
+        const raw = def.options ?? def.options_json;
+        const opts = parseOptionsFlexible(raw);
 
         if (opts.length >= 2) {
             const [optYes, optNo] = opts;
-            const cur =
-                typeof value === "boolean"
-                    ? (value ? String(optYes.value) : String(optNo.value))
-                    : String(value ?? "");
+            // true/false, "true"/"false", 1/0, "1"/"0", "有"/"無" などを "0"/"1" 等に正規化
+            const cur = normalizeBinaryValue(value, String(optYes.value), String(optNo.value));
 
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
@@ -519,4 +518,26 @@ function coerceToArrayJSON(s: string): string {
 
     // 素の「有,無」などはこの後の簡易分割に回す
     return t;
+}
+
+// boolean / 文字列 / 数値を「yesVal / noVal」のどちらか（または空）に正規化
+function normalizeBinaryValue(v: unknown, yesVal: string, noVal: string): string {
+    if (v === undefined || v === null) return "";
+    const s = String(v).trim().toLowerCase();
+    const y = yesVal.toLowerCase();
+    const n = noVal.toLowerCase();
+
+    // 既に一致
+    if (s === y) return yesVal;
+    if (s === n) return noVal;
+
+    // 明示的 boolean
+    if (typeof v === "boolean") return v ? yesVal : noVal;
+
+    // よくある同義語を吸収
+    const YES = new Set(["1", "true", "t", "yes", "y", "on", "有", "あり", "可"]);
+    const NO = new Set(["0", "false", "f", "no", "n", "off", "無", "なし", "不可"]);
+    if (YES.has(s)) return yesVal;
+    if (NO.has(s)) return noVal;
+    return "";
 }
