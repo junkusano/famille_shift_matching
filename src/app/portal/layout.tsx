@@ -235,7 +235,7 @@ export default function PortalLayout({ children }: Props) {
                     )}
                     <li>
                         <Link href="/portal/shift" className="text-blue-300 hover:underline">
-                            シフト（お休み希望も）
+                            シフト・訪問記録
                         </Link>
                     </li>
                     <li>
@@ -381,7 +381,7 @@ export default function PortalLayout({ children }: Props) {
                         )}
                         <li>
                             <Link href="/portal/shift" className="text-blue-300 hover:underline">
-                                シフト（お休み希望も）
+                                シフト・訪問記録
                             </Link>
                         </li>
                         <li>
