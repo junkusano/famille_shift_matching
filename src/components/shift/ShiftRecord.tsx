@@ -299,6 +299,7 @@ function ItemInput({
     const t = def.input_type;
     const vStr = (value ?? "") as string;
     const vBool = Boolean(value);
+    void vBool;
 
     if (t === "display") {
         return (
