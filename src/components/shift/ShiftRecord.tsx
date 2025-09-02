@@ -343,18 +343,92 @@ function ItemInput({
         const raw = def.options ?? def.options_json;
         const opts = parseOptionsFlexible(raw);
 
+        // ---- 3件以上は「複数選択のチェックボックス群」----
+        if (opts.length >= 3) {
+            // 既存値を配列として吸収（["x","y"] / '["x","y"]' / "x,y" / "x" / "" どれでも受ける）
+            const toArray = (v: unknown): string[] => {
+                if (Array.isArray(v)) return v.map(String);
+                if (typeof v === "string") {
+                    const s = v.trim();
+                    if (!s) return [];
+                    try {
+                        const j = JSON.parse(s);
+                        if (Array.isArray(j)) return j.map(String);
+                    } catch { /* ignore */ }
+                    return s.includes(",")
+                        ? s.split(",").map(x => x.trim()).filter(Boolean)
+                        : [s];
+                }
+                return [];
+            };
+
+            const curArr = toArray(value);
+
+            // 「該当なし」専用挙動（任意）：選ばれたら他を外す。他が選ばれたら「該当なし」を外す。
+            const noneOpt = opts.find(o =>
+                String(o.label) === "該当なし" || String(o.value).toLowerCase() === "none"
+            );
+            const noneVal = noneOpt ? String(noneOpt.value) : null;
+
+            const toggle = (val: string) => {
+                const set = new Set(curArr.map(String));
+                if (set.has(val)) set.delete(val); else set.add(val);
+
+                if (noneVal) {
+                    if (val === noneVal && set.has(noneVal)) {
+                        // 「該当なし」を選んだら他を全部外す
+                        for (const o of opts) {
+                            const v = String(o.value);
+                            if (v !== noneVal) set.delete(v);
+                        }
+                        set.add(noneVal);
+                    } else {
+                        // 他を選んだら「該当なし」を外す
+                        set.delete(noneVal);
+                    }
+                }
+
+                onChange(def, Array.from(set));
+            };
+
+            return (
+                <div className="flex flex-wrap gap-4" role="group" aria-label={def.label}>
+                    {opts.map(o => {
+                        const v = String(o.value);
+                        const checked = curArr.includes(v);
+                        return (
+                            <label key={v} className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggle(v)}
+                                />
+                                <span className="text-sm">{o.label}</span>
+                            </label>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        // ---- 2件は「ラジオ（はい／いいえ等）」だが既定は未選択 ----
         if (opts.length >= 2) {
-            // ここを変更：optYes は const、optNo は let（後で補正し得るため）
             const optYes = { label: String(opts[0].label), value: String(opts[0].value) };
             let optNo = { label: String(opts[1].label), value: String(opts[1].value) };
 
-            // 値が同一なら No 側だけ補正
+            // 値が同一なら No 側だけ補正（"0"/"1" でなければ suffix を付与）
             if (optYes.value === optNo.value) {
-                optNo = { ...optNo, value: optYes.value === "0" ? "1" : optYes.value === "1" ? "0" : `${optNo.value}_no` };
+                optNo = {
+                    ...optNo,
+                    value:
+                        optYes.value === "0" ? "1"
+                            : optYes.value === "1" ? "0"
+                                : `${optNo.value}_no`
+                };
             }
 
-            // 値が空なら No 側を既定に（不要なら String(value ?? "") に戻してOK）
-            const cur = String(value ?? optNo.value);
+            // 既定は「未選択」：空なら両方チェックなし
+            const cur = String(value ?? "");
             const isYes = cur === String(optYes.value);
             const isNo = cur === String(optNo.value);
 
@@ -393,7 +467,7 @@ function ItemInput({
             );
         }
 
-        // options が無い場合のフォールバック
+        // ---- options が無い場合のフォールバック（単体チェック）----
         return (
             <label className="inline-flex items-center gap-2">
                 <input
