@@ -51,7 +51,7 @@ export default function ShiftRecord({
 
     const mergedInfo = useMemo(() => {
         const seed = clientNameFromQS ? { client_name: clientNameFromQS } : {};
-        return { ...(shiftInfo ?? {}), ...seed };
+        return { ...(shiftInfo ?? {}), ...seed }; // ← これだと API の値が seed を上書きする
     }, [shiftInfo, clientNameFromQS]);
 
     // ====== 定義ロード ======
@@ -230,7 +230,7 @@ export default function ShiftRecord({
                                                 def={def}
                                                 value={values[def.id]}
                                                 onChange={handleChange}
-                                                shiftInfo={mergedInfo} 
+                                                shiftInfo={mergedInfo}
                                             />
                                         ))}
                                     </div>
