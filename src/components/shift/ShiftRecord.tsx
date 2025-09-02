@@ -313,11 +313,15 @@ function ItemInput({
     const vBool = Boolean(value);
     void vBool;
 
+    // 置き換え対象：ItemInput 内 t === "display" 付近
     if (t === "display") {
-        // v → value に修正（元コードは未定義変数 v を参照）
         let text = def.display_text ?? (typeof value === "string" ? value : "");
 
-        const opt = (def.options ?? def.options_json ?? {}) as Record<string, unknown>;
+        // ▼ ここを "必ず" 文字列→JSON パースするように修正
+        const raw = def.options ?? def.options_json;
+        const opt = (Array.isArray(raw) || typeof raw === "object")
+            ? (raw as Record<string, unknown>)
+            : (tryParseJSON(raw) as Record<string, unknown> ?? {});
 
         if (typeof opt.template === "string" && shiftInfo) {
             text = renderTemplate(opt.template, shiftInfo);
@@ -332,6 +336,7 @@ function ItemInput({
 
         return <div className="text-sm whitespace-pre-wrap break-words">{text || "—"}</div>;
     }
+
 
     // ...ItemInput 内 t === "checkbox" のところ
     if (t === "checkbox") {
@@ -583,15 +588,15 @@ function normalizeBinaryValue(v: unknown, yesVal: string, noVal: string): string
 void normalizeBinaryValue;
 
 function useShiftInfo(shiftId: string) {
-  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => {
-    if (!shiftId) return;
-    (async () => {
-      const r = await fetch(`/api/shift-custom-view?shift_id=${encodeURIComponent(shiftId)}&expand=staff`);
-      if (r.ok) setInfo(await r.json());
-    })();
-  }, [shiftId]);
-  return info;
+    const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+    useEffect(() => {
+        if (!shiftId) return;
+        (async () => {
+            const r = await fetch(`/api/shift-custom-view?shift_id=${encodeURIComponent(shiftId)}&expand=staff`);
+            if (r.ok) setInfo(await r.json());
+        })();
+    }, [shiftId]);
+    return info;
 }
 
 function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
