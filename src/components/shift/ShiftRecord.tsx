@@ -51,7 +51,7 @@ export default function ShiftRecord({
 
     const mergedInfo = useMemo(() => {
         const seed = clientNameFromQS ? { client_name: clientNameFromQS } : {};
-        return { ...(shiftInfo ?? {}), ...seed }; // ← これだと API の値が seed を上書きする
+        return { ...seed, ...(shiftInfo ?? {}) };
     }, [shiftInfo, clientNameFromQS]);
 
     // ====== 定義ロード ======
@@ -337,15 +337,29 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
 
         // B) 3件以上（非排他） = 複数チェック
         if (opts.length >= 3) {
-            const curArr = toStringArray(value);
+
+            let curArr = toStringArray(value);
+            if (curArr.length === 0) {
+                const defVal = getDefault(def);
+                if (Array.isArray(defVal)) {
+                    curArr = defVal.map(String);
+                } else if (typeof defVal === "string" && defVal.trim() !== "") {
+                    curArr = toStringArray(defVal);
+                } else if (typeof defVal === "number") {
+                    curArr = [String(defVal)];
+                }
+            }
 
             // 「該当なし」は相互排他に（選ばれたら他を外す）
+            /*
             const noneOpt = opts.find(o => String(o.label) === "該当なし" || String(o.value).toLowerCase() === "none");
             const noneVal = noneOpt ? String(noneOpt.value) : null;
+            */
 
             const toggle = (val: string) => {
                 const set = new Set(curArr.map(String));
                 if (set.has(val)) set.delete(val); else set.add(val);
+                /*
                 if (noneVal) {
                     if (val === noneVal && set.has(noneVal)) {
                         for (const o of opts) { const v = String(o.value); if (v !== noneVal) set.delete(v); }
@@ -354,6 +368,7 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
                         set.delete(noneVal);
                     }
                 }
+                    */
                 onChange(def, Array.from(set));
             };
 
