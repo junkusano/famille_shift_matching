@@ -536,7 +536,10 @@ export default function ShiftCard({
             </DialogPortal>
           </Dialog>
           {mode === "reject" && (
-            <ShiftRecordLinkButton shiftId={shift.shift_id ?? shift.id} />
+            <ShiftRecordLinkButton
+              shiftId={shift.shift_id ?? shift.id}
+              clientName={shift.client_name ?? ""}
+            />
           )}
           {extraActions}
         </div>

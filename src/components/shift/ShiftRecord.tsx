@@ -1,6 +1,8 @@
 // components/shift/ShiftRecord.tsx
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";  // ←追加
+
 
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
@@ -43,7 +45,15 @@ export default function ShiftRecord({
     recordId?: string;
     onSavedStatusChange?: (s: SaveState) => void;
 }) {
+    const sp = useSearchParams();
+    const clientNameFromQS = sp.get("client_name") || undefined;
     const shiftInfo = useShiftInfo(shiftId);
+
+    const mergedInfo = useMemo(() => {
+        const seed = clientNameFromQS ? { client_name: clientNameFromQS } : {};
+        return { ...(shiftInfo ?? {}), ...seed };
+    }, [shiftInfo, clientNameFromQS]);
+
     // ====== 定義ロード ======
     const [defs, setDefs] = useState<{ L: ShiftRecordCategoryL[]; S: ShiftRecordCategoryS[]; items: ShiftRecordItemDef[] }>(
         { L: [], S: [], items: [] }
@@ -220,7 +230,7 @@ export default function ShiftRecord({
                                                 def={def}
                                                 value={values[def.id]}
                                                 onChange={handleChange}
-                                                shiftInfo={shiftInfo}
+                                                shiftInfo={mergedInfo} 
                                             />
                                         ))}
                                     </div>
