@@ -1,3 +1,4 @@
+// src/app/api/shift-custom-view/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -5,9 +6,9 @@ type ShiftRow = {
   id: string;
   client_name?: string | null;
   service_code?: string | null;
-  shift_start_date?: string | null;   // "2025-09-02"
-  shift_start_time?: string | null;   // "09:00" or "09:00:00"
-  shift_end_time?: string | null;     // "10:00" or "10:00:00"
+  shift_start_date?: string | null;   // "YYYY-MM-DD"
+  shift_start_time?: string | null;   // "HH:mm" or "HH:mm:ss"
+  shift_end_time?: string | null;     // "HH:mm" or "HH:mm:ss"
   staff_01_user_id?: string | null;
   staff_02_user_id?: string | null;
   staff_03_user_id?: string | null;
@@ -23,7 +24,7 @@ type UnitedViewRow = {
 
 const toHHmm = (t?: string | null) => (t ?? "").slice(0, 5);
 const join3 = (a?: string, b?: string, c?: string) =>
-  [a, b, c].map((x) => x && x.trim()).filter(Boolean).join(" / ") || "—";
+  [a, b, c].map((x) => (x ? x.trim() : "")).filter(Boolean).join(" / ") || "—";
 
 export async function GET(req: Request) {
   try {
@@ -32,6 +33,7 @@ export async function GET(req: Request) {
     if (!shift_id) {
       return NextResponse.json({ error: "shift_id is required" }, { status: 400 });
     }
+
     const expand = new Set(
       (searchParams.get("expand") || "")
         .split(",")
@@ -64,6 +66,7 @@ export async function GET(req: Request) {
     // 基本整形
     const startTime = toHHmm(shift.shift_start_time);
     const endTime = toHHmm(shift.shift_end_time);
+
     const payload: Record<string, unknown> = {
       shift_id: shift.id,
       client_name: shift.client_name ?? "",
@@ -79,7 +82,7 @@ export async function GET(req: Request) {
       staff_03_user_id: shift.staff_03_user_id ?? null,
     };
 
-    // 2) expand=staff → 氏名をまとめて解決
+    // 2) expand=staff → 氏名（漢字/カナ）を一括解決
     if (expand.has("staff")) {
       const staffIds = [
         shift.staff_01_user_id,
@@ -87,21 +90,22 @@ export async function GET(req: Request) {
         shift.staff_03_user_id,
       ].filter((v): v is string => !!v);
 
-      let nameById: Record<string, { kanji: string; kana: string }> = {};
+      const nameById: Record<string, { kanji: string; kana: string }> = {};
+
       if (staffIds.length) {
-        const { data: rows, error: e2 } = (await supabaseAdmin
+        const q = supabaseAdmin
           .from("user_entry_united_view_single")
           .select("user_id,last_name_kanji,first_name_kanji,last_name_kana,first_name_kana")
-          .in("user_id", staffIds)) as unknown as { data: UnitedViewRow[]; error: any };
+          .in("user_id", staffIds)
+          .returns<UnitedViewRow[]>();
+
+        const { data: rows, error: e2 } = await q;
         if (e2) throw e2;
 
         for (const u of rows ?? []) {
           const kanji = `${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}`.trim();
           const kana = `${u.last_name_kana ?? ""}${u.first_name_kana ?? ""}`.trim();
-          nameById[u.user_id] = {
-            kanji: kanji || "",
-            kana: kana || "",
-          };
+          nameById[u.user_id] = { kanji: kanji || "", kana: kana || "" };
         }
       }
 
@@ -124,11 +128,11 @@ export async function GET(req: Request) {
       payload.staff_names_kana_joined = join3(k1, k2, k3);
     }
 
-    // 3) （将来）expand=client / service etc... をここに追加
-
-    // センシティブなので基本は no-store
     return new NextResponse(JSON.stringify(payload), {
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
     });
   } catch (err) {
     console.error(err);
