@@ -2,6 +2,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
@@ -582,15 +583,15 @@ function normalizeBinaryValue(v: unknown, yesVal: string, noVal: string): string
 void normalizeBinaryValue;
 
 function useShiftInfo(shiftId: string) {
-    const [shiftInfo, setShiftInfo] = useState<Record<string, unknown> | null>(null);
-    useEffect(() => {
-        if (!shiftId) return;
-        (async () => {
-            const r = await fetch(`/api/shifts/summary?shift_id=${encodeURIComponent(shiftId)}`);
-            if (r.ok) setShiftInfo(await r.json());
-        })();
-    }, [shiftId]);
-    return shiftInfo;
+  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    if (!shiftId) return;
+    (async () => {
+      const r = await fetch(`/api/shift-custom-view?shift_id=${encodeURIComponent(shiftId)}&expand=staff`);
+      if (r.ok) setInfo(await r.json());
+    })();
+  }, [shiftId]);
+  return info;
 }
 
 function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
