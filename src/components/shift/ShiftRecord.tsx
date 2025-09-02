@@ -410,8 +410,7 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
   // select
   if (t === "select") {
     const raw = def.options ?? def.options_json;
-    const optsRaw = Array.isArray(raw) ? raw : tryParseJSON(raw);
-    const opts: { label: string; value: string }[] = normalizeOptions(optsRaw);
+    const opts: { label: string; value: string }[] = parseOptionsFlexible(raw);
     const cur = String((value ?? (def as any).default_value ?? (def as any).default ?? ""));
     return (
       <select className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e) => onChange(def, e.target.value)}>
