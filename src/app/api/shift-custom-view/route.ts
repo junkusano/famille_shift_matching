@@ -1,141 +1,131 @@
-// src/app/api/shift-custom-view/route.ts
+// app/api/shift-custom-view/route.ts
+// ShiftRecord が参照する「シフト詳細（表示用）API」
+// - DB の実テーブル: public.shift（単数）
+// - 補助ビュー: public.shift_csinfo_postalname_view（利用者名・郵便番号など）
+//
+// 【入参】GET /api/shift-custom-view?shift_id=...&expand=staff
+//   - shift_id: 必須
+//   - expand   : "staff" を含めると将来スタッフ展開に対応（現状はIDのまま返却）
+//
+// 【返却】200 OK
+// {
+//   shift_id, kaipoke_cs_id, service_code,
+//   shift_start_date, shift_start_time, shift_end_date, shift_end_time,
+//   staff_01_user_id, staff_02_user_id, staff_03_user_id,
+//   head_shift_id,
+//   // 表示用に追加
+//   client_name, postal_code, postal_code_3, district
+// }
+//
+// NOTE:
+// - RLS 有効でも Service Role Key を使うことで参照可能（サーバ限定）
+// - SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL を環境変数に設定してください
+
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/service";
+import { createClient } from "@supabase/supabase-js";
 
-/*
-type ShiftRow = {
-    id: string;
-    client_name?: string | null;
-    service_code?: string | null;
-    shift_start_date?: string | null;   // "YYYY-MM-DD"
-    shift_start_time?: string | null;   // "HH:mm" or "HH:mm:ss"
-    shift_end_time?: string | null;     // "HH:mm" or "HH:mm:ss"
-    staff_01_user_id?: string | null;
-    staff_02_user_id?: string | null;
-    staff_03_user_id?: string | null;
-};
-*/
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // リアルタイム性重視。ISR不要
 
-type UnitedViewRow = {
-    user_id: string;
-    last_name_kanji?: string | null;
-    first_name_kanji?: string | null;
-    last_name_kana?: string | null;
-    first_name_kana?: string | null;
-};
+function getClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) {
+    throw new Error("Supabase env is missing: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}
 
-const toHHmm = (t?: string | null) => (t ?? "").slice(0, 5);
-const join3 = (a?: string, b?: string, c?: string) =>
-    [a, b, c].map((x) => (x ? x.trim() : "")).filter(Boolean).join(" / ") || "—";
+// 型は最小限。DBスキーマの差異に強くするため Partial 相当にしている
+interface ShiftRow {
+  shift_id: string;
+  kaipoke_cs_id?: string | null;
+  service_code?: string | null;
+  shift_start_date?: string | null; // date
+  shift_start_time?: string | null; // time
+  shift_end_date?: string | null;   // date
+  shift_end_time?: string | null;   // time
+  staff_01_user_id?: string | null;
+  staff_02_user_id?: string | null;
+  staff_03_user_id?: string | null;
+  head_shift_id?: string | null;
+}
 
 export async function GET(req: Request) {
-    try {
-        const { searchParams } = new URL(req.url);
-        const shift_id = searchParams.get("shift_id");
-        if (!shift_id) {
-            return NextResponse.json({ error: "shift_id is required" }, { status: 400 });
-        }
+  const { searchParams } = new URL(req.url);
+  const shiftId = searchParams.get("shift_id");
+  const expand = (searchParams.get("expand") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-        const expand = new Set(
-            (searchParams.get("expand") || "")
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-        );
+  if (!shiftId) {
+    return NextResponse.json({ error: "shift_id required" }, { status: 400 });
+  }
 
-        // 1) シフト本体
-        const { data: shift, error: e1 } = await supabaseAdmin
-            .from("shift") // ← 単数に
-            .select(`
-                id:shift_id,      
-                service_code,
-                client_name,
-                shift_start_date,
-                shift_start_time,
-                shift_end_time,
-                 staff_01_user_id,
-                staff_02_user_id,
-                staff_03_user_id
-            `)
-            .eq("shift_id", shift_id) // ← 実カラム名で検索
-            .maybeSingle();
+  const supabase = getClient();
 
-        if (e1) throw e1;
-        if (!shift) return NextResponse.json({ error: "shift not found" }, { status: 404 });
+  // 1) シフト本体を取得（単数テーブル名: shift）
+  const { data: s, error: e1 } = await supabase
+    .from("shift")
+    .select(
+      [
+        "shift_id",
+        "kaipoke_cs_id",
+        "service_code",
+        "shift_start_date",
+        "shift_start_time",
+        "shift_end_date",
+        "shift_end_time",
+        "staff_01_user_id",
+        "staff_02_user_id",
+        "staff_03_user_id",
+        "head_shift_id",
+      ].join(",")
+    )
+    .eq("shift_id", shiftId)
+    .maybeSingle<ShiftRow>();
 
-        // 基本整形
-        const startTime = toHHmm(shift.shift_start_time);
-        const endTime = toHHmm(shift.shift_end_time);
+  if (e1) {
+    return NextResponse.json({ error: e1.message, code: e1.code ?? "DB_ERROR_1" }, { status: 500 });
+  }
+  if (!s) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
-        const payload: Record<string, unknown> = {
-            shift_id: shift.id,
-            client_name: shift.client_name ?? "",
-            service_code: shift.service_code ?? "",
-            shift_start_date: shift.shift_start_date ?? "",
-            shift_start_time: startTime,
-            shift_end_time: endTime,
-            time_range:
-                (shift.shift_start_date ? `${shift.shift_start_date} ` : "") +
-                `${startTime} ~ ${endTime}`,
-            staff_01_user_id: shift.staff_01_user_id ?? null,
-            staff_02_user_id: shift.staff_02_user_id ?? null,
-            staff_03_user_id: shift.staff_03_user_id ?? null,
-        };
+  // 2) 利用者名・郵便番号などを補助ビューから取得（kaipoke_cs_id 経由）
+  let client_name = "";
+  let postal_code = "";
+  let postal_code_3 = "";
+  let district = "";
 
-        // 2) expand=staff → 氏名（漢字/カナ）を一括解決
-        if (expand.has("staff")) {
-            const staffIds = [
-                shift.staff_01_user_id,
-                shift.staff_02_user_id,
-                shift.staff_03_user_id,
-            ].filter((v): v is string => !!v);
+  if (s.kaipoke_cs_id) {
+    const { data: cs, error: e2 } = await supabase
+      .from("shift_csinfo_postalname_view")
+      .select("name, postal_code, postal_code_3, district")
+      .eq("kaipoke_cs_id", s.kaipoke_cs_id)
+      .maybeSingle();
 
-            const nameById: Record<string, { kanji: string; kana: string }> = {};
-
-            if (staffIds.length) {
-                const q = supabaseAdmin
-                    .from("user_entry_united_view_single")
-                    .select("user_id,last_name_kanji,first_name_kanji,last_name_kana,first_name_kana")
-                    .in("user_id", staffIds)
-                    .returns<UnitedViewRow[]>();
-
-                const { data: rows, error: e2 } = await q;
-                if (e2) throw e2;
-
-                for (const u of rows ?? []) {
-                    const kanji = `${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}`.trim();
-                    const kana = `${u.last_name_kana ?? ""}${u.first_name_kana ?? ""}`.trim();
-                    nameById[u.user_id] = { kanji: kanji || "", kana: kana || "" };
-                }
-            }
-
-            const n1 = shift.staff_01_user_id ? nameById[shift.staff_01_user_id]?.kanji ?? "" : "";
-            const n2 = shift.staff_02_user_id ? nameById[shift.staff_02_user_id]?.kanji ?? "" : "";
-            const n3 = shift.staff_03_user_id ? nameById[shift.staff_03_user_id]?.kanji ?? "" : "";
-
-            const k1 = shift.staff_01_user_id ? nameById[shift.staff_01_user_id]?.kana ?? "" : "";
-            const k2 = shift.staff_02_user_id ? nameById[shift.staff_02_user_id]?.kana ?? "" : "";
-            const k3 = shift.staff_03_user_id ? nameById[shift.staff_03_user_id]?.kana ?? "" : "";
-
-            payload.staff_01_user_name = n1;
-            payload.staff_02_user_name = n2;
-            payload.staff_03_user_name = n3;
-            payload.staff_names_joined = join3(n1, n2, n3);
-
-            payload.staff_01_user_name_kana = k1;
-            payload.staff_02_user_name_kana = k2;
-            payload.staff_03_user_name_kana = k3;
-            payload.staff_names_kana_joined = join3(k1, k2, k3);
-        }
-
-        return new NextResponse(JSON.stringify(payload), {
-            headers: {
-                "Content-Type": "application/json",
-                "Cache-Control": "no-store",
-            },
-        });
-    } catch (err) {
-        console.error(err);
-        return NextResponse.json({ error: "internal error" }, { status: 500 });
+    if (!e2 && cs) {
+      client_name = cs.name ?? "";
+      postal_code = cs.postal_code ?? "";
+      postal_code_3 = cs.postal_code_3 ?? "";
+      district = cs.district ?? "";
     }
+  }
+
+  // 3) expand=staff（将来拡張用）
+  //  現時点では ID をそのまま返します。必要に応じてプロフィールビュー等に JOIN してください。
+  if (expand.includes("staff")) {
+    // ここにスタッフ名の解決処理を追加可能
+  }
+
+  // 4) 返却（display テンプレが使いやすいキー名を含める）
+  return NextResponse.json({
+    ...s,
+    client_name,
+    postal_code,
+    postal_code_3,
+    district,
+  });
 }
