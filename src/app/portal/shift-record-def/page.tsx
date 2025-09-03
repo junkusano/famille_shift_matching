@@ -41,6 +41,7 @@ export type ShiftRecordItemDef = {
     sort_order: number
     active: boolean
     options: Record<string, unknown>
+    default_value?: unknown
 }
 
 const PAGE_SIZE = 50
@@ -57,6 +58,7 @@ type ItemDefDraft = {
     required?: boolean
     active?: boolean
     _options_text?: string
+    _default_text?: string
 }
 
 type ItemDefCreate = {
@@ -465,8 +467,16 @@ function TabDefs(): React.ReactElement {
         ])
         if (d.ok) {
             const arr: ShiftRecordItemDef[] = await d.json()
-            // 表示用テキストを初期値でセット
-            setRows(arr.map(x => ({ ...x, _options_text: JSON.stringify(x.options ?? {}, null, 2) })))
+            setRows(arr.map(x => ({
+                ...x,
+                _options_text: JSON.stringify(x.options ?? {}, null, 2),
+                _default_text:
+                    x.default_value == null
+                        ? ""
+                        : (typeof x.default_value === "string"
+                            ? x.default_value
+                            : JSON.stringify(x.default_value))
+            })))
         }
         if (l.ok) setCatsL(await l.json())
         if (s.ok) setCatsS(await s.json())
@@ -514,15 +524,23 @@ function TabDefs(): React.ReactElement {
         setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch }) : r)))
     }
 
-    type WithOptionsText = ShiftRecordItemDef & { _options_text?: string }
+    type WithOptionsText = ShiftRecordItemDef & {
+        _options_text?: string
+        _default_text?: string
+    }
 
+    // save() 内：_default_text を default_value に反映
     const save = async (row: WithOptionsText) => {
-        const { _options_text, ...rest } = row
+        const { _options_text, _default_text, ...rest } = row
         let optionsParsed: Record<string, unknown> = {}
         try { optionsParsed = _options_text ? JSON.parse(_options_text) : {} }
         catch { alert("options がJSONではありません"); return }
 
-        const payload: ShiftRecordItemDef = { ...(rest as ShiftRecordItemDef), options: optionsParsed }
+        const payload: ShiftRecordItemDef = {
+            ...(rest as ShiftRecordItemDef),
+            options: optionsParsed,
+            default_value: parseDefaultText(_default_text),
+        }
 
         const r = await fetch(`/api/shift-record-def/item-defs/${row.id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
@@ -531,6 +549,7 @@ function TabDefs(): React.ReactElement {
             alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗")
         }
     }
+
 
     const del = async (id: string) => {
         const r = await fetch(`/api/shift-record-def/item-defs/${id}`, { method: "DELETE" })
@@ -645,52 +664,63 @@ function TabDefs(): React.ReactElement {
                                         ▼ display の options(JSON) ヘルプ
                                     </summary>
 
-                                    {/* ← デフォルト非表示。open の時だけ表示 */}
                                     <div className="mt-2 hidden group-open:block">
-                                        {/* 縦長対策：高さ制限＋スクロール */}
                                         <div className="border rounded-lg bg-white p-2 max-h-64 overflow-auto">
-                                            {/* 2カラム配置（狭い幅では1カラム） */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
 
-                                                {/* ① テンプレ置換（推奨） */}
+                                                {/* ① テンプレ置換（基本） */}
                                                 <section className="border rounded p-2 bg-gray-50">
-                                                    <div className="font-medium mb-1">① テンプレ置換</div>
+                                                    <div className="font-medium mb-1">① テンプレ置換（基本）</div>
                                                     <p className="text-[11px] text-muted-foreground mb-1">
-                                                        {"{{key}}"} は Shift 情報のフィールド名。
+                                                        {"{{key}}"} は Shift 情報のフィールド名。未定義/空文字は空として扱われ、display 項目は「—」を表示します。
                                                     </p>
                                                     <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
-                                                        {`{ "template": "{{shift_start_date}} {{shift_start_time}} ~ {{shift_end_time}}" }`}
+                                                        {`{ "template": "利用者: {{client_name}}" }`}
                                                     </pre>
                                                 </section>
 
-                                                {/* ② 参照配列（連結） */}
+                                                {/* ② 時刻は “分まで” の派生キーを利用 */}
                                                 <section className="border rounded p-2 bg-gray-50">
-                                                    <div className="font-medium mb-1">② 参照配列（連結）</div>
+                                                    <div className="font-medium mb-1">② 時刻は “分まで”</div>
                                                     <p className="text-[11px] text-muted-foreground mb-1">
-                                                        ref の順で値を取り出し、空白区切りで表示。
+                                                        API が <code>shift_start_time_hm</code> / <code>shift_end_time_hm</code> を返します（<code>HH:MM</code>）。
+                                                    </p>
+                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
+                                                        {`{ "template": "{{shift_start_date}} {{shift_start_time_hm}} ~ {{shift_end_time_hm}}" }`}
+                                                    </pre>
+                                                </section>
+
+                                                {/* ③ 参照配列（連結） */}
+                                                <section className="border rounded p-2 bg-gray-50">
+                                                    <div className="font-medium mb-1">③ 参照配列（連結）</div>
+                                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                                        <code>ref</code> の順で値を取り出し、スペース区切りで結合します。存在するキーのみ連結。
                                                     </p>
                                                     <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
                                                         {`{ "ref": ["client_name", "service_code"] }`}
                                                     </pre>
                                                 </section>
 
-                                                {/* ③ ラベル合成 */}
+                                                {/* ④ ラベル合成 + unit */}
                                                 <section className="border rounded p-2 bg-gray-50">
-                                                    <div className="font-medium mb-1">③ ラベル合成</div>
+                                                    <div className="font-medium mb-1">④ ラベル合成 + unit</div>
+                                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                                        見出し（label）は固定テキスト、値の表示は <code>template/ref</code> で制御。末尾の単位は item 定義の <code>unit</code> で付加できます。
+                                                    </p>
                                                     <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
-                                                        {`{ "template": "利用者: {{client_name}} 様" }`}
+                                                        {`{ "template": "{{client_name}} 様" }`}
                                                     </pre>
                                                 </section>
 
-                                                {/* ④ 担当名（API解決前提） */}
-                                                <section className="border rounded p-2 bg-gray-50">
-                                                    <div className="font-medium mb-1">④ 担当名（API解決）</div>
-                                                    <p className="text-[11px] text-muted-foreground mb-1">
-                                                        staff_01_user_id→名前の解決は /api/shifts/summary 側が簡単。
-                                                    </p>
-                                                    <pre className="bg-white border rounded p-2 text-[11px] whitespace-pre-wrap break-words">
-                                                        {`{ "template": "担当: {{staff_01_user_name}}" }`}
-                                                    </pre>
+                                                {/* ⑤ よくある落とし穴 */}
+                                                <section className="border rounded p-2 bg-gray-50 md:col-span-2">
+                                                    <div className="font-medium mb-1">⑤ よくある落とし穴</div>
+                                                    <ul className="list-disc pl-5 text-[11px] text-muted-foreground space-y-1">
+                                                        <li><code>{`{ "{{client_name}}"}`}</code> で空なら「—」。供給は <code>ShiftCard → link クエリ</code> か API のフォールバックで安定。</li>
+                                                        <li><code>{`{ "{{ }}"}`}</code> の内側の空白は無視されます（<code>{`{ "{{ client_name }}"}`}</code> でもOK）。</li>
+                                                        <li>未知キーは空文字扱い（= 表示されない）。</li>
+                                                        <li>時間の秒を消すには派生キー <code>_hm</code> を使う。</li>
+                                                    </ul>
                                                 </section>
 
                                             </div>
@@ -777,9 +807,10 @@ function TabDefs(): React.ReactElement {
                                     </TableCell>
                                 </TableRow>
 
-                                {/* 2行目：options(JSON) を横長で */}
-                                <TableRow className="border-b">
-                                    <TableCell className="px-1 py-1" colSpan={10}>
+                                {/* 2行目：options(JSON) + default_value（横並び） */}
+                                <TableRow className="border-b align-top">
+                                    {/* options 側（幅を小さく＝colSpan=8） */}
+                                    <TableCell className="px-1 py-1" colSpan={8}>
                                         <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
                                         <Textarea
                                             className="h-20"
@@ -787,7 +818,22 @@ function TabDefs(): React.ReactElement {
                                             onChange={(e) => handleEdit(r.id, { _options_text: e.target.value })}
                                         />
                                     </TableCell>
+
+                                    {/* default_value 側（colSpan=2） */}
+                                    <TableCell className="px-1 py-1" colSpan={2}>
+                                        <div className="text-[11px] text-muted-foreground pb-1">default_value</div>
+                                        <Input
+                                            className="h-8"
+                                            value={r._default_text ?? ""}
+                                            onChange={(e) => handleEdit(r.id, { _default_text: e.target.value })}
+                                            placeholder='"1" / "none" / ["a","b"]'
+                                        />
+                                        <div className="text-[10px] text-muted-foreground mt-1">
+                                            文字列は <code>"..."</code>、配列は JSON（例: <code>["a","b"]</code>）。空は未設定。
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
+
                             </React.Fragment>
                         ))}
                         {/* 追加行 1段目 */}
@@ -873,9 +919,9 @@ function TabDefs(): React.ReactElement {
                             </TableCell>
                         </TableRow>
 
-                        {/* 追加行 2段目：options(JSON) */}
-                        <TableRow className="border-b">
-                            <TableCell className="px-1 py-1" colSpan={10}>
+                        {/* 追加行 2段目：options + default_value */}
+                        <TableRow className="border-b align-top">
+                            <TableCell className="px-1 py-1" colSpan={8}>
                                 <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
                                 <Textarea
                                     className="h-20"
@@ -883,7 +929,17 @@ function TabDefs(): React.ReactElement {
                                     onChange={(e) => setNewRow({ ...newRow, _options_text: e.target.value })}
                                 />
                             </TableCell>
+                            <TableCell className="px-1 py-1" colSpan={2}>
+                                <div className="text-[11px] text-muted-foreground pb-1">default_value</div>
+                                <Input
+                                    className="h-8"
+                                    value={newRow._default_text ?? ""}
+                                    onChange={(e) => setNewRow({ ...newRow, _default_text: e.target.value })}
+                                    placeholder='"1" / "none" / ["a","b"]'
+                                />
+                            </TableCell>
                         </TableRow>
+
 
                     </TableBody>
                 </Table>
@@ -902,3 +958,15 @@ function TabDefs(): React.ReactElement {
 }
 
 void TabDefs
+
+// 文字列→default_value 変換（"1"→数値, ["a","b"]→配列, それ以外は文字列）
+function parseDefaultText(s?: string): unknown {
+    const t = (s ?? "").trim()
+    if (!t) return null
+    if (t.startsWith("[") || t.startsWith("{")) {
+        try { return JSON.parse(t) } catch { return t }
+    }
+    if (/^-?\\d+(?:\\.\\d+)?$/.test(t)) return Number(t)
+    if (t === "true" || t === "false") return t === "true"
+    return t
+}

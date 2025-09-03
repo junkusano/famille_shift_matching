@@ -326,7 +326,8 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
         // A) 排他 = ラジオ（N択）
         if (exclusive && opts.length >= 2) {
             const defVal = getDefault(def);
-            const cur = String((value ?? defVal) ?? ""); // 既定値を反映、未設定は未選択
+            const raw = value as unknown;
+            const cur = String((raw === "" || raw == null) ? (defVal ?? "") : raw);
             const name = `ex-${def.s_id}-${def.id}`;
             const select = (val: string) => onChange(def, val);
             return (
@@ -350,13 +351,9 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
             let curArr = toStringArray(value);
             if (curArr.length === 0) {
                 const defVal = getDefault(def);
-                if (Array.isArray(defVal)) {
-                    curArr = defVal.map(String);
-                } else if (typeof defVal === "string" && defVal.trim() !== "") {
-                    curArr = toStringArray(defVal);
-                } else if (typeof defVal === "number") {
-                    curArr = [String(defVal)];
-                }
+                if (Array.isArray(defVal)) curArr = defVal.map(String);
+                else if (typeof defVal === "string" && defVal.trim() !== "") curArr = toStringArray(defVal);
+                else if (typeof defVal === "number") curArr = [String(defVal)];
             }
 
             // 「該当なし」は相互排他に（選ばれたら他を外す）
