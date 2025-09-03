@@ -431,18 +431,27 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
         }
     }
 
-    // select
     if (t === "select") {
         const raw = def.options ?? def.options_json;
-        const opts = parseOptionsFlexible(raw);
-        const cur = String((value ?? getDefault(def)) ?? "");
+        const { items: opts, placeholder } = parseSelectOptions(raw);
+
+        // 既定値（default_value）を空文字でも効かせる
+        const defVal = getDefault(def);
+        const rawVal = value as unknown;
+        const cur = String((rawVal === "" || rawVal == null) ? (defVal ?? "") : rawVal);
+
         return (
-            <select className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e) => onChange(def, e.target.value)}>
-                <option value="">— 選択してください —</option>
+            <select
+                className="border rounded px-2 py-1 text-sm"
+                value={cur}
+                onChange={(e) => onChange(def, e.target.value)}
+            >
+                <option value="">{`— ${placeholder || "選択してください"} —`}</option>
                 {opts.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
             </select>
         );
     }
+
 
     // number
     if (t === "number") {
@@ -542,6 +551,19 @@ function parseCheckboxOptions(raw: unknown, defExclusive?: boolean): { items: Op
     const items = normalizeOptions(raw);
     return { items, exclusive: !!defExclusive };
 }
+
+function parseSelectOptions(raw: unknown): { items: OptionKV[]; placeholder?: string } {
+    const maybeObj = (Array.isArray(raw) || typeof raw !== "object") ? null : (raw as Record<string, unknown>);
+    if (maybeObj && Array.isArray(maybeObj.items)) {
+        return {
+            items: normalizeOptions(maybeObj.items),
+            placeholder: typeof maybeObj.placeholder === "string" ? maybeObj.placeholder : undefined,
+        };
+    }
+    // 既存の柔軟パーサ（配列/JSON文字列/ゆるい文字列）もそのまま活かす
+    return { items: parseOptionsFlexible(raw), placeholder: undefined };
+}
+
 
 function parseOptionsFlexible(v: unknown): OptionKV[] {
     const parsed = Array.isArray(v) ? v : tryParseJSON(v);
