@@ -716,8 +716,8 @@ function TabDefs(): React.ReactElement {
                                                 <section className="border rounded p-2 bg-gray-50 md:col-span-2">
                                                     <div className="font-medium mb-1">⑤ よくある落とし穴</div>
                                                     <ul className="list-disc pl-5 text-[11px] text-muted-foreground space-y-1">
-                                                        <li><code>{`{ "{{client_name}}"}`}</code> で空なら「—」。供給は <code>ShiftCard → link クエリ</code> か API のフォールバックで安定。</li>
-                                                        <li><code>{`{ "{{ }}"}`}</code> の内側の空白は無視されます（<code>{`{ "{{ client_name }}"}`}</code> でもOK）。</li>
+                                                        <li><code>{`{{client_name}}`}</code> で空なら「—」。供給は <code>ShiftCard → link クエリ</code> か API のフォールバックで安定。</li>
+                                                        <li><code>{`{{ }}`}</code> の内側の空白は無視されます（<code>{`{{ client_name }}`}</code> でもOK）。</li>
                                                         <li>未知キーは空文字扱い（= 表示されない）。</li>
                                                         <li>時間の秒を消すには派生キー <code>_hm</code> を使う。</li>
                                                     </ul>
