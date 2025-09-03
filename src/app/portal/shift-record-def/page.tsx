@@ -829,7 +829,7 @@ function TabDefs(): React.ReactElement {
                                             placeholder='"1" / "none" / ["a","b"]'
                                         />
                                         <div className="text-[10px] text-muted-foreground mt-1">
-                                            文字列は <code>"..."</code>、配列は JSON（例: <code>["a","b"]</code>）。空は未設定。
+                                            文字列は <code>{`"..."`}</code>、配列は JSON（例: <code>{`["a","b"]`}</code>）。空は未設定。
                                         </div>
                                     </TableCell>
                                 </TableRow>
