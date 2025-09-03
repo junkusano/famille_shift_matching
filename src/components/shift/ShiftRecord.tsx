@@ -321,7 +321,7 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
         const raw = def.options ?? def.options_json;
 
         // {items:[...], exclusive:true} も / 単純配列 [...] も受ける
-        const { items: opts, exclusive } = parseCheckboxOptions(raw, def.exclusive);
+        const { items: opts, exclusive, multiple } = parseCheckboxOptions(raw, def.exclusive);
 
         // A) 排他 = ラジオ（N択）
         if (exclusive && opts.length >= 2) {
@@ -345,8 +345,8 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
             );
         }
 
-        // B) 3件以上（非排他） = 複数チェック
-        if (opts.length >= 3) {
+        // B) 複数チェック：multiple=true または 3件以上
+        if (multiple || opts.length >= 3) {
 
             let curArr = toStringArray(value);
             if (curArr.length === 0) {
@@ -452,7 +452,6 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
         );
     }
 
-
     // number
     if (t === "number") {
         const unit = def.unit ? String(def.unit) : "";
@@ -539,17 +538,21 @@ function normalizeOptions(raw: unknown): OptionKV[] {
     return out;
 }
 
-function parseCheckboxOptions(raw: unknown, defExclusive?: boolean): { items: OptionKV[]; exclusive: boolean } {
+function parseCheckboxOptions(
+    raw: unknown,
+    defExclusive?: boolean
+): { items: OptionKV[]; exclusive: boolean; multiple: boolean } {
     // 1) { items: [...], exclusive?: boolean }
     const maybeObj = (Array.isArray(raw) || typeof raw !== "object") ? null : (raw as Record<string, unknown>);
     if (maybeObj && Array.isArray(maybeObj.items)) {
         const items = normalizeOptions(maybeObj.items);
         const exclusive = typeof maybeObj.exclusive === "boolean" ? maybeObj.exclusive : !!defExclusive;
-        return { items, exclusive };
+        const multiple = typeof maybeObj.multiple === "boolean" ? maybeObj.multiple : false;
+        return { items, exclusive, multiple };
     }
     // 2) 単純配列
     const items = normalizeOptions(raw);
-    return { items, exclusive: !!defExclusive };
+    return { items, exclusive: !!defExclusive, multiple: false };
 }
 
 function parseSelectOptions(raw: unknown): { items: OptionKV[]; placeholder?: string } {
