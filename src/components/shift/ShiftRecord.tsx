@@ -49,9 +49,18 @@ export default function ShiftRecord({
     const clientNameFromQS = sp.get("client_name") || undefined;
     const shiftInfo = useShiftInfo(shiftId);
 
+    // ShiftRecord.tsx
+    // 既存：clientNameFromQS / shiftInfo はそのまま利用
     const mergedInfo = useMemo(() => {
-        const seed = clientNameFromQS ? { client_name: clientNameFromQS } : {};
-        return { ...seed, ...(shiftInfo ?? {}) };
+        // まず API の値をベースに
+        const base = { ...(shiftInfo ?? {}) } as Record<string, unknown>;
+
+        // QS の client_name が空でなければ、API側が未設定 or 空のときだけ上書き
+        const qs = (clientNameFromQS ?? "").trim();
+        const api = typeof base.client_name === "string" ? String(base.client_name).trim() : "";
+        if (qs && !api) base.client_name = qs;
+
+        return base;
     }, [shiftInfo, clientNameFromQS]);
 
     // ====== 定義ロード ======
