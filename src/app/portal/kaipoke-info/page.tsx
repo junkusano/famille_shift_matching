@@ -50,10 +50,13 @@ const defaultFilters: Filters = {
   commuting_flg: "all",
 }
 
+const PAGE_SIZE = 50
+
 export default function KaipokeInfoPage() {
   const [items, setItems] = useState<KaipokeInfo[]>([])
   const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([])
   const [filters, setFilters] = useState<Filters>(defaultFilters)
+  const [page, setPage] = useState(1)
   const listTopRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -113,7 +116,7 @@ export default function KaipokeInfoPage() {
         standard_purpose: item.standard_purpose,
         time_adjustability_id: item.time_adjustability_id || null,
       })
-      .eq("id", item.id)
+      .eq("id", item.id) // ★ ID基準で更新
 
     if (error) {
       toast.error("保存に失敗しました")
@@ -169,14 +172,60 @@ export default function KaipokeInfoPage() {
     })
   }, [items, filters])
 
+  // フィルター変更時は1ページ目へ
+  useEffect(() => {
+    setPage(1)
+  }, [filters])
+
+  // ページ境界を自動補正
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [totalPages, page])
+
+  const startIndex = (page - 1) * PAGE_SIZE
+  const endIndex = Math.min(startIndex + PAGE_SIZE, filteredItems.length)
+  const pageItems = useMemo(
+    () => filteredItems.slice(startIndex, endIndex),
+    [filteredItems, startIndex, endIndex]
+  )
+
   const onReset = () => setFilters(defaultFilters)
 
-  const scrollToFirst = () => {
-    // 一致件の先頭へスクロール（任意）
+  const scrollToTop = () => {
     setTimeout(() => {
       listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     }, 0)
   }
+
+  const Pager = () => (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <button
+        onClick={() => { setPage(1); scrollToTop() }}
+        disabled={page === 1}
+        className="px-2 py-1 border rounded disabled:opacity-50"
+      >最初</button>
+      <button
+        onClick={() => { setPage(p => Math.max(1, p - 1)); scrollToTop() }}
+        disabled={page === 1}
+        className="px-2 py-1 border rounded disabled:opacity-50"
+      >前へ</button>
+      <span className="px-2">{page} / {totalPages}</span>
+      <button
+        onClick={() => { setPage(p => Math.min(totalPages, p + 1)); scrollToTop() }}
+        disabled={page === totalPages}
+        className="px-2 py-1 border rounded disabled:opacity-50"
+      >次へ</button>
+      <button
+        onClick={() => { setPage(totalPages); scrollToTop() }}
+        disabled={page === totalPages}
+        className="px-2 py-1 border rounded disabled:opacity-50"
+      >最後</button>
+      <div className="ml-auto text-gray-600">
+        表示: {filteredItems.length ? startIndex + 1 : 0}-{endIndex} / {filteredItems.length}
+      </div>
+    </div>
+  )
 
   return (
     <div className="p-4 overflow-x-auto">
@@ -255,22 +304,22 @@ export default function KaipokeInfoPage() {
             <option value="false">なし</option>
           </select>
         </div>
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={onReset}
-            className="px-3 py-1 rounded border bg-gray-50 hover:bg-gray-100"
-          >
-            リセット
-          </button>
-          <button
-            onClick={scrollToFirst}
-            className="px-3 py-1 rounded border bg-blue-50 hover:bg-blue-100"
-          >
-            先頭へスクロール
-          </button>
-          <div className="ml-auto text-sm text-gray-600 self-center">
-            件数：{filteredItems.length} / {items.length}
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={onReset}
+              className="px-3 py-1 rounded border bg-gray-50 hover:bg-gray-100"
+            >
+              リセット
+            </button>
+            <button
+              onClick={scrollToTop}
+              className="px-3 py-1 rounded border bg-blue-50 hover:bg-blue-100"
+            >
+              先頭へスクロール
+            </button>
           </div>
+          <Pager />
         </div>
       </div>
 
@@ -312,7 +361,7 @@ export default function KaipokeInfoPage() {
           </thead>
 
           <tbody className="border-separate border-spacing-y-4">
-            {filteredItems.map(item => (
+            {pageItems.map(item => (
               <Fragment key={item.id}>
                 <tr id={`row-${item.id}`} className="bg-white shadow-md border border-gray-400 rounded-md align-top">
                   <td className="border p-2">
@@ -468,6 +517,11 @@ export default function KaipokeInfoPage() {
             ))}
           </tbody>
         </table>
+
+        {/* 下部にもページャー */}
+        <div className="mt-3">
+          <Pager />
+        </div>
       </div>
     </div>
   )
