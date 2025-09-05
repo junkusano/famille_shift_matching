@@ -240,6 +240,7 @@ export default function ShiftRecord({
                                                 value={values[def.id]}
                                                 onChange={handleChange}
                                                 shiftInfo={mergedInfo}
+                                                allValues={values}
                                             />
                                         ))}
                                     </div>
@@ -262,11 +263,12 @@ function SaveIndicator({ state }: { state: SaveState }) {
     return <div className={`text-xs ${color}`}>{text}</div>;
 }
 
-function FieldRow({ def, value, onChange, shiftInfo }: {
+function FieldRow({ def, value, onChange, shiftInfo, allValues }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
     shiftInfo: Record<string, unknown> | null;
+    allValues: Record<string, unknown>;
 }) {
     return (
         <div className="flex flex-col gap-1">
@@ -274,17 +276,18 @@ function FieldRow({ def, value, onChange, shiftInfo }: {
                 {def.label}
                 {def.required && <span className="ml-1 text-red-500">*</span>}
             </label>
-            <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} />
+            <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} allValues={allValues} />
             {def.description && <p className="text-[11px] text-gray-500">{def.description}</p>}
         </div>
     );
 }
 
-function ItemInput({ def, value, onChange, shiftInfo }: {
+function ItemInput({ def, value, onChange, shiftInfo, allValues }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
     shiftInfo: Record<string, unknown> | null;
+    allValues: Record<string, unknown>;
 }) {
     const t = def.input_type;
 
@@ -307,6 +310,20 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
                 .map((v) => (v == null ? "" : String(v)))
                 .filter(Boolean);
             if (parts.length) text = parts.join(" ");
+        }
+
+        // default_value が "me.X" または { me: "X" } のとき、同レコードの値で埋める
+        if ((!text || text === "—") && def.default_value && allValues) {
+            const pick = (k?: string) => {
+                const v = k ? allValues[k] : undefined;
+                if (v != null && String(v) !== "") text = String(v);
+            };
+            if (typeof def.default_value === "string" && def.default_value.startsWith("me.")) {
+                pick(def.default_value.slice(3));
+            } else if (typeof def.default_value === "object") {
+                const r = def.default_value as Record<string, unknown>;
+                if (typeof r.me === "string") pick(r.me);
+            }
         }
 
         // 単位を末尾に
@@ -455,7 +472,10 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
     // number
     if (t === "number") {
         const unit = def.unit ? String(def.unit) : "";
-        const cur = String((value ?? getDefault(def)) ?? "");
+        const baseDef = resolveDefaultWithContext(def, shiftInfo);
+        const rawVal = value as unknown;
+        const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+
         return (
             <div className="flex items-center gap-1">
                 <input
@@ -474,7 +494,10 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
 
     // textarea
     if (t === "textarea") {
-        const cur = String((value ?? getDefault(def)) ?? "");
+        const baseDef = resolveDefaultWithContext(def, shiftInfo);
+        const rawVal = value as unknown;
+        const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+
         return (
             <textarea className="border rounded px-2 py-1 text-sm min-h-[84px]" value={cur} onChange={(e) => onChange(def, e.target.value)} />
         );
@@ -482,7 +505,10 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
 
     // image（URL入力）
     if (t === "image") {
-        const cur = String((value ?? getDefault(def)) ?? "");
+        const baseDef = resolveDefaultWithContext(def, shiftInfo);
+        const rawVal = value as unknown;
+        const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+
         return (
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -495,7 +521,10 @@ function ItemInput({ def, value, onChange, shiftInfo }: {
 
     // text（デフォルト）
     const unit = def.unit ? String(def.unit) : "";
-    const cur = String((value ?? getDefault(def)) ?? "");
+    const baseDef = resolveDefaultWithContext(def, shiftInfo);
+    const rawVal = value as unknown;
+    const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+
     return (
         <div className="flex items-center gap-1">
             <input type="text" className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e) => onChange(def, e.target.value)} />
@@ -638,4 +667,36 @@ function renderTemplate(tpl: string, ctx: Record<string, unknown>): string {
         if (typeof v === "number" || typeof v === "boolean") return String(v);
         return "";
     });
+}
+
+// ShiftRecord.tsx 内（util群の近く）
+function resolveDefaultWithContext(def: ShiftRecordItemDef, ctx: Record<string, unknown> | null): unknown {
+    const raw = typeof def.default_value !== "undefined" ? def.default_value : def.default;
+
+    // 1) そのままスカラ値
+    if (raw == null || typeof raw === "number" || typeof raw === "boolean") return raw;
+
+    // 2) 文字列： "{{key}}" 単体 or 任意テンプレート
+    if (typeof raw === "string") {
+        const s = raw.trim();
+        if (ctx && /\{\{.+\}\}/.test(s)) {
+            return renderTemplate(s, ctx); // 既存のテンプレ関数を流用
+        }
+        return raw;
+    }
+
+    // 3) オブジェクト記法:
+    //   { ref: "standard_route" }         -> ctx["standard_route"]
+    //   { template: "A: {{standard_purpose}} / {{standard_route}}" }
+    if (raw && typeof raw === "object" && ctx) {
+        const r = raw as Record<string, unknown>;
+        if (typeof r.ref === "string") {
+            const v = ctx[r.ref];
+            return v == null ? "" : String(v);
+        }
+        if (typeof r.template === "string") {
+            return renderTemplate(r.template, ctx);
+        }
+    }
+    return raw;
 }

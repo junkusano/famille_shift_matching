@@ -5,6 +5,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "https://myfamille.shi-on.net/api/cron/dispatch-rpa-from-digisign-request",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/analyzeAndAlert",
       "schedule": "0 7,13,17 * * *"
     },
