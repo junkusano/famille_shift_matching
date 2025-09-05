@@ -5,7 +5,7 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "https://myfamille.shi-on.net/api/cron/dispatch-rpa-from-digisign-request",
+      "path": "/api/cron/dispatch-rpa-from-digisign-request",
       "schedule": "*/5 * * * *"
     },
     {
