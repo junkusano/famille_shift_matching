@@ -103,7 +103,7 @@ export default function ShiftRecord({
             try {
                 if (recordId) { setRid(recordId); return; }
                 // 新API: /shift_records で既存レコード検索
-                const res = await fetch(`/shift_records?shift_id=${encodeURIComponent(shiftId)}`);
+                const res = await fetch(`/api/shift-records?shift_id=${encodeURIComponent(shiftId)}`);
                 if (res.ok) {
                     const data = await res.json(); // 期待: { id, status, values }
                     if (cancelled) return;
@@ -112,7 +112,7 @@ export default function ShiftRecord({
                     if (data?.status === "完了") setRecordLocked(true);
                 } else {
                     // 見つからなければ新規作成（status: 入力中）
-                    const r2 = await fetch(`/shift_records`, {
+                    const r2 = await fetch(`/shift-records`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ shift_id: shiftId, status: "入力中" }),
@@ -139,14 +139,14 @@ export default function ShiftRecord({
         try {
             // 新API: /shift_record_items へ一括登録（追記/アップサート前提）
             const rows = payload.map(p => ({ record_id: rid, item_def_id: p.item_def_id, value: p.value }));
-            const res = await fetch(`/shift_record_items`, {
+            const res = await fetch(`/api/shift-record-items`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(rows),
             });
             if (!res.ok) throw new Error("save failed");
             // レコード本体も都度 更新日時 + ステータスを「入力中」に維持
-            await fetch(`/shift_records/${rid}`, {
+            await fetch(`/api/shift-records/${rid}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "入力中" }),
@@ -198,7 +198,7 @@ export default function ShiftRecord({
             // 残キューがあれば先にフラッシュ
             await flushQueue();
             setSaveState("saving");
-            const res = await fetch(`/shift_records/${rid}`, {
+            const res = await fetch(`/api/shift-records/${rid}`,  {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "完了" }),
