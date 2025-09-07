@@ -1,4 +1,7 @@
 // src/app/api/shift-records/route.ts
+// Next.js 15 対応版（最小スキーマ準拠：id/shift_id/status/created_by/created_at/updated_at）
+// - shift_records に client_name / values 列は無い前提
+// - DB には status を 'draft'|'done' として保存、API では '入力中'|'完了' にマッピング
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -6,15 +9,18 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 export const runtime = "nodejs";        // Supabase Admin は Node 実行を推奨
 export const dynamic = "force-dynamic"; // キャッシュさせない
 
-// --- 型（最小限・このファイルだけで自己完結） ---
-export type ShiftStatus = "入力中" | "完了" | (string & {});
+// --- status 変換 ---
+type DbStatus = "draft" | "done" | (string & {});
+type ApiStatus = "入力中" | "完了" | (string & {});
+const toApiStatus = (s: DbStatus): ApiStatus => (s === "draft" ? "入力中" : s === "done" ? "完了" : (s as ApiStatus));
+const toDbStatus = (s: unknown): DbStatus => (s === "完了" || s === "done") ? "done" : "draft"; // 既定は draft
+
+// --- 選択カラム（最小） ---
+// shift_id は WHERE に使うのみ。返却は id/status/updated_at のみで十分
 export type ShiftRecordSelect = {
   id: string;
-  status: ShiftStatus;
-  client_name: string | null;
-  updated_at: string | null; // timestamp
-  // DB に values 列が無い環境もあるため optional とする
-  values?: unknown;
+  status: DbStatus;
+  updated_at: string | null; // timestamptz
 };
 
 // Supabase/PostgREST のエラーを安全に整形
@@ -34,6 +40,7 @@ function asPgError(e: unknown): { message?: string; code?: string; details?: unk
 // リクエスト相関ID
 const rid = () => {
   try {
+    // ts-expect-error: Node/Edge の差異を吸収
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   } catch {}
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -43,7 +50,6 @@ export async function GET(req: Request) {
   const id = rid();
   const url = new URL(req.url);
   const shiftId = url.searchParams.get("shift_id");
-  const debug = url.searchParams.get("_debug") === "1";
 
   const log = (...a: unknown[]) => console.info("[/api/shift-records][GET]", id, ...a);
   const err = (...a: unknown[]) => console.error("[/api/shift-records][GET]", id, ...a);
@@ -56,10 +62,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const sb = supabaseAdmin; // 互換エクスポート：関数呼びにしている場合は supabaseAdmin()
+    const sb = supabaseAdmin; // 互換エクスポート
 
-    // values 列が無い場合は下の columns から "values" を外してください
-    const columns = "id,status,client_name,updated_at,values";
+    const columns = "id,status,updated_at"; // ← 最小構成
 
     log("select shift_records", { shiftId, columns });
     const { data, error } = await sb
@@ -84,10 +89,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "not found", rid: id }, { status: 404, headers: { "x-debug-rid": id } });
     }
 
-    log("ok", { record_id: data.id, status: data.status });
-    return NextResponse.json(data, {
-      headers: { "x-debug-rid": id, ...(debug ? { "x-sql-select": columns } : {}) },
-    });
+    const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
+    log("ok", { record_id: data.id, status_db: data.status, status_api: out.status });
+    return NextResponse.json(out, { headers: { "x-debug-rid": id } });
   } catch (e: unknown) {
     const pe = asPgError(e);
     err("exception", pe);
@@ -115,25 +119,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid body", rid: id }, { status: 400 });
   }
   const body = raw as Record<string, unknown>;
-  const shift_id = typeof body.shift_id === "string" ? body.shift_id : "";
-  const status = body.status === "完了" ? "完了" : "入力中"; // それ以外は既定で「入力中」
-  const client_name = typeof body.client_name === "string" ? body.client_name : body.client_name === null ? null : null;
+  const shift_id = typeof body.shift_id === "string" ? body.shift_id : ""; // uuid string を想定
+  const statusDb = toDbStatus(body.status);
 
-  log("payload", { shift_id, status, has_client_name: client_name != null });
+  log("payload", { shift_id, statusDb });
 
   if (!shift_id) {
     err("missing shift_id");
     return NextResponse.json({ error: "missing shift_id", rid: id }, { status: 400 });
   }
 
-  // 3) 追加：必要なら重複を回避（DB に UNIQUE(shift_id) があると堅い）
   try {
     const sb = supabaseAdmin;
     const { data, error } = await sb
       .from("shift_records")
-      .insert({ shift_id, status, client_name })
-      .select("id,status")
-      .single<{ id: string; status: ShiftStatus }>();
+      .insert({ shift_id, status: statusDb })
+      .select("id,status,updated_at")
+      .single<ShiftRecordSelect>();
 
     if (error) {
       const pe = asPgError(error);
@@ -141,8 +143,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
     }
 
-    log("created", { record_id: data?.id, status: data?.status });
-    return NextResponse.json(data, { status: 201, headers: { "x-debug-rid": id } });
+    const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
+    log("created", { record_id: data.id, status_db: data.status, status_api: out.status });
+    return NextResponse.json(out, { status: 201, headers: { "x-debug-rid": id } });
   } catch (e: unknown) {
     const pe = asPgError(e);
     err("exception", pe);
