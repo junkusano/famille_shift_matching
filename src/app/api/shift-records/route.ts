@@ -1,51 +1,45 @@
 // src/app/api/shift-records/route.ts
-// Next.js 15 / bigint(=int8) shift_id / 厳密型 / 充実ログ / any 不使用版
-// - テーブル: public.shift_records(id uuid PK, shift_id bigint, status text, created_by uuid, created_at, updated_at)
-// - ステータスは DB: 'draft'|'submitted'|'approved'|'archived'、API: '入力中'|'完了' に相互変換
+// - GET: 存在しなければその場で作成（Create-on-Read）→ 201 を返す
+// - POST: 明示作成（互換）
+// - DB status: 'draft' | 'submitted' | 'approved' | 'archived'
+// - API status: '入力中' | '完了' に変換
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { z } from "zod";
 
-export const runtime = "nodejs";        // Supabase Admin は Node 実行を推奨
-export const dynamic = "force-dynamic"; // キャッシュさせない
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// --- 型とマッピング -------------------------------------------------------
-// DB 側の許容ステータス（チェック制約に合わせる）
+// ---- 型 & 変換 ----
 type DbStatus = "draft" | "submitted" | "approved" | "archived" | (string & {});
-// API で露出するステータス
-export type ApiStatus = "入力中" | "完了" | (string & {});
-
+type ApiStatus = "入力中" | "完了" | (string & {});
 const toApiStatus = (s: DbStatus): ApiStatus => (s === "approved" ? "完了" : "入力中");
 const toDbStatus = (s: unknown): DbStatus => (s === "完了" ? "approved" : "draft");
 
-// SELECT で返す最小カラム
-export type ShiftRecordRow = { id: string; status: DbStatus; updated_at: string | null };
+type ShiftRecordRow = { id: string; status: DbStatus; updated_at: string | null };
 
-// shift_id のバリデーション（bigint 想定: 数値 or 数値文字列）
-const ShiftIdSchema = z.union([z.number().finite(), z.string().regex(/^-?\d+$/)]);
+const ShiftIdSchema = z.union([z.number().finite(), z.string().regex(/^-?\d+$/)]); // bigint を数値/数値文字列で許容
 const PostBodySchema = z.object({
   shift_id: ShiftIdSchema,
   status: z.union([z.literal("入力中"), z.literal("完了")]).optional(),
 });
 
-// --- ユーティリティ -------------------------------------------------------
+// ---- util ----
 function rid(): string {
   try {
-    // ts-expect-error: Edge/Node 差異を吸収
+    // ts-expect-error Edge/Node差異を吸収
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   } catch {}
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
 function parseShiftId(v: number | string): number {
   if (typeof v === "number") return Math.trunc(v);
   const n = Number(v);
   if (!Number.isFinite(n)) throw new Error("invalid shift_id (must be number for bigint)");
   return Math.trunc(n);
 }
-
 function pgErr(e: unknown): { message: string; code?: string; details?: unknown; hint?: unknown } {
   const pe = (e as Partial<PostgrestError>) || {};
   const message = typeof pe.message === "string" ? pe.message : (e instanceof Error ? e.message : String(e));
@@ -53,7 +47,7 @@ function pgErr(e: unknown): { message: string; code?: string; details?: unknown;
   return { message, code, details: pe.details, hint: pe.hint };
 }
 
-// --- Handlers -------------------------------------------------------------
+// ---- GET: 存在しなければ作成 ----
 export async function GET(req: Request) {
   const id = rid();
   const url = new URL(req.url);
@@ -69,6 +63,9 @@ export async function GET(req: Request) {
 
   try {
     const sb = supabaseAdmin;
+
+    // 1) 取得
+    console.info("[/api/shift-records][GET] select", id, { shift_id: shiftIdNum });
     const { data, error } = await sb
       .from("shift_records")
       .select("id,status,updated_at")
@@ -83,14 +80,29 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
     }
 
-    if (!data) {
-      console.info("[/api/shift-records][GET]", id, "not found");
-      return NextResponse.json({ error: "not found", rid: id }, { status: 404, headers: { "x-debug-rid": id } });
+    if (data) {
+      const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
+      console.info("[/api/shift-records][GET] hit", id, { record_id: data.id, status_db: data.status, status_api: out.status });
+      return NextResponse.json(out, { headers: { "x-debug-rid": id } });
     }
 
-    const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
-    console.info("[/api/shift-records][GET] ok", id, { record_id: data.id, status_db: data.status, status_api: out.status });
-    return NextResponse.json(out, { headers: { "x-debug-rid": id } });
+    // 2) 未存在 → その場で作成
+    console.info("[/api/shift-records][GET] create-on-read", id, { shift_id: shiftIdNum });
+    const { data: created, error: insErr } = await sb
+      .from("shift_records")
+      .insert({ shift_id: shiftIdNum, status: "draft" as DbStatus })
+      .select("id,status,updated_at")
+      .single<ShiftRecordRow>();
+
+    if (insErr) {
+      const pe = pgErr(insErr);
+      console.error("[/api/shift-records][GET] insert error", id, pe);
+      return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
+    }
+
+    const out = { id: created.id, status: toApiStatus(created.status), updated_at: created.updated_at };
+    console.info("[/api/shift-records][GET] created", id, { record_id: created.id, status_db: created.status, status_api: out.status });
+    return NextResponse.json(out, { status: 201, headers: { "x-debug-rid": id } });
   } catch (e: unknown) {
     const pe = pgErr(e);
     console.error("[/api/shift-records][GET] exception", id, pe);
@@ -98,6 +110,7 @@ export async function GET(req: Request) {
   }
 }
 
+// ---- POST: 明示作成（互換） ----
 export async function POST(req: Request) {
   const id = rid();
 
