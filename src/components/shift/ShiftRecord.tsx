@@ -75,9 +75,9 @@ export default function ShiftRecord({
             try {
                 setLoadingDefs(true);
                 const [l, s, d] = await Promise.all([
-                    fetch("/api/shift-record-def/category-l").then((r) => r.json()),
-                    fetch("/api/shift-record-def/category-s").then((r) => r.json()),
-                    fetch("/api/shift-record-def/item-defs").then((r) => r.json()),
+                    fetch("/api/shift-record-def/category-l", { cache: "no-store" }).then((r) => r.json()),
+                    fetch("/api/shift-record-def/category-s", { cache: "no-store" }).then((r) => r.json()),
+                    fetch("/api/shift-record-def/item-defs", { cache: "no-store" }).then((r) => r.json()),
                 ]);
                 if (!cancelled) setDefs({ L: l ?? [], S: s ?? [], items: d ?? [] });
             } catch {
@@ -97,13 +97,32 @@ export default function ShiftRecord({
 
     useEffect(() => { onSavedStatusChange?.(saveState); }, [saveState, onSavedStatusChange]);
 
+    const parseValueText = useCallback((s: unknown): unknown => {
+        if (s == null) return "";
+        if (typeof s !== "string") return s;
+        const t = s.trim();
+        if (!t) return "";
+        try { return JSON.parse(t); } catch { return s; }
+    }, []);
+
+    const loadItems = useCallback(async (recordId_: string) => {
+        console.info("[ShiftRecord] loadItems ->", recordId_); // 見えるログ
+        const r = await fetch(`/api/shift-record-items?record_id=${encodeURIComponent(recordId_)}`, { cache: "no-store" });
+        if (!r.ok) { console.warn("[ShiftRecord] items GET !ok", r.status); return; }
+        const j = await r.json(); // { items: [...] }
+        const next: Record<string, unknown> = {};
+        for (const it of (j.items ?? [])) next[it.item_def_id] = parseValueText(it.value_text);
+        setValues((prev) => ({ ...next, ...prev })); // 既存値は壊さずマージ
+    }, [parseValueText]);
+
+
     useEffect(() => {
         let cancelled = false;
         (async () => {
             try {
                 if (recordId) { setRid(recordId); return; }
                 // 新API: /shift_records で既存レコード検索
-                const res = await fetch(`/api/shift-records?shift_id=${encodeURIComponent(shiftId)}`);
+                const res = await fetch(`/api/shift-records?shift_id=${encodeURIComponent(shiftId)}`, { cache: "no-store" });
                 if (res.ok) {
                     const data = await res.json(); // 期待: { id, status, values }
                     if (cancelled) return;
@@ -112,7 +131,7 @@ export default function ShiftRecord({
                     if (data?.status === "完了") setRecordLocked(true);
                 } else {
                     // 見つからなければ新規作成（status: 入力中）
-                    const r2 = await fetch(`/shift-records`, {
+                    const r2 = await fetch(`/api/shift-records`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ shift_id: shiftId, status: "入力中" }),
@@ -127,6 +146,13 @@ export default function ShiftRecord({
         })();
         return () => { cancelled = true; };
     }, [shiftId, recordId]);
+
+    useEffect(() => {
+        if (!rid) return;
+        loadItems(rid).catch((e) => {
+            console.error("[ShiftRecord] loadItems error", e);
+        });
+    }, [rid, loadItems]);
 
     // ====== 自動保存（500msデバウンス） ======
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -198,7 +224,7 @@ export default function ShiftRecord({
             // 残キューがあれば先にフラッシュ
             await flushQueue();
             setSaveState("saving");
-            const res = await fetch(`/api/shift-records/${rid}`,  {
+            const res = await fetch(`/api/shift-records/${rid}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "完了" }),
