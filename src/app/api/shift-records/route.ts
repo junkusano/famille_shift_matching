@@ -1,154 +1,143 @@
 // src/app/api/shift-records/route.ts
-// Next.js 15 対応版（最小スキーマ準拠：id/shift_id/status/created_by/created_at/updated_at）
-// - shift_records に client_name / values 列は無い前提
-// - DB には status を 'draft'|'done' として保存、API では '入力中'|'完了' にマッピング
+// Next.js 15 / bigint(=int8) shift_id / 厳密型 / 充実ログ / any 不使用版
+// - テーブル: public.shift_records(id uuid PK, shift_id bigint, status text, created_by uuid, created_at, updated_at)
+// - ステータスは DB: 'draft'|'submitted'|'approved'|'archived'、API: '入力中'|'完了' に相互変換
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import type { PostgrestError } from "@supabase/supabase-js";
+import { z } from "zod";
 
 export const runtime = "nodejs";        // Supabase Admin は Node 実行を推奨
 export const dynamic = "force-dynamic"; // キャッシュさせない
 
-// --- status 変換 ---
-type DbStatus = "draft" | "done" | (string & {});
-type ApiStatus = "入力中" | "完了" | (string & {});
-const toApiStatus = (s: DbStatus): ApiStatus => (s === "draft" ? "入力中" : s === "done" ? "完了" : (s as ApiStatus));
-const toDbStatus = (s: unknown): DbStatus => (s === "完了" || s === "done") ? "done" : "draft"; // 既定は draft
+// --- 型とマッピング -------------------------------------------------------
+// DB 側の許容ステータス（チェック制約に合わせる）
+type DbStatus = "draft" | "submitted" | "approved" | "archived" | (string & {});
+// API で露出するステータス
+export type ApiStatus = "入力中" | "完了" | (string & {});
 
-// --- 選択カラム（最小） ---
-// shift_id は WHERE に使うのみ。返却は id/status/updated_at のみで十分
-export type ShiftRecordSelect = {
-  id: string;
-  status: DbStatus;
-  updated_at: string | null; // timestamptz
-};
+const toApiStatus = (s: DbStatus): ApiStatus => (s === "approved" ? "完了" : "入力中");
+const toDbStatus = (s: unknown): DbStatus => (s === "完了" ? "approved" : "draft");
 
-// Supabase/PostgREST のエラーを安全に整形
-function asPgError(e: unknown): { message?: string; code?: string; details?: unknown; hint?: unknown } {
-  if (typeof e === "object" && e !== null) {
-    const r = e as Record<string, unknown>;
-    return {
-      message: typeof r.message === "string" ? r.message : undefined,
-      code: typeof r.code === "string" ? r.code : undefined,
-      details: r.details,
-      hint: r.hint,
-    };
-  }
-  return { message: typeof e === "string" ? e : undefined };
-}
+// SELECT で返す最小カラム
+export type ShiftRecordRow = { id: string; status: DbStatus; updated_at: string | null };
 
-// リクエスト相関ID
-const rid = () => {
+// shift_id のバリデーション（bigint 想定: 数値 or 数値文字列）
+const ShiftIdSchema = z.union([z.number().finite(), z.string().regex(/^-?\d+$/)]);
+const PostBodySchema = z.object({
+  shift_id: ShiftIdSchema,
+  status: z.union([z.literal("入力中"), z.literal("完了")]).optional(),
+});
+
+// --- ユーティリティ -------------------------------------------------------
+function rid(): string {
   try {
-    // ts-expect-error: Node/Edge の差異を吸収
+    // ts-expect-error: Edge/Node 差異を吸収
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   } catch {}
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-};
+}
 
+function parseShiftId(v: number | string): number {
+  if (typeof v === "number") return Math.trunc(v);
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error("invalid shift_id (must be number for bigint)");
+  return Math.trunc(n);
+}
+
+function pgErr(e: unknown): { message: string; code?: string; details?: unknown; hint?: unknown } {
+  const pe = (e as Partial<PostgrestError>) || {};
+  const message = typeof pe.message === "string" ? pe.message : (e instanceof Error ? e.message : String(e));
+  const code = typeof pe.code === "string" ? pe.code : undefined;
+  return { message, code, details: pe.details, hint: pe.hint };
+}
+
+// --- Handlers -------------------------------------------------------------
 export async function GET(req: Request) {
   const id = rid();
   const url = new URL(req.url);
-  const shiftId = url.searchParams.get("shift_id");
+  const qsShift = url.searchParams.get("shift_id");
 
-  const log = (...a: unknown[]) => console.info("[/api/shift-records][GET]", id, ...a);
-  const err = (...a: unknown[]) => console.error("[/api/shift-records][GET]", id, ...a);
+  console.info("[/api/shift-records][GET]", id, { path: url.pathname, qs: Object.fromEntries(url.searchParams.entries()) });
 
-  log("start", { path: url.pathname, qs: Object.fromEntries(url.searchParams.entries()) });
-
-  if (!shiftId) {
-    err("missing shift_id");
-    return NextResponse.json({ error: "missing shift_id", rid: id }, { status: 400 });
+  const parsed = ShiftIdSchema.safeParse(qsShift ?? undefined);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid shift_id (must be bigint number)", rid: id }, { status: 400 });
   }
-
-  try {
-    const sb = supabaseAdmin; // 互換エクスポート
-
-    const columns = "id,status,updated_at"; // ← 最小構成
-
-    log("select shift_records", { shiftId, columns });
-    const { data, error } = await sb
-      .from("shift_records")
-      .select(columns)
-      .eq("shift_id", shiftId)
-      .order("updated_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle<ShiftRecordSelect>();
-
-    if (error) {
-      const pe = asPgError(error);
-      err("supabase select error", pe);
-      return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, {
-        status: 500,
-        headers: { "x-debug-rid": id },
-      });
-    }
-
-    if (!data) {
-      log("not found");
-      return NextResponse.json({ error: "not found", rid: id }, { status: 404, headers: { "x-debug-rid": id } });
-    }
-
-    const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
-    log("ok", { record_id: data.id, status_db: data.status, status_api: out.status });
-    return NextResponse.json(out, { headers: { "x-debug-rid": id } });
-  } catch (e: unknown) {
-    const pe = asPgError(e);
-    err("exception", pe);
-    return NextResponse.json({ error: pe.message ?? "internal error", rid: id }, { status: 500, headers: { "x-debug-rid": id } });
-  }
-}
-
-export async function POST(req: Request) {
-  const id = rid();
-  const log = (...a: unknown[]) => console.info("[/api/shift-records][POST]", id, ...a);
-  const err = (...a: unknown[]) => console.error("[/api/shift-records][POST]", id, ...a);
-
-  // 1) JSON 受理
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    err("invalid json");
-    return NextResponse.json({ error: "invalid json", rid: id }, { status: 400 });
-  }
-
-  // 2) 最小バリデーション（zod 無し）
-  if (typeof raw !== "object" || raw === null) {
-    err("invalid body shape");
-    return NextResponse.json({ error: "invalid body", rid: id }, { status: 400 });
-  }
-  const body = raw as Record<string, unknown>;
-  const shift_id = typeof body.shift_id === "string" ? body.shift_id : ""; // uuid string を想定
-  const statusDb = toDbStatus(body.status);
-
-  log("payload", { shift_id, statusDb });
-
-  if (!shift_id) {
-    err("missing shift_id");
-    return NextResponse.json({ error: "missing shift_id", rid: id }, { status: 400 });
-  }
+  const shiftIdNum = parseShiftId(parsed.data);
 
   try {
     const sb = supabaseAdmin;
     const { data, error } = await sb
       .from("shift_records")
-      .insert({ shift_id, status: statusDb })
       .select("id,status,updated_at")
-      .single<ShiftRecordSelect>();
+      .eq("shift_id", shiftIdNum)
+      .order("updated_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle<ShiftRecordRow>();
 
     if (error) {
-      const pe = asPgError(error);
-      err("supabase insert error", pe);
+      const pe = pgErr(error);
+      console.error("[/api/shift-records][GET] select error", id, pe);
+      return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
+    }
+
+    if (!data) {
+      console.info("[/api/shift-records][GET]", id, "not found");
+      return NextResponse.json({ error: "not found", rid: id }, { status: 404, headers: { "x-debug-rid": id } });
+    }
+
+    const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
+    console.info("[/api/shift-records][GET] ok", id, { record_id: data.id, status_db: data.status, status_api: out.status });
+    return NextResponse.json(out, { headers: { "x-debug-rid": id } });
+  } catch (e: unknown) {
+    const pe = pgErr(e);
+    console.error("[/api/shift-records][GET] exception", id, pe);
+    return NextResponse.json({ error: pe.message, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
+  }
+}
+
+export async function POST(req: Request) {
+  const id = rid();
+
+  let bodyUnknown: unknown;
+  try {
+    bodyUnknown = await req.json();
+  } catch {
+    return NextResponse.json({ error: "invalid json", rid: id }, { status: 400 });
+  }
+
+  const parsed = PostBodySchema.safeParse(bodyUnknown);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "validation failed", rid: id, issues: parsed.error.issues }, { status: 400 });
+  }
+
+  const shiftIdNum = parseShiftId(parsed.data.shift_id);
+  const statusDb: DbStatus = parsed.data.status ? toDbStatus(parsed.data.status) : "draft";
+
+  console.info("[/api/shift-records][POST]", id, { shift_id: shiftIdNum, statusDb });
+
+  try {
+    const sb = supabaseAdmin;
+    const { data, error } = await sb
+      .from("shift_records")
+      .insert({ shift_id: shiftIdNum, status: statusDb })
+      .select("id,status,updated_at")
+      .single<ShiftRecordRow>();
+
+    if (error) {
+      const pe = pgErr(error);
+      console.error("[/api/shift-records][POST] insert error", id, pe);
       return NextResponse.json({ error: pe.message, code: pe.code, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
     }
 
     const out = { id: data.id, status: toApiStatus(data.status), updated_at: data.updated_at };
-    log("created", { record_id: data.id, status_db: data.status, status_api: out.status });
+    console.info("[/api/shift-records][POST] created", id, { record_id: data.id, status_db: data.status, status_api: out.status });
     return NextResponse.json(out, { status: 201, headers: { "x-debug-rid": id } });
   } catch (e: unknown) {
-    const pe = asPgError(e);
-    err("exception", pe);
-    return NextResponse.json({ error: pe.message ?? "internal error", rid: id }, { status: 500, headers: { "x-debug-rid": id } });
+    const pe = pgErr(e);
+    console.error("[/api/shift-records][POST] exception", id, pe);
+    return NextResponse.json({ error: pe.message, rid: id }, { status: 500, headers: { "x-debug-rid": id } });
   }
 }
