@@ -42,6 +42,8 @@ export type ShiftRecordItemDef = {
     active: boolean
     options: Record<string, unknown>
     default_value?: unknown
+    rules_json?: Record<string, unknown> | null
+    meta_json?: Record<string, unknown> | null
 }
 
 const PAGE_SIZE = 50
@@ -59,6 +61,8 @@ type ItemDefDraft = {
     active?: boolean
     _options_text?: string
     _default_text?: string
+    _rules_text?: string
+    _meta_text?: string
 }
 
 type ItemDefCreate = {
@@ -72,6 +76,13 @@ type ItemDefCreate = {
     required: boolean
     active: boolean
     options: Record<string, unknown>
+}
+
+type WithOptionsText = ShiftRecordItemDef & {
+    _options_text?: string
+    _default_text?: string
+    _rules_text?: string
+    _meta_text?: string
 }
 
 const INPUT_TYPES = ["checkbox", "select", "number", "text", "textarea", "image", "display"] as const
@@ -475,7 +486,9 @@ function TabDefs(): React.ReactElement {
                         ? ""
                         : (typeof x.default_value === "string"
                             ? x.default_value
-                            : JSON.stringify(x.default_value))
+                            : JSON.stringify(x.default_value)),
+                _rules_text: JSON.stringify(x.rules_json ?? {}, null, 2),
+                _meta_text: JSON.stringify(x.meta_json ?? {}, null, 2),
             })))
         }
         if (l.ok) setCatsL(await l.json())
@@ -524,22 +537,27 @@ function TabDefs(): React.ReactElement {
         setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch }) : r)))
     }
 
-    type WithOptionsText = ShiftRecordItemDef & {
-        _options_text?: string
-        _default_text?: string
-    }
-
     // save() 内：_default_text を default_value に反映
     const save = async (row: WithOptionsText) => {
-        const { _options_text, _default_text, ...rest } = row
+        const { _options_text, _default_text, _rules_text, _meta_text, ...rest } = row
         let optionsParsed: Record<string, unknown> = {}
         try { optionsParsed = _options_text ? JSON.parse(_options_text) : {} }
         catch { alert("options がJSONではありません"); return }
+
+        let rulesParsed: Record<string, unknown> = {}
+        try { rulesParsed = _rules_text ? JSON.parse(_rules_text) : {} }
+        catch { alert("rules_json がJSONではありません"); return }
+
+        let metaParsed: Record<string, unknown> = {}
+        try { metaParsed = _meta_text ? JSON.parse(_meta_text) : {} }
+        catch { alert("meta_json がJSONではありません"); return }
 
         const payload: ShiftRecordItemDef = {
             ...(rest as ShiftRecordItemDef),
             options: optionsParsed,
             default_value: parseDefaultText(_default_text),
+            rules_json: rulesParsed,
+            meta_json: metaParsed,
         }
 
         const r = await fetch(`/api/shift-record-def/item-defs/${row.id}`, {
@@ -564,7 +582,19 @@ function TabDefs(): React.ReactElement {
         let optionsParsed: Record<string, unknown> = {}
         try { optionsParsed = draft._options_text ? JSON.parse(draft._options_text) : {} } catch { alert("options がJSONではありません"); return }
 
-        const payloadAdd: ItemDefCreate = {
+        let rulesParsed: Record<string, unknown> = {}
+        try { rulesParsed = draft._rules_text ? JSON.parse(draft._rules_text) : {} }
+        catch { alert("rules_json がJSONではありません"); return }
+
+        let metaParsed: Record<string, unknown> = {}
+        try { metaParsed = draft._meta_text ? JSON.parse(draft._meta_text) : {} }
+        catch { alert("meta_json がJSONではありません"); return }
+
+
+        const payloadAdd: ItemDefCreate & {
+            rules_json?: Record<string, unknown>
+            meta_json?: Record<string, unknown>
+        } = {
             l_id: draft.l_id ?? null,
             s_id: draft.s_id ?? null,
             code: draft.code,
@@ -575,6 +605,8 @@ function TabDefs(): React.ReactElement {
             required: Boolean(draft.required),
             active: draft.active !== false,
             options: optionsParsed,
+            rules_json: rulesParsed,
+            meta_json: metaParsed,
         }
 
         const r = await fetch(`/api/shift-record-def/item-defs`, {
@@ -807,10 +839,10 @@ function TabDefs(): React.ReactElement {
                                     </TableCell>
                                 </TableRow>
 
-                                {/* 2行目：options(JSON) + default_value（横並び） */}
+                                {/* 2行目：options + rules_json + meta_json + default_value */}
                                 <TableRow className="border-b align-top">
-                                    {/* options 側（幅を小さく＝colSpan=8） */}
-                                    <TableCell className="px-1 py-1" colSpan={8}>
+                                    {/* options */}
+                                    <TableCell className="px-1 py-1" colSpan={4}>
                                         <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
                                         <Textarea
                                             className="h-20"
@@ -819,7 +851,29 @@ function TabDefs(): React.ReactElement {
                                         />
                                     </TableCell>
 
-                                    {/* default_value 側（colSpan=2） */}
+                                    {/* ★ rules_json */}
+                                    <TableCell className="px-1 py-1" colSpan={2}>
+                                        <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                        <Textarea
+                                            className="h-20"
+                                            value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
+                                            onChange={(e) => handleEdit(r.id, { _rules_text: e.target.value })}
+                                            placeholder={`{\n  "when": { "service_code": { "includes": "身" } },\n  "set": { "active": false }\n}`}
+                                        />
+                                    </TableCell>
+
+                                    {/* ★ meta_json */}
+                                    <TableCell className="px-1 py-1" colSpan={2}>
+                                        <div className="text-[11px] text-muted-foreground pb-1">meta_json(JSON)</div>
+                                        <Textarea
+                                            className="h-20"
+                                            value={r._meta_text ?? JSON.stringify(r.meta_json ?? {}, null, 2)}
+                                            onChange={(e) => handleEdit(r.id, { _meta_text: e.target.value })}
+                                            placeholder={`{\n  "notify": {\n    "enabled": true,\n    "when": { "equals": "1" },\n    "target": "client"\n  }\n}`}
+                                        />
+                                    </TableCell>
+
+                                    {/* default_value（据え置き） */}
                                     <TableCell className="px-1 py-1" colSpan={2}>
                                         <div className="text-[11px] text-muted-foreground pb-1">default_value</div>
                                         <Input
@@ -919,14 +973,30 @@ function TabDefs(): React.ReactElement {
                             </TableCell>
                         </TableRow>
 
-                        {/* 追加行 2段目：options + default_value */}
+                        {/* 追加行 2段目：options + rules_json + meta_json + default_value */}
                         <TableRow className="border-b align-top">
-                            <TableCell className="px-1 py-1" colSpan={8}>
+                            <TableCell className="px-1 py-1" colSpan={4}>
                                 <div className="text-[11px] text-muted-foreground pb-1">options(JSON)</div>
                                 <Textarea
                                     className="h-20"
                                     value={newRow._options_text ?? "{}"}
                                     onChange={(e) => setNewRow({ ...newRow, _options_text: e.target.value })}
+                                />
+                            </TableCell>
+                            <TableCell className="px-1 py-1" colSpan={2}>
+                                <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                <Textarea
+                                    className="h-20"
+                                    value={newRow._rules_text ?? "{}"}
+                                    onChange={(e) => setNewRow({ ...newRow, _rules_text: e.target.value })}
+                                />
+                            </TableCell>
+                            <TableCell className="px-1 py-1" colSpan={2}>
+                                <div className="text-[11px] text-muted-foreground pb-1">meta_json(JSON)</div>
+                                <Textarea
+                                    className="h-20"
+                                    value={newRow._meta_text ?? "{}"}
+                                    onChange={(e) => setNewRow({ ...newRow, _meta_text: e.target.value })}
                                 />
                             </TableCell>
                             <TableCell className="px-1 py-1" colSpan={2}>
@@ -939,8 +1009,6 @@ function TabDefs(): React.ReactElement {
                                 />
                             </TableCell>
                         </TableRow>
-
-
                     </TableBody>
                 </Table>
             </div>

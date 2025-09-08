@@ -17,6 +17,11 @@ export type ShiftRecordItemDef = {
   sort_order: number;
   active: boolean;
   options: Record<string, unknown>;
+
+  rules_json?: Record<string, unknown> | null
+  meta_json?: Record<string, unknown> | null
 };
+
+
 
 
