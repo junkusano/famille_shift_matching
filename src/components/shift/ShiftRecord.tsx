@@ -271,11 +271,17 @@ function resolveDefaultValue(
     if (raw == null) return raw;
 
     // 1) "me.X" → X の item を参照。未保存なら idToDefault[X] を使う
-    const pickMe = (refCode: string): unknown => {
-        const refId = codeToId[refCode];
-        const saved = refId ? allValues[refId] : undefined;
+    // 1) "me.X" → code優先で探し、無ければ item_def_id 直指定も許容
+    const pickMe = (ref: string): unknown => {
+        const refId =
+            codeToId[ref] ??
+            (Object.prototype.hasOwnProperty.call(allValues, ref) ? ref :
+                Object.prototype.hasOwnProperty.call(idToDefault, ref) ? ref : undefined);
+
+        if (!refId) return "";
+        const saved = allValues[refId];
         if (saved !== "" && saved != null) return saved;
-        return refId ? idToDefault[refId] ?? "" : "";
+        return idToDefault[refId] ?? "";
     };
 
     if (typeof raw === "string") {
@@ -486,15 +492,27 @@ export default function ShiftRecord({
         return m;
     }, [defs.items]);
 
-    // id -> rules適用後の default_value
+    // id -> rules適用後の default_value（非表示も含めて計算）
     const idToDefault = useMemo<Record<string, unknown>>(() => {
+        const ctx: Record<string, unknown> = isRecord(mergedInfo) ? { ...mergedInfo } : {};
+        if (!isRecord((ctx as Record<string, unknown>).shift)) (ctx as Record<string, unknown>).shift = ctx;
+
         const m: Record<string, unknown> = {};
-        effectiveItems.forEach((it) => {
-            const d = typeof it.default_value !== "undefined" ? it.default_value : it.default;
-            if (typeof d !== "undefined") m[it.id] = d;
-        });
+        for (const it of (defs.items ?? [])) {
+            // ルールを適用して default_value を決める（active は無視／filter しない）
+            let effDefault = it.default_value;
+            for (const rule of normalizeRules(it.rules_json)) {
+                if (whenSatisfied(rule.when, ctx)
+                    && Object.prototype.hasOwnProperty.call(rule.set ?? {}, "default_value")) {
+                    effDefault = rule.set?.default_value;
+                }
+            }
+            if (typeof effDefault !== "undefined") m[it.id] = effDefault;
+            else if (typeof it.default !== "undefined") m[it.id] = it.default;
+        }
         return m;
-    }, [effectiveItems]);
+    }, [defs.items, mergedInfo]);
+
 
 
     // ====== UIレイヤのための整形 ======
