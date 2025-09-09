@@ -6,6 +6,34 @@ import { useSearchParams } from "next/navigation";  // ←追加
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
+// ===== 型（rules_json / meta_json）=====
+type RuleStringCond = {
+    equals?: string
+    includes?: string
+    matches?: string
+}
+type RuleWhen = Record<string, RuleStringCond> // 例: { "service_code": { includes: "身" } }
+type RuleSet = {
+    active?: boolean
+    required?: boolean
+    default_value?: unknown
+}
+export type ItemRules = {
+    when?: RuleWhen
+    set?: RuleSet
+}
+
+type MetaNotify = {
+    enabled?: boolean
+    when?: RuleStringCond | Record<string, RuleStringCond> // 単一または複数キー対応
+    target?: "client" | "fixed_channel" | "manager"
+    channel_id?: string
+    message?: string
+}
+export type ItemMeta = {
+    notify?: MetaNotify
+}
+
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
 export type ShiftRecordCategoryL = { id: string; code?: string; name: string; sort_order?: number };
 export type ShiftRecordCategoryS = { id: string; l_id: string; code?: string; name: string; sort_order?: number };
@@ -31,6 +59,9 @@ export type ShiftRecordItemDef = {
     default_value?: unknown;   // 既定値
     default?: unknown;         // 既定値（どちらのキーでも受ける）
     exclusive?: boolean;       // 3件以上のcheckboxを排他（ラジオ）にしたい時
+    active?: boolean
+    rules_json?: ItemRules | null
+    meta_json?: ItemMeta | null
 };
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
@@ -197,6 +228,36 @@ export default function ShiftRecord({
         [enqueueSave, recordLocked]
     );
 
+    // ★ ルール適用: defs.items -> effectiveItems
+    // defs.items を「rules適用後の items」へ変換
+    const effectiveItems = useMemo<ShiftRecordItemDef[]>(() => {
+        const ctx: Record<string, unknown> = isRecord(mergedInfo) ? { ...mergedInfo } : {}
+        if (!isRecord(ctx.shift)) ctx.shift = ctx
+
+        const srcItems = (defs?.items ?? []) as ShiftRecordItemDef[]
+
+        return srcItems
+            .map((it) => {
+                const baseActive = it.active
+                let effActive: boolean | undefined = baseActive
+                let effRequired: boolean | undefined = it.required
+                let effDefault: unknown = typeof it.default_value !== "undefined" ? it.default_value : undefined
+
+                // ★ ここで型ガード（rules_json は APIから何が来ても安全に絞る）
+                const rules: ItemRules | undefined = isItemRules(it.rules_json) ? it.rules_json! : undefined
+
+                if (rules && whenSatisfied(rules.when, ctx)) {
+                    const set = rules.set
+                    if (typeof set?.active === "boolean") effActive = set.active
+                    if (typeof set?.required === "boolean") effRequired = set.required
+                    if (Object.prototype.hasOwnProperty.call(set ?? {}, "default_value")) effDefault = set?.default_value
+                }
+
+                return { ...it, required: effRequired, default_value: effDefault, active: effActive }
+            })
+            .filter((it) => it.active !== false)
+    }, [defs?.items, mergedInfo])
+
     // ====== UIレイヤのための整形 ======
     const sByL = useMemo(() => {
         const map: Record<string, ShiftRecordCategoryS[]> = {};
@@ -207,12 +268,12 @@ export default function ShiftRecord({
 
     const itemsByS = useMemo(() => {
         const map: Record<string, ShiftRecordItemDef[]> = {};
-        defs.items.forEach((it) => { (map[it.s_id] ||= []).push(it); });
+        effectiveItems.forEach((it) => { (map[it.s_id] ||= []).push(it); });
         Object.values(map).forEach((arr) =>
             arr.sort((a, b) => byAsc(a.sort_order, b.sort_order) || String(a.code ?? "").localeCompare(String(b.code ?? "")))
         );
         return map;
-    }, [defs.items]);
+    }, [effectiveItems]);
 
     const [activeL, setActiveL] = useState<string | null>(null);
     useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
@@ -760,4 +821,72 @@ function resolveDefaultWithContext(def: ShiftRecordItemDef, ctx: Record<string, 
         }
     }
     return raw;
+}
+
+// ===== ヘルパ =====
+function isRecord(v: unknown): v is Record<string, unknown> {
+    return typeof v === "object" && v !== null && !Array.isArray(v)
+}
+
+// obj から "a.b.c" の値を安全に取得（unknown返し）
+function getByPath(obj: Record<string, unknown>, path: string): unknown {
+    return path.split(".").reduce<unknown>((acc, key) => {
+        if (!isRecord(acc)) return undefined
+        return acc[key]
+    }, obj)
+}
+
+function asString(v: unknown): string {
+    return v == null ? "" : String(v)
+}
+
+// equals / includes / matches を評価
+function testStringCond(src: string, cond?: RuleStringCond): boolean {
+    if (!cond) return true
+    if (typeof cond.equals === "string" && src !== cond.equals) return false
+    if (typeof cond.includes === "string" && !src.includes(cond.includes)) return false
+    if (typeof cond.matches === "string") {
+        try {
+            const re = new RegExp(cond.matches)
+            if (!re.test(src)) return false
+        } catch {
+            // 正規表現が不正なら「不一致」とする
+            return false
+        }
+    }
+    return true
+}
+
+// when を AND で評価（"service_code" も "shift.service_code" も可）
+function whenSatisfied(when: RuleWhen | undefined, ctx: Record<string, unknown>): boolean {
+    if (!when) return true
+    for (const key of Object.keys(when)) {
+        const val = getByPath(ctx, key)
+        const ok = testStringCond(asString(val), when[key])
+        if (!ok) return false
+    }
+    return true
+}
+
+function isRuleStringCond(v: unknown): v is RuleStringCond {
+    return isRecord(v)
+        && (v.equals === undefined || typeof v.equals === "string")
+        && (v.includes === undefined || typeof v.includes === "string")
+        && (v.matches === undefined || typeof v.matches === "string")
+}
+function isRuleWhen(v: unknown): v is RuleWhen {
+    if (!isRecord(v)) return false
+    return Object.values(v).every(isRuleStringCond)
+}
+function isRuleSet(v: unknown): v is RuleSet {
+    return isRecord(v)
+        && (v.active === undefined || typeof v.active === "boolean")
+        && (v.required === undefined || typeof v.required === "boolean")
+        && ("default_value" in v ? true : true) // 値型は自由
+}
+function isItemRules(v: unknown): v is ItemRules {
+    if (!isRecord(v)) return false
+    if (v.when !== undefined && !isRuleWhen(v.when)) return false
+    if (v.set !== undefined && !isRuleSet(v.set)) return false
+    return true
 }
