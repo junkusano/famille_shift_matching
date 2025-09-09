@@ -264,55 +264,46 @@ function resolveDefaultValue(
     def: ShiftRecordItemDef,
     ctx: Record<string, unknown> | null,
     allValues: Record<string, unknown>,
-    codeToId: Record<string, string>
+    codeToId: Record<string, string>,
+    idToDefault: Record<string, unknown>
 ): unknown {
     const raw = typeof def.default_value !== "undefined" ? def.default_value : def.default;
-    if (raw == null) return raw; // null/undefined はそのまま
+    if (raw == null) return raw;
 
-    // 1) 文字列: me.<code> or テンプレ {{...}}
+    // 1) "me.X" → X の item を参照。未保存なら idToDefault[X] を使う
+    const pickMe = (refCode: string): unknown => {
+        const refId = codeToId[refCode];
+        const saved = refId ? allValues[refId] : undefined;
+        if (saved !== "" && saved != null) return saved;
+        return refId ? idToDefault[refId] ?? "" : "";
+    };
+
     if (typeof raw === "string") {
         const s = raw.trim();
-        if (s.startsWith("me.")) {
-            const refCode = s.slice(3);
-            const refId = codeToId[refCode];
-            return refId ? allValues[refId] ?? "" : "";
-        }
+        if (s.startsWith("me.")) return pickMe(s.slice(3));
         if (ctx && /\{\{.+\}\}/.test(s)) return renderTemplate(s, ctx);
         return raw;
     }
 
-    // 2) オブジェクト形式
     if (typeof raw === "object" && raw !== null) {
         const r = raw as Record<string, unknown>;
+        const byCode =
+            (typeof r.me_by_code === "string" && r.me_by_code) ||
+            (typeof r.me === "string" && r.me) || undefined;
+        if (byCode) return pickMe(byCode);
 
-        // { me_by_code: "other_status" } / { me: "other_status" }
-        const refCode =
-            typeof r.me_by_code === "string" ? r.me_by_code
-                : typeof r.me === "string" ? r.me
-                    : undefined;
-        if (refCode) {
-            const refId = codeToId[refCode];
-            return refId ? allValues[refId] ?? "" : "";
-        }
-
-        // { ref: "shift.some_key" } / { template: "..." }
         if (typeof r.ref === "string" && ctx) {
-            const v = r.ref.split(".").reduce<unknown>((acc, k) => {
-                if (typeof acc === "object" && acc !== null && !Array.isArray(acc)) {
-                    return (acc as Record<string, unknown>)[k];
-                }
-                return undefined;
-            }, ctx);
+            const v = r.ref.split(".").reduce<unknown>(
+                (acc, k) => (typeof acc === "object" && acc !== null && !Array.isArray(acc) ? (acc as Record<string, unknown>)[k] : undefined),
+                ctx
+            );
             return v == null ? "" : String(v);
         }
-        if (typeof r.template === "string" && ctx) {
-            return renderTemplate(r.template, ctx);
-        }
+        if (typeof r.template === "string" && ctx) return renderTemplate(r.template, ctx);
     }
-
-    // 3) それ以外はそのまま
     return raw;
 }
+
 
 export default function ShiftRecord({
     shiftId,
@@ -488,13 +479,22 @@ export default function ShiftRecord({
     }, [defs.items, mergedInfo]);
 
     // defs.items から code -> item_def_id を作る
+    // code -> item_def_id
     const codeToId = useMemo<Record<string, string>>(() => {
         const m: Record<string, string> = {};
-        (defs.items ?? []).forEach((it) => {
-            if (it.code) m[String(it.code)] = it.id;
-        });
+        (defs.items ?? []).forEach((it) => { if (it.code) m[String(it.code)] = it.id; });
         return m;
     }, [defs.items]);
+
+    // id -> rules適用後の default_value
+    const idToDefault = useMemo<Record<string, unknown>>(() => {
+        const m: Record<string, unknown> = {};
+        effectiveItems.forEach((it) => {
+            const d = typeof it.default_value !== "undefined" ? it.default_value : it.default;
+            if (typeof d !== "undefined") m[it.id] = d;
+        });
+        return m;
+    }, [effectiveItems]);
 
 
     // ====== UIレイヤのための整形 ======
@@ -612,6 +612,7 @@ export default function ShiftRecord({
                                                 shiftInfo={mergedInfo}
                                                 allValues={values}
                                                 codeToId={codeToId}
+                                                idToDefault={idToDefault}
                                                 locked={recordLocked}
                                             />
                                         ))}
@@ -637,13 +638,14 @@ function SaveIndicator({ state, done }: { state: SaveState; done?: boolean }) {
     return <div className={`text-xs ${color}`}>{text}</div>;
 }
 
-function FieldRow({ def, value, onChange, shiftInfo, allValues, codeToId, locked }: {
+function FieldRow({ def, value, onChange, shiftInfo, allValues, codeToId, idToDefault, locked }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
     shiftInfo: Record<string, unknown> | null;
     allValues: Record<string, unknown>;
     codeToId: Record<string, string>;
+    idToDefault: Record<string, unknown>;
     locked: boolean;
 }) {
     return (
@@ -652,19 +654,20 @@ function FieldRow({ def, value, onChange, shiftInfo, allValues, codeToId, locked
                 {def.label}
                 {def.required && <span className="ml-1 text-red-500">*</span>}
             </label>
-            <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} allValues={allValues} codeToId={codeToId} />
+            <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} allValues={allValues} codeToId={codeToId} idToDefault={idToDefault} />
             {def.description && <p className="text-[11px] text-gray-500">{def.description}</p>}
         </div>
     );
 }
 
-function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
+function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToDefault }: {
     def: ShiftRecordItemDef;
     value: unknown;
     onChange: (def: ShiftRecordItemDef, v: unknown) => void;
     shiftInfo: Record<string, unknown> | null;
     allValues: Record<string, unknown>;
     codeToId: Record<string, string>;
+    idToDefault: Record<string, unknown>;
 }) {
     const t = def.input_type;
 
@@ -689,17 +692,9 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
         }
 
         // default_value が "me.X" または { me: "X" } のとき、同レコードの値で埋める
-        if ((!text || text === "—") && def.default_value && allValues) {
-            const pick = (k?: string) => {
-                const v = k ? allValues[k] : undefined;
-                if (v != null && String(v) !== "") text = String(v);
-            };
-            if (typeof def.default_value === "string" && def.default_value.startsWith("me.")) {
-                pick(def.default_value.slice(3));
-            } else if (typeof def.default_value === "object") {
-                const r = def.default_value as Record<string, unknown>;
-                if (typeof r.me === "string") pick(r.me);
-            }
+        if (!text || text === "—") {
+            const dv = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
+            text = dv == null ? "" : String(dv);
         }
 
         const unit = def.unit ? String(def.unit) : "";
@@ -716,7 +711,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
 
         // A) 排他 = ラジオ（N択）
         if (exclusive && opts.length >= 2) {
-            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
             const rawV = value as unknown;
             const cur = String((rawV === "" || rawV == null) ? (defVal ?? "") : rawV);
             const name = `ex-${def.s_id}-${def.id}`;
@@ -740,7 +735,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
         if (multiple || opts.length >= 3) {
             let curArr = toStringArray(value);
             if (curArr.length === 0) {
-                const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+                const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
                 if (Array.isArray(defVal)) curArr = defVal.map(String);
                 else if (typeof defVal === "string" && defVal.trim() !== "") curArr = toStringArray(defVal);
                 else if (typeof defVal === "number") curArr = [String(defVal)];
@@ -772,7 +767,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
             if (optYes.value === optNo.value) {
                 optNo = { ...optNo, value: optYes.value === "0" ? "1" : optYes.value === "1" ? "0" : `${optNo.value}_no` };
             }
-            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
             const rawVal = value as unknown;
             const cur = String((rawVal === "" || rawVal == null) ? (defVal ?? "") : rawVal);
             const groupName = `bin-${def.s_id}-${def.id}`;
@@ -793,7 +788,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
 
         // D) options 無し：単体チェック（"1" / ""）
         {
-            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+            const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
             const rawCur = (value === "" || value == null) ? defVal : value;
             const cur = String(rawCur ?? "");
             return (
@@ -808,7 +803,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
     if (t === "select") {
         const raw = def.options ?? def.options_json;
         const { items: opts, placeholder } = parseSelectOptions(raw);
-        const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+        const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
         const rawVal = value as unknown;
         const cur = String((rawVal === "" || rawVal == null) ? (defVal ?? "") : rawVal);
 
@@ -827,7 +822,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
     // number
     if (t === "number") {
         const unit = def.unit ? String(def.unit) : "";
-        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
         const rawVal = value as unknown;
         const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
 
@@ -849,7 +844,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
 
     // textarea
     if (t === "textarea") {
-        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
         const rawVal = value as unknown;
         const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
         return (
@@ -859,7 +854,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
 
     // image（URL入力）
     if (t === "image") {
-        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+        const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
         const rawVal = value as unknown;
         const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
         return (
@@ -874,7 +869,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId }: {
 
     // text（デフォルト）
     const unit = def.unit ? String(def.unit) : "";
-    const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId);
+    const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
     const rawVal = value as unknown;
     const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
     return (
