@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
 // 並び順ユーティリティ
@@ -173,14 +173,14 @@ function parseSelectOptions(raw: unknown): { items: OptionKV[]; placeholder?: st
 
 function parseOptionsFlexible(v: unknown): OptionKV[] {
   const parsed = Array.isArray(v) ? v : tryParseJSON(v);
-  let opts = normalizeOptions(parsed);
-  if (opts.length > 0) return opts;
+  let optsFlex = normalizeOptions(parsed);
+  if (optsFlex.length > 0) return optsFlex;
   if (typeof v === "string") {
     const s = loosenJSONString(v);
     const asArray = coerceToArrayJSON(s);
     const parsed2 = tryParseJSON(asArray);
-    opts = normalizeOptions(parsed2);
-    if (opts.length > 0) return opts;
+    optsFlex = normalizeOptions(parsed2);
+    if (optsFlex.length > 0) return optsFlex;
     const simple = s.replace(/[／|｜]/g, ",");
     if (!simple.includes("{")) {
       const parts = simple.split(/[\s、,]+/).filter(Boolean);
@@ -561,6 +561,7 @@ export default function ShiftRecord({
   const [activeL, setActiveL] = useState<string | null>(null);
   useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
 
+
   // ====== レンダラ ======
   return (
     <div className="flex flex-col gap-3">
@@ -821,7 +822,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
       const cur = String(rawCur ?? "");
       return (
         <label className="inline-flex items-center gap-2">
-          <input type="checkbox" checked={cur === "1"} onChange={(e) => onChange(def, e.target.checked ? "1" : "")} />
+          <input type="checkbox" checked={cur === "1"} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.checked ? "1" : "")} />
           <span className="text-sm">はい / 実施</span>
         </label>
       );
@@ -830,7 +831,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
 
   if (t === "select") {
     const raw = def.options ?? def.options_json;
-    const { items: opts, placeholder } = parseSelectOptions(raw);
+    const { items: selectItems, placeholder } = parseSelectOptions(raw); // ← opts という変数名の重複を避ける
     const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
     const rawVal = value as unknown;
     const cur = String((rawVal === "" || rawVal == null) ? (defVal ?? "") : rawVal);
@@ -839,10 +840,10 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
       <select
         className="border rounded px-2 py-1 text-sm"
         value={cur}
-        onChange={(e) => onChange(def, e.target.value)}
+        onChange={(e: ChangeEvent<HTMLSelectElement>) => onChange(def, e.target.value)}
       >
         <option value="">{`— ${placeholder || "選択してください"} —`}</option>
-        {opts.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+        {selectItems.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
       </select>
     );
   }
@@ -863,7 +864,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
           min={def.min}
           max={def.max}
           step={def.step}
-          onChange={(e) => onChange(def, e.target.value === "" ? "" : Number(e.target.value))}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value === "" ? "" : Number(e.target.value))}
         />
         {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
       </div>
@@ -876,7 +877,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     const rawVal = value as unknown;
     const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
     return (
-      <textarea className="border rounded px-2 py-1 text-sm min-h-[84px]" value={cur} onChange={(e) => onChange(def, e.target.value)} />
+      <textarea className="border rounded px-2 py-1 text-sm min-h-[84px]" value={cur} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(def, e.target.value)} />
     );
   }
 
@@ -888,7 +889,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <input type="url" className="border rounded px-2 py-1 text-sm flex-1" placeholder="画像URL（将来はアップローダ連携）" value={cur} onChange={(e) => onChange(def, e.target.value)} />
+          <input type="url" className="border rounded px-2 py-1 text-sm flex-1" placeholder="画像URL（将来はアップローダ連携）" value={cur} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)} />
         </div>
         {cur ? (<img src={cur} alt="preview" className="max-h-40 rounded border" />) : (<div className="text-[11px] text-gray-500">画像URLを入力するとプレビューします。</div>)}
       </div>
@@ -902,7 +903,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
   const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
   return (
     <div className="flex items-center gap-1">
-      <input type="text" className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e) => onChange(def, e.target.value)} />
+      <input type="text" className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)} />
       {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
     </div>
   );
