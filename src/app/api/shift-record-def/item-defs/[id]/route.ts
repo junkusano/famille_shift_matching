@@ -3,21 +3,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin as db } from "@/lib/supabase/service"
 
 const INPUT_TYPES = ["checkbox","select","number","text","textarea","image","display"] as const
+
 type InputType = typeof INPUT_TYPES[number]
 
-// ★ 追加: 型ガード
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v)
-}
+// 共通ガード
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v)
 
 function extractId(req: NextRequest): string {
   const { pathname } = new URL(req.url)
+  // .../api/shift-record-def/item-defs/<id>
   return pathname.split("/").pop() as string
 }
 
+// "0"→0, "true"→true, '["a","b"]'→["a","b"] など柔軟に変換
 function parseDefaultLoose(v: unknown): unknown {
-  if (v === undefined) return undefined
-  if (v === null || v === "") return null
+  if (v === undefined) return undefined        // 未送信（項目に触れない）
+  if (v === null || v === "") return null      // 明示クリア
   if (typeof v !== "string") return v
   const t = v.trim()
   if (!t) return null
@@ -29,7 +31,7 @@ function parseDefaultLoose(v: unknown): unknown {
   return t
 }
 
-// ★ 追加: JSON文字列 or オブジェクトを受け、必ず Record<string,unknown> に正規化
+// options: JSON文字列 or オブジェクト（配列は不可）
 function parseJsonObjectLoose(name: string, v: unknown): Record<string, unknown> | undefined {
   if (v === undefined) return undefined              // 未送信→更新しない
   if (v === null)      return {}                     // 明示クリア→ {}
@@ -45,11 +47,29 @@ function parseJsonObjectLoose(name: string, v: unknown): Record<string, unknown>
   throw new Error(`${name} must be object or JSON object string`)
 }
 
+// rules_json / meta_json: オブジェクト or オブジェクト配列を許可
+function parseJsonRulesLoose(
+  name: string,
+  v: unknown
+): Record<string, unknown> | Record<string, unknown>[] | undefined {
+  if (v === undefined) return undefined        // 未送信→更新しない
+  if (v === null)      return {}               // 明示クリア→ {}
+  if (typeof v === "string") {
+    let tmp: unknown
+    try { tmp = JSON.parse(v) } catch { throw new Error(`${name} must be JSON`) }
+    if (isRecord(tmp)) return tmp
+    if (Array.isArray(tmp) && tmp.every(isRecord)) return tmp as Record<string, unknown>[]
+    throw new Error(`${name} must be object or object[]`)
+  }
+  if (isRecord(v)) return v
+  if (Array.isArray(v) && v.every(isRecord)) return v as Record<string, unknown>[]
+  throw new Error(`${name} must be object or object[]`)
+}
+
 export async function PUT(req: NextRequest) {
   const id = extractId(req)
   const b: unknown = await req.json()
 
-  // ★ b の最低限の型絞り込み（必要十分の範囲）
   if (!isRecord(b)) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 })
   }
@@ -67,12 +87,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  // ★ rules_json / meta_json
-  let rulesParsed: Record<string, unknown> | undefined
-  let metaParsed:  Record<string, unknown> | undefined
+  // rules_json / meta_json（object or object[]）
+  let rulesParsed: Record<string, unknown> | Record<string, unknown>[] | undefined
+  let metaParsed:  Record<string, unknown> | Record<string, unknown>[] | undefined
   try {
-    rulesParsed = parseJsonObjectLoose("rules_json", b.rules_json)
-    metaParsed  = parseJsonObjectLoose("meta_json",  b.meta_json)
+    rulesParsed = parseJsonRulesLoose("rules_json", b.rules_json)
+    metaParsed  = parseJsonRulesLoose("meta_json",  b.meta_json)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 400 })
@@ -92,15 +112,17 @@ export async function PUT(req: NextRequest) {
         : (typeof b.sort_order === "number" ? b.sort_order : Number(b.sort_order)),
     active: typeof b.active === "boolean" ? b.active : undefined,
     options: optionsParsed,
+    // default_value は「送ってきた時だけ」更新。空文字/null ならクリア。
     default_value: Object.prototype.hasOwnProperty.call(b, "default_value")
       ? parseDefaultLoose(b.default_value)
       : undefined,
 
-    // ★ 追加
+    // 新規
     rules_json: rulesParsed,
     meta_json:  metaParsed,
   }
 
+  // undefined はアップデート対象から除外
   Object.keys(patch).forEach((k) => { if (patch[k] === undefined) delete patch[k] })
 
   const { error } = await db.from("shift_record_item_defs").update(patch).eq("id", id)
