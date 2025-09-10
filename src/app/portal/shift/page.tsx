@@ -325,7 +325,7 @@ function MonthCalendar({
     const days = eachDayOfInterval({ start, end });
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-start justify-center pl-6 pr-4 py-4 md:pl-10">
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-start justify-center pl-6 pr-4 py-4 md:pl-12">
             <div className="w-full max-w-md rounded-2xl bg-white p-3 shadow-xl">
                 <div className="flex items-center justify-between mb-2">
                     <Button size="sm" variant="outline" onClick={onPrevMonth} aria-label="前の月">
