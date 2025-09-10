@@ -1,10 +1,10 @@
 // src/app/api/shift-records/[id]/route.ts
-import { NextRequest } from "next/server";
+
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 // PATCH で受け付けるフィールドを明示
 type ShiftRecordPatch = {
-  status?: string;     // text 列（'draft' | 'done' などを想定）
+  status?: string;     // text 列（'draft' | 'done' など）
   shift_id?: number;   // int8
   created_by?: string; // uuid
 };
@@ -51,11 +51,12 @@ function pickPatch(input: unknown): PickResult {
   return { ok: true, value: out };
 }
 
+// ★ Next.js 15 では Web 標準の Request を使う（NextRequest は使わない）
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  req: Request,
+  context: { params: { id: string } } // ← ここはこの形でOK（独自型を import しない）
 ): Promise<Response> {
-  const id: string = params.id;
+  const id = context.params.id;
 
   let raw: unknown;
   try {
@@ -65,15 +66,14 @@ export async function PATCH(
   }
 
   const picked = pickPatch(raw);
-
-  // ここを 'in' 演算子で分岐（環境依存で narrowing が効かないケースを回避）
+  // 判別は 'in' を使って環境差を回避
   if ("msg" in picked) {
     return new Response(`bad request: ${picked.msg}`, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from("shift_records")
-    .update(picked.value) // ← ShiftRecordPatch 型に絞り込み済み
+    .update(picked.value)        // ← ShiftRecordPatch 型に絞り込み済み
     .eq("id", id)
     .select("id,status,updated_at")
     .single();
