@@ -7,8 +7,8 @@ const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
-  inProgress: "draft", // 例: API が draft を期待
-  completed: "done",   // 例: API が done を期待
+  inProgress: "draft",     // 自動保存
+  completed: "submitted",  // 「保存（完了）」ボタン
 } as const;
 
 // ===== 型（rules_json / meta_json）=====
