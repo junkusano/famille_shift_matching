@@ -1,4 +1,4 @@
-// src/app/portal/layout.tsx
+// src/app/portal/layout.tsx (全文差し替え版)
 "use client";
 
 import React, { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -149,15 +149,54 @@ function UserHeader({ userData, role }: { userData: UserData; role: string | nul
   );
 }
 
-/** ========= Main layout ========= */
+/**
+ * PC/スマホ共通で使い回すサイドバー中身
+ */
+function SidebarContent({
+  userData,
+  role,
+  onDeletePhoto,
+  onReuploadPhoto,
+}: {
+  userData: UserData;
+  role: string | null;
+  onDeletePhoto: () => Promise<void> | void;
+  onReuploadPhoto: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void> | void;
+}) {
+  return (
+    <div className="flex flex-col justify-between h-full px-4 py-3">
+      <div>
+        <UserHeader userData={userData} role={role} />
+        <div className="mt-3">
+          <AvatarBlock
+            photoUrl={userData.photo_url}
+            onDelete={onDeletePhoto}
+            onReupload={onReuploadPhoto}
+            size={128}
+          />
+        </div>
+        <NavLinks role={role} />
+      </div>
+      <div className="pt-4">
+        <hr className="border-white my-2" />
+        <LogoutButton className="text-sm text-red-500 hover:underline" />
+        <hr className="border-white my-2" />
+      </div>
+    </div>
+  );
+}
 
+/** ========= Main layout ========= */
 export default function PortalLayout({ children }: Props) {
   const router = useRouter();
   const { role, loading } = useRoleContext();
   const [userData, setUserData] = useState<UserData | null>(null);
 
-  // 左メニュー折りたたみ（PC向け）：true = 折りたたみ
+  // PC向け：左メニュー折りたたみ
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // スマホ向け：ハンバーガーで開閉
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleDeletePhoto = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
@@ -234,14 +273,20 @@ export default function PortalLayout({ children }: Props) {
   // aside の幅（折りたたみ時は細いタブのみ）
   const asideWidth = isCollapsed ? 18 : 280;
 
+  // スマホメニュー内でリンクを押したら閉じる
+  const handleMobileNavClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    const a = (e.target as HTMLElement).closest("a");
+    if (a) setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="flex portal-container min-h-screen">
-      {/* 左メニュー */}
+      {/* ===== 左メニュー（PC） ===== */}
       <aside
         className="left-menu relative h-full min-h-screen"
         style={{ width: asideWidth, transition: "width 0.2s ease" }}
       >
-        {/* 折りたたみトグル（常に左メニュー内右端に表示） */}
+        {/* PC 折りたたみトグル（上部白いエリアをボタンにしている運用でもOK） */}
         <button
           type="button"
           aria-label={isCollapsed ? "メニューを開く" : "メニューを閉じる"}
@@ -253,33 +298,56 @@ export default function PortalLayout({ children }: Props) {
         </button>
 
         {/* 中身 */}
-        {isCollapsed ? (
-          // 折りたたみ時は空（背景のみ）
-          <div className="w-full h-full" />
-        ) : (
-          <div className="flex flex-col justify-between h-full px-4 py-3">
-            <div>
-              <UserHeader userData={userData} role={role} />
-              <div className="mt-3">
-                <AvatarBlock
-                  photoUrl={userData.photo_url}
-                  onDelete={handleDeletePhoto}
-                  onReupload={handlePhotoReupload}
-                  size={128}
-                />
-              </div>
-              <NavLinks role={role} />
-            </div>
-            <div className="pt-4">
-              <hr className="border-white my-2" />
-              <LogoutButton className="text-sm text-red-500 hover:underline" />
-              <hr className="border-white my-2" />
-            </div>
-          </div>
+        {!isCollapsed && (
+          <SidebarContent
+            userData={userData}
+            role={role}
+            onDeletePhoto={handleDeletePhoto}
+            onReuploadPhoto={handlePhotoReupload}
+          />
         )}
       </aside>
 
-      {/* メイン */}
+      {/* ===== スマホ：ハンバーガー & スライドメニュー ===== */}
+      {/* ハンバーガー（CSSでモバイル時のみ表示） */}
+      <button
+        className="hamburger"
+        aria-label="メニューを開く"
+        onClick={() => setIsMobileMenuOpen(true)}
+      >
+        ☰
+      </button>
+
+      {/* 左からスライドするメニュー（.menu / .menu.open は CSS で制御） */}
+      <nav
+        className={`menu ${isMobileMenuOpen ? "open" : ""}`}
+        onClick={handleMobileNavClick}
+        aria-hidden={!isMobileMenuOpen}
+      >
+        {/* 閉じるボタン（メニュー内上部） */}
+        <button
+          className="hamburger"
+          aria-label="メニューを閉じる"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          ×
+        </button>
+
+        <SidebarContent
+          userData={userData}
+          role={role}
+          onDeletePhoto={handleDeletePhoto}
+          onReuploadPhoto={handlePhotoReupload}
+        />
+      </nav>
+
+      {/* オーバーレイ（開いているときだけ表示、タップで閉じる） */}
+      <div
+        className={isMobileMenuOpen ? "fixed inset-0 bg-black/30 z-[90]" : "hidden"}
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
+
+      {/* ===== メイン ===== */}
       <main className="flex-1 flex flex-col min-h-screen min-w-0">
         <div className="flex-1">
           <AlertBar />
