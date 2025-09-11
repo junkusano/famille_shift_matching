@@ -1,7 +1,7 @@
 // app/portal/layout.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, ReactNode } from 'react';
 import { useRoleContext } from '@/context/RoleContext';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -10,8 +10,14 @@ import '@/styles/globals.css';
 import Image from 'next/image';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
-import { ReactNode } from 'react';
 import AlertBar from '@/components/AlertBar';
+
+/**
+ * Portal layout (client)
+ * - 左メニューを PC でも折りたたみ可能（ローカル保持）
+ * - スマホ用のハンバーガーも維持
+ * - Hooks は常にトップレベルで呼び、条件付き呼び出しを排除
+ */
 
 interface UserData {
   last_name_kanji: string;
@@ -154,8 +160,64 @@ function UserHeader({ userData, role }: { userData: UserData; role: string | nul
 export default function PortalLayout({ children }: Props) {
   const router = useRouter();
   const { role, loading } = useRoleContext();
-  const [userData, setUserData] = useState<UserData | null>(null);
+
+  // 左メニュー（PC）の折りたたみ状態（ローカル永続化）
+  const [navCollapsed, setNavCollapsed] = useState(false);
+
+  // スマホ用メニューの開閉（オーバーレイ）
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // サインイン中ユーザーの表示情報
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  // 左メニューの折りたたみ状態を復元
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('portal:navCollapsed');
+      if (saved != null) setNavCollapsed(saved === '1');
+    } catch {
+      // 何もしない
+    }
+  }, []);
+
+  // 左メニューの折りたたみ状態を保存
+  useEffect(() => {
+    try {
+      localStorage.setItem('portal:navCollapsed', navCollapsed ? '1' : '0');
+    } catch {
+      // 何もしない
+    }
+  }, [navCollapsed]);
+
+  // スマホメニュー開閉に応じて body スクロールを制御
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = isMenuOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMenuOpen]);
+
+  // ユーザーデータの取得
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      const { data: entryData } = await supabase
+        .from('form_entries')
+        .select('last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url')
+        .eq('auth_uid', user.id)
+        .single();
+      if (!cancelled) setUserData(entryData);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleDeletePhoto = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -179,7 +241,7 @@ export default function PortalLayout({ children }: Props) {
     formData.append('filename', `user_photo_${Date.now()}_${file.name}`);
     const res = await fetch('/api/upload', { method: 'POST', body: formData });
     const result = await res.json();
-    const url = result.url;
+    const url = result.url as string | undefined;
     if (!url) {
       alert('アップロード失敗');
       return;
@@ -197,27 +259,7 @@ export default function PortalLayout({ children }: Props) {
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      const { data: entryData } = await supabase
-        .from('form_entries')
-        .select('last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url')
-        .eq('auth_uid', user.id)
-        .single();
-      if (!cancelled) setUserData(entryData);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  // ローディング
+  // ローディング表示（hooks はすべて既に初期化済み）
   if (loading || !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -226,67 +268,90 @@ export default function PortalLayout({ children }: Props) {
     );
   }
 
-  // bodyスクロール制御
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.style.overflow = isMenuOpen ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMenuOpen]);
-
   return (
-    <div className="flex portal-container min-h-screen">
-      {/* ハンバーガー */}
-      <button
-        className="hamburger"
-        aria-label="メニューを開閉"
-        aria-expanded={isMenuOpen}
-        onClick={() => setIsMenuOpen((v) => !v)}
-      >
-        ☰
-      </button>
+    <div className="min-h-screen flex flex-col">
+      {/* 上部ツールバー（PC でもメニューを折りたためるボタン） */}
+      <header className="sticky top-0 z-40 flex items-center justify-between gap-2 border-b bg-white px-3 py-2">
+        <div className="flex items-center gap-2">
+          {/* スマホ用ハンバーガー */}
+          <button
+            className="hamburger"
+            aria-label="メニューを開閉"
+            aria-expanded={isMenuOpen}
+            onClick={() => setIsMenuOpen((v) => !v)}
+          >
+            ☰
+          </button>
 
-      {/* スマホ用メニュー */}
-      <aside className={`menu ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
-        <div className="ml-4">
-          <UserHeader userData={userData} role={role} />
+          {/* PC 用：左メニュー折りたたみ */}
+          <button
+            onClick={() => setNavCollapsed((v) => !v)}
+            className="px-2 py-1 text-sm rounded border hover:bg-gray-50"
+            title="左メニューの表示/非表示"
+            aria-pressed={navCollapsed}
+          >
+            {navCollapsed ? '▶ メニュー' : '◀ メニューを隠す'}
+          </button>
         </div>
-        <div className="ml-4 mt-3">
-          <AvatarBlock photoUrl={userData.photo_url} onDelete={handleDeletePhoto} onReupload={handlePhotoReupload} size={128} />
-        </div>
-        <div className="ml-4">
-          <NavLinks role={role} />
-          <hr className="border-white my-2" />
-          <LogoutButton className="text-sm text-red-300 hover:underline" />
-          <hr className="border-white my-2" />
-        </div>
-      </aside>
+        <div className="text-sm text-gray-500">ポータル</div>
+        <div />
+      </header>
 
-      {/* PC用左メニュー */}
-      <aside className="left-menu flex flex-col justify-between h-full min-h-screen">
-        <div>
-          <UserHeader userData={userData} role={role} />
-          <div className="mt-3">
+      {/* 本体：左メニュー + コンテンツ */}
+      <div className="flex portal-container flex-1 min-h-0">
+        {/* スマホ用メニュー（オーバーレイ） */}
+        <aside className={`menu ${isMenuOpen ? 'open' : ''}`} aria-hidden={!isMenuOpen}>
+          <div className="ml-4">
+            <UserHeader userData={userData} role={role} />
+          </div>
+          <div className="ml-4 mt-3">
             <AvatarBlock photoUrl={userData.photo_url} onDelete={handleDeletePhoto} onReupload={handlePhotoReupload} size={128} />
           </div>
-          <NavLinks role={role} />
-        </div>
-        <div className="pt-4">
-          <hr className="border-white my-2" />
-          <LogoutButton className="text-sm text-red-500 hover:underline" />
-          <hr className="border-white my-2" />
-        </div>
-      </aside>
+          <div className="ml-4">
+            <NavLinks role={role} />
+            <hr className="border-white my-2" />
+            <LogoutButton className="text-sm text-red-300 hover:underline" />
+            <hr className="border-white my-2" />
+          </div>
+        </aside>
 
-      {/* メイン */}
-      <main className="flex-1 flex flex-col min-h-screen min-w-0">
-        <div className="flex-1">
-          <AlertBar />
-          {children}
-        </div>
-        <Footer />
-      </main>
+        {/* PC 用左メニュー（折りたたみ対応） */}
+        <aside
+          className="left-menu flex flex-col justify-between h-full min-h-screen border-r bg-[#0f172a] text-white"
+          aria-hidden={navCollapsed}
+          style={{
+            width: navCollapsed ? 0 : 280,
+            transition: 'width .15s ease-in-out',
+            overflow: 'hidden',
+          }}
+        >
+          <div>
+            <div className="px-4 pt-4">
+              <UserHeader userData={userData} role={role} />
+            </div>
+            <div className="px-4 mt-3">
+              <AvatarBlock photoUrl={userData.photo_url} onDelete={handleDeletePhoto} onReupload={handlePhotoReupload} size={128} />
+            </div>
+            <div className="px-4">
+              <NavLinks role={role} />
+            </div>
+          </div>
+          <div className="px-4 pt-4 pb-6">
+            <hr className="border-white/30 my-2" />
+            <LogoutButton className="text-sm text-red-300 hover:underline" />
+            <hr className="border-white/30 my-2" />
+          </div>
+        </aside>
+
+        {/* コンテンツ（縦スクロールはここだけ） */}
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto bg-white">
+          <div className="flex-1">
+            <AlertBar />
+            {children}
+          </div>
+          <Footer />
+        </main>
+      </div>
     </div>
   );
 }
