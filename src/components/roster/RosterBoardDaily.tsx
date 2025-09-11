@@ -1,4 +1,5 @@
-//components/roster/RosterBoardDaily
+//src/components/roster/RosterBoardDaily
+
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -9,10 +10,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 const MINUTES_IN_DAY = 24 * 60;
 const SNAP_MIN = 5;                 // 5分刻み
 const PX_PER_MIN = 2;               // 1分=2px（横幅）
-const ROW_HEIGHT = 56;              // ⑦ 2行表示に合わせて少し高め
-const NAME_COL_WIDTH = 108;         // 氏名列は細め
+const ROW_HEIGHT = 56;              // 2行表示に合わせて少し高め
+const NAME_COL_WIDTH = 96;          // 氏名列は細め（余白削減）
 const HEADER_H = 40;                // 時間ヘッダー高さ
 const MIN_DURATION_MIN = 10;        // 最小長さ（分）
+const CARD_VPAD = 8;                // カードの上下余白（縦位置調整）
 
 // ===== ユーティリティ =====
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -34,7 +36,6 @@ const widthPx = (start: string, end: string) => {
 };
 const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
 
-// "12345_9999" -> { shiftId: 12345, staffId: "9999" }
 function parseCardCompositeId(id: string) {
   const idx = id.lastIndexOf("_");
   if (idx < 0) return { shiftId: Number(id), staffId: "" };
@@ -49,7 +50,7 @@ type Props = {
 
 // ===== DnD State =====
 type DragMode = "move" | "resizeEnd";
-type DragState = null | {
+interface DragState {
   mode: DragMode;
   cardId: string;
   // 固定情報
@@ -63,7 +64,7 @@ type DragState = null | {
   ghostStartMin: number;
   ghostEndMin: number;
   ghostRowIdx: number;
-};
+}
 
 export default function RosterBoardDaily({ date, initialView }: Props) {
   // ====== ルーティング（日付遷移） ======
@@ -98,7 +99,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   // ====== 表示データ（カードはドラッグ反映のため state に） ======
   const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
-  // チーム（org名）一覧
+  // チーム（org名）一覧（orgunitname を期待）
   const allTeams = useMemo(() => {
     const s = new Set<string>();
     initialView.staff.forEach((st) => st.team && s.add(st.team));
@@ -112,13 +113,14 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTeams.join("|")]);
 
-  // 並び順：チーム→レベル数値→氏名
+  // 並び順：org sort → level sort → 氏名
   const displayStaff: RosterStaff[] = useMemo(() => {
     const sorted = [...initialView.staff].sort((a, b) => {
-      const ta = a.team ?? "", tb = b.team ?? "";
-      if (ta !== tb) return ta.localeCompare(tb, "ja");
-      const la = Number.isFinite(Number(a.level)) ? Number(a.level) : Number.MAX_SAFE_INTEGER;
-      const lb = Number.isFinite(Number(b.level)) ? Number(b.level) : Number.MAX_SAFE_INTEGER;
+      const ta = a.team_order ?? Number.MAX_SAFE_INTEGER;
+      const tb = b.team_order ?? Number.MAX_SAFE_INTEGER;
+      if (ta !== tb) return ta - tb;
+      const la = a.level_order ?? Number.MAX_SAFE_INTEGER;
+      const lb = b.level_order ?? Number.MAX_SAFE_INTEGER;
       if (la !== lb) return la - lb;
       return a.name.localeCompare(b.name, "ja");
     });
@@ -133,12 +135,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   }, [displayStaff]);
 
   // ====== スクロール制御 ======
-  // ⑥ 縦スクロールはページ(main)に委譲 → 右ペインは横スクロールのみ
   const rightScrollRef = useRef<HTMLDivElement>(null);
-
-  // ====== ヘッダーのコンパクト表示 & 氏名列全画面トグル ======
-  const [compact, setCompact] = useState(true);
-  const [hideNames, setHideNames] = useState(false); // 氏名列を隠す（フルスクリーン）
 
   // ====== 時間ヘッダーの目盛 ======
   const hours = useMemo(() => {
@@ -150,9 +147,8 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   }, []);
 
   // ====== DnD ======
-  const [drag, setDrag] = useState<DragState>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
 
-  // 画面全体縦スクロール（端で自動スクロールするとき用）
   const autoScrollWindowIfNearEdge = (clientY: number) => {
     const margin = 40;
     const speed = 24;
@@ -160,7 +156,6 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     else if (clientY > window.innerHeight - margin) window.scrollBy({ top: speed, behavior: "auto" });
   };
 
-  // 右ペイン横座標→分換算
   const minuteFromClientX = (clientX: number) => {
     const sc = rightScrollRef.current;
     if (!sc) return 0;
@@ -169,20 +164,18 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     return clamp(x / PX_PER_MIN, 0, MINUTES_IN_DAY);
   };
 
-  // ドラッグ対象行を、開始行からの差分で決定（縦飛び対策）
   const rowIdxFromDeltaY = (deltaY: number, origRowIdx: number) => {
     const dRows = Math.round(deltaY / ROW_HEIGHT);
     return clamp(origRowIdx + dRows, 0, Math.max(0, displayStaff.length - 1));
   };
 
-  // move開始
   const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
     e.preventDefault();
     const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
     const s = hhmmToMin(card.start_at);
     const en = hhmmToMin(card.end_at);
     const pointerMin = minuteFromClientX(e.clientX);
-    const grabOffsetMin = clamp(pointerMin - s, 0, en - s); // カード内相対位置
+    const grabOffsetMin = clamp(pointerMin - s, 0, en - s);
     setDrag({
       mode: "move",
       cardId: card.id,
@@ -198,7 +191,6 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     });
   };
 
-  // 右端リサイズ開始
   const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
     e.preventDefault();
     e.stopPropagation();
@@ -220,7 +212,6 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     });
   };
 
-  // ドラッグ移動（windowにバインド）
   useEffect(() => {
     function onMove(ev: MouseEvent) {
       if (!drag) return;
@@ -232,18 +223,13 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
         const newStart = snapMin(clamp(newStartRaw, 0, MINUTES_IN_DAY - MIN_DURATION_MIN));
         const newEnd = clamp(newStart + dur, newStart + MIN_DURATION_MIN, MINUTES_IN_DAY);
         const newRowIdx = rowIdxFromDeltaY(ev.clientY - drag.pointerStartY, drag.origRowIdx);
-        setDrag((d) =>
-          d && { ...d, ghostStartMin: newStart, ghostEndMin: newEnd, ghostRowIdx: newRowIdx }
-        );
+        setDrag((d) => (d ? { ...d, ghostStartMin: newStart, ghostEndMin: newEnd, ghostRowIdx: newRowIdx } : d));
       } else if (drag.mode === "resizeEnd") {
         const pointerMin = minuteFromClientX(ev.clientX);
-        const newEnd = snapMin(
-          clamp(pointerMin, drag.origStartMin + MIN_DURATION_MIN, MINUTES_IN_DAY)
-        );
-        setDrag((d) => d && { ...d, ghostEndMin: newEnd, ghostRowIdx: d.origRowIdx });
+        const newEnd = snapMin(clamp(pointerMin, drag.origStartMin + MIN_DURATION_MIN, MINUTES_IN_DAY));
+        setDrag((d) => (d ? { ...d, ghostEndMin: newEnd, ghostRowIdx: d.origRowIdx } : d));
       }
 
-      // 横端で自動スクロール（右ペイン）
       const sc = rightScrollRef.current;
       if (sc) {
         const rect = sc.getBoundingClientRect();
@@ -253,7 +239,6 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
         else if (ev.clientX > rect.right - margin) sc.scrollLeft += speed;
       }
 
-      // 縦端はウィンドウをスクロール
       autoScrollWindowIfNearEdge(ev.clientY);
     }
 
@@ -262,24 +247,13 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
       const { cardId, ghostStartMin, ghostEndMin, ghostRowIdx } = drag;
       const { shiftId } = parseCardCompositeId(cardId);
       const targetStaff = displayStaff[ghostRowIdx];
-      if (!targetStaff) {
-        setDrag(null);
-        return;
-      }
+      if (!targetStaff) { setDrag(null); return; }
       const start_at = toHHmm(ghostStartMin);
       const end_at = toHHmm(ghostEndMin);
       const staff_id = targetStaff.id;
 
-      // 楽観的反映
-      setCards((prev) =>
-        prev.map((c) =>
-          c.id === cardId
-            ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at }
-            : c
-        )
-      );
+      setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c)));
 
-      // サーバ PATCH
       (async () => {
         try {
           await fetch(`/api/roster/shifts/${shiftId}`, {
@@ -301,13 +275,12 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [drag, displayStaff]);
+  }, [drag, displayStaff, date]);
 
   // ====== スタイル ======
-  // ⑥ 高さ固定をやめ、縦スクロールはページ側(main)に任せる
   const gridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: `${hideNames ? 12 : NAME_COL_WIDTH}px 1fr`,
+    gridTemplateColumns: `${NAME_COL_WIDTH}px 1fr`,
     border: "1px solid #e5e7eb",
     borderRadius: 8,
     overflow: "hidden",
@@ -317,7 +290,6 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     borderRight: "1px solid #e5e7eb",
     background: "#fff",
   };
-  // 右ペインは横のみスクロール
   const rightColStyle: React.CSSProperties = {
     position: "relative",
     overflowX: "auto",
@@ -333,10 +305,9 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     height: HEADER_H,
     display: "flex",
     alignItems: "center",
-    padding: hideNames ? "0" : "0 8px",
+    padding: "0 8px",
     fontWeight: 600,
     fontSize: 12,
-    justifyContent: hideNames ? "center" : "flex-start",
   };
   const headerTimeWrap: React.CSSProperties = {
     position: "sticky",
@@ -353,13 +324,12 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   const timeGridStyle: React.CSSProperties = {
     position: "relative",
     minWidth: TIMELINE_WIDTH,
-    background:
-      "repeating-linear-gradient(to right, #f3f4f6 0, #f3f4f6 1px, transparent 1px, transparent 120px)",
+    background: "repeating-linear-gradient(to right, #f3f4f6 0, #f3f4f6 1px, transparent 1px, transparent 120px)",
   };
   const nameRowStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    padding: hideNames ? "0 2px" : "0 8px",
+    padding: "0 8px",
     height: ROW_HEIGHT,
     borderBottom: "1px solid #f1f5f9",
     background: "#fff",
@@ -376,19 +346,19 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   });
   const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
     const rowIdx = rowIndexByStaff.get(c.staff_id);
-    const topPx = rowIdx != null ? HEADER_H + rowIdx * ROW_HEIGHT + 4 : HEADER_H + 4;
+    const topPx = rowIdx != null ? HEADER_H + rowIdx * ROW_HEIGHT + CARD_VPAD : HEADER_H + CARD_VPAD;
     return {
       position: "absolute",
-      top: topPx,
+      top: topPx, // ← 縦位置を下げて行内センタリング
       left: leftPx(c.start_at),
       width: widthPx(c.start_at, c.end_at),
-      height: ROW_HEIGHT - 8,
+      height: ROW_HEIGHT - CARD_VPAD * 2,
       borderRadius: 6,
       background: "#DBEAFE",
       border: "1px solid #93C5FD",
       overflow: "hidden",
       display: "flex",
-      flexDirection: "column",       // ⑦ 2行表示
+      flexDirection: "column",
       alignItems: "flex-start",
       justifyContent: "center",
       padding: "4px 8px",
@@ -408,12 +378,12 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     cursor: "e-resize",
     background: "rgba(0,0,0,0.08)",
   };
-  const ghostStyle = (d: Exclude<DragState, null>): React.CSSProperties => ({
+  const ghostStyle = (d: DragState): React.CSSProperties => ({
     position: "absolute",
-    top: HEADER_H + d.ghostRowIdx * ROW_HEIGHT + 4,
+    top: HEADER_H + d.ghostRowIdx * ROW_HEIGHT + CARD_VPAD,
     left: d.ghostStartMin * PX_PER_MIN,
     width: (d.ghostEndMin - d.ghostStartMin) * PX_PER_MIN,
-    height: ROW_HEIGHT - 8,
+    height: ROW_HEIGHT - CARD_VPAD * 2,
     borderRadius: 6,
     background: "rgba(147,197,253,0.35)",
     border: "1px dashed #60A5FA",
@@ -424,29 +394,19 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   // ====== UI ======
   return (
     <div className="p-2 space-y-2">
-      {/* ヘッダー（コンパクト+全画面） */}
+      {/* ヘッダー（シンプル） */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
           <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
           <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
         </div>
-
         <div className="flex items-center gap-2">
           {/* チームフィルタ（ポップアップ） */}
           <div className="relative">
-            <button
-              onClick={() => setTeamFilterOpen((v) => !v)}
-              className="px-2 py-1 rounded border hover:bg-gray-50 text-sm"
-              title="チーム（org）で絞り込み"
-            >
-              チーム
-            </button>
+            <button onClick={() => setTeamFilterOpen((v) => !v)} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="チーム（org）で絞り込み">チーム</button>
             {teamFilterOpen && (
-              <div
-                className="absolute right-0 mt-1 w-56 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2"
-                onMouseLeave={() => setTeamFilterOpen(false)}
-              >
+              <div className="absolute right-0 mt-1 w-56 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-gray-500">チームで絞り込み</span>
                   <div className="space-x-2">
@@ -455,80 +415,34 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  {allTeams.map((t) => {
-                    const checked = selectedTeams.includes(t);
-                    return (
-                      <label key={t} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) =>
-                            setSelectedTeams((prev) =>
-                              e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)
-                            )
-                          }
-                        />
-                        <span className="truncate" title={t}>{t}</span>
-                      </label>
-                    );
-                  })}
+                  {allTeams.map((t) => (
+                    <label key={t} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={selectedTeams.includes(t)} onChange={(e) => setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)))} />
+                      <span className="truncate" title={t}>{t}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* 氏名列の表示/非表示（フルスクリーン） */}
-          <button
-            onClick={() => setHideNames((v) => !v)}
-            className="px-2 py-1 rounded border hover:bg-gray-50 text-sm"
-            title="氏名列の表示/非表示（フルスクリーン）"
-          >
-            {hideNames ? "氏名列表示" : "氏名列隠す"}
-          </button>
-
-          {/* コンパクト切替 */}
-          <button
-            onClick={() => setCompact((v) => !v)}
-            className="px-2 py-1 rounded border hover:bg-gray-50 text-sm"
-            title="ヘッダーの表示を切替"
-          >
-            {compact ? "▼" : "▲"}
-          </button>
+          {/* 左メニュー折りたたみ要求（layout 側で受ける） */}
+          <button onClick={() => window.dispatchEvent(new CustomEvent("portal:toggleAside"))} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="左メニューを隠す/出す">メニュー</button>
         </div>
       </div>
-
-      {!compact && (
-        <div className="text-xs text-gray-500 -mt-1 mb-1">
-          チーム絞り込みは「チーム」から。氏名列は「氏名列隠す」でフルスクリーンにできます。
-        </div>
-      )}
 
       {/* 盤面（縦スクロールはページ側に任せる） */}
       <div style={gridStyle}>
         {/* 左：氏名列 */}
         <div style={leftColStyle}>
-          <div style={headerNameStyle}>
-            {hideNames ? (
-              <button
-                className="text-xs px-1 py-0.5 rounded border"
-                onClick={() => setHideNames(false)}
-                title="氏名列を表示"
-              >
-                ▶
-              </button>
-            ) : (
-              <>スタッフ</>
-            )}
+          <div style={headerNameStyle}>スタッフ</div>
+          <div style={{ position: "relative" }}>
+            {displayStaff.map((st) => (
+              <div key={st.id} style={nameRowStyle} title={st.name}>
+                <div className="truncate">{st.name}</div>
+              </div>
+            ))}
           </div>
-          {!hideNames && (
-            <div style={{ position: "relative" }}>
-              {displayStaff.map((st) => (
-                <div key={st.id} style={nameRowStyle} title={st.name}>
-                  <div className="truncate">{st.name}</div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* 右：タイムライン（横スクロールのみ、時間ヘッダー固定） */}
@@ -536,31 +450,10 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
           <div style={headerTimeWrap}>
             <div style={timeTicksStyle}>
               {hours.map((h) => (
-                <div
-                  key={h.label}
-                  style={{
-                    position: "absolute",
-                    left: h.left,
-                    top: 0,
-                    height: HEADER_H,
-                    width: 1,
-                    background: "#e5e7eb",
-                  }}
-                />
+                <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 1, background: "#e5e7eb" }} />
               ))}
               {hours.map((h) => (
-                <div
-                  key={`${h.label}-text`}
-                  style={{
-                    position: "absolute",
-                    left: h.left + 4,
-                    top: 10,
-                    fontSize: 12,
-                    color: "#6b7280",
-                  }}
-                >
-                  {h.label}
-                </div>
+                <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 4, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
               ))}
             </div>
           </div>
@@ -580,21 +473,10 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
               const rowIdx = rowIndexByStaff.get(c.staff_id);
               if (rowIdx == null) return null; // チーム絞り込みで非表示のスタッフ
               return (
-                <div
-                  key={c.id}
-                  style={cardStyle(c)}
-                  // ⑦ 2行表示：時間 ↵ 利用者名：サービス名
-                  title={`${c.start_at}-${c.end_at}\n${c.client_name}：${c.service_name}`}
-                  onMouseDown={(e) => onCardMouseDownMove(e, c)}
-                >
+                <div key={c.id} style={cardStyle(c)} title={`${c.start_at}-${c.end_at}\n${c.client_name}：${c.service_name}`} onMouseDown={(e) => onCardMouseDownMove(e, c)}>
                   <div className="text-[11px] md:text-xs font-semibold">{c.start_at}-{c.end_at}</div>
-                  <div className="text-[11px] md:text-xs truncate">
-                    {c.client_name}：{c.service_name}
-                  </div>
-                  <div
-                    style={resizeHandleStyle}
-                    onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)}
-                  />
+                  <div className="text-[11px] md:text-xs truncate">{c.client_name}：{c.service_name}</div>
+                  <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
                 </div>
               );
             })}
