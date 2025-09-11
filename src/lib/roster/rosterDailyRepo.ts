@@ -1,16 +1,17 @@
 // src/lib/roster/rosterDailyRepo.ts
+"use client";
+
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
 
-const SHIFT_VIEW = process.env.ROSTER_SHIFT_VIEW ?? "shift_csinfo_postalname_view";
-const STAFF_VIEW = process.env.ROSTER_STAFF_VIEW ?? "staff_roster_view";
+const SHIFT_VIEW = "shift_csinfo_postalname_view";
+const STAFF_VIEW = "staff_roster_view";
 
-// Supabaseの行型
 type RawShiftRow = {
   shift_id: number;
   shift_start_date: string;
-  shift_start_time: string; // HH:mm or HH:mm:ss
-  shift_end_time: string;   // HH:mm or HH:mm:ss
+  shift_start_time: string;
+  shift_end_time: string;
   client_name: string | null;
   service_code: string | null;
   service_name: string | null;
@@ -41,7 +42,6 @@ function explodeCards(r: RawShiftRow): RosterShiftCard[] {
     service_name: r.service_name ?? "",
   };
   const id = String(r.shift_id);
-
   const out: RosterShiftCard[] = [];
   if (r.staff_user01_id) out.push({ id: `${id}_${r.staff_user01_id}`, staff_id: r.staff_user01_id, ...base });
   if (r.staff_user02_id) out.push({ id: `${id}_${r.staff_user02_id}`, staff_id: r.staff_user02_id, ...base });
@@ -57,26 +57,31 @@ function sortStaff(a: RosterStaff, b: RosterStaff): number {
   return a.name.localeCompare(b.name, "ja");
 }
 
-/** 日別のボード表示データ（SSR） */
 export async function getDailyShiftView(date: string): Promise<RosterDailyView> {
-  // ※ SB.from のジェネリクス指定は外す（型定義の個数差異でエラーになるため）
+  // 1) シフト（View）
   const { data: shiftRowsRaw, error: shiftErr } = await SB
     .from(SHIFT_VIEW)
-    .select("shift_id,shift_start_date,shift_start_time,shift_end_time,client_name,service_code,service_name,staff_user01_id,staff_user02_id,staff_user03_id")
+    .select(
+      "shift_id,shift_start_date,shift_start_time,shift_end_time,client_name,service_code,service_name,staff_user01_id,staff_user02_id,staff_user03_id"
+    )
     .eq("shift_start_date", date);
 
-  if (shiftErr) throw shiftErr;
+  if (shiftErr) {
+    console.error("[rosterDailyRepo] Shift view error:", shiftErr);
+  }
   const shiftRows = (shiftRowsRaw ?? []) as unknown as RawShiftRow[];
   const cards: RosterShiftCard[] = shiftRows.flatMap(explodeCards);
 
+  // 2) スタッフ（View）
   const { data: staffRowsRaw, error: staffErr } = await SB
     .from(STAFF_VIEW)
     .select("id,name,team,level,status")
     .in("status", ["ACTIVE", "RETIRED"]);
 
-  if (staffErr) throw staffErr;
+  if (staffErr) {
+    console.error("[rosterDailyRepo] Staff view error:", staffErr);
+  }
   const staffRows = (staffRowsRaw ?? []) as unknown as RawStaffRow[];
-
   const staff: RosterStaff[] = staffRows.map(r => ({
     id: r.id,
     name: r.name,
@@ -89,5 +94,5 @@ export async function getDailyShiftView(date: string): Promise<RosterDailyView> 
   return { date, staff, shifts: cards };
 }
 
-// 互換エクスポート（既存コードが getRosterDailyView を参照していても動くように）
+// 互換名
 export const getRosterDailyView = getDailyShiftView;

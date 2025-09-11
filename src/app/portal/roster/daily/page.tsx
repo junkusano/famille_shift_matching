@@ -1,18 +1,35 @@
-// ----------------------------------------------
-// app/portal/roster/daily/page.tsx
-// ----------------------------------------------
-import { format } from "date-fns";
+// src/app/portal/roster/daily/page.tsx
+import "server-only";
+import { getDailyShiftView } from "@/lib/roster/rosterDailyRepo"; // or getRosterDailyView
 import RosterBoardDaily from "@/components/roster/RosterBoardDaily";
-import { getRosterDailyView } from "@/lib/roster/rosterDailyRepo";
+import type { RosterDailyView } from "@/types/roster";
 
-export const dynamic = "force-dynamic"; // 当日切替などのためSSR
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export default async function RosterDailyPage({ searchParams }: { searchParams?: { date?: string }}) {
-  const date = searchParams?.date || format(new Date(), "yyyy-MM-dd");
-  const view = await getRosterDailyView(date);
-  return (
-    <div className="p-4">
-      <RosterBoardDaily date={date} initialView={view} />
-    </div>
-  );
+function todayJstYYYYMMDD(): string {
+  // "YYYY-MM-DD" を JST で生成
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: { date?: string };
+}) {
+  const date = searchParams?.date ?? todayJstYYYYMMDD();
+
+  let view: RosterDailyView = { date, staff: [], shifts: [] };
+  try {
+    view = await getDailyShiftView(date);
+  } catch (e) {
+    console.error("[roster/daily] getDailyShiftView failed:", e);
+  }
+
+  return <RosterBoardDaily date={date} initialView={view} />;
 }
