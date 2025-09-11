@@ -1,290 +1,411 @@
-// ----------------------------------------------
-// components/roster/RosterBoardDaily.tsx
-// ----------------------------------------------
+//components/roster/RosterBoardDaily.tsx
+
 "use client";
-import React, { useMemo, useRef, useState } from "react";
-import { addDays, format, parseISO } from "date-fns";
-import { ja } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 
-// shadcn/ui（プロジェクトに合わせてimportパス調整）
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import type { CheckedState } from "@radix-ui/react-checkbox";
+// ====== タイムライン設定 ======
+const MINUTES_IN_DAY = 24 * 60;
+const PX_PER_MIN = 2; // 横スケール（1分=2px => 2880px 幅）
 
-// --- グリッド設定 ---
-const SLOT_MINUTES = 15; // 15分刻み
-const ROW_PX = 16;       // 15分1マスの高さ
-const COLS = 24;         // 24h（1時間=1列）
-
-function timeToMin(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
-function minToTime(min: number) { const h = Math.floor(min / 60), m = min % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}` }
-function clamp(v: number, a: number, b: number) { return Math.max(a, Math.min(b, v)); }
-function snap(min: number) { return Math.round(min / SLOT_MINUTES) * SLOT_MINUTES; }
-
-export default function RosterBoardDaily({ date, initialView }: { date: string; initialView: RosterDailyView; }) {
-    const [view, setView] = useState<RosterDailyView>(initialView);
-    const [filters, setFilters] = useState<{ teams: string[]; levels: string[] }>({ teams: [], levels: [] });
-    const day = parseISO(date);
-
-    // 並び: team → level → name（昇順）
-    const staffSorted = useMemo(() => {
-        const inTeam = (s: RosterStaff) => (filters.teams.length ? filters.teams.includes(s.team || "") : true);
-        const inLevel = (s: RosterStaff) => (filters.levels.length ? filters.levels.includes(s.level || "") : true);
-        return view.staff
-            .filter(s => inTeam(s) && inLevel(s))
-            .sort((a, b) => (a.team || "").localeCompare(b.team || "") || (a.level || "").localeCompare(b.level || "") || a.name.localeCompare(b.name));
-    }, [view.staff, filters]);
-
-    const rowIndexById = useMemo(() => {
-        const map = new Map<string, number>();
-        staffSorted.forEach((s, i) => map.set(s.id, i));
-        return map;
-    }, [staffSorted]);
-
-    // フィルタ後のカード
-    const cards = useMemo(() => view.shifts.filter(c => rowIndexById.has(c.staff_id)), [view.shifts, rowIndexById]);
-
-    const allTeams = useMemo(() => Array.from(new Set(view.staff.map(s => s.team).filter(Boolean))) as string[], [view.staff]);
-    const allLevels = useMemo(() => Array.from(new Set(view.staff.map(s => s.level).filter(Boolean))) as string[], [view.staff]);
-
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    function commitChange(update: Partial<RosterShiftCard> & { id: string }) {
-        setView(prev => ({
-            ...prev,
-            shifts: prev.shifts.map(s => s.id === update.id ? { ...s, ...update, start_at: update.start_at ?? s.start_at, end_at: update.end_at ?? s.end_at, staff_id: update.staff_id ?? s.staff_id } : s)
-        }));
-
-        // TODO: APIに保存（必要ならdebounce）
-        // fetch(`/api/roster/shifts/${update.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(update) });
-    }
-
-    // ドラッグ中の簡易オートスクロール
-    function autoScroll(y: number) {
-        const el = containerRef.current; if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const threshold = 60; const speed = 12;
-        if (y < rect.top + threshold) el.scrollTop -= speed;
-        else if (y > rect.bottom - threshold) el.scrollTop += speed;
-    }
-
-    const dayLabel = format(day, "yyyy年M月d日(E)", { locale: ja });
-
-    return (
-        <div className="w-full h-full">
-            {/* ヘッダー（ナビ） */}
-            <div className="flex items-center justify-center gap-2 mb-3 select-none">
-                <a href={`?date=${format(addDays(day, -1), "yyyy-MM-dd")}`} aria-label="前日"><Button variant="ghost" size="icon"><ChevronLeft className="h-4 w-4" /></Button></a>
-                <div className="text-xl font-semibold px-3 flex items-center gap-2"><CalendarIcon className="h-5 w-5" /><span>{dayLabel}</span></div>
-                <a href={`?date=${format(addDays(day, 1), "yyyy-MM-dd")}`} aria-label="翌日"><Button variant="ghost" size="icon"><ChevronRight className="h-4 w-4" /></Button></a>
-                <form className="ml-2" action="" method="get">
-                    <Input type="date" name="date" defaultValue={format(day, "yyyy-MM-dd")} className="h-8" />
-                </form>
-            </div>
-
-            {/* フィルタ */}
-            <div className="flex items-start gap-6 mb-3">
-                <div>
-                    <Label className="block mb-1">チーム</Label>
-                    <div className="flex flex-wrap gap-2 max-w-[900px]">
-                        {allTeams.map(t => (
-                            <label key={t} className="text-sm inline-flex items-center gap-2 border rounded px-2 py-1">
-                                <Checkbox
-                                    checked={filters.teams.includes(t)}
-                                    onCheckedChange={(v: CheckedState) => {
-                                        const checked = v === true;
-                                        setFilters(f => ({
-                                            ...f,
-                                            teams: checked ? [...f.teams, t] : f.teams.filter(x => x !== t)
-                                        }));
-                                    }}
-                                />
-                                <span>{t}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-                <div>
-                    <Label className="block mb-1">レベル</Label>
-                    <div className="flex flex-wrap gap-2 max-w-[900px]">
-                        {allLevels.map(l => (
-                            <label key={l} className="text-sm inline-flex items-center gap-2 border rounded px-2 py-1">
-                                <Checkbox
-                                    checked={filters.levels.includes(l)}
-                                    onCheckedChange={(v: CheckedState) => {
-                                        const checked = v === true;
-                                        setFilters(f => ({
-                                            ...f,
-                                            levels: checked ? [...f.levels, l] : f.levels.filter(x => x !== l)
-                                        }));
-                                    }}
-                                /><span>{l}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* ボード */}
-            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                <div className="grid" style={{ gridTemplateColumns: `240px 1fr` }}>
-                    {/* 左：スタッフリスト */}
-                    <div className="border-r bg-slate-50 p-2">
-                        <div className="text-sm font-semibold mb-2">割当ヘルパー</div>
-                        <div className="space-y-2 max-h-[640px] overflow-y-auto pr-2">
-                            {staffSorted.map((s) => (
-                                <div key={s.id} className="px-2 py-1 rounded-md text-sm bg-white flex items-center justify-between border">
-                                    <span className="truncate" title={`${s.team || ""} ${s.level || ""} ${s.name}`}>
-                                        {s.team ? `[${s.team}] ` : ""}{s.level ? `${s.level} ` : ""}{s.name}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* 右：時間軸 + カード */}
-                    <div className="relative">
-                        {/* 固定ヘッダー（時間目盛） */}
-                        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur px-2 py-1 border-b">
-                            <div className="grid" style={{ gridTemplateColumns: `repeat(${COLS}, minmax(52px, 1fr))` }}>
-                                {Array.from({ length: COLS }).map((_, h) => (
-                                    <div key={h} className="text-[10px] text-gray-500 text-center">{String(h).padStart(2, "0")}:00</div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div ref={containerRef} className="relative h-[640px] overflow-auto">
-                            {/* 背景グリッド（15分線） */}
-                            <div className="relative" style={{ height: 96 * ROW_PX }}>
-                                {Array.from({ length: 96 }).map((_, i) => (
-                                    <div key={i} className={`${i % 4 === 0 ? "border-t border-gray-200" : "border-t border-gray-100"} absolute left-0 right-0`} style={{ top: i * ROW_PX }} />
-                                ))}
-
-                                {/* カード */}
-                                {cards.map((c) => (
-                                    <ShiftCard key={c.id} card={c} staff={staffSorted} rowIndexById={rowIndexById} onCommit={commitChange} onAutoScroll={autoScroll} />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 備考（任意） */}
-            <div className="mt-4">
-                <Label>備考</Label>
-                <Input placeholder="ここにメモを記入できます。" />
-            </div>
-        </div>
-    );
+// 時刻 "HH:mm" → 分
+function hhmmToMin(t: string): number {
+  const [h = "0", m = "0"] = t.split(":");
+  return parseInt(h, 10) * 60 + parseInt(m, 10);
+}
+function durationMin(start: string, end: string): number {
+  const s = hhmmToMin(start);
+  const e = hhmmToMin(end);
+  return Math.max(0, e - s);
+}
+function leftPx(start: string): number {
+  return Math.max(0, Math.min(hhmmToMin(start), MINUTES_IN_DAY) * PX_PER_MIN);
+}
+function widthPx(start: string, end: string): number {
+  const w = durationMin(start, end) * PX_PER_MIN;
+  return Math.max(2, w); // 最低幅
 }
 
-// --- 個別カード（ドラッグ&リサイズ） ---
-function ShiftCard({ card, staff, rowIndexById, onCommit, onAutoScroll }: {
-    card: RosterShiftCard;
-    staff: RosterStaff[];
-    rowIndexById: Map<string, number>;
-    onCommit: (u: Partial<RosterShiftCard> & { id: string }) => void;
-    onAutoScroll: (y: number) => void;
-}) {
-    const startMin = timeToMin(card.start_at);
-    const endMin = timeToMin(card.end_at);
-    //const top = (Math.floor(startMin / SLOT_MINUTES)) * ROW_PX;
-    //const height = Math.max(((endMin - startMin) / SLOT_MINUTES) * ROW_PX, ROW_PX);
-    //const startHour = Math.floor(startMin / 60);
-    //const leftPct = (startHour / 24) * 100;
-    const widthPct = (1 / 24) * 100;
+// ====== レベル表示の読み替えセット（必要に応じて編集） ======
+const LEVEL_LABEL_SETS: Record<string, Record<string, string>> = {
+  numeric: {}, // そのまま表示（"1"→"1"）
+  role: {
+    "1": "新人",
+    "2": "初級",
+    "3": "中級",
+    "4": "上級",
+    "5": "リーダー",
+  },
+};
+type LevelLabelKey = keyof typeof LEVEL_LABEL_SETS;
 
-    const ref = React.useRef<HTMLDivElement>(null);
-    const [ghost, setGhost] = useState<Partial<RosterShiftCard> | null>(null);
+// ====== Props ======
+type Props = {
+  date: string;
+  initialView: RosterDailyView;
+};
 
-    const sAt = ghost?.start_at || card.start_at; 
-    const eAt = ghost?.end_at || card.end_at; 
-    //const sId = ghost?.staff_id || card.staff_id;
-    const sMin = timeToMin(sAt); const eMin = timeToMin(eAt);
-    const topNow = (Math.floor(sMin / SLOT_MINUTES)) * ROW_PX;
-    const heightNow = Math.max(((eMin - sMin) / SLOT_MINUTES) * ROW_PX, ROW_PX);
-    const startHourNow = Math.floor(sMin / 60);
-    const leftPctNow = (startHourNow / 24) * 100;
+export default function RosterBoardDaily({ date, initialView }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-    function onMouseDown(e: React.MouseEvent) {
-        e.preventDefault();
-        const el = ref.current; if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const isLeftHandle = e.clientX - rect.left < 8;
-        const isRightHandle = rect.right - e.clientX < 10;
-        const mode: "move" | "resizeLeft" | "resizeRight" = isLeftHandle ? "resizeLeft" : isRightHandle ? "resizeRight" : "move";
+  // ====== フィルタ：チームのみ（複数選択） ======
+  const allTeams = useMemo(() => {
+    const s = new Set<string>();
+    initialView.staff.forEach((st) => {
+      if (st.team) s.add(st.team);
+    });
+    return Array.from(s).sort((a, b) => a.localeCompare(b, "ja"));
+  }, [initialView.staff]);
 
-        const startY = e.clientY; const startX = e.clientX;
-        const startStart = startMin; const startEnd = endMin;
-        const currentRow = rowIndexById.get(card.staff_id) ?? 0;
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [levelLabelKey, setLevelLabelKey] = useState<LevelLabelKey>("numeric");
 
-        const onMove = (ev: MouseEvent) => {
-            onAutoScroll(ev.clientY);
-            const dy = ev.clientY - startY; // 1行=15分=ROW_PX
-            const dx = ev.clientX - startX; // 横は1h=要素幅
+  // 初期は全チームを選択（空配列だと“全表示”扱いでも良いが、明示的に選ぶ）
+  useEffect(() => {
+    setSelectedTeams(allTeams);
+  }, [allTeams]);
 
-            if (mode === "move") {
-                const moveRows = Math.round(dy / ROW_PX);
-                const targetRow = clamp(currentRow + moveRows, 0, staff.length - 1);
-                const newStaffId = staff[targetRow]?.id || card.staff_id;
-                const dxMin = Math.round(dx / rect.width * 60); // 1列=1h
-                const newStart = snap(startStart + dxMin);
-                const dur = startEnd - startStart;
-                const newEnd = clamp(newStart + dur, 0, 24 * 60);
-                setGhost({ staff_id: newStaffId, start_at: minToTime(clamp(newStart, 0, 24 * 60)), end_at: minToTime(newEnd) });
-            } else if (mode === "resizeLeft") {
-                const dxMin = Math.round(dx / rect.width * 60);
-                const newStart = clamp(snap(startStart + dxMin), 0, startEnd - SLOT_MINUTES);
-                setGhost({ start_at: minToTime(newStart) });
-            } else if (mode === "resizeRight") {
-                const dxMin = Math.round(dx / rect.width * 60);
-                const newEnd = clamp(snap(startEnd + dxMin), startStart + SLOT_MINUTES, 24 * 60);
-                setGhost({ end_at: minToTime(newEnd) });
-            }
-        };
+  // ====== スタッフ並び：チーム → レベル数字 → 氏名 ======
+  const displayStaff: RosterStaff[] = useMemo(() => {
+    const sorted = [...initialView.staff].sort((a, b) => {
+      const ta = a.team ?? "";
+      const tb = b.team ?? "";
+      if (ta !== tb) return ta.localeCompare(tb, "ja");
 
-        const onUp = () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            if (ghost) { onCommit({ id: card.id, ...ghost }); setGhost(null); }
-        };
+      const la = Number.isFinite(Number(a.level)) ? Number(a.level) : Number.MAX_SAFE_INTEGER;
+      const lb = Number.isFinite(Number(b.level)) ? Number(b.level) : Number.MAX_SAFE_INTEGER;
+      if (la !== lb) return la - lb;
 
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
+      return a.name.localeCompare(b.name, "ja");
+    });
+
+    // チームフィルタ
+    if (!selectedTeams.length) return sorted;
+    return sorted.filter((st) => (st.team ? selectedTeams.includes(st.team) : false));
+  }, [initialView.staff, selectedTeams]);
+
+  // ====== スタッフ行インデックス（カード配置に使用） ======
+  const rowIndexByStaff = useMemo(() => {
+    const map = new Map<string, number>();
+    displayStaff.forEach((st, idx) => map.set(st.id, idx));
+    return map;
+  }, [displayStaff]);
+
+  // ====== 当日カード（複数担当は既に複製済の前提） ======
+  const dayCards = initialView.shifts;
+
+  // ====== 横・縦スクロールコンテナ ======
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ====== 時間ヘッダーの目盛 ======
+  const hours = useMemo(() => {
+    const arr: { label: string; left: number }[] = [];
+    for (let h = 0; h <= 24; h++) {
+      const hh = String(h).padStart(2, "0");
+      arr.push({ label: `${hh}:00`, left: h * 60 * PX_PER_MIN });
     }
+    return arr;
+  }, []);
 
-    return (
-        <div
-            ref={ref}
-            onMouseDown={onMouseDown}
-            role="button"
-            title={`${sAt}〜${eAt} ${card.client_name} ${card.service_name}`}
-            className="absolute select-none rounded-md shadow-sm text-left px-2 py-1 text-xs leading-tight border bg-blue-500 text-white hover:opacity-90 cursor-grab active:cursor-grabbing"
-            style={{ top: topNow, height: heightNow, left: `calc(${leftPctNow}% + 4px)`, width: `calc(${widthPct}% - 8px)` }}
-            data-roster-card
-        >
-            {/* リサイズ当たり判定 */}
-            <div className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize" />
-            <div className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize" />
+  // ====== 日付ナビ ======
+  const go = (d: string) => {
+    const params = new URLSearchParams(searchParams?.toString());
+    params.set("date", d);
+    router.push(`/portal/roster/daily?${params.toString()}`);
+  };
+  const toJstYYYYMMDD = (dt: Date) =>
+    new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(dt);
 
-            {/* 表示: 開始–終了 / 利用者名 / サービス名 */}
-            <div className="flex items-center justify-between">
-                <span className="font-semibold truncate">{card.client_name}</span>
-            </div>
-            <div className="opacity-90">{sAt}〜{eAt}</div>
-            <div className="truncate opacity-90">{card.service_name}</div>
+  const prevDay = () => {
+    const base = new Date(`${date}T00:00:00+09:00`);
+    base.setDate(base.getDate() - 1);
+    go(toJstYYYYMMDD(base));
+  };
+  const nextDay = () => {
+    const base = new Date(`${date}T00:00:00+09:00`);
+    base.setDate(base.getDate() + 1);
+    go(toJstYYYYMMDD(base));
+  };
+  const onPickDate: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    if (e.target.value) go(e.target.value);
+  };
 
-            {ghost && (
-                <div className="absolute right-1 bottom-1 text-[10px] bg-black/30 px-1 rounded">
-                    {sAt}→{eAt}
-                </div>
-            )}
+  // ====== オートスクロール（ドラッグ中でも）簡易版 ======
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onMove(ev: MouseEvent) {
+      const rect = el.getBoundingClientRect();
+      const margin = 40;
+      const speed = 20;
+      if (ev.clientX < rect.left + margin) el.scrollLeft -= speed;
+      else if (ev.clientX > rect.right - margin) el.scrollLeft += speed;
+      if (ev.clientY < rect.top + margin) el.scrollTop -= speed;
+      else if (ev.clientY > rect.bottom - margin) el.scrollTop += speed;
+    }
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  // ====== スタイル ======
+  const ROW_HEIGHT = 48; // 1行の高さ
+  const NAME_COL_WIDTH = 260;
+  const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
+
+  const gridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: `${NAME_COL_WIDTH}px 1fr`,
+    height: "calc(100vh - 160px)", // だいたい上部ナビを除いた高さ
+    border: "1px solid #e5e7eb",
+    borderRadius: 8,
+    overflow: "hidden",
+  };
+
+  const leftColStyle: React.CSSProperties = {
+    position: "relative",
+    borderRight: "1px solid #e5e7eb",
+    overflow: "hidden", // 左は横スクロールしない
+  };
+
+  const rightColStyle: React.CSSProperties = {
+    position: "relative",
+    overflow: "auto", // 横・縦スクロール
+  };
+
+  const headerNameStyle: React.CSSProperties = {
+    position: "sticky",
+    top: 0,
+    zIndex: 3,
+    background: "#fff",
+    borderBottom: "1px solid #e5e7eb",
+    height: 40,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 12px",
+    fontWeight: 600,
+  };
+
+  const headerTimeWrap: React.CSSProperties = {
+    position: "sticky",
+    top: 0,
+    zIndex: 3,
+    background: "#fff",
+    borderBottom: "1px solid #e5e7eb",
+  };
+
+  const timeTicksStyle: React.CSSProperties = {
+    position: "relative",
+    height: 40,
+    minWidth: TIMELINE_WIDTH,
+  };
+
+  const timeGridStyle: React.CSSProperties = {
+    position: "relative",
+    minWidth: TIMELINE_WIDTH,
+    background:
+      "repeating-linear-gradient(to right, #f3f4f6 0, #f3f4f6 1px, transparent 1px, transparent 120px)", // 1時間ごとに薄い線（2px/分→120px/時）
+  };
+
+  const staffRowStyle = (rowIdx: number): React.CSSProperties => ({
+    position: "absolute",
+    top: rowIdx * ROW_HEIGHT,
+    left: 0,
+    right: 0,
+    height: ROW_HEIGHT,
+    borderBottom: "1px solid #f1f5f9",
+  });
+
+  const nameRowStyle = (rowIdx: number): React.CSSProperties => ({
+    position: "absolute",
+    top: rowIdx * ROW_HEIGHT + 40, // タイムヘッダー分オフセット
+    left: 0,
+    right: 0,
+    height: ROW_HEIGHT,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 12px",
+    borderBottom: "1px solid #f1f5f9",
+    background: "#fff",
+    zIndex: 1,
+  });
+
+  const boardHeight = 40 + displayStaff.length * ROW_HEIGHT;
+
+  const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
+    const topIdx = rowIndexByStaff.get(c.staff_id);
+    const topPx = topIdx != null ? 40 + topIdx * ROW_HEIGHT + 4 : 40;
+    return {
+      position: "absolute",
+      top: topPx,
+      left: leftPx(c.start_at),
+      width: widthPx(c.start_at, c.end_at),
+      height: ROW_HEIGHT - 8,
+      borderRadius: 6,
+      background: "#DBEAFE", // 青系（保険内/外の区別をしない仕様）
+      border: "1px solid #93C5FD",
+      overflow: "hidden",
+      display: "flex",
+      alignItems: "center",
+      padding: "0 8px",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+    };
+  };
+
+  // ====== レベル表示の読み替え ======
+  const levelLabelOf = (lvl?: string | null): string | null => {
+    if (!lvl) return null;
+    const set = LEVEL_LABEL_SETS[levelLabelKey] || {};
+    return set[lvl] ?? lvl; // 無ければそのまま
+  };
+
+  // ====== UI ======
+  return (
+    <div className="p-3 space-y-3">
+      {/* 上部ナビ */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50">前日</button>
+          <input
+            type="date"
+            className="px-2 py-1 rounded border"
+            value={date}
+            onChange={onPickDate}
+          />
+          <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50">翌日</button>
         </div>
-    );
+
+        {/* フィルター：チーム（複数選択） */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">チーム</label>
+          <select
+            multiple
+            size={Math.min(6, Math.max(2, allTeams.length))}
+            value={selectedTeams}
+            onChange={(e) =>
+              setSelectedTeams(Array.from(e.target.selectedOptions).map((o) => o.value))
+            }
+            className="min-w-48 px-2 py-1 rounded border"
+          >
+            {allTeams.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* レベル表示の読み替え（フィルターではない） */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">レベル表示</label>
+          <select
+            value={levelLabelKey}
+            onChange={(e) => setLevelLabelKey(e.target.value as LevelLabelKey)}
+            className="px-2 py-1 rounded border"
+          >
+            <option value="numeric">数字</option>
+            <option value="role">役割（新人/中級…）</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 盤面 */}
+      <div style={gridStyle}>
+        {/* 左：氏名列（固定） */}
+        <div style={leftColStyle}>
+          <div style={headerNameStyle}>スタッフ</div>
+          <div
+            style={{
+              position: "relative",
+              height: boardHeight,
+            }}
+          >
+            {displayStaff.map((st, idx) => (
+              <div key={st.id} style={nameRowStyle(idx)} title={st.name}>
+                <div className="truncate">
+                  {st.team ? `[${st.team}] ` : ""}
+                  {st.name}
+                  {st.level ? `（Lv:${levelLabelOf(st.level)}）` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 右：タイムライン（横・縦スクロール、上部は時間ヘッダー固定） */}
+        <div style={rightColStyle} ref={scrollRef}>
+          <div style={headerTimeWrap}>
+            <div style={timeTicksStyle}>
+              {hours.map((h) => (
+                <div
+                  key={h.label}
+                  style={{
+                    position: "absolute",
+                    left: h.left,
+                    top: 0,
+                    height: 40,
+                    width: 1,
+                    background: "#e5e7eb",
+                  }}
+                />
+              ))}
+              {hours.map((h) => (
+                <div
+                  key={`${h.label}-text`}
+                  style={{
+                    position: "absolute",
+                    left: h.left + 4,
+                    top: 10,
+                    fontSize: 12,
+                    color: "#6b7280",
+                  }}
+                >
+                  {h.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              position: "relative",
+              minWidth: TIMELINE_WIDTH,
+              height: boardHeight,
+            }}
+          >
+            {/* 背景グリッド（1時間線） */}
+            <div style={{ ...timeGridStyle, position: "absolute", inset: 0 }} />
+
+            {/* 行の下線 */}
+            {displayStaff.map((st, idx) => (
+              <div key={st.id} style={staffRowStyle(idx)} />
+            ))}
+
+            {/* カード配置 */}
+            {dayCards.map((c) => {
+              const rowIdx = rowIndexByStaff.get(c.staff_id);
+              if (rowIdx == null) return null; // フィルタで非表示のスタッフ
+              return (
+                <div key={c.id} style={cardStyle(c)} title={`${c.client_name} / ${c.service_code} ${c.start_at}-${c.end_at}`}>
+                  <div className="truncate text-sm">
+                    <span className="font-semibold">{c.start_at}-{c.end_at}</span>{" "}
+                    {c.client_name} / {c.service_code}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
