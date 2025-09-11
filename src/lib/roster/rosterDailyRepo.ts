@@ -1,200 +1,119 @@
 // src/lib/roster/rosterDailyRepo.ts
-import { supabaseAdmin as SB } from "@/lib/supabase/service";
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
+import { supabaseAdmin as SB } from "@/lib/supabase/service";
 
 
-const SHIFT_VIEW = "shift_csinfo_postalname_view";
-const STAFF_VIEW = "user_entry_united_view_single";
-const ORG_TABLE = "orgs"; // orgunit master
-const LEVEL_TABLE = "levels"; // level master
+// .env で上書き可。既定はご提供の CSV/ビュー名に寄せる
+const SHIFT_VIEW =  "shift_csinfo_postalname_view";
+const STAFF_VIEW =  "user_entry_united_view_single";
 
 
-// ---- 型（ビュー/テーブルの列名が少し違っても動くように可変キーで受けます）
-// どのキーが来ても取り出せるように optional & index シグネチャを併用
-
-
-type UnknownRow = { [key: string]: unknown };
-
-
-type StaffRow = UnknownRow & {
-    id?: string; // staff id
-    staff_id?: string; // staff id (別名)
-    last_name_kanji?: string;
-    first_name_kanji?: string;
-    group_name?: string | null; // deprecated
-    orgunitname?: string | null; // 推奨（こちらを team に使う）
-    org_unit_id?: string | number | null;
-    level?: string | null;
-    status?: string | null;
-    org_sort?: number | null; // あれば使用
-    level_sort?: number | null; // あれば使用
+// 文字列化
+const toStr = (v: unknown) => (v == null ? "" : String(v));
+// HH:mm 正規化
+const toHHmm = (v: unknown) => {
+const s = toStr(v);
+// 例: "09:00:00" → "09:00"
+if (/^\d{2}:\d{2}(:\d{2})?$/.test(s)) return s.slice(0, 5);
+return s;
 };
 
 
-type OrgRow = UnknownRow & {
-    id?: string | number; // org id
-    org_unit_id?: string | number; // 互換
-    orgunitname?: string;
-    sort?: number | null; // 並び順（列名はプロジェクト依存）
-    order?: number | null;
-    order_no?: number | null;
-    display_order?: number | null;
+export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
+// --- Staff ---
+// カラム名は環境差があるため `select('*')` で取得 → コード側で吸収
+const { data: srows, error: sErr } = await SB.from(STAFF_VIEW).select("*");
+if (sErr) throw sErr;
+
+
+const staff: RosterStaff[] = (srows ?? []).map((r: any) => {
+const id = toStr(r.user_id ?? r.staff_user_id ?? r.id); // どれかに合わせる
+const name = `${toStr(r.last_name_kanji ?? r.last_name ?? "")} ${
+toStr(r.first_name_kanji ?? r.first_name ?? "")
+}`.trim();
+
+
+// org 表示名 & 並び順候補
+const team = (r.orgunitname ?? r.group_name ?? r.org_name ?? null) as string | null;
+const team_order = (r.org_sort ?? r.org_order ?? r.orgunit_sort ?? null) as number | null;
+
+
+// level 表示名 & 並び順候補
+const level = (r.level ?? r.level_name ?? r.level_code ?? null) as string | null;
+const level_order = (r.level_sort ?? r.level_order ?? null) as number | null;
+
+
+const status = (r.status ?? "ACTIVE") as string;
+
+
+return { id, name, team, team_order, level, level_order, status };
+});
+
+
+// --- Shifts ---
+const tryShiftFetch = async () => {
+// 環境差に対応: 候補カラムで順に試す
+const candidates = ["shift_start_date", "visit_date", "date"] as const;
+let lastErr: unknown = null;
+for (const col of candidates) {
+const { data, error } = await SB.from(SHIFT_VIEW).select("*").eq(col as string, date);
+if (!error) return data ?? [];
+lastErr = error;
+}
+throw lastErr;
 };
 
 
-type LevelRow = UnknownRow & {
-    level?: string; // レベル名（例: "1" | "2" | ...）
-    sort?: number | null; // 並び順
-    order?: number | null;
-    order_no?: number | null;
-    display_order?: number | null;
-};
+const rawShifts: any[] = await tryShiftFetch();
 
 
-type ShiftRow = UnknownRow & {
-    shift_id?: number | string;
-    staff_id?: string; // 主担当
-    staff_user02_id?: string | null; // 複数担当（あれば複製）
-    client_name?: string;
-    service_code?: string;
-    service_name?: string;
-    // 時刻系はビュー差で名前が違うことがあるので柔軟に取得
-    start_at?: string; // HH:mm（あれば優先）
-    end_at?: string;
-    shift_start_time?: string; // 例: "09:00"
-    shift_end_time?: string; // 例: "11:30"
-    shift_start_date?: string; // YYYY-MM-DD（絞り込みに使用）
-    date?: string; // 互換
-};
+const shifts: RosterShiftCard[] = rawShifts.flatMap((r) => {
+const shift_id = toStr(r.shift_id ?? r.id);
+const start_at = toHHmm(r.shift_start_time ?? r.start_time ?? r.start_at);
+const end_at = toHHmm(r.shift_end_time ?? r.end_time ?? r.end_at);
+const client_name = toStr(r.client_name ?? r.cs_name ?? r.customer_name ?? "");
+const service_code = toStr(r.service_code ?? r.service_cd ?? "");
+const service_name = toStr(r.service_name ?? r.service ?? "");
 
 
-// ---- ユーティリティ
-const pickStr = (row: UnknownRow, keys: string[], fallback = ""): string => {
-    for (const k of keys) {
-        const v = row[k];
-        if (typeof v === "string" && v.length > 0) return v;
-    }
-    return fallback;
-};
+// 複数担当対応（存在する ID を全部拾う）
+const staffIds = [
+r.staff_user01_id ?? r.user01_id ?? r.main_staff_id,
+r.staff_user02_id ?? r.user02_id ?? r.sub_staff_id,
+]
+.filter((v) => v != null)
+.map((v) => toStr(v));
 
 
-const pickNum = (row: UnknownRow, keys: string[], fallback: number | null = null): number | null => {
-    for (const k of keys) {
-        const v = row[k];
-        if (typeof v === "number") return v;
-        if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
-    }
-    return fallback;
-};
+// データ欠損は除外
+if (!shift_id || !start_at || !end_at || staffIds.length === 0) return [];
 
 
-const hhmm = (s: string) => (s.length >= 5 ? s.slice(0, 5) : s);
+return staffIds.map((sid) => ({
+id: `${shift_id}_${sid}`,
+staff_id: sid,
+start_at,
+end_at,
+client_name,
+service_code,
+service_name,
+}));
+});
 
 
-// ---- リポジトリ本体
-export async function getRosterDailyView(date: string): Promise<RosterDailyView> {
-    // org / level マスタ（並び順用）
-    const [{ data: orgs }, { data: levels }] = await Promise.all([
-        SB.from(ORG_TABLE).select("*"),
-        SB.from(LEVEL_TABLE).select("*"),
-    ]);
+// 画面左に出すのは ACTIVE のみ
+const activeStaff = staff.filter((s) => (s.status ?? "ACTIVE") === "ACTIVE");
 
 
-    const orgSortById = new Map<string, number>();
-    const orgSortByName = new Map<string, number>();
-    (orgs ?? []).forEach((o: OrgRow, idx: number) => {
-        const id = String(o.id ?? o.org_unit_id ?? idx);
-        const name = pickStr(o, ["orgunitname"], "");
-        const ord = pickNum(o, ["sort", "order", "order_no", "display_order"], idx) ?? idx;
-        orgSortById.set(id, ord);
-        if (name) orgSortByName.set(name, ord);
-    });
-
-
-    const levelSort = new Map<string, number>();
-    (levels ?? []).forEach((lv: LevelRow, idx: number) => {
-        const name = pickStr(lv, ["level"], "");
-        const ord = pickNum(lv, ["sort", "order", "order_no", "display_order"], idx) ?? idx;
-        if (name) levelSort.set(name, ord);
-    });
-
-
-    // スタッフ
-    const { data: staffRaw, error: staffErr } = await SB.from(STAFF_VIEW).select("*");
-    if (staffErr) throw staffErr;
-
-
-    const staff: RosterStaff[] = (staffRaw as StaffRow[]).map((r, idx) => {
-        const id = String(r.staff_id ?? r.id ?? idx);
-        const name = `${pickStr(r, ["last_name_kanji"])}` + `${pickStr(r, ["first_name_kanji"])}`;
-        const orgName = pickStr(r, ["orgunitname"], pickStr(r, ["group_name"], null as unknown as string));
-        const orgId = pickStr(r as UnknownRow, ["org_unit_id"], "");
-        const lv = pickStr(r, ["level"], "");
-        const status = pickStr(r, ["status"], "ACTIVE") as RosterStaff["status"];
-
-
-        const team_order = r.org_sort ?? pickNum({ value: orgSortById.get(orgId) }, ["value"], null) ?? (
-            orgName ? pickNum({ value: orgSortByName.get(orgName) }, ["value"], null) : null
-        );
-        const level_order = r.level_sort ?? pickNum({ value: levelSort.get(lv) }, ["value"], null);
-
-
-        return { id, name, team: orgName, level: lv || null, status, team_order: team_order ?? null, level_order: level_order ?? null };
-    });
-
-
-    // 指定日のシフト
-    // ビューによっては列名が shift_start_date ではなく date のこともあるため、まずそのまま検索し、
-    // 取れなければフル取得→メモリ側フィルタの順でフォールバック
-    let shiftsRaw: ShiftRow[] = [];
-    {
-        const try1 = await SB.from(SHIFT_VIEW).select("*").eq("shift_start_date", date);
-        if (!try1.error && try1.data) {
-            shiftsRaw = try1.data as ShiftRow[];
-        } else {
-            const try2 = await SB.from(SHIFT_VIEW).select("*").eq("date", date);
-            if (!try2.error && try2.data) {
-                shiftsRaw = try2.data as ShiftRow[];
-            } else {
-                const try3 = await SB.from(SHIFT_VIEW).select("*");
-                if (try3.data) {
-                    shiftsRaw = (try3.data as ShiftRow[]).filter((r) => {
-                        const d = pickStr(r, ["shift_start_date", "date"], "");
-                        return d === date;
-                    });
-                }
-            }
-        }
-    }
-
-
-    const toCard = (r: ShiftRow, staffId: string): RosterShiftCard => {
-        const s = pickStr(r, ["start_at", "shift_start_time"], "00:00");
-        const e = pickStr(r, ["end_at", "shift_end_time"], "00:00");
-        const id = String(r.shift_id ?? "0");
-        return {
-            id: `${id}_${staffId}`,
-            staff_id: staffId,
-            start_at: hhmm(s),
-            end_at: hhmm(e),
-            client_name: pickStr(r, ["client_name"], ""),
-            service_code: pickStr(r, ["service_code"], ""),
-            service_name: pickStr(r, ["service_name"], ""),
-        };
-    };
-
-
-    const cards: RosterShiftCard[] = [];
-    for (const r of shiftsRaw) {
-        const primary = pickStr(r, ["staff_id"], "");
-        if (primary) cards.push(toCard(r, primary));
-        const sub = pickStr(r, ["staff_user02_id"], "");
-        if (sub) cards.push(toCard(r, sub));
-    }
-
-
-    return { date, staff, shifts: cards };
+// --- ログ（開発時のみ）：件数をざっくり確認 ---
+if (process.env.NODE_ENV !== "production") {
+console.log("[roster] staff:", activeStaff.length, "shifts:", shifts.length, "date:", date);
+// staff / shift の ID 対応が取れているか確認
+const staffIdSet = new Set(activeStaff.map((s) => s.id));
+const unattached = shifts.filter((c) => !staffIdSet.has(c.staff_id)).length;
+if (unattached) console.warn(`[roster] shifts not attached to staff: ${unattached}`);
 }
 
-// 末尾などに追加
-export const getDailyShiftView = getRosterDailyView;
+
+return { date, staff: activeStaff, shifts };
+}
