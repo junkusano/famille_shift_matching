@@ -276,3 +276,11 @@
   /* モーダル本体を右へオフセット（中央寄せ解除の代替として margin-left を付与） */
   .modal-avoid-sidebar { margin-left: var(--sidebar-w); margin-right: auto; }
 }
+
+/* 左メニュー折りたたみ（PC） */
+.portal-collapsed .left-menu {
+  display: none;
+}
+.portal-collapsed .portal-container .flex-1 {
+  /* 余白があれば詰める */
+}
