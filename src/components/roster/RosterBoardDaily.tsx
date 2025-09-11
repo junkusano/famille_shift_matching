@@ -10,7 +10,7 @@ const MINUTES_IN_DAY = 24 * 60;
 const SNAP_MIN = 5;                 // 5分刻み
 const PX_PER_MIN = 2;               // 1分=2px（横幅）
 const ROW_HEIGHT = 56;              // 2行表示に合わせて少し高め
-const NAME_COL_WIDTH = 96;          // 氏名列は細め（余白削減）
+const NAME_COL_WIDTH = 112;         // 氏名列を少し広げ視認性UP
 const HEADER_H = 40;                // 時間ヘッダー高さ
 const MIN_DURATION_MIN = 10;        // 最小長さ（分）
 const CARD_VPAD = 8;                // カードの上下余白（縦位置調整）
@@ -44,7 +44,7 @@ function parseCardCompositeId(id: string) {
 // ===== Props =====
 type Props = {
   date: string;
-  initialView: RosterDailyView & { orgs?: { id: string; name: string }[] };
+  initialView: RosterDailyView;
 };
 
 // ===== DnD State =====
@@ -98,33 +98,36 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   // ====== 表示データ（カードはドラッグ反映のため state に） ======
   const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
-  // orgs テーブル由来のフィルタ候補（orgunitname 一覧）
+  // チーム（org名）一覧（orgunitname を期待）
   const allTeams = useMemo(() => {
-    return (initialView.orgs ?? [])
-      .map((o) => o.name)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, "ja"));
-  }, [initialView.orgs]);
+    const s = new Set<string>();
+    initialView.staff.forEach((st) => st.team && s.add(st.team));
+    return Array.from(s).sort((a, b) => a.localeCompare(b, "ja"));
+  }, [initialView.staff]);
 
   const [teamFilterOpen, setTeamFilterOpen] = useState(false);
   const [selectedTeams, setSelectedTeams] = useState<string[]>(() => allTeams);
   useEffect(() => {
-    setSelectedTeams(allTeams);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTeams.join("|")]);
+    // 候補リストが更新されたら、既存選択と突き合わせてクリーニング。
+    setSelectedTeams((prev) => {
+      if (prev.length === 0) return prev;      // クリア = 全表示 を維持
+      return prev.filter((t) => allTeams.includes(t));
+    });
+  }, [allTeams]);
 
-  // 並び順：org sort → level sort → 氏名
+  // 並び順：org_order → level_sort → 氏名
   const displayStaff: RosterStaff[] = useMemo(() => {
     const sorted = [...initialView.staff].sort((a, b) => {
       const ta = a.team_order ?? Number.MAX_SAFE_INTEGER;
       const tb = b.team_order ?? Number.MAX_SAFE_INTEGER;
-      if (ta !== tb) return ta - tb;
+      if (ta !== tb) return ta - tb;                 // ① org 優先
       const la = a.level_order ?? Number.MAX_SAFE_INTEGER;
       const lb = b.level_order ?? Number.MAX_SAFE_INTEGER;
-      if (la !== lb) return la - lb;
-      return a.name.localeCompare(b.name, "ja");
+      if (la !== lb) return la - lb;                 // ② level 次
+      return a.name.localeCompare(b.name, "ja");     // ③ 氏名
     });
-    if (!selectedTeams.length) return sorted;
+    // フィルタ：選択ゼロ（=クリア）のときは“全表示”
+    if (selectedTeams.length === 0) return sorted;
     return sorted.filter((st) => (st.team ? selectedTeams.includes(st.team) : false));
   }, [initialView.staff, selectedTeams]);
 
@@ -335,7 +338,8 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     background: "#fff",
     fontSize: 12,
   };
-  const boardHeight = HEADER_H + displayStaff.length * ROW_HEIGHT;
+  // ★ 盤面は“行数ぶんの高さ”のみ。ヘッダー分は加算しない
+  const boardHeight = displayStaff.length * ROW_HEIGHT;
   const staffRowBgStyle = (rowIdx: number): React.CSSProperties => ({
     position: "absolute",
     top: rowIdx * ROW_HEIGHT,
@@ -346,7 +350,8 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   });
   const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
     const rowIdx = rowIndexByStaff.get(c.staff_id);
-    const topPx = rowIdx != null ? HEADER_H + rowIdx * ROW_HEIGHT + CARD_VPAD : HEADER_H + CARD_VPAD;
+    // ★ カードのtopに HEADER_H を二重加算しない（これが“1行下に落ちる”原因）
+    const topPx = rowIdx != null ? rowIdx * ROW_HEIGHT + CARD_VPAD : CARD_VPAD;
     return {
       position: "absolute",
       top: topPx,
@@ -380,7 +385,8 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   };
   const ghostStyle = (d: DragState): React.CSSProperties => ({
     position: "absolute",
-    top: HEADER_H + d.ghostRowIdx * ROW_HEIGHT + CARD_VPAD,
+    // ★ ゴーストも HEADER_H を足さない
+    top: d.ghostRowIdx * ROW_HEIGHT + CARD_VPAD,
     left: d.ghostStartMin * PX_PER_MIN,
     width: (d.ghostEndMin - d.ghostStartMin) * PX_PER_MIN,
     height: ROW_HEIGHT - CARD_VPAD * 2,
@@ -406,27 +412,48 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
           <div className="relative">
             <button onClick={() => setTeamFilterOpen((v) => !v)} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="チーム（org）で絞り込み">チーム</button>
             {teamFilterOpen && (
-              <div className="absolute right-0 mt-1 w-56 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
+              <div className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-gray-500">チームで絞り込み</span>
                   <div className="space-x-2">
                     <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams(allTeams)}>全選択</button>
+                    {/* クリア = 選択ゼロ = 全表示 */}
                     <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams([])}>クリア</button>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  {allTeams.map((t) => (
-                    <label key={t} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={selectedTeams.includes(t)} onChange={(e) => setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)))} />
-                      <span className="truncate" title={t}>{t}</span>
-                    </label>
-                  ))}
+                  {allTeams.length === 0 ? (
+                    <div className="text-xs text-gray-400">（チーム情報なし）</div>
+                  ) : (
+                    allTeams.map((t) => (
+                      <label key={t} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeams.length === 0 ? true : selectedTeams.includes(t)}
+                          onChange={(e) => {
+                            if (selectedTeams.length === 0) {
+                              // 全表示状態（選択ゼロ）で個別操作したときは、
+                              // いったん全選択にしてから当該項目だけ外す/入れる
+                              if (!e.target.checked) {
+                                setSelectedTeams(allTeams.filter((x) => x !== t));
+                              } else {
+                                setSelectedTeams([t]);
+                              }
+                              return;
+                            }
+                            setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)));
+                          }}
+                        />
+                        <span className="truncate" title={t}>{t}</span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* 右上「メニュー」ボタンは不要 → 削除 */}
+          {/* 右上「メニュー」ボタンは不要のため削除 */}
         </div>
       </div>
 
@@ -457,7 +484,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
             </div>
           </div>
 
-          {/* 高さは内容に合わせる（ページが縦スクロール） */}
+          {/* 盤面：高さは行数ぶんのみ（ヘッダーは別DOM） */}
           <div style={{ position: "relative", minWidth: TIMELINE_WIDTH, height: boardHeight }}>
             {/* 背景グリッド */}
             <div style={{ ...timeGridStyle, position: "absolute", inset: 0 }} />
@@ -472,7 +499,12 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
               const rowIdx = rowIndexByStaff.get(c.staff_id);
               if (rowIdx == null) return null; // チーム絞り込みで非表示のスタッフ
               return (
-                <div key={c.id} style={cardStyle(c)} title={`${c.start_at}-${c.end_at}\n${c.client_name}：${c.service_name}`} onMouseDown={(e) => onCardMouseDownMove(e, c)}>
+                <div
+                  key={c.id}
+                  style={cardStyle(c)}
+                  title={`${c.start_at}-${c.end_at}\n${c.client_name}：${c.service_name}`}
+                  onMouseDown={(e) => onCardMouseDownMove(e, c)}
+                >
                   <div className="text-[11px] md:text-xs font-semibold">{c.start_at}-{c.end_at}</div>
                   <div className="text-[11px] md:text-xs truncate">{c.client_name}：{c.service_name}</div>
                   <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
