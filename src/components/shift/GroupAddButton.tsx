@@ -2,7 +2,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription,DialogOverlay } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
 
@@ -60,6 +60,7 @@ export default function GroupAddButton({ shift }: { shift: ShiftData }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      <DialogOverlay className="overlay-avoid-sidebar" />
       <DialogTrigger asChild>
         <button className="mt-2 text-xs flex items-center gap-1 px-2 py-1 border border-gray-400 rounded hover:bg-gray-100">
           <Image src="/8aeeac38-ce77-4c97-b2e9-2fcd97c5ed4a.jpg" alt="LW" width={16} height={16} />

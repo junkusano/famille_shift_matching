@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogTrigger, DialogContent, DialogPortal, DialogTitle, DialogDescription,
+  Dialog, DialogTrigger, DialogContent, DialogPortal, DialogTitle, DialogDescription, DialogOverlay
 } from "@/components/ui/dialog";
 import type { ShiftData } from "@/types/shift";
 import { supabase } from "@/lib/supabaseClient";
@@ -343,7 +343,8 @@ export default function ShiftCard({
                 <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
               </DialogTrigger>
               <DialogPortal>
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
+                <DialogOverlay className="overlay-avoid-sidebar" />
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
                   <div className="text-sm space-y-2">
                     <div>
                       <strong>通所経路等</strong>
@@ -374,8 +375,9 @@ export default function ShiftCard({
                 <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
               </DialogTrigger>
               <DialogPortal>
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
-                  <div className="text-sm">
+                <DialogOverlay className="overlay-avoid-sidebar" />
+                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
+                  <div className="text-sm space-y-2">
                     <strong>備考</strong>
                     <p>{biko}</p>
                   </div>
@@ -452,6 +454,7 @@ export default function ShiftCard({
               )}
             </DialogTrigger>
             <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
               <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
                 {mode === "request" && !eligible && (
                   <div className="mt-3 text-sm text-red-600 font-semibold">
@@ -506,6 +509,7 @@ export default function ShiftCard({
                   </>
                 ) : (
                   <>
+                  
                     <DialogTitle>シフトに入れない</DialogTitle>
                     <DialogDescription>
                       {shift.client_name} 様のシフトを外します。理由を入力してください。

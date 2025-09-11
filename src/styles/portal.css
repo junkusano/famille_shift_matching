@@ -265,3 +265,14 @@
   color: red;
   font-weight: bold;
 }
+
+:root { --sidebar-w: 250px; } /* 左メニューは width:250px 固定なので一致させる:contentReference[oaicite:1]{index=1} */
+
+/* PCのみ適用 */
+@media (min-width: 768px) {
+  /* 全画面オーバーレイを左メニューぶん避ける（背景/クリック領域用） */
+  .overlay-avoid-sidebar { padding-left: var(--sidebar-w); }
+
+  /* モーダル本体を右へオフセット（中央寄せ解除の代替として margin-left を付与） */
+  .modal-avoid-sidebar { margin-left: var(--sidebar-w); margin-right: auto; }
+}
