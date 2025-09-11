@@ -4,7 +4,7 @@ import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/rost
 
 
 const SHIFT_VIEW = "shift_csinfo_postalname_view";
-const STAFF_VIEW = "staff_roster_view";
+const STAFF_VIEW = "user_entry_united_view_single";
 const ORG_TABLE = "orgs"; // orgunit master
 const LEVEL_TABLE = "levels"; // level master
 
