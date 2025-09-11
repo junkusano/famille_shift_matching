@@ -1,5 +1,4 @@
-//src/components/roster/RosterBoardDaily
-
+// src/components/roster/RosterBoardDaily.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -45,7 +44,7 @@ function parseCardCompositeId(id: string) {
 // ===== Props =====
 type Props = {
   date: string;
-  initialView: RosterDailyView;
+  initialView: RosterDailyView & { orgs?: { id: string; name: string }[] };
 };
 
 // ===== DnD State =====
@@ -99,12 +98,13 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
   // ====== 表示データ（カードはドラッグ反映のため state に） ======
   const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
-  // チーム（org名）一覧（orgunitname を期待）
+  // orgs テーブル由来のフィルタ候補（orgunitname 一覧）
   const allTeams = useMemo(() => {
-    const s = new Set<string>();
-    initialView.staff.forEach((st) => st.team && s.add(st.team));
-    return Array.from(s).sort((a, b) => a.localeCompare(b, "ja"));
-  }, [initialView.staff]);
+    return (initialView.orgs ?? [])
+      .map((o) => o.name)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "ja"));
+  }, [initialView.orgs]);
 
   const [teamFilterOpen, setTeamFilterOpen] = useState(false);
   const [selectedTeams, setSelectedTeams] = useState<string[]>(() => allTeams);
@@ -349,7 +349,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     const topPx = rowIdx != null ? HEADER_H + rowIdx * ROW_HEIGHT + CARD_VPAD : HEADER_H + CARD_VPAD;
     return {
       position: "absolute",
-      top: topPx, // ← 縦位置を下げて行内センタリング
+      top: topPx,
       left: leftPx(c.start_at),
       width: widthPx(c.start_at, c.end_at),
       height: ROW_HEIGHT - CARD_VPAD * 2,
@@ -426,8 +426,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
             )}
           </div>
 
-          {/* 左メニュー折りたたみ要求（layout 側で受ける） */}
-          <button onClick={() => window.dispatchEvent(new CustomEvent("portal:toggleAside"))} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="左メニューを隠す/出す">メニュー</button>
+          {/* 右上「メニュー」ボタンは不要 → 削除 */}
         </div>
       </div>
 

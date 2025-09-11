@@ -1,118 +1,181 @@
-//lib/roster/rosterDailyRepo
-import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
+// src/lib/roster/rosterDailyRepo.ts
+// any を使わない型安全版。Supabase クライアントで取得し、unknown 経由で絞り込み。
+
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
+import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 
-// 固定（ENV不要）
-const SHIFT_VIEW = "shift_csinfo_postalname_view";
-const STAFF_VIEW = "user_entry_united_view_single";
-
-type AnyRow = Record<string, unknown>;
-const isStr = (v: unknown): v is string => typeof v === "string";
-
-function pickStr(row: AnyRow, keys: string[], fallback = ""): string {
-  for (const k of keys) {
-    const v = row[k];
-    if (isStr(v) && v.trim() !== "") return v;
-  }
-  return fallback;
-}
-function hhmm(t: string) {
-  const m = t.match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return "";
-  return `${m[1].padStart(2, "0")}:${m[2]}`;
-}
-function rowDateStr(row: AnyRow): string {
-  // ビュー差異吸収：先頭が YYYY-MM-DD の文字列を採用
-  const cands = ["shift_start_date", "date", "shift_date", "service_date", "visit_date"];
-  for (const k of cands) {
-    const v = row[k];
-    if (isStr(v) && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
-  }
-  return "";
+// ==== DB Row Types (strict) ====
+interface StaffRow {
+  user_id: string | number;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+  orgunitname: string | null;
+  org_order_num: number | null;
+  level_sort: number | null;
 }
 
-export async function getRosterDailyView(date: string): Promise<RosterDailyView> {
-  // ---- スタッフ取得 ----
-  const { data: staffRows, error: staffErr } = await SB.from(STAFF_VIEW).select("*");
+interface ShiftRowView {
+  shift_id: number;
+  shift_date: string; // YYYY-MM-DD
+  start_at: string;   // HH:MM
+  end_at: string;     // HH:MM
+  staff_id_1: string | number | null;
+  staff_id_2: string | number | null;
+  staff_id_3: string | number | null;
+  client_name: string | null;
+  service_name: string | null;
+  service_code: string | null;
+}
+
+interface ShiftRowFallback {
+  shift_id: number;
+  shift_start_date: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  staff_01_user_id: string | number | null;
+  staff_02_user_id: string | number | null;
+  staff_03_user_id: string | number | null;
+  name: string | null;                 // client_name
+  kaipoke_servicecode: string | null; // service_name
+  service_code: string | null;
+}
+
+// ==== utils ====
+const makeFullName = (last: string | null | undefined, first: string | null | undefined): string => `${last ?? ""}${first ?? ""}`;
+
+// ==== main ====
+export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
+  // -- 1) staff
+  const staffSel = [
+    "user_id",
+    "last_name_kanji",
+    "first_name_kanji",
+    "orgunitname",
+    "org_order_num",
+    "level_sort",
+  ].join(",");
+
+  const { data: staffRaw, error: staffErr } = await SB
+    .from("user_entry_united_view_single")
+    .select(staffSel);
+
   if (staffErr) {
-    console.error("[roster] staff select error", staffErr);
-    throw staffErr;
+    // ログのみ（UIは継続）
+    console.warn("[roster] staff query error", staffErr);
   }
-  const staff: RosterStaff[] = (staffRows as AnyRow[])
-    .map((r) => {
-      const id = pickStr(r, ["user_id", "id"]);
-      const last = pickStr(r, ["last_name_kanji", "last_name", "sei"]);
-      const first = pickStr(r, ["first_name_kanji", "first_name", "mei"]);
-      const name = `${last}${first}`.trim() || pickStr(r, ["name"]);
-      // orgunitname を最優先（要望）
-      const team = pickStr(r, ["orgunitname", "org_name", "group_name"]) || null;
-      const level = pickStr(r, ["level", "level_name", "levels"]) || null;
-      return { id, name, team, level, status: "ACTIVE" as const };
-    })
-    .filter((s) => s.id && s.name);
 
-  // 並び：チーム→レベル(数値)→氏名
-  staff.sort((a, b) => {
-    const ta = a.team ?? "", tb = b.team ?? "";
-    if (ta !== tb) return ta.localeCompare(tb, "ja");
-    const la = Number.isFinite(Number(a.level)) ? Number(a.level) : Number.MAX_SAFE_INTEGER;
-    const lb = Number.isFinite(Number(b.level)) ? Number(b.level) : Number.MAX_SAFE_INTEGER;
-    if (la !== lb) return la - lb;
-    return a.name.localeCompare(b.name, "ja");
+  const staffRows: StaffRow[] = (staffRaw ?? []) as unknown as StaffRow[];
+
+  const staff: RosterStaff[] = staffRows.map((r): RosterStaff => ({
+    id: String(r.user_id),
+    name: makeFullName(r.last_name_kanji, r.first_name_kanji),
+    team: r.orgunitname ?? null,
+    team_order: typeof r.org_order_num === "number" ? r.org_order_num : Number.MAX_SAFE_INTEGER,
+    level_order: typeof r.level_sort === "number" ? r.level_sort : Number.MAX_SAFE_INTEGER,
+  }));
+
+  if (staff.length === 0) {
+    console.warn("[roster] no staff records");
+  }
+
+  // -- 2) shifts (prefer: shift_csinfo_roster_view)
+  const shiftSel = [
+    "shift_id",
+    "shift_date",
+    "start_at",
+    "end_at",
+    "staff_id_1",
+    "staff_id_2",
+    "staff_id_3",
+    "client_name",
+    "service_name",
+    "service_code",
+  ].join(",");
+
+  let shiftRows: ShiftRowView[] | null = null;
+
+  {
+    const { data, error } = await SB
+      .from("shift_csinfo_roster_view")
+      .select(shiftSel)
+      .eq("shift_date", date);
+
+    if (error) {
+      console.warn("[roster] roster_view query error → fallback to postalname_view", error);
+    } else {
+      shiftRows = (data ?? []) as unknown as ShiftRowView[];
+    }
+  }
+
+  // -- 2') fallback: shift_csinfo_postalname_view
+  if (!shiftRows) {
+    const fbSel = [
+      "shift_id",
+      "shift_start_date",
+      "shift_start_time",
+      "shift_end_time",
+      "staff_01_user_id",
+      "staff_02_user_id",
+      "staff_03_user_id",
+      "name",
+      "kaipoke_servicecode",
+      "service_code",
+    ].join(",");
+
+    const { data, error } = await SB
+      .from("shift_csinfo_postalname_view")
+      .select(fbSel)
+      .eq("shift_start_date", date);
+
+    if (error) {
+      console.warn("[roster] postalname_view query error", error);
+      shiftRows = [] as ShiftRowView[];
+    } else {
+      const rows = (data ?? []) as unknown as ShiftRowFallback[];
+      shiftRows = rows.map((r): ShiftRowView => ({
+        shift_id: r.shift_id,
+        shift_date: r.shift_start_date,
+        start_at: r.shift_start_time,
+        end_at: r.shift_end_time,
+        staff_id_1: r.staff_01_user_id,
+        staff_id_2: r.staff_02_user_id,
+        staff_id_3: r.staff_03_user_id,
+        client_name: r.name,
+        service_name: r.kaipoke_servicecode,
+        service_code: r.service_code,
+      }));
+    }
+  }
+
+  // -- 3) map to cards
+  const makeCard = (
+    sid: number,
+    uid: string | number | null,
+    s: string,
+    e: string,
+    cn: string | null,
+    sn: string | null,
+    sc: string | null,
+  ): RosterShiftCard => ({
+    id: `${sid}_${uid ?? ""}`,
+    staff_id: String(uid),
+    start_at: s,
+    end_at: e,
+    client_name: cn ?? "",
+    service_name: sn ?? "",
+    service_code: sc ?? "",
   });
 
-  // ---- シフト取得（SQLでWHEREせず→JSで日付フィルタ）----
-  const { data: shiftRows, error: shiftErr } = await SB.from(SHIFT_VIEW).select("*");
-  if (shiftErr) {
-    console.error("[roster] shift select error", shiftErr);
-    throw shiftErr;
+  const shifts: RosterShiftCard[] = [];
+  for (const r of shiftRows ?? []) {
+    if (r.staff_id_1) shifts.push(makeCard(r.shift_id, r.staff_id_1, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
+    if (r.staff_id_2) shifts.push(makeCard(r.shift_id, r.staff_id_2, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
+    if (r.staff_id_3) shifts.push(makeCard(r.shift_id, r.staff_id_3, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
   }
 
-  const shifts: RosterShiftCard[] = [];
-  for (const r of (shiftRows as AnyRow[])) {
-    if (rowDateStr(r) !== date) continue;
-
-    const shiftId = pickStr(r, ["shift_id", "id"]);
-    const start = hhmm(pickStr(r, ["shift_start_time", "start_time", "start_at"]));
-    const end = hhmm(pickStr(r, ["shift_end_time", "end_time", "end_at"]));
-    if (!shiftId || !start || !end) continue;
-
-    const client =
-      pickStr(r, ["client_name", "cs_fullname", "client_fullname"]) ||
-      `${pickStr(r, ["cs_last_name_kanji", "client_last_name_kanji"])}${pickStr(r, ["cs_first_name_kanji", "client_first_name_kanji"])}`.trim();
-
-    const service_code = pickStr(r, ["service_code", "servicecode"]);
-    const service_name = pickStr(r, ["service_name", "servicename", "service"]);
-
-    const staffIdKeys = [
-      "staff_user01_id",
-      "staff_user02_id",
-      "staff_user03_id",
-      "staff_user04_id",
-      "staff_user05_id",
-      "staff_user06_id",
-      "staff_user_id",
-      "user_id",
-    ];
-    const staffIds = staffIdKeys.map((k) => pickStr(r, [k])).filter((v) => v);
-
-    if (staffIds.length === 0) continue;
-
-    for (const sid of staffIds) {
-      shifts.push({
-        id: `${shiftId}_${sid}`,
-        staff_id: sid,
-        start_at: start,
-        end_at: end,
-        client_name: client || "",
-        service_code,
-        service_name,
-      });
-    }
+  if (shifts.length === 0) {
+    console.warn("[roster] no shifts for", date);
   }
 
   return { date, staff, shifts };
 }
-
-// 旧呼び名の互換エクスポート（呼び出し側が混在していてもOK）
-export const getDailyRosterView = getRosterDailyView;
