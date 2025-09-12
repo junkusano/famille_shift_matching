@@ -26,6 +26,9 @@ interface EntryData {
   status_label?: string;
   level_label?: string;
   level_sort?: number;
+  // 追加: usersテーブル由来
+  roster_sort?: string | null;
+  user_id?: string | null;
 }
 
 type AddrStatus = 'loading' | 'ok' | 'retry_fail';
@@ -54,7 +57,7 @@ function getPrefixHint(zip7: string) {
 const ZIP_CACHE_KEY = 'zipAddrCacheV1';
 const ZIP_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7日
 
-type LSCache = Record<string, { v: string; exp: number }>; 
+type LSCache = Record<string, { v: string; exp: number }>;
 
 function readLS(): LSCache {
   if (typeof window === 'undefined') return {};
@@ -217,7 +220,25 @@ export default function EntryListPage() {
           return lb - la;
         });
 
-        setEntries(sorted);
+        // ▼ usersテーブルから roster_sort / user_id を一括取得してマージ
+        const entryIds = sorted.map(e => e.id);
+        let rosterMap = new Map<string, { roster_sort: string | null; user_id: string | null }>();
+        if (entryIds.length > 0) {
+          const { data: usersRows, error: usersErr } = await supabase
+            .from('users')
+            .select('entry_id, user_id, roster_sort')
+            .in('entry_id', entryIds);
+          if (!usersErr && usersRows) {
+            for (const r of usersRows) {
+              rosterMap.set(r.entry_id, { roster_sort: r.roster_sort ?? null, user_id: r.user_id ?? null });
+            }
+          }
+        }
+        const merged = sorted.map(e => {
+          const u = rosterMap.get(e.id);
+          return { ...e, roster_sort: u?.roster_sort ?? null, user_id: u?.user_id ?? null };
+        });
+        setEntries(merged);
         setTotalCount(count || 0);
       }
 
@@ -314,6 +335,7 @@ export default function EntryListPage() {
                 <th className="border px-2 py-1">住所</th>
                 <th className="border px-2 py-1">職級</th>
                 <th className="border px-2 py-1">ステータス</th>
+                <th className="border px-2 py-1">並び順(roster)</th>
                 <th className="border px-2 py-1">登録日</th>
                 <th className="border px-2 py-1" />
               </tr>
@@ -359,6 +381,34 @@ export default function EntryListPage() {
                     </td>
                     <td className="border px-2 py-1">{entry.level_label ?? '―'}</td>
                     <td className="border px-2 py-1">{entry.status_label ?? '―'}</td>
+                    <td className="border px-2 py-1">
+                      <input
+                        className="w-20 border rounded px-1 text-sm"
+                        value={entry.roster_sort ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEntriesWithMap(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
+                        }}
+                        onBlur={async (e) => {
+                          const v = e.target.value || '9999';
+                          // users.user_id が無い=まだ users 行未作成 → 更新不可なので警告のみ
+                          if (!entry.user_id) {
+                            alert('ユーザーID未作成のため更新できません（詳細画面でユーザーIDを作成してください）');
+                            return;
+                          }
+                          const { error: upErr } = await supabase
+                            .from('users')
+                            .update({ roster_sort: v })
+                            .eq('user_id', entry.user_id);
+                          if (upErr) {
+                            alert('roster_sort更新に失敗: ' + upErr.message);
+                          } else {
+                            setEntriesWithMap(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
+                          }
+                        }}
+                        placeholder="9999"
+                      />
+                    </td>
                     <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                     <td className="border px-2 py-1">
                       <a

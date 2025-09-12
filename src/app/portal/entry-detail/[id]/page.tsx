@@ -87,6 +87,7 @@ interface UserRecord {
     level_id?: string | null;
     position_id?: string | null;
     status?: string;
+    roster_sort?: string | null;
 }
 
 type NameInfo = {
@@ -1824,6 +1825,42 @@ export default function EntryDetailPage() {
                             }
                         }}
                     >
+                        {/* 並び順(roster) */}
+                        <div className="flex items-center gap-2">
+                            <Label className="w-24">並び順(roster)</Label>
+                            <input
+                                className="flex-1 border rounded px-2 py-1"
+                                value={userRecord?.roster_sort ?? ''}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setUserRecord(prev => prev ? { ...prev, roster_sort: v } : prev);
+                                }}
+                                placeholder="9999"
+                            />
+                            <button
+                                className="px-3 py-1 bg-green-600 text-white rounded"
+                                onClick={async () => {
+                                    if (!userRecord?.user_id && !userId) {
+                                        alert('ユーザーID未登録です。先にユーザーIDを作成してください。');
+                                        return;
+                                    }
+                                    const key = userRecord?.user_id ?? userId;
+                                    const v = (userRecord?.roster_sort ?? '').trim() || '9999';
+                                    const { error } = await supabase
+                                        .from('users')
+                                        .update({ roster_sort: v })
+                                        .eq('user_id', key);
+                                    if (error) {
+                                        alert('roster_sort更新に失敗: ' + error.message);
+                                    } else {
+                                        alert('roster_sortを更新しました');
+                                    }
+                                }}
+                            >
+                                保存
+                            </button>
+                        </div>
+
                         {[
                             'account_id_create',
                             'auth_mail_send',
