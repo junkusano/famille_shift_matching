@@ -750,6 +750,12 @@ export default function EntryDetailPage() {
                 console.log('✅ ステータスを認証メール送信済に変更しました');
             }
 
+            const { data: userRow } = await supabase
+                .from('users')
+                .select('user_id, status, level_id, position_id, roster_sort') // ★ roster_sort を含める
+                .eq('entry_id', entryId)
+                .maybeSingle();
+
 
             // 📝 users テーブルを更新
             const { error: updateError } = await supabase.from('users')
@@ -1827,34 +1833,27 @@ export default function EntryDetailPage() {
                     >
                         {/* 並び順(roster) */}
                         <div className="flex items-center gap-2">
-                            <Label className="w-24">並び順(roster)</Label>
+                            <label className="w-28 text-sm text-gray-700">並び順(roster)</label>
                             <input
                                 className="flex-1 border rounded px-2 py-1"
                                 value={userRecord?.roster_sort ?? ''}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    setUserRecord(prev => prev ? { ...prev, roster_sort: v } : prev);
-                                }}
+                                onChange={(e) => setUserRecord(prev => prev ? { ...prev, roster_sort: e.target.value } : prev)}
                                 placeholder="9999"
+                                disabled={!userRecord?.user_id}
+                                title={!userRecord?.user_id ? 'ユーザー未作成のため編集不可（先にユーザーIDを作成）' : ''}
                             />
                             <button
-                                className="px-3 py-1 bg-green-600 text-white rounded"
+                                className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                                disabled={!userRecord?.user_id}
                                 onClick={async () => {
-                                    if (!userRecord?.user_id && !userId) {
+                                    if (!userRecord?.user_id) {
                                         alert('ユーザーID未登録です。先にユーザーIDを作成してください。');
                                         return;
                                     }
-                                    const key = userRecord?.user_id ?? userId;
                                     const v = (userRecord?.roster_sort ?? '').trim() || '9999';
-                                    const { error } = await supabase
-                                        .from('users')
-                                        .update({ roster_sort: v })
-                                        .eq('user_id', key);
-                                    if (error) {
-                                        alert('roster_sort更新に失敗: ' + error.message);
-                                    } else {
-                                        alert('roster_sortを更新しました');
-                                    }
+                                    const { error } = await supabase.from('users').update({ roster_sort: v }).eq('user_id', userRecord.user_id);
+                                    if (error) alert('roster_sort更新に失敗: ' + error.message);
+                                    else alert('roster_sortを更新しました');
                                 }}
                             >
                                 保存

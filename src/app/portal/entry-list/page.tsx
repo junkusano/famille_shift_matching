@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
 import { getMapLinkFromZip } from '@/lib/getMapLinkFromZip';
 import { getAddressFromZip } from '@/lib/getAddressFromZip';
+import Link from 'next/link';
 
 interface EntryData {
   id: string;
@@ -27,11 +28,15 @@ interface EntryData {
   level_label?: string;
   level_sort?: number;
   // 追加: usersテーブル由来
-  roster_sort?: string | null;
-  user_id?: string | null;
+  user_id?: string | null;               // ★ 追加（users結合で使う）
+  roster_sort?: string | null;           // ★ 追加（users.roster_sort）
 }
 
 type AddrStatus = 'loading' | 'ok' | 'retry_fail';
+
+
+// 行ごとの未保存の編集値を保持する（entry.id -> 値）
+const [rosterEdits, setRosterEdits] = useState<Record<string, string>>({});
 
 // ========================
 //  1) 3桁ヒント辞書
@@ -337,7 +342,7 @@ export default function EntryListPage() {
                 <th className="border px-2 py-1">ステータス</th>
                 <th className="border px-2 py-1">並び順(roster)</th>
                 <th className="border px-2 py-1">登録日</th>
-                <th className="border px-2 py-1" />
+                <th className="border px-2 py-1">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -411,12 +416,38 @@ export default function EntryListPage() {
                     </td>
                     <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
                     <td className="border px-2 py-1">
-                      <a
-                        href={`/portal/entry-detail/${entry.id}`}
-                        className="text-blue-600 underline hover:text-blue-800 text-sm"
-                      >
-                        詳細
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                          disabled={
+                            !entry.user_id ||
+                            (rosterEdits[entry.id] ?? (entry.roster_sort ?? '')) === (entry.roster_sort ?? '')
+                          }
+                          onClick={async () => {
+                            if (!entry.user_id) {
+                              alert('ユーザー未作成のため保存できません。詳細画面でユーザーIDを生成してください。');
+                              return;
+                            }
+                            const v = (rosterEdits[entry.id] ?? entry.roster_sort ?? '').trim() || '9999';
+                            const { error } = await supabase
+                              .from('users')
+                              .update({ roster_sort: v })
+                              .eq('user_id', entry.user_id);
+                            if (error) {
+                              alert('roster_sortの保存に失敗：' + error.message);
+                              return;
+                            }
+                            // 画面反映
+                            setEntries(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
+                            setRosterEdits(({ [entry.id]: _, ...rest }) => rest);
+                          }}
+                        >
+                          保存
+                        </button>
+                        <Link href={`/portal/entry-detail/${entry.id}`}>
+                          <button className="px-3 py-1 bg-blue-600 text-white rounded">詳細</button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );
