@@ -1,44 +1,99 @@
 // src/app/api/roster/shifts/[id]/route.ts
+import { NextResponse } from "next/server";
+import { supabaseAdmin as SB } from "@/lib/supabase/service";
 
-type PatchPayload = {
-  start_at?: string;
-  end_at?: string;
-  staff_id?: string;
+export const dynamic = "force-dynamic";
+
+type PatchBody = {
+  staff_id: string;   // 画面から来るスタッフID
+  start_at: string;   // "HH:mm"
+  end_at: string;     // "HH:mm"
+  date: string;       // "YYYY-MM-DD"
 };
 
-function isPatchPayload(x: unknown): x is PatchPayload {
-  if (typeof x !== "object" || x === null) return false;
-  const o = x as Record<string, unknown>;
-  if ("start_at" in o && typeof o.start_at !== "string") return false;
-  if ("end_at" in o && typeof o.end_at !== "string") return false;
-  if ("staff_id" in o && typeof o.staff_id !== "string") return false;
-  return true;
-}
+type ShiftRow = {
+  shift_id: number;
+  staff_01_user_id: string | null;
+  staff_02_user_id: string | null;
+  staff_03_user_id: string | null;
+  two_person_work_flg: boolean;
+};
 
-export async function PATCH(request: Request) {
+const HHMM = /^\d{2}:\d{2}$/;
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function PATCH(req: Request) {
   try {
-    // /api/roster/shifts/[id] から id を抽出（末尾の空要素もケア）
-    const url = new URL(request.url);
-    const parts = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
-    const id = decodeURIComponent(parts[parts.length - 1] ?? "");
-    if (!id) {
-      return Response.json({ ok: false, error: "Missing id in URL" }, { status: 400 });
+    // /api/roster/shifts/:id から id 抽出（引数は単一）
+    const url = new URL(req.url);
+    const seg = url.pathname.split("/");
+    const idStr = seg[seg.length - 1];
+    const shiftId = Number(idStr);
+    if (!Number.isFinite(shiftId)) {
+      return NextResponse.json({ error: "invalid shift id" }, { status: 400 });
     }
 
-    const raw: unknown = await request.json();
-    if (!isPatchPayload(raw)) {
-      return Response.json({ ok: false, error: "Invalid payload" }, { status: 400 });
+    const body: PatchBody = await req.json();
+    if (!body?.staff_id || !HHMM.test(body.start_at) || !HHMM.test(body.end_at) || !YMD.test(body.date)) {
+      return NextResponse.json({ error: "invalid payload" }, { status: 400 });
     }
 
-    const { start_at, end_at, staff_id } = raw;
+    // 必要カラムだけ取得（★ジェネリクスは使わない）
+    const { data, error: selErr } = await SB
+      .from("shift")
+      .select("shift_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, two_person_work_flg")
+      .eq("shift_id", shiftId)
+      .single();
 
-    // TODO: DB更新処理
-    //  - id（`${shift_id}_${staff_id}`）を分解し、shift と担当者配列を更新
-    //  - start/end は日付(date) + 時刻の正規化ルールに従い保存
+    if (selErr || !data) {
+      return NextResponse.json({ error: "shift not found" }, { status: 404 });
+    }
+    const cur = data as ShiftRow;
 
-    return Response.json({ ok: true, id, start_at, end_at, staff_id });
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : String(e);
-    return Response.json({ ok: false, error: message }, { status: 500 });
+    // 既にどこかのスロットにいるか？
+    const in01 = cur.staff_01_user_id === body.staff_id;
+    const in02 = cur.staff_02_user_id === body.staff_id;
+    const in03 = cur.staff_03_user_id === body.staff_id;
+
+    // 更新カラム（テーブル型に揃える）
+    const updateCols: {
+      shift_start_date: string;
+      shift_start_time: string;
+      shift_end_time: string;
+      update_at: string;
+      staff_01_user_id?: string | null;
+      staff_02_user_id?: string | null;
+      staff_03_user_id?: string | null;
+    } = {
+      shift_start_date: body.date,
+      shift_start_time: body.start_at,
+      shift_end_time: body.end_at,
+      update_at: new Date().toISOString(),
+    };
+
+    // 未所属なら空きに詰める（01 → 02 → 03、02/03は two_person_work_flg のときのみ）
+    if (!(in01 || in02 || in03)) {
+      if (!cur.staff_01_user_id) {
+        updateCols.staff_01_user_id = body.staff_id;
+      } else if (cur.two_person_work_flg && !cur.staff_02_user_id) {
+        updateCols.staff_02_user_id = body.staff_id;
+      } else if (cur.two_person_work_flg && !cur.staff_03_user_id) {
+        updateCols.staff_03_user_id = body.staff_id;
+      } else {
+        // すべて埋まっていれば01を差し替え（必要に応じて仕様変更可）
+        updateCols.staff_01_user_id = body.staff_id;
+      }
+    }
+
+    const { error: updErr } = await SB.from("shift").update(updateCols).eq("shift_id", shiftId);
+    if (updErr) {
+      // 一意制約（(kaipoke_cs_id, shift_start_date, shift_start_time)）衝突など
+      return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
