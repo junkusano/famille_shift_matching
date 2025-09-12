@@ -222,7 +222,7 @@ export default function EntryListPage() {
 
         // ▼ usersテーブルから roster_sort / user_id を一括取得してマージ
         const entryIds = sorted.map(e => e.id);
-        let rosterMap = new Map<string, { roster_sort: string | null; user_id: string | null }>();
+        const rosterMap = new Map<string, { roster_sort: string | null; user_id: string | null }>();
         if (entryIds.length > 0) {
           const { data: usersRows, error: usersErr } = await supabase
             .from('users')
