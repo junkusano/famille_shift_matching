@@ -750,12 +750,14 @@ export default function EntryDetailPage() {
                 console.log('✅ ステータスを認証メール送信済に変更しました');
             }
 
-            const { data: userRow } = await supabase
-                .from('users')
-                .select('user_id, status, level_id, position_id, roster_sort') // ★ roster_sort を含める
-                .eq('entry_id', entryId)
-                .maybeSingle();
-
+            if (entry?.id) {
+                const { data: userRow } = await supabase
+                    .from('users')
+                    .select('user_id, status, level_id, position_id, roster_sort')
+                    .eq('entry_id', entry.id)
+                    .maybeSingle();
+                void userRow; // ← 未使用警告回避
+            }
 
             // 📝 users テーブルを更新
             const { error: updateError } = await supabase.from('users')
