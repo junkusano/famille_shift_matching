@@ -1,4 +1,4 @@
-// src/app/portal/layout.tsx (全文差し替え版)
+// src/app/portal/layout.tsx（モバイル左端ホットゾーンで開閉：表示・非表示どちらも可｜全文）
 "use client";
 
 import React, { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -21,12 +21,9 @@ interface UserData {
   photo_url: string | null;
 }
 
-interface Props {
-  children: ReactNode;
-}
+interface Props { children: ReactNode }
 
 /** ========= Small components ========= */
-
 function LogoutButton({ className }: { className?: string }) {
   const router = useRouter();
   const onLogout = useCallback(async () => {
@@ -55,13 +52,7 @@ function AvatarBlock({
     <div className="relative" style={{ width: size, height: size }}>
       {photoUrl ? (
         <>
-          <Image
-            src={photoUrl}
-            width={size}
-            height={size}
-            alt="写真"
-            className="rounded-full object-cover w-full h-full"
-          />
+          <Image src={photoUrl} width={size} height={size} alt="写真" className="rounded-full object-cover w-full h-full" />
           <button
             aria-label="写真を削除"
             className="absolute bottom-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 rounded hover:bg-red-600"
@@ -84,21 +75,11 @@ function NavLinks({ role }: { role: string | null }) {
   const isManagerOrAdmin = ["manager", "admin"].includes(role ?? "");
   return (
     <ul className="mt-6 space-y-2">
-      <li>
-        <Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link>
-      </li>
-      <li>
-        <Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link>
-      </li>
-
-      {isManagerOrAdmin && (
-        <li>
-          <Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link>
-        </li>
-      )}
-
+      <li><Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link></li>
+      <li><Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link></li>
       {isManagerOrAdmin && (
         <>
+          <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
           <li><Link href="/portal/orgIcons" className="text-blue-300 hover:underline">組織アイコン設定</Link></li>
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者様情報</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>
@@ -112,23 +93,11 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
         </>
       )}
-
+      <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
+      <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
+      <li><Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link></li>
       <li>
-        <Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link>
-      </li>
-      <li>
-        <Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link>
-      </li>
-      <li>
-        <Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link>
-      </li>
-      <li>
-        <Link
-          href="/lineworks-login-guide"
-          className="hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <Link href="/lineworks-login-guide" className="hover:underline" target="_blank" rel="noopener noreferrer">
           LINE WORKSログインガイド
         </Link>
       </li>
@@ -139,19 +108,12 @@ function NavLinks({ role }: { role: string | null }) {
 function UserHeader({ userData, role }: { userData: UserData; role: string | null }) {
   return (
     <>
-      <h2 className="text-xl font-semibold">
-        {userData.last_name_kanji} {userData.first_name_kanji}
-      </h2>
-      <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">
-        ユーザー権限: {role}
-      </p>
+      <h2 className="text-xl font-semibold">{userData.last_name_kanji} {userData.first_name_kanji}</h2>
+      <p className="text-white font-semibold text-sm mt-1 drop-shadow-sm">ユーザー権限: {role}</p>
     </>
   );
 }
 
-/**
- * PC/スマホ共通で使い回すサイドバー中身
- */
 function SidebarContent({
   userData,
   role,
@@ -168,12 +130,7 @@ function SidebarContent({
       <div>
         <UserHeader userData={userData} role={role} />
         <div className="mt-3">
-          <AvatarBlock
-            photoUrl={userData.photo_url}
-            onDelete={onDeletePhoto}
-            onReupload={onReuploadPhoto}
-            size={128}
-          />
+          <AvatarBlock photoUrl={userData.photo_url} onDelete={onDeletePhoto} onReupload={onReuploadPhoto} size={128} />
         </div>
         <NavLinks role={role} />
       </div>
@@ -194,23 +151,16 @@ export default function PortalLayout({ children }: Props) {
 
   // PC向け：左メニュー折りたたみ
   const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // スマホ向け：ハンバーガーで開閉
+  // モバイル向け：スライドメニュー開閉
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleDeletePhoto = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
     const user = data?.user;
     if (!user) return;
-    const { error } = await supabase
-      .from("form_entries")
-      .update({ photo_url: null })
-      .eq("auth_uid", user.id);
-    if (!error) {
-      setUserData((prev) => (prev ? { ...prev, photo_url: null } : prev));
-    } else {
-      alert("削除に失敗しました: " + error.message);
-    }
+    const { error } = await supabase.from("form_entries").update({ photo_url: null }).eq("auth_uid", user.id);
+    if (!error) setUserData((prev) => (prev ? { ...prev, photo_url: null } : prev));
+    else alert("削除に失敗しました: " + error.message);
   }, []);
 
   const handlePhotoReupload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,22 +172,12 @@ export default function PortalLayout({ children }: Props) {
     const res = await fetch("/api/upload", { method: "POST", body: formData });
     const result = await res.json();
     const url: string | undefined = result?.url;
-    if (!url) {
-      alert("アップロード失敗");
-      return;
-    }
+    if (!url) { alert("アップロード失敗"); return; }
     const { data } = await supabase.auth.getUser();
-    const user = data?.user;
-    if (!user) return;
-    const { error } = await supabase
-      .from("form_entries")
-      .update({ photo_url: url })
-      .eq("auth_uid", user.id);
-    if (!error) {
-      setUserData((prev) => (prev ? { ...prev, photo_url: url } : prev));
-    } else {
-      alert("更新に失敗しました: " + error.message);
-    }
+    const user = data?.user; if (!user) return;
+    const { error } = await supabase.from("form_entries").update({ photo_url: url }).eq("auth_uid", user.id);
+    if (!error) setUserData((prev) => (prev ? { ...prev, photo_url: url } : prev));
+    else alert("更新に失敗しました: " + error.message);
   }, []);
 
   useEffect(() => {
@@ -245,10 +185,7 @@ export default function PortalLayout({ children }: Props) {
     (async () => {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+      if (!user) { router.push("/login"); return; }
       const { data: entryData } = await supabase
         .from("form_entries")
         .select("last_name_kanji, first_name_kanji, last_name_kana, first_name_kana, photo_url")
@@ -256,12 +193,9 @@ export default function PortalLayout({ children }: Props) {
         .single();
       if (!cancelled && entryData) setUserData(entryData as UserData);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
-  // Loading gate
   if (loading || !userData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -270,23 +204,22 @@ export default function PortalLayout({ children }: Props) {
     );
   }
 
-  // aside の幅（折りたたみ時は細いタブのみ）
-  const asideWidth = isCollapsed ? 18 : 280;
+  const asideWidth = isCollapsed ? 18 : 280; // PC折りたたみ時は細いタブ幅
 
-  // スマホメニュー内でリンクを押したら閉じる
+  // モバイル：メニュー内リンクを押したら自動で閉じる
   const handleMobileNavClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
     const a = (e.target as HTMLElement).closest("a");
     if (a) setIsMobileMenuOpen(false);
   };
 
+  // モバイル：左端ホットゾーンをタップで開閉（表示・非表示どちらも）
+  const toggleByEdge = () => setIsMobileMenuOpen((v) => !v);
+
   return (
     <div className="flex portal-container min-h-screen">
       {/* ===== 左メニュー（PC） ===== */}
-      <aside
-        className="left-menu relative h-full min-h-screen"
-        style={{ width: asideWidth, transition: "width 0.2s ease" }}
-      >
-        {/* PC 折りたたみトグル（上部白いエリアをボタンにしている運用でもOK） */}
+      <aside className="left-menu relative h-full min-h-screen" style={{ width: asideWidth, transition: "width 0.2s ease" }}>
+        {/* PC 折りたたみトグル（上部白いエリアをボタン運用でもOK） */}
         <button
           type="button"
           aria-label={isCollapsed ? "メニューを開く" : "メニューを閉じる"}
@@ -297,55 +230,23 @@ export default function PortalLayout({ children }: Props) {
           {isCollapsed ? "▶" : "◀"}
         </button>
 
-        {/* 中身 */}
         {!isCollapsed && (
-          <SidebarContent
-            userData={userData}
-            role={role}
-            onDeletePhoto={handleDeletePhoto}
-            onReuploadPhoto={handlePhotoReupload}
-          />
+          <SidebarContent userData={userData} role={role} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
         )}
       </aside>
 
-      {/* ===== スマホ：ハンバーガー & スライドメニュー ===== */}
-      {/* ハンバーガー（CSSでモバイル時のみ表示） */}
-      <button
-        className="hamburger"
-        aria-label="メニューを開く"
-        onClick={() => setIsMobileMenuOpen(true)}
-      >
-        ☰
-      </button>
+      {/* ===== モバイル：左端ホットゾーン（常時固定） ===== */}
+      <button className="edge-hotzone" aria-label="メニューの開閉" onClick={toggleByEdge} />
 
-      {/* 左からスライドするメニュー（.menu / .menu.open は CSS で制御） */}
-      <nav
-        className={`menu ${isMobileMenuOpen ? "open" : ""}`}
-        onClick={handleMobileNavClick}
-        aria-hidden={!isMobileMenuOpen}
-      >
-        {/* 閉じるボタン（メニュー内上部） */}
-        <button
-          className="hamburger"
-          aria-label="メニューを閉じる"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          ×
-        </button>
-
-        <SidebarContent
-          userData={userData}
-          role={role}
-          onDeletePhoto={handleDeletePhoto}
-          onReuploadPhoto={handlePhotoReupload}
-        />
+      {/* ===== モバイル：スライドメニュー ===== */}
+      <nav className={`menu ${isMobileMenuOpen ? "open" : ""}`} onClick={handleMobileNavClick} aria-hidden={!isMobileMenuOpen}>
+        {/* ×で閉じる（メニュー上部） */}
+        <button className="hamburger" aria-label="メニューを閉じる" onClick={() => setIsMobileMenuOpen(false)}>×</button>
+        <SidebarContent userData={userData} role={role} onDeletePhoto={handleDeletePhoto} onReuploadPhoto={handlePhotoReupload} />
       </nav>
 
-      {/* オーバーレイ（開いているときだけ表示、タップで閉じる） */}
-      <div
-        className={isMobileMenuOpen ? "fixed inset-0 bg-black/30 z-[90]" : "hidden"}
-        onClick={() => setIsMobileMenuOpen(false)}
-      />
+      {/* オーバーレイ（背景タップで閉じる） */}
+      <div className={isMobileMenuOpen ? "fixed inset-0 bg-black/30 z-[90]" : "hidden"} onClick={() => setIsMobileMenuOpen(false)} />
 
       {/* ===== メイン ===== */}
       <main className="flex-1 flex flex-col min-h-screen min-w-0">

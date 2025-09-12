@@ -284,3 +284,21 @@
 .portal-collapsed .portal-container .flex-1 {
   /* 余白があれば詰める */
 }
+
+/* 左端ホットゾーン（モバイル） — 最終版 */
+.edge-hotzone {
+position: fixed;
+top: 0;
+left: 0;
+width: 14px; /* 視認しやすい白い細帯（必要なら 8-12px に調整） */
+height: 100dvh; /* iOSのアドレスバー対策。100vh より安全 */
+background: #fff;
+border: none;
+z-index: 120; /* .menu(100) と overlay(90) の上に置く */
+display: none; /* PCでは非表示 */
+-webkit-tap-highlight-color: transparent; /* iOSの青いハイライト無効化 */
+touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
+}
+@media (max-width: 768px) {
+.edge-hotzone { display: block; }
+}
