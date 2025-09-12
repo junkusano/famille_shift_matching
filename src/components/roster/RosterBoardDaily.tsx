@@ -14,6 +14,7 @@ const NAME_COL_WIDTH = 112;         // 氏名列を少し広げ視認性UP
 const HEADER_H = 40;                // 時間ヘッダー高さ
 const MIN_DURATION_MIN = 10;        // 最小長さ（分）
 const CARD_VPAD = 8;                // カードの上下余白（縦位置調整）
+const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
 
 // ===== ユーティリティ =====
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -33,7 +34,6 @@ const widthPx = (start: string, end: string) => {
   const w = clamp(hhmmToMin(end) - hhmmToMin(start), MIN_DURATION_MIN, MINUTES_IN_DAY) * PX_PER_MIN;
   return Math.max(2, w);
 };
-const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
 
 function parseCardCompositeId(id: string) {
   const idx = id.lastIndexOf("_");
@@ -63,6 +63,7 @@ interface DragState {
   ghostStartMin: number;
   ghostEndMin: number;
   ghostRowIdx: number;
+  srcStaffId: string;       // ★ 触り始めたカードの元担当（= 元の枠）
 }
 
 export default function RosterBoardDaily({ date, initialView }: Props) {
@@ -172,6 +173,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     return clamp(origRowIdx + dRows, 0, Math.max(0, displayStaff.length - 1));
   };
 
+  // カードつかみ（移動）
   const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
     e.preventDefault();
     const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
@@ -191,9 +193,11 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
       ghostStartMin: s,
       ghostEndMin: en,
       ghostRowIdx: rowIdx,
+      srcStaffId: card.staff_id, // ★ ここ
     });
   };
 
+  // 右端リサイズ（終了時刻）
   const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
     e.preventDefault();
     e.stopPropagation();
@@ -212,6 +216,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
       ghostStartMin: s,
       ghostEndMin: en,
       ghostRowIdx: rowIdx,
+      srcStaffId: card.staff_id, // ★ ここ
     });
   };
 
@@ -245,24 +250,27 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
       autoScrollWindowIfNearEdge(ev.clientY);
     }
 
+    // mouseup 時：サーバに PATCH（src_staff_id を送る）
     function onUp() {
       if (!drag) return;
-      const { cardId, ghostStartMin, ghostEndMin, ghostRowIdx } = drag;
+      const { cardId, ghostStartMin, ghostEndMin, ghostRowIdx, srcStaffId } = drag;
       const { shiftId } = parseCardCompositeId(cardId);
       const targetStaff = displayStaff[ghostRowIdx];
       if (!targetStaff) { setDrag(null); return; }
       const start_at = toHHmm(ghostStartMin);
       const end_at = toHHmm(ghostEndMin);
-      const staff_id = targetStaff.id;
+      const staff_id = targetStaff.id;    // ← dst_staff_id
 
-      setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c)));
+      setCards((prev) =>
+        prev.map((c) => (c.id === cardId ? { ...c, id: `${shiftId}_${staff_id}`, staff_id, start_at, end_at } : c))
+      );
 
       (async () => {
         try {
           await fetch(`/api/roster/shifts/${shiftId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ staff_id, start_at, end_at, date }),
+            body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
           });
         } catch (err) {
           console.error("[PATCH] roster shift update failed", err);
@@ -324,10 +332,13 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     height: HEADER_H,
     minWidth: TIMELINE_WIDTH,
   };
+  // 太い縦線（毎時 2px）＋ 30分補助線（薄い1px）
   const timeGridStyle: React.CSSProperties = {
     position: "relative",
     minWidth: TIMELINE_WIDTH,
-    background: "repeating-linear-gradient(to right, #f3f4f6 0, #f3f4f6 1px, transparent 1px, transparent 120px)",
+    background:
+      "repeating-linear-gradient(to right, #e5e7eb 0, #e5e7eb 2px, transparent 2px, transparent 120px)," +
+      "repeating-linear-gradient(to right, transparent 0, transparent 60px, rgba(0,0,0,0.04) 60px, rgba(0,0,0,0.04) 61px, transparent 61px, transparent 120px)",
   };
   const nameRowStyle: React.CSSProperties = {
     display: "flex",
@@ -346,7 +357,8 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     left: 0,
     right: 0,
     height: ROW_HEIGHT,
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid #eef2f7",
+    background: rowIdx % 2 === 0 ? "#ffffff" : "#fbfdff", // 交互色で行境界を視認しやすく
   });
   const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
     const rowIdx = rowIndexByStaff.get(c.staff_id);
@@ -476,10 +488,10 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
           <div style={headerTimeWrap}>
             <div style={timeTicksStyle}>
               {hours.map((h) => (
-                <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 1, background: "#e5e7eb" }} />
+                <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 2, background: "#e5e7eb" }} />
               ))}
               {hours.map((h) => (
-                <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 4, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
+                <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 6, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
               ))}
             </div>
           </div>
