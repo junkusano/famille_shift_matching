@@ -301,7 +301,7 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     }, [drag, displayStaff, date]);
 
     // ====== スタイル ======
-    const MAX_H_MULTIPLIER = 5; // ← 4〜5倍にしたいときは 4 or 5 を指定
+    const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
     const gridStyle: React.CSSProperties = {
         display: "grid",
         gridTemplateColumns: `${NAME_COL_WIDTH}px 1fr`,
