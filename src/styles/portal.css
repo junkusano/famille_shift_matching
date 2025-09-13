@@ -306,7 +306,8 @@ touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
 /* === 左端ホットゾーン（サイズ＆色を変えやすく） === */
 :root {
   --edge-width: 32px;      /* ← 一文字ぶんの目安。必要なら 36px/44px に */
-  --edge-color: #fff;      /* 既定色 */
+  /*--edge-color: #fff;      /* 既定色 */
+  --edge-color: #83C14A;   /*ファミーユカラー*/
 }
 
 .edge-hotzone {
@@ -314,11 +315,12 @@ touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
   background: var(--edge-color);
 }
 
-/* 色バリエ（お好みでクラスを足すだけ） */
-.edge-hotzone--white  { --edge-color: #ffffff; }
-.edge-hotzone--navy   { --edge-color: #0f172a; } /* 左メニューと被らない濃紺 */
-.edge-hotzone--sky    { --edge-color: #38bdf8; } /* 水色 */
-.edge-hotzone--orange { --edge-color: #fb923c; } /* オレンジ */
+/* 色バリエ（お好みでクラスを足すだけ） 
+/*.edge-hotzone--white  { --edge-color: #ffffff; }
+.edge-hotzone--navy   { --edge-color: #0f172a; } 
+.edge-hotzone--sky    { --edge-color: #38bdf8; } 
+.edge-hotzone--orange { --edge-color: #fb923c; } 
+*/
 
 /* （任意）メニュー開いてる時はホットゾーンを消して、オーバーレイ全面タップで閉じられるように */
 .portal-container[data-menu-open="true"] .edge-hotzone { display: none; }
