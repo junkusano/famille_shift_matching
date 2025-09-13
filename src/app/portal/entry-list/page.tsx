@@ -161,10 +161,10 @@ export default function EntryListPage() {
 
   // 保存ボタンの行ごとの状態: idle/saving/ok/err
   const [rowSaveState, setRowSaveState] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({});
-  // ステータス候補（②で使用）
-  const [statusMaster, setStatusMaster] = useState<{ id: string; label: string | null }[]>([]);
-  const [statusSaveState, setStatusSaveState] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({});
-
+  // ステータス候補（表示ラベルと並び順も使用）
+  const [statusMaster, setStatusMaster] = useState<{ id: string; label: string | null; sort_order: number }[]>([]);
+  // 追加：未保存の選択値（行単位で貯める）
+  const [statusEdits, setStatusEdits] = useState<Record<string, string>>({});
 
   // ▼ 権限・並び替え同等（元のまま）
   useEffect(() => {
@@ -220,36 +220,42 @@ export default function EntryListPage() {
           return myLevelSort === null || (entry.level_sort ?? 999999) > myLevelSort;
         });
 
-        const statusOrder: Record<string, number> = { account_id_create: 1, auth_mail_send: 2, joined: 3 };
-
-        const sorted = filtered.sort((a, b) => {
-          const sa = a.status === null ? -1 : statusOrder[a.status] ?? 99;
-          const sb = b.status === null ? -1 : statusOrder[b.status] ?? 99;
-          if (sa !== sb) return sa - sb;
-          const la = a.level_sort ?? 0;
-          const lb = b.level_sort ?? 0;
-          return lb - la;
-        });
-
-        // ▼ usersテーブルから roster_sort / user_id を一括取得してマージ
-        const entryIds = sorted.map(e => e.id);
+        // まず users をマージ
+        const entryIds = filtered.map(e => e.id);
         const rosterMap = new Map<string, { roster_sort: string | null; user_id: string | null }>();
         if (entryIds.length > 0) {
-          const { data: usersRows, error: usersErr } = await supabase
+          const { data: usersRows } = await supabase
             .from('users')
             .select('entry_id, user_id, roster_sort')
             .in('entry_id', entryIds);
-          if (!usersErr && usersRows) {
-            for (const r of usersRows) {
-              rosterMap.set(r.entry_id, { roster_sort: r.roster_sort ?? null, user_id: r.user_id ?? null });
-            }
+          for (const r of (usersRows ?? [])) {
+            rosterMap.set(r.entry_id, { roster_sort: r.roster_sort ?? null, user_id: r.user_id ?? null });
           }
         }
-        const merged = sorted.map(e => {
+        const merged = filtered.map(e => {
           const u = rosterMap.get(e.id);
           return { ...e, roster_sort: u?.roster_sort ?? null, user_id: u?.user_id ?? null };
         });
-        setEntries(merged);
+
+        // 並び順：①ステータス(sort_order昇順) ②level_sort昇順 ③roster_sort昇順
+        const statusOrderMap = new Map(statusMaster.map(s => [s.id, s.sort_order]));
+        const asNum = (v: string | null | undefined) => {
+          const n = parseInt(v ?? '', 10);
+          return Number.isFinite(n) ? n : 9999;
+        };
+        const sorted = merged.sort((a, b) => {
+          const sa = a.status ? (statusOrderMap.get(a.status) ?? 9999) : 9999;
+          const sb = b.status ? (statusOrderMap.get(b.status) ?? 9999) : 9999;
+          if (sa !== sb) return sa - sb;                    // ① 昇順
+          const la = a.level_sort ?? 9999;
+          const lb = b.level_sort ?? 9999;
+          if (la !== lb) return la - lb;                    // ② 昇順
+          const ra = asNum(a.roster_sort);
+          const rb = asNum(b.roster_sort);
+          return ra - rb;                                   // ③ 昇順
+        });
+
+        setEntries(sorted);
         setTotalCount(count || 0);
       }
 
@@ -259,7 +265,7 @@ export default function EntryListPage() {
     if (role === 'admin' || myLevelSort !== null) {
       fetchData();
     }
-  }, [role, currentPage, myLevelSort]);
+  }, [role, currentPage, myLevelSort, statusMaster]); // ステータス並び順のために依存追加
 
   // ② ステータスマスター取得（activeのみ）
   useEffect(() => {
@@ -270,8 +276,10 @@ export default function EntryListPage() {
         .eq('active', true)
         .order('sort_order', { ascending: true });
       if (!error) {
-        const rows = (data ?? []) as Array<{ id: string; label: string | null }>;
-        setStatusMaster(rows.map(({ id, label }) => ({ id, label })));
+        const rows = (data ?? []) as Array<{ id: string; label: string | null; sort_order: number | null }>;
+        setStatusMaster(rows.map(({ id, label, sort_order }) => ({
+          id, label, sort_order: sort_order ?? 9999
+        })));
       }
     })();
   }, []);
@@ -409,30 +417,11 @@ export default function EntryListPage() {
                     <td className="border px-2 py-1">
                       <select
                         className="border rounded px-1 text-sm"
-                        value={entry.status ?? ''}
+                        value={statusEdits[entry.id] ?? (entry.status ?? '')}
                         disabled={!entry.user_id || statusMaster.length === 0}
-                        onChange={async (e) => {
-                          const next = e.target.value || null;
-                          if (!entry.user_id) {
-                            alert('ユーザー未作成のため更新できません（詳細画面でユーザーIDを作成してください）');
-                            return;
-                          }
-                          setStatusSaveState(prev => ({ ...prev, [entry.id]: 'saving' }));
-                          const { error } = await supabase
-                            .from('users')
-                            .update({ status: next })
-                            .eq('user_id', entry.user_id);
-                          if (error) {
-                            setStatusSaveState(prev => ({ ...prev, [entry.id]: 'err' }));
-                            alert('ステータス更新に失敗: ' + error.message);
-                            return;
-                          }
-                          const label = statusMaster.find(s => s.id === next)?.label ?? null;
-                          setEntriesWithMap(prev =>
-                            prev.map(p => p.id === entry.id ? { ...p, status: next ?? undefined, status_label: label ?? undefined } : p)
-                          );
-                          setStatusSaveState(prev => ({ ...prev, [entry.id]: 'ok' }));
-                          setTimeout(() => setStatusSaveState(prev => ({ ...prev, [entry.id]: 'idle' })), 1200);
+                        onChange={(e) => {
+                          const v = e.target.value; // 未保存バッファに格納
+                          setStatusEdits(prev => ({ ...prev, [entry.id]: v }));
                         }}
                       >
                         <option value="">—</option>
@@ -440,11 +429,8 @@ export default function EntryListPage() {
                           <option key={s.id} value={s.id}>{s.label ?? s.id}</option>
                         ))}
                       </select>
-                      {statusSaveState[entry.id] === 'saving' && (
-                        <span className="ml-2 text-xs text-gray-500">更新中…</span>
-                      )}
-                      {statusSaveState[entry.id] === 'ok' && (
-                        <span className="ml-2 text-xs text-green-600">更新しました</span>
+                      {statusEdits[entry.id] !== undefined && (statusEdits[entry.id] !== (entry.status ?? '')) && (
+                        <span className="ml-2 text-xs text-orange-600">未保存</span>
                       )}
                     </td>
                     <td className="border px-2 py-1">
@@ -476,19 +462,58 @@ export default function EntryListPage() {
                               return;
                             }
                             setRowSaveState(prev => ({ ...prev, [entry.id]: 'saving' }));
-                            const v = (rosterEdits[entry.id] ?? entry.roster_sort ?? '').trim() || '9999';
-                            const { error } = await supabase
-                              .from('users')
-                              .update({ roster_sort: v })
-                              .eq('user_id', entry.user_id);
+                            const nextRoster = (rosterEdits[entry.id] ?? entry.roster_sort ?? '').trim() || '9999';
+                            const nextStatus = statusEdits[entry.id] ?? (entry.status ?? '');
+
+                            // 変化があるものだけ送る
+                            const payload: Record<string, unknown> = {};
+                            if (nextRoster !== (entry.roster_sort ?? '')) payload.roster_sort = nextRoster;
+                            if (nextStatus !== (entry.status ?? '')) payload.status = nextStatus || null;
+
+                            if (Object.keys(payload).length === 0) {
+                              setRowSaveState(prev => ({ ...prev, [entry.id]: 'idle' }));
+                              alert('変更はありません');
+                              return;
+                            }
+
+                            const { error } = await supabase.from('users').update(payload).eq('user_id', entry.user_id);
+
                             if (error) {
                               setRowSaveState(prev => ({ ...prev, [entry.id]: 'err' }));
                               alert('roster_sortの保存に失敗：' + error.message);
                               return;
                             }
                             // 画面反映
-                            setEntries(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
+                            const statusLabel = statusMaster.find(s => s.id === nextStatus)?.label ?? null;
+                            setEntries(prev => {
+                              const updated = prev.map(p => p.id === entry.id ? {
+                                ...p,
+                                roster_sort: payload.roster_sort ? String(nextRoster) : p.roster_sort,
+                                status: payload.status ? (nextStatus || undefined) : p.status,
+                                status_label: payload.status ? (statusLabel ?? undefined) : p.status_label,
+                              } : p);
+                              // 保存後も指定の優先度で再ソート
+                              const orderMap = new Map(statusMaster.map(s => [s.id, s.sort_order]));
+                              const asNum = (v: string | null | undefined) => {
+                                const n = parseInt(v ?? '', 10); return Number.isFinite(n) ? n : 9999;
+                              };
+                              return [...updated].sort((a, b) => {
+                                const sa = a.status ? (orderMap.get(a.status) ?? 9999) : 9999;
+                                const sb = b.status ? (orderMap.get(b.status) ?? 9999) : 9999;
+                                if (sa !== sb) return sa - sb;
+                                const la = a.level_sort ?? 9999;
+                                const lb = b.level_sort ?? 9999;
+                                if (la !== lb) return la - lb;
+                                return asNum(a.roster_sort) - asNum(b.roster_sort);
+                              });
+                            });
+                            // 未保存バッファのクリア
                             setRosterEdits(prev => {
+                              const next = { ...prev };
+                              delete next[entry.id];
+                              return next;
+                            });
+                            setStatusEdits(prev => {
                               const next = { ...prev };
                               delete next[entry.id];
                               return next;
@@ -497,7 +522,7 @@ export default function EntryListPage() {
                             setTimeout(() =>
                               setRowSaveState(prev => ({ ...prev, [entry.id]: 'idle' }))
                               , 1200);
-
+                            alert('保存しました');
                           }}
                         >
                           {rowSaveState[entry.id] === 'saving' ? '保存中…'
