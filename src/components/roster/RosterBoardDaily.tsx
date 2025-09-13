@@ -1,4 +1,4 @@
-// src/components/roster/RosterBoardDaily.tsx
+// ▼ 3) src/components/roster/RosterBoardDaily.tsx（全文：並び順を roster_sort → 氏名 に変更）
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -116,16 +116,19 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
         });
     }, [allTeams]);
 
-    // 並び順：org_order → level_sort → 氏名
+    // roster_sort（文字列数値）を取得
+    const getRosterSort = (st: RosterStaff): string => {
+        const rs = (st as unknown as { roster_sort?: string }).roster_sort;
+        return rs ?? "9999";
+    };
+
+    // 並び順：roster_sort → 氏名
     const displayStaff: RosterStaff[] = useMemo(() => {
         const sorted = [...initialView.staff].sort((a, b) => {
-            const ta = a.team_order ?? Number.MAX_SAFE_INTEGER;
-            const tb = b.team_order ?? Number.MAX_SAFE_INTEGER;
-            if (ta !== tb) return ta - tb;                 // ① org 優先
-            const la = a.level_order ?? Number.MAX_SAFE_INTEGER;
-            const lb = b.level_order ?? Number.MAX_SAFE_INTEGER;
-            if (la !== lb) return la - lb;                 // ② level 次
-            return a.name.localeCompare(b.name, "ja");     // ③ 氏名
+            const ra = getRosterSort(a);
+            const rb = getRosterSort(b);
+            if (ra !== rb) return ra.localeCompare(rb, "ja", { numeric: true, sensitivity: "base" });
+            return a.name.localeCompare(b.name, "ja");
         });
         // フィルタ：選択ゼロ（=クリア）のときは“全表示”
         if (selectedTeams.length === 0) return sorted;

@@ -1,4 +1,4 @@
-// src/lib/roster/rosterDailyRepo.ts
+// ▼ 2) src/lib/roster/rosterDailyRepo.ts（全文）
 // any を使わない型安全版。Supabase クライアントで取得し、unknown 経由で絞り込み。
 
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
@@ -12,6 +12,7 @@ interface StaffRow {
   orgunitname: string | null;
   org_order_num: number | null;
   level_sort: number | null;
+  roster_sort: string | null; // ★ 追加
 }
 
 interface ShiftRowView {
@@ -53,6 +54,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "orgunitname",
     "org_order_num",
     "level_sort",
+    "roster_sort", // ★ 追加
   ].join(",");
 
   const { data: staffRaw, error: staffErr } = await SB
@@ -66,12 +68,14 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   const staffRows: StaffRow[] = (staffRaw ?? []) as unknown as StaffRow[];
 
-  const staff: RosterStaff[] = staffRows.map((r): RosterStaff => ({
+  type RosterStaffEx = RosterStaff & { roster_sort?: string };
+  const staff: RosterStaffEx[] = staffRows.map((r): RosterStaffEx => ({
     id: String(r.user_id),
     name: makeFullName(r.last_name_kanji, r.first_name_kanji),
     team: r.orgunitname ?? null,
     team_order: typeof r.org_order_num === "number" ? r.org_order_num : Number.MAX_SAFE_INTEGER,
     level_order: typeof r.level_sort === "number" ? r.level_sort : Number.MAX_SAFE_INTEGER,
+    roster_sort: r.roster_sort ?? "9999", // ★ 追加
   }));
 
   if (staff.length === 0) {
@@ -177,5 +181,5 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     console.warn("[roster] no shifts for", date);
   }
 
-  return { date, staff, shifts };
+  return { date, staff, shifts } as RosterDailyView; // staff は roster_sort を含む拡張型
 }
