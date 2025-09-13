@@ -305,7 +305,7 @@ touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
 
 /* === 左端ホットゾーン（サイズ＆色を変えやすく） === */
 :root {
-  --edge-width: 32px;      /* ← 一文字ぶんの目安。必要なら 36px/44px に */
+  --edge-width: 20px;      /* ← 一文字ぶんの目安。必要なら 36px/44px に */
   /*--edge-color: #fff;      /* 既定色 */
   --edge-color: #83C14A;   /*ファミーユカラー*/
 }
