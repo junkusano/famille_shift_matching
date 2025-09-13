@@ -201,64 +201,85 @@ export default function EntryListPage() {
         return;
       }
 
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const start = (currentPage - 1) * pageSize;
 
-      const { data, error, count } = await supabase
+      const { data: rawEntries, error: e1 } = await supabase
         .from('form_entries_with_status')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: true })
-        .range(from, to);
+        .select('*'); // { count: 'exact' } は不要（後で length を使う
 
-      if (error) {
-        console.error('Supabase取得エラー:', error.message);
+      if (e1) {
+        console.error('Supabase取得エラー:', e1.message);
         setEntries([]);
-      } else {
-        const filtered = (data || []).filter((entry) => {
-          if (role === 'admin') return true;
-          return myLevelSort === null || (entry.level_sort ?? 999999) > myLevelSort;
-        });
-
-        // まず users をマージ
-        const entryIds = filtered.map(e => e.id);
-        const rosterMap = new Map<string, { roster_sort: string | null; user_id: string | null }>();
-        if (entryIds.length > 0) {
-          const { data: usersRows } = await supabase
-            .from('users')
-            .select('entry_id, user_id, roster_sort')
-            .in('entry_id', entryIds);
-          for (const r of (usersRows ?? [])) {
-            rosterMap.set(r.entry_id, { roster_sort: r.roster_sort ?? null, user_id: r.user_id ?? null });
-          }
-        }
-        const merged = filtered.map(e => {
-          const u = rosterMap.get(e.id);
-          return { ...e, roster_sort: u?.roster_sort ?? null, user_id: u?.user_id ?? null };
-        });
-
-        // 並び順：①ステータス(sort_order昇順) ②level_sort昇順 ③roster_sort昇順
-        const statusOrderMap = new Map(statusMaster.map(s => [s.id, s.sort_order]));
-        const asNum = (v: string | null | undefined) => {
-          const n = parseInt(v ?? '', 10);
-          return Number.isFinite(n) ? n : 9999;
-        };
-        const sorted = merged.sort((a, b) => {
-          const sa = a.status ? (statusOrderMap.get(a.status) ?? 9999) : 9999;
-          const sb = b.status ? (statusOrderMap.get(b.status) ?? 9999) : 9999;
-          if (sa !== sb) return sa - sb;                    // ① 昇順
-          const la = a.level_sort ?? 9999;
-          const lb = b.level_sort ?? 9999;
-          if (la !== lb) return la - lb;                    // ② 昇順
-          const ra = asNum(a.roster_sort);
-          const rb = asNum(b.roster_sort);
-          return ra - rb;                                   // ③ 昇順
-        });
-
-        setEntries(sorted);
-        setTotalCount(count || 0);
+        setTotalCount(0);
+        setLoading(false);
+        return;
       }
 
+
+      // 2) 権限に応じたフィルタ
+      const filtered = (rawEntries ?? []).filter((entry) => {
+        if (role === 'admin') return true;
+        return myLevelSort === null || (entry.level_sort ?? 999999) > myLevelSort;
+      });
+
+      // 3) users をマージ（auth_user_id も取得して「未認証」判定に使う）
+      const entryIds = filtered.map(e => e.id);
+      const userMap = new Map<string, { roster_sort: string | null; user_id: string | null; auth_user_id: string | null }>();
+      if (entryIds.length > 0) {
+        const { data: usersRows } = await supabase
+          .from('users')
+          .select('entry_id, user_id, roster_sort, auth_user_id')
+          .in('entry_id', entryIds);
+        for (const r of (usersRows ?? [])) {
+          userMap.set(r.entry_id, {
+            roster_sort: r.roster_sort ?? null,
+            user_id: r.user_id ?? null,
+            auth_user_id: r.auth_user_id ?? null,
+          });
+        }
+      }
+
+      const merged = filtered.map(e => {
+        const u = userMap.get(e.id);
+        return {
+          ...e,
+          roster_sort: u?.roster_sort ?? null,
+          user_id: u?.user_id ?? null,
+          auth_user_id: u?.auth_user_id ?? null,
+        };
+      });
+
+      // 4) 全体ソート：未認証 → ステータス → level_sort → roster_sort（すべて昇順）
+      //   未認証の定義：auth_user_id が無い or status !== 'auth_completed'
+      const statusOrderMap = new Map(statusMaster.map(s => [s.id, s.sort_order]));
+      const asNum = (v: string | null | undefined) => {
+        const n = parseInt(v ?? '', 10);
+        return Number.isFinite(n) ? n : 9999;
+      };
+      const unauthRank = (row: { auth_user_id: string | null; status?: string | null }) =>
+        (!row?.auth_user_id || row?.status !== 'auth_completed') ? 0 : 1;
+
+      const sortedAll = [...merged].sort((a, b) => {
+        const ua = unauthRank(a);
+        const ub = unauthRank(b);
+        if (ua !== ub) return ua - ub; // 未認証が先頭
+
+        const sa = a.status ? (statusOrderMap.get(a.status) ?? 9999) : 9999;
+        const sb = b.status ? (statusOrderMap.get(b.status) ?? 9999) : 9999;
+        if (sa !== sb) return sa - sb; // ステータス sort_order 昇順
+
+        const la = a.level_sort ?? 9999;
+        const lb = b.level_sort ?? 9999;
+        if (la !== lb) return la - lb; // 職級 昇順
+
+        return asNum(a.roster_sort) - asNum(b.roster_sort); // roster 昇順
+      });
+
+      // 5) 最後にページ分割（全体ソート後に slice）
+      const pageRows = sortedAll.slice(start, start + pageSize);
+
+      setEntries(pageRows);
+      setTotalCount(sortedAll.length);
       setLoading(false);
     };
 
@@ -383,6 +404,12 @@ export default function EntryListPage() {
                     ? 1
                     : 0);
 
+                // 行単位の変更検知（実際に後で使用する）
+                const rosterChanged =
+                  (rosterEdits[entry.id] ?? (entry.roster_sort ?? '')) !== (entry.roster_sort ?? '');
+                const statusChanged =
+                  (statusEdits[entry.id] ?? (entry.status ?? '')) !== (entry.status ?? '');
+
                 return (
                   <tr key={entry.id}>
                     <td className="border px-2 py-1">
@@ -429,7 +456,7 @@ export default function EntryListPage() {
                           <option key={s.id} value={s.id}>{s.label ?? s.id}</option>
                         ))}
                       </select>
-                      {statusEdits[entry.id] !== undefined && (statusEdits[entry.id] !== (entry.status ?? '')) && (
+                      {statusChanged && (
                         <span className="ml-2 text-xs text-orange-600">未保存</span>
                       )}
                     </td>
@@ -452,10 +479,7 @@ export default function EntryListPage() {
                       <div className="flex items-center gap-2">
                         <button
                           className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                          disabled={
-                            !entry.user_id ||
-                            (rosterEdits[entry.id] ?? (entry.roster_sort ?? '')) === (entry.roster_sort ?? '')
-                          }
+                          disabled={!entry.user_id || (!rosterChanged && !statusChanged)}
                           onClick={async () => {
                             if (!entry.user_id) {
                               alert('ユーザー未作成のため保存できません。詳細画面でユーザーIDを生成してください。');
@@ -480,7 +504,7 @@ export default function EntryListPage() {
 
                             if (error) {
                               setRowSaveState(prev => ({ ...prev, [entry.id]: 'err' }));
-                              alert('roster_sortの保存に失敗：' + error.message);
+                              alert('保存に失敗：' + error.message);
                               return;
                             }
                             // 画面反映
