@@ -99,6 +99,10 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
+    useEffect(() => {
+        setCards(initialView.shifts);
+    }, [initialView.shifts, date]);
+
     // チーム（org名）一覧（orgunitname を期待）
     const allTeams = useMemo(() => {
         const s = new Set<string>();
@@ -297,16 +301,16 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     }, [drag, displayStaff, date]);
 
     // ====== スタイル ======
+    const MAX_H_MULTIPLIER = 5; // ← 4〜5倍にしたいときは 4 or 5 を指定
     const gridStyle: React.CSSProperties = {
         display: "grid",
         gridTemplateColumns: `${NAME_COL_WIDTH}px 1fr`,
         border: "1px solid #e5e7eb",
         borderRadius: 8,
-        // ★ ここで“縦スクロール”を与える
         position: "relative",
         overflowX: "hidden",
         overflowY: "auto",
-        maxHeight: "calc(100vh - 140px)", // 画面高に追従（必要なら調整）
+        maxHeight: `calc((100vh - 140px) * ${MAX_H_MULTIPLIER})`, // ★ 縦を拡張
     };
     const leftColStyle: React.CSSProperties = {
         position: "relative",
