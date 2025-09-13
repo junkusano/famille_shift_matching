@@ -256,22 +256,28 @@ export default function EntryListPage() {
         const n = parseInt(v ?? '', 10);
         return Number.isFinite(n) ? n : 9999;
       };
-      const unauthRank = (row: { auth_user_id: string | null }) => (!row.auth_user_id ? 0 : 1);
+      // ステータス未設定を最優先（emailやauth_user_idは並び順に関与させない）
+      const isStatusMissing = (row: { status?: string | null }) =>
+        !row.status || String(row.status).trim() === '';
 
       const sortedAll = [...merged].sort((a, b) => {
-        const ua = unauthRank(a);
-        const ub = unauthRank(b);
-        if (ua !== ub) return ua - ub; // 未認証が先頭
+        // ① ステータス未設定を先頭
+        const ma = isStatusMissing(a) ? 0 : 1;
+        const mb = isStatusMissing(b) ? 0 : 1;
+        if (ma !== mb) return ma - mb;
 
+        // ② ステータスのsort_order（昇順）
         const sa = a.status ? (statusOrderMap.get(a.status) ?? 9999) : 9999;
         const sb = b.status ? (statusOrderMap.get(b.status) ?? 9999) : 9999;
-        if (sa !== sb) return sa - sb; // ステータス sort_order 昇順
+        if (sa !== sb) return sa - sb;
 
+        // ③ 職級 level_sort（昇順）
         const la = a.level_sort ?? 9999;
         const lb = b.level_sort ?? 9999;
-        if (la !== lb) return la - lb; // 職級 昇順
+        if (la !== lb) return la - lb;
 
-        return asNum(a.roster_sort) - asNum(b.roster_sort); // roster 昇順
+        // ④ roster_sort（数値化の昇順）
+        return asNum(a.roster_sort) - asNum(b.roster_sort);
       });
 
       // 5) 最後にページ分割（全体ソート後に slice）
@@ -518,12 +524,21 @@ export default function EntryListPage() {
                                 const n = parseInt(v ?? '', 10); return Number.isFinite(n) ? n : 9999;
                               };
                               return [...updated].sort((a, b) => {
+                                const isMissing = (row: { status?: string | null }) =>
+                                  !row.status || String(row.status).trim() === '';
+                                // ① ステータス未設定
+                                const ma = isMissing(a) ? 0 : 1;
+                                const mb = isMissing(b) ? 0 : 1;
+                                if (ma !== mb) return ma - mb;
+                                // ② ステータスsort_order
                                 const sa = a.status ? (orderMap.get(a.status) ?? 9999) : 9999;
                                 const sb = b.status ? (orderMap.get(b.status) ?? 9999) : 9999;
                                 if (sa !== sb) return sa - sb;
+                                // ③ 職級
                                 const la = a.level_sort ?? 9999;
                                 const lb = b.level_sort ?? 9999;
                                 if (la !== lb) return la - lb;
+                                // ④ roster
                                 return asNum(a.roster_sort) - asNum(b.roster_sort);
                               });
                             });
