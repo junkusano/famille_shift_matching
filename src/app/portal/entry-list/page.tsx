@@ -159,6 +159,12 @@ export default function EntryListPage() {
   // ★ コンポーネント関数の中へ（例: export default function Page() { の直下あたり）
   const [rosterEdits, setRosterEdits] = useState<Record<string, string>>({});
 
+  // 保存ボタンの行ごとの状態: idle/saving/ok/err
+  const [rowSaveState, setRowSaveState] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({});
+  // ステータス候補（②で使用）
+  const [statusMaster, setStatusMaster] = useState<{ id: string; label: string | null }[]>([]);
+  const [statusSaveState, setStatusSaveState] = useState<Record<string, 'idle' | 'saving' | 'ok' | 'err'>>({});
+
 
   // ▼ 権限・並び替え同等（元のまま）
   useEffect(() => {
@@ -254,6 +260,21 @@ export default function EntryListPage() {
       fetchData();
     }
   }, [role, currentPage, myLevelSort]);
+
+  // ② ステータスマスター取得（activeのみ）
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from('user_status_master')
+        .select('id,label,active,sort_order')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+      if (!error) {
+        const rows = (data ?? []) as Array<{ id: string; label: string | null }>;
+        setStatusMaster(rows.map(({ id, label }) => ({ id, label })));
+      }
+    })();
+  }, []);
 
   // ▼ 住所解決：即時ヒント表示 + 並列制限 + ストリーミング更新
   useEffect(() => {
@@ -385,33 +406,59 @@ export default function EntryListPage() {
                       </div>
                     </td>
                     <td className="border px-2 py-1">{entry.level_label ?? '―'}</td>
-                    <td className="border px-2 py-1">{entry.status_label ?? '―'}</td>
+                    <td className="border px-2 py-1">
+                      <select
+                        className="border rounded px-1 text-sm"
+                        value={entry.status ?? ''}
+                        disabled={!entry.user_id || statusMaster.length === 0}
+                        onChange={async (e) => {
+                          const next = e.target.value || null;
+                          if (!entry.user_id) {
+                            alert('ユーザー未作成のため更新できません（詳細画面でユーザーIDを作成してください）');
+                            return;
+                          }
+                          setStatusSaveState(prev => ({ ...prev, [entry.id]: 'saving' }));
+                          const { error } = await supabase
+                            .from('users')
+                            .update({ status: next })
+                            .eq('user_id', entry.user_id);
+                          if (error) {
+                            setStatusSaveState(prev => ({ ...prev, [entry.id]: 'err' }));
+                            alert('ステータス更新に失敗: ' + error.message);
+                            return;
+                          }
+                          const label = statusMaster.find(s => s.id === next)?.label ?? null;
+                          setEntriesWithMap(prev =>
+                            prev.map(p => p.id === entry.id ? { ...p, status: next ?? undefined, status_label: label ?? undefined } : p)
+                          );
+                          setStatusSaveState(prev => ({ ...prev, [entry.id]: 'ok' }));
+                          setTimeout(() => setStatusSaveState(prev => ({ ...prev, [entry.id]: 'idle' })), 1200);
+                        }}
+                      >
+                        <option value="">—</option>
+                        {statusMaster.map(s => (
+                          <option key={s.id} value={s.id}>{s.label ?? s.id}</option>
+                        ))}
+                      </select>
+                      {statusSaveState[entry.id] === 'saving' && (
+                        <span className="ml-2 text-xs text-gray-500">更新中…</span>
+                      )}
+                      {statusSaveState[entry.id] === 'ok' && (
+                        <span className="ml-2 text-xs text-green-600">更新しました</span>
+                      )}
+                    </td>
                     <td className="border px-2 py-1">
                       <input
                         className="w-20 border rounded px-1 text-sm"
-                        value={entry.roster_sort ?? ''}
+                        value={rosterEdits[entry.id] ?? (entry.roster_sort ?? '')}
                         onChange={(e) => {
                           const v = e.target.value;
-                          setEntriesWithMap(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
-                        }}
-                        onBlur={async (e) => {
-                          const v = e.target.value || '9999';
-                          // users.user_id が無い=まだ users 行未作成 → 更新不可なので警告のみ
-                          if (!entry.user_id) {
-                            alert('ユーザーID未作成のため更新できません（詳細画面でユーザーIDを作成してください）');
-                            return;
-                          }
-                          const { error: upErr } = await supabase
-                            .from('users')
-                            .update({ roster_sort: v })
-                            .eq('user_id', entry.user_id);
-                          if (upErr) {
-                            alert('roster_sort更新に失敗: ' + upErr.message);
-                          } else {
-                            setEntriesWithMap(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
-                          }
+                          setRosterEdits(prev => ({ ...prev, [entry.id]: v }));
                         }}
                         placeholder="9999"
+                        disabled={!entry.user_id}
+                        title={!entry.user_id ? 'ユーザー未作成のため編集不可（詳細画面でユーザーIDを作成）' : ''}
+
                       />
                     </td>
                     <td className="border px-2 py-1">{new Date(entry.created_at).toLocaleDateString()}</td>
@@ -428,12 +475,14 @@ export default function EntryListPage() {
                               alert('ユーザー未作成のため保存できません。詳細画面でユーザーIDを生成してください。');
                               return;
                             }
+                            setRowSaveState(prev => ({ ...prev, [entry.id]: 'saving' }));
                             const v = (rosterEdits[entry.id] ?? entry.roster_sort ?? '').trim() || '9999';
                             const { error } = await supabase
                               .from('users')
                               .update({ roster_sort: v })
                               .eq('user_id', entry.user_id);
                             if (error) {
+                              setRowSaveState(prev => ({ ...prev, [entry.id]: 'err' }));
                               alert('roster_sortの保存に失敗：' + error.message);
                               return;
                             }
@@ -444,11 +493,20 @@ export default function EntryListPage() {
                               delete next[entry.id];
                               return next;
                             });
+                            setRowSaveState(prev => ({ ...prev, [entry.id]: 'ok' }));
+                            setTimeout(() =>
+                              setRowSaveState(prev => ({ ...prev, [entry.id]: 'idle' }))
+                              , 1200);
 
                           }}
                         >
-                          保存
+                          {rowSaveState[entry.id] === 'saving' ? '保存中…'
+                            : rowSaveState[entry.id] === 'ok' ? '保存済'
+                              : '保存'}
                         </button>
+                        {rowSaveState[entry.id] === 'ok' && (
+                          <span className="text-xs text-green-600">保存しました</span>
+                        )}
                         <Link href={`/portal/entry-detail/${entry.id}`}>
                           <button className="px-3 py-1 bg-blue-600 text-white rounded">詳細</button>
                         </Link>

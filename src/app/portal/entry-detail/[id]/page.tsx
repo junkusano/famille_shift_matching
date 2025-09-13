@@ -32,18 +32,6 @@ interface Attachment {
     acquired_at: string;         // ★取得日 ISO（YYYYMM/YYYMMDD入力→補完）
 }
 
-/*
-type LegacyAttachment = Partial<{
-    id: string;
-    url: string | null;
-    label: string;
-    type: string;
-    mimeType: string | null;
-    uploaded_at: string;
-    acquired_at: string;
-}>;
-*/
-
 interface EntryDetail {
     id: string;
     last_name_kanji: string;
@@ -148,6 +136,10 @@ export default function EntryDetailPage() {
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
     const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
     const [services, setServices] = useState<ServiceKey[]>([]);
+
+    const [rosterSaving, setRosterSaving] = useState(false);
+    const [rosterSaved, setRosterSaved] = useState(false);
+
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
     const setField = <K extends WorkKey>(key: K, value: string) => {
@@ -1825,57 +1817,45 @@ export default function EntryDetailPage() {
                                 .from('users')
                                 .update({ status: next })
                                 .eq('user_id', userRecord ? userRecord.user_id : userId);
-                            if (error) {
-                                alert('ステータス更新に失敗: ' + error.message);
-                            } else {
-                                setUserRecord(prev => prev ? { ...prev, status: next } : prev);
-                                alert('ステータスを更新しました');
-                            }
+                            if (error) alert('ステータス更新に失敗: ' + error.message);
+                            else setUserRecord(prev => prev ? { ...prev, status: next } : prev);
                         }}
                     >
-                        {/* 並び順(roster) */}
-                        <div className="flex items-center gap-2">
-                            <label className="w-28 text-sm text-gray-700">並び順(roster)</label>
-                            <input
-                                className="flex-1 border rounded px-2 py-1"
-                                value={userRecord?.roster_sort ?? ''}
-                                onChange={(e) => setUserRecord(prev => prev ? { ...prev, roster_sort: e.target.value } : prev)}
-                                placeholder="9999"
-                                disabled={!userRecord?.user_id}
-                                title={!userRecord?.user_id ? 'ユーザー未作成のため編集不可（先にユーザーIDを作成）' : ''}
-                            />
-                            <button
-                                className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-                                disabled={!userRecord?.user_id}
-                                onClick={async () => {
-                                    if (!userRecord?.user_id) {
-                                        alert('ユーザーID未登録です。先にユーザーIDを作成してください。');
-                                        return;
-                                    }
-                                    const v = (userRecord?.roster_sort ?? '').trim() || '9999';
-                                    const { error } = await supabase.from('users').update({ roster_sort: v }).eq('user_id', userRecord.user_id);
-                                    if (error) alert('roster_sort更新に失敗: ' + error.message);
-                                    else alert('roster_sortを更新しました');
-                                }}
-                            >
-                                保存
-                            </button>
-                        </div>
-
-                        {[
-                            'account_id_create',
-                            'auth_mail_send',
-                            'auth_completed',
-                            'lw_registered',
-                            'kaipoke_requested',
-                            'active',
-                            'inactive'
-                        ].map(s => (
-                            <option key={s} value={s}>
-                                {s}
-                            </option>
-                        ))}
+                        {['account_id_create', 'auth_mail_send', 'auth_completed', 'lw_registered', 'kaipoke_requested', 'active', 'inactive']
+                            .map(s => (<option key={s} value={s}>{s}</option>))}
                     </select>
+                </div>
+
+                {/* 並び順(roster) — セレクトの外へ新設 */}
+                <div className="flex items-center gap-2">
+                    <Label className="w-24">並び順(roster)</Label>
+                    <input
+                        className="flex-1 border rounded px-2 py-1"
+                        value={userRecord?.roster_sort ?? ''}
+                        onChange={(e) => setUserRecord(prev => prev ? { ...prev, roster_sort: e.target.value } : prev)}
+                        placeholder="9999"
+                        disabled={!userRecord?.user_id}
+                        title={!userRecord?.user_id ? 'ユーザー未作成のため編集不可（先にユーザーIDを作成）' : ''}
+                    />
+                    <button
+                        className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
+                        disabled={!userRecord?.user_id || rosterSaving}
+                        onClick={async () => {
+                            if (!userRecord?.user_id) return;
+                            setRosterSaving(true); setRosterSaved(false);
+                            const v = (userRecord?.roster_sort ?? '').trim() || '9999';
+                            const { error } = await supabase
+                                .from('users')
+                                .update({ roster_sort: v })
+                                .eq('user_id', userRecord.user_id);
+                            setRosterSaving(false);
+                            if (error) alert('roster_sort更新に失敗: ' + error.message);
+                            else { setRosterSaved(true); setTimeout(() => setRosterSaved(false), 1200); }
+                        }}
+                    >
+                        {rosterSaving ? '保存中…' : '保存'}
+                    </button>
+                    {rosterSaved && <span className="text-xs text-green-600">保存しました</span>}
                 </div>
                 <div className="md:col-span-2 space-y-1">
                     <strong>職歴:</strong>
