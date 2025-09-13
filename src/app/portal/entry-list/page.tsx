@@ -34,10 +34,6 @@ interface EntryData {
 
 type AddrStatus = 'loading' | 'ok' | 'retry_fail';
 
-
-// 行ごとの未保存の編集値を保持する（entry.id -> 値）
-const [rosterEdits, setRosterEdits] = useState<Record<string, string>>({});
-
 // ========================
 //  1) 3桁ヒント辞書
 // ========================
@@ -159,6 +155,10 @@ export default function EntryListPage() {
   const [myLevelSort, setMyLevelSort] = useState<number | null>(null);
   const pageSize = 50;
   const role = useUserRole();
+
+  // ★ コンポーネント関数の中へ（例: export default function Page() { の直下あたり）
+  const [rosterEdits, setRosterEdits] = useState<Record<string, string>>({});
+
 
   // ▼ 権限・並び替え同等（元のまま）
   useEffect(() => {
@@ -439,7 +439,12 @@ export default function EntryListPage() {
                             }
                             // 画面反映
                             setEntries(prev => prev.map(p => p.id === entry.id ? { ...p, roster_sort: v } : p));
-                            setRosterEdits(({ [entry.id]: _, ...rest }) => rest);
+                            setRosterEdits(prev => {
+                              const next = { ...prev };
+                              delete next[entry.id];
+                              return next;
+                            });
+
                           }}
                         >
                           保存
