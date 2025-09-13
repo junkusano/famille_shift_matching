@@ -256,8 +256,7 @@ export default function EntryListPage() {
         const n = parseInt(v ?? '', 10);
         return Number.isFinite(n) ? n : 9999;
       };
-      const unauthRank = (row: { auth_user_id: string | null; status?: string | null }) =>
-        (!row?.auth_user_id || row?.status !== 'auth_completed') ? 0 : 1;
+      const unauthRank = (row: { auth_user_id: string | null }) => (!row.auth_user_id ? 0 : 1);
 
       const sortedAll = [...merged].sort((a, b) => {
         const ua = unauthRank(a);
@@ -456,9 +455,6 @@ export default function EntryListPage() {
                           <option key={s.id} value={s.id}>{s.label ?? s.id}</option>
                         ))}
                       </select>
-                      {statusChanged && (
-                        <span className="ml-2 text-xs text-orange-600">未保存</span>
-                      )}
                     </td>
                     <td className="border px-2 py-1">
                       <input
