@@ -1,7 +1,9 @@
+// ==========================
 // app/api/taimee-emp/upload/route.ts
+// ==========================
 import { NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
-import { supabaseAdmin } from '@/lib/supabase/service'
+import { supabaseAdmin } from '@/lib/supabase/service' // ← ここを使用
 
 
 export const runtime = 'nodejs'
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
         }) as CsvRow[]
 
 
-        const rows = records.map((r: CsvRow) => ({
+        const rows = records.map((r) => ({
             period_month: periodMonth,
             source_filename: file.name,
             // CSV列（そのまま）
