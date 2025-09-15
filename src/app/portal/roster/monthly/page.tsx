@@ -1,4 +1,6 @@
 // portal/monthly/page.tsx
+'use client';
+
 import { GetServerSideProps } from 'next'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
