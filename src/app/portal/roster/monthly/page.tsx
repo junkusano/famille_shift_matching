@@ -1,10 +1,9 @@
 // portal/monthly/page.tsx
-'use client';
+'use client'
 
-import { GetServerSideProps } from 'next'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'  // Inputをインポート
+import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
@@ -27,16 +26,28 @@ type User = {
     qualifications: string[]
 }
 
-type Props = {
-    shifts: Shift[]
-    users: User[]
-}
+const ShiftRosterPage = () => {
+    const [editedShifts, setEditedShifts] = useState<Shift[]>([])
+    const [users, setUsers] = useState<User[]>([])
 
-const ShiftRosterPage = ({ shifts, users }: Props) => {
-    const [editedShifts, setEditedShifts] = useState<Shift[]>(shifts)
+    useEffect(() => {
+        const fetchShifts = async () => {
+            const res = await fetch('/api/shifts?shift_id=1')  // 例として shift_id=1
+            const data = await res.json()
+            setEditedShifts(data)
+        }
+
+        const fetchUsers = async () => {
+            const res = await fetch('/api/users')
+            const data = await res.json()
+            setUsers(data)
+        }
+
+        fetchShifts()
+        fetchUsers()
+    }, [])
 
     const handleEditChange = <K extends keyof Shift>(shiftId: string, field: K, value: Shift[K]) => {
-        // ここでArray.isArray()を使ってmapを安全に適用する
         if (Array.isArray(editedShifts)) {
             setEditedShifts(prev =>
                 prev.map(shift => shift.shift_id === shiftId ? { ...shift, [field]: value } : shift)
@@ -174,31 +185,6 @@ const ShiftRosterPage = ({ shifts, users }: Props) => {
             </Table>
         </div>
     )
-}
-
-export const getServerSideProps: GetServerSideProps = async () => {
-    try {
-        const shiftRes = await fetch('/api/shifts?shift_id=1')
-        const shiftData = await shiftRes.json()
-
-        const userRes = await fetch('/api/users')
-        const userData = await userRes.json()
-
-        return {
-            props: {
-                shifts: shiftData || [],
-                users: userData || [],
-            },
-        }
-    } catch (error) {
-        console.error(error)
-        return {
-            props: {
-                shifts: [],
-                users: [],
-            },
-        }
-    }
 }
 
 export default ShiftRosterPage
