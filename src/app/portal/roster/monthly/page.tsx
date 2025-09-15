@@ -51,10 +51,14 @@ const ShiftRosterPage = () => {
         field: K,
         value: Shift[K]
     ) => {
-        setEditedShifts(prev =>
-            prev.map(shift => shift.shift_id === shiftId ? { ...shift, [field]: value } : shift)
-        )
+        // ここでArray.isArray()を使ってmapを安全に適用する
+        if (Array.isArray(editedShifts)) {
+            setEditedShifts(prev =>
+                prev.map(shift => shift.shift_id === shiftId ? { ...shift, [field]: value } : shift)
+            )
+        }
     }
+
 
     const handleSave = async (shiftId: string) => {
         const shift = editedShifts.find(s => s.shift_id === shiftId)

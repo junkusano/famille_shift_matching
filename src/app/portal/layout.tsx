@@ -90,6 +90,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/rpa_temp/list" className="text-blue-300 hover:underline">RPAテンプレ管理</Link></li>
           <li><Link href="/portal/shift-service-code" className="text-blue-300 hover:underline">サービスコード管理</Link></li>
           <li><Link href="/portal/shift-record-def" className="text-blue-300 hover:underline">訪問記録定義</Link></li>
+          <li><Link href="/portal/roster/monthly" className="text-blue-300 hover:underline">月間シフト</Link></li>
           <li><Link href="/portal/roster/daily" className="text-blue-300 hover:underline">シフト表</Link></li>
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
         </>
