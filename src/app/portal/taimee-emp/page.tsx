@@ -164,7 +164,7 @@ export default function TaimeeEmployeesPage() {
                                     <th className="p-2">
                                         <div className="w-[150px]">
                                             <Select value={fEntry} onValueChange={(v: Status) => setFEntry(v)}>
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectTrigger><SelectValue placeholder="すべて" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="all">すべて</SelectItem>
                                                     <SelectItem value="in">Entryあり</SelectItem>

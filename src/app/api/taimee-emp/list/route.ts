@@ -1,41 +1,70 @@
-// =============================
-// app/api/taimee-emp/list/route.ts （月フィルター廃止版）
-// =============================
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/service'
+// app/api/taimee-emp/list/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!  // サーバ専用
 
-export const runtime = 'nodejs'
+export async function GET(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url)
+        const status = (searchParams.get('status') ?? 'all') as 'all' | 'in' | 'not'
+        const black = (searchParams.get('black') ?? 'all') as 'all' | 'only' | 'exclude'
+        const memo = (searchParams.get('memo') ?? '').trim()
 
+        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+            auth: { persistSession: false }
+        })
 
-type StatusFilter = 'all' | 'in' | 'not'
+        // 取得列（画面で使う主な列）
+        let query = supabase
+            .from('taimee_employees_with_entry')
+            .select(`
+        period_month,
+        "ユーザーID（ユーザーによって一意な値）",
+        姓, 名, 電話番号,
+        taimee_user_id,
+        normalized_phone,
+        entry_id,
+        in_entry,
+        black_list,
+        memo
+      `)
+            .order('period_month', { ascending: false })
 
+        // Entry有無
+        if (status === 'in') {
+            query = query.eq('in_entry', true)
+        } else if (status === 'not') {
+            // in_entry が false または null を含めたい
+            query = query.or('in_entry.is.false,in_entry.is.null')
+        }
 
-export async function GET(req: Request) {
-try {
-const { searchParams } = new URL(req.url)
-const status = (searchParams.get('status') || 'all').trim() as StatusFilter
+        // ブラック
+        if (black === 'only') {
+            query = query.eq('black_list', true)
+        } else if (black === 'exclude') {
+            // false または null を含めたい
+            query = query.or('black_list.is.false,black_list.is.null')
+        }
 
+        // メモの部分一致（ILIKE）
+        if (memo) {
+            query = query.ilike('memo', `%${memo}%`)
+        }
 
-let q = supabaseAdmin
-.from('taimee_employees_with_entry')
-.select('*')
-.order('period_month', { ascending: false })
-.order('姓', { ascending: true })
-.order('名', { ascending: true })
+        const { data, error } = await query
+        if (error) throw error
 
-
-if (status === 'in') q = q.eq('in_entry', true)
-if (status === 'not') q = q.eq('in_entry', false)
-
-
-const { data, error } = await q
-if (error) throw error
-
-
-return NextResponse.json({ ok: true, items: data ?? [] })
-} catch (e: unknown) {
-const message = e instanceof Error ? e.message : 'List failed'
-return NextResponse.json({ ok: false, error: message }, { status: 400 })
+        return NextResponse.json({ ok: true, items: data })
+    } catch (err: unknown) {
+        return NextResponse.json({ ok: false, error: errorMessage(err) }, { status: 400 })
+    }
 }
+
+function errorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message
+    if (typeof err === 'string') return err
+    try { return JSON.stringify(err) } catch { return 'Unknown error' }
 }
+
