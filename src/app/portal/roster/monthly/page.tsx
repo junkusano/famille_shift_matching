@@ -32,7 +32,7 @@ const ShiftRosterPage = () => {
 
     useEffect(() => {
         const fetchShifts = async () => {
-            const res = await fetch('/api/shifts?shift_id=1')  // 例として shift_id=1
+            const res = await fetch('/api/shifts?shift_id=8')  // 例として shift_id=1
             const data = await res.json()
             setEditedShifts(data)
         }
