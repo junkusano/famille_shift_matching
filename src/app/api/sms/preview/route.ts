@@ -1,45 +1,33 @@
-// app/api/sms/preview/route.ts
+// app/api/taimee-emp/update/route.ts
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-type Row = { 姓?: string; 名?: string; 電話?: string }
-type PreviewItem = { phone: string; body: string; ok: boolean; error?: string }
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-function normalizePhone(raw: string): string {
-    const digits = (raw || '').replace(/\D/g, '')
-    if (!digits) return ''
-    let national = digits
-    if (national.startsWith('81')) return `+${national}`
-    if (national.startsWith('0')) national = national.slice(1)
-    return `+81${national}`
-}
-
-function renderBody(tpl: string, fixed: string, row: Row): string {
-    return tpl
-        .replaceAll('{姓}', row.姓 ?? '')
-        .replaceAll('{名}', row.名 ?? '')
-        .replaceAll('{本文}', fixed ?? '')
-}
-
-export async function POST(req: NextRequest) {
-    try {
-        const { rows, template, fixedText } = await req.json()
-        const items: PreviewItem[] = (rows as Row[]).map((r) => {
-            const phone = normalizePhone(r.電話 || '')
-            const body = renderBody(String(template || ''), String(fixedText || ''), r)
-            const ok = !!phone && body.trim().length > 0
-            const error = !phone ? '電話番号が不正' : (!ok ? '本文が空' : undefined)
-            return { phone, body, ok, error }
-        })
-        const validCount = items.filter(i => i.ok).length
-        return NextResponse.json({ ok: true, items, total: items.length, validCount, invalidCount: items.length - validCount })
-    } catch (err: unknown) {
-        return NextResponse.json({ ok: false, error: errorMessage(err) }, { status: 400 })
+export async function PATCH(req: NextRequest) {
+  try {
+    const { normalized_phone, memo, black_list } = await req.json() as {
+      normalized_phone?: string
+      memo?: string | null
+      black_list?: boolean
     }
-}
+    if (!normalized_phone) throw new Error('normalized_phone is required')
 
-function errorMessage(err: unknown): string {
-    if (err instanceof Error) return err.message
-    if (typeof err === 'string') return err
-    try { return JSON.stringify(err) } catch { return 'Unknown error' }
-}
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
 
+    // 同一電話の全レコードを一括更新（最新月だけに限定したいなら WHERE period_month=max に変更）
+    const { error } = await supabase
+      .from('taimee_employees_monthly')
+      .update({ memo, black_list })
+      .eq('normalized_phone', normalized_phone)
+
+    if (error) throw error
+    return NextResponse.json({ ok: true })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'update failed'
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 })
+  }
+}
