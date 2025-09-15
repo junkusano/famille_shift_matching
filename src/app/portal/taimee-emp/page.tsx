@@ -1,9 +1,10 @@
 // =============================
-// app/portal/taimee-emp/page.tsx（改修版）
+// app/portal/taimee-emp/page.tsx（改修版 / 依存最小化）
 //  - ブラック/メモ/送信しない のインライン編集（保存ボタン付き）
 //  - メモ列と操作列の幅を従来比2倍に調整
 //  - 最終送信文面の編集、プレビュー、一斉送信
 //  - 最終送信日（last_sent_at）表示
+//  - 通知は 'sonner' 依存を外し、軽量 notify に置換
 // =============================
 'use client'
 
@@ -15,7 +16,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { toast } from 'sonner'
+
+// ---- 軽量通知（sonner無し版） ----
+const notify = {
+  success: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
+  error: (msg: string) => (typeof window !== 'undefined' ? window.alert(`エラー: ${msg}`) : void 0),
+  message: (msg: string) => (typeof window !== 'undefined' ? window.alert(msg) : void 0),
+}
 
 // ===== Types =====
 type Status = 'all' | 'in' | 'not'
@@ -82,7 +89,9 @@ export default function Page() {
       if (!j.ok) throw new Error(j.error || 'Failed to load')
       setItems(j.items as TaimeeEmployeeWithEntry[])
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込みに失敗しました')
+      const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
+      setMessage(msg)
+      notify.error(msg)
     } finally {
       setLoading(false)
     }
@@ -101,10 +110,10 @@ export default function Page() {
       const r = await fetch('/api/taimee-emp/upload', { method: 'POST', body: fd })
       const j = await r.json()
       if (!j.ok) throw new Error(j.error || 'アップロード失敗')
-      toast.success(`取り込み完了：${j.count}件`)
+      notify.success(`取り込み完了：${j.count}件`)
       await fetchList()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'アップロードに失敗しました')
+      notify.error(e instanceof Error ? e.message : 'アップロードに失敗しました')
     } finally { setLoading(false) }
   }
 
@@ -116,7 +125,7 @@ export default function Page() {
   // --- 保存（変更分のみ一括）
   async function onSaveEdits() {
     const payload = Object.entries(drafts).map(([key, v]) => ({ key, ...v }))
-    if (payload.length === 0) { toast.message('変更はありません'); return }
+    if (payload.length === 0) { notify.message('変更はありません'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/taimee-emp/save', {
@@ -126,11 +135,11 @@ export default function Page() {
       })
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || '保存に失敗しました')
-      toast.success(`保存しました（${j.updated}件）`)
+      notify.success(`保存しました（${j.updated}件）`)
       setDrafts({})
       await fetchList()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '保存に失敗しました')
+      notify.error(e instanceof Error ? e.message : '保存に失敗しました')
     } finally { setLoading(false) }
   }
 
@@ -184,7 +193,7 @@ export default function Page() {
   }
 
   async function onBulkSend() {
-    if (recipientsForSend.length === 0) { toast.message('送信対象がありません'); return }
+    if (recipientsForSend.length === 0) { notify.message('送信対象がありません'); return }
     if (!confirm(`本当に ${recipientsForSend.length} 件へ送信しますか？`)) return
     setLoading(true)
     try {
@@ -205,10 +214,10 @@ export default function Page() {
       })
       const j = await res.json()
       if (!j.ok) throw new Error(j.error || '送信に失敗しました')
-      toast.success(`送信完了：成功 ${j.success} / 失敗 ${j.failed}`)
+      notify.success(`送信完了：成功 ${j.success} / 失敗 ${j.failed}`)
       await fetchList()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '送信に失敗しました')
+      notify.error(e instanceof Error ? e.message : '送信に失敗しました')
     } finally { setLoading(false) }
   }
 
