@@ -3,8 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 
 export async function GET() {
   const { data, error } = await supabaseAdmin
-    .from('users')  // ユーザー情報を取得
-    .select('user_id, last_name_kanji, first_name_kanji, qualifications')
+    .from('user_entry_united_view_single')  // ユーザー情報を取得
+    .select('*')
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 })

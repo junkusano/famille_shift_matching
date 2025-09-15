@@ -1,7 +1,6 @@
-//portal/monthly/page.tsx
-'use client'
-
-import { useState, useEffect } from 'react'
+// portal/monthly/page.tsx
+import { GetServerSideProps } from 'next'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'  // Inputをインポート
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -26,26 +25,13 @@ type User = {
     qualifications: string[]
 }
 
-const ShiftRosterPage = () => {
-    const [editedShifts, setEditedShifts] = useState<Shift[]>([])  // shiftsを削除してeditedShiftsを使用
-    const [users, setUsers] = useState<User[]>([])
+type Props = {
+    shifts: Shift[]
+    users: User[]
+}
 
-    useEffect(() => {
-        const fetchShifts = async () => {
-            const res = await fetch('/api/shifts?shift_id=1')  // 例として shift_id=1
-            const data = await res.json()
-            setEditedShifts(data)
-        }
-
-        const fetchUsers = async () => {
-            const res = await fetch('/api/users')
-            const data = await res.json()
-            setUsers(data)
-        }
-
-        fetchShifts()
-        fetchUsers()
-    }, [])
+const ShiftRosterPage = ({ shifts, users }: Props) => {
+    const [editedShifts, setEditedShifts] = useState<Shift[]>(shifts)
 
     const handleEditChange = <K extends keyof Shift>(shiftId: string, field: K, value: Shift[K]) => {
         // ここでArray.isArray()を使ってmapを安全に適用する
@@ -98,88 +84,119 @@ const ShiftRosterPage = () => {
                 </TableHeader>
 
                 <TableBody>
-                    {editedShifts.map(shift => (
-                        <TableRow key={shift.shift_id}>
-                            <TableCell>{shift.shift_id}</TableCell>
-                            <TableCell>{shift.service_code}</TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_01_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_01_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {getUserOptions('service_staff').map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_02_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_02_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {getUserOptions('service_staff').map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_03_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_03_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {getUserOptions('service_staff').map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <Input
-                                    type="checkbox"
-                                    checked={shift.staff_02_attend_flg}
-                                    onChange={e =>
-                                        handleEditChange(shift.shift_id, 'staff_02_attend_flg', e.target.checked)
-                                    }
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Input
-                                    type="checkbox"
-                                    checked={shift.staff_03_attend_flg}
-                                    onChange={e =>
-                                        handleEditChange(shift.shift_id, 'staff_03_attend_flg', e.target.checked)
-                                    }
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Button onClick={() => handleSave(shift.shift_id)}>保存</Button>
-                            </TableCell>
+                    {editedShifts.length > 0 ? (
+                        editedShifts.map(shift => (
+                            <TableRow key={shift.shift_id}>
+                                <TableCell>{shift.shift_id}</TableCell>
+                                <TableCell>{shift.service_code}</TableCell>
+                                <TableCell>
+                                    <Select
+                                        value={shift.staff_01_user_id}
+                                        onValueChange={value => handleEditChange(shift.shift_id, 'staff_01_user_id', value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="スタッフを選択" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {getUserOptions('service_staff').map(user => (
+                                                <SelectItem key={user.user_id} value={user.user_id}>
+                                                    {user.full_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
+                                <TableCell>
+                                    <Select
+                                        value={shift.staff_02_user_id}
+                                        onValueChange={value => handleEditChange(shift.shift_id, 'staff_02_user_id', value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="スタッフを選択" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {getUserOptions('service_staff').map(user => (
+                                                <SelectItem key={user.user_id} value={user.user_id}>
+                                                    {user.full_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
+                                <TableCell>
+                                    <Select
+                                        value={shift.staff_03_user_id}
+                                        onValueChange={value => handleEditChange(shift.shift_id, 'staff_03_user_id', value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="スタッフを選択" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {getUserOptions('service_staff').map(user => (
+                                                <SelectItem key={user.user_id} value={user.user_id}>
+                                                    {user.full_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                        type="checkbox"
+                                        checked={shift.staff_02_attend_flg}
+                                        onChange={e =>
+                                            handleEditChange(shift.shift_id, 'staff_02_attend_flg', e.target.checked)
+                                        }
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                        type="checkbox"
+                                        checked={shift.staff_03_attend_flg}
+                                        onChange={e =>
+                                            handleEditChange(shift.shift_id, 'staff_03_attend_flg', e.target.checked)
+                                        }
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Button onClick={() => handleSave(shift.shift_id)}>保存</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={8}>シフトデータがありません</TableCell>
                         </TableRow>
-                    ))}
+                    )}
                 </TableBody>
             </Table>
         </div>
     )
+}
+
+export const getServerSideProps: GetServerSideProps = async () => {
+    try {
+        const shiftRes = await fetch('/api/shifts?shift_id=1')
+        const shiftData = await shiftRes.json()
+
+        const userRes = await fetch('/api/users')
+        const userData = await userRes.json()
+
+        return {
+            props: {
+                shifts: shiftData || [],
+                users: userData || [],
+            },
+        }
+    } catch (error) {
+        console.error(error)
+        return {
+            props: {
+                shifts: [],
+                users: [],
+            },
+        }
+    }
 }
 
 export default ShiftRosterPage

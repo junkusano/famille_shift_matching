@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   }
 
   const { data, error } = await supabaseAdmin
-    .from('shift')  // ここでシフト情報を取得
+    .from('shift_csinfo_postalname_view')  // ここでシフト情報を取得
     .select('*')
     .eq('shift_id', shiftId)
     .single()
