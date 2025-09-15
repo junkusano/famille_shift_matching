@@ -280,9 +280,9 @@ https://www.shi-on.net/column?page=17
                   <th className="text-left p-2 w-[140px]">名</th>
                   <th className="text-left p-2">電話</th>
                   <th className="text-left p-2">在籍</th>
-                  <th className="text-left p-2">ブラック</th>
+                  <th className="text-left p-2 w-[72px]">ブラック</th>
                   <th className="text-left p-2 w-[360px]">メモ</th>
-                  <th className="text-left p-2">除外</th>
+                  <th className="text-left p-2 w-[72px]">除外</th>
                   <th className="text-left p-2">前回</th>
                   <th className="text-left p-2 w-[160px]">操作</th>
                 </tr>
@@ -292,7 +292,7 @@ https://www.shi-on.net/column?page=17
                   <th className="p-2 w-[140px]"><Input placeholder="名" value={fFirst} onChange={(e) => setFFirst(e.target.value)} /></th>
                   <th className="p-2 w-[140px]"><Input placeholder="電話" value={fPhone} onChange={(e) => setFPhone(e.target.value)} /></th>
                   <th className="p-2">
-                    <div className="w-[96px]">
+                    <div className="w-[72px]">
                       <Select value={fEntry} onValueChange={(v: Status) => setFEntry(v)}>
                         <SelectTrigger><SelectValue placeholder="在籍" /></SelectTrigger>
                         <SelectContent>
@@ -304,7 +304,7 @@ https://www.shi-on.net/column?page=17
                     </div>
                   </th>
                   <th className="p-2">
-                    <div className="w-[96px]">
+                    <div className="w-[72px]">
                       <Select value={fBlack} onValueChange={(v: BlackFilter) => setFBlack(v)}>
                         <SelectTrigger><SelectValue placeholder="ブラック" /></SelectTrigger>
                         <SelectContent>
