@@ -276,8 +276,8 @@ https://www.shi-on.net/column?page=17
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-2">就業月</th>
-                  <th className="text-left p-2 w-[120px]">姓</th>
-                  <th className="text-left p-2 w-[120px]">名</th>
+                  <th className="text-left p-2 w-[100px]">姓</th>
+                  <th className="text-left p-2 w-[100px]">名</th>
                   <th className="text-left p-2">電話</th>
                   <th className="text-left p-2">在籍</th>
                   <th className="text-left p-2 w-[72px]">ブラック</th>
@@ -288,8 +288,8 @@ https://www.shi-on.net/column?page=17
                 </tr>
                 <tr className="border-t">
                   <th className="p-2 w-[110px]"><Input placeholder="YYYYMM" value={fPeriod} onChange={(e) => setFPeriod(e.target.value)} /></th>
-                  <th className="p-2 w-[120px]"><Input placeholder="姓" value={fLast} onChange={(e) => setFLast(e.target.value)} /></th>
-                  <th className="p-2 w-[120px]"><Input placeholder="名" value={fFirst} onChange={(e) => setFFirst(e.target.value)} /></th>
+                  <th className="p-2 w-[100px]"><Input placeholder="姓" value={fLast} onChange={(e) => setFLast(e.target.value)} /></th>
+                  <th className="p-2 w-[100px]"><Input placeholder="名" value={fFirst} onChange={(e) => setFFirst(e.target.value)} /></th>
                   <th className="p-2 w-[140px]"><Input placeholder="電話" value={fPhone} onChange={(e) => setFPhone(e.target.value)} /></th>
                   <th className="p-2">
                     <div className="w-[72px]">
