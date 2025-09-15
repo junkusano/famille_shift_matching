@@ -14,22 +14,15 @@ export async function GET(req: Request) {
 
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    let query = supabase
-      .from('taimee_employees_with_entry')
-      .select('*')
-      .order('period_month', { ascending: false })
-
+    let query = supabase.from('taimee_employees_with_entry').select('*').order('period_month', { ascending: false })
     if (status === 'in') query = query.eq('in_entry', true)
     if (status === 'not') query = query.eq('in_entry', false)
-
     if (black === 'only') query = query.eq('black_list', true)
     if (black === 'exclude') query = query.or('black_list.is.null,black_list.eq.false')
-
     if (memo) query = query.ilike('memo', `%${memo}%`)
 
     const { data, error } = await query
     if (error) throw error
-
     return NextResponse.json({ ok: true, items: data })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'unknown error'

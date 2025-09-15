@@ -7,19 +7,13 @@
 import { NextResponse as Next } from 'next/server'
 import { createClient as createSb } from '@supabase/supabase-js'
 
-interface UpdateRowPayload {
-  key: string
-  memo?: string
-  black_list?: boolean
-  send_disabled?: boolean
-}
+interface UpdateRowPayload { key: string; memo?: string; black_list?: boolean; send_disabled?: boolean }
 
 export async function POST(req: Request) {
   try {
     const supabase = createSb(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const body: unknown = await req.json()
     const updates = (body as { updates: UpdateRowPayload[] }).updates
-
     if (!Array.isArray(updates)) return Next.json({ ok: false, error: 'invalid payload' }, { status: 400 })
 
     let updated = 0

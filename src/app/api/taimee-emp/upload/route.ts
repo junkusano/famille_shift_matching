@@ -1,177 +1,124 @@
 // app/api/taimee-emp/upload/route.ts
-export const runtime = 'nodejs'
+import { NextResponse as Nx } from 'next/server'
+import { createClient as createSb } from '@supabase/supabase-js'
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import Papa from 'papaparse'
+type ParsedCSV = { headers: string[]; rows: string[][] }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-// CSVの想定列（存在しない列は空文字扱い）
-type CSVRow = {
-  'ユーザーID（ユーザーによって一意な値）'?: unknown
-  'ユーザーID'?: unknown
-  '姓'?: unknown
-  '名'?: unknown
-  '住所'?: unknown
-  '生年月日'?: unknown
-  '性別'?: unknown
-  '電話'?: unknown
-  '電話番号'?: unknown
-  '初回稼働日'?: unknown
-  '最終稼働日'?: unknown
-  '累計通常勤務時間'?: unknown
-  '累計深夜労働時間'?: unknown
-  '累計法定外割増時間'?: unknown
-  '累計実働時間'?: unknown
-  '累計稼働回数'?: unknown
-  '累計源泉徴収額'?: unknown
-  '累計給与支払額'?: unknown
-  '累計交通費支払額'?: unknown
-  black_list?: unknown
-  memo?: unknown
+// --- 型ガード：'name' プロパティを持つか判定（型安全）
+function hasName(x: unknown): x is { name: string } {
+  return typeof x === 'object' && x !== null && 'name' in x && typeof (x as { name?: unknown }).name === 'string'
 }
 
-// DB投入レコード（主な列のみ列挙）
-type InsertRow = {
-  period_month: string
-  source_filename: string
-  'ユーザーID（ユーザーによって一意な値）': string
-  姓: string
-  名: string
-  住所: string
-  生年月日: string
-  性別: string
-  電話番号: string
-  初回稼働日: string
-  最終稼働日: string
-  累計通常勤務時間: string
-  累計深夜労働時間: string
-  累計法定外割増時間: string
-  累計実働時間: string
-  累計稼働回数: string
-  累計源泉徴収額: string
-  累計給与支払額: string
-  累計交通費支払額: string
-  taimee_user_id: string
-  normalized_phone: string
-  black_list: boolean
-  memo: string | null
-}
+/** ダブルクォート対応・CRLF対応の簡易CSVパーサ */
+function parseCSV(text: string): ParsedCSV {
+  const rows: string[][] = []
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  let headers: string[] = []
 
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (typeof err === 'string') return err
-  try { return JSON.stringify(err) } catch { return 'Unknown error' }
-}
-
-function toStr(v: unknown): string {
-  return v == null ? '' : String(v)
-}
-function toBool(v: unknown): boolean {
-  const s = toStr(v).trim().toLowerCase()
-  return s === 'true' || s === '1' || s === 'yes'
-}
-function onlyDigits(s: string): string {
-  return s.replace(/\D/g, '')
-}
-function toE164JP(raw: string): string {
-  const d = onlyDigits(raw)
-  if (!d) return ''
-  if (d.startsWith('81')) return `+${d}`
-  return `+81${d.replace(/^0/, '')}`
-}
-
-// YYYY[-/_]?MM を拾って 1日始まり
-function inferPeriodFromFilename(name: string): string | null {
-  const m = name.match(/(20\d{2})[-_\/]?(\d{1,2})/)
-  if (!m) return null
-  const y = Number(m[1])
-  const mm = String(Number(m[2])).padStart(2, '0')
-  return `${y}-${mm}-01`
-}
-function currentMonthJST(): string {
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}-01`
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Supabase環境変数(NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)が未設定です')
-    }
-
-    const form = await req.formData()
-    const file = form.get('file')
-    let period = toStr(form.get('period')).trim()
-
-    if (!(file instanceof File)) throw new Error('file is required')
-
-    if (!period) {
-      period = inferPeriodFromFilename(file.name) ?? currentMonthJST()
-    }
-
-    const csv = await file.text()
-
-    const parsed = Papa.parse<CSVRow>(csv, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
-    })
-
-    if (parsed.errors.length > 0) {
-      // 最初のエラーのみ返却
-      const first = parsed.errors[0]
-      throw new Error(`CSV parse error: ${first.message} at row ${first.row ?? 'n/a'}`)
-    }
-
-    const rows: InsertRow[] = (parsed.data as CSVRow[]).map((r): InsertRow => {
-      const uid = toStr(r['ユーザーID（ユーザーによって一意な値）'] ?? r['ユーザーID'])
-      const last = toStr(r['姓'])
-      const first = toStr(r['名'])
-      const phoneRaw = toStr(r['電話'] ?? r['電話番号'])
-      const phoneE164 = toE164JP(phoneRaw)
-
-      return {
-        period_month: period,
-        source_filename: file.name,
-        'ユーザーID（ユーザーによって一意な値）': uid,
-        姓: last,
-        名: first,
-        住所: toStr(r['住所']),
-        生年月日: toStr(r['生年月日']),
-        性別: toStr(r['性別']),
-        電話番号: phoneRaw,
-        初回稼働日: toStr(r['初回稼働日']),
-        最終稼働日: toStr(r['最終稼働日']),
-        累計通常勤務時間: toStr(r['累計通常勤務時間']),
-        累計深夜労働時間: toStr(r['累計深夜労働時間']),
-        累計法定外割増時間: toStr(r['累計法定外割増時間']),
-        累計実働時間: toStr(r['累計実働時間']),
-        累計稼働回数: toStr(r['累計稼働回数']),
-        累計源泉徴収額: toStr(r['累計源泉徴収額']),
-        累計給与支払額: toStr(r['累計給与支払額']),
-        累計交通費支払額: toStr(r['累計交通費支払額']),
-        taimee_user_id: uid,
-        normalized_phone: phoneE164,
-        black_list: toBool(r.black_list),
-        memo: (() => {
-          const m = toStr(r.memo).trim()
-          return m ? (m.length > 2000 ? m.slice(0, 2000) : m) : null
-        })(),
+  const parseLine = (line: string): string[] => {
+    const out: string[] = []
+    let cur = ''
+    let inQ = false
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i]
+      if (inQ) {
+        if (c === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++ } else { inQ = false }
+        } else { cur += c }
+      } else {
+        if (c === ',') { out.push(cur); cur = '' }
+        else if (c === '"') { inQ = true }
+        else { cur += c }
       }
-    })
+    }
+    out.push(cur)
+    return out
+  }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
-    const { error } = await supabase.from('taimee_employees_monthly').insert(rows)
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx]
+    if (idx === 0) { headers = parseLine(line).map((h) => h.trim()); continue }
+    if (!line) continue
+    rows.push(parseLine(line))
+  }
+  return { headers, rows }
+}
+
+/** FormDataからFileを取り出す（型安全版） */
+function getUploadFile(form: FormData): File | null {
+  const f = form.get('file')
+  if (!f) return null
+
+  // まず File として判定（Undici の File 実装を想定）
+  if (typeof File !== 'undefined' && f instanceof File) return f
+
+  // Blob だが name を持つ場合は File に昇格（Node/環境差吸収）
+  if (f instanceof Blob) {
+    const name = hasName(f) ? f.name : 'upload.csv'
+    return new File([f], name, { type: f.type })
+  }
+  return null
+}
+
+export async function POST(req: Request) {
+  try {
+    const form = await req.formData()
+    const file = getUploadFile(form)
+    if (!file) return Nx.json({ ok: false, error: 'file is required' }, { status: 400 })
+
+    const supabase = createSb(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const buf = Buffer.from(await file.arrayBuffer())
+    // ※ Shift_JIS の可能性がある場合は iconv-lite での変換に置換可
+    const text = buf.toString('utf8')
+    const { headers, rows } = parseCSV(text)
+
+    const col = (name: string): number => headers.findIndex((h) => h.trim() === name)
+    const idxUser  = col('ユーザーID（ユーザーによって一意な値）')
+    const idxLast  = col('姓')
+    const idxFirst = col('名')
+    const idxPhone = col('電話番号')
+
+    if (idxUser < 0) {
+      return Nx.json({ ok: false, error: '必須ヘッダが見つかりません（ユーザーID列）' }, { status: 400 })
+    }
+
+    // 就業月：ファイル名から YYYYMM を推定（失敗時は当月1日）
+    const uploadName = file.name ?? 'upload.csv'
+    const m = uploadName.match(/(20\d{2})[-_\/]?(\d{2})/)
+    const ym = m
+      ? `${m[1]}-${m[2]}-01`
+      : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+          .toISOString()
+          .slice(0, 10)
+
+    const inserts = rows.map((r): Record<string, string | null> => ({
+      period_month: ym,
+      source_filename: uploadName,
+      uploaded_at: new Date().toISOString(),
+      'ユーザーID（ユーザーによって一意な値）': r[idxUser] ?? '',
+      姓: idxLast  >= 0 ? r[idxLast]  ?? null : null,
+      名: idxFirst >= 0 ? r[idxFirst] ?? null : null,
+      電話番号: idxPhone >= 0 ? r[idxPhone] ?? null : null,
+      // taimee_user_id は GENERATED ALWAYS のため送らない
+      // normalized_phone も GENERATED のため送らない
+    }))
+
+    const { error, count } = await supabase
+      .from('taimee_employees_monthly')
+      .upsert(inserts, {
+        onConflict: 'period_month,taimee_user_id',
+        ignoreDuplicates: false,
+        count: 'exact',
+      })
 
     if (error) throw error
-
-    return NextResponse.json({ ok: true, count: rows.length, period })
-  } catch (err: unknown) {
-    return NextResponse.json({ ok: false, error: errorMessage(err) }, { status: 400 })
+    return Nx.json({ ok: true, count: count ?? inserts.length })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return Nx.json({ ok: false, error: msg }, { status: 500 })
   }
 }
