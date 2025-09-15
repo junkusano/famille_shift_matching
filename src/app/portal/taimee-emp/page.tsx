@@ -317,7 +317,7 @@ https://www.shi-on.net/column?page=17
                   </th>
                   <th className="p-2 w-[360px]"><Input placeholder="メモ（部分一致）" value={fMemo} onChange={(e) => setFMemo(e.target.value)} /></th>
                   <th className="p-2">
-                    <div className="w-[96px]">
+                    <div className="w-[72px]">
                       <Select value={fExclude} onValueChange={(v: ExcludeFilter) => setFExclude(v)}>
                         <SelectTrigger><SelectValue placeholder="除外" /></SelectTrigger>
                         <SelectContent>
