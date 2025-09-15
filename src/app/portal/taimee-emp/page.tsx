@@ -272,7 +272,7 @@ https://www.shi-on.net/column?page=17
       <Card>
         <CardContent className="p-4 space-y-4">
           <div className="overflow-auto border rounded-xl">
-            <table className="min-w-[1180px] text-sm">
+            <table className="min-w-[1150px] text-sm">
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-2">就業月</th>
