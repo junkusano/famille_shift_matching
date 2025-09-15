@@ -47,11 +47,7 @@ const ShiftRosterPage = () => {
         fetchUsers()
     }, [])
 
-    const handleEditChange = <K extends keyof Shift>(
-        shiftId: string,
-        field: K,
-        value: Shift[K]
-    ) => {
+    const handleEditChange = <K extends keyof Shift>(shiftId: string, field: K, value: Shift[K]) => {
         // ここでArray.isArray()を使ってmapを安全に適用する
         if (Array.isArray(editedShifts)) {
             setEditedShifts(prev =>
@@ -59,7 +55,6 @@ const ShiftRosterPage = () => {
             )
         }
     }
-
 
     const handleSave = async (shiftId: string) => {
         const shift = editedShifts.find(s => s.shift_id === shiftId)
