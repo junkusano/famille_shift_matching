@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('shift_service_code')
-    .select('id, service_code, require_doc_group, created_at, updated_at')
+    .select('*')
     .order('service_code', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data ?? [])
