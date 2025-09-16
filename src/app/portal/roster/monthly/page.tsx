@@ -1,234 +1,408 @@
-//portal/monthly/page.tsx
+'use client';
 
-'use client'
+import React, { useEffect, useMemo, useState } from 'react';
+import ShiftRecord from '@/components/shift/ShiftRecord';
 
-import { useState, useEffect } from 'react'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
-
+// ===== 型 =====
 type KaipokeCS = {
-    kaipoke_cs_id: string
-    name: string
-}
+  id: string;                 // uuid
+  kaipoke_cs_id: string;      // 利用者ID（文字列）
+  name: string;               // 氏名
+  end_at?: string | null;     // 退会日など
+  [k: string]: unknown;
+};
 
-type User = {
-    user_id: string
-    full_name: string
-}
+type StaffUser = {
+  user_id: string;            // スタッフの user_id
+  last_name_kanji?: string | null;
+  first_name_kanji?: string | null;
+  last_name_kana?: string | null;
+  first_name_kana?: string | null;
+  email?: string | null;
+  [k: string]: unknown;
+};
 
-type Shift = {
-    shift_id: string
-    shift_start_date: string
-    shift_start_time: string
-    shift_end_time: string
-    service_code: string
-    staff_01_user_id?: string
-    staff_02_user_id?: string
-    staff_03_user_id?: string
-    staff_02_attend_flg: boolean
-    staff_03_attend_flg: boolean
-    required_staff_count: number
-    two_person_work_flg: boolean
-    judo_ido: string
-    name: string // 利用者名
-}
+type ShiftRow = {
+  shift_id: string;
+  kaipoke_cs_id: string;      // 利用者ID
+  name: string;               // 利用者名（表示用）
+  shift_start_date: string;   // 'YYYY-MM-DD'
+  shift_start_time: string;   // 'HH:mm'
+  shift_end_time: string;     // 'HH:mm'
+  service_code: string;
 
-const ShiftRosterPage = () => {
-    const [users, setUsers] = useState<User[]>([]) // スタッフ（users）のデータ
-    const [kaipokeCSList, setKaipokeCSList] = useState<KaipokeCS[]>([]) // 利用者（kaipoke_cs_info）のデータ
-    const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string | null>(null) // 選択した利用者のID
-    const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7))  // 初期値を今月に設定
-    const [editedShifts, setEditedShifts] = useState<Shift[]>([]) // 編集用シフトデータ
+  staff_01_user_id?: string | null;
+  staff_02_user_id?: string | null;
+  staff_03_user_id?: string | null;
 
-    // 利用者（kaipoke_cs_info）情報を取得
-    const fetchKaipokeCSList = async () => {
-        const res = await fetch('/api/kaipoke-info') // /api/kaipoke-info APIから利用者データを取得
-        const data = await res.json()
-        setKaipokeCSList(data)
+  staff_02_attend_flg: boolean;
+  staff_03_attend_flg: boolean;
 
-        if (data.length > 0) {
-            setSelectedKaipokeCS(data[0].kaipoke_cs_id) // 初期値として最初の利用者を設定
-        }
+  required_staff_count: number;
+  two_person_work_flg: boolean;
+  judo_ido: string;           // 重度移動
+};
+
+// ===== ユーティリティ =====
+const ymFmt = (d: Date) => {
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, '0');
+  return `${y}-${m}`;
+};
+
+const fullName = (u: StaffUser) => {
+  const last = u.last_name_kanji ?? '';
+  const first = u.first_name_kanji ?? '';
+  const name = `${last} ${first}`.trim();
+  return name || u.user_id;
+};
+
+// 直近5年(過去60ヶ月)〜先12ヶ月のリスト（現在月を初期値）
+const buildMonthList = (now = new Date()) => {
+  const list: string[] = [];
+  const start = new Date(now);
+  start.setMonth(start.getMonth() - 60);
+  const end = new Date(now);
+  end.setMonth(end.getMonth() + 12);
+
+  const cur = new Date(start);
+  while (cur <= end) {
+    list.push(ymFmt(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return list;
+};
+
+// ===== 本体 =====
+export default function MonthlyRosterPage() {
+  // 利用者（kaipoke_cs）
+  const [clients, setClients] = useState<KaipokeCS[]>([]);
+  const [selectedCsId, setSelectedCsId] = useState<string>('');
+
+  // スタッフ（users）
+  const [staffs, setStaffs] = useState<StaffUser[]>([]);
+
+  // 月選択
+  const monthList = useMemo(() => buildMonthList(new Date()), []);
+  const [selectedYm, setSelectedYm] = useState<string>(ymFmt(new Date()));
+
+  // シフト一覧
+  const [shifts, setShifts] = useState<ShiftRow[]>([]);
+
+  // 訪問記録モーダル
+  const [recordShiftId, setRecordShiftId] = useState<string | null>(null);
+
+  // ---- 取得: 利用者一覧（/api/kaipoke-info）----
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/kaipoke-info', { cache: 'no-store' });
+        const j = await r.json();
+        const arr: unknown = j;
+        const list = Array.isArray(arr) ? arr : [];
+        // 退会(end_at)していない or end_atが未来の人を先に
+        const active = list
+          .filter((x): x is KaipokeCS => !!x && typeof x === 'object' && 'kaipoke_cs_id' in x && 'name' in x)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setClients(active);
+        if (active.length && !selectedCsId) setSelectedCsId(active[0].kaipoke_cs_id);
+      } catch (e) {
+        console.error('GET /api/kaipoke-info failed', e);
+        setClients([]);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- 取得: スタッフ一覧（/api/users）----
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/users', { cache: 'no-store' });
+        const j = await r.json();
+        const arr: unknown = j;
+        const list = Array.isArray(arr) ? arr : [];
+        const ok = list.filter((u): u is StaffUser => !!u && typeof u === 'object' && 'user_id' in u);
+        setStaffs(ok);
+      } catch (e) {
+        console.error('GET /api/users failed', e);
+        setStaffs([]);
+      }
+    })();
+  }, []);
+
+  // ---- 取得: シフト（/api/shifts?kaipoke_cs_id=...&month=YYYY-MM）----
+  const fetchShifts = async (csId: string, ym: string) => {
+    if (!csId || !ym) { setShifts([]); return; }
+    try {
+      const r = await fetch(`/api/shifts?kaipoke_cs_id=${encodeURIComponent(csId)}&month=${encodeURIComponent(ym)}`, { cache: 'no-store' });
+      const j = await r.json();
+      if (!r.ok) {
+        console.error('GET /api/shifts error', j?.error || r.status);
+        setShifts([]);
+        return;
+      }
+      const arr: unknown = j;
+      const list = Array.isArray(arr) ? arr : [];
+      // 最低限のバリデーション
+      const typed = list.filter((s): s is ShiftRow => !!s && typeof s === 'object' && 'shift_id' in s) as ShiftRow[];
+      setShifts(typed);
+    } catch (e) {
+      console.error('GET /api/shifts failed', e);
+      setShifts([]);
     }
+  };
 
-    // スタッフ（users）情報を取得
-    const fetchUsers = async () => {
-        const res = await fetch('/api/users') // /api/users APIからスタッフデータを取得
-        const data = await res.json()
-        setUsers(data)
+  useEffect(() => {
+    if (selectedCsId && selectedYm) fetchShifts(selectedCsId, selectedYm);
+  }, [selectedCsId, selectedYm]);
+
+  // ---- 保存（行単位）----
+  const handleSaveRow = async (row: ShiftRow) => {
+    try {
+      const res = await fetch('/api/shifts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(`保存に失敗: ${j?.error ?? res.status}`);
+        return;
+      }
+      alert('保存しました');
+    } catch (e) {
+      console.error('PUT /api/shifts failed', e);
+      alert('保存時にエラーが発生しました');
     }
+  };
 
-    // シフト情報を取得
-    const fetchShifts = async () => {
-        if (selectedKaipokeCS && selectedMonth) {
-            const res = await fetch(`/api/shifts?kaipoke_cs_id=${selectedKaipokeCS}&month=${selectedMonth}`)
-            const data = await res.json()
-            setEditedShifts(data)
-        }
-    }
+  // ---- スタッフ options ----
+  const staffOptions = useMemo(() => {
+    return staffs.map(s => ({ value: s.user_id, label: fullName(s) }));
+  }, [staffs]);
 
-    useEffect(() => {
-        fetchKaipokeCSList() // 利用者情報を取得
-        fetchUsers() // スタッフ情報を取得
-    }, [])
-
-    useEffect(() => {
-        fetchShifts() // シフト情報を取得
-    }, [selectedKaipokeCS, selectedMonth]) // 利用者または月が変更されるたびにシフトを再取得
-
-    // シフトデータの変更をハンドリング
-    const handleEditChange = <K extends keyof Shift>(shiftId: string, field: K, value: Shift[K]) => {
-        setEditedShifts(prev =>
-            prev.map(shift => shift.shift_id === shiftId ? { ...shift, [field]: value } : shift)
-        )
-    }
-
-    // シフトデータの保存
-    const handleSave = async (shiftId: string) => {
-        const shift = editedShifts.find(s => s.shift_id === shiftId)
-        if (!shift) return
-
-        const res = await fetch('/api/shifts', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(shift),
-        })
-
-        if (res.ok) {
-            alert('シフトが保存されました')
-        } else {
-            alert('シフトの保存に失敗しました')
-        }
-    }
-
-    // シフトデータの参照ボタン
-    const handleShiftRecord = async (shiftId: string) => {
-        console.log(`Shift Record for shift_id: ${shiftId}`)
-    }
-
-    return (
-        <div className="w-full overflow-x-auto p-4">
-            <h2 className="text-lg font-semibold mb-4">シフト管理</h2>
-
-            {/* 利用者選択セレクトボックス */}
-            <label htmlFor="kaipoke_cs_id">利用者</label>
-            <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
-                <SelectTrigger>
-                    <SelectValue placeholder="利用者を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                    {kaipokeCSList.map(cs => (
-                        <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
-                            {cs.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-
-            {/* 月選択セレクトボックス */}
-            <label htmlFor="month">実施月</label>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                    <SelectValue placeholder="月を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                    {['2023-09', '2023-10', '2023-11'].map((month) => (
-                        <SelectItem key={month} value={month}>
-                            {month}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>利用者名</TableHead>
-                        <TableHead>サービス</TableHead>
-                        <TableHead>スタッフ 1</TableHead>
-                        <TableHead>スタッフ 2</TableHead>
-                        <TableHead>スタッフ 3</TableHead>
-                        <TableHead>同行</TableHead>
-                        <TableHead>保存</TableHead>
-                    </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                    {editedShifts.map(shift => (
-                        <TableRow key={shift.shift_id}>
-                            <TableCell>{shift.name}</TableCell>
-                            <TableCell>{shift.service_code}</TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_01_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_01_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {users.map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_02_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_02_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {users.map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <Select
-                                    value={shift.staff_03_user_id}
-                                    onValueChange={value => handleEditChange(shift.shift_id, 'staff_03_user_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="スタッフを選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {users.map(user => (
-                                            <SelectItem key={user.user_id} value={user.user_id}>
-                                                {user.full_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </TableCell>
-                            <TableCell>
-                                <input
-                                    type="checkbox"
-                                    checked={shift.staff_02_attend_flg}
-                                    onChange={e => handleEditChange(shift.shift_id, 'staff_02_attend_flg', e.target.checked)}
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <Button onClick={() => handleSave(shift.shift_id)}>保存</Button>
-                                <Button onClick={() => handleShiftRecord(shift.shift_id)}>シフト記録</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+  // ---- UI ----
+  return (
+    <div className="p-3 space-y-3">
+      {/* フィルタ */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* 利用者 */}
+        <div>
+          <label htmlFor="clientSelect" className="block text-xs font-medium mb-1">利用者</label>
+          <select
+            id="clientSelect"
+            className="w-full max-w-[320px] border rounded px-2 py-1 text-sm"
+            value={selectedCsId}
+            onChange={(e) => setSelectedCsId(e.target.value)}
+          >
+            {clients.map(c => (
+              <option key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>{c.name}</option>
+            ))}
+          </select>
         </div>
-    )
-}
 
-export default ShiftRosterPage
+        {/* 年月 */}
+        <div>
+          <label htmlFor="ymSelect" className="block text-xs font-medium mb-1">実施月</label>
+          <select
+            id="ymSelect"
+            className="w-full max-w-[180px] border rounded px-2 py-1 text-sm"
+            value={selectedYm}
+            onChange={(e) => setSelectedYm(e.target.value)}
+          >
+            {monthList.map(m => (<option key={m} value={m}>{m}</option>))}
+          </select>
+        </div>
+      </div>
+
+      {/* テーブル */}
+      <div className="overflow-x-auto">
+        <table className="min-w-[900px] w-full border-collapse">
+          <thead>
+            <tr className="[&>th]:border-b [&>th]:px-2 [&>th]:py-2 text-left text-sm bg-gray-50">
+              <th>利用者名</th>
+              <th>Shift ID</th>
+              <th>サービス</th>
+              <th>必要人数</th>
+              <th>二人作業</th>
+              <th>重度移動</th>
+              <th>スタッフ 1</th>
+              <th>スタッフ 2</th>
+              <th>同行2</th>
+              <th>スタッフ 3</th>
+              <th>同行3</th>
+              <th>保存</th>
+              <th>訪問記録</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shifts.map((s) => (
+              <tr key={s.shift_id} className="[&>td]:border-b [&>td]:px-2 [&>td]:py-2 align-top text-sm">
+                <td>{s.name}</td>
+                <td className="font-mono">{s.shift_id}</td>
+                <td>{s.service_code}</td>
+
+                {/* 必要人数 */}
+                <td>
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-16 border rounded px-1 py-0.5"
+                    value={s.required_staff_count}
+                    onChange={(e) => {
+                      const v = Number(e.target.value || 0);
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, required_staff_count: v } as ShiftRow : x));
+                    }}
+                  />
+                </td>
+
+                {/* 二人作業 */}
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={!!s.two_person_work_flg}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, two_person_work_flg: v } as ShiftRow : x));
+                    }}
+                  />
+                </td>
+
+                {/* 重度移動 */}
+                <td>
+                  <input
+                    type="text"
+                    className="w-24 border rounded px-1 py-0.5"
+                    value={s.judo_ido ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, judo_ido: v } as ShiftRow : x));
+                    }}
+                  />
+                </td>
+
+                {/* スタッフ1 */}
+                <td>
+                  <select
+                    className="min-w-[180px] border rounded px-2 py-1"
+                    value={s.staff_01_user_id ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, staff_01_user_id: v } as ShiftRow : x));
+                    }}
+                  >
+                    <option value="">— 選択 —</option>
+                    {staffOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                  </select>
+                </td>
+
+                {/* スタッフ2 + 同行 */}
+                <td>
+                  <select
+                    className="min-w-[180px] border rounded px-2 py-1"
+                    value={s.staff_02_user_id ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, staff_02_user_id: v } as ShiftRow : x));
+                    }}
+                  >
+                    <option value="">— 選択 —</option>
+                    {staffOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                  </select>
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={!!s.staff_02_attend_flg}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, staff_02_attend_flg: v } as ShiftRow : x));
+                    }}
+                  />
+                </td>
+
+                {/* スタッフ3 + 同行 */}
+                <td>
+                  <select
+                    className="min-w-[180px] border rounded px-2 py-1"
+                    value={s.staff_03_user_id ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, staff_03_user_id: v } as ShiftRow : x));
+                    }}
+                  >
+                    <option value="">— 選択 —</option>
+                    {staffOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                  </select>
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={!!s.staff_03_attend_flg}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      setShifts(prev => prev.map(x => x.shift_id === s.shift_id ? { ...x, staff_03_attend_flg: v } as ShiftRow : x));
+                    }}
+                  />
+                </td>
+
+                {/* 保存 */}
+                <td>
+                  <button
+                    type="button"
+                    className="px-3 py-1 border rounded"
+                    onClick={() => handleSaveRow(s)}
+                  >
+                    保存
+                  </button>
+                </td>
+
+                {/* 訪問記録（ShiftRecordモーダル） */}
+                <td>
+                  <button
+                    type="button"
+                    className="px-3 py-1 border rounded"
+                    onClick={() => setRecordShiftId(s.shift_id)}
+                  >
+                    訪問記録
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {shifts.length === 0 && (
+              <tr>
+                <td colSpan={13} className="text-center text-sm text-gray-500 py-8">
+                  データがありません
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* モーダル（超シンプル） */}
+      {recordShiftId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setRecordShiftId(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-[min(1100px,96vw)] max-h-[90vh] overflow-auto p-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-semibold">訪問記録</h2>
+              <button className="px-2 py-1 border rounded" onClick={() => setRecordShiftId(null)}>閉じる</button>
+            </div>
+            {/* ShiftRecord をそのまま描画 */}
+            <ShiftRecord shiftId={recordShiftId} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
