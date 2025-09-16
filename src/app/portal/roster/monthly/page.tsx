@@ -1,7 +1,7 @@
+//portal/monthly/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
-//import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 
@@ -16,19 +16,23 @@ type Shift = {
     staff_03_user_id?: string;
     staff_02_attend_flg: boolean;
     staff_03_attend_flg: boolean;
-    // 必要な項目を追加してください
+}
+
+type User = {
+    kaipoke_cs_id: string;
+    name: string;
 }
 
 const ShiftRosterPage = () => {
-    const [shifts, setShifts] = useState([])  // シフトデータ
-    const [users, setUsers] = useState([])    // 利用者データ
+    const [shifts, setShifts] = useState<Shift[]>([])  // シフトデータ
+    const [users, setUsers] = useState<User[]>([])    // 利用者データ
     const [selectedUser, setSelectedUser] = useState('')  // 選択された利用者
     const [selectedMonth, setSelectedMonth] = useState('')  // 選択された実施月
     const [error, setError] = useState('')
 
     // 利用者リストを取得する関数
     const fetchUsers = async () => {
-        const res = await fetch('/api/kaipoke-users')  // 利用者APIを呼び出す
+        const res = await fetch('/api/users')  // 利用者APIを呼び出す
         const data = await res.json()
         setUsers(data)
     }
@@ -62,8 +66,8 @@ const ShiftRosterPage = () => {
     }
 
     // シフトデータを取得する関数
-    const fetchShifts = async (userId: string, month: string) => {
-        const res = await fetch(`/api/shifts?kaipoke_cs_id=${userId}&month=${month}`)
+    const fetchShifts = async (kaipokeCsId: string, month: string) => {
+        const res = await fetch(`/api/shifts?kaipoke_cs_id=${kaipokeCsId}&month=${month}`)
         const data = await res.json()
 
         if (res.ok) {
@@ -83,8 +87,7 @@ const ShiftRosterPage = () => {
     }, [selectedUser, selectedMonth])
 
     const handleSave = async (shiftId: string, updatedData: Shift) => {
-        // updatedDataにshiftIdを含める
-        updatedData.shift_id = shiftId;
+        updatedData.shift_id = shiftId; // updatedDataにshift_idを含める
 
         const res = await fetch('/api/shifts', {
             method: 'PUT',
@@ -98,6 +101,7 @@ const ShiftRosterPage = () => {
             alert('シフトデータの保存に失敗しました')
         }
     }
+
     return (
         <div>
             <div className="filters">

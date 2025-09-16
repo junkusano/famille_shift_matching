@@ -1,44 +1,46 @@
-//api/shifts/route.ts
+// api/shifts/route.ts
 
 import { supabaseAdmin } from '@/lib/supabase/service'
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
-  const shiftId = searchParams.get('shift_id')
+    const { searchParams } = new URL(req.url)
+    const kaipokeCsId = searchParams.get('kaipoke_cs_id')
+    const month = searchParams.get('month')
 
-  if (!shiftId) {
-    return new Response(JSON.stringify({ error: 'shift_id is required' }), { status: 400 })
-  }
+    if (!kaipokeCsId || !month) {
+        return new Response(JSON.stringify({ error: 'kaipoke_cs_id and month are required' }), { status: 400 })
+    }
 
-  const { data, error } = await supabaseAdmin
-    .from('shift_csinfo_postalname_view')  // ここでシフト情報を取得
-    .select('*')
-    .eq('shift_id', shiftId)
-    .single()
+    const { data, error } = await supabaseAdmin
+        .from('shift_csinfo_postalname_view')  // シフト情報を取得
+        .select('*')
+        .eq('kaipoke_cs_id', kaipokeCsId)  // 利用者IDでフィルタリング
+        .like('shift_start_date', `${month}%`)  // 月でフィルタリング（例: 202309）
+        .order('shift_start_date', { ascending: true })  // 日付順に並べる
 
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
-  }
+    if (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+    }
 
-  return new Response(JSON.stringify(data), { status: 200 })
+    return new Response(JSON.stringify(data), { status: 200 })
 }
 
 export async function PUT(req: Request) {
-  const { shift_id, ...updatedFields } = await req.json()
+    const { shift_id, ...updatedFields } = await req.json()
 
-  if (!shift_id) {
-    return new Response(JSON.stringify({ error: 'shift_id is required' }), { status: 400 })
-  }
+    if (!shift_id) {
+        return new Response(JSON.stringify({ error: 'shift_id is required' }), { status: 400 })
+    }
 
-  const { data, error } = await supabaseAdmin
-    .from('shift')
-    .update(updatedFields)
-    .eq('shift_id', shift_id)
-    .single()
+    const { data, error } = await supabaseAdmin
+        .from('shift')  // シフトテーブルに更新
+        .update(updatedFields)
+        .eq('shift_id', shift_id)
+        .single()
 
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
-  }
+    if (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+    }
 
-  return new Response(JSON.stringify(data), { status: 200 })
+    return new Response(JSON.stringify(data), { status: 200 })
 }
