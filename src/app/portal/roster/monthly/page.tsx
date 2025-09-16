@@ -62,8 +62,8 @@ const ShiftRosterPage = () => {
         fetchShifts()
     }, [selectedUser, selectedMonth])
 
-    const handleSave = async (shiftId: string, updatedData: any) => {
-        const res = await fetch('/api/shifts', {
+    const handleSave = async (shiftId: string, updatedData: Shift) => {
+        const res = await fetch(`/api/shifts?shift_id=${shiftId}`, {
             method: 'PUT',
             body: JSON.stringify(updatedData),
             headers: { 'Content-Type': 'application/json' },
@@ -127,7 +127,7 @@ const ShiftRosterPage = () => {
                         <TableHead>スタッフ 3</TableHead>
                         <TableHead>同行</TableHead>
                         <TableHead>必要職員数</TableHead>
-                        <TableHead>2人作業フラグ</TableHead>
+                        <TableHead>2人作業</TableHead>
                         <TableHead>重度移動</TableHead>
                         <TableHead>保存</TableHead>
                     </TableRow>
