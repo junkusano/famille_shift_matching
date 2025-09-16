@@ -1,94 +1,68 @@
-//portal/monthly/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
 type Shift = {
-    shift_id: string;
-    shift_start_date: string;
-    shift_start_time: string;
-    shift_end_time: string;
-    service_code: string;
-    staff_01_user_id?: string;
-    staff_02_user_id?: string;
-    staff_03_user_id?: string;
-    staff_02_attend_flg: boolean;
-    staff_03_attend_flg: boolean;
+    shift_id: string
+    shift_start_date: string
+    shift_start_time: string
+    shift_end_time: string
+    service_code: string
+    staff_01_user_id?: string
+    staff_02_user_id?: string
+    staff_03_user_id?: string
+    staff_02_attend_flg: boolean
+    staff_03_attend_flg: boolean
+    required_staff_count: number
+    two_person_work_flg: boolean
+    judo_ido: string
+    name: string // 利用者名
 }
 
 type User = {
-    kaipoke_cs_id: string;
-    name: string;
+    kaipoke_cs_id: string
+    name: string
 }
 
 const ShiftRosterPage = () => {
-    const [shifts, setShifts] = useState<Shift[]>([])  // シフトデータ
-    const [users, setUsers] = useState<User[]>([])    // 利用者データ
-    const [selectedUser, setSelectedUser] = useState('')  // 選択された利用者
-    const [selectedMonth, setSelectedMonth] = useState('')  // 選択された実施月
-    const [error, setError] = useState('')
+    const [editedShifts, setEditedShifts] = useState<Shift[]>([])
+    const [users, setUsers] = useState<User[]>([])
+    const [selectedUser, setSelectedUser] = useState<string>('') // 初期値を設定
+    const [selectedMonth, setSelectedMonth] = useState<string>('')
 
-    // 利用者リストを取得する関数
-    const fetchUsers = async () => {
-        const res = await fetch('/api/users')  // 利用者APIを呼び出す
-        const data = await res.json()
-        setUsers(data)
-    }
-
-    // 月リストの生成（過去5年、未来12ヶ月）
-    const generateMonthList = () => {
-        const months = []
-        const currentDate = new Date()
-        const currentMonth = currentDate.getMonth()
-        const currentYear = currentDate.getFullYear()
-
-        // 過去5年分（60ヶ月）
-        for (let i = 60; i > 0; i--) {
-            const prevMonth = new Date(currentYear, currentMonth - i)
-            months.push({
-                value: `${prevMonth.getFullYear()}${(prevMonth.getMonth() + 1).toString().padStart(2, '0')}`,
-                label: `${prevMonth.getFullYear()}年${(prevMonth.getMonth() + 1)}月`,
-            })
-        }
-
-        // 未来12ヶ月
-        for (let i = 0; i < 12; i++) {
-            const nextMonth = new Date(currentYear, currentMonth + i)
-            months.push({
-                value: `${nextMonth.getFullYear()}${(nextMonth.getMonth() + 1).toString().padStart(2, '0')}`,
-                label: `${nextMonth.getFullYear()}年${(nextMonth.getMonth() + 1)}月`,
-            })
-        }
-
-        return months
-    }
-
-    // シフトデータを取得する関数
-    const fetchShifts = async (kaipokeCsId: string, month: string) => {
-        const res = await fetch(`/api/shifts?kaipoke_cs_id=${kaipokeCsId}&month=${month}`)
-        const data = await res.json()
-
-        if (res.ok) {
-            setShifts(data)
-        } else {
-            setError(data.error || 'シフトの取得に失敗しました')
-        }
-    }
-
-    // ユーザー選択と月選択時にデータを更新
     useEffect(() => {
-        fetchUsers()  // 利用者情報を取得
+        const fetchUsers = async () => {
+            const res = await fetch('/api/users')
+            const data = await res.json()
+            const validUsers = data.filter((user: User) => user.name && user.kaipoke_cs_id)
+            setUsers(validUsers)
 
-        if (selectedUser && selectedMonth) {
-            fetchShifts(selectedUser, selectedMonth)
+            if (validUsers.length > 0) {
+                setSelectedUser(validUsers[0].kaipoke_cs_id)
+            }
         }
+
+        const fetchShifts = async () => {
+            if (selectedUser && selectedMonth) {
+                const res = await fetch(`/api/shifts?kaipoke_cs_id=${selectedUser}&month=${selectedMonth}`)
+                const data = await res.json()
+                setEditedShifts(data)
+            }
+        }
+
+        const currentMonth = new Date()
+        const currentYearMonth = `${currentMonth.getFullYear()}${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`
+        setSelectedMonth(currentYearMonth)
+
+        fetchUsers()
+        fetchShifts()
     }, [selectedUser, selectedMonth])
 
-    const handleSave = async (shiftId: string, updatedData: Shift) => {
-        updatedData.shift_id = shiftId; // updatedDataにshift_idを含める
-
+    const handleSave = async (shiftId: string, updatedData: any) => {
         const res = await fetch('/api/shifts', {
             method: 'PUT',
             body: JSON.stringify(updatedData),
@@ -103,100 +77,103 @@ const ShiftRosterPage = () => {
     }
 
     return (
-        <div>
-            <div className="filters">
+        <div className="w-full overflow-x-auto p-4">
+            <h2 className="text-lg font-semibold mb-4">シフト管理</h2>
+
+            <div className="flex space-x-4 mb-4">
+                {/* 利用者セレクトボックス */}
                 <Select value={selectedUser} onValueChange={setSelectedUser}>
                     <SelectTrigger>
                         <SelectValue placeholder="利用者を選択" />
                     </SelectTrigger>
                     <SelectContent>
-                        {users.map(user => (
+                        {users.map((user) => (
                             <SelectItem key={user.kaipoke_cs_id} value={user.kaipoke_cs_id}>
-                                {user.name}  {/* 利用者名を表示 */}
+                                {user.name}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
 
+                {/* 月セレクトボックス */}
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                     <SelectTrigger>
-                        <SelectValue placeholder="実施月を選択" />
+                        <SelectValue placeholder="月を選択" />
                     </SelectTrigger>
                     <SelectContent>
-                        {generateMonthList().map(month => (
-                            <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-                        ))}
+                        {[...Array(12)].map((_, index) => {
+                            const month = new Date()
+                            month.setMonth(month.getMonth() - index)
+                            const yearMonth = `${month.getFullYear()}${(month.getMonth() + 1).toString().padStart(2, '0')}`
+                            return (
+                                <SelectItem key={yearMonth} value={yearMonth}>
+                                    {`${month.getFullYear()}年${month.getMonth() + 1}月`}
+                                </SelectItem>
+                            )
+                        })}
                     </SelectContent>
                 </Select>
             </div>
 
-            {error && <div className="error">{error}</div>}
-
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead>利用者名</TableHead>
                         <TableHead>Shift ID</TableHead>
                         <TableHead>サービス</TableHead>
                         <TableHead>スタッフ 1</TableHead>
                         <TableHead>スタッフ 2</TableHead>
+                        <TableHead>同行</TableHead>
                         <TableHead>スタッフ 3</TableHead>
-                        <TableHead>スタッフ 2 出席</TableHead>
-                        <TableHead>スタッフ 3 出席</TableHead>
+                        <TableHead>同行</TableHead>
+                        <TableHead>必要職員数</TableHead>
+                        <TableHead>2人作業フラグ</TableHead>
+                        <TableHead>重度移動</TableHead>
                         <TableHead>保存</TableHead>
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                    {shifts.length ? (
-                        shifts.map(shift => (
-                            <TableRow key={shift.shift_id}>
-                                <TableCell>{shift.shift_id}</TableCell>
-                                <TableCell>{shift.service_code}</TableCell>
-                                <TableCell>
-                                    <select value={shift.staff_01_user_id}>
-                                        {users.map(user => (
-                                            <option key={user.kaipoke_cs_id} value={user.kaipoke_cs_id}>{user.name}</option>
-                                        ))}
-                                    </select>
-                                </TableCell>
-                                <TableCell>
-                                    <select value={shift.staff_02_user_id}>
-                                        {users.map(user => (
-                                            <option key={user.kaipoke_cs_id} value={user.kaipoke_cs_id}>{user.name}</option>
-                                        ))}
-                                    </select>
-                                </TableCell>
-                                <TableCell>
-                                    <select value={shift.staff_03_user_id}>
-                                        {users.map(user => (
-                                            <option key={user.kaipoke_cs_id} value={user.kaipoke_cs_id}>{user.name}</option>
-                                        ))}
-                                    </select>
-                                </TableCell>
-                                <TableCell>
-                                    <input
-                                        type="checkbox"
-                                        checked={shift.staff_02_attend_flg}
-                                        onChange={() => handleSave(shift.shift_id, { ...shift, staff_02_attend_flg: !shift.staff_02_attend_flg })}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <input
-                                        type="checkbox"
-                                        checked={shift.staff_03_attend_flg}
-                                        onChange={() => handleSave(shift.shift_id, { ...shift, staff_03_attend_flg: !shift.staff_03_attend_flg })}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <button onClick={() => handleSave(shift.shift_id, shift)}>保存</button>
-                                </TableCell>
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={8}>データが見つかりません</TableCell>
+                    {editedShifts.map((shift) => (
+                        <TableRow key={shift.shift_id}>
+                            <TableCell>{shift.name}</TableCell>
+                            <TableCell>{shift.shift_id}</TableCell>
+                            <TableCell>{shift.service_code}</TableCell>
+                            <TableCell>
+                                {/* スタッフ1 */}
+                            </TableCell>
+                            <TableCell>
+                                {/* スタッフ2 */}
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    type="checkbox"
+                                    checked={shift.staff_02_attend_flg}
+                                    onChange={(e) =>
+                                        handleSave(shift.shift_id, { ...shift, staff_02_attend_flg: e.target.checked })
+                                    }
+                                />
+                            </TableCell>
+                            <TableCell>
+                                {/* スタッフ3 */}
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    type="checkbox"
+                                    checked={shift.staff_03_attend_flg}
+                                    onChange={(e) =>
+                                        handleSave(shift.shift_id, { ...shift, staff_03_attend_flg: e.target.checked })
+                                    }
+                                />
+                            </TableCell>
+                            <TableCell>{shift.required_staff_count}</TableCell>
+                            <TableCell>{shift.two_person_work_flg ? 'あり' : 'なし'}</TableCell>
+                            <TableCell>{shift.judo_ido}</TableCell>
+                            <TableCell>
+                                <Button onClick={() => handleSave(shift.shift_id, shift)}>保存</Button>
+                            </TableCell>
                         </TableRow>
-                    )}
+                    ))}
                 </TableBody>
             </Table>
         </div>
