@@ -1,3 +1,5 @@
+//api/kaipoke-info
+
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
@@ -7,6 +9,8 @@ const supabase = createClient(
 );
 
 export async function GET() {
+  console.log('GET request to /api/kaipoke-info');
+  
   const { data, error } = await supabase
     .from('cs_kaipoke_info')
     .select('*')
@@ -17,5 +21,7 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  console.log('Fetched data from cs_kaipoke_info:', data);
   return NextResponse.json(data);
 }
+
