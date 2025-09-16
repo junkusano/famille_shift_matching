@@ -1,14 +1,14 @@
-// portal/monthly/page.tsx
+//portal/monthly/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
+//import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ShiftRecord from '@/components/shift/ShiftRecord'
 
-// ===== Types =====
+// ========= Types =========
 type KaipokeCs = {
   id: string
   kaipoke_cs_id: string
@@ -20,7 +20,7 @@ type StaffUser = {
   user_id: string
   last_name_kanji: string | null
   first_name_kanji: string | null
-  roster_sort: number | null // 並び順用（なければ null）
+  roster_sort: number | null
 }
 
 type ServiceCode = {
@@ -29,8 +29,6 @@ type ServiceCode = {
   require_doc_group: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
-  created_at?: string | null
-  updated_at?: string | null
 }
 
 type ShiftRow = {
@@ -39,7 +37,7 @@ type ShiftRow = {
   shift_start_date: string    // YYYY-MM-DD
   shift_start_time: string    // HH:mm
   shift_end_time: string      // HH:mm
-  service_code: string        // 編集可（Select）
+  service_code: string        // 編集可(Select)
   required_staff_count: number | null
   two_person_work_flg: boolean | null
   judo_ido: boolean | null
@@ -48,14 +46,20 @@ type ShiftRow = {
   staff_03_user_id: string | null
   staff_02_attend_flg: boolean | null
   staff_03_attend_flg: boolean | null
+
+  // --- UIローカル項目（保存時に既存カラムへマッピング）---
+  // 派遣人数：'-' | '01'（'01' は「2人同時作業」を意味し required_staff_count=2 として保存）
+  dispatch_size?: '-' | '01'
+  // 重複：'-' | '01' | '02'（'-' は重複なし、'01'/'02'は「1人目/2人目」→ two_person_work_flg=true として保存）
+  dup_role?: '-' | '01' | '02'
 }
 
-// ===== Helpers =====
+// ========= Helpers =========
 const yyyymm = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 const addMonths = (month: string, diff: number) => {
   const [y, m] = month.split('-').map(Number)
-  const d = new Date(y, (m - 1) + diff, 1)
-  return yyyymm(d)
+  const dt = new Date(y, (m - 1) + diff, 1)
+  return yyyymm(dt)
 }
 const humanName = (u: StaffUser) =>
   `${u.last_name_kanji ?? ''}${u.first_name_kanji ?? ''}`.trim() || u.user_id
@@ -66,7 +70,7 @@ export default function MonthlyRosterPage() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
   const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
 
-  // 選択
+  // フィルタ
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>('') // kaipoke_cs_id
   const [selectedMonth, setSelectedMonth] = useState<string>(yyyymm(new Date()))
 
@@ -74,48 +78,63 @@ export default function MonthlyRosterPage() {
   const [shifts, setShifts] = useState<ShiftRow[]>([])
   const [openRecordFor, setOpenRecordFor] = useState<string | null>(null)
 
-  // ---- Fetch masters ----
+  // --- masters ---
   useEffect(() => {
-    const load = async () => {
-      // 利用者（cs_kaipoke_info）
+    const loadMasters = async () => {
+      // 利用者
       const csRes = await fetch('/api/kaipoke-info', { cache: 'no-store' })
-      const csData = (await csRes.json()) as KaipokeCs[]
-      const validCs = csData
+      const csJson = (await csRes.json()) as KaipokeCs[] | { error?: string }
+      const csArr: KaipokeCs[] = Array.isArray(csJson) ? csJson : []
+      const validCs = csArr
         .filter(c => c.kaipoke_cs_id && c.name)
         .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
       setKaipokeCs(validCs)
       if (validCs.length && !selectedKaipokeCS) setSelectedKaipokeCS(validCs[0].kaipoke_cs_id)
 
-      // スタッフ（view: user_entry_united_view_single）
+      // スタッフ（roster_sort → 氏名）
       const stRes = await fetch('/api/users', { cache: 'no-store' })
-      const stData = (await stRes.json()) as StaffUser[]
-      // roster_sort → nullは末尾、同値は氏名で
-      stData.sort((a, b) => {
+      const stJson = (await stRes.json()) as StaffUser[] | { error?: string }
+      const stArr: StaffUser[] = Array.isArray(stJson) ? stJson : []
+      stArr.sort((a, b) => {
         const ra = a.roster_sort ?? Number.POSITIVE_INFINITY
         const rb = b.roster_sort ?? Number.POSITIVE_INFINITY
         if (ra !== rb) return ra - rb
         return humanName(a).localeCompare(humanName(b), 'ja')
       })
-      setStaffUsers(stData)
+      setStaffUsers(stArr)
 
-      // サービスコード（shift_service_code）
-      const scRes = await fetch('/api/service-codes', { cache: 'no-store' })
-      if (scRes.ok) {
-        const scData = (await scRes.json()) as ServiceCode[]
-        // 並び：1) kaipoke_servicek 2) service_code
-        scData.sort((a, b) => {
-          const k = (a.kaipoke_servicek ?? '').localeCompare(b.kaipoke_servicek ?? '', 'ja')
-          if (k !== 0) return k
-          return (a.service_code ?? '').localeCompare(b.service_code ?? '', 'ja')
-        })
-        setServiceCodes(scData)
+      // サービスコード
+      let scArr: ServiceCode[] = []
+      try {
+        const scRes = await fetch('/api/service-codes', { cache: 'no-store' })
+        if (scRes.ok) {
+          const scJson = (await scRes.json()) as ServiceCode[] | { error?: string }
+          if (Array.isArray(scJson)) scArr = scJson
+        }
+        // フォールバック（環境によってエンドポイント名が違うケースの救済）
+        if (scArr.length === 0) {
+          const fb = await fetch('/api/shift-service-code', { cache: 'no-store' })
+          if (fb.ok) {
+            const scJson = (await fb.json()) as ServiceCode[] | { error?: string }
+            if (Array.isArray(scJson)) scArr = scJson
+          }
+        }
+      } catch (e) {
+        // noop
       }
+      scArr = scArr.filter(s => s.service_code) // null除外
+      scArr.sort((a, b) => {
+        const k = (a.kaipoke_servicek ?? '').localeCompare(b.kaipoke_servicek ?? '', 'ja')
+        if (k !== 0) return k
+        return (a.service_code ?? '').localeCompare(b.service_code ?? '', 'ja')
+      })
+      setServiceCodes(scArr)
     }
-    void load()
+    void loadMasters()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ---- Fetch shifts when filters change ----
+  // --- shifts ---
   useEffect(() => {
     const loadShifts = async () => {
       if (!selectedKaipokeCS || !selectedMonth) {
@@ -127,18 +146,25 @@ export default function MonthlyRosterPage() {
       const raw = await res.json()
       const rows: ShiftRow[] = Array.isArray(raw) ? raw : []
 
-      // 正規化 + 並び替え（開始日 → 開始時刻）
-      const normalized = rows.map(r => ({
-        ...r,
-        required_staff_count: r.required_staff_count ?? 1,
-        two_person_work_flg: r.two_person_work_flg ?? false,
-        judo_ido: r.judo_ido ?? false,
-        staff_01_user_id: r.staff_01_user_id ?? null,
-        staff_02_user_id: r.staff_02_user_id ?? null,
-        staff_03_user_id: r.staff_03_user_id ?? null,
-        staff_02_attend_flg: r.staff_02_attend_flg ?? false,
-        staff_03_attend_flg: r.staff_03_attend_flg ?? false,
-      }))
+      // UIローカル項目の初期化 + 並び替え
+      const normalized: ShiftRow[] = rows.map(r => {
+        const required = r.required_staff_count ?? 1
+        const dispatch_size: ShiftRow['dispatch_size'] = required >= 2 ? '01' : '-'
+        const dup_role: ShiftRow['dup_role'] = r.two_person_work_flg ? '01' : '-' // 情報がなければ '01' で既定
+        return {
+          ...r,
+          required_staff_count: required,
+          two_person_work_flg: r.two_person_work_flg ?? false,
+          judo_ido: r.judo_ido ?? false,
+          staff_01_user_id: r.staff_01_user_id ?? null,
+          staff_02_user_id: r.staff_02_user_id ?? null,
+          staff_03_user_id: r.staff_03_user_id ?? null,
+          staff_02_attend_flg: r.staff_02_attend_flg ?? false,
+          staff_03_attend_flg: r.staff_03_attend_flg ?? false,
+          dispatch_size,
+          dup_role,
+        }
+      })
       normalized.sort((a, b) => {
         const d = a.shift_start_date.localeCompare(b.shift_start_date)
         if (d !== 0) return d
@@ -161,17 +187,21 @@ export default function MonthlyRosterPage() {
 
   // 保存
   const handleSave = async (row: ShiftRow) => {
+    // UI項目→保存項目へマッピング
+    const required_staff_count = row.dispatch_size === '01' ? 2 : 1
+    const two_person_work_flg = row.dup_role !== '-'
+
     const body = {
       shift_id: row.shift_id,
       service_code: row.service_code,
-      required_staff_count: row.required_staff_count,
-      two_person_work_flg: row.two_person_work_flg,
-      judo_ido: row.judo_ido,
+      required_staff_count,
+      two_person_work_flg,
+      judo_ido: !!row.judo_ido,
       staff_01_user_id: row.staff_01_user_id,
       staff_02_user_id: row.staff_02_user_id,
       staff_03_user_id: row.staff_03_user_id,
-      staff_02_attend_flg: row.staff_02_attend_flg,
-      staff_03_attend_flg: row.staff_03_attend_flg,
+      staff_02_attend_flg: !!row.staff_02_attend_flg,
+      staff_03_attend_flg: !!row.staff_03_attend_flg,
     }
 
     const res = await fetch('/api/shifts', {
@@ -192,25 +222,16 @@ export default function MonthlyRosterPage() {
     setShifts(prev => prev.map(r => (r.shift_id === shiftId ? { ...r, [field]: value } : r)))
   }
 
-  // スタッフ option
+  // options
   const staffOptions = useMemo(
-    () =>
-      staffUsers.map(u => ({
-        value: u.user_id,
-        label: humanName(u),
-      })),
+    () => staffUsers.map(u => ({ value: u.user_id, label: humanName(u) })),
     [staffUsers]
   )
-
-  // サービス option（null除外）
   const serviceOptions = useMemo(
-    () =>
-      serviceCodes
-        .filter(s => s.service_code)
-        .map(s => ({
-          value: s.service_code as string,
-          label: `${s.kaipoke_servicek ?? ''} / ${s.service_code}`,
-        })),
+    () => serviceCodes.map(s => ({
+      value: s.service_code as string,
+      label: `${s.kaipoke_servicek ?? ''} / ${s.service_code ?? ''}`.trim(),
+    })),
     [serviceCodes]
   )
 
@@ -229,63 +250,59 @@ export default function MonthlyRosterPage() {
     <div className="p-4 space-y-4">
       {/* フィルターバー */}
       <div className="flex flex-wrap items-end gap-3">
-        {/* 月ナビ */}
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col">
-            <label className="text-sm text-muted-foreground">実施月</label>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={() => setSelectedMonth(m => addMonths(m, -1))}>前月</Button>
-              <div style={{ width: 160 }}>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="月を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="secondary" onClick={() => setSelectedMonth(m => addMonths(m, +1))}>次月</Button>
+        {/* 実施月 */}
+        <div className="flex flex-col">
+          <label className="text-sm text-muted-foreground">実施月</label>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setSelectedMonth(m => addMonths(m, -1))}>前月</Button>
+            <div style={{ width: 160 }}>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="月を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <Button variant="secondary" onClick={() => setSelectedMonth(m => addMonths(m, +1))}>次月</Button>
           </div>
         </div>
 
-        {/* 利用者ナビ */}
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col">
-            <label className="text-sm text-muted-foreground">利用者</label>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={!csPrev}
-                onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}
-              >
-                前へ（{csPrev?.name ?? '-'}）
-              </Button>
-              <div style={{ width: 260 }}>
-                <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="利用者を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kaipokeCs.map(cs => (
-                      <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
-                        {cs.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                variant="secondary"
-                disabled={!csNext}
-                onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
-              >
-                次へ（{csNext?.name ?? '-'}）
-              </Button>
+        {/* 利用者 */}
+        <div className="flex flex-col">
+          <label className="text-sm text-muted-foreground">利用者</label>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={!csPrev}
+              onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}
+            >
+              前へ（{csPrev?.name ?? '-'}）
+            </Button>
+            <div style={{ width: 260 }}>
+              <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
+                <SelectTrigger>
+                  <SelectValue placeholder="利用者を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {kaipokeCs.map(cs => (
+                    <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
+                      {cs.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <Button
+              variant="secondary"
+              disabled={!csNext}
+              onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
+            >
+              次へ（{csNext?.name ?? '-'}）
+            </Button>
           </div>
         </div>
       </div>
@@ -300,25 +317,25 @@ export default function MonthlyRosterPage() {
               <TableHead>開始日</TableHead>
               <TableHead>開始時間</TableHead>
               <TableHead>終了時間</TableHead>
-              <TableHead>必要人数</TableHead>
-              <TableHead>2人作業</TableHead>
+              <TableHead>派遣人数</TableHead>
+              <TableHead>重複</TableHead>
               <TableHead>重度移動</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {shifts.map(row => (
-              <>
+            {shifts.map((row) => (
+              <Fragment key={row.shift_id}>
                 {/* 1行目：基本情報 */}
-                <TableRow key={`${row.shift_id}-meta`}>
+                <TableRow>
                   <TableCell><div className="whitespace-nowrap">{row.shift_id}</div></TableCell>
 
-                  {/* サービス（Select） */}
+                  {/* サービス */}
                   <TableCell>
-                    <div style={{ minWidth: 220 }}>
+                    <div style={{ width: 220 }}>
                       <Select
                         value={row.service_code ?? ''}
-                        onValueChange={v => updateRow(row.shift_id, 'service_code', v)}
+                        onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="サービスを選択" />
@@ -336,56 +353,78 @@ export default function MonthlyRosterPage() {
                   <TableCell><div className="whitespace-nowrap">{row.shift_start_time}</div></TableCell>
                   <TableCell><div className="whitespace-nowrap">{row.shift_end_time}</div></TableCell>
 
-                  {/* 必要人数 */}
+                  {/* 派遣人数（Select） */}
                   <TableCell>
-                    <div style={{ width: 110 }}>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={row.required_staff_count ?? 1}
-                        onChange={(e) =>
-                          updateRow(row.shift_id, 'required_staff_count', Number(e.target.value || 1))
-                        }
-                      />
+                    <div style={{ width: 160 }}>
+                      <Select
+                        value={row.dispatch_size ?? '-'}
+                        onValueChange={(v: '-' | '01') => {
+                          updateRow(row.shift_id, 'dispatch_size', v)
+                          // required_staff_count へ即時反映
+                          updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="-" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="-">-</SelectItem>
+                          <SelectItem value="01">2人同時作業</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </TableCell>
 
-                  {/* 2人作業 */}
+                  {/* 重複（Select） */}
                   <TableCell>
-                    <Input
-                      type="checkbox"
-                      checked={!!row.two_person_work_flg}
-                      onChange={e => updateRow(row.shift_id, 'two_person_work_flg', e.target.checked)}
-                    />
+                    <div style={{ width: 140 }}>
+                      <Select
+                        value={row.dup_role ?? '-'}
+                        onValueChange={(v: '-' | '01' | '02') => {
+                          updateRow(row.shift_id, 'dup_role', v)
+                          updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="-" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="-">-</SelectItem>
+                          <SelectItem value="01">1人目</SelectItem>
+                          <SelectItem value="02">2人目</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </TableCell>
 
-                  {/* 重度移動 */}
+                  {/* 重度移動（小さめチェック） */}
                   <TableCell>
-                    <Input
+                    <input
                       type="checkbox"
+                      className="h-4 w-4"
                       checked={!!row.judo_ido}
-                      onChange={e => updateRow(row.shift_id, 'judo_ido', e.target.checked)}
+                      onChange={(e) => updateRow(row.shift_id, 'judo_ido', e.target.checked)}
                     />
                   </TableCell>
                 </TableRow>
 
-                {/* 2行目：スタッフ & 操作 */}
-                <TableRow key={`${row.shift_id}-staff`}>
+                {/* 2行目：スタッフ＆操作（横並び・省スペース） */}
+                <TableRow>
                   <TableCell colSpan={8}>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-row flex-wrap items-center gap-3">
                       {/* スタッフ1 */}
-                      <div className="flex items-center gap-2" style={{ minWidth: 260 }}>
+                      <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">スタッフ1</span>
-                        <div style={{ minWidth: 200 }}>
+                        <div style={{ width: 180 }}>
                           <Select
                             value={row.staff_01_user_id ?? ''}
-                            onValueChange={v => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
+                            onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="選択" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem key="none1" value="">-</SelectItem>
+                              <SelectItem value="">-</SelectItem>
                               {staffOptions.map(o => (
                                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                               ))}
@@ -394,57 +433,59 @@ export default function MonthlyRosterPage() {
                         </div>
                       </div>
 
-                      {/* スタッフ2 + 同行 */}
-                      <div className="flex items-center gap-2" style={{ minWidth: 360 }}>
+                      {/* スタッフ2 + 同 */}
+                      <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">スタッフ2</span>
-                        <div style={{ minWidth: 200 }}>
+                        <div style={{ width: 180 }}>
                           <Select
                             value={row.staff_02_user_id ?? ''}
-                            onValueChange={v => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
+                            onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="選択" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem key="none2" value="">-</SelectItem>
+                              <SelectItem value="">-</SelectItem>
                               {staffOptions.map(o => (
                                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <label className="text-sm text-muted-foreground">同行</label>
-                        <Input
+                        <span className="text-sm text-muted-foreground">同</span>
+                        <input
                           type="checkbox"
+                          className="h-4 w-4"
                           checked={!!row.staff_02_attend_flg}
-                          onChange={e => updateRow(row.shift_id, 'staff_02_attend_flg', e.target.checked)}
+                          onChange={(e) => updateRow(row.shift_id, 'staff_02_attend_flg', e.target.checked)}
                         />
                       </div>
 
-                      {/* スタッフ3 + 同行 */}
-                      <div className="flex items-center gap-2" style={{ minWidth: 360 }}>
+                      {/* スタッフ3 + 同 */}
+                      <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">スタッフ3</span>
-                        <div style={{ minWidth: 200 }}>
+                        <div style={{ width: 180 }}>
                           <Select
                             value={row.staff_03_user_id ?? ''}
-                            onValueChange={v => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
+                            onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="選択" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem key="none3" value="">-</SelectItem>
+                              <SelectItem value="">-</SelectItem>
                               {staffOptions.map(o => (
                                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <label className="text-sm text-muted-foreground">同行</label>
-                        <Input
+                        <span className="text-sm text-muted-foreground">同</span>
+                        <input
                           type="checkbox"
+                          className="h-4 w-4"
                           checked={!!row.staff_03_attend_flg}
-                          onChange={e => updateRow(row.shift_id, 'staff_03_attend_flg', e.target.checked)}
+                          onChange={(e) => updateRow(row.shift_id, 'staff_03_attend_flg', e.target.checked)}
                         />
                       </div>
 
@@ -468,7 +509,14 @@ export default function MonthlyRosterPage() {
                     )}
                   </TableCell>
                 </TableRow>
-              </>
+
+                {/* ディバイダ（行の境界をはっきり） */}
+                <TableRow>
+                  <TableCell colSpan={8}>
+                    <div className="h-px bg-muted" />
+                  </TableCell>
+                </TableRow>
+              </Fragment>
             ))}
           </TableBody>
         </Table>
