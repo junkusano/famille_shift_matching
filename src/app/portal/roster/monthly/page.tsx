@@ -615,12 +615,11 @@ export default function MonthlyRosterPage() {
                                                 />
                                             </div>
                                         </TableCell>
+                                        {/* Shift ID */}
+                                        <TableCell>
+                                            <div className="whitespace-nowrap">{row.shift_id}</div>
+                                        </TableCell>
                                     </TableRow>
-                                    {/* Shift ID */}
-                                    <TableCell>
-                                        <div className="whitespace-nowrap">{row.shift_id}</div>
-                                    </TableCell>
-
                                     {/* 2行目：スタッフ＆操作（横並び、区切り太め） */}
                                     <TableRow className="border-b-2 border-gray-300">
                                         <TableCell colSpan={9}>
