@@ -1,7 +1,7 @@
-// portal/roster/monthly/page.tsx
+// src/app/portal/roster/monthly/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState, Fragment } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -91,8 +91,15 @@ const isValidTimeStr = (s: string): boolean => /^([01]\d|2[0-3]):[0-5]\d$/.test(
 const isValidJudoIdo = (s: string): boolean => {
     // 4桁HHMM、分は00-59
     if (!/^\d{4}$/.test(s)) return false
+    const hh = Number(s.slice(0, 2))
     const mm = Number(s.slice(2, 4))
-    return mm >= 0 && mm < 60
+    return hh >= 0 && hh < 24 && mm >= 0 && mm < 60
+}
+const weekdayJa = (dateStr: string): string => {
+    if (!isValidDateStr(dateStr)) return '-'
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const wd = new Date(y, m - 1, d).getDay()
+    return ['日', '月', '火', '水', '木', '金', '土'][wd]
 }
 
 export default function MonthlyRosterPage() {
@@ -111,6 +118,16 @@ export default function MonthlyRosterPage() {
 
     // 削除選択
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+    // ヘッダーの「全選択」checkboxの indeterminate 制御
+    const selectAllRef = useRef<HTMLInputElement>(null)
+    const allSelected = shifts.length > 0 && selectedIds.size === shifts.length
+    const someSelected = selectedIds.size > 0 && selectedIds.size < shifts.length
+    useEffect(() => {
+        if (selectAllRef.current) {
+            selectAllRef.current.indeterminate = someSelected
+        }
+    }, [someSelected])
 
     // --- masters ---
     useEffect(() => {
@@ -341,6 +358,15 @@ export default function MonthlyRosterPage() {
         return list
     }, [])
 
+    // 全選択ON/OFF
+    const onToggleSelectAll = (checked: boolean) => {
+        if (!checked) {
+            setSelectedIds(new Set())
+            return
+        }
+        setSelectedIds(new Set(shifts.map(s => s.shift_id)))
+    }
+
     return (
         <div className="p-4 space-y-4">
             {/* フィルターバー */}
@@ -411,12 +437,22 @@ export default function MonthlyRosterPage() {
                 )}
             </div>
 
-            {/* テーブル */}
-            <div className="w-full overflow-x-auto">
+            {/* テーブル（ヘッダー固定） */}
+            <div className="w-full overflow-x-auto overflow-y-auto max-h-[70vh] rounded-md border border-gray-300">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
                         <TableRow className="border-b">
-                            <TableHead>選択</TableHead>
+                            <TableHead className="w-[44px]">
+                                {/* 全選択 */}
+                                <input
+                                    ref={selectAllRef}
+                                    aria-label="全選択"
+                                    type="checkbox"
+                                    className="h-3.5 w-3.5"
+                                    checked={allSelected}
+                                    onChange={(ev) => onToggleSelectAll(ev.target.checked)}
+                                />
+                            </TableHead>
                             <TableHead>Shift ID</TableHead>
                             <TableHead>サービス</TableHead>
                             <TableHead>開始日</TableHead>
@@ -440,11 +476,11 @@ export default function MonthlyRosterPage() {
                                 <Fragment key={row.shift_id}>
                                     {/* 1行目：基本情報 */}
                                     <TableRow className="border-y border-gray-300">
-                                        {/* 削除選択 */}
+                                        {/* 選択 */}
                                         <TableCell>
                                             <input
                                                 type="checkbox"
-                                                className="h-4 w-4"
+                                                className="h-3.5 w-3.5"
                                                 checked={selectedIds.has(row.shift_id)}
                                                 onChange={(ev: React.ChangeEvent<HTMLInputElement>) =>
                                                     toggleSelect(row.shift_id, ev.target.checked)
@@ -457,7 +493,7 @@ export default function MonthlyRosterPage() {
 
                                         {/* サービス */}
                                         <TableCell>
-                                            <div style={{ width: 220 }}>
+                                            <div className="w-56">
                                                 <Select
                                                     value={row.service_code ?? ''}
                                                     onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)}
@@ -474,27 +510,30 @@ export default function MonthlyRosterPage() {
                                             </div>
                                         </TableCell>
 
-                                        {/* 開始日（テキスト） */}
+                                        {/* 開始日（テキスト + 曜日表示） */}
                                         <TableCell>
-                                            <div style={{ width: 140 }}>
-                                                <Input
-                                                    value={row.shift_start_date}
-                                                    onChange={(ev) =>
-                                                        updateRow(row.shift_id, 'shift_start_date', ev.target.value)
-                                                    }
-                                                    onBlur={(ev) => {
-                                                        const v = normalizeDateInput(ev.target.value)
-                                                        updateRow(row.shift_id, 'shift_start_date', v)
-                                                    }}
-                                                    placeholder="YYYY-MM-DD"
-                                                    className={dateInvalid ? 'border-red-500' : ''}
-                                                />
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-24">
+                                                    <Input
+                                                        value={row.shift_start_date}
+                                                        onChange={(ev) =>
+                                                            updateRow(row.shift_id, 'shift_start_date', ev.target.value)
+                                                        }
+                                                        onBlur={(ev) => {
+                                                            const v = normalizeDateInput(ev.target.value)
+                                                            updateRow(row.shift_id, 'shift_start_date', v)
+                                                        }}
+                                                        placeholder="YYYY-MM-DD"
+                                                        className={dateInvalid ? 'border-red-500' : ''}
+                                                    />
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">（{weekdayJa(row.shift_start_date)}）</span>
                                             </div>
                                         </TableCell>
 
                                         {/* 開始時間（テキスト） */}
                                         <TableCell>
-                                            <div style={{ width: 110 }}>
+                                            <div className="w-20">
                                                 <Input
                                                     value={row.shift_start_time}
                                                     onChange={(ev) =>
@@ -512,7 +551,7 @@ export default function MonthlyRosterPage() {
 
                                         {/* 終了時間（テキスト） */}
                                         <TableCell>
-                                            <div style={{ width: 110 }}>
+                                            <div className="w-20">
                                                 <Input
                                                     value={row.shift_end_time}
                                                     onChange={(ev) =>
@@ -528,9 +567,9 @@ export default function MonthlyRosterPage() {
                                             </div>
                                         </TableCell>
 
-                                        {/* 派遣人数（Select） */}
+                                        {/* 派遣人数（Select：幅 2/3相当） */}
                                         <TableCell>
-                                            <div style={{ width: 160 }}>
+                                            <div className="w-28">
                                                 <Select
                                                     value={row.dispatch_size ?? '-'}
                                                     onValueChange={(v: '-' | '01') => {
@@ -549,9 +588,9 @@ export default function MonthlyRosterPage() {
                                             </div>
                                         </TableCell>
 
-                                        {/* 重複（Select） */}
+                                        {/* 重複（Select：幅 1/2相当） */}
                                         <TableCell>
-                                            <div style={{ width: 140 }}>
+                                            <div className="w-20">
                                                 <Select
                                                     value={row.dup_role ?? '-'}
                                                     onValueChange={(v: '-' | '01' | '02') => {
@@ -571,9 +610,9 @@ export default function MonthlyRosterPage() {
                                             </div>
                                         </TableCell>
 
-                                        {/* 重度移動（テキスト 4桁） */}
+                                        {/* 重度移動（テキスト 4桁：幅 2/3相当） */}
                                         <TableCell>
-                                            <div style={{ width: 100 }}>
+                                            <div className="w-24">
                                                 <Input
                                                     value={row.judo_ido ?? ''}
                                                     onChange={(ev) => {
@@ -594,7 +633,7 @@ export default function MonthlyRosterPage() {
                                                 {/* スタッフ1 */}
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ1</span>
-                                                    <div style={{ width: 180 }}>
+                                                    <div className="w-44">
                                                         <Select
                                                             value={row.staff_01_user_id ?? ''}
                                                             onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
@@ -615,7 +654,7 @@ export default function MonthlyRosterPage() {
                                                 {/* スタッフ2 + 同 */}
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ2</span>
-                                                    <div style={{ width: 180 }}>
+                                                    <div className="w-44">
                                                         <Select
                                                             value={row.staff_02_user_id ?? ''}
                                                             onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
@@ -634,7 +673,7 @@ export default function MonthlyRosterPage() {
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
                                                         type="checkbox"
-                                                        className="h-4 w-4"
+                                                        className="h-3.5 w-3.5"
                                                         checked={!!row.staff_02_attend_flg}
                                                         onChange={(ev: React.ChangeEvent<HTMLInputElement>) =>
                                                             updateRow(row.shift_id, 'staff_02_attend_flg', ev.target.checked)
@@ -645,7 +684,7 @@ export default function MonthlyRosterPage() {
                                                 {/* スタッフ3 + 同 */}
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
-                                                    <div style={{ width: 180 }}>
+                                                    <div className="w-44">
                                                         <Select
                                                             value={row.staff_03_user_id ?? ''}
                                                             onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
@@ -664,7 +703,7 @@ export default function MonthlyRosterPage() {
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
                                                         type="checkbox"
-                                                        className="h-4 w-4"
+                                                        className="h-3.5 w-3.5"
                                                         checked={!!row.staff_03_attend_flg}
                                                         onChange={(ev: React.ChangeEvent<HTMLInputElement>) =>
                                                             updateRow(row.shift_id, 'staff_03_attend_flg', ev.target.checked)
@@ -709,4 +748,3 @@ export default function MonthlyRosterPage() {
         </div>
     )
 }
-
