@@ -442,7 +442,7 @@ export default function MonthlyRosterPage() {
       <div className="w-full overflow-x-auto overflow-y-auto max-h-[70vh] rounded-md border border-gray-300">
         <Table>
           <TableHeader
-            className="sticky top-0 z-10 bg-white shadow-sm [&_tr]:min-h-[120px] [&_th]:py-6 [&_th]:text-base"
+            className="sticky top-0 z-10 bg-white shadow-sm [&_tr]:min-h-[50px] [&_th]:py-6 [&_th]:text-base"
           >
             <TableRow className="border-b">
               <TableHead className="w-[44px]">
@@ -515,7 +515,7 @@ export default function MonthlyRosterPage() {
                     {/* 開始日（テキスト + 曜日） */}
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-[120px]">
+                        <div className="w-[100px]">
                           <Input
                             value={row.shift_start_date}
                             onChange={(ev) => updateRow(row.shift_id, 'shift_start_date', ev.target.value)}
@@ -533,7 +533,7 @@ export default function MonthlyRosterPage() {
 
                     {/* 開始時間 */}
                     <TableCell>
-                      <div className="w-[82px]">
+                      <div className="w-[70px]">
                         <Input
                           aria-label="開始時間"
                           value={toHM(row.shift_start_time)}
@@ -549,7 +549,7 @@ export default function MonthlyRosterPage() {
 
                     {/* 終了時間 */}
                     <TableCell>
-                      <div className="w-[82px]">
+                      <div className="w-[70px]">
                         <Input
                           aria-label="終了時間"
                           value={toHM(row.shift_end_time)}
@@ -608,7 +608,7 @@ export default function MonthlyRosterPage() {
 
                     {/* 重度移動（テキスト 4桁：幅 2/3相当） */}
                     <TableCell>
-                      <div className="w-[112px]">
+                      <div className="w-[100px]">
                         <Input
                           value={row.judo_ido ?? ''}
                           onChange={(ev) => {
