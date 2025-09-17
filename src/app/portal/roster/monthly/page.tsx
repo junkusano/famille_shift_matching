@@ -439,7 +439,7 @@ export default function MonthlyRosterPage() {
       </div>
 
       {/* テーブル（ヘッダー固定・行境界くっきり） */}
-      <div className="w-full overflow-x-auto overflow-y-auto max-h-[70vh] rounded-md border border-gray-300">
+      <div className="w-full overflow-x-auto overflow-y-auto max-h-[700vh] rounded-md border border-gray-300">
         <Table>
           <TableHeader
             className="sticky top-0 z-10 bg-white shadow-sm [&_tr]:min-h-[50px] [&_th]:py-6 [&_th]:text-base"
