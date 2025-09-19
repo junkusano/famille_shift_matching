@@ -304,8 +304,13 @@ export default function WeeklyRosterPage() {
         setSaving(true);
         setError(null);
         try {
-            const payload: Omit<TemplateRow, "_cid" | "_selected">[] =
-                rows.map(({ _cid: _omitCid, _selected: _omitSel, ...rest }) => rest);
+            type ServerRow = Omit<TemplateRow, "_cid" | "_selected">;
+            const payload: ServerRow[] = rows.map((r) => {
+                const obj = { ...r } as Record<string, unknown>;
+                delete (obj as { _cid?: string })._cid;
+                delete (obj as { _selected?: boolean })._selected;
+                return obj as ServerRow;
+            });
             await apiBulkUpsert(payload);
             await load();
         } catch (e: unknown) {
