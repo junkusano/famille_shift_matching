@@ -2,13 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, RefreshCcw, Eye } from "lucide-react";
-
-/**
- * shadcn/ui（monthlyと同一コンポーネントを使用）
- * - Select / Button は /portal/roster/monthly と同じ import 先です
- *   （@/components/ui/* のパスはプロジェクト既存定義を想定）
- */
+import { Plus, Trash2, Save, Eye } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
@@ -38,8 +32,8 @@ export type TemplateRow = {
   effective_to?: string | null;   // YYYY-MM-DD
   is_biweekly?: boolean | null;
   nth_weeks?: number[] | null; // [1..5]
-  _cid?: string;        // client helper
-  _selected?: boolean;  // client helper
+  _cid?: string;
+  _selected?: boolean;
 };
 
 export type PreviewRow = {
@@ -73,20 +67,15 @@ type KaipokeCs = {
 // Helpers（monthlyのフィルター仕様を踏襲）
 // =========================
 const WEEKS_JP = ["日", "月", "火", "水", "木", "金", "土"];
-//const TZ = "Asia/Tokyo";
-
-const yyyymm = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
+const yyyymm = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const addMonths = (month: string, diff: number) => {
   const [y, m] = month.split("-").map(Number);
   const dt = new Date(y, (m - 1) + diff, 1);
   return yyyymm(dt);
 };
-
 const nowYYYYMM = () => yyyymm(new Date());
 
-// 「タグ文字列が混入するケース」対策：HTMLタグ除去＋エンティティ簡易デコード
+// --- HTML混入対策: プレビュー/エラー用 ---
 const decodeEntities = (s: string) =>
   s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 const stripTags = (s: string) => s.replace(/<[^>]*>/g, "");
@@ -127,11 +116,32 @@ function hasDuplicate(rows: TemplateRow[]): boolean {
 }
 
 // =========================
-/** API wrappers */
+// エラー整形（HTMLを出さずHTTP要約を返す）
+// =========================
+async function summarizeHTTP(res: Response): Promise<string> {
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    try {
+      const j = await res.json();
+      const msg = (j && (j.message || j.error)) ? ` - ${(j.message || j.error)}` : "";
+      return `HTTP ${res.status} ${res.statusText}${msg}`;
+    } catch {
+      return `HTTP ${res.status} ${res.statusText}`;
+    }
+  } else {
+    // HTMLやテキストは読んでも捨てて要約だけ表示
+    return `HTTP ${res.status} ${res.statusText}`;
+  }
+}
+const safeErr = (s: string | null) => (s ? stripTags(decodeEntities(s)).slice(0, 300) : null);
+
+// =========================
+// API wrappers
 // =========================
 async function apiFetchTemplates(cs: string): Promise<TemplateRow[]> {
-  const res = await fetch("/api/roster/weekly/templates?kaipoke_cs_id=" + encodeURIComponent(cs), { cache: "no-store" });
-  if (!res.ok) throw new Error(await res.text());
+  const url = "/api/roster/weekly/templates?kaipoke_cs_id=" + encodeURIComponent(cs);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = (await res.json()) as { rows?: TemplateRow[] };
   const base = data && data.rows ? data.rows : [];
   return base.map((r) => ({
@@ -140,31 +150,28 @@ async function apiFetchTemplates(cs: string): Promise<TemplateRow[]> {
     _selected: false,
   }));
 }
-
 async function apiBulkUpsert(rows: Omit<TemplateRow, "_cid" | "_selected">[]) {
   const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rows }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await summarizeHTTP(res));
   return res.json();
 }
-
 async function apiBulkDelete(templateIds: number[]) {
   const res = await fetch("/api/roster/weekly/templates/bulk_delete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ template_ids: templateIds }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await summarizeHTTP(res));
   return res.json();
 }
-
 async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean): Promise<PreviewRow[]> {
   const q = new URLSearchParams({ month, kaipoke_cs_id: cs, recurrence: String(useRecurrence) });
   const res = await fetch("/api/roster/weekly/preview?" + q.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = (await res.json()) as { rows?: PreviewRow[] };
   return data && data.rows ? data.rows : [];
 }
@@ -194,6 +201,7 @@ export default function WeeklyRosterPage() {
   // ==== Page states ====
   const [rows, setRows] = useState<TemplateRow[]>([]);
   const [loading, setLoading] = useState(false);
+  void loading
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
   const [useRecurrence, setUseRecurrence] = useState(false);
@@ -225,7 +233,7 @@ export default function WeeklyRosterPage() {
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
   // ==== Effects ====
-  // masters
+  // masters（monthly同等のロード）:contentReference[oaicite:4]{index=4}
   useEffect(() => {
     const loadMasters = async () => {
       try {
@@ -238,13 +246,14 @@ export default function WeeklyRosterPage() {
         setKaipokeCs(valid);
         if (valid.length && !selectedKaipokeCS) setSelectedKaipokeCS(valid[0].kaipoke_cs_id);
       } catch (e) {
+        // マスタ取得は UI に致命ではないため console へ
         console.error(e);
       }
     };
     void loadMasters();
-  }, []); // monthlyの実装に準拠。:contentReference[oaicite:2]{index=2}
+  }, []); // :contentReference[oaicite:5]{index=5}
 
-  // templates
+  // templates：利用者が変われば自動再取得（onChange適用）
   useEffect(() => {
     const load = async () => {
       if (!selectedKaipokeCS) {
@@ -253,7 +262,7 @@ export default function WeeklyRosterPage() {
       }
       setLoading(true);
       setError(null);
-      setPreview(null);
+      setPreview(null); // 切替時はいったん消す
       try {
         const data = await apiFetchTemplates(selectedKaipokeCS);
         setRows(data);
@@ -265,6 +274,27 @@ export default function WeeklyRosterPage() {
     };
     void load();
   }, [selectedKaipokeCS]);
+
+  // preview：月/利用者/隔週フラグの変更時に自動再生成（onChange適用）
+  useEffect(() => {
+    const run = async () => {
+      if (!selectedKaipokeCS) {
+        setPreview(null);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const p = await apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence);
+        setPreview(p);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    };
+    void run();
+  }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
 
   // ==== Actions ====
   function addRow() {
@@ -341,30 +371,13 @@ export default function WeeklyRosterPage() {
         return obj as ServerRow;
       });
       await apiBulkUpsert(payload);
-      // 最新を再読込
+      // 保存後に最新再取得
       const data = await apiFetchTemplates(selectedKaipokeCS);
       setRows(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function doPreview() {
-    if (!selectedKaipokeCS) {
-      alert("利用者を選択してください");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const p = await apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence);
-      setPreview(p);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -417,11 +430,8 @@ export default function WeeklyRosterPage() {
           </div>
         </div>
 
-        {/* 操作群 */}
+        {/* 操作群（「読み込み」ボタンは削除） */}
         <div className="flex items-center gap-2 ml-auto">
-          <Button variant="outline" onClick={() => selectedKaipokeCS && apiFetchTemplates(selectedKaipokeCS).then(setRows)} disabled={!selectedKaipokeCS || loading}>
-            <RefreshCcw className="w-4 h-4 mr-2" /> 読み込み
-          </Button>
           <Button variant="outline" onClick={addRow} disabled={!selectedKaipokeCS}>
             <Plus className="w-4 h-4 mr-2" /> 行を追加
           </Button>
@@ -431,7 +441,16 @@ export default function WeeklyRosterPage() {
           <Button onClick={saveAll} disabled={!rows.length || saving || duplicate}>
             <Save className="w-4 h-4 mr-2" /> 保存
           </Button>
-          <Button variant="secondary" onClick={doPreview} disabled={!selectedKaipokeCS || loading}>
+          <Button variant="secondary" onClick={() => {
+            // 手動プレビューも残す（自動も動いています）
+            setPreview(null);
+            setLoading(true);
+            setError(null);
+            apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+              .then(setPreview)
+              .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+              .finally(() => setLoading(false));
+          }}>
             <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
           </Button>
         </div>
@@ -445,10 +464,10 @@ export default function WeeklyRosterPage() {
         {invalidCount > 0 ? <Pill tone="warn" label={"警告 " + invalidCount + "件"} /> : null}
         {useRecurrence ? <Pill tone="ok" label="隔週/第n週 有効" /> : <Pill tone="muted" label="隔週/第n週 無効" />}
         <button className="text-xs underline text-slate-600" onClick={() => setUseRecurrence((v) => !v)}>切り替え</button>
-        {error ? <span className="text-xs text-red-600">エラー: {error}</span> : null}
+        {error ? <span className="text-xs text-red-600">エラー: {safeErr(error)}</span> : null}
       </div>
 
-      {/* テンプレ編集テーブル（既存UI踏襲） */}
+      {/* テンプレ編集テーブル */}
       <div className="grid grid-cols-1 gap-3">
         <div className="overflow-auto rounded-2xl border">
           <table className="min-w-full text-sm">
@@ -651,7 +670,7 @@ export default function WeeklyRosterPage() {
               {rows.length === 0 ? (
                 <tr>
                   <td className="text-center text-slate-400 py-8" colSpan={11}>
-                    テンプレ行がありません。「読み込み」または「行を追加」をクリック
+                    テンプレ行がありません。利用者を変更するか、行を追加してください。
                   </td>
                 </tr>
               ) : null}
@@ -701,7 +720,7 @@ export default function WeeklyRosterPage() {
                         {p.staff_03_user_id ? " / " + cleanText(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
                       </td>
                       <td className="px-2 py-2 align-top border-b">
-                        {p.has_conflict ? <Pill tone="warn" label="重なり有" /> : <Pill tone="ok" label="OK" />}
+                        {p.has_conflict ? <span className="text-amber-700 text-xs">重なり有</span> : <span className="text-green-700 text-xs">OK</span>}
                       </td>
                     </tr>
                   );

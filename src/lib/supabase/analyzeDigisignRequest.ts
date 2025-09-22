@@ -32,6 +32,10 @@ export type DispatchResult = { inserted: number; skipped: number };
 
 const DEFAULT_CHANNEL_ID = "a134fad8-e459-4ea3-169d-be6f5c0a6aad";
 const DEFAULT_TEMPLATE_ID = "5c623c6e-c99e-4455-8e50-68ffd92aa77a";
+const CAREMGR_TEMPLATE_ID = "8c953c74-17ac-409d-86bb-30807c044a80";
+const TEMPLATE_BY_CHANNEL: Record<string, string> = {
+  "fe94ddd0-f600-cc3b-b6f4-73f05019f0a2": CAREMGR_TEMPLATE_ID,
+};
 const MESSAGES_TABLE = "msg_lw_log";
 const RPA_TABLE = "rpa_command_requests";
 
@@ -47,7 +51,7 @@ export async function dispatchLineworksPdfToRPA(input?: {
   pageSize?: number;
 }): Promise<DispatchResult> {
   const channelId = input?.channelId ?? DEFAULT_CHANNEL_ID;
-  const templateId = input?.templateId ?? DEFAULT_TEMPLATE_ID;
+  const templateId = input?.templateId ?? TEMPLATE_BY_CHANNEL[channelId] ?? DEFAULT_TEMPLATE_ID;
 
   // デフォルト: 直近24時間
   const now = new Date();
@@ -133,4 +137,18 @@ export async function dispatchLineworksPdfToRPA(input?: {
   }
 
   return { inserted: insertedIds.length, skipped: holdIds.length };
+}
+
+export async function dispatchCareManagerDigisign(input?: {
+  since?: string;
+  until?: string;
+  pageSize?: number;
+}): Promise<DispatchResult> {
+  return dispatchLineworksPdfToRPA({
+    channelId: "fe94ddd0-f600-cc3b-b6f4-73f05019f0a2",
+    templateId: CAREMGR_TEMPLATE_ID,
+    since: input?.since,
+    until: input?.until,
+    pageSize: input?.pageSize,
+  });
 }
