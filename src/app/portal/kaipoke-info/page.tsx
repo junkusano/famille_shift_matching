@@ -1,3 +1,4 @@
+//portal/kaipoke-info
 "use client"
 
 import { useEffect, useMemo, useRef, useState, Fragment } from "react"
@@ -8,7 +9,7 @@ import Link from "next/link"
 /** -----------------------------
  * 型定義
  * ----------------------------- */
- type KaipokeInfo = {
+type KaipokeInfo = {
   id: string
   name: string
   kaipoke_cs_id: string
@@ -22,6 +23,7 @@ import Link from "next/link"
   standard_trans_ways: string
   standard_purpose: string
   time_adjustability_id?: string | null
+  is_active: boolean
 }
 
 type TimeAdjustRow = { id: string; label: string }
@@ -115,6 +117,7 @@ export default function KaipokeInfoPage() {
         standard_trans_ways: item.standard_trans_ways,
         standard_purpose: item.standard_purpose,
         time_adjustability_id: item.time_adjustability_id || null,
+        is_active: item.is_active,
       })
       .eq("id", item.id) // ★ ID基準で更新
 
@@ -134,7 +137,7 @@ export default function KaipokeInfoPage() {
   const filteredItems = useMemo(() => {
     const norm = (v?: string | null) => (v ?? "").toLowerCase()
 
-    return items.filter(item => {
+    const arr = items.filter(item => {
       if (filters.id && !norm(item.id).includes(norm(filters.id))) return false
       if (filters.name && !norm(item.name).includes(norm(filters.name))) return false
       if (
@@ -170,6 +173,9 @@ export default function KaipokeInfoPage() {
       }
       return true
     })
+
+    // ★ 有効(true)を上、無効(false)を下に寄せる
+    return arr.sort((a, b) => Number(b.is_active) - Number(a.is_active) || norm(a.name).localeCompare(norm(b.name)))
   }, [items, filters])
 
   // フィルター変更時は1ページ目へ
@@ -363,7 +369,13 @@ export default function KaipokeInfoPage() {
           <tbody className="border-separate border-spacing-y-4">
             {pageItems.map(item => (
               <Fragment key={item.id}>
-                <tr id={`row-${item.id}`} className="bg-white shadow-md border border-gray-400 rounded-md align-top">
+                <tr
+                  id={`row-${item.id}`}
+                  className={
+                    "bg-white shadow-md border border-gray-400 rounded-md align-top " +
+                    (!item.is_active ? "opacity-60 grayscale" : "")
+                  }
+                >
                   <td className="border p-2">
                     <div className="text-[11px] text-gray-500 mb-1">ID: {item.id}</div>
                     <label className="text-sm">利用者様名：</label>
@@ -471,6 +483,15 @@ export default function KaipokeInfoPage() {
                       >
                         このIDへリンク
                       </a>
+                      {/* ★ ここから追加：有効トグル */}
+                      <label className="text-xs flex items-center gap-2 justify-center">
+                        <input
+                          type="checkbox"
+                          checked={item.is_active ?? true}
+                          onChange={e => handleChange(item.id, "is_active", e.target.checked)}
+                        />
+                        有効
+                      </label>
                     </div>
                   </td>
                 </tr>

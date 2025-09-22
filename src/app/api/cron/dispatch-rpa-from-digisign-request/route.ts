@@ -1,5 +1,6 @@
+//api/cron/dispatch-rpa-from-disisign-request
 import { NextRequest, NextResponse } from "next/server";
-import { dispatchLineworksPdfToRPA } from "@/lib/supabase/analyzeDigisignRequest";
+import { dispatchLineworksPdfToRPA, dispatchCareManagerDigisign } from "@/lib/supabase/analyzeDigisignRequest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,14 +22,12 @@ export async function GET(req: NextRequest) {
   const until = url.searchParams.get("until") || undefined;
   const channelId = url.searchParams.get("channelId") || undefined;
   const templateId = url.searchParams.get("templateId") || undefined;
-
+  const caremgr = url.searchParams.get("caremgr") === "1";
+  const pageSize = Number(url.searchParams.get("pageSize") ?? 5000);
   try {
-    const res = await dispatchLineworksPdfToRPA({
-      since,
-      until,
-      channelId,
-      templateId,
-    });
+    const res = caremgr && !channelId && !templateId
+      ? await dispatchCareManagerDigisign({ since, until, pageSize })
+      : await dispatchLineworksPdfToRPA({ since, until, channelId, templateId });
     return NextResponse.json({ ok: true, ...res });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
