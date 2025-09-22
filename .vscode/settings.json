@@ -1,0 +1,8 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "npm install": true,
+    "node": true,
+    "python": true,
+    "rm": false
+  }
+}
