@@ -1,4 +1,5 @@
 // app/(portal)/portal/shift-service-code/page.tsx
+
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -11,11 +12,22 @@ type Row = {
   id: string
   service_code: string
   require_doc_group: string | null
-  created_at?: string
-  updated_at?: string
+  // 追加: 管理項目
+  kaipoke_servicek: string | null
+  kaipoke_servicecode: string | null
+  // 既存/表示用
+  created_at?: string | null
+  updated_at?: string | null
 }
 
-type NewRow = Omit<Row, 'id' | 'created_at' | 'updated_at'>
+type NewRow = {
+  service_code: string
+  require_doc_group: string | null
+  // 追加: 管理項目
+  kaipoke_servicek: string | null
+  kaipoke_servicecode: string | null
+}
+
 type DocOption = { value: string; label: string }
 
 const PAGE_SIZE = 100
@@ -25,10 +37,12 @@ export default function ShiftServiceCodePage() {
   const [docOptions, setDocOptions] = useState<DocOption[]>([])
   const [page, setPage] = useState(1)
 
-  // 追加行（型を明示し、any撤去）
+  // 追加行（型を明示）
   const [newRow, setNewRow] = useState<NewRow>({
     service_code: '',
     require_doc_group: null,
+    kaipoke_servicek: '',
+    kaipoke_servicecode: '',
   })
 
   // ===== fetchers =====
@@ -111,7 +125,12 @@ export default function ShiftServiceCodePage() {
       body: JSON.stringify(newRow),
     })
     if (res.ok) {
-      setNewRow({ service_code: '', require_doc_group: null })
+      setNewRow({
+        service_code: '',
+        require_doc_group: null,
+        kaipoke_servicek: '',
+        kaipoke_servicecode: '',
+      })
       await fetchRows()
       alert('追加しました')
     } else {
@@ -133,6 +152,16 @@ export default function ShiftServiceCodePage() {
     }
   }
 
+  const formatDT = (s?: string | null) => {
+    if (!s) return '-'
+    const d = new Date(s)
+    if (isNaN(d.getTime())) return s
+    return new Intl.DateTimeFormat('ja-JP', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(d)
+  }
+
   return (
     <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
       <div className="flex items-center justify-between">
@@ -152,15 +181,21 @@ export default function ShiftServiceCodePage() {
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '35%' }} /> {/* service_code */}
-            <col style={{ width: '45%' }} /> {/* require_doc_group */}
-            <col style={{ width: '20%' }} /> {/* 操作 */}
+            <col style={{ width: '18%' }} /> {/* service_code */}
+            <col style={{ width: '22%' }} /> {/* require_doc_group */}
+            <col style={{ width: '15%' }} /> {/* kaipoke_servicek */}
+            <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
+            <col style={{ width: '20%' }} /> {/* created/updated */}
+            <col style={{ width: '10%' }} /> {/* 操作 */}
           </colgroup>
 
           <TableHeader>
             <TableRow>
               <TableHead className="px-1 py-1">service_code</TableHead>
               <TableHead className="px-1 py-1">require_doc_group（証明書グループ）</TableHead>
+              <TableHead className="px-1 py-1">Kaipoke区分（kaipoke_servicek）</TableHead>
+              <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
+              <TableHead className="px-1 py-1">作成 / 更新</TableHead>
               <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -193,6 +228,32 @@ export default function ShiftServiceCodePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </TableCell>
+
+                <TableCell className="px-1 py-1">
+                  <Input
+                    className="h-8 px-2"
+                    placeholder="例：要介護 / 障害 / 移動支援"
+                    value={r.kaipoke_servicek ?? ''}
+                    onChange={(e) => handleEdit(i, 'kaipoke_servicek', e.target.value || null)}
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1">
+                  <Input
+                    className="h-8 px-2"
+                    inputMode="numeric"
+                    placeholder="例：112451"
+                    value={r.kaipoke_servicecode ?? ''}
+                    onChange={(e) => handleEdit(i, 'kaipoke_servicecode', e.target.value || null)}
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1 whitespace-nowrap">
+                  <div className="leading-tight">
+                    <div className="text-xs text-muted-foreground">作成: {formatDT(r.created_at)}</div>
+                    <div className="text-xs text-muted-foreground">更新: {formatDT(r.updated_at)}</div>
+                  </div>
                 </TableCell>
 
                 <TableCell className="px-1 py-1">
@@ -234,6 +295,29 @@ export default function ShiftServiceCodePage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </TableCell>
+
+              <TableCell className="px-1 py-1">
+                <Input
+                  className="h-8 px-2"
+                  placeholder="例：要介護 / 障害 / 移動支援"
+                  value={newRow.kaipoke_servicek ?? ''}
+                  onChange={(e) => setNewRow({ ...newRow, kaipoke_servicek: e.target.value || null })}
+                />
+              </TableCell>
+
+              <TableCell className="px-1 py-1">
+                <Input
+                  className="h-8 px-2"
+                  inputMode="numeric"
+                  placeholder="例：112451"
+                  value={newRow.kaipoke_servicecode ?? ''}
+                  onChange={(e) => setNewRow({ ...newRow, kaipoke_servicecode: e.target.value || null })}
+                />
+              </TableCell>
+
+              <TableCell className="px-1 py-1 text-xs text-muted-foreground">
+                追加後に自動採番・更新
               </TableCell>
 
               <TableCell className="px-1 py-1">
