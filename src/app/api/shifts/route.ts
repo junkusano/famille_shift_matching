@@ -97,6 +97,102 @@ export async function GET(req: Request) {
   }
 }
 
+// === POST /api/shifts : 新規作成 ===
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    // 必須チェック
+    const required = ['kaipoke_cs_id', 'shift_start_date', 'shift_start_time', 'shift_end_time'] as const;
+    for (const k of required) {
+      // bodyの型はunknownだが、実行時チェックで守る
+      if (!((body as Record<string, unknown>)?.[k])) {
+        return new Response(JSON.stringify({ error: `missing field: ${k}` }), { status: 400 });
+      }
+    }
+
+    // 時刻正規化（HH:MM → HH:MM:SS）
+    const toHMS = (v: string) => {
+      const m = String(v).trim();
+      if (/^\d{2}:\d{2}:\d{2}$/.test(m)) return m;
+      if (/^\d{2}:\d{2}$/.test(m)) return `${m}:00`;
+      return m;
+    };
+
+    // 既存UIと同じ派生値（未指定なら計算）
+    const dispatchSize = (body as { dispatch_size?: string }).dispatch_size;
+    const dupRole = (body as { dup_role?: string }).dup_role;
+
+    const required_staff_count =
+      (body as { required_staff_count?: number }).required_staff_count ??
+      (dispatchSize === '01' ? 2 : 1);
+
+    const two_person_work_flg =
+      (body as { two_person_work_flg?: boolean }).two_person_work_flg ??
+      (!!dupRole && dupRole !== '-');
+
+    // 挿入行（明示型）
+    type InsertRow = {
+      kaipoke_cs_id: string;
+      shift_start_date: string;  // YYYY-MM-DD
+      shift_start_time: string;  // HH:MM:SS
+      shift_end_time: string;    // HH:MM:SS
+      service_code: string | null;
+      required_staff_count: number;
+      two_person_work_flg: boolean;
+      judo_ido: string | null;   // HHMM or null
+      staff_01_user_id: string | null;
+      staff_02_user_id: string | null;
+      staff_03_user_id: string | null;
+      staff_02_attend_flg: boolean;
+      staff_03_attend_flg: boolean;
+    };
+
+    const b = body as Record<string, unknown>;
+    const insertRow: InsertRow = {
+      kaipoke_cs_id: String(b.kaipoke_cs_id),
+      shift_start_date: String(b.shift_start_date),
+      shift_start_time: toHMS(String(b.shift_start_time)),
+      shift_end_time: toHMS(String(b.shift_end_time)),
+      service_code: (b.service_code ?? null) as string | null,
+      required_staff_count,
+      two_person_work_flg,
+      judo_ido: (b.judo_ido ?? null) as string | null,
+      staff_01_user_id: (b.staff_01_user_id ?? null) as string | null,
+      staff_02_user_id: (b.staff_02_user_id ?? null) as string | null,
+      staff_03_user_id: (b.staff_03_user_id ?? null) as string | null,
+      staff_02_attend_flg: Boolean(b.staff_02_attend_flg),
+      staff_03_attend_flg: Boolean(b.staff_03_attend_flg),
+    };
+
+    // ★ テーブル名を実環境に合わせてください
+    const TABLE = 'shifts';
+
+    const { data, error } = await supabaseAdmin
+      .from(TABLE)
+      .insert(insertRow)
+      .select('shift_id, id') // どちらかのPKが存在する想定
+      .single();
+
+    if (error) {
+      console.error('[shifts][POST] insert error', error);
+      return new Response(JSON.stringify({ error: error.message }), { status: 400 });
+    }
+
+    // 返却データ型（union）で安全に絞り込む
+    type CreatedRow = { shift_id: string } | { id: string };
+    const created = data as CreatedRow;
+
+    const createdId = 'shift_id' in created ? created.shift_id : created.id;
+    return new Response(JSON.stringify({ shift_id: createdId }), { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'internal error';
+    console.error('[shifts][POST] unhandled error', e);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  }
+}
+
+
 /**
  * 現状、更新先テーブルの仕様が未確定（view は更新不可 / "shift(s)" テーブル無し）なので 501
  * 仕様確定後、更新可能なベーステーブルに対して update する実装へ置き換えてください。
