@@ -9,14 +9,15 @@ type UpdatePayload = {
   kaipoke_servicecode?: string | null
 }
 
-type Params = { params: { id: string } }
-
 // ── PUT /api/shift-service-code/[id]
-export async function PUT(req: Request, { params }: Params) {
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } } // ★ type alias を使わずインラインで指定
+) {
   const { id } = params
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
-  const raw = (await req.json()) as unknown
+  const raw = (await req.json().catch(() => null)) as unknown
   const payload: UpdatePayload = {}
 
   if (raw && typeof raw === 'object') {
@@ -49,7 +50,10 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 // ── DELETE /api/shift-service-code/[id]
-export async function DELETE(_: Request, { params }: Params) {
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } } // ★ こちらもインライン型に
+) {
   const { id } = params
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
