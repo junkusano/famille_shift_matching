@@ -101,6 +101,25 @@ export default function KaipokeInfoPage() {
     )
   }
 
+  const saveIsActive = async (id: string, next: boolean) => {
+    // 楽観的反映：先にUIを更新
+    setItems(prev => prev.map(i => i.id === id ? { ...i, is_active: next } : i))
+
+    const { error } = await supabase
+      .from("cs_kaipoke_info")
+      .update({ is_active: next })
+      .eq("id", id)
+
+    if (error) {
+      // 失敗したら元に戻す
+      setItems(prev => prev.map(i => i.id === id ? { ...i, is_active: !next } : i))
+      toast.error("有効状態の保存に失敗しました")
+      console.error("saveIsActive error:", error)
+    } else {
+      toast.success(next ? "有効化しました" : "無効化しました")
+    }
+  }
+
   const handleSave = async (item: KaipokeInfo) => {
     const { error } = await supabase
       .from("cs_kaipoke_info")
@@ -483,12 +502,12 @@ export default function KaipokeInfoPage() {
                       >
                         このIDへリンク
                       </a>
-                      {/* ★ ここから追加：有効トグル */}
+                      {/* ★ 追加：切り替え時に即保存 */}
                       <label className="text-xs flex items-center gap-2 justify-center">
                         <input
                           type="checkbox"
                           checked={item.is_active ?? true}
-                          onChange={e => handleChange(item.id, "is_active", e.target.checked)}
+                          onChange={e => saveIsActive(item.id, e.target.checked)}  // ←即保存
                         />
                         有効
                       </label>
