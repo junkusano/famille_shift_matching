@@ -2,36 +2,41 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
-type UpdatePayload = {
-  service_code?: string
-  require_doc_group?: string | null
-  kaipoke_servicek?: string | null
-  kaipoke_servicecode?: string | null
+// URL から [id] を安全に取得
+function extractId(urlStr: string): string | null {
+  const parts = new URL(urlStr).pathname.split('/').filter(Boolean)
+  // .../api/shift-service-code/{id}
+  return parts.length > 0 ? decodeURIComponent(parts[parts.length - 1]) : null
 }
 
 // ── PUT /api/shift-service-code/[id]
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } } // ★ type alias を使わずインラインで指定
-) {
-  const { id } = params
+export async function PUT(req: Request) {
+  const id = extractId(req.url)
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
-  const raw = (await req.json().catch(() => null)) as unknown
-  const payload: UpdatePayload = {}
+  const body = await req.json().catch(() => null) as unknown
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 })
+  }
 
-  if (raw && typeof raw === 'object') {
-    const b = raw as Record<string, unknown>
-    if (typeof b.service_code === 'string') payload.service_code = b.service_code.trim()
-    if ('require_doc_group' in b && (typeof b.require_doc_group === 'string' || b.require_doc_group === null)) {
-      payload.require_doc_group = b.require_doc_group as string | null
-    }
-    if ('kaipoke_servicek' in b && (typeof b.kaipoke_servicek === 'string' || b.kaipoke_servicek === null)) {
-      payload.kaipoke_servicek = b.kaipoke_servicek as string | null
-    }
-    if ('kaipoke_servicecode' in b && (typeof b.kaipoke_servicecode === 'string' || b.kaipoke_servicecode === null)) {
-      payload.kaipoke_servicecode = b.kaipoke_servicecode as string | null
-    }
+  // 受け付けるカラムのみ反映
+  const b = body as Record<string, unknown>
+  const payload: {
+    service_code?: string
+    require_doc_group?: string | null
+    kaipoke_servicek?: string | null
+    kaipoke_servicecode?: string | null
+  } = {}
+
+  if (typeof b.service_code === 'string') payload.service_code = b.service_code.trim()
+  if ('require_doc_group' in b && (typeof b.require_doc_group === 'string' || b.require_doc_group === null)) {
+    payload.require_doc_group = b.require_doc_group as string | null
+  }
+  if ('kaipoke_servicek' in b && (typeof b.kaipoke_servicek === 'string' || b.kaipoke_servicek === null)) {
+    payload.kaipoke_servicek = b.kaipoke_servicek as string | null
+  }
+  if ('kaipoke_servicecode' in b && (typeof b.kaipoke_servicecode === 'string' || b.kaipoke_servicecode === null)) {
+    payload.kaipoke_servicecode = b.kaipoke_servicecode as string | null
   }
 
   if (Object.keys(payload).length === 0) {
@@ -50,11 +55,8 @@ export async function PUT(
 }
 
 // ── DELETE /api/shift-service-code/[id]
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } } // ★ こちらもインライン型に
-) {
-  const { id } = params
+export async function DELETE(req: Request) {
+  const id = extractId(req.url)
   if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
   const { error } = await supabaseAdmin.from('shift_service_code').delete().eq('id', id)
