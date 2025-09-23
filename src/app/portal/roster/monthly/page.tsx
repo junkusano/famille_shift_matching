@@ -52,6 +52,22 @@ type ShiftRow = {
     dup_role?: '-' | '01' | '02' // 重複: '-' | '1人目' | '2人目'
 }
 
+type NewShiftDraft = {
+    shift_start_date: string;
+    shift_start_time: string;
+    shift_end_time: string;
+    service_code: string;
+    dispatch_size: '-' | '01'; // 2人同時作業なら '01'
+    dup_role: '-' | '01' | '02';
+    judo_ido: string; // "HHMM" or ""
+    staff_01_user_id: string | null;
+    staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
+    staff_02_attend_flg: boolean;
+    staff_03_attend_flg: boolean;
+};
+
+
 // ========= Helpers =========
 const yyyymm = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 const addMonths = (month: string, diff: number) => {
@@ -110,6 +126,25 @@ const weekdayJa = (dateStr: string): string => {
     return ['日', '月', '火', '水', '木', '金', '土'][wd]
 }
 
+const newDraftInitial = (month: string): NewShiftDraft => {
+    // その月の1日に初期化（運用に合わせてお好みで）
+    return {
+        shift_start_date: `${month}-01`,
+        shift_start_time: '09:00',
+        shift_end_time: '10:00',
+        service_code: '',
+        dispatch_size: '-',
+        dup_role: '-',
+        judo_ido: '',
+        staff_01_user_id: null,
+        staff_02_user_id: null,
+        staff_03_user_id: null,
+        staff_02_attend_flg: false,
+        staff_03_attend_flg: false,
+    };
+};
+
+// ========= Main =========
 export default function MonthlyRosterPage() {
     // マスタ
     const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
@@ -136,6 +171,99 @@ export default function MonthlyRosterPage() {
             selectAllRef.current.indeterminate = someSelected
         }
     }, [someSelected])
+
+    // ▼ 新規行ドラフト
+    const [draft, setDraft] = useState<NewShiftDraft>(() => newDraftInitial(yyyymm(new Date())));
+
+    // ▼ 新規行の入力更新
+    const updateDraft = <K extends keyof NewShiftDraft>(field: K, value: NewShiftDraft[K]) =>
+        setDraft((prev) => ({ ...prev, [field]: value }));
+
+    // ▼ 追加（POST）
+    const handleCreate = async () => {
+        if (!selectedKaipokeCS) {
+            alert('利用者を選択してください');
+            return;
+        }
+        const dateOk = isValidDateStr(draft.shift_start_date);
+        const stOk = isValidTimeStr(toHM(draft.shift_start_time));
+        const etOk = isValidTimeStr(toHM(draft.shift_end_time));
+        const jiOk = draft.judo_ido ? isValidJudoIdo(draft.judo_ido) : true;
+        if (!dateOk || !stOk || !etOk || !jiOk) {
+            alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）');
+            return;
+        }
+
+        const required_staff_count = draft.dispatch_size === '01' ? 2 : 1;
+        const two_person_work_flg = draft.dup_role !== '-';
+
+        const body = {
+            // API仕様に合わせて必要項目をPOST
+            kaipoke_cs_id: selectedKaipokeCS,
+            shift_start_date: draft.shift_start_date,
+            shift_start_time: hmToHMS(toHM(draft.shift_start_time)),
+            shift_end_time: hmToHMS(toHM(draft.shift_end_time)),
+            service_code: draft.service_code || null,
+            required_staff_count,
+            two_person_work_flg,
+            judo_ido: draft.judo_ido || null,
+            staff_01_user_id: draft.staff_01_user_id,
+            staff_02_user_id: draft.staff_02_user_id,
+            staff_03_user_id: draft.staff_03_user_id,
+            staff_02_attend_flg: !!draft.staff_02_attend_flg,
+            staff_03_attend_flg: !!draft.staff_03_attend_flg,
+        };
+
+        const res = await fetch('/api/shifts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            const msg = await res.text().catch(() => '');
+            alert(`追加に失敗しました\n${msg}`);
+            return;
+        }
+        // 期待レスポンス：{ shift_id: string, ...同等の項目... }
+        const created = await res.json();
+
+        // テーブルの一番下に追加（ローカル整形・並び替えは既存ルールに合わせる）
+        const added: ShiftRow = {
+            shift_id: created.shift_id, // サーバから返されたID
+            kaipoke_cs_id: selectedKaipokeCS,
+            shift_start_date: draft.shift_start_date,
+            shift_start_time: toHM(draft.shift_start_time),
+            shift_end_time: toHM(draft.shift_end_time),
+            service_code: draft.service_code || '',
+            required_staff_count,
+            two_person_work_flg,
+            judo_ido: draft.judo_ido || '',
+            staff_01_user_id: draft.staff_01_user_id,
+            staff_02_user_id: draft.staff_02_user_id,
+            staff_03_user_id: draft.staff_03_user_id,
+            staff_02_attend_flg: !!draft.staff_02_attend_flg,
+            staff_03_attend_flg: !!draft.staff_03_attend_flg,
+            dispatch_size: draft.dispatch_size,
+            dup_role: draft.dup_role,
+            // UIローカルは上で埋め済み
+        };
+
+        setShifts((prev) => {
+            const next = [...prev, added];
+            // 既存の「開始日→開始時間」ソートに倣う
+            next.sort((a, b) => {
+                const d = a.shift_start_date.localeCompare(b.shift_start_date);
+                if (d !== 0) return d;
+                return a.shift_start_time.localeCompare(b.shift_start_time);
+            });
+            return next;
+        });
+
+        alert('追加しました');
+        // ドラフトは月に合わせて初期化
+        setDraft(newDraftInitial(selectedMonth));
+    };
 
     // --- masters ---
     useEffect(() => {
@@ -740,9 +868,216 @@ export default function MonthlyRosterPage() {
                                 </Fragment>
                             )
                         })}
+                        {/* ====== 新規追加行（テーブルの一番下） ====== */}
+                        <TableRow className="border-y-2 border-dashed">
+                            <TableCell>{/* チェックボックス列は空欄 */}</TableCell>
+
+                            {/* 開始日 */}
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-[100px]">
+                                        <Input
+                                            value={draft.shift_start_date}
+                                            onChange={(e) => updateDraft('shift_start_date', e.target.value)}
+                                            onBlur={(e) => updateDraft('shift_start_date', normalizeDateInput(e.target.value))}
+                                            placeholder="YYYY-MM-DD"
+                                            className={!isValidDateStr(draft.shift_start_date) ? 'border-red-500' : ''}
+                                        />
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">（{weekdayJa(draft.shift_start_date)}）</span>
+                                </div>
+                            </TableCell>
+
+                            {/* 開始時間 */}
+                            <TableCell>
+                                <div className="w-[70px]">
+                                    <Input
+                                        value={toHM(draft.shift_start_time)}
+                                        onChange={(e) => updateDraft('shift_start_time', toHM(e.currentTarget.value))}
+                                        onBlur={(e) => updateDraft('shift_start_time', toHM(e.currentTarget.value))}
+                                        placeholder="HH:MM"
+                                        className={!isValidTimeStr(toHM(draft.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                    />
+                                </div>
+                            </TableCell>
+
+                            {/* 終了時間 */}
+                            <TableCell>
+                                <div className="w-[70px]">
+                                    <Input
+                                        value={toHM(draft.shift_end_time)}
+                                        onChange={(e) => updateDraft('shift_end_time', toHM(e.currentTarget.value))}
+                                        onBlur={(e) => updateDraft('shift_end_time', toHM(e.currentTarget.value))}
+                                        placeholder="HH:MM"
+                                        className={!isValidTimeStr(toHM(draft.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                    />
+                                </div>
+                            </TableCell>
+
+                            {/* サービス */}
+                            <TableCell>
+                                <div className="w-56">
+                                    <Select value={draft.service_code} onValueChange={(v) => updateDraft('service_code', v)}>
+                                        <SelectTrigger><SelectValue placeholder="サービスを選択" /></SelectTrigger>
+                                        <SelectContent>
+                                            {serviceOptions.map((o) => (
+                                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TableCell>
+
+                            {/* 派遣人数 */}
+                            <TableCell>
+                                <div className="w-[112px]">
+                                    <Select
+                                        value={draft.dispatch_size}
+                                        onValueChange={(v: '-' | '01') => updateDraft('dispatch_size', v)}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="-">-</SelectItem>
+                                            <SelectItem value="01">2人同時作業</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TableCell>
+
+                            {/* 重複 */}
+                            <TableCell>
+                                <div className="w-[80px]">
+                                    <Select
+                                        value={draft.dup_role}
+                                        onValueChange={(v: '-' | '01' | '02') => updateDraft('dup_role', v)}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="-">-</SelectItem>
+                                            <SelectItem value="01">1人目</SelectItem>
+                                            <SelectItem value="02">2人目</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TableCell>
+
+                            {/* 重度移動 */}
+                            <TableCell>
+                                <div className="w-[100px]">
+                                    <Input
+                                        value={draft.judo_ido}
+                                        onChange={(e) => updateDraft('judo_ido', e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+                                        placeholder="HHMM"
+                                        className={draft.judo_ido && !isValidJudoIdo(draft.judo_ido) ? 'border-red-500' : ''}
+                                    />
+                                </div>
+                            </TableCell>
+
+                            {/* Shift ID列は新規なので空 */}
+                            <TableCell>
+                                <div className="text-muted-foreground">（新規）</div>
+                            </TableCell>
+                        </TableRow>
+
+                        {/* 新規：スタッフ行 + 追加ボタン */}
+                        <TableRow className="border-b-2 border-dashed">
+                            <TableCell colSpan={9}>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {/* スタッフ1 */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-muted-foreground">スタッフ1</span>
+                                        <div className="w-44">
+                                            <Select
+                                                value={draft.staff_01_user_id ?? ''}
+                                                onValueChange={(v) => updateDraft('staff_01_user_id', v || null)}
+                                            >
+                                                <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">-</SelectItem>
+                                                    {staffOptions.map((o) => (
+                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    {/* スタッフ2 + 同 */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-muted-foreground">スタッフ2</span>
+                                        <div className="w-44">
+                                            <Select
+                                                value={draft.staff_02_user_id ?? ''}
+                                                onValueChange={(v) => updateDraft('staff_02_user_id', v || null)}
+                                            >
+                                                <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">-</SelectItem>
+                                                    {staffOptions.map((o) => (
+                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <span className="text-sm text-muted-foreground">同</span>
+                                        <input
+                                            type="checkbox"
+                                            className="h-3.5 w-3.5"
+                                            checked={!!draft.staff_02_attend_flg}
+                                            onChange={(e) => updateDraft('staff_02_attend_flg', e.target.checked)}
+                                        />
+                                    </div>
+
+                                    {/* スタッフ3 + 同 */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-muted-foreground">スタッフ3</span>
+                                        <div className="w-44">
+                                            <Select
+                                                value={draft.staff_03_user_id ?? ''}
+                                                onValueChange={(v) => updateDraft('staff_03_user_id', v || null)}
+                                            >
+                                                <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">-</SelectItem>
+                                                    {staffOptions.map((o) => (
+                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <span className="text-sm text-muted-foreground">同</span>
+                                        <input
+                                            type="checkbox"
+                                            className="h-3.5 w-3.5"
+                                            checked={!!draft.staff_03_attend_flg}
+                                            onChange={(e) => updateDraft('staff_03_attend_flg', e.target.checked)}
+                                        />
+                                    </div>
+
+                                    {/* 右端：追加ボタン */}
+                                    <div className="ml-auto flex gap-2">
+                                        <Button
+                                            variant="default"
+                                            onClick={handleCreate}
+                                            disabled={
+                                                !isValidDateStr(draft.shift_start_date) ||
+                                                !isValidTimeStr(toHM(draft.shift_start_time)) ||
+                                                !isValidTimeStr(toHM(draft.shift_end_time)) ||
+                                                (draft.judo_ido !== '' && !isValidJudoIdo(draft.judo_ido))
+                                            }
+                                            title="必須入力を確認してください"
+                                        >
+                                            ＋ 追加
+                                        </Button>
+                                    </div>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                        {/* ====== /新規追加行 ====== */}
                     </TableBody>
                 </Table>
             </div>
         </div>
+
     )
 }
