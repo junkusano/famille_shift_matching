@@ -1,3 +1,5 @@
+//lib/supabase/analyzeDigisignRequest.ts
+// Supabase の rpa_command_requests に LINE WORKS 添付PDFを流し込む
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
 
 /** msg_lw_log の行 */
@@ -51,6 +53,12 @@ const LW_BOT_NO = process.env.LW_BOT_NO ?? "6807751";
 const worksFileDownloadUrl = (botNo: string, channelId: string, fileId: string) =>
   `https://www.worksapis.com/v1.0/bots/${botNo}/channels/${channelId}/files/${fileId}`;
 
+/** 既存リクエスト（重複検知用）の最小型 */
+type ExistingReq = { request_details: { message_id?: string | null } };
+
+/** users 解決用の最小型 */
+type UserAuthRow = { auth_user_id?: string | null };
+
 /**
  * 指定チャンネルの msg_lw_log（status=0 かつ file_id あり）をスキャンし、
  * users.lw_userid → users.auth_user_id を解決して RPA リクエストをまとめて投入。
@@ -90,6 +98,19 @@ export async function dispatchLineworksPdfToRPA(input?: {
   if (error) throw new Error(`select ${MESSAGES_TABLE} failed: ${error.message}`);
   const rows = (data ?? []) as MsgRow[];
 
+  console.log(
+    "[DISPATCH] fetched rows:",
+    rows.length,
+    "channel:",
+    channelId,
+    "win:",
+    since,
+    "→",
+    until,
+    "tmpl:",
+    templateId
+  );
+
   if (rows.length === 0) return { inserted: 0, skipped: 0 };
 
   const payloads: RpaInsertRow[] = [];
@@ -98,8 +119,7 @@ export async function dispatchLineworksPdfToRPA(input?: {
   const dupIds: number[] = [];  // 既存重複を検出した id
 
   // 既存 rpa_command_requests の重複検知（message_id ベース）
-  const msgIds = rows.map(r => String(r.id));
-  type ExistingReq = { request_details: { message_id?: string | null } };
+  const msgIds = rows.map((r) => String(r.id));
 
   const { data: existingData, error: existErr } = await supabase
     .from(RPA_TABLE)
@@ -109,36 +129,45 @@ export async function dispatchLineworksPdfToRPA(input?: {
   if (existErr) throw new Error(`select ${RPA_TABLE} for dup check failed: ${existErr.message}`);
 
   const existing = (existingData ?? []) as ExistingReq[];
-
   const existingMsgIdSet = new Set<string>(
     existing
-      .map(e => e.request_details?.message_id ?? null)
+      .map((e) => e.request_details?.message_id ?? null)
       .filter((v): v is string => typeof v === "string")
   );
 
+  console.log("[DISPATCH] dup-check universe:", msgIds.length, "existing:", existingMsgIdSet.size);
 
   for (const r of rows) {
+    // 添付なし（念のため）
     if (!r.file_id) {
-      holdIds.push(r.id); // 念のため: 添付無しは保留
+      console.log("[SKIP] file_id missing for msg:", r.id);
+      holdIds.push(r.id);
       continue;
     }
 
-    // 既存重複チェック
+    // 既存重複
     if (existingMsgIdSet.has(String(r.id))) {
+      console.log("[DUP] message_id exists:", r.id);
       dupIds.push(r.id);
       continue;
     }
 
     // requester_id を users から解決
-    const { data: user, error: userErr } = await supabase
+    const { data: userRow, error: userErr } = await supabase
       .from("users")
       .select("auth_user_id")
       .eq("lw_userid", r.user_id)
       .maybeSingle();
     if (userErr) throw new Error(`select users failed: ${userErr.message}`);
 
-    const requester = user?.auth_user_id as string | undefined;
+    const u = (userRow ?? {}) as UserAuthRow;
+    const requester =
+      typeof u.auth_user_id === "string" && u.auth_user_id.length > 0
+        ? u.auth_user_id
+        : undefined;
+
     if (!requester) {
+      console.log("[HOLD] requester not found for lw_userid:", r.user_id, "msg:", r.id);
       holdIds.push(r.id); // requester 不明 → 保留
       continue;
     }
@@ -161,16 +190,21 @@ export async function dispatchLineworksPdfToRPA(input?: {
         download_url: fileUrl,
       },
     });
+
+    console.log("[PAYLOAD] push msg:", r.id, "requester:", requester);
   }
 
   // まとめて Insert
   if (payloads.length > 0) {
-    const { error: insErr } = await supabase
-      .from(RPA_TABLE)
-      .insert(payloads);
-    if (insErr) throw new Error(`insert ${RPA_TABLE} failed: ${insErr.message}`);
+    console.log("[INSERT] count:", payloads.length);
+    const { error: insErr } = await supabase.from(RPA_TABLE).insert(payloads);
+    if (insErr) {
+      console.error("[INSERT] error:", insErr);
+      throw new Error(`insert ${RPA_TABLE} failed: ${insErr.message}`);
+    }
 
-    insertedIds.push(...payloads.map(p => Number(p.request_details.message_id)));
+    insertedIds.push(...payloads.map((p) => Number(p.request_details.message_id)));
+    console.log("[INSERT] ok. ids:", insertedIds);
   }
 
   // status 更新
@@ -183,6 +217,8 @@ export async function dispatchLineworksPdfToRPA(input?: {
   if (holdIds.length > 0) {
     await supabase.from(MESSAGES_TABLE).update({ status: 1 }).in("id", holdIds);
   }
+
+  console.log("[STATUS] processed:", insertedIds.length, "dup:", dupIds.length, "hold:", holdIds.length);
 
   return { inserted: insertedIds.length, skipped: holdIds.length };
 }
