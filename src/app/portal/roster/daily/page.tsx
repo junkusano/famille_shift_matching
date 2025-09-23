@@ -15,5 +15,5 @@ day: "2-digit",
 export default async function Page({ searchParams }: { searchParams?: Record<string, string> }) {
 const date = (searchParams?.date as string) ?? toJstYmd(new Date());
 const initialView = await getDailyRosterView(date);
-return <RosterBoardDaily date={date} initialView={initialView} />;
+return <RosterBoardDaily date={date} initialView={initialView} deletable />;
 }

@@ -45,6 +45,7 @@ function parseCardCompositeId(id: string) {
 type Props = {
     date: string;
     initialView: RosterDailyView;
+    deletable?: boolean; // ← 追加
 };
 
 // ===== DnD State =====
@@ -66,7 +67,7 @@ interface DragState {
     srcStaffId: string;       // ★ 触り始めたカードの元担当
 }
 
-export default function RosterBoardDaily({ date, initialView }: Props) {
+export default function RosterBoardDaily({ date, initialView, deletable = false }: Props) {
     // ====== ルーティング（日付遷移） ======
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -124,6 +125,32 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
     const getRosterSort = (st: RosterStaff): string => {
         const rs = (st as unknown as { roster_sort?: string }).roster_sort;
         return rs ?? "9999";
+    };
+
+    const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+
+    const handleDelete = async (cardId: string) => {
+        const { shiftId } = parseCardCompositeId(cardId);
+        if (!confirm('このシフトを削除します。よろしいですか？')) return;
+        setDeletingIds(prev => new Set(prev).add(shiftId));
+        try {
+            const res = await fetch('/api/shifts', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [String(shiftId)] }),
+            });
+            if (!res.ok) {
+                const msg = await res.text().catch(() => '');
+                alert(`削除に失敗しました\n${msg}`);
+                setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
+                return;
+            }
+            // 同じ shiftId のカードは全て盤面から除去
+            setCards(prev => prev.filter(c => parseCardCompositeId(c.id).shiftId !== shiftId));
+        } catch (e) {
+            alert('削除時にエラーが発生しました');
+            setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
+        }
     };
 
     // 並び順：roster_sort → 氏名
@@ -532,6 +559,23 @@ export default function RosterBoardDaily({ date, initialView }: Props) {
                                     <div className="text-[11px] md:text-xs font-semibold">{c.start_at}-{c.end_at}</div>
                                     <div className="text-[11px] md:text-xs truncate">{c.client_name}：{c.service_name}</div>
                                     <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
+                                    {deletable && (
+                                        <button
+                                            type="button"
+                                            aria-label="削除"
+                                            title="削除"
+                                            onClick={(e) => { e.stopPropagation(); void handleDelete(c.id); }}
+                                            disabled={deletingIds.has(parseCardCompositeId(c.id).shiftId)}
+                                            className={[
+                                                "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
+                                                "bg-red-600 text-white text-sm leading-6 text-center",
+                                                "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
+                                            ].join(' ')}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+
                                 </div>
                             );
                         })}
