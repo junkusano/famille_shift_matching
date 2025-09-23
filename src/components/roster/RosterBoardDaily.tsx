@@ -148,6 +148,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             // 同じ shiftId のカードは全て盤面から除去
             setCards(prev => prev.filter(c => parseCardCompositeId(c.id).shiftId !== shiftId));
         } catch (e) {
+            void e;
             alert('削除時にエラーが発生しました');
             setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
         }
