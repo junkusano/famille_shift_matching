@@ -8,6 +8,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from('cs_kaipoke_info')
       .select('*')                 // ← 必要十分。列不足事故を避ける
+      .eq("is_active", true)
       .order('name', { ascending: true });
 
     if (error) {
