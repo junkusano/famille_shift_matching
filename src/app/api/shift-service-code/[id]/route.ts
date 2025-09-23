@@ -2,32 +2,57 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
+type UpdatePayload = {
+  service_code?: string
+  require_doc_group?: string | null
+  kaipoke_servicek?: string | null
+  kaipoke_servicecode?: string | null
+}
+
 type Params = { params: { id: string } }
 
+// ── PUT /api/shift-service-code/[id]
 export async function PUT(req: Request, { params }: Params) {
   const { id } = params
-  const body = await req.json().catch(() => ({}))
+  if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
 
-  // 更新許可するカラムのみ反映（created_at/updated_at/id は送られてきても無視）
-  const payload: Record<string, any> = {}
-  if ('service_code' in body) payload.service_code = body.service_code
-  if ('require_doc_group' in body) payload.require_doc_group = body.require_doc_group
-  if ('kaipoke_servicek' in body) payload.kaipoke_servicek = body.kaipoke_servicek
-  if ('kaipoke_servicecode' in body) payload.kaipoke_servicecode = body.kaipoke_servicecode
+  const raw = (await req.json()) as unknown
+  const payload: UpdatePayload = {}
+
+  if (raw && typeof raw === 'object') {
+    const b = raw as Record<string, unknown>
+    if (typeof b.service_code === 'string') payload.service_code = b.service_code.trim()
+    if ('require_doc_group' in b && (typeof b.require_doc_group === 'string' || b.require_doc_group === null)) {
+      payload.require_doc_group = b.require_doc_group as string | null
+    }
+    if ('kaipoke_servicek' in b && (typeof b.kaipoke_servicek === 'string' || b.kaipoke_servicek === null)) {
+      payload.kaipoke_servicek = b.kaipoke_servicek as string | null
+    }
+    if ('kaipoke_servicecode' in b && (typeof b.kaipoke_servicecode === 'string' || b.kaipoke_servicecode === null)) {
+      payload.kaipoke_servicecode = b.kaipoke_servicecode as string | null
+    }
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return NextResponse.json({ error: '更新対象の項目がありません' }, { status: 400 })
+  }
 
   const { data, error } = await supabaseAdmin
     .from('shift_service_code')
     .update(payload)
     .eq('id', id)
-    .select()
+    .select('*')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
+// ── DELETE /api/shift-service-code/[id]
 export async function DELETE(_: Request, { params }: Params) {
   const { id } = params
+  if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
+
   const { error } = await supabaseAdmin.from('shift_service_code').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
