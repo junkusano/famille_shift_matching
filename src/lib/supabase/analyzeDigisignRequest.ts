@@ -60,7 +60,7 @@ type ExistingReq = { request_details: { message_id?: string | null } };
 type UserAuthRow = { auth_user_id?: string | null };
 
 /**
- * 指定チャンネルの msg_lw_log（status=0 かつ file_id あり）をスキャンし、
+ * 指定チャンネル（未指定なら既定＋ケアマネ）の msg_lw_log（status=0 かつ file_id あり）をスキャンし、
  * users.lw_userid → users.auth_user_id を解決して RPA リクエストをまとめて投入。
  * - Insert 成功: msg_lw_log.status = 2（処理済）
  * - 既存重複:     msg_lw_log.status = 9（重複）
@@ -68,14 +68,15 @@ type UserAuthRow = { auth_user_id?: string | null };
  */
 export async function dispatchLineworksPdfToRPA(input?: {
   channelId?: string;
-  templateId?: string;
-  since?: string;   // ISO8601
-  until?: string;   // ISO8601
+  templateId?: string;     // 指定時は全行このテンプレで上書き
+  since?: string;          // ISO8601
+  until?: string;          // ISO8601
   pageSize?: number;
 }): Promise<DispatchResult> {
-  const channelId = input?.channelId ?? DEFAULT_CHANNEL_ID;
-  // ① templateId の決定（引数 > チャンネル別マップ > 既定）
-  const templateId = input?.templateId ?? TEMPLATE_BY_CHANNEL[channelId] ?? DEFAULT_TEMPLATE_ID;
+  // スキャン対象チャンネルを決定（未指定時は既定＋ケアマネを同時に見る）
+  const channelsToScan = input?.channelId
+    ? [input.channelId]
+    : [DEFAULT_CHANNEL_ID, ...Object.keys(TEMPLATE_BY_CHANNEL)];
 
   // デフォルト: 直近24時間
   const now = new Date();
@@ -84,11 +85,11 @@ export async function dispatchLineworksPdfToRPA(input?: {
   const until = input?.until ?? now.toISOString();
   const pageSize = input?.pageSize ?? 5000;
 
-  // 未処理(status=0) & 添付あり(file_id IS NOT NULL) & 対象チャンネル & 期間内
+  // 未処理(status=0) & 添付あり(file_id IS NOT NULL) & 対象チャンネル群 & 期間内
   const { data, error } = await supabase
     .from(MESSAGES_TABLE)
     .select("id,timestamp,user_id,channel_id,file_id,status")
-    .eq("channel_id", channelId)
+    .in("channel_id", channelsToScan)
     .not("file_id", "is", null)
     .eq("status", 0)
     .gte("timestamp", since)
@@ -101,14 +102,12 @@ export async function dispatchLineworksPdfToRPA(input?: {
   console.log(
     "[DISPATCH] fetched rows:",
     rows.length,
-    "channel:",
-    channelId,
+    "channels:",
+    channelsToScan.join(","),
     "win:",
     since,
     "→",
-    until,
-    "tmpl:",
-    templateId
+    until
   );
 
   if (rows.length === 0) return { inserted: 0, skipped: 0 };
@@ -174,8 +173,14 @@ export async function dispatchLineworksPdfToRPA(input?: {
 
     const fileUrl = worksFileDownloadUrl(LW_BOT_NO, r.channel_id, r.file_id);
 
+    // 行ごとにテンプレートIDを決定（input.templateId > チャンネル別マップ > 既定）
+    const tplForRow =
+      input?.templateId ??
+      TEMPLATE_BY_CHANNEL[r.channel_id] ??
+      DEFAULT_TEMPLATE_ID;
+
     payloads.push({
-      template_id: templateId,
+      template_id: tplForRow,
       requester_id: requester,
       status: "approved",
       request_details: {
@@ -191,7 +196,7 @@ export async function dispatchLineworksPdfToRPA(input?: {
       },
     });
 
-    console.log("[PAYLOAD] push msg:", r.id, "requester:", requester);
+    console.log("[PAYLOAD] push msg:", r.id, "requester:", requester, "tpl:", tplForRow);
   }
 
   // まとめて Insert
