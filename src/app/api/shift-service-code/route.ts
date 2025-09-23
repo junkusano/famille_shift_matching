@@ -1,4 +1,6 @@
 // src/app/api/shift_service_codes/route.ts
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic' // （キャッシュ最適化を避ける）
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
