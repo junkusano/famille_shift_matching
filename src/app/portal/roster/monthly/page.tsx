@@ -1153,7 +1153,9 @@ function NewAddRow(props: NewAddRowProps) {
                                 <input
                                     type="checkbox"
                                     checked={repeatWeekdays.has(idx)}
-                                    onChange={() => toggleWeekday(idx)} // 'e' を使わない
+                                    onChange={() => {
+                                        toggleWeekday(idx); 
+                                    }}
                                 />
                                 <span className="text-sm">{label}</span>
                             </label>
