@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const raw = (await req.json()) as Record<string, unknown>
 
     // 必須
-    for (const k of ['kaipoke_cs_id','shift_start_date','shift_start_time','shift_end_time'] as const) {
+    for (const k of ['kaipoke_cs_id', 'shift_start_date', 'shift_start_time', 'shift_end_time'] as const) {
       if (!raw[k]) return json({ error: { message: `missing field: ${k}` } }, 400)
     }
 
@@ -153,8 +153,31 @@ export async function POST(req: Request) {
       staff_03_attend_flg: Boolean(raw['staff_03_attend_flg'] ?? false),
     }
 
+    type PostgrestErrLike = {
+      code?: string | null
+      message: string
+      details?: string | null
+      hint?: string | null
+    }
+
+    type ApiErr = {
+      code: string | null
+      message: string
+      details: string | null
+      hint: string | null
+      table: string
+    }
+
+    const shapeErr = (err: PostgrestErrLike, table: string): ApiErr => ({
+      code: err.code ?? null,
+      message: err.message,
+      details: err.details ?? null,
+      hint: err.hint ?? null,
+      table,
+    })
+
     // 順にトライ（存在/権限のあるテーブルで通る）
-    let lastErr: Record<string, unknown> | null = null
+    let lastErr: ApiErr | null = null
 
     for (const table of CANDIDATE_TABLES) {
       const { data, error } = await supabaseAdmin
@@ -168,22 +191,18 @@ export async function POST(req: Request) {
         return json({ shift_id: createdId, table }, 201)
       }
 
-      // エラーを取り出して保持（message/details/hint/code を詰める）
-      if (error && typeof error === 'object') {
-        lastErr = {
-          code: (error as any).code ?? null,
-          message: (error as any).message ?? null,
-          details: (error as any).details ?? null,
-          hint: (error as any).hint ?? null,
-          table,
-        }
-        // 代表的な「テーブルが無い」「RLS」等は次の候補へ
+      if (error) {
+        // これまで: error を Record にキャストして index 参照 → ❌
+        // 修正後: PostgrestError をそのまま整形 → ✅
+        lastErr = shapeErr(error, table)
+        console.warn(`[shifts][POST] insert failed on ${table}`, lastErr)
         continue
       }
     }
 
-    // ここまで来たら全候補NG
+    // 返却も型を維持
     return json({ error: lastErr ?? { message: 'insert failed (unknown)', table: CANDIDATE_TABLES.join(',') } }, 400)
+
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
     console.error('[shifts][POST] unhandled error', err)
