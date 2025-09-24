@@ -210,6 +210,14 @@ export default function MonthlyRosterPage() {
     // 削除選択
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+
+    // ▼ 新規行ドラフト
+    const [draft, setDraft] = useState<NewShiftDraft>(() => newDraftInitial(yyyymm(new Date())));
+
+    // ▼ 新規行の入力更新
+    const updateDraft = <K extends keyof NewShiftDraft>(field: K, value: NewShiftDraft[K]) =>
+        setDraft((prev) => ({ ...prev, [field]: value }));
+
     // ヘッダーの「全選択」checkboxの indeterminate 制御
     const selectAllRef = useRef<HTMLInputElement>(null)
     const allSelected = shifts.length > 0 && selectedIds.size === shifts.length
@@ -230,13 +238,8 @@ export default function MonthlyRosterPage() {
         });
     };
 
-    // ▼ 新規行ドラフト
-    const [draft, setDraft] = useState<NewShiftDraft>(() => newDraftInitial(yyyymm(new Date())));
 
-    // ▼ 新規行の入力更新
-    const updateDraft = <K extends keyof NewShiftDraft>(field: K, value: NewShiftDraft[K]) =>
-        setDraft((prev) => ({ ...prev, [field]: value }));
-
+    // 1日分を追加（同日・同時刻があればスキップ）
     // 1日分を追加（同日・同時刻があればスキップ）
     const handleAddOne = useCallback(async (dateStr: string) => {
         const startHM = normalizeTimeLoose(draft.shift_start_time);
@@ -268,13 +271,11 @@ export default function MonthlyRosterPage() {
             staff_03_attend_flg: !!draft.staff_03_attend_flg,
         };
 
-        const res = await fetch('/api/shifts', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-        });
+        const res = await fetch('/api/shifts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const created = await res.json();
         if (!res.ok) throw new Error(created?.error?.message ?? 'failed to create');
 
-        setShifts(prev => {
+        setShifts((prev) => {
             const next = [...prev, {
                 shift_id: String(created.shift_id ?? created.id),
                 kaipoke_cs_id: selectedKaipokeCS,
@@ -302,7 +303,7 @@ export default function MonthlyRosterPage() {
         return { created: true };
     }, [draft, shifts, selectedKaipokeCS]);
 
-    // ← あなたが書いた handleAddClick をこの位置に置く（中身はそのままでOK）
+    // handleAddClick を追加（そのまま）
     const handleAddClick = async () => {
         if (!selectedKaipokeCS) return alert('利用者IDが未選択です');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.shift_start_date)) return alert('日付を入力してください');
@@ -324,6 +325,7 @@ export default function MonthlyRosterPage() {
         const ng = results.filter(r => r.status === 'rejected').length;
         alert(`追加完了: ${ok}件${ng ? `（失敗 ${ng} 件）` : ''}`);
     };
+
 
     // --- masters ---
     useEffect(() => {
@@ -528,8 +530,7 @@ export default function MonthlyRosterPage() {
         })
     }
 
-    // options
-    const staffOptions = useMemo(() => staffUsers.map((u) => ({ value: u.user_id, label: humanName(u) })), [staffUsers])
+    // serviceOptions と staffOptions の useMemo 追加
     const serviceOptions = useMemo(
         () =>
             serviceCodes.map((s) => ({
@@ -537,7 +538,12 @@ export default function MonthlyRosterPage() {
                 label: `${s.kaipoke_servicek ?? ''} / ${s.service_code ?? ''}`.trim(),
             })),
         [serviceCodes]
-    )
+    );
+
+    const staffOptions = useMemo(() =>
+        staffUsers.map((u) => ({ value: u.user_id, label: humanName(u) })),
+        [staffUsers]
+    );
 
     // 月リスト（過去5年〜未来12ヶ月）
     const monthOptions = useMemo(() => {
@@ -929,8 +935,8 @@ export default function MonthlyRosterPage() {
                             toggleWeekday={toggleWeekday}
                             draft={draft}
                             updateDraft={updateDraft}
-                            serviceOptions={serviceOptions}   // ★追加
-                            staffOptions={staffOptions}       // ★追加
+                            serviceOptions={serviceOptions}
+                            staffOptions={staffOptions}
                         />
                         {/* ====== /新規追加行 ====== */}
                     </TableBody>
