@@ -233,8 +233,12 @@ export default function MonthlyRosterPage() {
     const toggleWeekday = (idx: number) => {
         setRepeatWeekdays((prev) => {
             const next = new Set(prev);
-            next.has(idx) ? next.delete(idx) : next.add(idx);
-            return next; // 次の状態に更新
+            if (next.has(idx)) {
+                next.delete(idx);
+            } else {
+                next.add(idx);
+            }
+            return next;
         });
     };
 
@@ -1154,7 +1158,7 @@ function NewAddRow(props: NewAddRowProps) {
                                     type="checkbox"
                                     checked={repeatWeekdays.has(idx)}
                                     onChange={() => {
-                                        toggleWeekday(idx); 
+                                        toggleWeekday(idx);
                                     }}
                                 />
                                 <span className="text-sm">{label}</span>
