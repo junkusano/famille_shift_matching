@@ -643,6 +643,24 @@ export default function MonthlyRosterPage() {
                                             />
                                         </TableCell>
 
+                                        {/* 開始日（テキスト + 曜日） */}
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-[100px]">
+                                                    <Input
+                                                        value={row.shift_start_date}
+                                                        onChange={(ev) => updateRow(row.shift_id, 'shift_start_date', ev.target.value)}
+                                                        onBlur={(ev) => {
+                                                            const v = normalizeDateInput(ev.target.value)
+                                                            updateRow(row.shift_id, 'shift_start_date', v)
+                                                        }}
+                                                        placeholder="YYYY-MM-DD"
+                                                        className={dateInvalid ? 'border-red-500' : ''}
+                                                    />
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">（{weekdayJa(row.shift_start_date)}）</span>
+                                            </div>
+                                        </TableCell>
                                         {/* 開始時間 */}
                                         <TableCell>
                                             <div className="w-[80px]">
