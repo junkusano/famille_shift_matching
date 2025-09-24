@@ -2,6 +2,8 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 
+export const runtime = 'nodejs'
+
 /**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
  * - view からは * を取得し、足りない項目は API 層で補完（デフォルト値）
@@ -99,99 +101,95 @@ export async function GET(req: Request) {
 
 // === POST /api/shifts : 新規作成 ===
 export async function POST(req: Request) {
-  try {
-    const body = await req.json();
+  // 書き込み先候補（存在する方に書く）
+  const CANDIDATE_TABLES = ['roster_shift', 'shifts'] as const
 
-    // 必須チェック
-    const required = ['kaipoke_cs_id', 'shift_start_date', 'shift_start_time', 'shift_end_time'] as const;
-    for (const k of required) {
-      // bodyの型はunknownだが、実行時チェックで守る
-      if (!((body as Record<string, unknown>)?.[k])) {
-        return new Response(JSON.stringify({ error: `missing field: ${k}` }), { status: 400 });
+  // ヘルパー
+  const json = (obj: unknown, status = 200) =>
+    new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
+
+  const toHMS = (v: string) => {
+    const s = String(v ?? '').trim()
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s
+    if (/^\d{1,2}:\d{2}$/.test(s)) {
+      const [h, m] = s.split(':')
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`
+    }
+    return s
+  }
+
+  try {
+    const raw = (await req.json()) as Record<string, unknown>
+
+    // 必須
+    for (const k of ['kaipoke_cs_id','shift_start_date','shift_start_time','shift_end_time'] as const) {
+      if (!raw[k]) return json({ error: { message: `missing field: ${k}` } }, 400)
+    }
+
+    // UI側draftと同じ導出（未指定なら計算）
+    const dispatchSize = (raw['dispatch_size'] as string | undefined)
+    const dupRole = (raw['dup_role'] as string | undefined)
+
+    const required_staff_count =
+      (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1)
+
+    const two_person_work_flg =
+      (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-')
+
+    // insert行
+    const row = {
+      kaipoke_cs_id: String(raw['kaipoke_cs_id']),
+      shift_start_date: String(raw['shift_start_date']),       // YYYY-MM-DD
+      shift_start_time: toHMS(String(raw['shift_start_time'])),// HH:MM:SS
+      shift_end_time: toHMS(String(raw['shift_end_time'])),    // HH:MM:SS
+      service_code: (raw['service_code'] ?? null) as string | null,
+      required_staff_count,
+      two_person_work_flg,
+      judo_ido: (raw['judo_ido'] ?? null) as string | null,    // 'HHMM' or null
+      staff_01_user_id: (raw['staff_01_user_id'] ?? null) as string | null,
+      staff_02_user_id: (raw['staff_02_user_id'] ?? null) as string | null,
+      staff_03_user_id: (raw['staff_03_user_id'] ?? null) as string | null,
+      staff_02_attend_flg: Boolean(raw['staff_02_attend_flg'] ?? false),
+      staff_03_attend_flg: Boolean(raw['staff_03_attend_flg'] ?? false),
+    }
+
+    // 順にトライ（存在/権限のあるテーブルで通る）
+    let lastErr: Record<string, unknown> | null = null
+
+    for (const table of CANDIDATE_TABLES) {
+      const { data, error } = await supabaseAdmin
+        .from(table)
+        .insert(row)
+        .select('shift_id, id')
+        .single()
+
+      if (!error && data) {
+        const createdId = (data as { shift_id?: string; id?: string }).shift_id ?? (data as { id?: string }).id
+        return json({ shift_id: createdId, table }, 201)
+      }
+
+      // エラーを取り出して保持（message/details/hint/code を詰める）
+      if (error && typeof error === 'object') {
+        lastErr = {
+          code: (error as any).code ?? null,
+          message: (error as any).message ?? null,
+          details: (error as any).details ?? null,
+          hint: (error as any).hint ?? null,
+          table,
+        }
+        // 代表的な「テーブルが無い」「RLS」等は次の候補へ
+        continue
       }
     }
 
-    // 時刻正規化（HH:MM → HH:MM:SS）
-    const toHMS = (v: string) => {
-      const m = String(v).trim();
-      if (/^\d{2}:\d{2}:\d{2}$/.test(m)) return m;
-      if (/^\d{2}:\d{2}$/.test(m)) return `${m}:00`;
-      return m;
-    };
-
-    // 既存UIと同じ派生値（未指定なら計算）
-    const dispatchSize = (body as { dispatch_size?: string }).dispatch_size;
-    const dupRole = (body as { dup_role?: string }).dup_role;
-
-    const required_staff_count =
-      (body as { required_staff_count?: number }).required_staff_count ??
-      (dispatchSize === '01' ? 2 : 1);
-
-    const two_person_work_flg =
-      (body as { two_person_work_flg?: boolean }).two_person_work_flg ??
-      (!!dupRole && dupRole !== '-');
-
-    // 挿入行（明示型）
-    type InsertRow = {
-      kaipoke_cs_id: string;
-      shift_start_date: string;  // YYYY-MM-DD
-      shift_start_time: string;  // HH:MM:SS
-      shift_end_time: string;    // HH:MM:SS
-      service_code: string | null;
-      required_staff_count: number;
-      two_person_work_flg: boolean;
-      judo_ido: string | null;   // HHMM or null
-      staff_01_user_id: string | null;
-      staff_02_user_id: string | null;
-      staff_03_user_id: string | null;
-      staff_02_attend_flg: boolean;
-      staff_03_attend_flg: boolean;
-    };
-
-    const b = body as Record<string, unknown>;
-    const insertRow: InsertRow = {
-      kaipoke_cs_id: String(b.kaipoke_cs_id),
-      shift_start_date: String(b.shift_start_date),
-      shift_start_time: toHMS(String(b.shift_start_time)),
-      shift_end_time: toHMS(String(b.shift_end_time)),
-      service_code: (b.service_code ?? null) as string | null,
-      required_staff_count,
-      two_person_work_flg,
-      judo_ido: (b.judo_ido ?? null) as string | null,
-      staff_01_user_id: (b.staff_01_user_id ?? null) as string | null,
-      staff_02_user_id: (b.staff_02_user_id ?? null) as string | null,
-      staff_03_user_id: (b.staff_03_user_id ?? null) as string | null,
-      staff_02_attend_flg: Boolean(b.staff_02_attend_flg),
-      staff_03_attend_flg: Boolean(b.staff_03_attend_flg),
-    };
-
-    // ★ テーブル名を実環境に合わせてください
-    const TABLE = 'shifts';
-
-    const { data, error } = await supabaseAdmin
-      .from(TABLE)
-      .insert(insertRow)
-      .select('shift_id, id') // どちらかのPKが存在する想定
-      .single();
-
-    if (error) {
-      console.error('[shifts][POST] insert error', error);
-      return new Response(JSON.stringify({ error: error.message }), { status: 400 });
-    }
-
-    // 返却データ型（union）で安全に絞り込む
-    type CreatedRow = { shift_id: string } | { id: string };
-    const created = data as CreatedRow;
-
-    const createdId = 'shift_id' in created ? created.shift_id : created.id;
-    return new Response(JSON.stringify({ shift_id: createdId }), { status: 201 });
+    // ここまで来たら全候補NG
+    return json({ error: lastErr ?? { message: 'insert failed (unknown)', table: CANDIDATE_TABLES.join(',') } }, 400)
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'internal error';
-    console.error('[shifts][POST] unhandled error', e);
-    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
+    console.error('[shifts][POST] unhandled error', err)
+    return json({ error: err }, 500)
   }
 }
-
 
 /**
  * 現状、更新先テーブルの仕様が未確定（view は更新不可 / "shift(s)" テーブル無し）なので 501

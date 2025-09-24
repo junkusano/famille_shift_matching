@@ -17,6 +17,7 @@ export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
     const [accountId, setAccountId] = useState<string>("");
+    void accountId
     const [kaipokeUserId, setKaipokeUserId] = useState<string>(""); // 追加
     const [currentPage, setCurrentPage] = useState(1);
     const [filterOptions, setFilterOptions] = useState<ShiftFilterOptions>({
@@ -71,7 +72,7 @@ export default function ShiftPage() {
             const formatted = (allShifts as SupabaseShiftRaw[])
                 .filter((s) => s.level_sort_order <= 3500000 || s.staff_01_user_id === "-")
                 .map((s): ShiftData => ({
-                    id: String(s.id ?? s.shift_id),  
+                    id: String(s.id ?? s.shift_id),
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
                     shift_start_time: s.shift_start_time,
@@ -158,6 +159,7 @@ export default function ShiftPage() {
     };
 
     // 2. handleShiftRequest を修正
+    /*
     const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
         setCreatingShiftRequest(true);
         try {
@@ -235,6 +237,103 @@ export default function ShiftPage() {
             setCreatingShiftRequest(false);
         }
     };
+    */
+
+    //const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
+    const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean, timeAdjustNote?: string) => {
+        setCreatingShiftRequest(true);
+        try {
+            const session = await supabase.auth.getSession();
+            const userId = session.data?.session?.user?.id;
+            if (!userId) {
+                alert('ログイン情報が取得できません');
+                return;
+            }
+
+
+            // 1) API 経由で「割当→RPA登録」一括
+            const resp = await fetch('/api/shift-coordinate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shift_id: shift.shift_id,
+                    kaipoke_cs_id: shift.kaipoke_cs_id,
+                    shift_start_date: shift.shift_start_date,
+                    shift_start_time: shift.shift_start_time,
+                    shift_end_time: shift.shift_end_time,
+                    service_code: shift.service_code,
+                    postal_code_3: shift.postal_code_3,
+                    client_name: shift.client_name,
+                    requested_by_user_id: userId,
+                    requested_kaipoke_user_id: kaipokeUserId,
+                    accompany: attendRequest,
+                    time_adjust_note: timeAdjustNote, // ★追加
+                    // role_code があるなら渡す
+                    // role_code: decidedRoleCode,
+                }),
+            });
+
+            if (!resp.ok) {
+                const payload = await resp.json().catch(() => ({}));
+                alert((payload as { error?: string }).error ?? '希望シフトの登録に失敗しました');
+                return;
+            }
+
+            alert('希望リクエストを登録しました！');
+
+            // 2) ここからは従来どおりの LW 通知（任意でサーバ側へ移設可）
+            const { data: chanData } = await supabase
+                .from('group_lw_channel_view')
+                .select('channel_id')
+                .eq('group_account', shift.kaipoke_cs_id)
+                .maybeSingle();
+
+
+            const { data: userData } = await supabase
+                .from('user_entry_united_view')
+                .select('lw_userid, last_name_kanji, first_name_kanji')
+                .eq('auth_user_id', userId)
+                .eq('group_type', '人事労務サポートルーム')
+                .limit(1)
+                .single();
+
+
+            const sender = userData?.lw_userid;
+            const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? '不明'}さん`;
+
+
+            if (chanData?.channel_id) {
+                const message = `✅シフト希望が登録されました
+
+
+・カイポケ反映までお待ちください
+
+
+・日付: ${shift.shift_start_date}
+・時間: ${shift.shift_start_time}～${shift.shift_end_time}
+・利用者: ${shift.client_name} 様
+・種別: ${shift.service_code}
+・エリア: ${shift.postal_code_3}（${shift.district}）
+・同行希望: ${attendRequest ? 'あり' : 'なし'}
+・担当者: ${mention}`;
+
+
+                await fetch('/api/lw-send-botmessage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
+                });
+            } else {
+                console.warn('チャネルIDが取得できませんでした');
+            }
+        } catch (e) {
+            alert('処理中にエラーが発生しました');
+            console.error(e);
+        } finally {
+            setCreatingShiftRequest(false);
+        }
+    };
+
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
@@ -338,7 +437,7 @@ export default function ShiftPage() {
                         shift={shift}
                         mode="request"
                         creatingRequest={creatingShiftRequest}
-                        onRequest={(attend) => handleShiftRequest(shift, attend)}
+                        onRequest={(attend, note) => handleShiftRequest(shift, attend, note)}
                         extraActions={<GroupAddButton shift={shift} />}
                     />
                 ))}
