@@ -4,10 +4,21 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 // APIはNodeランタイムで実行（Service Role利用）
 export const runtime = 'nodejs'
 
-// ---- 共通ユーティリティ ----
-const json = (obj: unknown, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
+// === 共通: エラー型（軽量） ===
+type SupaErrLike = { code?: string | null; message: string; details?: string | null; hint?: string | null };
 
+const json = (obj: unknown, status = 200) =>
+  new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+
+const toHMS = (v: string) => {
+  const s = String(v ?? '').trim();
+  if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+  if (/^\d{1,2}:\d{2}$/.test(s)) {
+    const [h, m] = s.split(':');
+    return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`;
+  }
+  return s; // 想定外はDB側でエラー
+};
 
 /**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
@@ -184,13 +195,138 @@ export async function POST(req: Request) {
   }
 }
 
-/**
- * 更新系は“素のコード”では未実装だったため 501 に戻します。
- * 書き込み先ベーステーブルが確定したら実装に差し替えてください。
- */
-export async function PUT() {
-  return json({ error: 'Not Implemented: update target is not defined in this environment.' }, 501)
+
+
+// === PUT /api/shifts : 更新 ===
+export async function PUT(req: Request) {
+  try {
+    const raw = (await req.json()) as Record<string, unknown>;
+    const idVal = raw['shift_id'] ?? raw['id'];
+    const id = typeof idVal === 'string' ? Number(idVal) : (typeof idVal === 'number' ? idVal : null);
+
+    // 部分更新パッチを構築
+    const patch: Record<string, unknown> = {};
+    const setIf = (k: string, v: unknown) => { if (v !== undefined) patch[k] = v; };
+
+    setIf('shift_start_date', raw['shift_start_date'] as string | undefined);
+    setIf('shift_end_date',   raw['shift_end_date']   as string | undefined);
+    if (raw['shift_start_time'] !== undefined) patch['shift_start_time'] = toHMS(String(raw['shift_start_time']));
+    if (raw['shift_end_time']   !== undefined) patch['shift_end_time']   = toHMS(String(raw['shift_end_time']));
+
+    ([
+      'service_code','staff_01_user_id','staff_02_user_id','staff_03_user_id',
+      'staff_01_role_code','staff_02_role_code','staff_03_role_code','judo_ido'
+    ] as const).forEach(k => setIf(k, (raw[k] ?? null) as string | null));
+
+    if (raw['staff_02_attend_flg']    !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
+    if (raw['staff_03_attend_flg']    !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);
+    if (raw['required_staff_count']   !== undefined) patch['required_staff_count'] = Number(raw['required_staff_count']);
+    if (raw['two_person_work_flg']    !== undefined) patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+
+    if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400);
+
+    // 1) shift_id 優先
+    if (id != null) {
+      const { data, error } = await supabaseAdmin
+        .from('shift')
+        .update(patch)
+        .eq('shift_id', id)
+        .select('shift_id')
+        .single();
+
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id });
+    }
+
+    // 2) 複合キー（kaipoke_cs_id + start_date + start_time）でも更新可
+    const cs = raw['kaipoke_cs_id'] as string | undefined;
+    const sd = raw['shift_start_date'] as string | undefined;
+    const st = raw['shift_start_time'] as string | undefined;
+
+    if (cs && sd && st) {
+      const { data, error } = await supabaseAdmin
+        .from('shift')
+        .update(patch)
+        .eq('kaipoke_cs_id', cs)
+        .eq('shift_start_date', sd)
+        .eq('shift_start_time', toHMS(String(st)))
+        .select('shift_id')
+        .single();
+
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id });
+    }
+
+    return json({ error: { message: 'missing shift_id (or composite keys)' } }, 400);
+  } catch (e: unknown) {
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') };
+    console.error('[shifts][PUT] unhandled error', err);
+    return json({ error: err }, 500);
+  }
 }
-export async function DELETE() {
-  return json({ error: 'Not Implemented: delete target is not defined in this environment.' }, 501)
+
+// === DELETE /api/shifts : 削除 ===
+export async function DELETE(req: Request) {
+  try {
+    const raw = (await req.json()) as Record<string, unknown>;
+
+    // 1) 複数ID
+    if (Array.isArray(raw['ids'])) {
+      const ids = (raw['ids'] as unknown[])
+        .map(v => (typeof v === 'string' ? Number(v) : v))
+        .filter((v): v is number => typeof v === 'number');
+
+      if (ids.length === 0) return json({ error: { message: 'ids is empty' } }, 400);
+
+      const { error } = await supabaseAdmin.from('shift').delete().in('shift_id', ids);
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, count: ids.length });
+    }
+
+    // 2) 単一ID
+    const idVal = raw['shift_id'] ?? raw['id'];
+    if (idVal != null) {
+      const id = typeof idVal === 'string' ? Number(idVal) : (idVal as number);
+      const { error } = await supabaseAdmin.from('shift').delete().eq('shift_id', id);
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, count: 1 });
+    }
+
+    // 3) 複合キーでも削除可
+    const cs = raw['kaipoke_cs_id'] as string | undefined;
+    const sd = raw['shift_start_date'] as string | undefined;
+    const st = raw['shift_start_time'] as string | undefined;
+    if (cs && sd && st) {
+      const { error } = await supabaseAdmin
+        .from('shift')
+        .delete()
+        .eq('kaipoke_cs_id', cs)
+        .eq('shift_start_date', sd)
+        .eq('shift_start_time', toHMS(String(st)));
+
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, count: 1 });
+    }
+
+    return json({ error: { message: 'missing ids or composite keys' } }, 400);
+  } catch (e: unknown) {
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') };
+    console.error('[shifts][DELETE] unhandled error', err);
+    return json({ error: err }, 500);
+  }
 }
