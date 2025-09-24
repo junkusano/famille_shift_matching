@@ -174,15 +174,6 @@ const isValidHM = (v: string) => /^\d{2}:\d{2}$/.test(v);
 // === 週の曜日（0=日〜6=土） ===
 const JP_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 
-// “繰り返し追加”で選ばれた曜日
-const [repeatWeekdays, setRepeatWeekdays] = useState<Set<number>>(new Set());
-const toggleWeekday = (idx: number) => {
-    setRepeatWeekdays(prev => {
-        const next = new Set(prev);
-        next.has(idx) ? next.delete(idx) : next.add(idx);
-        return next;
-    });
-};
 
 // 月内で該当曜日の日付（YYYY-MM-DD配列）を返す。基準は draft.shift_start_date の属する月
 const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<number>): string[] => {
@@ -228,6 +219,16 @@ export default function MonthlyRosterPage() {
             selectAllRef.current.indeterminate = someSelected
         }
     }, [someSelected])
+
+    // “繰り返し追加”で選ばれた曜日
+    const [repeatWeekdays, setRepeatWeekdays] = useState<Set<number>>(new Set());
+    const toggleWeekday = (idx: number) => {
+        setRepeatWeekdays(prev => {
+            const next = new Set(prev);
+            next.has(idx) ? next.delete(idx) : next.add(idx);
+            return next;
+        });
+    };
 
     // ▼ 新規行ドラフト
     const [draft, setDraft] = useState<NewShiftDraft>(() => newDraftInitial(yyyymm(new Date())));
@@ -302,7 +303,7 @@ export default function MonthlyRosterPage() {
     }, [draft, shifts, selectedKaipokeCS]);
 
     // ← あなたが書いた handleAddClick をこの位置に置く（中身はそのままでOK）
-    const handleAddClick = useCallback(async () => {
+    const handleAddClick = async () => {
         if (!selectedKaipokeCS) return alert('利用者IDが未選択です');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.shift_start_date)) return alert('日付を入力してください');
         const startHM = normalizeTimeLoose(draft.shift_start_time);
@@ -322,7 +323,7 @@ export default function MonthlyRosterPage() {
         const ok = results.filter(r => r.status === 'fulfilled').length;
         const ng = results.filter(r => r.status === 'rejected').length;
         alert(`追加完了: ${ok}件${ng ? `（失敗 ${ng} 件）` : ''}`);
-    }, [draft, repeatWeekdays, selectedKaipokeCS, handleAddOne]);
+    };
 
     // --- masters ---
     useEffect(() => {
