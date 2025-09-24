@@ -147,24 +147,24 @@ const newDraftInitial = (month: string): NewShiftDraft => {
 // --- time input helpers (loose) ---
 // "1030" → "10:30", "930" → "09:30", "7" → "07:00", "24" → "23:00"(上限丸め), "1261" → "12:59"(分上限丸め)
 const normalizeTimeLoose = (input: string): string => {
-  const digits = String(input ?? '').replace(/[^\d]/g, '');
-  if (digits.length >= 3) {
-    let hh = parseInt(digits.slice(0, -2), 10);
-    let mm = parseInt(digits.slice(-2), 10);
-    if (Number.isNaN(hh)) hh = 0;
-    if (Number.isNaN(mm)) mm = 0;
-    if (hh < 0) hh = 0; if (hh > 23) hh = 23;
-    if (mm < 0) mm = 0; if (mm > 59) mm = 59;
-    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-  }
-  if (digits.length === 2) {
-    let hh = parseInt(digits, 10);
-    if (Number.isNaN(hh)) hh = 0;
-    if (hh < 0) hh = 0; if (hh > 23) hh = 23;
-    return `${String(hh).padStart(2, '0')}:00`;
-  }
-  if (digits.length === 1) return `0${digits}:00`;
-  return '';
+    const digits = String(input ?? '').replace(/[^\d]/g, '');
+    if (digits.length >= 3) {
+        let hh = parseInt(digits.slice(0, -2), 10);
+        let mm = parseInt(digits.slice(-2), 10);
+        if (Number.isNaN(hh)) hh = 0;
+        if (Number.isNaN(mm)) mm = 0;
+        if (hh < 0) hh = 0; if (hh > 23) hh = 23;
+        if (mm < 0) mm = 0; if (mm > 59) mm = 59;
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+    if (digits.length === 2) {
+        let hh = parseInt(digits, 10);
+        if (Number.isNaN(hh)) hh = 0;
+        if (hh < 0) hh = 0; if (hh > 23) hh = 23;
+        return `${String(hh).padStart(2, '0')}:00`;
+    }
+    if (digits.length === 1) return `0${digits}:00`;
+    return '';
 };
 
 // "HH:MM" 判定（normalizeTimeLoose後に使う想定）
@@ -643,25 +643,6 @@ export default function MonthlyRosterPage() {
                                             />
                                         </TableCell>
 
-                                        {/* 開始日（テキスト + 曜日） */}
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-[100px]">
-                                                    <Input
-                                                        value={row.shift_start_date}
-                                                        onChange={(ev) => updateRow(row.shift_id, 'shift_start_date', ev.target.value)}
-                                                        onBlur={(ev) => {
-                                                            const v = normalizeDateInput(ev.target.value)
-                                                            updateRow(row.shift_id, 'shift_start_date', v)
-                                                        }}
-                                                        placeholder="YYYY-MM-DD"
-                                                        className={dateInvalid ? 'border-red-500' : ''}
-                                                    />
-                                                </div>
-                                                <span className="text-xs text-muted-foreground">（{weekdayJa(row.shift_start_date)}）</span>
-                                            </div>
-                                        </TableCell>
-
                                         {/* 開始時間 */}
                                         <TableCell>
                                             <div className="w-[80px]">
@@ -684,22 +665,6 @@ export default function MonthlyRosterPage() {
                                                     onBlur={(e) => updateDraft('shift_end_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1730 → 17:30"
                                                     className={draft.shift_end_time && !isValidHM(normalizeTimeLoose(draft.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
-                                                />
-                                            </div>
-                                        </TableCell>
-
-                                        {/* 終了時間 */}
-                                        <TableCell>
-                                            <div className="w-[70px]">
-                                                <Input
-                                                    aria-label="終了時間"
-                                                    value={toHM(row.shift_end_time)}
-                                                    onChange={(ev) => updateRow(row.shift_id, 'shift_end_time', toHM(ev.currentTarget.value))}
-                                                    onBlur={(ev) => updateRow(row.shift_id, 'shift_end_time', toHM(ev.currentTarget.value))}
-                                                    placeholder="HH:MM"
-                                                    inputMode="numeric"
-                                                    pattern="^\n{2}:\n{2}$"
-                                                    className={etInvalid ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
                                                 />
                                             </div>
                                         </TableCell>
