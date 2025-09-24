@@ -231,10 +231,10 @@ export default function MonthlyRosterPage() {
     // “繰り返し追加”で選ばれた曜日
     const [repeatWeekdays, setRepeatWeekdays] = useState<Set<number>>(new Set());
     const toggleWeekday = (idx: number) => {
-        setRepeatWeekdays(prev => {
+        setRepeatWeekdays((prev) => {
             const next = new Set(prev);
             next.has(idx) ? next.delete(idx) : next.add(idx);
-            return next;
+            return next; // 次の状態に更新
         });
     };
 
@@ -1150,7 +1150,11 @@ function NewAddRow(props: NewAddRowProps) {
                         <span className="text-sm text-muted-foreground">同月内で繰り返し追加：</span>
                         {JP_WEEK.map((label, idx) => (
                             <label key={idx} className="inline-flex items-center gap-1 mr-3">
-                                <input type="checkbox" checked={repeatWeekdays.has(idx)} onChange={() => toggleWeekday(idx)} />
+                                <input
+                                    type="checkbox"
+                                    checked={repeatWeekdays.has(idx)}
+                                    onChange={() => toggleWeekday(idx)} // 'e' を使わない
+                                />
                                 <span className="text-sm">{label}</span>
                             </label>
                         ))}
