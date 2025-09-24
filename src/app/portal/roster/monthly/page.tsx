@@ -256,7 +256,7 @@ export default function MonthlyRosterPage() {
 
         // テーブルの一番下に追加（ローカル整形・並び替えは既存ルールに合わせる）
         const added: ShiftRow = {
-            shift_id: created.shift_id, // サーバから返されたID
+            shift_id: String(created.shift_id),          // ★文字列化
             kaipoke_cs_id: selectedKaipokeCS,
             shift_start_date: draft.shift_start_date,
             shift_start_time: toHM(draft.shift_start_time),
@@ -363,6 +363,7 @@ export default function MonthlyRosterPage() {
                 const dup_role: ShiftRow['dup_role'] = r.two_person_work_flg ? '01' : '-'
                 return {
                     ...r,
+                    shift_id: String(r.shift_id),   
                     required_staff_count: required,
                     two_person_work_flg: r.two_person_work_flg ?? false,
                     shift_start_time: toHM(r.shift_start_time),
@@ -661,32 +662,31 @@ export default function MonthlyRosterPage() {
                                                 <span className="text-xs text-muted-foreground">（{weekdayJa(row.shift_start_date)}）</span>
                                             </div>
                                         </TableCell>
-                                        {/* 開始時間 */}
+                                        {/* 開始時間（既存行） */}
                                         <TableCell>
                                             <div className="w-[80px]">
                                                 <Input
-                                                    value={draft.shift_start_time}
-                                                    onChange={(e) => updateDraft('shift_start_time', e.currentTarget.value)}
-                                                    onBlur={(e) => updateDraft('shift_start_time', normalizeTimeLoose(e.currentTarget.value))}
+                                                    value={row.shift_start_time ?? ''}
+                                                    onChange={(e) => updateRow(row.shift_id, 'shift_start_time', e.currentTarget.value)}
+                                                    onBlur={(e) => updateRow(row.shift_id, 'shift_start_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1030 → 10:30"
-                                                    className={draft.shift_start_time && !isValidHM(normalizeTimeLoose(draft.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                                    className={row.shift_start_time && !isValidHM(normalizeTimeLoose(row.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
                                                 />
                                             </div>
                                         </TableCell>
 
-                                        {/* 終了時間 */}
+                                        {/* 終了時間（既存行） */}
                                         <TableCell>
                                             <div className="w-[80px]">
                                                 <Input
-                                                    value={draft.shift_end_time}
-                                                    onChange={(e) => updateDraft('shift_end_time', e.currentTarget.value)}
-                                                    onBlur={(e) => updateDraft('shift_end_time', normalizeTimeLoose(e.currentTarget.value))}
+                                                    value={row.shift_end_time ?? ''}
+                                                    onChange={(e) => updateRow(row.shift_id, 'shift_end_time', e.currentTarget.value)}
+                                                    onBlur={(e) => updateRow(row.shift_id, 'shift_end_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1730 → 17:30"
-                                                    className={draft.shift_end_time && !isValidHM(normalizeTimeLoose(draft.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                                    className={row.shift_end_time && !isValidHM(normalizeTimeLoose(row.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
                                                 />
                                             </div>
                                         </TableCell>
-
                                         {/* サービス */}
                                         <TableCell>
                                             <div className="w-56">
@@ -907,31 +907,32 @@ export default function MonthlyRosterPage() {
                                 </div>
                             </TableCell>
 
-                            {/* 開始時間 */}
+                            {/* 開始時間（新規） */}
                             <TableCell>
-                                <div className="w-[70px]">
+                                <div className="w-[80px]">
                                     <Input
-                                        value={toHM(draft.shift_start_time)}
-                                        onChange={(e) => updateDraft('shift_start_time', toHM(e.currentTarget.value))}
-                                        onBlur={(e) => updateDraft('shift_start_time', toHM(e.currentTarget.value))}
-                                        placeholder="HH:MM"
-                                        className={!isValidTimeStr(toHM(draft.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                        value={draft.shift_start_time}
+                                        onChange={(e) => updateDraft('shift_start_time', e.currentTarget.value)}
+                                        onBlur={(e) => updateDraft('shift_start_time', normalizeTimeLoose(e.currentTarget.value))}
+                                        placeholder="例) 1030 → 10:30"
+                                        className={draft.shift_start_time && !isValidHM(normalizeTimeLoose(draft.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
                                     />
                                 </div>
                             </TableCell>
 
-                            {/* 終了時間 */}
+                            {/* 終了時間（新規） */}
                             <TableCell>
-                                <div className="w-[70px]">
+                                <div className="w-[80px]">
                                     <Input
-                                        value={toHM(draft.shift_end_time)}
-                                        onChange={(e) => updateDraft('shift_end_time', toHM(e.currentTarget.value))}
-                                        onBlur={(e) => updateDraft('shift_end_time', toHM(e.currentTarget.value))}
-                                        placeholder="HH:MM"
-                                        className={!isValidTimeStr(toHM(draft.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                        value={draft.shift_end_time}
+                                        onChange={(e) => updateDraft('shift_end_time', e.currentTarget.value)}
+                                        onBlur={(e) => updateDraft('shift_end_time', normalizeTimeLoose(e.currentTarget.value))}
+                                        placeholder="例) 1730 → 17:30"
+                                        className={draft.shift_end_time && !isValidHM(normalizeTimeLoose(draft.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
                                     />
                                 </div>
                             </TableCell>
+
 
                             {/* サービス */}
                             <TableCell>
@@ -1080,8 +1081,8 @@ export default function MonthlyRosterPage() {
                                             onClick={handleCreate}
                                             disabled={
                                                 !isValidDateStr(draft.shift_start_date) ||
-                                                !isValidTimeStr(toHM(draft.shift_start_time)) ||
-                                                !isValidTimeStr(toHM(draft.shift_end_time)) ||
+                                                !isValidTimeStr(normalizeTimeLoose(draft.shift_start_time)) ||
+                                                !isValidTimeStr(normalizeTimeLoose(draft.shift_end_time)) ||
                                                 (draft.judo_ido !== '' && !isValidJudoIdo(draft.judo_ido))
                                             }
                                             title="必須入力を確認してください"
