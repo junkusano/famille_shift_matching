@@ -275,7 +275,9 @@ export default function ShiftPage() {
 
                     if (resp.ok && payload && "assign" in payload && payload.assign) {
                         const { status, slot, message } = payload.assign;
-                        alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
+                        void slot
+                        void message
+                        //alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
                         // --- ★追加: LINE WORKS へ担当変更通知 ---
                         try {
                             if (status === "assigned" || status === "replaced") {
