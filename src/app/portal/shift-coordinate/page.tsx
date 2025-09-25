@@ -47,14 +47,7 @@ export default function ShiftPage() {
         | { ok?: false; error: string; assign?: AssignResult; stages?: unknown };
 
     // --- ユーティリティ: JSONを安全にパース ---
-    async function safeJson<T>(resp: Response): Promise<T | null> {
-        try {
-            return (await resp.json()) as T;
-        } catch {
-            return null;
-        }
-    }
-
+    
     useEffect(() => {
         const fetchData = async () => {
             const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -249,10 +242,12 @@ export default function ShiftPage() {
                     console.warn("チャネルIDが取得できませんでした");
                 }
 
-                // --- ★追加：RPA成功の「直後」に shift 割当 API を呼ぶ（ログ付き） ---
-                // --- ★追加：RPA成功の「直後」に shift 割当 API を呼ぶ（ログ付き） ---
+                // 既存：RPA成功の直後に shift 割当 API を呼ぶ（ログ付き）
                 try {
+                    // ★追加：traceId を発行して3者（ブラウザ/Vercel/DB）で突合
+                    const traceId = crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random()}`;
                     console.log("[SHIFT ASSIGN] start", {
+                        traceId,
                         shift_id: shift.shift_id,
                         requested_by_user_id: accountId,
                         accompany: attendRequest,
@@ -260,17 +255,23 @@ export default function ShiftPage() {
 
                     const resp = await fetch("/api/shift-assign-after-rpa", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { "Content-Type": "application/json", "x-trace-id": traceId },  // ★追加
                         body: JSON.stringify({
                             shift_id: shift.shift_id,
                             requested_by_user_id: accountId, // ※ users.user_id（社内ID）
                             accompany: attendRequest,
                             role_code: null,
+                            trace_id: traceId, // （任意）本文にも入れておく
                         }),
                     });
 
-                    const payload = await safeJson<ShiftAssignApiResponse>(resp);
-                    console.log("[SHIFT ASSIGN] payload", payload);
+                    // ★追加：HTTPステータス＆生テキストを必ずログ（404/500の切り分け用）
+                    const raw = await resp.text();
+                    console.log("[SHIFT ASSIGN] http", { traceId, status: resp.status, ok: resp.ok, raw });
+
+                    let payload: ShiftAssignApiResponse | null = null;
+                    try { payload = JSON.parse(raw) as ShiftAssignApiResponse; } catch { }
+                    console.log("[SHIFT ASSIGN] payload", { traceId, payload });
 
                     if (resp.ok && payload && "assign" in payload && payload.assign) {
                         const { status, slot, message } = payload.assign;
@@ -279,14 +280,13 @@ export default function ShiftPage() {
                         const errMsg =
                             payload && "error" in payload && typeof payload.error === "string"
                                 ? payload.error
-                                : "不明なエラー";
+                                : `HTTP ${resp.status}`;
                         alert(`※シフト割当は未反映: ${errMsg}`);
                     }
                 } catch (e) {
                     console.error("[SHIFT ASSIGN] exception", e);
                     alert("※シフト割当の呼び出しで例外が発生しました");
                 }
-                // --- ★追加ここまで ---
 
                 // --- ★追加ここまで ---
             }
