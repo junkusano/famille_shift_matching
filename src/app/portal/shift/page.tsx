@@ -807,15 +807,14 @@ export default function ShiftPage() {
 
     async function handleShiftReject(shift: ShiftData, reason: string) {
         try {
-            // 6時間前ガード
             const shiftStartJst = toJstDate(shift.shift_start_date, shift.shift_start_time);
             const diffHours = (shiftStartJst.getTime() - Date.now()) / (1000 * 60 * 60);
+
             if (diffHours < 6) {
                 alert("サービス開始まで6時間を切っているので、ここからシフトを外せません。マネジャーに相談してください");
                 return;
             }
 
-            // ログイン確認
             const session = await supabase.auth.getSession();
             const authUserId = session.data?.session?.user?.id;
             if (!authUserId) {
@@ -823,10 +822,9 @@ export default function ShiftPage() {
                 return;
             }
 
-            // 自分の所属・上長情報
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
-                .select("manager_auth_user_id, manager_user_id, lw_userid, manager_lw_userid, manager_kaipoke_user_id")
+                .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid,manager_kaipoke_user_id")
                 .eq("auth_user_id", authUserId)
                 .eq("group_type", "人事労務サポートルーム")
                 .limit(1)
@@ -837,7 +835,6 @@ export default function ShiftPage() {
                 return;
             }
 
-            // ① RPAリクエスト生成（従来どおり）
             const { error } = await supabase.from("rpa_command_requests").insert({
                 template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
                 requester_id: authUserId,
@@ -856,6 +853,7 @@ export default function ShiftPage() {
                     requested_kaipoke_user_id: userData.manager_kaipoke_user_id,
                 },
             });
+
             if (error) {
                 alert("送信に失敗しました: " + error.message);
                 return;
