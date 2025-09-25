@@ -807,14 +807,15 @@ export default function ShiftPage() {
 
     async function handleShiftReject(shift: ShiftData, reason: string) {
         try {
+            // 6時間前ガード
             const shiftStartJst = toJstDate(shift.shift_start_date, shift.shift_start_time);
             const diffHours = (shiftStartJst.getTime() - Date.now()) / (1000 * 60 * 60);
-
             if (diffHours < 6) {
                 alert("サービス開始まで6時間を切っているので、ここからシフトを外せません。マネジャーに相談してください");
                 return;
             }
 
+            // ログイン確認
             const session = await supabase.auth.getSession();
             const authUserId = session.data?.session?.user?.id;
             if (!authUserId) {
@@ -822,9 +823,10 @@ export default function ShiftPage() {
                 return;
             }
 
+            // 自分の所属・上長情報
             const { data: userData } = await supabase
                 .from("user_entry_united_view")
-                .select("manager_auth_user_id,manager_user_id, lw_userid,manager_lw_userid,manager_kaipoke_user_id")
+                .select("manager_auth_user_id, manager_user_id, lw_userid, manager_lw_userid, manager_kaipoke_user_id")
                 .eq("auth_user_id", authUserId)
                 .eq("group_type", "人事労務サポートルーム")
                 .limit(1)
@@ -835,6 +837,7 @@ export default function ShiftPage() {
                 return;
             }
 
+            // ① RPAリクエスト生成（従来どおり）
             const { error } = await supabase.from("rpa_command_requests").insert({
                 template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
                 requester_id: authUserId,
@@ -853,54 +856,84 @@ export default function ShiftPage() {
                     requested_kaipoke_user_id: userData.manager_kaipoke_user_id,
                 },
             });
-
             if (error) {
                 alert("送信に失敗しました: " + error.message);
                 return;
             }
 
+            // ② ダイレクト担当交代（自分→直属上長）
+            const res = await fetch("/api/shift-reassign", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    shiftId: shift.shift_id,
+                    fromUserId: userId,                    // ← state の自分ID
+                    toUserId: userData.manager_user_id,    // ← 直属上長（アプリ内ID）
+                    reason,
+                }),
+            });
+            if (!res.ok) {
+                const msg = await res.text().catch(() => "");
+                alert(`担当交代の登録に失敗しました。\n${msg}`);
+                return;
+            }
+
+            // ③ 送信先チャンネル取得
             const { data: chanData } = await supabase
                 .from("group_lw_channel_view")
                 .select("channel_id")
                 .eq("group_account", shift.kaipoke_cs_id)
                 .maybeSingle();
 
-            if (!chanData?.channel_id) {
-                console.warn("チャネルIDが取得できませんでした", shift.kaipoke_cs_id);
-                return;
-            }
+            // ④ LINE WORKS 通知（/portal/shift の既存ロジックを流用）
+            if (chanData?.channel_id) {
+                const mentionUser =
+                    userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
+                // ★ 条件キーも参照先も manager_lw_userid に統一
+                const mentionMgr =
+                    userData?.manager_lw_userid ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
+                const startTimeNoSeconds = (shift.shift_start_time || "").slice(0, 5);
 
-            const mentionUser = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
-            const mentionMgr = userData?.manager_user_id ? `<m userId="${userData.manager_lw_userid}">さん` : "マネジャー";
-            const startTimeNoSeconds = shift.shift_start_time.slice(0, 5);
+                const message =
+                    `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトに入れないため` +
+                    `シフト処理指示（理由: ${reason || "未記入"}）。代わりに${mentionMgr}にシフトを移しました。`;
 
-            const message = `${mentionUser}が${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないとシフト処理指示がありました（理由: ${reason || "未記入"}）。代わりに${mentionMgr}にシフトを移します`;
-
-            await fetch('/api/lw-send-botmessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
-            });
-
-            const shiftDateTime = new Date(`${shift.shift_start_date}T${shift.shift_start_time}`);
-            const threeDaysLater = new Date();
-            threeDaysLater.setDate(threeDaysLater.getDate() + 3);
-
-            if (shiftDateTime < threeDaysLater) {
-                const altMessage = `${shift.client_name}様の${shift.shift_start_date} ${startTimeNoSeconds}のシフトにはいれないと (${mentionUser} からシフト処理指示がありました（理由: ${reason || '未記入'}）。シフ子からサービス入る希望を出せます。ぜひ　宜しくお願い致します。`;
-                await fetch('/api/lw-send-botmessage', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channelId: "146763225", text: altMessage }),
+                await fetch("/api/lw-send-botmessage", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
                 });
+
+                // 3日以内なら別チャンネルにも周知
+                const shiftDateTime = new Date(`${shift.shift_start_date}T${shift.shift_start_time}`);
+                const threeDaysLater = new Date();
+                threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+                if (shiftDateTime < threeDaysLater) {
+                    const altMessage =
+                        `${shift.client_name}様の${shift.shift_start_date} ${startTimeNoSeconds}のシフトに` +
+                        `${mentionUser}が入れないため、シフト処理指示（理由: ${reason || "未記入"}）。` +
+                        `シフ子からサービスに入れる希望を出してください。よろしくお願いします。`;
+
+                    await fetch("/api/lw-send-botmessage", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ channelId: "146763225", text: altMessage }),
+                    });
+                }
+            } else {
+                console.warn("チャネルIDが取得できませんでした", shift.kaipoke_cs_id);
             }
 
+            // ⑤ UI更新 & 完了アラート
+            setShifts(prev => prev.filter(s => s.shift_id !== shift.shift_id));
             alert("✅ シフト外し処理を登録しました");
         } catch (err) {
             console.error(err);
             alert("処理中にエラーが発生しました");
         }
     }
+
 
     return (
         <div className="content min-w-0">
