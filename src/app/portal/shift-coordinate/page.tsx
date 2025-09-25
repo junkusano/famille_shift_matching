@@ -47,7 +47,7 @@ export default function ShiftPage() {
         | { ok?: false; error: string; assign?: AssignResult; stages?: unknown };
 
     // --- ユーティリティ: JSONを安全にパース ---
-    
+
     useEffect(() => {
         const fetchData = async () => {
             const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -276,6 +276,30 @@ export default function ShiftPage() {
                     if (resp.ok && payload && "assign" in payload && payload.assign) {
                         const { status, slot, message } = payload.assign;
                         alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
+                        // --- ★追加: LINE WORKS へ担当変更通知 ---
+                        try {
+                            if (status === "assigned" || status === "replaced") {
+                                if (chanData?.channel_id) {
+                                    const toHM = (t?: string | null) => (t ? t.slice(0, 5) : "");
+                                    // mention はすでに上で作っている `const mention = ...` を再利用
+                                    const text =
+                                        `${shift.shift_start_date} ${toHM(shift.shift_start_time)}～${toHM(shift.shift_end_time)} のシフトの担当を${mention}に変更しました（マイファミーユ）。\n` +
+                                        `変更に問題がある場合には、マネジャーに問い合わせください。`;
+
+                                    await fetch("/api/lw-send-botmessage", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ channelId: chanData.channel_id, text }),
+                                    });
+                                } else {
+                                    console.warn("チャネルIDが取得できませんでした（担当変更通知）");
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("担当変更通知の送信に失敗", e);
+                        }
+
+
                     } else {
                         const errMsg =
                             payload && "error" in payload && typeof payload.error === "string"
