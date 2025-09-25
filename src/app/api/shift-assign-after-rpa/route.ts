@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   let shiftIdForLog: number | null = null;
   let requestedByForLog: string | null = null;
   let accompanyForLog: boolean | null = null;
-  let traceId: string =
+  const traceId: string =
     req.headers.get('x-trace-id') ??
     Math.random().toString(36).slice(2) + Date.now().toString(36);
 
