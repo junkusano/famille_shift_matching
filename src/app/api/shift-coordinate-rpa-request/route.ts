@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     stages.push({ t: now(), stage: 'done' });
 
     return NextResponse.json({ ok: true, assign: res });
-  } catch (e: any) {
+  } catch (e) {
     apiLogError = e?.message ?? String(e);
     stages.push({ t: now(), stage: 'exception', error: apiLogError });
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 });
