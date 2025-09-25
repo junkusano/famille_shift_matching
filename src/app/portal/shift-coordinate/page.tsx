@@ -71,7 +71,7 @@ export default function ShiftPage() {
             const formatted = (allShifts as SupabaseShiftRaw[])
                 .filter((s) => s.level_sort_order <= 3500000 || s.staff_01_user_id === "-")
                 .map((s): ShiftData => ({
-                    id: String(s.id ?? s.shift_id),  
+                    id: String(s.id ?? s.shift_id),
                     shift_id: s.shift_id,
                     shift_start_date: s.shift_start_date,
                     shift_start_time: s.shift_start_time,
@@ -157,7 +157,6 @@ export default function ShiftPage() {
         setCurrentPage(1);
     };
 
-    // 2. handleShiftRequest を修正
     const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
         setCreatingShiftRequest(true);
         try {
@@ -168,6 +167,7 @@ export default function ShiftPage() {
                 return;
             }
 
+            // --- 既存：RPAリクエスト作成（変更なし） ---
             const { error } = await supabase.from("rpa_command_requests").insert({
                 template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
                 requester_id: userId,
@@ -181,7 +181,7 @@ export default function ShiftPage() {
                     service_code: shift.service_code,
                     postal_code_3: shift.postal_code_3,
                     client_name: shift.client_name,
-                    requested_by: accountId,
+                    requested_by: accountId,            // ← users.user_id（社内ID）
                     requested_kaipoke_user_id: kaipokeUserId,
                     attend_request: attendRequest,
                 },
@@ -192,41 +192,71 @@ export default function ShiftPage() {
             } else {
                 alert("希望リクエストを登録しました！");
 
-                // チャンネル取得
+                // --- 既存：LW通知（変更なし） ---
                 const { data: chanData } = await supabase
                     .from("group_lw_channel_view")
                     .select("channel_id")
                     .eq("group_account", shift.kaipoke_cs_id)
                     .maybeSingle();
 
-                // 投稿者情報取得
                 const { data: userData } = await supabase
                     .from("user_entry_united_view")
                     .select("lw_userid, last_name_kanji, first_name_kanji")
                     .eq("auth_user_id", userId)
                     .eq("group_type", "人事労務サポートルーム")
                     .limit(1)
-                    .single(); // 最初の1件を取得（2行あってもOK）
+                    .single();
 
-                const sender = userData?.lw_userid
-                const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? '不明'}さん`;
+                const sender = userData?.lw_userid;
+                const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? "不明"}さん`;
 
                 if (chanData?.channel_id) {
                     const message = `✅シフト希望が登録されました\n\n・カイポケ反映までお待ちください\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
 
-                    await fetch('/api/lw-send-botmessage', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            channelId: chanData.channel_id,
-                            text: message,
-                        }),
+                    await fetch("/api/lw-send-botmessage", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ channelId: chanData.channel_id, text: message }),
                     });
                 } else {
-                    console.warn('チャネルIDが取得できませんでした');
+                    console.warn("チャネルIDが取得できませんでした");
                 }
+
+                // --- ★追加：RPA成功の「直後」に shift 割当 API を呼ぶ（ログ付き） ---
+                try {
+                    console.log("[SHIFT ASSIGN] start", {
+                        shift_id: shift.shift_id,
+                        requested_by_user_id: accountId, // ← users.user_id（auth UIDではない）
+                        accompany: attendRequest,
+                    });
+
+                    const resp = await fetch("/api/shift-assign-after-rpa", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            shift_id: shift.shift_id,
+                            requested_by_user_id: accountId,
+                            accompany: attendRequest,
+                            role_code: null,
+                        }),
+                    });
+
+                    const payload = await resp.json().catch(() => ({} as any));
+                    console.log("[SHIFT ASSIGN] payload", payload);
+
+                    if (resp.ok && (payload as any)?.assign) {
+                        const { status, slot, message } = (payload as any).assign as {
+                            status: string; slot?: string; message?: string;
+                        };
+                        alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
+                    } else {
+                        alert(`※シフト割当は未反映: ${(payload as any)?.error ?? "不明なエラー"}`);
+                    }
+                } catch (e) {
+                    console.error("[SHIFT ASSIGN] exception", e);
+                    alert("※シフト割当の呼び出しで例外が発生しました");
+                }
+                // --- ★追加ここまで ---
             }
         } catch (e) {
             alert("処理中にエラーが発生しました");
@@ -235,6 +265,7 @@ export default function ShiftPage() {
             setCreatingShiftRequest(false);
         }
     };
+
 
     const start = (currentPage - 1) * PAGE_SIZE;
     const paginatedShifts = filteredShifts.slice(start, start + PAGE_SIZE);
