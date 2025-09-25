@@ -13,6 +13,8 @@ import GroupAddButton from "@/components/shift/GroupAddButton";
 
 const PAGE_SIZE = 100;
 
+
+
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
@@ -32,6 +34,26 @@ export default function ShiftPage() {
     const [filterName, setFilterName] = useState<string[]>([]);
     const [filterGender, setFilterGender] = useState<string[]>([]);
     const [creatingShiftRequest, setCreatingShiftRequest] = useState(false);
+
+    // --- 型: 割当APIの返却 ---
+    type AssignResult = {
+        status: 'assigned' | 'replaced' | 'error' | 'noop';
+        slot?: 'staff_01' | 'staff_02' | 'staff_03';
+        message?: string;
+    };
+
+    type ShiftAssignApiResponse =
+        | { ok: true; assign: AssignResult; stages?: unknown }
+        | { ok?: false; error: string; assign?: AssignResult; stages?: unknown };
+
+    // --- ユーティリティ: JSONを安全にパース ---
+    async function safeJson<T>(resp: Response): Promise<T | null> {
+        try {
+            return (await resp.json()) as T;
+        } catch {
+            return null;
+        }
+    }
 
     useEffect(() => {
         const fetchData = async () => {
@@ -167,6 +189,11 @@ export default function ShiftPage() {
                 return;
             }
 
+            if (!accountId) {
+                alert("ユーザーIDを取得できていません。数秒後に再度お試しください。");
+                return;
+            }
+
             // --- 既存：RPAリクエスト作成（変更なし） ---
             const { error } = await supabase.from("rpa_command_requests").insert({
                 template_id: "92932ea2-b450-4ed0-a07b-4888750da641",
@@ -223,10 +250,11 @@ export default function ShiftPage() {
                 }
 
                 // --- ★追加：RPA成功の「直後」に shift 割当 API を呼ぶ（ログ付き） ---
+                // --- ★追加：RPA成功の「直後」に shift 割当 API を呼ぶ（ログ付き） ---
                 try {
                     console.log("[SHIFT ASSIGN] start", {
                         shift_id: shift.shift_id,
-                        requested_by_user_id: accountId, // ← users.user_id（auth UIDではない）
+                        requested_by_user_id: accountId,
                         accompany: attendRequest,
                     });
 
@@ -235,27 +263,31 @@ export default function ShiftPage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             shift_id: shift.shift_id,
-                            requested_by_user_id: accountId,
+                            requested_by_user_id: accountId, // ※ users.user_id（社内ID）
                             accompany: attendRequest,
                             role_code: null,
                         }),
                     });
 
-                    const payload = await resp.json().catch(() => ({} as any));
+                    const payload = await safeJson<ShiftAssignApiResponse>(resp);
                     console.log("[SHIFT ASSIGN] payload", payload);
 
-                    if (resp.ok && (payload as any)?.assign) {
-                        const { status, slot, message } = (payload as any).assign as {
-                            status: string; slot?: string; message?: string;
-                        };
+                    if (resp.ok && payload && "assign" in payload && payload.assign) {
+                        const { status, slot, message } = payload.assign;
                         alert(`🧩 Shift割当結果: ${status}${slot ? ` / ${slot}` : ""}${message ? `\n${message}` : ""}`);
                     } else {
-                        alert(`※シフト割当は未反映: ${(payload as any)?.error ?? "不明なエラー"}`);
+                        const errMsg =
+                            payload && "error" in payload && typeof payload.error === "string"
+                                ? payload.error
+                                : "不明なエラー";
+                        alert(`※シフト割当は未反映: ${errMsg}`);
                     }
                 } catch (e) {
                     console.error("[SHIFT ASSIGN] exception", e);
                     alert("※シフト割当の呼び出しで例外が発生しました");
                 }
+                // --- ★追加ここまで ---
+
                 // --- ★追加ここまで ---
             }
         } catch (e) {

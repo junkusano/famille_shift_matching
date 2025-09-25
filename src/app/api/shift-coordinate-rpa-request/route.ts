@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     stages.push({ t: now(), stage: 'done' });
     return NextResponse.json({ ok: true, assign, stages });
-  } catch (e: any) {
+  } catch (e) {
     errorMsg = e?.message ?? String(e);
     stages.push({ t: now(), stage: 'exception', error: errorMsg });
     return NextResponse.json({ error: 'サーバーエラーが発生しました', stages }, { status: 500 });
