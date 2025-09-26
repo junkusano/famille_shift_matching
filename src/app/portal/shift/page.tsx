@@ -217,7 +217,6 @@ async function mergeCsAdjustability(list: ShiftData[]): Promise<{
     });
 
     // 参照されている adjustability をまとめて取得
-    // 参照されている adjustability をまとめて取得
     const adjustIds = Array.from(
         new Set((csRows ?? []).map(r => r.time_adjustability_id).filter(Boolean))
     ) as string[];
@@ -860,12 +859,18 @@ export default function ShiftPage() {
             }
 
             // ② ダイレクト担当交代（自分→直属上長）
+            console.debug("[shift-reassign] payload", {
+                shiftId: shift.shift_id,
+                fromUserId: accountId,
+                toUserId: userData.manager_user_id,
+                reason,
+            });
             const res = await fetch("/api/shift-reassign", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     shiftId: shift.shift_id,
-                    fromUserId: userId,                    // ← state の自分ID
+                    fromUserId: accountId,                // ← state の自分ID
                     toUserId: userData.manager_user_id,    // ← 直属上長（アプリ内ID）
                     reason,
                 }),
