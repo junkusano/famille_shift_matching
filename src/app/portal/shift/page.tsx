@@ -624,7 +624,7 @@ export default function ShiftPage() {
         for (let i = 0; i < 10; i++) {
             const { data, error } = await supabase
                 .from("shift_csinfo_postalname_view")
-                .select("shift_id, shift_start_date, shift_start_time, staff_01_user_id, staff_02_user_id, staff_03_user_id,require_doc_group")
+                .select("kaipoke_cs_id,shift_id, shift_start_date, shift_start_time, staff_01_user_id, staff_02_user_id, staff_03_user_id,require_doc_group")
                 .gte("shift_start_date", format(start, "yyyy-MM-dd"))
                 .lte("shift_start_date", format(end, "yyyy-MM-dd"))
                 .order("shift_start_date", { ascending: true })
