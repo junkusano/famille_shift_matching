@@ -867,13 +867,39 @@ export default function ShiftPage() {
                 return;
             }
 
-            // ② ダイレクト担当交代（自分→直属上長）
-            console.debug("[shift-reassign] payload", {
-                shiftId: shift.shift_id,
-                fromUserId: accountId,
-                toUserId: userData.manager_user_id,
-                reason,
-            });
+            // === 送信前・超強力アラートデバッグ ===
+            const preShiftId = shift.shift_id;
+            const preFromUser = accountId;                  // ここが空になりやすい
+            const preToUser = userData?.manager_user_id;
+            const preReason = reason;
+
+            alert(
+                [
+                    "[precheck] /api/shift-reassign 送信前チェック",
+                    `shiftId: ${preShiftId || "(empty)"}`,
+                    `fromUserId: ${preFromUser || "(empty)"}`,
+                    `toUserId: ${preToUser || "(empty)"}`,
+                    `reason: ${preReason || "(empty)"}`,
+                ].join("\n")
+            );
+
+            // どれか空ならここで止める（APIに空を送らない）
+            if (!preShiftId || !preFromUser || !preToUser) {
+                alert("必要なIDが空のため送信しません。上の precheck を確認してください。");
+                return;
+            }
+
+            const payload = {
+                shiftId: preShiftId,
+                fromUserId: preFromUser,
+                toUserId: preToUser,
+                reason: preReason,
+            };
+
+            const bodyStr = JSON.stringify(payload);
+            alert(`[payload JSON] length=${bodyStr.length}\n${bodyStr}`);
+
+
             const res = await fetch("/api/shift-reassign", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
