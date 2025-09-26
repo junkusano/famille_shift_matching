@@ -338,7 +338,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         position: "relative",
         overflowX: "hidden",
         overflowY: "auto",
-        maxHeight: `calc((100vh - 140px) * ${MAX_H_MULTIPLIER})`, // ★ 縦を拡張
+        maxHeight: `calc((1000vh - 140px) * ${MAX_H_MULTIPLIER})`, // ★ 縦を拡張
     };
     const leftColStyle: React.CSSProperties = {
         position: "relative",
