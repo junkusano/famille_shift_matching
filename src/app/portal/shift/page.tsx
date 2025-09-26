@@ -832,7 +832,7 @@ export default function ShiftPage() {
 
             // ★ここを修正（! の位置がNGなので括弧で明示 or 数値化して判定）
             const levelSort = Number(userData?.level_sort);
-            const canUse = Number.isFinite(levelSort) && levelSort < 5_000_000;
+            const canUse = Number.isFinite(levelSort) && levelSort >= 5_000_000;
             alert("sort_level: " + levelSort);
             alert("canUse: " + canUse);
 
