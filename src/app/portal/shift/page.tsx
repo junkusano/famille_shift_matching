@@ -833,6 +833,8 @@ export default function ShiftPage() {
             // ★ここを修正（! の位置がNGなので括弧で明示 or 数値化して判定）
             const levelSort = Number(userData?.level_sort);
             const canUse = Number.isFinite(levelSort) && levelSort < 5_000_000;
+            alert("sort_level: " + levelSort);
+            alert("canUse: " + canUse);
 
             if (!canUse) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
