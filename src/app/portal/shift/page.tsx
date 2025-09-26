@@ -873,6 +873,7 @@ export default function ShiftPage() {
             const preToUser = userData?.manager_user_id;
             const preReason = reason;
 
+            /*
             alert(
                 [
                     "[precheck] /api/shift-reassign 送信前チェック",
@@ -882,6 +883,7 @@ export default function ShiftPage() {
                     `reason: ${preReason || "(empty)"}`,
                 ].join("\n")
             );
+            */
 
             // どれか空ならここで止める（APIに空を送らない）
             if (!preShiftId || !preFromUser || !preToUser) {

@@ -24,46 +24,39 @@ type RpcArgs = {
 function normalizeBody(v: unknown): Body | null {
     if (!v || typeof v !== 'object') return null
     const o = v as Record<string, unknown>
-    const shiftId = (o.shiftId ?? o.shift_id) as unknown
-    const fromUserId = (o.fromUserId ?? o.from_user_id) as unknown
-    const toUserId = (o.toUserId ?? o.to_user_id) as unknown
-    const reason = (o.reason ?? o.note ?? o.why) as unknown
-
-    const s = (x: unknown) => (typeof x === 'string' ? x : undefined)
-
-    const b: Body = {
-        shiftId: s(shiftId) ?? '',
-        fromUserId: s(fromUserId) ?? '',
-        toUserId: s(toUserId) ?? '',
-        reason: reason === undefined ? undefined : String(reason),
+    const body: Body = {
+        // ← 文字列・数値の別を問わず String(...) で受ける
+        shiftId: String(o.shiftId ?? o.shift_id ?? '').trim(),
+        fromUserId: String(o.fromUserId ?? o.from_user_id ?? '').trim(),
+        toUserId: String(o.toUserId ?? o.to_user_id ?? '').trim(),
+        reason: o.reason === undefined ? undefined : String(o.reason),
     }
-
-    if (!b.shiftId || !b.fromUserId || !b.toUserId) return null
-    return b
+    if (!body.shiftId || !body.fromUserId || !body.toUserId) return null
+    return body
 }
 
 export async function POST(req: Request) {
-  try {
-    const ct = req.headers.get('content-type') || '';
-    const raw = await req.text(); // ★常にテキストで読む
-    console.log('[api/shift-reassign] ct=', ct, 'raw.len=', raw.length, 'head=', raw.slice(0, 200));
+    try {
+        const ct = req.headers.get('content-type') || '';
+        const raw = await req.text(); // ★常にテキストで読む
+        console.log('[api/shift-reassign] ct=', ct, 'raw.len=', raw.length, 'head=', raw.slice(0, 200));
 
-    let parsed: unknown = null;
-    try { parsed = raw ? JSON.parse(raw) : null; }
-    catch (e) {
-      console.error('[api/shift-reassign] JSON.parse error:', e);
-      return NextResponse.json({ error: 'bad_json' }, { status: 400 });
-    }
+        let parsed: unknown = null;
+        try { parsed = raw ? JSON.parse(raw) : null; }
+        catch (e) {
+            console.error('[api/shift-reassign] JSON.parse error:', e);
+            return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+        }
 
-    // 以降は今の normalize → rpc 呼び出しのままでOK
-    const body = normalizeBody(parsed);
-    if (!body) {
-      console.warn('[api/shift-reassign] bad_request parsed=', parsed);
-      return NextResponse.json(
-        { error: "bad_request: expected 'shiftId|shift_id', 'fromUserId|from_user_id', 'toUserId|to_user_id'" },
-        { status: 400 }
-      );
-    }
+        // 以降は今の normalize → rpc 呼び出しのままでOK
+        const body = normalizeBody(parsed);
+        if (!body) {
+            console.warn('[api/shift-reassign] bad_request parsed=', parsed);
+            return NextResponse.json(
+                { error: "bad_request: expected 'shiftId|shift_id', 'fromUserId|from_user_id', 'toUserId|to_user_id'" },
+                { status: 400 }
+            );
+        }
 
         const { shiftId, fromUserId, toUserId, reason } = body
 
