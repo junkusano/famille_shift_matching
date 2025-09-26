@@ -20,18 +20,6 @@ type RpcArgs = {
     p_reason: string
 }
 
-// 生コンテンツから安全に JSON を読む（Content-Type 不問）
-async function readJsonAny(req: Request): Promise<unknown> {
-    const ct = req.headers.get('content-type') || ''
-    try {
-        if (ct.includes('application/json')) return await req.json()
-        const raw = await req.text()
-        return raw ? JSON.parse(raw) : null
-    } catch {
-        return null
-    }
-}
-
 // camelCase / snake_case どちらも受け取り、型をそろえる
 function normalizeBody(v: unknown): Body | null {
     if (!v || typeof v !== 'object') return null
@@ -55,25 +43,27 @@ function normalizeBody(v: unknown): Body | null {
 }
 
 export async function POST(req: Request) {
-    try {
-        const payloadRaw = await readJsonAny(req)
-        const body = normalizeBody(payloadRaw)
+  try {
+    const ct = req.headers.get('content-type') || '';
+    const raw = await req.text(); // ★常にテキストで読む
+    console.log('[api/shift-reassign] ct=', ct, 'raw.len=', raw.length, 'head=', raw.slice(0, 200));
 
-        // ② ダイレクト担当交代（自分→直属上長）
-        console.debug("[shift-reassign] body", {
-            body
-        });
+    let parsed: unknown = null;
+    try { parsed = raw ? JSON.parse(raw) : null; }
+    catch (e) {
+      console.error('[api/shift-reassign] JSON.parse error:', e);
+      return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+    }
 
-        if (!body) {
-            // 何が足りなかったかを返してデバッグしやすく
-            return NextResponse.json(
-                {
-                    error: 'bad_request',
-                    expected: ['shiftId OR shift_id', 'fromUserId OR from_user_id', 'toUserId OR to_user_id'],
-                },
-                { status: 400 }
-            )
-        }
+    // 以降は今の normalize → rpc 呼び出しのままでOK
+    const body = normalizeBody(parsed);
+    if (!body) {
+      console.warn('[api/shift-reassign] bad_request parsed=', parsed);
+      return NextResponse.json(
+        { error: "bad_request: expected 'shiftId|shift_id', 'fromUserId|from_user_id', 'toUserId|to_user_id'" },
+        { status: 400 }
+      );
+    }
 
         const { shiftId, fromUserId, toUserId, reason } = body
 

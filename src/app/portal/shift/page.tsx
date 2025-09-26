@@ -897,18 +897,13 @@ export default function ShiftPage() {
             };
 
             const bodyStr = JSON.stringify(payload);
-            alert(`[payload JSON] length=${bodyStr.length}\n${bodyStr}`);
+            //alert(`[payload JSON] length=${bodyStr.length}\n${bodyStr}`);
 
 
             const res = await fetch("/api/shift-reassign", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    shiftId: shift.shift_id,
-                    fromUserId: accountId,                // ← state の自分ID
-                    toUserId: userData.manager_user_id,    // ← 直属上長（アプリ内ID）
-                    reason,
-                }),
+                body: bodyStr,
             });
             if (!res.ok) {
                 const msg = await res.text().catch(() => "");
