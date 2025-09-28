@@ -595,9 +595,7 @@ export default function ShiftPage() {
             ]);
 
             // ① shift 更新 API（RPA登録タイミングで直に反映）
-            const traceId =
-                (globalThis as any).crypto?.randomUUID?.() ??
-                `${Date.now()}_${Math.random()}`;
+            const traceId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
             const resp = await fetch("/api/shift-assign-after-rpa", {
                 method: "POST",
                 headers: {
@@ -614,13 +612,14 @@ export default function ShiftPage() {
             });
 
             const raw = await resp.text();
-            let payload: any = null;
+            type AssignResp = { ok: boolean; error?: string;[k: string]: unknown };
+            let payload: unknown = null;
             try { payload = JSON.parse(raw); } catch { }
-
-            if (!resp.ok || !payload?.ok) {
-                const errMsg =
-                    (payload && typeof payload.error === "string" && payload.error) ||
-                    `HTTP ${resp.status}`;
+            const assign = (payload && typeof payload === "object" && "ok" in payload)
+                ? (payload as AssignResp)
+                : undefined;
+            if (!resp.ok || !assign?.ok) {
+                const errMsg = (assign?.error && String(assign.error)) || `HTTP ${resp.status}`;
                 alert(`※シフト割当は未反映: ${errMsg}`);
                 return;
             }
