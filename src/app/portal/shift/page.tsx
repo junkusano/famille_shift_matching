@@ -561,30 +561,175 @@ export default function ShiftPage() {
         attendRequest: boolean,
         timeAdjustNote?: string
     ) {
-        void attendRequest;
         setCreatingShiftRequest(true);
-        try {
-            // ここで rpa_command_requests へ登録（テンプレ等は実装側で揃える）
-            // ...実処理は既存と同様に追加...
 
-            const message = `●●様 ${shift.shift_start_date} ${shift.shift_start_time?.slice(0, 5)}～ のサービス時間調整の依頼が来ています。マネジャーは利用者様調整とシフト変更をお願いします。` +
-                (timeAdjustNote ? `\n希望の時間調整: ${timeAdjustNote}` : "");
-            await supabase.from("alert_log").insert({
+        // 型（この関数のローカルだけで使用）
+        type AssignResult = {
+            status: 'assigned' | 'replaced' | 'error' | 'noop';
+            slot?: 'staff_01' | 'staff_02' | 'staff_03';
+            message?: string;
+        };
+        type ShiftAssignApiResponse =
+            | { ok: true; assign: AssignResult; stages?: unknown }
+            | { ok?: false; error: string; assign?: AssignResult; stages?: unknown };
+
+        // util
+        const toHM = (t?: string | null) => (t ? t.slice(0, 5) : '');
+        const makeTraceId =
+            (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function')
+                ? crypto.randomUUID.bind(crypto)
+                : () => `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+        try {
+            // 1) 認証と自分の ID 取得
+            const { data: { session } } = await supabase.auth.getSession();
+            const authUserId = session?.user?.id;
+            if (!authUserId) { alert('ログイン情報が取得できません'); return; }
+
+            if (!accountId) {
+                alert('ユーザーIDを取得できていません。数秒後に再度お試しください。');
+                return;
+            }
+
+            // 2) RPA リクエスト登録（/shift-coordinate と同様）
+            {
+                const { error } = await supabase.from('rpa_command_requests').insert({
+                    template_id: '92932ea2-b450-4ed0-a07b-4888750da641',
+                    requester_id: authUserId,
+                    approver_id: authUserId,
+                    status: 'approved',
+                    request_details: {
+                        shift_id: shift.shift_id,
+                        kaipoke_cs_id: shift.kaipoke_cs_id,
+                        shift_start_date: shift.shift_start_date,
+                        shift_start_time: shift.shift_start_time,
+                        service_code: shift.service_code,
+                        postal_code_3: shift.postal_code_3,
+                        client_name: shift.client_name,
+                        requested_by: accountId,            // users.user_id（社内ID）
+                        requested_kaipoke_user_id: kaipokeUserId,
+                        attend_request: attendRequest,
+                        // 任意メモ
+                        time_adjust_note: timeAdjustNote ?? null,
+                    },
+                });
+
+                if (error) {
+                    alert('送信に失敗しました: ' + error.message);
+                    return;
+                }
+
+                // 2-α) RPA登録の完了トースト（/shift-coordinate 準拠）
+                alert('希望リクエストを登録しました！');
+            }
+
+            // 3) Shift更新（/api/shift-assign-after-rpa を /shift-coordinate と同じ引数で呼ぶ）
+            const traceId = makeTraceId();
+            const assignResp = await fetch('/api/shift-assign-after-rpa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-trace-id': traceId },
+                body: JSON.stringify({
+                    shift_id: shift.shift_id,
+                    requested_by_user_id: accountId, // users.user_id
+                    accompany: Boolean(attendRequest),
+                    role_code: null,
+                    trace_id: traceId,
+                }),
+            });
+
+            const assignRaw = await assignResp.text();
+            let assignJson: ShiftAssignApiResponse | null = null;
+            try { assignJson = JSON.parse(assignRaw) as ShiftAssignApiResponse; } catch { /* noop */ }
+
+            if (!assignResp.ok || !assignJson || !('assign' in assignJson) || !assignJson.assign) {
+                const errMsg = (assignJson && 'error' in assignJson && typeof assignJson.error === 'string')
+                    ? assignJson.error : `HTTP ${assignResp.status}`;
+                alert(`※シフト割当は未反映: ${errMsg}`);
+                return;
+            }
+
+            // 4) LWメッセージ送付（/shift-coordinate と同様の2段構え）
+            //    4-1) 「シフト希望が登録されました」通知（RPA完了の周知）
+            //    4-2) 割当が 'assigned' | 'replaced' の場合に「担当を変更しました」通知
+            const [{ data: chanData }, { data: userData }] = await Promise.all([
+                supabase
+                    .from('group_lw_channel_view')
+                    .select('channel_id')
+                    .eq('group_account', shift.kaipoke_cs_id)
+                    .maybeSingle(),
+                supabase
+                    .from('user_entry_united_view')
+                    .select('lw_userid')
+                    .eq('auth_user_id', authUserId)
+                    .eq('group_type', '人事労務サポートルーム')
+                    .limit(1)
+                    .single(),
+            ]);
+
+            const mention = userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : '職員さん';
+
+            if (chanData?.channel_id) {
+                // 4-1) RPA完了の通知（/shift-coordinate の文面）
+                const msgRpaDone =
+                    `✅シフト希望が登録されました\n\n` +
+                    `・カイポケ反映までお待ちください\n\n` +
+                    `・日付: ${shift.shift_start_date}\n` +
+                    `・時間: ${toHM(shift.shift_start_time)}～${toHM(shift.shift_end_time)}\n` +
+                    `・利用者: ${shift.client_name} 様\n` +
+                    `・種別: ${shift.service_code}\n` +
+                    `・エリア: ${shift.postal_code_3}（${shift.district}）\n` +
+                    `・同行希望: ${attendRequest ? 'あり' : 'なし'}\n` +
+                    `・担当者: ${mention}`;
+
+                await fetch('/api/lw-send-botmessage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: chanData.channel_id, text: msgRpaDone }),
+                });
+
+                // 4-2) 担当変更の通知（割当結果が assigned/replaced のとき）
+                const { status } = assignJson.assign;
+                if (status === 'assigned' || status === 'replaced') {
+                    const msgAssigned =
+                        `${shift.shift_start_date} ${toHM(shift.shift_start_time)}～${toHM(shift.shift_end_time)} のシフトの担当を${mention}に変更しました（マイファミーユ）。\n` +
+                        `変更に問題がある場合には、マネジャーに問い合わせください。`;
+
+                    await fetch('/api/lw-send-botmessage', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ channelId: chanData.channel_id, text: msgAssigned }),
+                    });
+                }
+            } else {
+                console.warn('チャネルIDが取得できませんでした');
+            }
+
+            // 5) 既存どおり：時間調整のアラートも作成（/portal/shift 既存の文面を踏襲）
+            const message =
+                `●●様 ${shift.shift_start_date} ${toHM(shift.shift_start_time)}～ のサービス時間調整の依頼が来ています。` +
+                `マネジャーは利用者様調整とシフト変更をお願いします。` +
+                (timeAdjustNote ? `\n希望の時間調整: ${timeAdjustNote}` : '');
+            await supabase.from('alert_log').insert({
                 message,
-                visible_roles: ["manager", "staff"],
+                visible_roles: ['manager', 'staff'],
                 severity: 2,
-                status: "open",
-                status_source: "system",
+                status: 'open',
+                status_source: 'system',
                 kaipoke_cs_id: shift.kaipoke_cs_id,
                 shift_id: shift.shift_id,
             });
 
-            alert("希望リクエストを登録しました！（時間調整依頼のアラートも作成済）");
+            // 完了
+            alert('希望リクエストを登録し、シフト反映・通知まで実施しました！');
+
+        } catch (e) {
+            console.error(e);
+            alert('処理中にエラーが発生しました');
         } finally {
             setCreatingShiftRequest(false);
         }
     }
-
+    
     function clearFilters() {
         setFilterArea([]);
         setFilterService([]);
