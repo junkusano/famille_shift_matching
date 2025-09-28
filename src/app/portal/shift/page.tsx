@@ -555,19 +555,17 @@ export default function ShiftPage() {
         );
     }
 
-
     async function handleShiftRequestWithAlert(
         shift: ShiftData,
         attendRequest: boolean,
         timeAdjustNote?: string
     ) {
-        void attendRequest;
         setCreatingShiftRequest(true);
         try {
-            // ここで rpa_command_requests へ登録（テンプレ等は実装側で揃える）
-            // ...実処理は既存と同様に追加...
-
-            const message = `●●様 ${shift.shift_start_date} ${shift.shift_start_time?.slice(0, 5)}～ のサービス時間調整の依頼が来ています。マネジャーは利用者様調整とシフト変更をお願いします。` +
+            // 既存：アラートログ登録（このまま維持）
+            const message =
+                `●●様 ${shift.shift_start_date} ${shift.shift_start_time?.slice(0, 5)}～ のサービス時間調整の依頼が来ています。` +
+                `マネジャーは利用者様調整とシフト変更をお願いします。` +
                 (timeAdjustNote ? `\n希望の時間調整: ${timeAdjustNote}` : "");
             await supabase.from("alert_log").insert({
                 message,
@@ -579,7 +577,81 @@ export default function ShiftPage() {
                 shift_id: shift.shift_id,
             });
 
-            alert("希望リクエストを登録しました！（時間調整依頼のアラートも作成済）");
+            // ===== ここから追加（/shift-coordinate と同様の「shift更新」＆LW通知） =====
+
+            // 利用チャネル & 送信者情報を取得（/shift-coordinate 準拠）
+            const [{ data: chanData }, { data: userData }] = await Promise.all([
+                supabase
+                    .from("group_lw_channel_view")
+                    .select("channel_id")
+                    .eq("group_account", shift.kaipoke_cs_id)
+                    .maybeSingle(),
+                supabase
+                    .from("user_entry_united_view")
+                    .select("lw_userid, last_name_kanji, first_name_kanji")
+                    .eq("group_type", "人事労務サポートルーム")
+                    .limit(1)
+                    .single(),
+            ]);
+
+            // ① shift 更新 API（RPA登録タイミングで直に反映）
+            const traceId =
+                (globalThis as any).crypto?.randomUUID?.() ??
+                `${Date.now()}_${Math.random()}`;
+            const resp = await fetch("/api/shift-assign-after-rpa", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-trace-id": traceId,
+                },
+                body: JSON.stringify({
+                    shift_id: shift.shift_id,
+                    requested_by_user_id: (/* 既存state */ (accountId as string)),
+                    accompany: attendRequest,
+                    role_code: null,
+                    trace_id: traceId,
+                }),
+            });
+
+            const raw = await resp.text();
+            let payload: any = null;
+            try { payload = JSON.parse(raw); } catch { }
+
+            if (!resp.ok || !payload?.ok) {
+                const errMsg =
+                    (payload && typeof payload.error === "string" && payload.error) ||
+                    `HTTP ${resp.status}`;
+                alert(`※シフト割当は未反映: ${errMsg}`);
+                return;
+            }
+
+            // ② 反映成功時の LW 通知（/shift-coordinate と同様の文面）
+            try {
+                if (chanData?.channel_id) {
+                    const mention =
+                        userData?.lw_userid ? `<m userId="${userData.lw_userid}">さん` : "職員さん";
+                    const toHM = (t?: string | null) => (t ? t.slice(0, 5) : "");
+                    const text =
+                        `${shift.shift_start_date} ${toHM(shift.shift_start_time)}～${toHM(shift.shift_end_time)} のシフトの担当を${mention}に変更しました（マイファミーユ）。\n` +
+                        `変更に問題がある場合には、マネジャーに問い合わせください。`;
+                    await fetch("/api/lw-send-botmessage", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ channelId: chanData.channel_id, text }),
+                    });
+                } else {
+                    console.warn("チャネルIDが取得できませんでした（担当変更通知）");
+                }
+            } catch (e) {
+                console.warn("担当変更通知の送信に失敗", e);
+            }
+
+            // UIフィードバック（既存のアラートを踏襲）
+            alert("希望リクエストを登録し、シフトを反映しました！");
+
+            // ===== 追加ここまで =====
+        } catch {
+            alert("処理中にエラーが発生しました");
         } finally {
             setCreatingShiftRequest(false);
         }
