@@ -89,8 +89,8 @@ export async function GET(req: Request) {
         staff_03_user_id: row['staff_03_user_id'] ? String(row['staff_03_user_id']) : null,
         staff_02_attend_flg: staff02Attend,
         staff_03_attend_flg: staff03Attend,
-        required_staff_count: requiredCount,
-        two_person_work_flg: twoPerson,
+        required_staff_count: requiredCount,// ★ 修正
+        two_person_work_flg: twoPerson,     // ★ 修正
         judo_ido: String(row['judo_ido'] ?? ''), // 無ければ空文字
       }
     })
@@ -209,19 +209,19 @@ export async function PUT(req: Request) {
     const setIf = (k: string, v: unknown) => { if (v !== undefined) patch[k] = v; };
 
     setIf('shift_start_date', raw['shift_start_date'] as string | undefined);
-    setIf('shift_end_date',   raw['shift_end_date']   as string | undefined);
+    setIf('shift_end_date', raw['shift_end_date'] as string | undefined);
     if (raw['shift_start_time'] !== undefined) patch['shift_start_time'] = toHMS(String(raw['shift_start_time']));
-    if (raw['shift_end_time']   !== undefined) patch['shift_end_time']   = toHMS(String(raw['shift_end_time']));
+    if (raw['shift_end_time'] !== undefined) patch['shift_end_time'] = toHMS(String(raw['shift_end_time']));
 
     ([
-      'service_code','staff_01_user_id','staff_02_user_id','staff_03_user_id',
-      'staff_01_role_code','staff_02_role_code','staff_03_role_code','judo_ido'
+      'service_code', 'staff_01_user_id', 'staff_02_user_id', 'staff_03_user_id',
+      'staff_01_role_code', 'staff_02_role_code', 'staff_03_role_code', 'judo_ido'
     ] as const).forEach(k => setIf(k, (raw[k] ?? null) as string | null));
 
-    if (raw['staff_02_attend_flg']    !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
-    if (raw['staff_03_attend_flg']    !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);
-    if (raw['required_staff_count']   !== undefined) patch['required_staff_count'] = Number(raw['required_staff_count']);
-    if (raw['two_person_work_flg']    !== undefined) patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+    if (raw['staff_02_attend_flg'] !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
+    if (raw['staff_03_attend_flg'] !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);
+    if (raw['required_staff_count'] !== undefined) patch['required_staff_count'] = Number(raw['required_staff_count']);
+    if (raw['two_person_work_flg'] !== undefined) patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
 
     if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400);
 
