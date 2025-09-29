@@ -27,164 +27,300 @@ const toHMS = (v: string) => {
  * - ※ “素のコード”仕様に復元
  */
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const kaipokeCsId = url.searchParams.get('kaipoke_cs_id');
-  const month = url.searchParams.get('month');
-
-  if (!kaipokeCsId || !month) {
-    return json({ error: 'kaipoke_cs_id and month are required' }, 400);
-  }
-
   try {
-    const [year, mon] = month.split('-').map(Number);
-    if (!year || !mon) throw new Error('Invalid month format');
+    const { searchParams } = new URL(req.url)
+    const kaipokeCsId = searchParams.get('kaipoke_cs_id') ?? ''
+    const month = searchParams.get('month') ?? ''
 
-    // 期間を YYYY-MM-01 から 翌月 YYYY-MM-01 の直前まで でフィルタ
-    const startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
-    const nextMonth = mon === 12 ? `${year + 1}-01-01` : `${year}-${String(mon + 1).padStart(2, '0')}-01`;
-    
-    // shift_csinfo_postalname_view から取得
+    console.info('[shifts][GET] kaipoke_cs_id=', kaipokeCsId, ' month=', month)
+
+    if (!kaipokeCsId || !month) {
+      return json({ error: 'kaipoke_cs_id and month are required' }, 400)
+    }
+
+    const m = month.match(/^(\d{4})-(\d{2})$/)
+    if (!m) return json({ error: 'month must be YYYY-MM' }, 400)
+
+    const year = Number(m[1])
+    const mon = Number(m[2]) // 1..12
+    const startDate = new Date(Date.UTC(year, mon - 1, 1))
+    const endDate = new Date(Date.UTC(year, mon, 1))
+    const fmt = (d: Date) => d.toISOString().slice(0, 10) // YYYY-MM-DD
+    const gte = fmt(startDate)
+    const lt = fmt(endDate)
+
+    // ★ view名・列名は“素のコード”に合わせています
     const { data, error } = await supabaseAdmin
       .from('shift_csinfo_postalname_view')
       .select('*')
       .eq('kaipoke_cs_id', kaipokeCsId)
-      .gte('shift_start_date', startDate)
-      .lt('shift_start_date', nextMonth)
+      .gte('shift_start_date', gte)
+      .lt('shift_start_date', lt)
       .order('shift_start_date', { ascending: true })
-      .order('shift_start_time', { ascending: true });
 
     if (error) {
-      const e = error as SupaErrLike;
-      return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      console.error('[shifts][GET] error', error)
+      return json({ error: error.message }, 500)
     }
 
-    // データ補完（DBから取得できない項目を API層で補完するケース）
-    const shifts = data.map((shift) => ({
-      ...shift,
-      required_staff_count: shift.required_staff_count ?? 1,
-      two_person_work_flg: shift.two_person_work_flg ?? false,
-      staff_01_attend_flg: shift.staff_01_attend_flg ?? true,
-      staff_02_attend_flg: shift.staff_02_attend_flg ?? false,
-      staff_03_attend_flg: shift.staff_03_attend_flg ?? false,
-      // ユーザーIDは null の場合があるが、フロントエンドの型と合わせるためそのまま
-    }));
+    // UI が使う形へ正規化（足りない列はデフォルト補完）
+    const normalized = (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
+      const staff02Attend =
+        typeof row['staff_02_attend_flg'] === 'boolean' ? (row['staff_02_attend_flg'] as boolean) : false
+      const staff03Attend =
+        typeof row['staff_03_attend_flg'] === 'boolean' ? (row['staff_03_attend_flg'] as boolean) : false
+      
+      // 1. required_staff_count を取得 (number型)
+      const requiredCount =
+        typeof row['required_staff_count'] === 'number' ? (row['required_staff_count'] as number) : 1
+      
+      // 2. two_person_work_flg を計算
+      // requiredCount が 2 以上の場合は、強制的に true にする。
+      // DBの値 (row['two_person_work_flg']) よりも requiredCount を優先します。
+      const twoPerson = requiredCount >= 2 ? true : 
+        (typeof row['two_person_work_flg'] === 'boolean'
+          ? (row['two_person_work_flg'] as boolean)
+          : Boolean(row['staff_02_user_id'])
+        )
 
-    return json({ shifts });
-  } catch (e) {
-    console.error('Shift GET error:', e);
-    return json({ error: { message: 'Internal Server Error' } }, 500);
+      return {
+        shift_id: String(row['shift_id'] ?? ''),
+        kaipoke_cs_id: String(row['kaipoke_cs_id'] ?? ''),
+        name: String(row['name'] ?? ''),
+        shift_start_date: String(row['shift_start_date'] ?? ''),
+        shift_start_time: String(row['shift_start_time'] ?? ''),
+        shift_end_time: String(row['shift_end_time'] ?? ''),
+        service_code: String(row['service_code'] ?? ''),
+        staff_01_user_id: row['staff_01_user_id'] ? String(row['staff_01_user_id']) : null,
+        staff_02_user_id: row['staff_02_user_id'] ? String(row['staff_02_user_id']) : null,
+        staff_03_user_id: row['staff_03_user_id'] ? String(row['staff_03_user_id']) : null,
+        staff_02_attend_flg: staff02Attend,
+        staff_03_attend_flg: staff03Attend,
+        // requiredCount (number) を String(requiredCount) に変換
+        required_staff_count: String(requiredCount),
+        // twoPerson (boolean) を String(twoPerson) に変換 ("true" or "false" になる)
+        two_person_work_flg: String(twoPerson),
+        judo_ido: String(row['judo_ido'] ?? ''), // 無ければ空文字
+      }
+    })
+
+    console.info('[shifts][GET] result count=', normalized.length)
+    return json(normalized, 200)
+  } catch (e: unknown) {
+    console.error('[shifts][GET] unhandled error', e)
+    return json({ error: 'internal error' }, 500)
   }
 }
 
-/**
- * POST /api/shifts
- */
+// === POST /api/shifts : 新規作成（正しいテーブル: public.shift） ===
 export async function POST(req: Request) {
+  const json = (obj: unknown, status = 200) =>
+    new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+
+  const toHMS = (v: string) => {
+    const s = String(v ?? '').trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+    if (/^\d{1,2}:\d{2}$/.test(s)) {
+      const [h, m] = s.split(':');
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`;
+    }
+    return s;
+  };
+
+  try {
     const raw = (await req.json()) as Record<string, unknown>;
 
-    // 繰り返し登録のためのパラメータ
-    const repeatWeekdays = (raw['repeat_weekdays'] as number[] | undefined) ?? [];
-    const monthlyRepeat = repeatWeekdays.length > 0;
-
-    // 基本データに含まれるべき必須フィールドのチェック（簡略化）
-    if (!raw['kaipoke_cs_id'] || !raw['shift_start_date'] || !raw['shift_start_time'] || !raw['shift_end_time']) {
-        return json({ error: { message: 'Missing required fields' } }, 400);
+    // 必須
+    for (const k of ['kaipoke_cs_id', 'shift_start_date', 'shift_start_time'] as const) {
+      if (!raw[k]) return json({ error: { message: `missing field: ${k}` } }, 400);
     }
 
-    // データベースに登録する基本データ
-    const data: Record<string, unknown> = {
-        kaipoke_cs_id: String(raw['kaipoke_cs_id']),
-        shift_start_date: String(raw['shift_start_date']),
-        shift_start_time: toHMS(String(raw['shift_start_time'])),
-        shift_end_time: toHMS(String(raw['shift_end_time'])),
-        service_code: raw['service_code'] || null,
-        required_staff_count: Number(raw['required_staff_count'] ?? 1),
-        // ブール値フィールドは Boolean() で安全に変換
-        two_person_work_flg: Boolean(raw['two_person_work_flg'] ?? false),
-        staff_01_user_id: raw['staff_01_user_id'] || null,
-        staff_02_user_id: raw['staff_02_user_id'] || null,
-        staff_03_user_id: raw['staff_03_user_id'] || null,
-        staff_01_attend_flg: Boolean(raw['staff_01_attend_flg'] ?? true),
-        staff_02_attend_flg: Boolean(raw['staff_02_attend_flg'] ?? false),
-        staff_03_attend_flg: Boolean(raw['staff_03_attend_flg'] ?? false),
+    // UIドラフトと同じ導出（未指定なら計算）
+    const dispatchSize = raw['dispatch_size'] as string | undefined;
+    const dupRole = raw['dup_role'] as string | undefined;
+    
+    // required_staff_count は raw['required_staff_count'] があればそれを使用。
+    // 無ければ dispatch_size に応じて 2 または 1 を設定。
+    const required_staff_count =
+      (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1);
+      
+    // two_person_work_flg は required_staff_count が 2 以上なら true に上書きするロジックを優先。
+    // それ以外は raw['two_person_work_flg'] または dupRole に応じて設定。
+    let two_person_work_flg = required_staff_count >= 2;
+    if (!two_person_work_flg) {
+      two_person_work_flg = 
+        (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-');
+    }
+
+    // INSERT行（public.shift のカラムに合わせる）
+    const row = {
+      kaipoke_cs_id: String(raw['kaipoke_cs_id']),
+      shift_start_date: String(raw['shift_start_date']),          // date
+      shift_start_time: toHMS(String(raw['shift_start_time'])),  // time
+      shift_end_date: (raw['shift_end_date'] ?? null) as string | null,
+      shift_end_time: raw['shift_end_time'] ? toHMS(String(raw['shift_end_time'])) : null,
+      service_code: (raw['service_code'] ?? null) as string | null,
+      staff_01_user_id: (raw['staff_01_user_id'] ?? null) as string | null,
+      staff_02_user_id: (raw['staff_02_user_id'] ?? null) as string | null,
+      staff_02_attend_flg: Boolean(raw['staff_02_attend_flg'] ?? false),
+      staff_03_user_id: (raw['staff_03_user_id'] ?? null) as string | null,
+      staff_03_attend_flg: Boolean(raw['staff_03_attend_flg'] ?? false),
+      required_staff_count,
+      two_person_work_flg,
+      staff_01_role_code: (raw['staff_01_role_code'] ?? null) as string | null,
+      staff_02_role_code: (raw['staff_02_role_code'] ?? null) as string | null,
+      staff_03_role_code: (raw['staff_03_role_code'] ?? null) as string | null,
+      judo_ido: (raw['judo_ido'] ?? null) as string | null,
     };
 
-    if (monthlyRepeat) {
-        // 繰り返し登録ロジック（省略）...
-        // ... (この部分は提供されたコードスニペットに含まれていないため、変更しません) ...
-        return json({ error: { message: 'Monthly repeat logic is complex and omitted here.' } }, 501);
+    const SHIFT_TABLE = 'shift' as const;
 
-    } else {
-        // 単一登録
-        const { error } = await supabaseAdmin.from('shift').insert(data);
-        if (error) {
-            const e = error as SupaErrLike;
-            console.error('Shift POST error:', e);
-            return json({ error: { code: e.code ?? null, message: e.message } }, 400);
-        }
-        return json({ ok: true, count: 1 });
+    // 1) まず通常の挿入
+    const { data, error } = await supabaseAdmin
+      .from(SHIFT_TABLE)
+      .insert(row)
+      .select('shift_id')
+      .single();
+
+    if (!error && data) {
+      return json({ shift_id: (data as { shift_id: number }).shift_id, table: SHIFT_TABLE }, 201);
     }
+
+    // 2) 一意制約(kaipoke_cs_id, start_date, start_time) で重複した場合のフォールバック
+    const errMsg = (error as { message?: string; code?: string } | null)?.message ?? String(error ?? '');
+    const errCode = (error as { code?: string } | null)?.code ?? null;
+    if (errCode === '23505' || /duplicate key value/i.test(errMsg)) {
+      const { data: existing, error: selErr } = await supabaseAdmin
+        .from(SHIFT_TABLE)
+        .select('shift_id')
+        .eq('kaipoke_cs_id', row.kaipoke_cs_id)
+        .eq('shift_start_date', row.shift_start_date)
+        .eq('shift_start_time', row.shift_start_time)
+        .single();
+
+      if (!selErr && existing) {
+        return json({ shift_id: (existing as { shift_id: number }).shift_id, duplicate: true }, 200);
+      }
+    }
+
+    // 3) それ以外の失敗はメッセージをそのまま返す
+    return json({ error: { code: errCode, message: errMsg } }, 400);
+  } catch (e: unknown) {
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') };
+    console.error('[shifts][POST] unhandled error', err);
+    return json({ error: err }, 500);
+  }
 }
 
 
-/**
- * PUT /api/shifts
- * shift_id をキーに更新
- */
+
+// === PUT /api/shifts : 更新 ===
 export async function PUT(req: Request) {
+  try {
     const raw = (await req.json()) as Record<string, unknown>;
-    const id = raw['shift_id'] as number | undefined;
+    const idVal = raw['shift_id'] ?? raw['id'];
+    const id = typeof idVal === 'string' ? Number(idVal) : (typeof idVal === 'number' ? idVal : null);
 
-    if (!id) {
-        return json({ error: { message: 'shift_id is required for PUT' } }, 400);
+    // 部分更新パッチを構築
+    const patch: Record<string, unknown> = {};
+    const setIf = (k: string, v: unknown) => { if (v !== undefined) patch[k] = v; };
+
+    setIf('shift_start_date', raw['shift_start_date'] as string | undefined);
+    setIf('shift_end_date', raw['shift_end_date'] as string | undefined);
+    if (raw['shift_start_time'] !== undefined) patch['shift_start_time'] = toHMS(String(raw['shift_start_time']));
+    if (raw['shift_end_time'] !== undefined) patch['shift_end_time'] = toHMS(String(raw['shift_end_time']));
+
+    ([
+      'service_code', 'staff_01_user_id', 'staff_02_user_id', 'staff_03_user_id',
+      'staff_01_role_code', 'staff_02_role_code', 'staff_03_role_code', 'judo_ido'
+    ] as const).forEach(k => setIf(k, (raw[k] ?? null) as string | null));
+
+    if (raw['staff_02_attend_flg'] !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
+    if (raw['staff_03_attend_flg'] !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);
+    
+    // required_staff_count が渡された場合
+    if (raw['required_staff_count'] !== undefined) {
+      const requiredCount = Number(raw['required_staff_count']);
+      patch['required_staff_count'] = requiredCount;
+      // required_staff_count が 2 以上なら two_person_work_flg を true に上書きするロジックを優先
+      if (requiredCount >= 2) {
+          patch['two_person_work_flg'] = true;
+      } else if (raw['two_person_work_flg'] !== undefined) {
+          // 1人以下で、two_person_work_flg が明示的に渡された場合はそれを使用
+          patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+      }
+    } else if (raw['two_person_work_flg'] !== undefined) {
+        // required_staff_count が渡されていないが two_person_work_flg が渡された場合
+        patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
     }
 
-    const data: Record<string, unknown> = {
-        kaipoke_cs_id: String(raw['kaipoke_cs_id']),
-        shift_start_date: String(raw['shift_start_date']),
-        shift_start_time: toHMS(String(raw['shift_start_time'])),
-        shift_end_time: toHMS(String(raw['shift_end_time'])),
-        service_code: raw['service_code'] || null,
-        required_staff_count: Number(raw['required_staff_count'] ?? 1),
-        // 修正: two_person_work_flg を Boolean() で安全に変換
-        two_person_work_flg: Boolean(raw['two_person_work_flg'] ?? false),
-        staff_01_user_id: raw['staff_01_user_id'] || null,
-        staff_02_user_id: raw['staff_02_user_id'] || null,
-        staff_03_user_id: raw['staff_03_user_id'] || null,
-        // 修正: staff_xx_attend_flg も Boolean() で安全に変換
-        staff_01_attend_flg: Boolean(raw['staff_01_attend_flg'] ?? true),
-        staff_02_attend_flg: Boolean(raw['staff_02_attend_flg'] ?? false),
-        staff_03_attend_flg: Boolean(raw['staff_03_attend_flg'] ?? false),
-    };
+    if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400);
 
-    const { error } = await supabaseAdmin.from('shift').update(data).eq('shift_id', id);
+    // 1) shift_id 優先
+    if (id != null) {
+      const { data, error } = await supabaseAdmin
+        .from('shift')
+        .update(patch)
+        .eq('shift_id', id)
+        .select('shift_id')
+        .single();
 
-    if (error) {
+      if (error) {
         const e = error as SupaErrLike;
-        console.error('Shift PUT error:', e);
         return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id });
     }
 
-    return json({ ok: true });
+    // 2) 複合キー（kaipoke_cs_id + start_date + start_time）でも更新可
+    const cs = raw['kaipoke_cs_id'] as string | undefined;
+    const sd = raw['shift_start_date'] as string | undefined;
+    const st = raw['shift_start_time'] as string | undefined;
+
+    if (cs && sd && st) {
+      const { data, error } = await supabaseAdmin
+        .from('shift')
+        .update(patch)
+        .eq('kaipoke_cs_id', cs)
+        .eq('shift_start_date', sd)
+        .eq('shift_start_time', toHMS(String(st)))
+        .select('shift_id')
+        .single();
+
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id });
+    }
+
+    return json({ error: { message: 'missing shift_id (or composite keys)' } }, 400);
+  } catch (e: unknown) {
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') };
+    console.error('[shifts][PUT] unhandled error', err);
+    return json({ error: err }, 500);
+  }
 }
 
-
-/**
- * DELETE /api/shifts
- */
+// === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
+  try {
     const raw = (await req.json()) as Record<string, unknown>;
 
-    // 1) 複数IDの削除
-    const idsVal = raw['shift_ids'] as (string | number)[] | undefined;
-    if (idsVal && idsVal.length > 0) {
-        const ids = idsVal.map(id => typeof id === 'string' ? Number(id) : id);
-        const { error } = await supabaseAdmin.from('shift').delete().in('shift_id', ids);
-        if (error) {
-            const e = error as SupaErrLike;
-            return json({ error: { code: e.code ?? null, message: e.message } }, 400);
-        }
-        return json({ ok: true, count: ids.length });
+    // 1) 複数ID
+    if (Array.isArray(raw['ids'])) {
+      const ids = (raw['ids'] as unknown[])
+        .map(v => (typeof v === 'string' ? Number(v) : v))
+        .filter((v): v is number => typeof v === 'number');
+
+      if (ids.length === 0) return json({ error: { message: 'ids is empty' } }, 400);
+
+      const { error } = await supabaseAdmin.from('shift').delete().in('shift_id', ids);
+      if (error) {
+        const e = error as SupaErrLike;
+        return json({ error: { code: e.code ?? null, message: e.message } }, 400);
+      }
+      return json({ ok: true, count: ids.length });
     }
 
     // 2) 単一ID
@@ -218,5 +354,10 @@ export async function DELETE(req: Request) {
       return json({ ok: true, count: 1 });
     }
 
-    return json({ error: { message: 'No valid identifier provided for DELETE' } }, 400);
+    return json({ error: { message: 'missing ids or composite keys' } }, 400);
+  } catch (e: unknown) {
+    const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') };
+    console.error('[shifts][DELETE] unhandled error', err);
+    return json({ error: err }, 500);
+  }
 }
