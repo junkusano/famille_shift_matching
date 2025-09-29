@@ -984,7 +984,7 @@ export default function ShiftPage() {
 
             if (!canUse) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
-                //return;  
+                return;  
             }
 
 
