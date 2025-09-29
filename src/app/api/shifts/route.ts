@@ -89,8 +89,10 @@ export async function GET(req: Request) {
         staff_03_user_id: row['staff_03_user_id'] ? String(row['staff_03_user_id']) : null,
         staff_02_attend_flg: staff02Attend,
         staff_03_attend_flg: staff03Attend,
-        required_staff_count: requiredCount,// ★ 修正
-        two_person_work_flg: twoPerson,     // ★ 修正
+        // requiredCount (number) を String(requiredCount) に変換
+        required_staff_count: String(requiredCount),
+        // twoPerson (boolean) を String(twoPerson) に変換 ("true" or "false" になる)
+        two_person_work_flg: String(twoPerson),
         judo_ido: String(row['judo_ido'] ?? ''), // 無ければ空文字
       }
     })
