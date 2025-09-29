@@ -447,7 +447,7 @@ export default function MonthlyRosterPage() {
             return kaipokeCs;
         }
         return kaipokeCs.filter(cs =>
-            cs.name.toLowerCase().startsWith(keyword)
+            cs.name.toLowerCase().includes(keyword) 
         );
     }, [kaipokeCs, clientSearchKeyword]);
 
