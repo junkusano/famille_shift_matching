@@ -69,12 +69,19 @@ export async function GET(req: Request) {
         typeof row['staff_02_attend_flg'] === 'boolean' ? (row['staff_02_attend_flg'] as boolean) : false
       const staff03Attend =
         typeof row['staff_03_attend_flg'] === 'boolean' ? (row['staff_03_attend_flg'] as boolean) : false
+      
+      // 1. required_staff_count を取得 (number型)
       const requiredCount =
         typeof row['required_staff_count'] === 'number' ? (row['required_staff_count'] as number) : 1
-      const twoPerson =
-        typeof row['two_person_work_flg'] === 'boolean'
+      
+      // 2. two_person_work_flg を計算
+      // requiredCount が 2 以上の場合は、強制的に true にする。
+      // DBの値 (row['two_person_work_flg']) よりも requiredCount を優先します。
+      const twoPerson = requiredCount >= 2 ? true : 
+        (typeof row['two_person_work_flg'] === 'boolean'
           ? (row['two_person_work_flg'] as boolean)
           : Boolean(row['staff_02_user_id'])
+        )
 
       return {
         shift_id: String(row['shift_id'] ?? ''),
@@ -105,7 +112,6 @@ export async function GET(req: Request) {
   }
 }
 
-// === POST /api/shifts : 新規作成（表示には影響なし／安全に追加） ===
 // === POST /api/shifts : 新規作成（正しいテーブル: public.shift） ===
 export async function POST(req: Request) {
   const json = (obj: unknown, status = 200) =>
@@ -132,16 +138,25 @@ export async function POST(req: Request) {
     // UIドラフトと同じ導出（未指定なら計算）
     const dispatchSize = raw['dispatch_size'] as string | undefined;
     const dupRole = raw['dup_role'] as string | undefined;
+    
+    // required_staff_count は raw['required_staff_count'] があればそれを使用。
+    // 無ければ dispatch_size に応じて 2 または 1 を設定。
     const required_staff_count =
       (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1);
-    const two_person_work_flg =
-      (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-');
+      
+    // two_person_work_flg は required_staff_count が 2 以上なら true に上書きするロジックを優先。
+    // それ以外は raw['two_person_work_flg'] または dupRole に応じて設定。
+    let two_person_work_flg = required_staff_count >= 2;
+    if (!two_person_work_flg) {
+      two_person_work_flg = 
+        (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-');
+    }
 
     // INSERT行（public.shift のカラムに合わせる）
     const row = {
       kaipoke_cs_id: String(raw['kaipoke_cs_id']),
       shift_start_date: String(raw['shift_start_date']),          // date
-      shift_start_time: toHMS(String(raw['shift_start_time'])),   // time
+      shift_start_time: toHMS(String(raw['shift_start_time'])),  // time
       shift_end_date: (raw['shift_end_date'] ?? null) as string | null,
       shift_end_time: raw['shift_end_time'] ? toHMS(String(raw['shift_end_time'])) : null,
       service_code: (raw['service_code'] ?? null) as string | null,
@@ -222,8 +237,22 @@ export async function PUT(req: Request) {
 
     if (raw['staff_02_attend_flg'] !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
     if (raw['staff_03_attend_flg'] !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);
-    if (raw['required_staff_count'] !== undefined) patch['required_staff_count'] = Number(raw['required_staff_count']);
-    if (raw['two_person_work_flg'] !== undefined) patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+    
+    // required_staff_count が渡された場合
+    if (raw['required_staff_count'] !== undefined) {
+      const requiredCount = Number(raw['required_staff_count']);
+      patch['required_staff_count'] = requiredCount;
+      // required_staff_count が 2 以上なら two_person_work_flg を true に上書きするロジックを優先
+      if (requiredCount >= 2) {
+          patch['two_person_work_flg'] = true;
+      } else if (raw['two_person_work_flg'] !== undefined) {
+          // 1人以下で、two_person_work_flg が明示的に渡された場合はそれを使用
+          patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+      }
+    } else if (raw['two_person_work_flg'] !== undefined) {
+        // required_staff_count が渡されていないが two_person_work_flg が渡された場合
+        patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg']);
+    }
 
     if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400);
 
