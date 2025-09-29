@@ -799,8 +799,8 @@ export default function MonthlyRosterPage() {
                                                         <SelectValue placeholder="-" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="-">-</SelectItem>
-                                                        <SelectItem value="01">2人同時作業</SelectItem>
+                                                        <SelectItem value="false">-</SelectItem>
+                                                        <SelectItem value="true">2人同時作業</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -820,9 +820,9 @@ export default function MonthlyRosterPage() {
                                                         <SelectValue placeholder="-" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="-">-</SelectItem>
-                                                        <SelectItem value="01">1人目</SelectItem>
-                                                        <SelectItem value="02">2人目</SelectItem>
+                                                        <SelectItem value="0">-</SelectItem>
+                                                        <SelectItem value="1">1人目</SelectItem>
+                                                        <SelectItem value="2">2人目</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -1072,8 +1072,8 @@ function NewAddRow(props: NewAddRowProps) {
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="-">-</SelectItem>
-                                <SelectItem value="01">2人同時作業</SelectItem>
+                                <SelectItem value="falase">-</SelectItem>
+                                <SelectItem value="true">2人同時作業</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -1088,9 +1088,9 @@ function NewAddRow(props: NewAddRowProps) {
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="-">-</SelectItem>
-                                <SelectItem value="01">1人目</SelectItem>
-                                <SelectItem value="02">2人目</SelectItem>
+                                <SelectItem value="0">-</SelectItem>
+                                <SelectItem value="1">1人目</SelectItem>
+                                <SelectItem value="2">2人目</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
