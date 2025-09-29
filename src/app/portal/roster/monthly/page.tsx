@@ -699,7 +699,11 @@ export default function MonthlyRosterPage() {
                     </TableHeader>
 
                     <TableBody>
-                        {shifts.map((row) => {
+                        {shifts.map((row, i) => { // ★ 修正: インデックス i を取得
+
+                            // 奇数・偶数による色分けを計算
+                            const isOddRow = i % 2 !== 0; // 奇数行 (1, 3, 5, ...) は薄い青色
+                            const bgColorClass = isOddRow ? 'bg-blue-50' : 'bg-white'; // Tailwind CSS の色クラスを適用
                             const dateInvalid = !isValidDateStr(row.shift_start_date)
                             const stInvalid = !isValidTimeStr(row.shift_start_time)
                             const etInvalid = !isValidTimeStr(row.shift_end_time)
@@ -708,8 +712,8 @@ export default function MonthlyRosterPage() {
 
                             return (
                                 <Fragment key={row.shift_id}>
-                                    {/* 1行目：基本情報 */}
-                                    <TableRow className="border-y border-gray-300">
+                                    {/* 1行目：基本情報 - 色クラスを適用 */}
+                                    <TableRow className={`border-y border-gray-300 ${bgColorClass}`}>
                                         {/* 選択 */}
                                         <TableCell>
                                             <input
