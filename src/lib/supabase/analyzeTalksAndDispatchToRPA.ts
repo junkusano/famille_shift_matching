@@ -5,6 +5,9 @@ import { ChatCompletionMessageParam } from "openai/resources";
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
 import { rpaInstructionPrompt } from "@/lib/supabase/rpaInstructionPrompt";
 import { getAccessToken } from "@/lib/getAccessToken";
+// 新規インポート (shiftAdd.ts が作成された前提)
+import { insertShifts } from "@/lib/supabase/shiftAdd";
+import { deleteShifts } from "@/lib/supabase/shiftDelete";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -145,6 +148,27 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
             const parsed = JSON.parse(cleanedText);
             const { template_id, request_detail } = parsed;
+
+            // テンプレートID 1: シフト削除
+            if (template_id === "9bcfa71a-e800-4b49-a6aa-b80016b4b683") {
+                console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
+                const deleteResult = await deleteShifts(request_detail);
+                if (!deleteResult.success) {
+                    console.error("⚠️ シフト削除処理中にエラーが発生しました:", deleteResult.errors);
+                    // エラーログをどこかに記録することを検討してください
+                }
+            }
+
+            // --- ★ シフト追加の処理をRPAリクエスト追加の前に追加 ★ ---
+            if (template_id === "2f9dacc7-92bc-4888-8ff3-eadca4e4f75a") {
+                console.log("🚀 シフト追加リクエストを検知。shiftテーブルに直接挿入を試行します。");
+                const insertResult = await insertShifts(request_detail);
+                if (!insertResult.success) {
+                    console.error("⚠️ シフト追加処理中にエラーが発生しました:", insertResult.errors);
+                    // ここでエラーが発生しても、後続のRPAリクエストはキューに追加する
+                }
+            }
+            // --- ★ ここまでが追加の処理 ★ ---
 
             const lw_user_id = logs.find((l) => l.id === ids[0])?.user_id ?? null;
 
