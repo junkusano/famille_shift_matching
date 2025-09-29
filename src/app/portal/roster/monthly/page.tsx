@@ -624,7 +624,7 @@ export default function MonthlyRosterPage() {
                         </Button>
 
                         {/* ★ 追加: 検索用テキストボックス */}
-                        <div style={{ width: 200 }}>
+                        <div style={{ width: 100 }}>
                             <Input
                                 type="text"
                                 placeholder="利用者名検索 (冒頭一致)"
@@ -633,7 +633,7 @@ export default function MonthlyRosterPage() {
                             />
                         </div>
 
-                        <div style={{ width: 260 }}>
+                        <div style={{ width: 180 }}>
                             <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="利用者を選択" />
