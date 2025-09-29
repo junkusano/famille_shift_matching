@@ -50,8 +50,8 @@ type ShiftRow = {
     staff_03_attend_flg: boolean | null
 
     // ★★★ 修正箇所 (1): dup_role に '02' を追加 ★★★
-    dup_role: '-' | '01' | '02' | null
-    
+    dup_role: '-' | '01'; // 2人同時作業なら '01'
+
     // ★★★ 修正箇所 (2): dispatch_size に '02' を追加 ★★★
     // エラーメッセージが示唆している通り、dispatch_size の型も更新が必要です。
     dispatch_size: '-' | '01' | '02'
@@ -405,9 +405,21 @@ export default function MonthlyRosterPage() {
             const raw = await res.json()
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : []
             const normalized: ShiftRow[] = rows.map((r) => {
-                const required = r.required_staff_count ?? 1
-                const dispatch_size: ShiftRow['dispatch_size'] = required >= 2 ? '01' : '-'
-                const dup_role: ShiftRow['dup_role'] = r.two_person_work_flg ? '01' : '-'
+                const required = r.required_staff_count ?? 1;
+
+                // 修正箇所 1: required_staff_count（必要な人数）を dispatch_size（出動規模）にマッピング
+                let size: ShiftRow['dispatch_size'];
+                if (required >= 3) {
+                    size = '02'; // 3人以上なら '02'
+                } else if (required === 2) {
+                    size = '01'; // 2人なら '01'
+                } else {
+                    size = '-'; // 1人なら '-'
+                }
+                const dispatch_size: ShiftRow['dispatch_size'] = size;
+                // 修正箇所 2: two_person_work_flg（二人作業フラグ）を dup_role（重複役割）にマッピング
+                // true なら '01'、false なら '-'
+                const dup_role: ShiftRow['dup_role'] = r.two_person_work_flg ? '01' : '-';
                 return {
                     ...r,
                     shift_id: String(r.shift_id),
@@ -450,7 +462,7 @@ export default function MonthlyRosterPage() {
             return kaipokeCs;
         }
         return kaipokeCs.filter(cs =>
-            cs.name.toLowerCase().includes(keyword) 
+            cs.name.toLowerCase().includes(keyword)
         );
     }, [kaipokeCs, clientSearchKeyword]);
 
