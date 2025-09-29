@@ -49,9 +49,12 @@ type ShiftRow = {
     staff_02_attend_flg: boolean | null
     staff_03_attend_flg: boolean | null
 
-    // --- UIローカル項目 ---
-    dispatch_size?: '-' | '01' // '-' | '01(=2人同時作業)'
-    dup_role?: '-' | '01' | '02' // 重複: '-' | '1人目' | '2人目'
+    // ★★★ 修正箇所 (1): dup_role に '02' を追加 ★★★
+    dup_role: '-' | '01' | '02' | null
+    
+    // ★★★ 修正箇所 (2): dispatch_size に '02' を追加 ★★★
+    // エラーメッセージが示唆している通り、dispatch_size の型も更新が必要です。
+    dispatch_size: '-' | '01' | '02'
 }
 
 type NewShiftDraft = {
@@ -59,8 +62,8 @@ type NewShiftDraft = {
     shift_start_time: string;
     shift_end_time: string;
     service_code: string;
-    dispatch_size: '-' | '01'; // 2人同時作業なら '01'
-    dup_role: '-' | '01' | '02';
+    dup_role: '-' | '01'; // 2人同時作業なら '01'
+    dispatch_size: '-' | '01' | '02';
     judo_ido: string; // "HHMM" or ""
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
@@ -791,8 +794,8 @@ export default function MonthlyRosterPage() {
                                                 <Select
                                                     value={row.dispatch_size ?? '-'}
                                                     onValueChange={(v: '-' | '01') => {
-                                                        updateRow(row.shift_id, 'dispatch_size', v)
-                                                        updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
+                                                        updateRow(row.shift_id, 'dup_role', v)
+                                                        updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
                                                     }}
                                                 >
                                                     <SelectTrigger>
@@ -812,8 +815,8 @@ export default function MonthlyRosterPage() {
                                                 <Select
                                                     value={row.dup_role ?? '-'}
                                                     onValueChange={(v: '-' | '01' | '02') => {
-                                                        updateRow(row.shift_id, 'dup_role', v)
-                                                        updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
+                                                        updateRow(row.shift_id, 'dispatch_size', v)
+                                                        updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
                                                     }}
                                                 >
                                                     <SelectTrigger>
@@ -1067,7 +1070,7 @@ function NewAddRow(props: NewAddRowProps) {
                 <TableCell>
                     <div className="w-[112px]">
                         <Select
-                            value={draft.dispatch_size}
+                            value={draft.dup_role}
                             onValueChange={(v: '-' | '01') => updateDraft('dispatch_size', v)}
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
@@ -1083,7 +1086,7 @@ function NewAddRow(props: NewAddRowProps) {
                 <TableCell>
                     <div className="w-[80px]">
                         <Select
-                            value={draft.dup_role}
+                            value={draft.dispatch_size}
                             onValueChange={(v: '-' | '01' | '02') => updateDraft('dup_role', v)}
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
