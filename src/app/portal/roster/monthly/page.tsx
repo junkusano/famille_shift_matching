@@ -848,7 +848,7 @@ export default function MonthlyRosterPage() {
                                         </TableCell>
                                     </TableRow>
                                     {/* 2行目：スタッフ＆操作（横並び、区切り太め） */}
-                                    <TableRow className="border-b-2 border-gray-300">
+                                    <TableRow className={`border-b-2 border-gray-300 ${bgColorClass}`}>
                                         <TableCell colSpan={9}>
                                             <div className="flex flex-row flex-wrap items-center gap-3">
                                                 {/* スタッフ1 */}
