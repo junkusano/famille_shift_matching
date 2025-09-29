@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import ShiftRecord from '@/components/shift/ShiftRecord'
 import { useCallback } from 'react';
 
+
 // ========= Types =========
 type KaipokeCs = {
     id: string
@@ -202,6 +203,9 @@ export default function MonthlyRosterPage() {
     // フィルタ
     const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>('') // kaipoke_cs_id
     const [selectedMonth, setSelectedMonth] = useState<string>(yyyymm(new Date()))
+
+    // ★ 追加: 利用者検索キーワードの State
+    const [clientSearchKeyword, setClientSearchKeyword] = useState<string>('')
 
     // 明細
     const [shifts, setShifts] = useState<ShiftRow[]>([])
@@ -436,6 +440,17 @@ export default function MonthlyRosterPage() {
     const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null
     const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null
 
+    // ★ 追加: 検索キーワードで絞り込んだ利用者リスト
+    const filteredKaipokeCs = useMemo(() => {
+        const keyword = clientSearchKeyword.trim().toLowerCase();
+        if (!keyword) {
+            return kaipokeCs;
+        }
+        return kaipokeCs.filter(cs =>
+            cs.name.toLowerCase().startsWith(keyword)
+        );
+    }, [kaipokeCs, clientSearchKeyword]);
+
     // 保存
     const handleSave = async (row: ShiftRow) => {
         const required_staff_count = row.dispatch_size === '01' ? 2 : 1
@@ -607,17 +622,34 @@ export default function MonthlyRosterPage() {
                         <Button variant="secondary" disabled={!csPrev} onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}>
                             前へ（{csPrev?.name ?? '-'}）
                         </Button>
+
+                        {/* ★ 追加: 検索用テキストボックス */}
+                        <div style={{ width: 200 }}>
+                            <Input
+                                type="text"
+                                placeholder="利用者名検索 (冒頭一致)"
+                                value={clientSearchKeyword}
+                                onChange={(e) => setClientSearchKeyword(e.target.value)}
+                            />
+                        </div>
+
                         <div style={{ width: 260 }}>
                             <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="利用者を選択" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {kaipokeCs.map((cs) => (
+                                    {/* 絞り込まれた利用者リストを表示 */}
+                                    {filteredKaipokeCs.map((cs) => (
                                         <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
                                             {cs.name}
                                         </SelectItem>
                                     ))}
+                                    {/* 検索結果が0件の場合のメッセージ表示を削除します。
+                                       {filteredKaipokeCs.length === 0 && (
+                                            <SelectItem value="" disabled>検索結果なし</SelectItem> 
+                                       )}
+                                    */}
                                 </SelectContent>
                             </Select>
                         </div>
