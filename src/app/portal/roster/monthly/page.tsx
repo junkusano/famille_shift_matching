@@ -960,7 +960,6 @@ export default function MonthlyRosterPage() {
                                                     <Button
                                                         variant="default"
                                                         onClick={() => handleSave(row)}
-                                                        disabled={saveDisabled}
                                                         title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
                                                     >
                                                         保存
