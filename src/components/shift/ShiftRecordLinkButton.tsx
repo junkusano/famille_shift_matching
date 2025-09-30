@@ -35,6 +35,7 @@ export default function ShiftRecordLinkButton({
       onClick={() => {
 
         // ① 受け取れてるか props を先に表示
+        /*
         alert(
           [
             "[SRLB] props",
@@ -45,6 +46,7 @@ export default function ShiftRecordLinkButton({
             `standardPurpose=${JSON.stringify(standardPurpose)}`
           ].join("\n")
         );
+        */
         let q =
           `?shift_id=${encodeURIComponent(shiftId)}`
         if (clientName) {

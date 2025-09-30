@@ -309,6 +309,7 @@ export default function ShiftRecord({
 
   // 追加（ここから）
   useEffect(() => {
+    /*
     alert(
       [
         `standard_route: "${qsStandardRoute ?? ""}"`,
@@ -316,6 +317,7 @@ export default function ShiftRecord({
         `standard_purpose: "${qsStandardPurpose ?? ""}"`,
       ].join("\n")
     );
+    */
   }, [qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
 
   // 既存 mergedInfo を拡張
