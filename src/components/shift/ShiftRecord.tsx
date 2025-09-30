@@ -881,16 +881,15 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     );
   }
 
-// text（デフォルト）
+  // text（デフォルト）
   const unit = def.unit ? String(def.unit) : "";
   const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
   const rawVal = value as unknown;
 
-  // --- ↓↓↓ 【最重要】データ連携値を優先するロジックを追記 ↓↓↓ ---
+  // ... (データ連携を強制するロジックはそのまま) ...
   let finalDefaultValue = baseDef ?? "";
 
   // URLパラメータから渡された値を、フォームの 'code' に基づいて優先的に適用する
-  // ※ def.codeはテーブルのcodeカラムの値（route, trans_ways, purpose）に一致している必要があります。
   if (shiftInfo) {
     if (def.code === "route" && shiftInfo.standard_route) {
       finalDefaultValue = String(shiftInfo.standard_route);
@@ -903,14 +902,18 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
 
   // --- ↑↑↑ 追記ロジックの終わり ↑↑↑ ---
 
-  // rawVal が空（未入力）の場合にのみ、計算したデフォルト値 (finalDefaultValue) を適用
-  const cur = String((rawVal === "" || rawVal == null) ? (finalDefaultValue) : rawVal);
+  // rawValが未設定（""またはnull/undefined）の場合にのみ、最終的なデフォルト値をStringにして適用する
+  // finalDefaultValueがオブジェクト（{"template":""}）の場合でも、String()で空文字になることを期待する。
+  const cur = (rawVal === "" || rawVal == null)
+    ? String(finalDefaultValue ?? "") // finalDefaultValueをStringに変換
+    : String(rawVal); // rawValが設定済みならそれをStringに変換
+
   return (
     <div className="flex items-center gap-1">
       <input
         type="text"
         className="border rounded px-2 py-1 text-sm flex-1"
-        value={cur}
+        value={cur} // curは必ず文字列である
         onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)}
       />
       {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
