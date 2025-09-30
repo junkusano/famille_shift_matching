@@ -301,11 +301,23 @@ export default function ShiftRecord({
   const sp = useSearchParams();
   const clientNameFromQS = sp.get("client_name") || undefined;
   const shiftInfo = useShiftInfo(shiftId);
+
+  // 追加
   const qsStandardRoute = sp.get("standard_route") || undefined;
   const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
   const qsStandardPurpose = sp.get("standard_purpose") || undefined;
 
-  // 既存：clientNameFromQS / shiftInfo はそのまま利用
+  // 追加（ここから）
+  useEffect(() => {
+    alert(
+      [
+        `standard_route: "${qsStandardRoute ?? ""}"`,
+        `standard_trans_ways: "${qsStandardTransWays ?? ""}"`,
+        `standard_purpose: "${qsStandardPurpose ?? ""}"`,
+      ].join("\n")
+    );
+  }, [qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
+
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
     const base = { ...(shiftInfo ?? {}) } as Record<string, unknown>;
