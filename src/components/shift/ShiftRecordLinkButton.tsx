@@ -32,12 +32,20 @@ export default function ShiftRecordLinkButton({
     <Button
       variant="outline"
       onClick={() => {
-        const q =
+        let q =
           `?shift_id=${encodeURIComponent(shiftId)}`
-          + (clientName ? `&client_name=${encodeURIComponent(clientName)}` : ""); // ← 追加
-          + (standardRoute ? `&standard_route=${encodeURIComponent(standardRoute)}` : "")
-          + (standardTransWays ? `&standard_trans_ways=${encodeURIComponent(standardTransWays)}` : "")
-          + (standardPurpose ? `&standard_purpose=${encodeURIComponent(standardPurpose)}` : "");
+        if (clientName) {
+          q += `&client_name=${encodeURIComponent(clientName)}`;
+        }
+        if (standardRoute) {
+          q += `&standard_route=${encodeURIComponent(standardRoute)}`;
+        }
+        if (standardTransWays) {
+          q += `&standard_trans_ways=${encodeURIComponent(standardTransWays)}`;
+        }
+        if (standardPurpose) {
+          q += `&standard_purpose=${encodeURIComponent(standardPurpose)}`;
+        }
         router.push(`${hrefBase}${q}`);
       }}
     >
