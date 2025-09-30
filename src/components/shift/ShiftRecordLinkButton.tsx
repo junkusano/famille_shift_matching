@@ -33,6 +33,18 @@ export default function ShiftRecordLinkButton({
     <Button
       variant="outline"
       onClick={() => {
+
+        // ① 受け取れてるか props を先に表示
+        alert(
+          [
+            "[SRLB] props",
+            `shiftId=${JSON.stringify(shiftId)}`,
+            `clientName=${JSON.stringify(clientName)}`,
+            `standardRoute=${JSON.stringify(standardRoute)}`,
+            `standardTransWays=${JSON.stringify(standardTransWays)}`,
+            `standardPurpose=${JSON.stringify(standardPurpose)}`
+          ].join("\n")
+        );
         let q =
           `?shift_id=${encodeURIComponent(shiftId)}`
         if (clientName) {
