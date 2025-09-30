@@ -475,8 +475,8 @@ export default function MonthlyRosterPage() {
         const dateOk = isValidDateStr(row.shift_start_date)
         const stOk = isValidTimeStr(row.shift_start_time)
         const etOk = isValidTimeStr(row.shift_end_time)
-        const jiOk = row.judo_ido ? isValidJudoIdo(row.judo_ido) : true
-        if (!dateOk || !stOk || !etOk || !jiOk) {
+        //const jiOk = row.judo_ido ? isValidJudoIdo(row.judo_ido) : true
+        if (!dateOk || !stOk || !etOk ) {
             alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）')
             return
         }
@@ -960,6 +960,7 @@ export default function MonthlyRosterPage() {
                                                     <Button
                                                         variant="default"
                                                         onClick={() => handleSave(row)}
+                                                        disabled={saveDisabled}
                                                         title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
                                                     >
                                                         保存
