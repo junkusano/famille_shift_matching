@@ -246,7 +246,7 @@ export default function ShiftCard({
       if (infoIdCache.has(csId)) { setAdjId(infoIdCache.get(csId)); return; }
       const { data, error } = await supabase
         .from(kaipokeInfoTableName)
-        .select("time_adjustability_id")
+        .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose")
         .eq("kaipoke_cs_id", csId)
         .maybeSingle();
       if (error || !data) { setAdjId(undefined); return; }
@@ -509,7 +509,7 @@ export default function ShiftCard({
                   </>
                 ) : (
                   <>
-                  
+
                     <DialogTitle>シフトに入れない</DialogTitle>
                     <DialogDescription>
                       {shift.client_name} 様のシフトを外します。理由を入力してください。
