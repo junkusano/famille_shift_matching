@@ -314,14 +314,16 @@ export default function ShiftCard({
       if (error || !data) { return; }
       const rec = data as UnknownRecord;
 
+      /*
       setKaipokeInfo({
         standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
         standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
         standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
       });
+      */
 
       // デバッグ1発だけ
-      /*alert(
+      alert(
         [
           "[ShiftCard] kaipoke_info",
           `route="${rec.standard_route ?? ""}"`,
@@ -329,7 +331,7 @@ export default function ShiftCard({
           `purpose="${rec.standard_purpose ?? ""}"`,
         ].join("\n")
       );
-      */
+      
 
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
