@@ -900,6 +900,23 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
   const unit = def.unit ? String(def.unit) : "";
   const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
   const rawVal = value as unknown;
+
+  // --- ↓↓↓ 【最重要】データ連携値を優先するロジックを追記 ↓↓↓ ---
+  let finalDefaultValue = baseDef ?? "";
+
+  // URLパラメータから渡された値を、フォームの 'code' に基づいて優先的に適用する
+  // ※ def.codeはCSVのcodeカラムの値（例: route, trans_ways, purpose）に一致している必要があります。
+  if (shiftInfo) {
+    if (def.code === "route" && shiftInfo.standard_route) {
+      finalDefaultValue = String(shiftInfo.standard_route);
+    } else if (def.code === "trans_ways" && shiftInfo.standard_trans_ways) {
+      finalDefaultValue = String(shiftInfo.standard_trans_ways);
+    } else if (def.code === "purpose" && shiftInfo.standard_purpose) {
+      finalDefaultValue = String(shiftInfo.standard_purpose);
+    }
+  }
+  // --- ↑↑↑ 追記ロジックの終わり ↑↑↑ ---
+
   const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
   return (
     <div className="flex items-center gap-1">
