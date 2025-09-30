@@ -158,6 +158,14 @@ export default function ShiftCard({
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
 
+  // 追加：カード内に保持
+  const [kaipokeInfo, setKaipokeInfo] = useState<{
+    standard_route?: string | null;
+    standard_trans_ways?: string | null;
+    standard_purpose?: string | null;
+  } | null>(null);
+
+
   // 1) shift から cs_id を取得（この前提だけに限定）
   const csId = useMemo(() => deepFindKaipokeCsId(shift), [shift]);
 
@@ -286,6 +294,22 @@ export default function ShiftCard({
         .maybeSingle();
       if (error || !data) { return; }
       const rec = data as UnknownRecord;
+
+      setKaipokeInfo({
+        standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
+        standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
+        standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
+      });
+
+      // デバッグ1発だけ
+      alert(
+        [
+          "[ShiftCard] kaipoke_info",
+          `route="${rec.standard_route ?? ""}"`,
+          `trans="${rec.standard_trans_ways ?? ""}"`,
+          `purpose="${rec.standard_purpose ?? ""}"`,
+        ].join("\n")
+      );
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
       const back = pickNum(rec, "Backwoard_adjustability") ?? 0;
@@ -321,9 +345,9 @@ export default function ShiftCard({
   /* ------- MiniInfo（名前/備考や通学情報） ------- */
   const MiniInfo = () => {
     // 文字列は安全ヘルパで取得
-    const route = pickNonEmptyString(shift, ["standard_route"]);
-    const trans = pickNonEmptyString(shift, ["standard_trans_ways"]);
-    const purpose = pickNonEmptyString(shift, ["standard_purpose"]);
+    const route = pickNonEmptyString(shift, ["standard_route"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_route"]);
+    const trans = pickNonEmptyString(shift, ["standard_trans_ways"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_trans_ways"]);
+    const purpose = pickNonEmptyString(shift, ["standard_purpose"]) ?? pickNonEmptyString(kaipokeInfo, ["standard_purpose"]);
     const routeParts = [route, trans, purpose].filter((v): v is string => Boolean(v));
     const routeText = routeParts.length ? routeParts.join(" / ") : "—";
 
@@ -543,9 +567,10 @@ export default function ShiftCard({
             <ShiftRecordLinkButton
               shiftId={shift.shift_id ?? shift.id}
               clientName={shift.client_name ?? ""}
-              standardRoute={shift.standard_route}
-              standardTransWays={shift.standard_trans_ways}
-              standardPurpose={shift.standard_purpose}
+              standardRoute={shift.standard_route ?? kaipokeInfo?.standard_route ?? ""}
+              standardTransWays={shift.standard_trans_ways ?? kaipokeInfo?.standard_trans_ways ?? ""}
+              standardPurpose={shift.standard_purpose ?? kaipokeInfo?.standard_purpose ?? ""}
+
             />
           )}
           {extraActions}
