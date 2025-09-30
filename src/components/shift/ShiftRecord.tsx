@@ -301,15 +301,31 @@ export default function ShiftRecord({
   const sp = useSearchParams();
   const clientNameFromQS = sp.get("client_name") || undefined;
   const shiftInfo = useShiftInfo(shiftId);
+  const qsStandardRoute = sp.get("standard_route") || undefined;
+  const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
+  const qsStandardPurpose = sp.get("standard_purpose") || undefined;
 
   // 既存：clientNameFromQS / shiftInfo はそのまま利用
+  // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
     const base = { ...(shiftInfo ?? {}) } as Record<string, unknown>;
+
+    // 既存：client_name をQSで補完
     const qs = (clientNameFromQS ?? "").trim();
     const api = typeof base.client_name === "string" ? String(base.client_name).trim() : "";
     if (qs && !api) base.client_name = qs;
+
+    // 追加：standard_* をQSで補完
+    const apiRoute = typeof base.standard_route === "string" ? String(base.standard_route).trim() : "";
+    const apiTrans = typeof base.standard_trans_ways === "string" ? String(base.standard_trans_ways).trim() : "";
+    const apiPurpose = typeof base.standard_purpose === "string" ? String(base.standard_purpose).trim() : "";
+
+    if (qsStandardRoute && !apiRoute) base.standard_route = qsStandardRoute;
+    if (qsStandardTransWays && !apiTrans) base.standard_trans_ways = qsStandardTransWays;
+    if (qsStandardPurpose && !apiPurpose) base.standard_purpose = qsStandardPurpose;
+
     return base;
-  }, [shiftInfo, clientNameFromQS]);
+  }, [shiftInfo, clientNameFromQS, qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
 
   // ====== 定義ロード ======
   const [defs, setDefs] = useState<{ L: ShiftRecordCategoryL[]; S: ShiftRecordCategoryS[]; items: ShiftRecordItemDef[] }>(
