@@ -331,7 +331,7 @@ export default function ShiftCard({
           `purpose="${rec.standard_purpose ?? ""}"`,
         ].join("\n")
       );
-      
+
 
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
@@ -590,10 +590,9 @@ export default function ShiftCard({
             <ShiftRecordLinkButton
               shiftId={shift.shift_id ?? shift.id}
               clientName={shift.client_name ?? ""}
-              standardRoute={shift.standard_route ?? kaipokeInfo?.standard_route ?? ""}
-              standardTransWays={shift.standard_trans_ways ?? kaipokeInfo?.standard_trans_ways ?? ""}
-              standardPurpose={shift.standard_purpose ?? kaipokeInfo?.standard_purpose ?? ""}
-
+              standardRoute={kaipokeInfo?.standard_route ?? ""}
+              standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
+              standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
             />
           )}
           {extraActions}
