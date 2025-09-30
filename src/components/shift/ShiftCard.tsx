@@ -288,6 +288,7 @@ export default function ShiftCard({
     return () => { cancelled = true; };
   }, [csId, kaipokeInfoTableName]);
 
+
   // 3) time_adjustability_id -> マスター（label, Advance/Backwoard）
   const [label, setLabel] = useState<string | undefined>(undefined);
   const [adjustable, setAdjustable] = useState<boolean | undefined>(undefined);
