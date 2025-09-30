@@ -29,14 +29,6 @@ export default function ShiftRecordLinkButton({
 }: ShiftRecordLinkButtonProps) { // 型はここで指定
   const router = useRouter();
 
-// ★ デバッグログを追加 ★
-  console.log("--- ShiftRecordLinkButton Debug ---");
-  console.log("shiftId:", shiftId);
-  console.log("standardRoute:", standardRoute);
-  console.log("standardTransWays:", standardTransWays);
-  console.log("standardPurpose:", standardPurpose);
-  console.log("-----------------------------------");
-
   return (
     <Button
       variant="outline"

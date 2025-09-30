@@ -543,6 +543,9 @@ export default function ShiftCard({
             <ShiftRecordLinkButton
               shiftId={shift.shift_id ?? shift.id}
               clientName={shift.client_name ?? ""}
+              standardRoute={shift.standard_route}
+              standardTransWays={shift.standard_trans_ways}
+              standardPurpose={shift.standard_purpose}
             />
           )}
           {extraActions}
