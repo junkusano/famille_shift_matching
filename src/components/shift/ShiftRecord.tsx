@@ -915,6 +915,9 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
       finalDefaultValue = String(shiftInfo.standard_purpose);
     }
   }
+
+  void finalDefaultValue;
+  
   // --- ↑↑↑ 追記ロジックの終わり ↑↑↑ ---
 
   const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
