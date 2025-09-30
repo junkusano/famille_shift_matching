@@ -881,22 +881,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     );
   }
 
-  // image（URL入力）
-  if (t === "image") {
-    const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
-    const rawVal = value as unknown;
-    const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <input type="url" className="border rounded px-2 py-1 text-sm flex-1" placeholder="画像URL（将来はアップローダ連携）" value={cur} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)} />
-        </div>
-        {cur ? (<img src={cur} alt="preview" className="max-h-40 rounded border" />) : (<div className="text-[11px] text-gray-500">画像URLを入力するとプレビューします。</div>)}
-      </div>
-    );
-  }
-
-  // text（デフォルト）
+// text（デフォルト）
   const unit = def.unit ? String(def.unit) : "";
   const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
   const rawVal = value as unknown;
@@ -931,3 +916,4 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
       {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
     </div>
   );
+}
