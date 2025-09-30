@@ -257,7 +257,23 @@ export default function ShiftCard({
         .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose")
         .eq("kaipoke_cs_id", csId)
         .maybeSingle();
-      if (error || !data) { setAdjId(undefined); return; }
+      if (error || !data) { setAdjId(undefined); setKaipokeInfo(null); return; }
+
+      // ★ ここで3項目を反映（正しいテーブル：cs_kaipoke_info）
+      const info = data as Record<string, unknown>;
+      setKaipokeInfo({
+        standard_route: typeof info.standard_route === "string" ? info.standard_route : null,
+        standard_trans_ways: typeof info.standard_trans_ways === "string" ? info.standard_trans_ways : null,
+        standard_purpose: typeof info.standard_purpose === "string" ? info.standard_purpose : null,
+      });
+      alert(
+        [
+          "[ShiftCard] cs_kaipoke_info",
+          `route="${info.standard_route ?? ""}"`,
+          `trans="${info.standard_trans_ways ?? ""}"`,
+          `purpose="${info.standard_purpose ?? ""}"`,
+        ].join("\n")
+      );
       const id =
         typeof (data as UnknownRecord)["time_adjustability_id"] === "string"
           ? ((data as UnknownRecord)["time_adjustability_id"] as string).trim()
