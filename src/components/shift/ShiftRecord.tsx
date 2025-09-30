@@ -905,7 +905,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
   let finalDefaultValue = baseDef ?? "";
 
   // URLパラメータから渡された値を、フォームの 'code' に基づいて優先的に適用する
-  // ※ def.codeはCSVのcodeカラムの値（例: route, trans_ways, purpose）に一致している必要があります。
+  // ※ def.codeはテーブルのcodeカラムの値（例: route, trans_ways, purpose）に一致している必要があります。
   if (shiftInfo) {
     if (def.code === "route" && shiftInfo.standard_route) {
       finalDefaultValue = String(shiftInfo.standard_route);
@@ -916,7 +916,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     }
   }
 
-  //void finalDefaultValue;
+  // void finalDefaultValue; // 不要な行は削除またはコメントアウトのまま
 
   // --- ↑↑↑ 追記ロジックの終わり ↑↑↑ ---
 
