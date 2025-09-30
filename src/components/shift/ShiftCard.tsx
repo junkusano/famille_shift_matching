@@ -323,6 +323,7 @@ export default function ShiftCard({
       */
 
       // デバッグ1発だけ
+      /*
       alert(
         [
           "[ShiftCard] kaipoke_info",
@@ -331,8 +332,7 @@ export default function ShiftCard({
           `purpose="${rec.standard_purpose ?? ""}"`,
         ].join("\n")
       );
-
-
+      */
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
       const back = pickNum(rec, "Backwoard_adjustability") ?? 0;
