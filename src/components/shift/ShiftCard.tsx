@@ -266,6 +266,7 @@ export default function ShiftCard({
         standard_trans_ways: typeof info.standard_trans_ways === "string" ? info.standard_trans_ways : null,
         standard_purpose: typeof info.standard_purpose === "string" ? info.standard_purpose : null,
       });
+      /*  こっちは表示する　　
       alert(
         [
           "[ShiftCard] cs_kaipoke_info",
@@ -274,6 +275,7 @@ export default function ShiftCard({
           `purpose="${info.standard_purpose ?? ""}"`,
         ].join("\n")
       );
+      */
       const id =
         typeof (data as UnknownRecord)["time_adjustability_id"] === "string"
           ? ((data as UnknownRecord)["time_adjustability_id"] as string).trim()
@@ -328,7 +330,7 @@ export default function ShiftCard({
         ].join("\n")
       );
       */
-     
+
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
       const back = pickNum(rec, "Backwoard_adjustability") ?? 0;
