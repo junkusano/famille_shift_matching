@@ -916,14 +916,20 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     }
   }
 
-  void finalDefaultValue;
-  
+  //void finalDefaultValue;
+
   // --- ↑↑↑ 追記ロジックの終わり ↑↑↑ ---
 
-  const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+  // rawVal が空（未入力）の場合にのみ、計算したデフォルト値 (finalDefaultValue) を適用
+  const cur = String((rawVal === "" || rawVal == null) ? (finalDefaultValue) : rawVal);
   return (
     <div className="flex items-center gap-1">
-      <input type="text" className="border rounded px-2 py-1 text-sm" value={cur} onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)} />
+      <input
+        type="text"
+        className="border rounded px-2 py-1 text-sm flex-1"
+        value={cur}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(def, e.target.value)}
+      />
       {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
     </div>
   );
