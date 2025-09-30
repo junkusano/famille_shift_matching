@@ -24,10 +24,19 @@ export default function ShiftRecordLinkButton({
   standardTransWays,
   standardPurpose,
   // ----------------------------------------------------
-  label = "訪問記録（工事中）",
+  label = "訪問記録",
   hrefBase = "/portal/shift-records",
 }: ShiftRecordLinkButtonProps) { // 型はここで指定
   const router = useRouter();
+
+// ★ デバッグログを追加 ★
+  console.log("--- ShiftRecordLinkButton Debug ---");
+  console.log("shiftId:", shiftId);
+  console.log("standardRoute:", standardRoute);
+  console.log("standardTransWays:", standardTransWays);
+  console.log("standardPurpose:", standardPurpose);
+  console.log("-----------------------------------");
+
   return (
     <Button
       variant="outline"
