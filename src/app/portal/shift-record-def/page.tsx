@@ -199,28 +199,68 @@ function TabL(): React.ReactElement {
     };
     // RowL = ShiftRecordCategoryL & { _rules_text?: string }
     const save = async (row: RowL) => {
+        const url = `/api/shift-record-def/category-l/${row.id}`;
         const { _rules_text, ...rest } = row;
+
+        // ① rules_json を作る（ここが true にできてるか確認）
         let rulesParsed: Record<string, unknown> = {};
-        try { rulesParsed = parseRulesOrEmpty(_rules_text); } catch { return; }
+        try {
+            rulesParsed = parseRulesOrEmpty(_rules_text); // 空や不正ならここで止まる
+        } catch {
+            alert("❌ rules_json が JSON ではありません");
+            return;
+        }
+
+        // ② 実際に送る payload を構築
+        const payload = { ...rest, rules_json: rulesParsed };
+
+        // ③ 送信前にアラートで中身を確認
+        alert([
+            "🟦 [PUT L] 送信前チェック",
+            `URL: ${url}`,
+            `id: ${row.id}`,
+            "",
+            "▼Payload",
+            JSON.stringify(payload, null, 2).slice(0, 1000)  // 長すぎると困るので頭だけ
+        ].join("\n"));
 
         try {
-            const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
+            const resp = await fetch(url, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
+                body: JSON.stringify(payload),
             });
 
-            if (r.ok) {
-                await fetchRows();                 // ← 一覧を再取得して反映
-                alert("保存しました");
+            const text = await resp.text(); // json じゃない返答でも見えるように text で
+            alert([
+                "🟩 [PUT L] レスポンス",
+                `status: ${resp.status} (${resp.ok ? "OK" : "NG"})`,
+                "",
+                "▼Body(先頭のみ)",
+                text.slice(0, 1000)
+            ].join("\n"));
+
+            if (resp.ok) {
+                // ④ 直後に GET で当該レコードを拾って、本当に入ったか自分で見る
+                const list = await fetch(`/api/shift-record-def/category-l`);
+                const arr = await list.json().catch(() => []);
+                const found = Array.isArray(arr) ? arr.find((x: any) => x.id === row.id) : undefined;
+
+                alert([
+                    "🔎 [AFTER GET L] 反映確認",
+                    `hit: ${!!found}`,
+                    "",
+                    "▼found.rules_json（先頭のみ）",
+                    found?.rules_json ? JSON.stringify(found.rules_json, null, 2).slice(0, 1000) : "(none)"
+                ].join("\n"));
+
+                await fetchRows(); // 反映
             } else {
-                let msg = "保存に失敗しました";
-                try { const j = await r.json(); msg = j?.error || msg; } catch { }
-                alert(msg);
+                // サーバ側が 400/500 の時は既に上の alert 済み
             }
-        } catch (e) {
+        } catch (e: any) {
+            alert("🚫 通信エラー: " + (e?.message ?? e));
             console.error(e);
-            alert("通信エラーで保存できませんでした");
         }
     };
 
