@@ -198,16 +198,39 @@ function TabL(): React.ReactElement {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
     };
     // TabL 冒頭で宣言済: type RowL = ShiftRecordCategoryL & { _rules_text?: string };
+    // TabL
     const save = async (row: RowL) => {
         const { _rules_text, ...rest } = row;
-        const rulesParsed = parseRulesOrEmpty(_rules_text);
-        await fetch(`/api/shift-record-def/category-l/${row.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
-        });
-    }
+        let rulesParsed: Record<string, unknown> = {};
+        try {
+            rulesParsed = parseRulesOrEmpty(_rules_text);
+        } catch {
+            return; // JSON不正時はここで中断
+        }
 
+        try {
+            const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
+            });
+
+            if (r.ok) {
+                await fetchRows();            // ← 一覧を再取得して反映
+                alert("保存しました");
+            } else {
+                let msg = "保存に失敗しました";
+                try {
+                    const j = await r.json();
+                    msg = j?.error || msg;
+                } catch { }
+                alert(msg);
+            }
+        } catch (e) {
+            alert("通信エラーで保存できませんでした");
+            console.error(e);
+        }
+    };
 
     /*
     const handleEditRules = (id: string, text: string) => {
@@ -434,18 +457,41 @@ function TabS(): React.ReactElement {
     };
 
     // TabS 冒頭で宣言済: type RowS = ShiftRecordCategoryS & { _rules_text?: string };
+    // TabS
     const save = async (row: RowS) => {
         const { _rules_text, ...rest } = row;
         let rulesParsed: Record<string, unknown> = {};
-        try { rulesParsed = _rules_text ? JSON.parse(_rules_text) : {}; }
-        catch { alert("rules_json がJSONではありません"); return; }
+        try {
+            rulesParsed = _rules_text ? JSON.parse(_rules_text) : {};
+        } catch {
+            alert("rules_json がJSONではありません");
+            return;
+        }
 
-        await fetch(`/api/shift-record-def/category-s/${row.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
-        });
-    }
+        try {
+            const r = await fetch(`/api/shift-record-def/category-s/${row.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
+            });
+
+            if (r.ok) {
+                await fetchAll();             // ← TabS は L/S 両方再取得
+                alert("保存しました");
+            } else {
+                let msg = "保存に失敗しました";
+                try {
+                    const j = await r.json();
+                    msg = j?.error || msg;
+                } catch { }
+                alert(msg);
+            }
+        } catch (e) {
+            alert("通信エラーで保存できませんでした");
+            console.error(e);
+        }
+    };
+
 
     const del = async (id: string) => {
         const r = await fetch(`/api/shift-record-def/category-s/${id}`, { method: "DELETE" })
