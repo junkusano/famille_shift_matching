@@ -200,9 +200,7 @@ function TabL(): React.ReactElement {
     // TabL 冒頭で宣言済: type RowL = ShiftRecordCategoryL & { _rules_text?: string };
     const save = async (row: RowL) => {
         const { _rules_text, ...rest } = row;
-        let rulesParsed: Record<string, unknown>;
-        try { rulesParsed = parseRulesOrEmpty(_rules_text); } catch { return; }
-
+        const rulesParsed = parseRulesOrEmpty(_rules_text);
         await fetch(`/api/shift-record-def/category-l/${row.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -235,11 +233,9 @@ function TabL(): React.ReactElement {
     }
     // TabL の add 内（リセット時も合わせて）
     const add = async () => {
-        if (!newRow.code || !newRow.name) { alert("code / name は必須です"); return; }
-        let rulesParsed: Record<string, unknown>;
-        try { rulesParsed = parseRulesOrEmpty(newRow._rules_text); } catch { return; }
+        const { _rules_text, ...rest } = newRow;        // ← 取り出して
+        const rulesParsed = parseRulesOrEmpty(_rules_text); // ← 使う
 
-        const { _rules_text, ...rest } = newRow;
         const r = await fetch(`/api/shift-record-def/category-l`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -499,7 +495,6 @@ function TabS(): React.ReactElement {
                 active: true,
                 _rules_text: "{}",
             }));
-
 
             await fetchAll();
             alert("追加しました");
