@@ -18,6 +18,7 @@ export type ShiftRecordCategoryL = {
     name: string
     sort_order: number
     active: boolean
+    rules_json?: Record<string, unknown> | null
 }
 
 export type ShiftRecordCategoryS = {
@@ -27,6 +28,7 @@ export type ShiftRecordCategoryS = {
     name: string
     sort_order: number
     active: boolean
+    rules_json?: Record<string, unknown> | null
 }
 
 export type ShiftRecordItemDef = {
@@ -148,14 +150,31 @@ function PagerFoot({
 
 // ====== 大カテゴリ（L）タブ ======
 function TabL(): React.ReactElement {
-    const [rows, setRows] = useState<ShiftRecordCategoryL[]>([])
+    type RowL = ShiftRecordCategoryL & { _rules_text?: string };
+    const [rows, setRows] = useState<RowL[]>([]);
     const [q, setQ] = useState("")
-    const [newRow, setNewRow] = useState<Omit<ShiftRecordCategoryL, "id">>({ code: "", name: "", sort_order: 1000, active: true })
-
+    const initialNewRowL: Omit<RowL, "id"> = {
+        code: "",
+        name: "",
+        sort_order: 1000,
+        active: true,
+        rules_json: null,
+        _rules_text: "{}",
+    };
+    const [newRow, setNewRow] = useState<Omit<RowL, "id">>(initialNewRowL);
     const fetchRows = async () => {
-        const r = await fetch("/api/shift-record-def/category-l")
-        if (r.ok) setRows(await r.json())
-    }
+        const r = await fetch("/api/shift-record-def/category-l");
+        if (r.ok) {
+            const arr: ShiftRecordCategoryL[] = await r.json();
+            setRows(
+                arr.map(x => ({
+                    ...x,
+                    _rules_text: JSON.stringify(x.rules_json ?? {}, null, 2),
+                }))
+            );
+        }
+    };
+
     useEffect(() => { fetchRows() }, [])
 
     const filtered = useMemo(() => {
@@ -164,17 +183,31 @@ function TabL(): React.ReactElement {
     }, [rows, q])
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
-    const handleEdit = <K extends keyof ShiftRecordCategoryL>(id: string, key: K, val: ShiftRecordCategoryL[K]) => {
-        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryL : r)))
-    }
-    const save = async (row: ShiftRecordCategoryL) => {
+    const handleEdit = <K extends keyof RowL>(id: RowL["id"], key: K, val: RowL[K]) => {
+        setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
+    };
+    const save = async (row: RowL) => {
+        let rulesParsed: Record<string, unknown> = {}
+        try { rulesParsed = row._rules_text ? JSON.parse(row._rules_text) : {} }
+        catch { alert("rules_json がJSONではありません"); return }
+
+        const payload: ShiftRecordCategoryL = {
+            id: row.id,
+            code: row.code,
+            name: row.name,
+            sort_order: row.sort_order,
+            active: row.active,
+            rules_json: rulesParsed,
+        }
+
         const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(row)
+            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
         })
         if (r.ok) { await fetchRows(); alert("保存しました") } else {
             alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗")
         }
     }
+
     const del = async (id: string) => {
         const r = await fetch(`/api/shift-record-def/category-l/${id}`, { method: "DELETE" })
         if (r.ok) { await fetchRows(); alert("削除しました") } else {
@@ -182,18 +215,33 @@ function TabL(): React.ReactElement {
         }
     }
     const add = async () => {
-        if (!newRow.code || !newRow.name) { alert("code / name は必須です"); return }
-        const r = await fetch(`/api/shift-record-def/category-l`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newRow)
-        })
-        if (r.ok) {
-            setNewRow({ code: "", name: "", sort_order: 1000, active: true })
-            await fetchRows()
-            alert("追加しました")
-        } else {
-            alert((await r.json().catch(() => ({ error: "追加に失敗" }))).error || "追加に失敗")
+        if (!newRow.code || !newRow.name) {
+            alert("code / name は必須です");
+            return;
         }
-    }
+        let rulesParsed: Record<string, unknown> = {};
+        try { rulesParsed = newRow._rules_text ? JSON.parse(newRow._rules_text) : {}; }
+        catch { alert("rules_json がJSONではありません"); return; }
+
+        const payload = {
+            code: newRow.code,
+            name: newRow.name,
+            sort_order: Number(newRow.sort_order ?? 1000),
+            active: newRow.active !== false,
+            rules_json: rulesParsed,
+        };
+
+        const r = await fetch(`/api/shift-record-def/category-l`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        });
+        if (r.ok) {
+            setNewRow(initialNewRowL);              // ✅ any不要でリセット
+            await fetchRows();
+            alert("追加しました");
+        } else {
+            alert((await r.json().catch(() => ({ error: "追加に失敗" }))).error || "追加に失敗");
+        }
+    };
 
     return (
         <div className="space-y-3">
@@ -227,21 +275,34 @@ function TabL(): React.ReactElement {
                     </TableHeader>
                     <TableBody>
                         {pageRows.map((r) => (
-                            <TableRow key={r.id}>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">true</SelectItem>
-                                            <SelectItem value="0">false</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1"><SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} /></TableCell>
-                            </TableRow>
+                            <React.Fragment key={r.id}>
+                                <TableRow key={r.id}>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
+                                    <TableCell className="px-1 py-1">
+                                        <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
+                                            <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">true</SelectItem>
+                                                <SelectItem value="0">false</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1"><SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} /></TableCell>
+                                </TableRow>
+                                {/* ★ 2段目：rules_json(JSON) エディタ */}
+                                <TableRow className="align-top">
+                                    <TableCell className="px-1 py-1" colSpan={5}>
+                                        <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                        <Textarea
+                                            className="h-24"
+                                            value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
+                                            onChange={(e) => handleEdit(r.id, "_rules_text", e.target.value as RowL["_rules_text"])}
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            </React.Fragment>
                         ))}
 
                         {/* 追加行 */}
@@ -259,6 +320,17 @@ function TabL(): React.ReactElement {
                                 </Select>
                             </TableCell>
                             <TableCell className="px-1 py-1"><Button size="sm" onClick={add}>追加</Button></TableCell>
+                        </TableRow>
+                        {/* ★ 追加行（2段目：rules_json） */}
+                        <TableRow className="align-top">
+                            <TableCell className="px-1 py-1" colSpan={5}>
+                                <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                <Textarea
+                                    className="h-24"
+                                    value={newRow._rules_text ?? "{}"}
+                                    onChange={(e) => setNewRow({ ...newRow, _rules_text: e.target.value })}
+                                />
+                            </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -280,23 +352,37 @@ void TabL
 
 // ====== 小カテゴリ（S）タブ ======
 function TabS(): React.ReactElement {
-    const [rows, setRows] = useState<ShiftRecordCategoryS[]>([])
+    type RowS = ShiftRecordCategoryS & { _rules_text?: string };
+
+    const [rows, setRows] = useState<RowS[]>([]);
+
+    const initialNewRowS: Omit<RowS, "id"> = {
+        l_id: "",
+        code: "",
+        name: "",
+        sort_order: 1000,
+        active: true,
+        rules_json: null,
+        _rules_text: "{}",
+    };
+    const [newRow, setNewRow] = useState<Omit<RowS, "id">>(initialNewRowS);
+
     const [cats, setCats] = useState<ShiftRecordCategoryL[]>([])
     const [q, setQ] = useState("")
     const [qL, setQL] = useState<string>("")
-    const [newRow, setNewRow] = useState<Omit<ShiftRecordCategoryS, "id">>({
-        l_id: "", code: "", name: "", sort_order: 1000, active: true
-    })
 
     const fetchAll = async () => {
         const [s1, s2] = await Promise.all([
             fetch("/api/shift-record-def/category-s"),
             fetch("/api/shift-record-def/category-l"),
-        ])
-        if (s1.ok) setRows(await s1.json())
-        if (s2.ok) setCats(await s2.json())
-    }
-    useEffect(() => { fetchAll() }, [])
+        ]);
+        if (s1.ok) {
+            const arr: ShiftRecordCategoryS[] = await s1.json();
+            setRows(arr.map(x => ({ ...x, _rules_text: JSON.stringify(x.rules_json ?? {}, null, 2) })));
+        }
+        if (s2.ok) setCats(await s2.json());
+    };
+
 
     const filtered = useMemo(() => {
         const k = q.trim().toLowerCase()
@@ -308,13 +394,28 @@ function TabS(): React.ReactElement {
     }, [rows, q, qL])
     const { setPage, totalPages, pageClamped, start, pageRows } = usePager(filtered)
 
-    const handleEdit = <K extends keyof ShiftRecordCategoryS>(id: string, key: K, val: ShiftRecordCategoryS[K]) => {
-        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [key]: val } as ShiftRecordCategoryS : r)))
-    }
+    const handleEdit = <K extends keyof RowS>(id: RowS["id"], key: K, val: RowS[K]) => {
+        setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
+    };
 
-    const save = async (row: ShiftRecordCategoryS) => {
+
+    const save = async (row: RowS) => {
+        let rulesParsed: Record<string, unknown> = {}
+        try { rulesParsed = row._rules_text ? JSON.parse(row._rules_text) : {} }
+        catch { alert("rules_json がJSONではありません"); return }
+
+        const payload: ShiftRecordCategoryS = {
+            id: row.id,
+            l_id: row.l_id,
+            code: row.code,
+            name: row.name,
+            sort_order: row.sort_order,
+            active: row.active,
+            rules_json: rulesParsed,
+        }
+
         const r = await fetch(`/api/shift-record-def/category-s/${row.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(row)
+            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
         })
         if (r.ok) { await fetchAll(); alert("保存しました") } else {
             alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗")
@@ -327,18 +428,33 @@ function TabS(): React.ReactElement {
         }
     }
     const add = async () => {
-        if (!newRow.l_id || !newRow.code || !newRow.name) { alert("l_id / code / name は必須です"); return }
-        const r = await fetch(`/api/shift-record-def/category-s`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newRow)
-        })
-        if (r.ok) {
-            setNewRow({ l_id: "", code: "", name: "", sort_order: 1000, active: true })
-            await fetchAll()
-            alert("追加しました")
-        } else {
-            alert((await r.json().catch(() => ({ error: "追加に失敗" }))).error || "追加に失敗")
+        if (!newRow.l_id || !newRow.code || !newRow.name) {
+            alert("l_id / code / name は必須です"); return;
         }
-    }
+        let rulesParsed: Record<string, unknown> = {};
+        try { rulesParsed = newRow._rules_text ? JSON.parse(newRow._rules_text) : {}; }
+        catch { alert("rules_json がJSONではありません"); return; }
+
+        const payload = {
+            l_id: newRow.l_id,
+            code: newRow.code,
+            name: newRow.name,
+            sort_order: Number(newRow.sort_order ?? 1000),
+            active: newRow.active !== false,
+            rules_json: rulesParsed,
+        };
+
+        const r = await fetch(`/api/shift-record-def/category-s`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        });
+        if (r.ok) {
+            setNewRow(initialNewRowS);            // ✅ any不要でリセット
+            await fetchAll();
+            alert("追加しました");
+        } else {
+            alert((await r.json().catch(() => ({ error: "追加に失敗" }))).error || "追加に失敗");
+        }
+    };
 
     return (
         <div className="space-y-3">
@@ -384,29 +500,42 @@ function TabS(): React.ReactElement {
                     </TableHeader>
                     <TableBody>
                         {pageRows.map((r) => (
-                            <TableRow key={r.id}>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
-                                <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
-                                <TableCell className="px-1 py-1">
-                                    <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
-                                        <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">true</SelectItem>
-                                            <SelectItem value="0">false</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </TableCell>
-                                <TableCell className="px-1 py-1"><SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} /></TableCell>
-                            </TableRow>
+                            <React.Fragment key={r.id}>
+                                <TableRow key={r.id}>
+                                    <TableCell className="px-1 py-1">
+                                        <Select value={r.l_id} onValueChange={(v) => handleEdit(r.id, "l_id", v)}>
+                                            <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
+                                            <SelectContent>
+                                                {cats.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>))}
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" value={r.code} onChange={(e) => handleEdit(r.id, "code", e.target.value)} /></TableCell>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" value={r.name} onChange={(e) => handleEdit(r.id, "name", e.target.value)} /></TableCell>
+                                    <TableCell className="px-1 py-1"><Input className="h-8" type="number" value={r.sort_order} onChange={(e) => handleEdit(r.id, "sort_order", Number(e.target.value))} /></TableCell>
+                                    <TableCell className="px-1 py-1">
+                                        <Select value={String(r.active ? 1 : 0)} onValueChange={(v) => handleEdit(r.id, "active", v === "1")}>
+                                            <SelectTrigger><SelectValue placeholder="" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">true</SelectItem>
+                                                <SelectItem value="0">false</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell className="px-1 py-1"><SaveDelButtons onSave={() => save(r)} onDelete={() => del(r.id)} /></TableCell>
+                                </TableRow>
+                                {/* ★ 2段目：rules_json */}
+                                <TableRow className="align-top">
+                                    <TableCell className="px-1 py-1" colSpan={6}>
+                                        <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                        <Textarea
+                                            className="h-24"
+                                            value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
+                                            onChange={(e) => handleEdit(r.id, "_rules_text", e.target.value as RowS["_rules_text"])}
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            </React.Fragment>
                         ))}
 
                         {/* 追加行 */}
@@ -432,6 +561,17 @@ function TabS(): React.ReactElement {
                                 </Select>
                             </TableCell>
                             <TableCell className="px-1 py-1"><Button size="sm" onClick={add}>追加</Button></TableCell>
+                        </TableRow>
+                        {/* ★ 追加行（2段目） */}
+                        <TableRow className="align-top">
+                            <TableCell className="px-1 py-1" colSpan={6}>
+                                <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
+                                <Textarea
+                                    className="h-24"
+                                    value={newRow._rules_text ?? "{}"}
+                                    onChange={(e) => setNewRow({ ...newRow, _rules_text: e.target.value })}
+                                />
+                            </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
