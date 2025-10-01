@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     return NextResponse.json(data);
-  } catch (e: any) {
+  } catch (e) {
     console.error("L update exception:", e);
     return NextResponse.json(
       { error: e?.message ?? "Unknown error" },
