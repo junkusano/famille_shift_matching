@@ -382,6 +382,7 @@ function TabS(): React.ReactElement {
         }
         if (s2.ok) setCats(await s2.json());
     };
+    useEffect(() => { fetchAll() }, [])
 
 
     const filtered = useMemo(() => {
