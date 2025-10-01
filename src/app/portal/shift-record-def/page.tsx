@@ -19,6 +19,7 @@ export type ShiftRecordCategoryL = {
     sort_order: number
     active: boolean
     rules_json?: Record<string, unknown> | null
+    _rules_text?: string
 }
 
 export type ShiftRecordCategoryS = {
@@ -29,6 +30,7 @@ export type ShiftRecordCategoryS = {
     sort_order: number
     active: boolean
     rules_json?: Record<string, unknown> | null
+    _rules_text?: string
 }
 
 export type ShiftRecordItemDef = {
@@ -47,6 +49,7 @@ export type ShiftRecordItemDef = {
     rules_json?: Record<string, unknown> | null
     meta_json?: Record<string, unknown> | null
 }
+
 
 const PAGE_SIZE = 50
 
@@ -148,6 +151,14 @@ function PagerFoot({
     )
 }
 
+// JSON 文字列→オブジェクト。空/未入力は {} を返す。失敗時 alert して throw。
+function parseRulesOrEmpty(text?: string) {
+    if (!text || !text.trim()) return {};
+    try { return JSON.parse(text); }
+    catch (e) { alert("rules_json が JSON ではありません"); throw e; }
+}
+
+
 // ====== 大カテゴリ（L）タブ ======
 function TabL(): React.ReactElement {
     type RowL = ShiftRecordCategoryL & { _rules_text?: string };
@@ -186,27 +197,35 @@ function TabL(): React.ReactElement {
     const handleEdit = <K extends keyof RowL>(id: RowL["id"], key: K, val: RowL[K]) => {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
     };
-    const save = async (row: RowL) => {
-        let rulesParsed: Record<string, unknown> = {}
-        try { rulesParsed = row._rules_text ? JSON.parse(row._rules_text) : {} }
-        catch { alert("rules_json がJSONではありません"); return }
-
-        const payload: ShiftRecordCategoryL = {
-            id: row.id,
-            code: row.code,
-            name: row.name,
-            sort_order: row.sort_order,
-            active: row.active,
-            rules_json: rulesParsed,
-        }
+    const save = async (row: ShiftRecordCategoryL) => {
+        const { _rules_text, ...rest } = row as any;
+        let rulesParsed: Record<string, unknown>;
+        try { rulesParsed = parseRulesOrEmpty(_rules_text); } catch { return; }
 
         const r = await fetch(`/api/shift-record-def/category-l/${row.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-        })
-        if (r.ok) { await fetchRows(); alert("保存しました") } else {
-            alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗")
-        }
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
+        });
+        if (r.ok) { await fetchRows(); alert("保存しました"); }
+        else { alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗"); }
+    };
+
+    /*
+    const handleEditRules = (id: string, text: string) => {
+        setRows(prev => prev.map(r => r.id === id ? { ...r, _rules_text: text } : r))
     }
+        */
+
+    // TabL: 既存行の rules_json テキストを更新
+const handleEditRulesL = (id: string, text: string) => {
+  setRows(prev => prev.map(r => (r.id === id ? { ...r, _rules_text: text } : r)));
+};
+
+// TabL: 新規行の rules_json テキストを更新
+const handleEditNewRulesL = (text: string) => {
+  setNewRow(prev => ({ ...prev, _rules_text: text }));
+};
 
     const del = async (id: string) => {
         const r = await fetch(`/api/shift-record-def/category-l/${id}`, { method: "DELETE" })
@@ -214,28 +233,20 @@ function TabL(): React.ReactElement {
             alert((await r.json().catch(() => ({ error: "削除に失敗" }))).error || "削除に失敗")
         }
     }
+    // TabL の add 内（リセット時も合わせて）
     const add = async () => {
-        if (!newRow.code || !newRow.name) {
-            alert("code / name は必須です");
-            return;
-        }
-        let rulesParsed: Record<string, unknown> = {};
-        try { rulesParsed = newRow._rules_text ? JSON.parse(newRow._rules_text) : {}; }
-        catch { alert("rules_json がJSONではありません"); return; }
+        if (!newRow.code || !newRow.name) { alert("code / name は必須です"); return; }
+        let rulesParsed: Record<string, unknown>;
+        try { rulesParsed = parseRulesOrEmpty(newRow._rules_text); } catch { return; }
 
-        const payload = {
-            code: newRow.code,
-            name: newRow.name,
-            sort_order: Number(newRow.sort_order ?? 1000),
-            active: newRow.active !== false,
-            rules_json: rulesParsed,
-        };
-
+        const { _rules_text, ...rest } = newRow as any;
         const r = await fetch(`/api/shift-record-def/category-l`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
         });
         if (r.ok) {
-            setNewRow(initialNewRowL);              // ✅ any不要でリセット
+            setNewRow({ code: "", name: "", sort_order: 1000, active: true, _rules_text: "{}" }); // ← ここポイント
             await fetchRows();
             alert("追加しました");
         } else {
@@ -296,10 +307,10 @@ function TabL(): React.ReactElement {
                                     <TableCell className="px-1 py-1" colSpan={5}>
                                         <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
                                         <Textarea
-                                            className="h-24"
-                                            value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
-                                            onChange={(e) => handleEdit(r.id, "_rules_text", e.target.value as RowL["_rules_text"])}
-                                        />
+  className="h-20"
+  value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
+  onChange={(e) => handleEditRulesL(r.id, e.target.value)}
+/>
                                     </TableCell>
                                 </TableRow>
                             </React.Fragment>
@@ -326,10 +337,10 @@ function TabL(): React.ReactElement {
                             <TableCell className="px-1 py-1" colSpan={5}>
                                 <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
                                 <Textarea
-                                    className="h-24"
-                                    value={newRow._rules_text ?? "{}"}
-                                    onChange={(e) => setNewRow({ ...newRow, _rules_text: e.target.value })}
-                                />
+  className="h-20"
+  value={newRow._rules_text ?? "{}"}
+  onChange={(e) => handleEditNewRulesL(e.target.value)}
+/>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -377,9 +388,13 @@ function TabS(): React.ReactElement {
             fetch("/api/shift-record-def/category-l"),
         ]);
         if (s1.ok) {
-            const arr: ShiftRecordCategoryS[] = await s1.json();
-            setRows(arr.map(x => ({ ...x, _rules_text: JSON.stringify(x.rules_json ?? {}, null, 2) })));
+            const arr: ShiftRecordCategoryS[] = await s1.json()
+            setRows(arr.map(x => ({
+                ...x,
+                _rules_text: JSON.stringify(x.rules_json ?? {}, null, 2),
+            })))
         }
+
         if (s2.ok) setCats(await s2.json());
     };
     useEffect(() => { fetchAll() }, [])
@@ -399,29 +414,44 @@ function TabS(): React.ReactElement {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
     };
 
+    // 既存行の rules_json テキストを更新
+    const handleEditRulesS = (id: string, text: string) => {
+        setRows(prev =>
+            prev.map(r => (r.id === id ? { ...r, _rules_text: text } : r))
+        );
+    };
 
-    const save = async (row: RowS) => {
+    // 新規行の rules_json テキストを更新
+    const handleEditNewRulesS = (text: string) => {
+        setNewRow(prev => ({ ...prev, _rules_text: text }));
+    };
+
+    // JSON 文字列を安全に parse（失敗時は alert して例外投げ）
+    const parseRulesOrEmpty = (text?: string) => {
+        if (!text || !text.trim()) return {};
+        try {
+            return JSON.parse(text);
+        } catch (err) {
+            alert("rules_json が JSON ではありません");
+            throw err;
+        }
+    };
+
+    const save = async (row: ShiftRecordCategoryS) => {
+        const { _rules_text, ...rest } = row as any
         let rulesParsed: Record<string, unknown> = {}
-        try { rulesParsed = row._rules_text ? JSON.parse(row._rules_text) : {} }
+        try { rulesParsed = _rules_text ? JSON.parse(_rules_text) : {} }
         catch { alert("rules_json がJSONではありません"); return }
 
-        const payload: ShiftRecordCategoryS = {
-            id: row.id,
-            l_id: row.l_id,
-            code: row.code,
-            name: row.name,
-            sort_order: row.sort_order,
-            active: row.active,
-            rules_json: rulesParsed,
-        }
-
         const r = await fetch(`/api/shift-record-def/category-s/${row.id}`, {
-            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...rest, rules_json: rulesParsed }),
         })
-        if (r.ok) { await fetchAll(); alert("保存しました") } else {
-            alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗")
-        }
+        if (r.ok) { await fetchAll(); alert("保存しました") }
+        else { alert((await r.json().catch(() => ({ error: "保存に失敗" }))).error || "保存に失敗") }
     }
+
     const del = async (id: string) => {
         const r = await fetch(`/api/shift-record-def/category-s/${id}`, { method: "DELETE" })
         if (r.ok) { await fetchAll(); alert("削除しました") } else {
@@ -429,31 +459,57 @@ function TabS(): React.ReactElement {
         }
     }
     const add = async () => {
-        if (!newRow.l_id || !newRow.code || !newRow.name) {
-            alert("l_id / code / name は必須です"); return;
+        // 必須チェック
+        if (!newRow?.l_id || !newRow?.code || !newRow?.name) {
+            alert("l_id / code / name は必須です");
+            return;
         }
-        let rulesParsed: Record<string, unknown> = {};
-        try { rulesParsed = newRow._rules_text ? JSON.parse(newRow._rules_text) : {}; }
-        catch { alert("rules_json がJSONではありません"); return; }
 
+        // rules_json を parse
+        let rulesParsed: Record<string, unknown> = {};
+        try {
+            rulesParsed = parseRulesOrEmpty(newRow._rules_text);
+        } catch {
+            return; // parse 失敗時は中断
+        }
+
+        // 送信ペイロードを明示的に構築
         const payload = {
             l_id: newRow.l_id,
-            code: newRow.code,
-            name: newRow.name,
-            sort_order: Number(newRow.sort_order ?? 1000),
-            active: newRow.active !== false,
+            code: newRow.code.trim(),
+            name: newRow.name.trim(),
+            sort_order: newRow.sort_order ?? 1000,
+            active: newRow.active ?? true,
             rules_json: rulesParsed,
         };
 
-        const r = await fetch(`/api/shift-record-def/category-s`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        // POST
+        const resp = await fetch("/api/shift-record-def/category-s", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
         });
-        if (r.ok) {
-            setNewRow(initialNewRowS);            // ✅ any不要でリセット
+
+        if (resp.ok) {
+            // フォームを初期化（l_id は保持したい場合は残してOK）
+            setNewRow({
+                l_id: newRow.l_id,  // 直前と同じ L に続けて追加したいなら保持
+                code: "",
+                name: "",
+                sort_order: 1000,
+                active: true,
+                _rules_text: "{}",
+            } as any);
+
             await fetchAll();
             alert("追加しました");
         } else {
-            alert((await r.json().catch(() => ({ error: "追加に失敗" }))).error || "追加に失敗");
+            let msg = "追加に失敗しました";
+            try {
+                const j = await resp.json();
+                msg = j?.error || msg;
+            } catch { }
+            alert(msg);
         }
     };
 
@@ -527,14 +583,15 @@ function TabS(): React.ReactElement {
                                 </TableRow>
                                 {/* ★ 2段目：rules_json */}
                                 <TableRow className="align-top">
-                                    <TableCell className="px-1 py-1" colSpan={6}>
+                                    <TableCell className="px-1 py-1" colSpan={2}>
                                         <div className="text-[11px] text-muted-foreground pb-1">rules_json(JSON)</div>
                                         <Textarea
-                                            className="h-24"
+                                            className="h-20"
                                             value={r._rules_text ?? JSON.stringify(r.rules_json ?? {}, null, 2)}
-                                            onChange={(e) => handleEdit(r.id, "_rules_text", e.target.value as RowS["_rules_text"])}
+                                            onChange={(e) => handleEditRulesS(r.id, e.target.value)}
                                         />
                                     </TableCell>
+
                                 </TableRow>
                             </React.Fragment>
                         ))}
@@ -570,7 +627,7 @@ function TabS(): React.ReactElement {
                                 <Textarea
                                     className="h-24"
                                     value={newRow._rules_text ?? "{}"}
-                                    onChange={(e) => setNewRow({ ...newRow, _rules_text: e.target.value })}
+                                    onChange={(e) => handleEditNewRulesS(e.target.value)}
                                 />
                             </TableCell>
                         </TableRow>
