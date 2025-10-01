@@ -1,36 +1,39 @@
-//api/shift-record-def/category-s/[id]
-import { NextRequest, NextResponse } from "next/server"
-import { supabaseAdmin as db } from "@/lib/supabase/service"
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-function extractId(req: NextRequest): string {
-  const { pathname } = new URL(req.url)
-  // .../api/shift-record-def/category-s/<id>
-  return pathname.split("/").pop() as string
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
 
-export async function PUT(req: NextRequest) {
-  const id = extractId(req)
-  const b = await req.json()
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  const id = params.id;
+  const body = await req.json();
 
-  const { error } = await db
+  const updateData = {
+    l_id: body.l_id as string,
+    code: body.code as string,
+    name: body.name as string,
+    sort_order: body.sort_order as number,
+    active: body.active as boolean,
+    // ★ これ
+    rules_json: body.rules_json ?? null,
+  };
+
+  const { data, error } = await supabase
     .from("shift_record_category_s")
-    .update({
-      l_id: b.l_id,
-      code: b.code,
-      name: b.name,
-      sort_order: b.sort_order,
-      active: b.active,
-    })
+    .update(updateData)
     .eq("id", id)
+    .select("id, l_id, code, name, sort_order, active, rules_json")
+    .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ ok: true })
+  if (error) {
+    console.error("S update error:", error);
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  return NextResponse.json(data);
 }
-
-export async function DELETE(req: NextRequest) {
-  const id = extractId(req)
-  const { error } = await db.from("shift_record_category_s").delete().eq("id", id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return new NextResponse(null, { status: 204 })
-}
-
