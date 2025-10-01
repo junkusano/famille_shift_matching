@@ -198,31 +198,29 @@ function TabL(): React.ReactElement {
         setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: val } : r)));
     };
     // RowL = ShiftRecordCategoryL & { _rules_text?: string }
-    const save = async (row: RowL) => {
-        const url = `/api/shift-record-def/category-l/${row.id}`;
-        const { _rules_text, ...rest } = row;
 
-        // ① rules_json を作る（ここが true にできてるか確認）
-        let rulesParsed: Record<string, unknown> = {};
+    const save = async (row: RowL) => {
+        // 安全に JSON を作る（空文字は {} 扱い）
+        const parseRulesOrEmpty = (text?: string): Record<string, unknown> => {
+            if (!text || !text.trim()) return {};
+            try {
+                return JSON.parse(text);
+            } catch {
+                alert("rules_json が JSON ではありません");
+                throw new Error("invalid rules_json");
+            }
+        };
+
+        const { _rules_text, ...rest } = row;
+        let rulesParsed: Record<string, unknown>;
         try {
-            rulesParsed = parseRulesOrEmpty(_rules_text); // 空や不正ならここで止まる
+            rulesParsed = parseRulesOrEmpty(_rules_text);
         } catch {
-            alert("❌ rules_json が JSON ではありません");
-            return;
+            return; // JSON 不正時はここで終了
         }
 
-        // ② 実際に送る payload を構築
+        const url = `/api/shift-record-def/category-l/${row.id}`;
         const payload = { ...rest, rules_json: rulesParsed };
-
-        // ③ 送信前にアラートで中身を確認
-        alert([
-            "🟦 [PUT L] 送信前チェック",
-            `URL: ${url}`,
-            `id: ${row.id}`,
-            "",
-            "▼Payload",
-            JSON.stringify(payload, null, 2).slice(0, 1000)  // 長すぎると困るので頭だけ
-        ].join("\n"));
 
         try {
             const resp = await fetch(url, {
@@ -231,36 +229,23 @@ function TabL(): React.ReactElement {
                 body: JSON.stringify(payload),
             });
 
-            const text = await resp.text(); // json じゃない返答でも見えるように text で
-            alert([
-                "🟩 [PUT L] レスポンス",
-                `status: ${resp.status} (${resp.ok ? "OK" : "NG"})`,
-                "",
-                "▼Body(先頭のみ)",
-                text.slice(0, 1000)
-            ].join("\n"));
-
-            if (resp.ok) {
-                // ④ 直後に GET で当該レコードを拾って、本当に入ったか自分で見る
-                const list = await fetch(`/api/shift-record-def/category-l`);
-                const arr = await list.json().catch(() => []);
-                const found = Array.isArray(arr) ? arr.find((x: any) => x.id === row.id) : undefined;
-
-                alert([
-                    "🔎 [AFTER GET L] 反映確認",
-                    `hit: ${!!found}`,
-                    "",
-                    "▼found.rules_json（先頭のみ）",
-                    found?.rules_json ? JSON.stringify(found.rules_json, null, 2).slice(0, 1000) : "(none)"
-                ].join("\n"));
-
-                await fetchRows(); // 反映
-            } else {
-                // サーバ側が 400/500 の時は既に上の alert 済み
+            if (!resp.ok) {
+                let msg = "保存に失敗しました";
+                try {
+                    const j = await resp.json();
+                    msg = (j as { error?: string })?.error ?? msg;
+                } catch {
+                    /* ignore */
+                }
+                alert(msg);
+                return;
             }
-        } catch (e: any) {
-            alert("🚫 通信エラー: " + (e?.message ?? e));
+
+            await fetchRows(); // 一覧を再取得して反映
+            alert("保存しました");
+        } catch (e) {
             console.error(e);
+            alert("通信エラーで保存できませんでした");
         }
     };
 
