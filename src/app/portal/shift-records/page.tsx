@@ -1,4 +1,4 @@
-// app/(standalone)/portal/shift-records/page.tsx
+//app/portal/shift-records/page.tsx
 "use client";
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";

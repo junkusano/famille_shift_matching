@@ -1,3 +1,4 @@
+//app/api/shift-records/category-l/route.ts
 import { NextResponse } from "next/server"
 import { supabaseAdmin as db } from "@/lib/supabase/service"
 

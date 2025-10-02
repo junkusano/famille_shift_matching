@@ -1,3 +1,4 @@
+//component/shift/ShiftRecord.tsx
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "next/navigation";
@@ -12,7 +13,14 @@ const STATUS = {
 } as const;
 
 // ===== 型（rules_json / meta_json）=====
-type RuleStringCond = { equals?: string; includes?: string; matches?: string };
+// 置き換え（includes_any を追加）
+type RuleStringCond = {
+  equals?: string;
+  includes?: string;
+  matches?: string;
+  includes_any?: string[]; // ← 追加
+};
+
 type RuleWhen = Record<string, RuleStringCond>; // 例: { "service_code": { includes: "身" } }
 type RuleSet = { active?: boolean; required?: boolean; default_value?: unknown };
 export type ItemRules = { when?: RuleWhen; set?: RuleSet };
@@ -29,7 +37,28 @@ export type ItemMeta = { notify?: MetaNotify };
 type RulesJson = ItemRules | ItemRules[] | null;
 
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
-export type ShiftRecordCategoryL = { id: string; code?: string; name: string; sort_order?: number };
+// 置き換え（rules_json を追加）
+type LRuleIf = Record<string, RuleStringCond>;
+type LRuleCheck = {
+  min_checked_in_this_category?: number;
+  exclude_items?: { by_code?: string[]; by_name_exact?: string[] };
+};
+type LRule = {
+  id: string;
+  if?: LRuleIf;
+  check?: LRuleCheck;
+  message?: string;
+  severity?: "error" | "warn";
+};
+type LRulesJson = { version?: number; rules?: LRule[] } | null;
+
+export type ShiftRecordCategoryL = {
+  id: string;
+  code?: string;
+  name: string;
+  sort_order?: number;
+  rules_json?: LRulesJson; // ← 追加
+};
 export type ShiftRecordCategoryS = { id: string; l_id: string; code?: string; name: string; sort_order?: number };
 export type OptionKV = { label: string; value: string };
 export type ShiftRecordItemDef = {
@@ -70,7 +99,8 @@ function isRuleStringCond(v: unknown): v is RuleStringCond {
   return isRecord(v)
     && (v.equals === undefined || typeof v.equals === "string")
     && (v.includes === undefined || typeof v.includes === "string")
-    && (v.matches === undefined || typeof v.matches === "string");
+    && (v.matches === undefined || typeof v.matches === "string")
+    && (v.includes_any === undefined || Array.isArray(v.includes_any));
 }
 function isRuleWhen(v: unknown): v is RuleWhen {
   if (!isRecord(v)) return false;
@@ -103,6 +133,9 @@ function testStringCond(src: string, cond?: RuleStringCond): boolean {
   if (!cond) return true;
   if (typeof cond.equals === "string" && src !== cond.equals) return false;
   if (typeof cond.includes === "string" && !src.includes(cond.includes)) return false;
+  if (Array.isArray(cond.includes_any) && cond.includes_any.length > 0) {
+    if (!cond.includes_any.some((needle) => src.includes(String(needle)))) return false; // ← 追加
+  }
   if (typeof cond.matches === "string") {
     try { if (!new RegExp(cond.matches).test(src)) return false; } catch { return false; }
   }
@@ -534,6 +567,8 @@ export default function ShiftRecord({
 
   const runValidation = useCallback(() => {
     const nextErr: Record<string, string> = {};
+
+    // 既存の必須チェックはそのまま
     for (const it of effectiveItems) {
       if (it.required && it.input_type !== "display") {
         const cur = Object.prototype.hasOwnProperty.call(values, it.id)
@@ -542,9 +577,60 @@ export default function ShiftRecord({
         if (isEmptyValue(it, cur)) nextErr[it.id] = "必須項目です。";
       }
     }
+
+    // === 追加: category-L の rules_json によるチェック ===
+    const shiftCtx = (mergedInfo?.shift ?? mergedInfo ?? {}) as Record<string, unknown>;
+    //const serviceCode = String(shiftCtx?.service_code ?? "");
+
+    for (const l of (defs.L ?? [])) {
+      const lRules = (l.rules_json?.rules ?? []) as LRule[];
+
+      for (const rule of lRules) {
+        // if 条件の評価（キーは "shift.service_code" のような path を想定）
+        const when = rule.if ?? {};
+        const whenOk = Object.keys(when).every((k) => {
+          const v = String(getByPath({ shift: shiftCtx, ...shiftCtx }, k) ?? "");
+          return testStringCond(v, when[k]);
+        });
+        if (!whenOk) continue;
+
+        // L 配下の S と項目を抽出
+        const sInL = (defs.S ?? []).filter((s) => s.l_id === l.id).map((s) => s.id);
+        const itemDefsInL = effectiveItems.filter((it) => sInL.includes(it.s_id));
+
+        // 除外指定
+        const exCodes = rule.check?.exclude_items?.by_code ?? [];
+        const exNames = rule.check?.exclude_items?.by_name_exact ?? [];
+        const minNeeded = Math.max(1, rule.check?.min_checked_in_this_category ?? 1);
+
+        const checkedCount = itemDefsInL.reduce((acc, it) => {
+          const excluded =
+            (it.code && exCodes.includes(String(it.code))) ||
+            exNames.includes(String(it.label));
+          if (excluded) return acc;
+
+          const val = values[it.id];
+          const isOn =
+            Array.isArray(val) ? val.length > 0 :
+              typeof val === "string" ? val.trim() !== "" && val !== "0" :
+                typeof val === "number" ? !Number.isNaN(val) && String(val) !== "0" :
+                  typeof val === "boolean" ? val :
+                    !!val;
+
+          return acc + (isOn ? 1 : 0);
+        }, 0);
+
+        if (checkedCount < minNeeded) {
+          // カテゴリ単位のエラーとして保持（表示位置は任意）
+          nextErr[`__rule_l_${l.id}_${rule.id}`] =
+            rule.message ?? "カテゴリの必須条件を満たしていません。";
+        }
+      }
+    }
+
     setErrors(nextErr);
     return Object.keys(nextErr).length === 0;
-  }, [effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
+  }, [effectiveItems, values, mergedInfo, codeToId, idToDefault, defs.L, defs.S, isEmptyValue]);
 
   // ===== 完了処理（Validation OK のときだけ PATCH で完了へ） =====
   const handleComplete = useCallback(async () => {
