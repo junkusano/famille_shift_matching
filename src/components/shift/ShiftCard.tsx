@@ -163,6 +163,8 @@ export default function ShiftCard({
     standard_route?: string | null;
     standard_trans_ways?: string | null;
     standard_purpose?: string | null;
+    address?: string | null;       // ← 追加
+    postal_code?: string | null;
   } | null>(null);
 
 
@@ -254,7 +256,7 @@ export default function ShiftCard({
       if (infoIdCache.has(csId)) { setAdjId(infoIdCache.get(csId)); return; }
       const { data, error } = await supabase
         .from(kaipokeInfoTableName)
-        .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose")
+        .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
         .eq("kaipoke_cs_id", csId)
         .maybeSingle();
       if (error || !data) { setAdjId(undefined); setKaipokeInfo(null); return; }
@@ -265,7 +267,14 @@ export default function ShiftCard({
         standard_route: typeof info.standard_route === "string" ? info.standard_route : null,
         standard_trans_ways: typeof info.standard_trans_ways === "string" ? info.standard_trans_ways : null,
         standard_purpose: typeof info.standard_purpose === "string" ? info.standard_purpose : null,
+        address: typeof info.address === "string" ? info.address : null,           // ← 追加
+        postal_code: typeof info.postal_code === "string" ? info.postal_code : null, // ← 追加（任意）
       });
+
+      // 住所・郵便番号の安全取得（上のimport/ヘルパ群のすぐ下か、JSX直前でOK）
+      const addr = pickNonEmptyString(kaipokeInfo, ["address"]) ?? pickNonEmptyString(shift, ["address"]);
+      const postal = pickNonEmptyString(kaipokeInfo, ["postal_code"]) ?? pickNonEmptyString(shift, ["postal_code"]);
+      const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
       /*  こっちは表示する　　
       alert(
         [
@@ -482,8 +491,29 @@ export default function ShiftCard({
           )}
         </div>
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
-        <div className="text-sm">郵便番号: {shift.address}</div>
-        <div className="text-sm">エリア: {shift.district}</div>
+        {mode === "reject" ? (
+          // Rejectモード時は 住所リンク を表示
+          <div className="text-sm">
+            住所: {addr ? (
+              <a
+                href={mapsUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-600"
+                title="Googleマップで開く"
+              >
+                {addr}
+              </a>
+            ) : "—"}
+            {postal && <span className="ml-2">（{postal}）</span>}
+          </div>
+        ) : (
+          // それ以外のモード（requestなど）は従来通り
+          <>
+            <div className="text-sm">郵便番号: {postal ?? "—"}</div>
+            <div className="text-sm">エリア: {shift.district ?? "—"}</div>
+          </>
+        )}
 
         <div className="mt-2 space-y-1">
           <MiniInfo />
