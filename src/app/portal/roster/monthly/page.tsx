@@ -439,7 +439,7 @@ export default function MonthlyRosterPage() {
                 setShifts([])
                 return
             }
-            const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&monthly=${encodeURIComponent(selectedMonth)}`
+            const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
             const res = await fetch(url, { cache: 'no-store' })
             const raw = await res.json()
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : []
@@ -736,7 +736,7 @@ export default function MonthlyRosterPage() {
                                 kaipoke_cs_id: selectedKaipokeCS,
                                 month: selectedMonth,
                             })
-                            router.push(`/portal/roster/month/print-view?${q.toString()}`)
+                            router.push(`/portal/roster/monthly/print-view?${q.toString()}`)
                         }}
                     >
                         印刷ビュー（PDF）
