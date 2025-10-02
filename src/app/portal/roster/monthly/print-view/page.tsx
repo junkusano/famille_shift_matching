@@ -1,4 +1,3 @@
-//app/portal/roster/monthly/print-view/page.tsx
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -116,12 +115,11 @@ function buildMonthWeeks(yyyyMM: string) {
 
 const toISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 
-// 令和表記（簡易）
-function toReiwa(yyyyMM: string) {
+// 西暦表記（YYYY年M月）
+function toYearMonthJa(yyyyMM: string) {
   const [y, m] = yyyyMM.split('-').map(Number)
-  // 令和元年=2019年
-  const eraY = Math.max(1, y - 2018)
-  return `令和${eraY}年${m}月`
+  if (!y || !m) return ''
+  return `${y}年${m}月`
 }
 
 function humanName(u: StaffUser) {
@@ -192,7 +190,7 @@ export default function PrintViewMonthlyRoster() {
   const svcMap = useMemo(() => new Map(serviceCodes.map(s => [s.service_code ?? '', s.kaipoke_servicek ?? s.service_code ?? ''])), [serviceCodes])
 
   const targetName = csMap.get(kaipoke_cs_id) ?? '（利用者未指定）'
-  const titleText = month ? `${targetName} ${toReiwa(month)} サービス予定` : `${targetName} サービス予定`
+  const titleText = month ? `${targetName} 様 ${toYearMonthJa(month)} サービス予定` : `${targetName} 様 サービス予定`
 
   const weeks = useMemo(() => (month ? buildMonthWeeks(month) : []), [month])
 
@@ -231,6 +229,7 @@ export default function PrintViewMonthlyRoster() {
 
         {/* Legend */}
         <div className="text-right text-sm text-muted-foreground mb-2">★は同行を表します</div>
+        <div className="text-left text-xs text-muted-foreground mb-2">URL は <code>/portal/roster/monthly/print-view</code> を想定（現在のファイルは <code>/portal/roster/month/print-view</code> なので配置先を変更してください）。</div>
 
         {/* Month Grid */}
         <div className="border rounded-md overflow-hidden">

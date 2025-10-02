@@ -439,7 +439,7 @@ export default function MonthlyRosterPage() {
                 setShifts([])
                 return
             }
-            const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
+            const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&monthly=${encodeURIComponent(selectedMonth)}`
             const res = await fetch(url, { cache: 'no-store' })
             const raw = await res.json()
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : []
@@ -717,20 +717,6 @@ export default function MonthlyRosterPage() {
                             次へ（{csNext?.name ?? '-'}）
                         </Button>
                     </div>
-                    <div>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                const q = new URLSearchParams({
-                                    kaipoke_cs_id: selectedKaipokeCS,
-                                    month: selectedMonth,
-                                })
-                                router.push(`/portal/roster/month/print-view?${q.toString()}`)
-                            }}
-                        >
-                            印刷ビュー（PDF）
-                        </Button>
-                    </div>
                 </div>
 
 
@@ -742,6 +728,20 @@ export default function MonthlyRosterPage() {
                         </Button>
                     </div>
                 )}
+                <div>
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            const q = new URLSearchParams({
+                                kaipoke_cs_id: selectedKaipokeCS,
+                                month: selectedMonth,
+                            })
+                            router.push(`/portal/roster/month/print-view?${q.toString()}`)
+                        }}
+                    >
+                        印刷ビュー（PDF）
+                    </Button>
+                </div>
             </div>
 
             {/* テーブル（ヘッダー固定・行境界くっきり） */}
