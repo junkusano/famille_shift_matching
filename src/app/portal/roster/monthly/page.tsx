@@ -199,7 +199,8 @@ const isValidHM = (v: string) => /^\d{2}:\d{2}$/.test(v);
 // === 週の曜日（0=日〜6=土） ===
 const JP_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 
-
+// 既存の state 群の近くに追加
+const [recordStatus, setRecordStatus] = useState<Record<string, 'submitted' | 'draft'>>({});
 
 
 // 月内で該当曜日の日付（YYYY-MM-DD配列）を返す。基準は draft.shift_start_date の属する月
@@ -285,7 +286,6 @@ export default function MonthlyRosterPage() {
             return next;
         });
     };
-
 
     // 1日分を追加（同日・同時刻があればスキップ）
     // 1日分を追加（同日・同時刻があればスキップ）
@@ -375,6 +375,25 @@ export default function MonthlyRosterPage() {
         alert(`追加完了: ${ok}件${ng ? `（失敗 ${ng} 件）` : ''}`);
     };
 
+    const loadRecordStatuses = async (ids: string[]) => {
+        if (!ids.length) return;
+        try {
+            // 好みでGETでもPOSTでもOK。ここではPOST例。
+            const res = await fetch('/api/shift-records/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shift_ids: ids }),
+            });
+            if (!res.ok) return;
+
+            // 期待する返り値: [{ shift_id: string, status: 'submitted' | 'draft' }, ...]
+            const rows: Array<{ shift_id: string; status: 'submitted' | 'draft' }> = await res.json();
+            const map = Object.fromEntries(rows.map(r => [String(r.shift_id), r.status]));
+            setRecordStatus(map);
+        } catch {
+            // 失敗時は無視（全てデフォルト配色のまま）
+        }
+    };
 
     // --- masters ---
     useEffect(() => {
@@ -482,9 +501,13 @@ export default function MonthlyRosterPage() {
                 if (d !== 0) return d
                 return a.shift_start_time.localeCompare(b.shift_start_time)
             })
-            setShifts(normalized)
-            setOpenRecordFor(null)
-            setSelectedIds(new Set())
+
+            setShifts(normalized);
+            setOpenRecordFor(null);
+            setSelectedIds(new Set());
+
+            // ★ 追加: 訪問記録ステータスの一括取得
+            void loadRecordStatuses(normalized.map(r => r.shift_id));
         }
         void loadShifts()
     }, [selectedKaipokeCS, selectedMonth])
@@ -849,67 +872,67 @@ export default function MonthlyRosterPage() {
                                         {/* サービス */}
                                         <TableCell>
                                             <div className="w-56">
-                                                
-                                                    <Select value={row.service_code ?? ''} onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)} >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="サービスを選択" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {serviceOptions.map((o) => (
-                                                                <SelectItem key={o.value} value={o.value}>
-                                                                    {o.label}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                
+
+                                                <Select value={row.service_code ?? ''} onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)} >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="サービスを選択" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {serviceOptions.map((o) => (
+                                                            <SelectItem key={o.value} value={o.value}>
+                                                                {o.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+
                                             </div>
                                         </TableCell>
 
                                         {/* 派遣人数（Select：幅 2/3相当） */}
                                         <TableCell>
                                             <div className="w-[112px]">
-                                                
-                                                    <Select
-                                                        value={row.dispatch_size ?? '-'}
-                                                        onValueChange={(v: '-' | '01') => {
-                                                            updateRow(row.shift_id, 'dup_role', v)
-                                                            updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
-                                                        }}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="-" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="-">-</SelectItem>
-                                                            <SelectItem value="01">2人同時作業</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                               
+
+                                                <Select
+                                                    value={row.dispatch_size ?? '-'}
+                                                    onValueChange={(v: '-' | '01') => {
+                                                        updateRow(row.shift_id, 'dup_role', v)
+                                                        updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
+                                                    }}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="-" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="-">-</SelectItem>
+                                                        <SelectItem value="01">2人同時作業</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+
                                             </div>
                                         </TableCell>
 
                                         {/* 重複（Select：幅 1/2相当） */}
                                         <TableCell>
                                             <div className="w-[80px]">
-                                               
-                                                    <Select
-                                                        value={row.dup_role ?? '-'}
-                                                        onValueChange={(v: '-' | '01' | '02') => {
-                                                            updateRow(row.shift_id, 'dispatch_size', v)
-                                                            updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
-                                                        }}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="-" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="-">-</SelectItem>
-                                                            <SelectItem value="01">1人目</SelectItem>
-                                                            <SelectItem value="02">2人目</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                
+
+                                                <Select
+                                                    value={row.dup_role ?? '-'}
+                                                    onValueChange={(v: '-' | '01' | '02') => {
+                                                        updateRow(row.shift_id, 'dispatch_size', v)
+                                                        updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
+                                                    }}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="-" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="-">-</SelectItem>
+                                                        <SelectItem value="01">1人目</SelectItem>
+                                                        <SelectItem value="02">2人目</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+
                                             </div>
                                         </TableCell>
 
@@ -941,24 +964,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ1</span>
                                                     <div className="w-44">
-                                                        
-                                                            <Select
-                                                                value={row.staff_01_user_id ?? ''}
-                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="選択" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="">-</SelectItem>
-                                                                    {staffOptions.map((o) => (
-                                                                        <SelectItem key={o.value} value={o.value}>
-                                                                            {o.label}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        
+
+                                                        <Select
+                                                            value={row.staff_01_user_id ?? ''}
+                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="選択" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="">-</SelectItem>
+                                                                {staffOptions.map((o) => (
+                                                                    <SelectItem key={o.value} value={o.value}>
+                                                                        {o.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+
                                                     </div>
                                                 </div>
 
@@ -966,24 +989,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ2</span>
                                                     <div className="w-44">
-                                                        
-                                                            <Select
-                                                                value={row.staff_02_user_id ?? ''}
-                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="選択" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="">-</SelectItem>
-                                                                    {staffOptions.map((o) => (
-                                                                        <SelectItem key={o.value} value={o.value}>
-                                                                            {o.label}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                       
+
+                                                        <Select
+                                                            value={row.staff_02_user_id ?? ''}
+                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="選択" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="">-</SelectItem>
+                                                                {staffOptions.map((o) => (
+                                                                    <SelectItem key={o.value} value={o.value}>
+                                                                        {o.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
@@ -999,24 +1022,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
                                                     <div className="w-44">
-                                                        
-                                                            <Select
-                                                                value={row.staff_03_user_id ?? ''}
-                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="選択" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="">-</SelectItem>
-                                                                    {staffOptions.map((o) => (
-                                                                        <SelectItem key={o.value} value={o.value}>
-                                                                            {o.label}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        
+
+                                                        <Select
+                                                            value={row.staff_03_user_id ?? ''}
+                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="選択" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="">-</SelectItem>
+                                                                {staffOptions.map((o) => (
+                                                                    <SelectItem key={o.value} value={o.value}>
+                                                                        {o.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
@@ -1030,12 +1053,25 @@ export default function MonthlyRosterPage() {
 
                                                 {/* 操作（右寄せ）：訪問記録・保存・× */}
                                                 <div className="ml-auto flex gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        onClick={() => setOpenRecordFor(prev => prev === row.shift_id ? null : row.shift_id)}
-                                                    >
-                                                        {openRecordFor === row.shift_id ? "閉じる" : "訪問記録"}
-                                                    </Button>
+                                                    {(() => {
+                                                        const s = recordStatus[row.shift_id]; // 'submitted' | 'draft' | undefined
+                                                        const colorCls =
+                                                            s === 'submitted'
+                                                                ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                                                                : s === 'draft'
+                                                                    ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                                                    : ''; // 未作成などは従来通り
+
+                                                        return (
+                                                            <Button
+                                                                variant={s ? 'default' : 'outline'}
+                                                                className={colorCls}
+                                                                onClick={() => setOpenRecordFor(prev => (prev === row.shift_id ? null : row.shift_id))}
+                                                            >
+                                                                {openRecordFor === row.shift_id ? '閉じる' : '訪問記録'}
+                                                            </Button>
+                                                        );
+                                                    })()}
                                                     <LockIf locked={readOnly}>
                                                         <Button
                                                             variant="default"
