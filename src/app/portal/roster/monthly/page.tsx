@@ -10,6 +10,8 @@ import ShiftRecord from '@/components/shift/ShiftRecord'
 import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
 import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+
 
 // ========= Types =========
 type KaipokeCs = {
@@ -196,6 +198,8 @@ const isValidHM = (v: string) => /^\d{2}:\d{2}$/.test(v);
 
 // === 週の曜日（0=日〜6=土） ===
 const JP_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+
+const router = useRouter()
 
 
 // 月内で該当曜日の日付（YYYY-MM-DD配列）を返す。基準は draft.shift_start_date の属する月
@@ -711,7 +715,22 @@ export default function MonthlyRosterPage() {
                             次へ（{csNext?.name ?? '-'}）
                         </Button>
                     </div>
+                    <div>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                const q = new URLSearchParams({
+                                    kaipoke_cs_id: selectedKaipokeCS,
+                                    month: selectedMonth,
+                                })
+                                router.push(`/portal/roster/month/print-view?${q.toString()}`)
+                            }}
+                        >
+                            印刷ビュー（PDF）
+                        </Button>
+                    </div>
                 </div>
+
 
                 {/* 一括削除（必要時のみ表示） */}
                 {selectedIds.size > 0 && (
