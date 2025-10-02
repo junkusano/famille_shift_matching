@@ -849,7 +849,7 @@ export default function MonthlyRosterPage() {
                                         {/* サービス */}
                                         <TableCell>
                                             <div className="w-56">
-                                                <LockIf locked={readOnly}>
+                                                
                                                     <Select value={row.service_code ?? ''} onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)} >
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="サービスを選択" />
@@ -862,14 +862,14 @@ export default function MonthlyRosterPage() {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
-                                                </LockIf>
+                                                
                                             </div>
                                         </TableCell>
 
                                         {/* 派遣人数（Select：幅 2/3相当） */}
                                         <TableCell>
                                             <div className="w-[112px]">
-                                                <LockIf locked={readOnly}>
+                                                
                                                     <Select
                                                         value={row.dispatch_size ?? '-'}
                                                         onValueChange={(v: '-' | '01') => {
@@ -885,14 +885,14 @@ export default function MonthlyRosterPage() {
                                                             <SelectItem value="01">2人同時作業</SelectItem>
                                                         </SelectContent>
                                                     </Select>
-                                                </LockIf>
+                                               
                                             </div>
                                         </TableCell>
 
                                         {/* 重複（Select：幅 1/2相当） */}
                                         <TableCell>
                                             <div className="w-[80px]">
-                                                <LockIf locked={readOnly}>
+                                               
                                                     <Select
                                                         value={row.dup_role ?? '-'}
                                                         onValueChange={(v: '-' | '01' | '02') => {
@@ -909,7 +909,7 @@ export default function MonthlyRosterPage() {
                                                             <SelectItem value="02">2人目</SelectItem>
                                                         </SelectContent>
                                                     </Select>
-                                                </LockIf>
+                                                
                                             </div>
                                         </TableCell>
 
@@ -941,7 +941,7 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ1</span>
                                                     <div className="w-44">
-                                                        <LockIf locked={readOnly}>
+                                                        
                                                             <Select
                                                                 value={row.staff_01_user_id ?? ''}
                                                                 onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
@@ -958,7 +958,7 @@ export default function MonthlyRosterPage() {
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
-                                                        </LockIf>
+                                                        
                                                     </div>
                                                 </div>
 
@@ -966,7 +966,7 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ2</span>
                                                     <div className="w-44">
-                                                        <LockIf locked={readOnly}>
+                                                        
                                                             <Select
                                                                 value={row.staff_02_user_id ?? ''}
                                                                 onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
@@ -983,7 +983,7 @@ export default function MonthlyRosterPage() {
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
-                                                        </LockIf>
+                                                       
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
@@ -999,7 +999,7 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
                                                     <div className="w-44">
-                                                        <LockIf locked={readOnly}>
+                                                        
                                                             <Select
                                                                 value={row.staff_03_user_id ?? ''}
                                                                 onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
@@ -1016,7 +1016,7 @@ export default function MonthlyRosterPage() {
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
-                                                        </LockIf>
+                                                        
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
