@@ -556,6 +556,8 @@ export default function ShiftRecord({
 
   // ===== Validation（必須のみ。active=false と display は対象外） =====
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [globalErrors, setGlobalErrors] = useState<string[]>([]);
+  void globalErrors;
 
   const isEmptyValue = useCallback((def: ShiftRecordItemDef, v: unknown) => {
     if (v == null) return true;
@@ -567,8 +569,9 @@ export default function ShiftRecord({
 
   const runValidation = useCallback(() => {
     const nextErr: Record<string, string> = {};
+    const pageMessages: string[] = [];
 
-    // 既存の必須チェックはそのまま
+    // === 既存の「必須項目チェック」(そのまま) ===
     for (const it of effectiveItems) {
       if (it.required && it.input_type !== "display") {
         const cur = Object.prototype.hasOwnProperty.call(values, it.id)
@@ -578,31 +581,37 @@ export default function ShiftRecord({
       }
     }
 
-    // === 追加: category-L の rules_json によるチェック ===
+    // === 追加: category-L の rules_json によるバリデーション ===
+    // shift情報（service_code等）を取り出せるように評価用コンテキストを用意
     const shiftCtx = (mergedInfo?.shift ?? mergedInfo ?? {}) as Record<string, unknown>;
-    //const serviceCode = String(shiftCtx?.service_code ?? "");
 
     for (const l of (defs.L ?? [])) {
-      const lRules = (l.rules_json?.rules ?? []) as LRule[];
+      const lRules = (l as any)?.rules_json?.rules ?? []; // ← DBのJSONをそのまま受ける（型は any で安全にアクセス）
 
       for (const rule of lRules) {
-        // if 条件の評価（キーは "shift.service_code" のような path を想定）
-        const when = rule.if ?? {};
-        const whenOk = Object.keys(when).every((k) => {
+        // when 判定
+        const whenObj = rule?.if ?? {};
+        const whenOk = Object.keys(whenObj).every((k) => {
           const v = String(getByPath({ shift: shiftCtx, ...shiftCtx }, k) ?? "");
-          return testStringCond(v, when[k]);
+          const cond = whenObj[k];
+          // includes / equals / matches / includes_any の簡易対応
+          if (cond?.includes_any && Array.isArray(cond.includes_any)) {
+            return cond.includes_any.some((needle: string) => v.includes(String(needle)));
+          }
+          return testStringCond(v, cond); // equals / includes / matches は既存ヘルパで
         });
         if (!whenOk) continue;
 
-        // L 配下の S と項目を抽出
+        // L配下のSと、そのSに属する item を抽出
         const sInL = (defs.S ?? []).filter((s) => s.l_id === l.id).map((s) => s.id);
         const itemDefsInL = effectiveItems.filter((it) => sInL.includes(it.s_id));
 
-        // 除外指定
-        const exCodes = rule.check?.exclude_items?.by_code ?? [];
-        const exNames = rule.check?.exclude_items?.by_name_exact ?? [];
-        const minNeeded = Math.max(1, rule.check?.min_checked_in_this_category ?? 1);
+        // 除外リストと必要数
+        const exCodes: string[] = rule?.check?.exclude_items?.by_code ?? [];
+        const exNames: string[] = rule?.check?.exclude_items?.by_name_exact ?? [];
+        const minNeeded = Math.max(1, Number(rule?.check?.min_checked_in_this_category ?? 1));
 
+        // 実際に「チェックされている」個数を数える
         const checkedCount = itemDefsInL.reduce((acc, it) => {
           const excluded =
             (it.code && exCodes.includes(String(it.code))) ||
@@ -614,23 +623,25 @@ export default function ShiftRecord({
             Array.isArray(val) ? val.length > 0 :
               typeof val === "string" ? val.trim() !== "" && val !== "0" :
                 typeof val === "number" ? !Number.isNaN(val) && String(val) !== "0" :
-                  typeof val === "boolean" ? val :
-                    !!val;
+                  typeof val === "boolean" ? val : !!val;
 
           return acc + (isOn ? 1 : 0);
         }, 0);
 
         if (checkedCount < minNeeded) {
-          // カテゴリ単位のエラーとして保持（表示位置は任意）
-          nextErr[`__rule_l_${l.id}_${rule.id}`] =
-            rule.message ?? "カテゴリの必須条件を満たしていません。";
+          const msg = String(rule?.message ?? "カテゴリの必須条件を満たしていません。");
+          nextErr[`__rule_l_${l.id}_${String(rule?.id ?? "")}`] = msg;
+          pageMessages.push(msg); // ← 画面上部に出すために集約
         }
       }
     }
 
     setErrors(nextErr);
+    setGlobalErrors(Array.from(new Set(pageMessages))); // 重複排除
+
     return Object.keys(nextErr).length === 0;
   }, [effectiveItems, values, mergedInfo, codeToId, idToDefault, defs.L, defs.S, isEmptyValue]);
+
 
   // ===== 完了処理（Validation OK のときだけ PATCH で完了へ） =====
   const handleComplete = useCallback(async () => {
@@ -685,6 +696,12 @@ export default function ShiftRecord({
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm text-gray-600">Shift ID: {shiftId}</div>
         <div className="flex items-center gap-2">
+          {/* ← 追加: ルール違反メッセージ（先頭だけを見やすく） */}
+          {globalErrors.length > 0 && (
+            <div className="text-xs text-red-600 max-w-[40ch] line-clamp-2" title={globalErrors.join(" / ")}>
+              {globalErrors[0]}
+            </div>
+          )}
           <SaveIndicator state={saveState} done={recordLocked} />
           <button
             type="button"
