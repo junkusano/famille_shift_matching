@@ -199,7 +199,7 @@ const isValidHM = (v: string) => /^\d{2}:\d{2}$/.test(v);
 // === 週の曜日（0=日〜6=土） ===
 const JP_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 
-const router = useRouter()
+
 
 
 // 月内で該当曜日の日付（YYYY-MM-DD配列）を返す。基準は draft.shift_start_date の属する月
@@ -227,6 +227,8 @@ export default function MonthlyRosterPage() {
     const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
     const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
     const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
+
+    const router = useRouter()
 
     // 初期反映：URLクエリ（ShiftCardの「月間」ボタンから渡す値を拾う）
     useEffect(() => {
