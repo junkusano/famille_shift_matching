@@ -271,10 +271,6 @@ export default function ShiftCard({
         postal_code: typeof info.postal_code === "string" ? info.postal_code : null, // ← 追加（任意）
       });
 
-      // 住所・郵便番号の安全取得（上のimport/ヘルパ群のすぐ下か、JSX直前でOK）
-      const addr = pickNonEmptyString(kaipokeInfo, ["address"]) ?? pickNonEmptyString(shift, ["address"]);
-      const postal = pickNonEmptyString(kaipokeInfo, ["postal_code"]) ?? pickNonEmptyString(shift, ["postal_code"]);
-      const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
       /*  こっちは表示する　　
       alert(
         [
@@ -467,6 +463,16 @@ export default function ShiftCard({
     if (!isMyAssignmentRejectMode(shift, myUserId)) return null;
   }
 
+  // ★ ここを return の直前に追加
+  const addr =
+    pickNonEmptyString(kaipokeInfo, ["address"]) ??
+    pickNonEmptyString(shift, ["address"]);
+
+  const postal =
+    pickNonEmptyString(kaipokeInfo, ["postal_code"]) ??
+    pickNonEmptyString(shift, ["postal_code"]);
+
+  const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
 
   /* ------- Render ------- */
   return (
