@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ShiftRecord from '@/components/shift/ShiftRecord'
 import { useCallback } from 'react';
-
+import { useRoleContext } from "@/context/RoleContext";
+import { useSearchParams } from 'next/navigation'
 
 // ========= Types =========
 type KaipokeCs = {
@@ -71,6 +72,24 @@ type NewShiftDraft = {
     staff_02_attend_flg: boolean;
     staff_03_attend_flg: boolean;
 };
+
+function LockIf({
+    locked,
+    children,
+}: {
+    locked: boolean;
+    children: React.ReactNode;
+}) {
+    if (!locked) return <>{children}</>;
+    return (
+        <div
+            className="pointer-events-none opacity-60 select-none"
+            aria-disabled="true"
+        >
+            {children}
+        </div>
+    );
+}
 
 
 // ========= Helpers =========
@@ -195,13 +214,25 @@ const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<numb
     return results;
 };
 
-
 // ========= Main =========
 export default function MonthlyRosterPage() {
+    const { role } = useRoleContext(); // Layoutと同じ判定に統一
+    const readOnly = !["manager", "admin"].includes((role ?? "").toLowerCase());
+    const searchParams = useSearchParams();
     // マスタ
     const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
     const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
     const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
+
+    // 初期反映：URLクエリ（ShiftCardの「月間」ボタンから渡す値を拾う）
+    useEffect(() => {
+        const qCs = searchParams.get('kaipoke_cs_id') ?? '';
+        const qMonth = searchParams.get('month') ?? '';
+        if (qCs) setSelectedKaipokeCS(qCs);
+        if (qMonth) setSelectedMonth(qMonth);
+        // 初回のみでOK
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // フィルタ
     const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>('') // kaipoke_cs_id
@@ -316,6 +347,7 @@ export default function MonthlyRosterPage() {
 
     // handleAddClick を追加（そのまま）
     const handleAddClick = async () => {
+        if (readOnly) return;
         if (!selectedKaipokeCS) return alert('利用者IDが未選択です');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.shift_start_date)) return alert('日付を入力してください');
         const startHM = normalizeTimeLoose(draft.shift_start_time);
@@ -468,6 +500,7 @@ export default function MonthlyRosterPage() {
 
     // 保存
     const handleSave = async (row: ShiftRow) => {
+        if (readOnly) return;
         const required_staff_count = row.dispatch_size === '01' ? 2 : 1
         const two_person_work_flg = row.dup_role !== '-'
 
@@ -476,7 +509,7 @@ export default function MonthlyRosterPage() {
         const stOk = isValidTimeStr(row.shift_start_time)
         const etOk = isValidTimeStr(row.shift_end_time)
         //const jiOk = row.judo_ido ? isValidJudoIdo(row.judo_ido) : true
-        if (!dateOk || !stOk || !etOk ) {
+        if (!dateOk || !stOk || !etOk) {
             alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）')
             return
         }
@@ -511,11 +544,13 @@ export default function MonthlyRosterPage() {
 
     // ローカル更新
     const updateRow = <K extends keyof ShiftRow>(shiftId: string, field: K, value: ShiftRow[K]) => {
+        if (readOnly) return;
         setShifts((prev) => prev.map((r) => (r.shift_id === shiftId ? { ...r, [field]: value } : r)))
     }
 
     // 削除選択トグル
     const toggleSelect = (shiftId: string, checked: boolean) => {
+        if (readOnly) return;
         setSelectedIds((prev) => {
             const next = new Set(prev)
             if (checked) next.add(shiftId)
@@ -526,6 +561,7 @@ export default function MonthlyRosterPage() {
 
     // 一括削除
     const handleDeleteSelected = async () => {
+        if (readOnly) return;
         if (selectedIds.size === 0) return
         if (!confirm(`${selectedIds.size} 件を削除します。よろしいですか？`)) return
         const ids = Array.from(selectedIds)
@@ -545,6 +581,7 @@ export default function MonthlyRosterPage() {
 
     // 個別削除
     const handleDeleteOne = async (id: string) => {
+        if (readOnly) return;
         if (!confirm('この行を削除します。よろしいですか？')) return
         const res = await fetch('/api/shifts', {
             method: 'DELETE',
@@ -592,6 +629,7 @@ export default function MonthlyRosterPage() {
 
     // 全選択ON/OFF
     const onToggleSelectAll = (checked: boolean) => {
+        if (readOnly) return;
         if (!checked) {
             setSelectedIds(new Set())
             return
@@ -736,6 +774,7 @@ export default function MonthlyRosterPage() {
                                                 className="h-3.5 w-3.5"
                                                 checked={selectedIds.has(row.shift_id)}
                                                 onChange={(ev) => toggleSelect(row.shift_id, ev.target.checked)}
+                                                disabled={readOnly}
                                             />
                                         </TableCell>
 
@@ -752,6 +791,7 @@ export default function MonthlyRosterPage() {
                                                         }}
                                                         placeholder="YYYY-MM-DD"
                                                         className={dateInvalid ? 'border-red-500' : ''}
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
                                                 <span className="text-xs text-muted-foreground">（{weekdayJa(row.shift_start_date)}）</span>
@@ -766,6 +806,7 @@ export default function MonthlyRosterPage() {
                                                     onBlur={(e) => updateRow(row.shift_id, 'shift_start_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1030 → 10:30"
                                                     className={row.shift_start_time && !isValidHM(normalizeTimeLoose(row.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </TableCell>
@@ -779,67 +820,74 @@ export default function MonthlyRosterPage() {
                                                     onBlur={(e) => updateRow(row.shift_id, 'shift_end_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1730 → 17:30"
                                                     className={row.shift_end_time && !isValidHM(normalizeTimeLoose(row.shift_end_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </TableCell>
                                         {/* サービス */}
                                         <TableCell>
                                             <div className="w-56">
-                                                <Select value={row.service_code ?? ''} onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="サービスを選択" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {serviceOptions.map((o) => (
-                                                            <SelectItem key={o.value} value={o.value}>
-                                                                {o.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <LockIf locked={readOnly}>
+                                                    <Select value={row.service_code ?? ''} onValueChange={(v) => updateRow(row.shift_id, 'service_code', v)} >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="サービスを選択" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {serviceOptions.map((o) => (
+                                                                <SelectItem key={o.value} value={o.value}>
+                                                                    {o.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </LockIf>
                                             </div>
                                         </TableCell>
 
                                         {/* 派遣人数（Select：幅 2/3相当） */}
                                         <TableCell>
                                             <div className="w-[112px]">
-                                                <Select
-                                                    value={row.dispatch_size ?? '-'}
-                                                    onValueChange={(v: '-' | '01') => {
-                                                        updateRow(row.shift_id, 'dup_role', v)
-                                                        updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
-                                                    }}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="-" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="-">-</SelectItem>
-                                                        <SelectItem value="01">2人同時作業</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                <LockIf locked={readOnly}>
+                                                    <Select
+                                                        value={row.dispatch_size ?? '-'}
+                                                        onValueChange={(v: '-' | '01') => {
+                                                            updateRow(row.shift_id, 'dup_role', v)
+                                                            updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="-" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="-">-</SelectItem>
+                                                            <SelectItem value="01">2人同時作業</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </LockIf>
                                             </div>
                                         </TableCell>
 
                                         {/* 重複（Select：幅 1/2相当） */}
                                         <TableCell>
                                             <div className="w-[80px]">
-                                                <Select
-                                                    value={row.dup_role ?? '-'}
-                                                    onValueChange={(v: '-' | '01' | '02') => {
-                                                        updateRow(row.shift_id, 'dispatch_size', v)
-                                                        updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
-                                                    }}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="-" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="-">-</SelectItem>
-                                                        <SelectItem value="01">1人目</SelectItem>
-                                                        <SelectItem value="02">2人目</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                <LockIf locked={readOnly}>
+                                                    <Select
+                                                        value={row.dup_role ?? '-'}
+                                                        onValueChange={(v: '-' | '01' | '02') => {
+                                                            updateRow(row.shift_id, 'dispatch_size', v)
+                                                            updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="-" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="-">-</SelectItem>
+                                                            <SelectItem value="01">1人目</SelectItem>
+                                                            <SelectItem value="02">2人目</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </LockIf>
                                             </div>
                                         </TableCell>
 
@@ -854,6 +902,7 @@ export default function MonthlyRosterPage() {
                                                     }}
                                                     placeholder="HHMM"
                                                     className={jiInvalid ? 'border-red-500' : ''}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </TableCell>
@@ -870,22 +919,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ1</span>
                                                     <div className="w-44">
-                                                        <Select
-                                                            value={row.staff_01_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <LockIf locked={readOnly}>
+                                                            <Select
+                                                                value={row.staff_01_user_id ?? ''}
+                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_01_user_id', v || null)}
+                                                            >
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="選択" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="">-</SelectItem>
+                                                                    {staffOptions.map((o) => (
+                                                                        <SelectItem key={o.value} value={o.value}>
+                                                                            {o.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </LockIf>
                                                     </div>
                                                 </div>
 
@@ -893,22 +944,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ2</span>
                                                     <div className="w-44">
-                                                        <Select
-                                                            value={row.staff_02_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <LockIf locked={readOnly}>
+                                                            <Select
+                                                                value={row.staff_02_user_id ?? ''}
+                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
+                                                            >
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="選択" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="">-</SelectItem>
+                                                                    {staffOptions.map((o) => (
+                                                                        <SelectItem key={o.value} value={o.value}>
+                                                                            {o.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </LockIf>
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
@@ -916,6 +969,7 @@ export default function MonthlyRosterPage() {
                                                         className="h-3.5 w-3.5"
                                                         checked={!!row.staff_02_attend_flg}
                                                         onChange={(ev) => updateRow(row.shift_id, 'staff_02_attend_flg', ev.target.checked)}
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
 
@@ -923,22 +977,24 @@ export default function MonthlyRosterPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
                                                     <div className="w-44">
-                                                        <Select
-                                                            value={row.staff_03_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <LockIf locked={readOnly}>
+                                                            <Select
+                                                                value={row.staff_03_user_id ?? ''}
+                                                                onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
+                                                            >
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="選択" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="">-</SelectItem>
+                                                                    {staffOptions.map((o) => (
+                                                                        <SelectItem key={o.value} value={o.value}>
+                                                                            {o.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </LockIf>
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
                                                     <input
@@ -946,6 +1002,7 @@ export default function MonthlyRosterPage() {
                                                         className="h-3.5 w-3.5"
                                                         checked={!!row.staff_03_attend_flg}
                                                         onChange={(ev) => updateRow(row.shift_id, 'staff_03_attend_flg', ev.target.checked)}
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
 
@@ -953,21 +1010,23 @@ export default function MonthlyRosterPage() {
                                                 <div className="ml-auto flex gap-2">
                                                     <Button
                                                         variant="outline"
-                                                        onClick={() => setOpenRecordFor((prev) => (prev === row.shift_id ? null : row.shift_id))}
+                                                        onClick={() => setOpenRecordFor(prev => prev === row.shift_id ? null : row.shift_id)}
                                                     >
-                                                        訪問記録
+                                                        {openRecordFor === row.shift_id ? "閉じる" : "訪問記録"}
                                                     </Button>
-                                                    <Button
-                                                        variant="default"
-                                                        onClick={() => handleSave(row)}
-                                                        disabled={saveDisabled}
-                                                        title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
-                                                    >
-                                                        保存
-                                                    </Button>
-                                                    <Button variant="destructive" onClick={() => handleDeleteOne(row.shift_id)}>
-                                                        ×
-                                                    </Button>
+                                                    <LockIf locked={readOnly}>
+                                                        <Button
+                                                            variant="default"
+                                                            onClick={() => handleSave(row)}
+                                                            disabled={saveDisabled}
+                                                            title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
+                                                        >
+                                                            保存
+                                                        </Button>
+                                                        <Button variant="destructive" onClick={() => handleDeleteOne(row.shift_id)}>
+                                                            ×
+                                                        </Button>
+                                                    </LockIf>
                                                 </div>
                                             </div>
 
@@ -984,15 +1043,17 @@ export default function MonthlyRosterPage() {
                         })}
                         {/* ====== 新規追加行（テーブルの一番下） ====== */}
                         {/* 既存の “新規追加行” を丸ごと NewAddRow に置き換え */}
-                        <NewAddRow
-                            onAddClick={handleAddClick}
-                            repeatWeekdays={repeatWeekdays}
-                            toggleWeekday={toggleWeekday}
-                            draft={draft}
-                            updateDraft={updateDraft}
-                            serviceOptions={serviceOptions}
-                            staffOptions={staffOptions}
-                        />
+                        <LockIf locked={readOnly}>
+                            <NewAddRow
+                                onAddClick={handleAddClick}
+                                repeatWeekdays={repeatWeekdays}
+                                toggleWeekday={toggleWeekday}
+                                draft={draft}
+                                updateDraft={updateDraft}
+                                serviceOptions={serviceOptions}
+                                staffOptions={staffOptions}
+                            />
+                        </LockIf>
                         {/* ====== /新規追加行 ====== */}
                     </TableBody>
                 </Table>
