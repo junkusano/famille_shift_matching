@@ -15,6 +15,7 @@ import {
 } from "@/lib/certificateJudge";
 import type { DocItem, Attachment } from "@/components/DocUploader";
 import ShiftRecordLinkButton from "@/components/shift/ShiftRecordLinkButton";
+import Link from "next/link";
 
 // ShiftCard.tsx のファイル先頭（importの下）
 let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
@@ -474,6 +475,14 @@ export default function ShiftCard({
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
 
+  const ymFromDate = (d?: string | null) =>
+    (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
+
+  const monthlyHref = (cs?: string, ym?: string) =>
+    (cs && ym)
+      ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(cs)}&month=${encodeURIComponent(ym)}`
+      : "#";
+
   /* ------- Render ------- */
   return (
     <Card
@@ -630,6 +639,12 @@ export default function ShiftCard({
               standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
               standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
             />
+          )}
+          {/* ▼ 追加：月間 */}
+          {csId && shift.shift_start_date && (
+            <Button variant="secondary" asChild>
+              <Link href={monthlyHref(csId, ymFromDate(shift.shift_start_date))}>月間</Link>
+            </Button>
           )}
           {extraActions}
         </div>
