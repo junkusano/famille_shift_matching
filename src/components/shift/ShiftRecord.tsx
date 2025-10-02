@@ -335,6 +335,14 @@ export default function ShiftRecord({
   const clientNameFromQS = sp.get("client_name") || undefined;
   const shiftInfo = useShiftInfo(shiftId);
 
+  // 追加（5項目）
+  const qsStaff01UserId = sp.get("staff_01_user_id") || undefined;
+  const qsStaff02UserId = sp.get("staff_02_user_id") || undefined;
+  const qsStaff03UserId = sp.get("staff_03_user_id") || undefined;
+  const qsStaff02AttendFlg = sp.get("staff_02_attend_flg") || undefined;
+  const qsStaff03AttendFlg = sp.get("staff_03_attend_flg") || undefined;
+
+
   // 追加
   const qsStandardRoute = sp.get("standard_route") || undefined;
   const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
@@ -357,22 +365,41 @@ export default function ShiftRecord({
   const mergedInfo = useMemo(() => {
     const base = { ...(shiftInfo ?? {}) } as Record<string, unknown>;
 
-    // 既存：client_name をQSで補完
-    const qs = (clientNameFromQS ?? "").trim();
-    const api = typeof base.client_name === "string" ? String(base.client_name).trim() : "";
-    if (qs && !api) base.client_name = qs;
+    // client_name（API空ならQSで補完）
+    {
+      const qs = (clientNameFromQS ?? "").trim();
+      const api = typeof base.client_name === "string" ? String(base.client_name).trim() : "";
+      if (qs && !api) base.client_name = qs;
+    }
 
-    // 追加：standard_* をQSで補完
-    const apiRoute = typeof base.standard_route === "string" ? String(base.standard_route).trim() : "";
-    const apiTrans = typeof base.standard_trans_ways === "string" ? String(base.standard_trans_ways).trim() : "";
-    const apiPurpose = typeof base.standard_purpose === "string" ? String(base.standard_purpose).trim() : "";
+    // standard_*（API空ならQSで補完）
+    {
+      const apiRoute = typeof base.standard_route === "string" ? String(base.standard_route).trim() : "";
+      const apiTrans = typeof base.standard_trans_ways === "string" ? String(base.standard_trans_ways).trim() : "";
+      const apiPurpose = typeof base.standard_purpose === "string" ? String(base.standard_purpose).trim() : "";
+      if (qsStandardRoute && !apiRoute) base.standard_route = qsStandardRoute;
+      if (qsStandardTransWays && !apiTrans) base.standard_trans_ways = qsStandardTransWays;
+      if (qsStandardPurpose && !apiPurpose) base.standard_purpose = qsStandardPurpose;
+    }
 
-    if (qsStandardRoute && !apiRoute) base.standard_route = qsStandardRoute;
-    if (qsStandardTransWays && !apiTrans) base.standard_trans_ways = qsStandardTransWays;
-    if (qsStandardPurpose && !apiPurpose) base.standard_purpose = qsStandardPurpose;
+    // ★ staff_xxx / attend_flg（API空ならQSで補完）
+    const setIfEmpty = (k: string, v?: string) => {
+      const cur = (base as Record<string, unknown>)[k];
+      const has = (typeof cur === "string" && cur.trim() !== "") || cur != null;
+      if (!has && v != null) (base as Record<string, unknown>)[k] = v;
+    };
+    setIfEmpty("staff_01_user_id", qsStaff01UserId);
+    setIfEmpty("staff_02_user_id", qsStaff02UserId);
+    setIfEmpty("staff_03_user_id", qsStaff03UserId);
+    setIfEmpty("staff_02_attend_flg", qsStaff02AttendFlg);
+    setIfEmpty("staff_03_attend_flg", qsStaff03AttendFlg);
 
     return base;
-  }, [shiftInfo, clientNameFromQS, qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
+  }, [
+    shiftInfo, clientNameFromQS,
+    qsStandardRoute, qsStandardTransWays, qsStandardPurpose,
+    qsStaff01UserId, qsStaff02UserId, qsStaff03UserId, qsStaff02AttendFlg, qsStaff03AttendFlg,
+  ]);
 
   // ====== 定義ロード ======
   const [defs, setDefs] = useState<{ L: ShiftRecordCategoryL[]; S: ShiftRecordCategoryS[]; items: ShiftRecordItemDef[] }>(
@@ -586,7 +613,7 @@ export default function ShiftRecord({
     const shiftCtx = (mergedInfo?.shift ?? mergedInfo ?? {}) as Record<string, unknown>;
 
     for (const l of (defs.L ?? [])) {
-      const lRules = (l)?.rules_json?.rules ?? []; 
+      const lRules = (l)?.rules_json?.rules ?? [];
 
       for (const rule of lRules) {
         // when 判定

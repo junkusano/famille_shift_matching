@@ -638,6 +638,12 @@ export default function ShiftCard({
               standardRoute={kaipokeInfo?.standard_route ?? ""}
               standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
               standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
+
+              staff01UserId={shift.staff_01_user_id ?? ""}
+              staff02UserId={shift.staff_02_user_id ?? ""}
+              staff03UserId={shift.staff_03_user_id ?? ""}
+              staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
+              staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
             />
           )}
           {/* ▼ 追加：月間 */}

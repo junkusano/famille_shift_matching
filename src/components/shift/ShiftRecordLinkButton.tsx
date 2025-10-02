@@ -11,6 +11,12 @@ interface ShiftRecordLinkButtonProps {
   standardRoute?: string | null;
   standardTransWays?: string | null;
   standardPurpose?: string | null;
+
+  staff01UserId?: string | null;
+  staff02UserId?: string | null;
+  staff03UserId?: string | null;
+  staff02AttendFlg?: string | number | boolean | null;
+  staff03AttendFlg?: string | number | boolean | null;
   // -----------------------------------
   label?: string;
   hrefBase?: string;
@@ -23,6 +29,9 @@ export default function ShiftRecordLinkButton({
   standardRoute,
   standardTransWays,
   standardPurpose,
+
+  staff01UserId, staff02UserId, staff03UserId,
+    staff02AttendFlg, staff03AttendFlg,
   // ----------------------------------------------------
   label = "訪問記録",
   hrefBase = "/portal/shift-records",
@@ -61,6 +70,15 @@ export default function ShiftRecordLinkButton({
         if (standardPurpose) {
           q += `&standard_purpose=${encodeURIComponent(standardPurpose)}`;
         }
+
+        if (staff01UserId) q += `&staff_01_user_id=${encodeURIComponent(staff01UserId)}`;
+        if (staff02UserId) q += `&staff_02_user_id=${encodeURIComponent(staff02UserId)}`;
+        if (staff03UserId) q += `&staff_03_user_id=${encodeURIComponent(staff03UserId)}`;
+        if (staff02AttendFlg !== undefined && staff02AttendFlg !== null)
+          q += `&staff_02_attend_flg=${encodeURIComponent(String(staff02AttendFlg))}`;
+        if (staff03AttendFlg !== undefined && staff03AttendFlg !== null)
+          q += `&staff_03_attend_flg=${encodeURIComponent(String(staff03AttendFlg))}`;
+
         router.push(`${hrefBase}${q}`);
       }}
     >

@@ -1,6 +1,6 @@
 //types/shift
 export interface SupabaseShiftRaw {
-  id?: string; 
+  id?: string;
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
@@ -22,7 +22,7 @@ export interface SupabaseShiftRaw {
 }
 
 export interface ShiftData {
-  id?: string; 
+  id?: string;
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
@@ -32,6 +32,8 @@ export interface ShiftData {
   staff_01_user_id?: string;
   staff_02_user_id?: string;
   staff_03_user_id?: string;
+  staff_02_attend_flg?: string | number | boolean | null;
+  staff_03_attend_flg?: string | number | boolean | null;
   address: string;
   client_name: string;
   gender_request_name: string;
