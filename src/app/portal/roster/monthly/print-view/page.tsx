@@ -135,6 +135,7 @@ export default function PrintViewMonthlyRoster() {
   const month = search.get('month') ?? '' // YYYY-MM
 
   const [loading, setLoading] = useState(true)
+  void loading
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
   const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
