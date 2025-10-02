@@ -1,36 +1,9 @@
 // /app/api/shift-custom-view/route.ts
-// ShiftRecord が参照する「シフト詳細（表示用）API」
-// - DB の実テーブル: public.shift（単数）
-// - 補助ビュー: public.shift_csinfo_postalname_view（利用者名・郵便番号など）
-//
-// 【入参】GET /api/shift-custom-view?shift_id=...&expand=staff&client_name=...
-//   - shift_id: 必須
-//   - expand   : "staff" を含めるとスタッフ氏名を付与（IDは従来通り返却しつつ、full_nameを追加）
-//   - client_name: カード側からのフォールバック（クエリ優先で採用）
-//
-// 【返却】200 OK
-// {
-//   shift_id, kaipoke_cs_id, service_code,
-//   shift_start_date, shift_start_time, shift_end_date, shift_end_time,
-//   staff_01_user_id, staff_02_user_id, staff_03_user_id,
-//   head_shift_id,
-//   // 表示用に追加（従来通り）
-//   client_name, postal_code, postal_code_3, district,
-//   // ★ expand=staff 時のみ追加
-//   staff_01_full_name, staff_02_full_name, staff_03_full_name,
-//   // 便利フィールド
-//   shift_start_time_hm, shift_end_time_hm
-// }
-//
-// NOTE:
-// - RLS 有効でも Service Role Key を使うことで参照可能（サーバ限定）
-// - SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL を環境変数に設定してください
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic"; // リアルタイム性重視。ISR不要
+export const dynamic = "force-dynamic";
 
 function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -41,7 +14,7 @@ function getClient() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
-// DBの型は緩めに（差異に強く）
+// --- DB行の型（テーブル: public.shift）
 interface ShiftRow {
   shift_id: string;
   kaipoke_cs_id?: string | null;
@@ -54,10 +27,9 @@ interface ShiftRow {
   staff_02_user_id?: string | null;
   staff_03_user_id?: string | null;
   head_shift_id?: string | null;
-  // ★ フロント互換のため、ここに full_name を後付けで突ける（型は任意）
-  [k: string]: any;
 }
 
+// --- 補助ビューの型
 interface CsInfo {
   name?: string | null;
   postal_code?: string | null;
@@ -71,6 +43,19 @@ interface UserNameRow {
   first_name_kanji?: string | null;
 }
 
+// --- レスポンスに追加されるフィールド（full_name は expand=staff 時のみ付与）
+type ShiftResponse = ShiftRow & {
+  client_name: string;
+  postal_code: string;
+  postal_code_3: string;
+  district: string;
+  shift_start_time_hm: string | null;
+  shift_end_time_hm: string | null;
+  staff_01_full_name?: string;
+  staff_02_full_name?: string;
+  staff_03_full_name?: string;
+};
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const shiftId = searchParams.get("shift_id");
@@ -78,7 +63,7 @@ export async function GET(req: Request) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const clientNameFromQS = (searchParams.get("client_name") || "").trim(); // クエリ優先
+  const clientNameFromQS = (searchParams.get("client_name") || "").trim();
 
   if (!shiftId) {
     return NextResponse.json({ error: "shift_id required" }, { status: 400 });
@@ -86,7 +71,7 @@ export async function GET(req: Request) {
 
   const supabase = getClient();
 
-  // 1) シフト本体を取得（単数テーブル名: shift）
+  // 1) シフト本体
   const { data: s, error: e1 } = await supabase
     .from("shift")
     .select(
@@ -114,8 +99,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  // 2) 利用者名・郵便番号など（クエリ>補助ビュー>シフト行の順でフォールバック）
-  let client_name = clientNameFromQS; // まずQSを優先
+  // 2) 利用者名・郵便番号など（QS > 補助ビュー > shift 行）
+  let client_name = clientNameFromQS;
   let postal_code = "";
   let postal_code_3 = "";
   let district = "";
@@ -136,7 +121,6 @@ export async function GET(req: Request) {
   }
 
   if (!client_name) {
-    // shift テーブルに client_name / name 等があれば最後の保険で使う
     const rec = s as unknown as Record<string, unknown>;
     const cn = rec["client_name"];
     const nm = rec["name"];
@@ -144,60 +128,46 @@ export async function GET(req: Request) {
     else if (typeof nm === "string") client_name = nm;
   }
 
-  // 3) expand=staff：スタッフ氏名（漢字）を付与（IDは従来通り返却）
-  let staff_01_full_name = undefined as string | undefined;
-  let staff_02_full_name = undefined as string | undefined;
-  let staff_03_full_name = undefined as string | undefined;
+  // 3) expand=staff：氏名付与（IDは従来通り返却）
+  let staff_01_full_name: string | undefined;
+  let staff_02_full_name: string | undefined;
+  //let staff_3_full_name_unused_guard: unknown; // 使わない変数の警告回避は不要なら削除可
+  let staff_03_full_name: string | undefined;
 
   if (expand.includes("staff")) {
-    const ids = [
-      s.staff_01_user_id,
-      s.staff_02_user_id,
-      s.staff_03_user_id,
-    ]
+    const ids = [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]
       .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
 
     if (ids.length) {
       const unique = Array.from(new Set(ids));
-      const { data: users, error: uerr } = await supabase
+      const { data: users } = await supabase
         .from("user_entry_united_view_single")
         .select("user_id,last_name_kanji,first_name_kanji")
         .in("user_id", unique);
 
-      if (!uerr && users) {
-        const nameMap = Object.fromEntries(
-          users.map((u: UserNameRow) => {
-            const last = (u.last_name_kanji ?? "").trim();
-            const first = (u.first_name_kanji ?? "").trim();
-            const full = [last, first].filter(Boolean).join(" ");
-            return [u.user_id, full];
-          })
-        ) as Record<string, string>;
+      const nameMap: Record<string, string> = Object.fromEntries(
+        (users ?? []).map((u: UserNameRow) => {
+          const last = (u.last_name_kanji ?? "").trim();
+          const first = (u.first_name_kanji ?? "").trim();
+          return [u.user_id, [last, first].filter(Boolean).join(" ")];
+        })
+      );
 
-        staff_01_full_name = s.staff_01_user_id ? (nameMap[s.staff_01_user_id] ?? "") : "";
-        staff_02_full_name = s.staff_02_user_id ? (nameMap[s.staff_02_user_id] ?? "") : "";
-        staff_03_full_name = s.staff_03_user_id ? (nameMap[s.staff_03_user_id] ?? "") : "";
-      } else {
-        // 取得失敗時は既存挙動を壊さないため、氏名は空文字で返す（ステータスは200のまま）
-        staff_01_full_name = s.staff_01_user_id ? "" : "";
-        staff_02_full_name = s.staff_02_user_id ? "" : "";
-        staff_03_full_name = s.staff_03_user_id ? "" : "";
-      }
+      staff_01_full_name = s.staff_01_user_id ? (nameMap[s.staff_01_user_id] ?? "") : "";
+      staff_02_full_name = s.staff_02_user_id ? (nameMap[s.staff_02_user_id] ?? "") : "";
+      staff_03_full_name = s.staff_03_user_id ? (nameMap[s.staff_03_user_id] ?? "") : "";
     } else {
-      // user_id が空なら氏名も空
       staff_01_full_name = "";
       staff_02_full_name = "";
       staff_03_full_name = "";
     }
   }
 
-  // 返却直前で足す関数
+  // 4) 返却
   const toHHmm = (t?: string | null) =>
-    typeof t === "string" && t.length >= 5 ? t.slice(0, 5) : (t ?? "");
+    typeof t === "string" && t.length >= 5 ? t.slice(0, 5) : (t ?? null);
 
-  // 4) 返却（表示テンプレが使いやすいキー名を含める）
-  //    ★ expand=staff が無い場合は full_name フィールド自体を付けない（従来互換）
-  const baseBody = {
+  const baseBody: ShiftResponse = {
     ...s,
     client_name,
     postal_code,
@@ -205,13 +175,15 @@ export async function GET(req: Request) {
     district,
     shift_start_time_hm: toHHmm(s.shift_start_time),
     shift_end_time_hm: toHHmm(s.shift_end_time),
-  } as Record<string, any>;
-
-  if (expand.includes("staff")) {
-    baseBody.staff_01_full_name = staff_01_full_name ?? "";
-    baseBody.staff_02_full_name = staff_02_full_name ?? "";
-    baseBody.staff_03_full_name = staff_03_full_name ?? "";
-  }
+    // full_name は expand=staff のときだけ値が入る（オプショナル）
+    ...(expand.includes("staff")
+      ? {
+          staff_01_full_name,
+          staff_02_full_name,
+          staff_03_full_name,
+        }
+      : {}),
+  };
 
   return NextResponse.json(baseBody);
 }
