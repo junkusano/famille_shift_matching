@@ -20,6 +20,32 @@ type Row = { id: string; status: DbStatus; updated_at: string | null };
 const ShiftId = Z.union([Z.number().finite(), Z.string().regex(/^-?\d+$/)]);
 const PostBody = Z.object({ shift_id: ShiftId, status: Z.union([Z.literal("入力中"), Z.literal("完了")]).optional() });
 
+async function getOrCreateOne(shiftIdNum: number): Promise<Row> {
+  const sb = SB;
+
+  const { data, error } = await sb
+    .from("shift_records")
+    .select("id,status,updated_at")
+    .eq("shift_id", shiftIdNum)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle<Row>();
+
+  if (error) throw error;
+
+  if (data) return data;
+
+  const { data: created, error: insErr } = await sb
+    .from("shift_records")
+    .insert({ shift_id: shiftIdNum, status: "draft" as DbStatus })
+    .select("id,status,updated_at")
+    .single<Row>();
+
+  if (insErr) throw insErr;
+
+  return created;
+}
+
 function parseShiftId(v: number | string): number {
   if (typeof v === "number") return Math.trunc(v);
   const n = Number(v);
@@ -38,6 +64,48 @@ export async function GET(req: Request) {
   const rid = uuid();
   const url = new URL(req.url);
   const qsShift = url.searchParams.get("shift_id");
+
+  // ▼▼ 追加：ids（カンマ区切り）のバルク取得
+  const qsIds = url.searchParams.get("ids");
+  const format = url.searchParams.get("format"); // "db" 指定でDB生値を返す
+
+  // --- バルク（ids=...）モード ---
+  if (qsIds) {
+    try {
+      // ids をパース（空要素除去＆重複排除）
+      const ids = Array.from(
+        new Set(
+          qsIds
+            .split(",")
+            .map(s => s.trim())
+            .filter(Boolean)
+        )
+      );
+
+      // バリデーション
+      const parsedList = ids.map(id => {
+        const r = ShiftId.safeParse(id);
+        if (!r.success) throw new Error(`invalid shift_id in ids: "${id}"`);
+        return parseShiftId(r.data);
+      });
+
+      // Create-on-Read を維持：各 id を順に処理
+      const results: Array<{ shift_id: number; status: DbStatus | ApiStatus }> = [];
+      for (const sid of parsedList) {
+        const row = await getOrCreateOne(sid);
+        results.push({
+          shift_id: sid,
+          status: format === "db" ? row.status : toApi(row.status),
+        });
+      }
+
+      // 200 統一で配列返却
+      return Next.json(results, { headers: { "x-debug-rid": rid } });
+    } catch (e: unknown) {
+      const pe = pgErr(e);
+      return Next.json({ error: pe.message, rid }, { status: 400, headers: { "x-debug-rid": rid } });
+    }
+  }
 
   const parsed = ShiftId.safeParse(qsShift ?? undefined);
   if (!parsed.success) return Next.json({ error: "invalid shift_id (must be bigint number)", rid }, { status: 400 });

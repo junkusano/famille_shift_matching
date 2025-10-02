@@ -75,6 +75,8 @@ type NewShiftDraft = {
     staff_03_attend_flg: boolean;
 };
 
+type RecordStatus = 'draft' | 'submitted' | 'approved' | 'archived';
+
 function LockIf({
     locked,
     children,
@@ -228,7 +230,7 @@ export default function MonthlyRosterPage() {
 
     const router = useRouter()
     // 既存の state 群の近くに追加
-    const [recordStatus, setRecordStatus] = useState<Record<string, 'submitted' | 'draft'>>({});
+    const [recordStatus, setRecordStatus] = useState<Record<string, RecordStatus | undefined>>({});
 
     // 初期反映：URLクエリ（ShiftCardの「月間」ボタンから渡す値を拾う）
     useEffect(() => {
@@ -374,23 +376,23 @@ export default function MonthlyRosterPage() {
         alert(`追加完了: ${ok}件${ng ? `（失敗 ${ng} 件）` : ''}`);
     };
 
+
     const loadRecordStatuses = async (ids: string[]) => {
         if (!ids.length) return;
         try {
-            // 好みでGETでもPOSTでもOK。ここではPOST例。
-            const res = await fetch('/api/shift-records/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shift_ids: ids }),
+            const q = new URLSearchParams({
+                ids: ids.join(","),
+                format: "db", // ★ DBの生ステータスを返す
             });
+            const res = await fetch(`/api/shift-records?${q.toString()}`, { method: "GET" });
             if (!res.ok) return;
 
-            // 期待する返り値: [{ shift_id: string, status: 'submitted' | 'draft' }, ...]
-            const rows: Array<{ shift_id: string; status: 'submitted' | 'draft' }> = await res.json();
+            // 期待値: [{ shift_id: number, status: 'draft'|'submitted'|'approved'|'archived' }, ...]
+            const rows: Array<{ shift_id: number; status: 'draft' | 'submitted' | 'approved' | 'archived' }> = await res.json();
             const map = Object.fromEntries(rows.map(r => [String(r.shift_id), r.status]));
             setRecordStatus(map);
         } catch {
-            // 失敗時は無視（全てデフォルト配色のまま）
+            /* no-op */
         }
     };
 
@@ -1053,13 +1055,15 @@ export default function MonthlyRosterPage() {
                                                 {/* 操作（右寄せ）：訪問記録・保存・× */}
                                                 <div className="ml-auto flex gap-2">
                                                     {(() => {
-                                                        const s = recordStatus[row.shift_id]; // 'submitted' | 'draft' | undefined
+                                                        const s = recordStatus[row.shift_id] as RecordStatus | undefined;
+                                                        const isGreen = s === 'submitted' || s === 'approved' || s === 'archived';
+
                                                         const colorCls =
-                                                            s === 'submitted'
-                                                                ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                                                                : s === 'draft'
-                                                                    ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
-                                                                    : ''; // 未作成などは従来通り
+                                                            s === 'draft'
+                                                                ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                                                : isGreen
+                                                                    ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                                                                    : '';
 
                                                         return (
                                                             <Button
