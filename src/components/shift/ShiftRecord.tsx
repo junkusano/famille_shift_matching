@@ -586,7 +586,7 @@ export default function ShiftRecord({
     const shiftCtx = (mergedInfo?.shift ?? mergedInfo ?? {}) as Record<string, unknown>;
 
     for (const l of (defs.L ?? [])) {
-      const lRules = (l as any)?.rules_json?.rules ?? []; // ← DBのJSONをそのまま受ける（型は any で安全にアクセス）
+      const lRules = (l)?.rules_json?.rules ?? []; 
 
       for (const rule of lRules) {
         // when 判定
