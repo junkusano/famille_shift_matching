@@ -381,7 +381,8 @@ export default function MonthlyRosterPage() {
                 .filter((c) => c.kaipoke_cs_id && c.name)
                 .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
             setKaipokeCs(validCs)
-            if (validCs.length && !selectedKaipokeCS) setSelectedKaipokeCS(validCs[0].kaipoke_cs_id)
+            // ⭕ URLクエリ等で既に選択済みなら維持、未選択のときだけ先頭を入れる
+            setSelectedKaipokeCS(prev => prev || (validCs[0]?.kaipoke_cs_id ?? ''))
 
             // スタッフ（roster_sort → 氏名）
             const stRes = await fetch('/api/users', { cache: 'no-store' })
