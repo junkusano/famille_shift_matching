@@ -30,16 +30,23 @@ type ShiftRecordItem = {
 };
 
 type ShiftRecordItemDef = {
-  id: string;   // uuid
-  code: string; // text
+  id: string;        // uuid
+  code: string | null;  // text（NULL許容：多くはnull）
+  l_id: string | null;  // uuid（大分類）
+  label: string;     // 表示ラベル
+  input_type: "checkbox" | "select" | "number" | "text" | "textarea" | "image" | "display";
+  active: boolean;
 };
 
 const TARGET_CODES = ["adl", "needs", "enviroment", "other_status"] as const;
 type TargetCode = typeof TARGET_CODES[number];
 
-function isTargetCode(code: string): code is TargetCode {
-  return (TARGET_CODES as readonly string[]).includes(code);
+function isTargetCode(code: string | null): code is TargetCode {
+  return !!code && (TARGET_CODES as readonly string[]).includes(code);
 }
+
+/** 事前カテゴリ(l_id)は実施サービスから除外 */
+const PRE_L_ID_EXCLUDE = "acd682d0-2135-4a02-bc4b-0d834e9f5a27";
 
 /* =========================
    エンドポイント
@@ -61,15 +68,14 @@ export async function POST(req: NextRequest) {
     if (e0 || !curRow) throw e0 ?? new Error("shift not found");
     const cur = curRow as Shift;
 
-    /* 1) “前方連結チェーン”をできるだけ進め、その先の「真の次回」を特定
-       - 条件A: prev_end == next_start のものは一連のサービスとして“前方”に連結し続ける
-       - ターゲット: チェーンの最終終了（chainEnd）より“厳密に後”に開始する最初のシフト
+    /* 1) “前方連結チェーン”を進め、その先の「真の次回」を特定
+       - end == next.start を連結し切った先（chainEnd）より“後”に開始する最初を nextShift
+       - 次回が無ければ書き込みは行わない
     */
     if (!cur.kaipoke_cs_id || !cur.shift_end_date || !cur.shift_end_time) {
       return NextResponse.json({ ok: true, reason: "skip: insufficient end fields to compute next" });
     }
 
-    // 1-1) まず「終了＝開始」で前方に進めるだけ進む
     let chainEndDate = cur.shift_end_date;
     let chainEndTime = cur.shift_end_time;
 
@@ -88,13 +94,10 @@ export async function POST(req: NextRequest) {
       const cont = (conts as unknown as Shift[] | null)?.[0];
       if (!cont) break; // 連結終端
 
-      // さらに先へ
       chainEndDate = cont.shift_end_date ?? cont.shift_start_date ?? chainEndDate;
       chainEndTime = cont.shift_end_time ?? cont.shift_start_time ?? chainEndTime;
     }
 
-    // 1-2) 「chainEnd より後」の最初のシフトを検索（同一利用者）
-    // 同日・後時間 と 後日 の2系統に分けて取得し、最小開始を選ぶ
     const [sameDayLater, laterDay] = await Promise.all([
       supabase
         .from("shift")
@@ -118,16 +121,8 @@ export async function POST(req: NextRequest) {
     const cand1 = (sameDayLater.data as unknown as Shift[] | null)?.[0];
     const cand2 = (laterDay.data as unknown as Shift[] | null)?.[0];
 
-    let nextShift: Shift | undefined;
-    if (cand1 && cand2) {
-      // cand1 は同日後時間、cand2 は翌日以降 → 自然と cand1 の方が先
-      nextShift = cand1;
-    } else {
-      nextShift = cand1 ?? cand2 ?? undefined;
-    }
-
+    const nextShift: Shift | undefined = cand1 ?? cand2 ?? undefined;
     if (!nextShift) {
-      // 次回が存在しない → 今回に書かず、処理完了（誤書込み防止）
       return NextResponse.json({ ok: true, reason: "no_next_shift_after_chain" });
     }
 
@@ -153,22 +148,41 @@ export async function POST(req: NextRequest) {
     }
     const shiftIds = series.map((s) => s.shift_id);
 
-    /* 3) “前回サマリー”の収集（安全な2段取り：defs→items） */
-    // 3-1) defs を code 指定で取得
-    const { data: defsRows, error: eDefs } = await supabase
-      .from("shift_record_item_defs")
-      .select("id, code")
-      .in("code", TARGET_CODES as unknown as string[]);
-    if (eDefs) throw eDefs;
+    /* 3) defs を2系統で取得
+          A) TARGET_CODES（adl/needs/enviroment/other_status）
+          B) 実施サービス用：active=true & input_type='checkbox' & l_id != PRE_L_ID_EXCLUDE
+    */
+    const [{ data: defsTargetRows, error: eDefs1 }, { data: defsCbxRows, error: eDefs2 }] = await Promise.all([
+      supabase
+        .from("shift_record_item_defs")
+        .select("id, code, l_id, label, input_type, active")
+        .in("code", TARGET_CODES as unknown as string[]),
+      supabase
+        .from("shift_record_item_defs")
+        .select("id, code, l_id, label, input_type, active")
+        .eq("active", true)
+        .eq("input_type", "checkbox")
+        .neq("l_id", PRE_L_ID_EXCLUDE),
+    ]);
+    if (eDefs1) throw eDefs1;
+    if (eDefs2) throw eDefs2;
 
-    const defs = (defsRows as unknown as ShiftRecordItemDef[] | null) ?? [];
+    const defsTarget = (defsTargetRows as unknown as ShiftRecordItemDef[] | null) ?? [];
+    const defsCheckbox = (defsCbxRows as unknown as ShiftRecordItemDef[] | null) ?? [];
+
     const codeToDefId = new Map<TargetCode, string>();
-    for (const d of defs) {
+    for (const d of defsTarget) {
       if (isTargetCode(d.code)) codeToDefId.set(d.code, d.id);
     }
-    const defIds = Array.from(codeToDefId.values());
+    const defIdsTarget = Array.from(codeToDefId.values());
 
-    // 3-2) series に含まれるシフトの “提出済み以上” の record を取得
+    const checkboxDefMap = new Map<string, ShiftRecordItemDef>(); // id -> def
+    for (const d of defsCheckbox) checkboxDefMap.set(d.id, d);
+    const defIdsCheckbox = Array.from(checkboxDefMap.keys());
+
+    const allDefIds = [...new Set([...defIdsTarget, ...defIdsCheckbox])];
+
+    /* 4) series の “提出済み以上” record と items を取得 */
     const { data: recRows, error: eRecs } = await supabase
       .from("shift_records")
       .select("id, shift_id, status")
@@ -178,37 +192,52 @@ export async function POST(req: NextRequest) {
     const records = (recRows as unknown as ShiftRecord[] | null) ?? [];
     const recIds = records.map((r) => r.id);
 
-    // 3-3) items を record_id x item_def_id で取得
     const byCode: Record<TargetCode, string[]> = {
       adl: [],
       needs: [],
       enviroment: [],
       other_status: [],
     };
+    const executedLabels: string[] = [];
 
-    if (recIds.length && defIds.length) {
+    if (recIds.length && allDefIds.length) {
       const { data: itemRows, error: eItems } = await supabase
         .from("shift_record_items")
         .select("record_id, item_def_id, value_text")
         .in("record_id", recIds)
-        .in("item_def_id", defIds);
+        .in("item_def_id", allDefIds);
       if (eItems) throw eItems;
 
       const items = (itemRows as unknown as ShiftRecordItem[] | null) ?? [];
+
+      // defId -> code / label マップ
       const defIdToCode = new Map<string, TargetCode>();
-      for (const d of defs) {
+      for (const d of defsTarget) {
         if (isTargetCode(d.code)) defIdToCode.set(d.id, d.code);
       }
 
       for (const it of items) {
-        const code = defIdToCode.get(it.item_def_id);
         const val = (it.value_text ?? "").trim();
-        if (!code || !val) continue;
-        byCode[code].push(val);
+
+        // A) TARGET_CODES の値収集
+        const code = defIdToCode.get(it.item_def_id);
+        if (code && val) {
+          byCode[code].push(val);
+        }
+
+        // B) 実施サービス（checkbox でチェック済み & l_id≠事前）
+        const def = checkboxDefMap.get(it.item_def_id);
+        if (def && isChecked(val)) {
+          // 念のためフィルタ（active/checkbox/除外l_id）
+          if (def.active && def.input_type === "checkbox" && def.l_id !== PRE_L_ID_EXCLUDE) {
+            executedLabels.push(def.label);
+          }
+        }
       }
     }
 
     const bullets = {
+      executed: uniqJoin(executedLabels), // ★追加：実施したサービス
       adl: uniqJoin(byCode.adl),
       needs: uniqJoin(byCode.needs),
       enviroment: uniqJoin(byCode.enviroment),
@@ -217,6 +246,7 @@ export async function POST(req: NextRequest) {
 
     const prevSummaryText = [
       "【前回の状況】",
+      bullets.executed ? `・実施したサービス：${bullets.executed}` : "",
       bullets.adl ? `・ADLの変化：${bullets.adl}` : "",
       bullets.needs ? `・ご本人の要望：${bullets.needs}` : "",
       bullets.enviroment ? `・環境・ご家族の状況：${bullets.enviroment}` : "",
@@ -225,7 +255,7 @@ export async function POST(req: NextRequest) {
       .filter((s) => s && s.length > 0)
       .join("\n");
 
-    /* 4) OpenAIで“次回（今回）サービスの指示事項”（最大100字・平文1文） */
+    /* 5) OpenAIで“次回（今回）サービスの指示事項”（最大100字・平文1文） */
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const instruction = await generateInstruction(openai, { cur, prevSummaryText });
 
@@ -233,7 +263,7 @@ export async function POST(req: NextRequest) {
       .filter((s) => s && s.length > 0)
       .join("\n");
 
-    /* 5) 書き込み先: 必ず「真の次回」に書く（なければ書かない） */
+    /* 6) 書き込み先: 必ず「真の次回」に書く（なければ書かない） */
     const { error: eUp } = await supabase
       .from("shift")
       .update({ tokutei_comment: finalPlain })
@@ -265,6 +295,22 @@ function uniqJoin(arr: string[], sep = " / "): string {
   return Array.from(set).join(sep);
 }
 
+/** ✅判定の頑健化（value_text が text のため表記ゆれを吸収） */
+function isChecked(raw: string): boolean {
+  const v = raw.trim().toLowerCase();
+  return (
+    v === "true" ||
+    v === "1" ||
+    v === "on" ||
+    v === "yes" ||
+    v === "y" ||
+    v === "checked" ||
+    v === "✓" ||
+    v === "☑" ||
+    v === "✅"
+  );
+}
+
 async function generateInstruction(
   openai: OpenAI,
   ctx: { cur: Shift; prevSummaryText: string }
@@ -292,7 +338,6 @@ async function generateInstruction(
   });
 
   const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
-  // 念のため制限（全角混在想定、ややゆるめ）
   return text.length > 110 ? text.slice(0, 110) : text;
 }
 
