@@ -49,6 +49,19 @@ const DEFAULT_BADGE_TEXT = "時間調整可能";
 const TBL_INFO = "cs_kaipoke_info";
 const TBL_ADJ = "cs_kaipoke_time_adjustability";
 
+// ここはコンポーネント外（ShiftCard.tsx 先頭のヘルパ群の近く）
+type KaipokeInfo = {
+  standard_route?: string | null;
+  standard_trans_ways?: string | null;
+  standard_purpose?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
+};
+
+// ★ 追加：cs_idごとの情報キャッシュ & 進行中Promiseキャッシュ
+const infoCache = new Map<string, { adjId?: string; info: KaipokeInfo }>();
+const infoPromiseCache = new Map<string, Promise<{ adjId?: string; info: KaipokeInfo }>>();
+
 function isMyAssignmentRejectMode(s: ShiftData, myId?: string | null) {
   if (!myId) return false;
   return [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(myId);
@@ -115,7 +128,6 @@ function pickNum(obj: unknown, key: string): number | undefined {
 }
 
 /* 簡易キャッシュ（ビルド間で共有しない揮発キャッシュ） */
-const infoIdCache = new Map<string, string>(); // cs_id -> time_adjustability_id
 const masterCache = new Map<string, { label: string; adv: number; back: number }>();
 
 // 追加：文字列を複数キーから安全に取得
@@ -257,51 +269,105 @@ export default function ShiftCard({
   }, [shift, myServiceKeys]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!csId) { setAdjId(undefined); return; }
-      if (infoIdCache.has(csId)) { setAdjId(infoIdCache.get(csId)); return; }
-      const { data, error } = await supabase
-        .from(kaipokeInfoTableName)
-        .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
-        .eq("kaipoke_cs_id", csId)
-        .maybeSingle();
-      if (error || !data) { setAdjId(undefined); setKaipokeInfo(null); return; }
+    if (!csId) { setAdjId(undefined); return; }
 
-      // ★ ここで3項目を反映（正しいテーブル：cs_kaipoke_info）
-      const info = data as Record<string, unknown>;
-      setKaipokeInfo({
-        standard_route: typeof info.standard_route === "string" ? info.standard_route : null,
-        standard_trans_ways: typeof info.standard_trans_ways === "string" ? info.standard_trans_ways : null,
-        standard_purpose: typeof info.standard_purpose === "string" ? info.standard_purpose : null,
-        address: typeof info.address === "string" ? info.address : null,           // ← 追加
-        postal_code: typeof info.postal_code === "string" ? info.postal_code : null, // ← 追加（任意）
-      });
+    // ★ requestモードではここで先読みしない（遅延に任せる）
+    if (mode !== "reject") return;
 
-      /*  こっちは表示する　　
-      alert(
-        [
-          "[ShiftCard] cs_kaipoke_info",
-          `route="${info.standard_route ?? ""}"`,
-          `trans="${info.standard_trans_ways ?? ""}"`,
-          `purpose="${info.standard_purpose ?? ""}"`,
-        ].join("\n")
-      );
-      */
-      const id =
-        typeof (data as UnknownRecord)["time_adjustability_id"] === "string"
-          ? ((data as UnknownRecord)["time_adjustability_id"] as string).trim()
-          : typeof (data as UnknownRecord)["time_adjustability_id"] === "number"
-            ? String((data as UnknownRecord)["time_adjustability_id"])
-            : undefined;
-      if (!cancelled) {
-        if (id) infoIdCache.set(csId, id);
-        setAdjId(id);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [csId, kaipokeInfoTableName]);
+    // ★ まずキャッシュ確認
+    if (infoCache.has(csId)) {
+      const c = infoCache.get(csId)!;
+      setKaipokeInfo(c.info);
+      setAdjId(c.adjId);
+      return;
+    }
 
+    // ★ Promiseキャッシュ（同時多発リクエストを1つにまとめる）
+    let p = infoPromiseCache.get(csId);
+    if (!p) {
+      p = (async () => {
+        const { data } = await supabase
+          .from(kaipokeInfoTableName)
+          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
+          .eq("kaipoke_cs_id", csId)
+          .maybeSingle();
+
+        const rec = (data ?? {}) as Record<string, unknown>;
+        const info: KaipokeInfo = {
+          standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
+          standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
+          standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
+          address: typeof rec.address === "string" ? rec.address : null,
+          postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+        };
+        const id =
+          typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
+            : typeof rec.time_adjustability_id === "number" ? String(rec.time_adjustability_id)
+              : undefined;
+
+        return { adjId: id, info };
+      })();
+      infoPromiseCache.set(csId, p);
+    }
+
+    p.then(({ adjId, info }) => {
+      infoCache.set(csId, { adjId, info });
+      setKaipokeInfo(info);
+      setAdjId(adjId);
+    });
+  }, [csId, mode, kaipokeInfoTableName]);
+
+
+  // ★ ShiftCard 内に置く（setKaipokeInfo / setAdjId を使うため）
+  const ensureInfoOnDemand = async () => {
+    if (!csId) return;
+
+    // shift内に既に route/trans/purpose があればスキップ（お好みで）
+    const hasMini =
+      !!pickNonEmptyString(shift, ["standard_route"]) ||
+      !!pickNonEmptyString(shift, ["standard_trans_ways"]) ||
+      !!pickNonEmptyString(shift, ["standard_purpose"]);
+    if (hasMini && kaipokeInfo) return;
+
+    if (infoCache.has(csId)) {
+      const c = infoCache.get(csId)!;
+      setKaipokeInfo(c.info);
+      setAdjId(c.adjId);
+      return;
+    }
+
+    let p = infoPromiseCache.get(csId);
+    if (!p) {
+      p = (async () => {
+        const { data } = await supabase
+          .from(kaipokeInfoTableName)
+          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
+          .eq("kaipoke_cs_id", csId)
+          .maybeSingle();
+
+        const rec = (data ?? {}) as Record<string, unknown>;
+        const info: KaipokeInfo = {
+          standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
+          standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
+          standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
+          address: typeof rec.address === "string" ? rec.address : null,
+          postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+        };
+        const id =
+          typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
+            : typeof rec.time_adjustability_id === "number" ? String(rec.time_adjustability_id)
+              : undefined;
+
+        return { adjId: id, info };
+      })();
+      infoPromiseCache.set(csId, p);
+    }
+
+    const { adjId, info } = await p;
+    infoCache.set(csId, { adjId, info });
+    setKaipokeInfo(info);
+    setAdjId(adjId);
+  };
 
   // 3) time_adjustability_id -> マスター（label, Advance/Backwoard）
   const [label, setLabel] = useState<string | undefined>(undefined);
@@ -397,7 +463,7 @@ export default function ShiftCard({
         <div className="text-sm">
           利用者名: {shift.client_name ?? "—"} 様
           {commuting && (
-            <Dialog>
+            <Dialog onOpenChange={(open) => { if (open) void ensureInfoOnDemand(); }}>
               <DialogTrigger asChild>
                 <button className="ml-2 text-xs text-blue-500 underline">通所・通学</button>
               </DialogTrigger>
