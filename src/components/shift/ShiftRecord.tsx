@@ -686,6 +686,14 @@ export default function ShiftRecord({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: STATUS.completed }),
       });
+
+      void fetch("/api/tokutei/sum-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shift_id: Number(shiftId) }),
+      }).catch(() => {/* no-op（UIは壊さない）*/ });
+
+
       if (!res.ok) throw new Error("complete failed");
       setRecordLocked(true);
       setSaveState("saved");
