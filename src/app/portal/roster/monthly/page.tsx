@@ -120,6 +120,7 @@ const normalizeDateInput = (raw: string): string => {
     }
     return s
 }
+void　normalizeDateInput
 // 入力から必ず HH:mm を返す（寛容に受けて矯正）
 const toHM = (val?: string | null): string => {
     if (!val) return ''
