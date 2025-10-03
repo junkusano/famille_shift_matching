@@ -827,15 +827,11 @@ export default function MonthlyRosterPage() {
                                         {/* 開始日（テキスト + 曜日） */}
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <div className="w-[100px]">
+                                                <div className="w-[160px]">
                                                     <Input
+                                                        type="date"
                                                         value={row.shift_start_date}
                                                         onChange={(ev) => updateRow(row.shift_id, 'shift_start_date', ev.target.value)}
-                                                        onBlur={(ev) => {
-                                                            const v = normalizeDateInput(ev.target.value)
-                                                            updateRow(row.shift_id, 'shift_start_date', v)
-                                                        }}
-                                                        placeholder="YYYY-MM-DD"
                                                         className={dateInvalid ? 'border-red-500' : ''}
                                                         disabled={readOnly}
                                                     />
@@ -1146,12 +1142,11 @@ function NewAddRow(props: NewAddRowProps) {
                 {/* 開始日 */}
                 <TableCell>
                     <div className="flex items-center gap-2">
-                        <div className="w-[100px]">
+                        <div className="w-[160px]">
                             <Input
+                                type="date"
                                 value={draft.shift_start_date}
                                 onChange={(e) => updateDraft('shift_start_date', e.target.value)}
-                                onBlur={(e) => updateDraft('shift_start_date', normalizeDateInput(e.target.value))}
-                                placeholder="YYYY-MM-DD"
                                 className={!isValidDateStr(draft.shift_start_date) ? 'border-red-500' : ''}
                             />
                         </div>
