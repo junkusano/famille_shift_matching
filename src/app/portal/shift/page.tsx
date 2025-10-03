@@ -897,7 +897,7 @@ export default function ShiftPage() {
                     .map(s => `${s.shift_id}/${s.kaipoke_cs_id}/${(s.shift_start_time || "").slice(0, 5)}`)
                     .join(" , ");
                 alert(`[page] myShifts @ ${dd}\n${lines || "(none)"}`);
-            } catch (_) { }
+            } catch { }
 
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
