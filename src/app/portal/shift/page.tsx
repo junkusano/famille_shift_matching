@@ -864,6 +864,19 @@ export default function ShiftPage() {
                 allShifts.push(...(data as ShiftViewRow[]));
             }
 
+            try {
+                const dd = format(shiftDate, "yyyy-MM-dd");
+                const lines = (allShifts || [])
+                    .filter(s => s.shift_start_date === dd)
+                    // ← 文字通り "motoyomatsuzaka" が担当の当日分を全部出す
+                    .filter(s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id]
+                        .map(v => String(v ?? "").trim().toLowerCase())
+                        .includes("motoyomatsuzaka"))
+                    .map(s => `${s.shift_id}/${s.kaipoke_cs_id}/${String(s.shift_start_time || "").slice(0, 5)}`)
+                    .join(" , ");
+                alert(`[A] allShifts raw (motoyomatsuzaka) @ ${dd}\n${lines || "(none)"}`);
+            } catch { }
+
             const myKeys = new Set(
                 [userRecord.user_id, userRecord.kaipoke_user_id]
                     .map((v) => (v ?? "").toString().trim().toLowerCase())
@@ -879,6 +892,15 @@ export default function ShiftPage() {
                 return assignees.some((a) => myKeys.has(a));
             });
 
+            // （あなたの現在の filteredByUser の行の直後に入れる）
+            try {
+                const dd = format(shiftDate, "yyyy-MM-dd");
+                const lines = (filteredByUser || [])
+                    .filter(s => s.shift_start_date === dd)
+                    .map(s => `${s.shift_id}/${s.kaipoke_cs_id}/${String(s.shift_start_time || "").slice(0, 5)}`)
+                    .join(" , ");
+                alert(`[B] filteredByUser (motoyomatsuzaka) @ ${dd}\n${lines || "(none)"}`);
+            } catch { }
 
             const startOfDay = new Date(shiftDate);
             startOfDay.setHours(0, 0, 0, 0);
