@@ -59,10 +59,25 @@ type PostalDistrictRow = {
 
 type AdjustSpec = { label?: string; advance?: number; back?: number; biko?: string };
 
-function isMyAssignment(s: ShiftData, myId?: string | null) {
-    if (!myId) return false;
-    return [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(myId);
+const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+function isMyAssignment(
+    s: ShiftData,
+    myId?: string | null,
+    myKaipokeId?: string | null
+) {
+    const mine = new Set(
+        [myId, myKaipokeId].map(norm).filter((x) => x.length > 0)
+    );
+    const assignees = [
+        s.staff_01_user_id,
+        s.staff_02_user_id,
+        s.staff_03_user_id,
+    ].map(norm);
+
+    return assignees.some((a) => mine.has(a));
 }
+
 
 function canFitWindow(
     shift: ShiftData,
@@ -471,9 +486,10 @@ export default function ShiftPage() {
         const myShiftIds = new Set(shifts.map(s => s.shift_id)); // 念のため、画面に出てる自分シフトも除外
         // 既存の filtered 生成（自分担当除外・窓内判定など）はそのまま
         const filtered = merged
-            .filter(s => !isMyAssignment(s, userId))
+            .filter(s => !isMyAssignment(s, userId, kaipokeUserId))
             .filter(s => !myShiftIds.has(s.shift_id))
             .filter(s => canFitWindow(s, { start, end }, map[s.kaipoke_cs_id]));
+
 
         // ...filtered を作った直後（areaOptions / serviceOptions の set 後）に：
         const { area, svc, gender } = getEffectiveFilters();
@@ -729,7 +745,7 @@ export default function ShiftPage() {
             setCreatingShiftRequest(false);
         }
     }
-    
+
     function clearFilters() {
         setFilterArea([]);
         setFilterService([]);
@@ -749,7 +765,7 @@ export default function ShiftPage() {
 
         const { data: userRecord } = await supabase
             .from("users")
-            .select("user_id")
+            .select("user_id, kaipoke_user_id")
             .eq("auth_user_id", user.id)
             .single();
 
@@ -779,9 +795,21 @@ export default function ShiftPage() {
             allMonth.push(...(data as ShiftRecord[]));
         }
 
-        const mine = allMonth.filter(
-            (s) => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
+        const myKeys = new Set(
+            [userRecord.user_id, userRecord.kaipoke_user_id]
+                .map((v) => (v ?? "").toString().trim().toLowerCase())
+                .filter((x) => x.length > 0)
         );
+
+        const mine = allMonth.filter((s) => {
+            const assignees = [
+                s.staff_01_user_id,
+                s.staff_02_user_id,
+                s.staff_03_user_id,
+            ].map((v) => (v ?? "").toString().trim().toLowerCase());
+            return assignees.some((a) => myKeys.has(a));
+        });
+
 
         const counts: Record<string, number> = {};
         for (const s of mine) {
@@ -836,9 +864,21 @@ export default function ShiftPage() {
                 allShifts.push(...(data as ShiftViewRow[]));
             }
 
-            const filteredByUser = allShifts.filter((s) =>
-                [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
+            const myKeys = new Set(
+                [userRecord.user_id, userRecord.kaipoke_user_id]
+                    .map((v) => (v ?? "").toString().trim().toLowerCase())
+                    .filter((x) => x.length > 0)
             );
+
+            const filteredByUser = allShifts.filter((s) => {
+                const assignees = [
+                    s.staff_01_user_id,
+                    s.staff_02_user_id,
+                    s.staff_03_user_id,
+                ].map((v) => (v ?? "").toString().trim().toLowerCase());
+                return assignees.some((a) => myKeys.has(a));
+            });
+
 
             const startOfDay = new Date(shiftDate);
             startOfDay.setHours(0, 0, 0, 0);
@@ -984,7 +1024,7 @@ export default function ShiftPage() {
 
             if (!canUse) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
-                return;  
+                return;
             }
 
 
