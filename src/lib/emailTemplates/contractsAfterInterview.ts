@@ -44,8 +44,8 @@ export function generateContractsAfterInterviewHtml(entry: EntryDetail): string 
     </p>
 
     <ul>
-      <li><a href="${staffContractLinks.employment}" target="_blank">雇用契約書</a></li>
-      <li><a href="${staffContractLinks.privacy}" target="_blank">個人情報同意書</a></li>
+      <li><a href="${staffContractLinks.employment}" target="_blank">雇用契約書（必須）</a></li>
+      <li><a href="${staffContractLinks.privacy}" target="_blank">個人情報同意書（必須）</a></li>
       <li><a href="${staffContractLinks.privateCar}" target="_blank">私有車誓約書（該当者のみ）</a></li>
     </ul>
 

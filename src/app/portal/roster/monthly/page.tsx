@@ -813,7 +813,7 @@ export default function MonthlyRosterPage() {
                             return (
                                 <Fragment key={row.shift_id}>
                                     {/* 1行目：基本情報 - 色クラスを適用 */}
-                                    <TableRow className={`border-y border-gray-300 ${bgColorClass}`}>
+                                    <TableRow className={`border-y border-gray-300 w-[15px] ${bgColorClass}`}>
                                         {/* 選択 */}
                                         <TableCell>
                                             <input
@@ -837,7 +837,7 @@ export default function MonthlyRosterPage() {
                                                         disabled={readOnly}
                                                     />
                                                 </div>
-                                                <span className="text-xs text-muted-foreground w-[20px]">（{weekdayJa(row.shift_start_date)}）</span>
+                                                <span className="text-xs text-muted-foreground w-[15px]">（{weekdayJa(row.shift_start_date)}）</span>
                                             </div>
                                         </TableCell>
                                         {/* 開始時間（既存行） */}
@@ -1138,7 +1138,7 @@ function NewAddRow(props: NewAddRowProps) {
     return (
         <>
             <TableRow className="bg-muted/30">
-                <TableCell>{/* チェックボックス列は空欄 */}</TableCell>
+                <TableCell　className="w-[15px]">{/* チェックボックス列は空欄 */}</TableCell>
 
                 {/* 開始日 */}
                 <TableCell>
@@ -1151,7 +1151,7 @@ function NewAddRow(props: NewAddRowProps) {
                                 className={!isValidDateStr(draft.shift_start_date) ? 'border-red-500' : ''}
                             />
                         </div>
-                        <span className="text-xs text-muted-foreground  w-[20px]">（{weekdayJa(draft.shift_start_date)}）</span>
+                        <span className="text-xs text-muted-foreground  w-[15px]">（{weekdayJa(draft.shift_start_date)}）</span>
                     </div>
                 </TableCell>
 
