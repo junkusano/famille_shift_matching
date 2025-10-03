@@ -635,6 +635,7 @@ export default function ShiftCard({
             <ShiftRecordLinkButton
               shiftId={shift.shift_id ?? shift.id}
               clientName={shift.client_name ?? ""}
+              tokuteiComment={shift.tokutei_comment ?? ""} 
               standardRoute={kaipokeInfo?.standard_route ?? ""}
               standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
               standardPurpose={kaipokeInfo?.standard_purpose ?? ""}

@@ -341,6 +341,7 @@ export default function ShiftRecord({
   const qsStaff03UserId = sp.get("staff_03_user_id") || undefined;
   const qsStaff02AttendFlg = sp.get("staff_02_attend_flg") || undefined;
   const qsStaff03AttendFlg = sp.get("staff_03_attend_flg") || undefined;
+  const qsTokuteiComment = sp.get("tokutei_comment") || undefined;
 
 
   // 追加
@@ -393,12 +394,14 @@ export default function ShiftRecord({
     setIfEmpty("staff_03_user_id", qsStaff03UserId);
     setIfEmpty("staff_02_attend_flg", qsStaff02AttendFlg);
     setIfEmpty("staff_03_attend_flg", qsStaff03AttendFlg);
+    setIfEmpty("tokutei_comment", qsTokuteiComment);
 
     return base;
   }, [
     shiftInfo, clientNameFromQS,
     qsStandardRoute, qsStandardTransWays, qsStandardPurpose,
     qsStaff01UserId, qsStaff02UserId, qsStaff03UserId, qsStaff02AttendFlg, qsStaff03AttendFlg,
+    qsTokuteiComment,
   ]);
 
   // ====== 定義ロード ======

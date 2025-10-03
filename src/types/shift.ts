@@ -19,6 +19,7 @@ export interface SupabaseShiftRaw {
   district?: string;
   level_sort_order?: number;
   require_doc_group?: string | null;
+  tokutei_comment?: string | null;
 }
 
 export interface ShiftData {
@@ -49,4 +50,5 @@ export interface ShiftData {
   biko?: string;
   level_sort_order?: number | null;
   require_doc_group?: string | null;
+  tokutei_comment?: string | null;
 }

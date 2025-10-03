@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 interface ShiftRecordLinkButtonProps {
   shiftId: string;
   clientName?: string;
+  tokuteiComment?: string | null;
   // --- Propsの型定義に3項目を追加 ---
   standardRoute?: string | null;
   standardTransWays?: string | null;
@@ -25,13 +26,14 @@ interface ShiftRecordLinkButtonProps {
 export default function ShiftRecordLinkButton({
   shiftId,
   clientName,
+  tokuteiComment,
   // --- ここに3項目を追加し、Propsから値を取り出します ---
   standardRoute,
   standardTransWays,
   standardPurpose,
 
   staff01UserId, staff02UserId, staff03UserId,
-    staff02AttendFlg, staff03AttendFlg,
+  staff02AttendFlg, staff03AttendFlg,
   // ----------------------------------------------------
   label = "訪問記録",
   hrefBase = "/portal/shift-records",
@@ -60,6 +62,9 @@ export default function ShiftRecordLinkButton({
           `?shift_id=${encodeURIComponent(shiftId)}`
         if (clientName) {
           q += `&client_name=${encodeURIComponent(clientName)}`;
+        }
+        if (tokuteiComment) {
+          q += `&tokutei_comment=${encodeURIComponent(tokuteiComment)}`;
         }
         if (standardRoute) {
           q += `&standard_route=${encodeURIComponent(standardRoute)}`;
