@@ -837,7 +837,7 @@ export default function MonthlyRosterPage() {
                                                         disabled={readOnly}
                                                     />
                                                 </div>
-                                                <span className="text-xs text-muted-foreground w-[30px]">（{weekdayJa(row.shift_start_date)}）</span>
+                                                <span className="text-xs text-muted-foreground w-[20px]">（{weekdayJa(row.shift_start_date)}）</span>
                                             </div>
                                         </TableCell>
                                         {/* 開始時間（既存行） */}
@@ -1151,7 +1151,7 @@ function NewAddRow(props: NewAddRowProps) {
                                 className={!isValidDateStr(draft.shift_start_date) ? 'border-red-500' : ''}
                             />
                         </div>
-                        <span className="text-xs text-muted-foreground  w-[30px]">（{weekdayJa(draft.shift_start_date)}）</span>
+                        <span className="text-xs text-muted-foreground  w-[20px]">（{weekdayJa(draft.shift_start_date)}）</span>
                     </div>
                 </TableCell>
 
