@@ -87,6 +87,7 @@ export async function GET(req: Request) {
         "staff_02_user_id",
         "staff_03_user_id",
         "head_shift_id",
+        "tokutei_comment",
       ].join(",")
     )
     .eq("shift_id", shiftId)
