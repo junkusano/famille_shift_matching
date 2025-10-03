@@ -31,9 +31,9 @@ type ShiftRecordItem = {
 
 type ShiftRecordItemDef = {
   id: string;        // uuid
-  code: string | null;  // text（NULL許容：多くはnull）
-  l_id: string | null;  // uuid（大分類）
-  label: string;     // 表示ラベル
+  code: string | null;
+  l_id: string | null;
+  label: string;
   input_type: "checkbox" | "select" | "number" | "text" | "textarea" | "image" | "display";
   active: boolean;
 };
@@ -221,14 +221,11 @@ export async function POST(req: NextRequest) {
 
         // A) TARGET_CODES の値収集
         const code = defIdToCode.get(it.item_def_id);
-        if (code && val) {
-          byCode[code].push(val);
-        }
+        if (code && val) byCode[code].push(val);
 
         // B) 実施サービス（checkbox でチェック済み & l_id≠事前）
         const def = checkboxDefMap.get(it.item_def_id);
         if (def && isChecked(val)) {
-          // 念のためフィルタ（active/checkbox/除外l_id）
           if (def.active && def.input_type === "checkbox" && def.l_id !== PRE_L_ID_EXCLUDE) {
             executedLabels.push(def.label);
           }
@@ -236,23 +233,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const bullets = {
-      executed: uniqJoin(executedLabels), // ★追加：実施したサービス
-      adl: uniqJoin(byCode.adl),
-      needs: uniqJoin(byCode.needs),
-      enviroment: uniqJoin(byCode.enviroment),
-      other_status: uniqJoin(byCode.other_status),
-    };
+    // ==== ここで「特変無」を補完 ====
+    const adlTxt = withDefault(byCode.adl);
+    const needsTxt = withDefault(byCode.needs);
+    const envTxt = withDefault(byCode.enviroment);
+    const otherTxt = withDefault(byCode.other_status);
 
     const prevSummaryText = [
       "【前回の状況】",
-      bullets.executed ? `・実施したサービス：${bullets.executed}` : "",
-      bullets.adl ? `・ADLの変化：${bullets.adl}` : "",
-      bullets.needs ? `・ご本人の要望：${bullets.needs}` : "",
-      bullets.enviroment ? `・環境・ご家族の状況：${bullets.enviroment}` : "",
-      bullets.other_status ? `・その他・ご様子：${bullets.other_status}` : "",
+      executedLabels.length ? `・実施したサービス：${uniqJoin(executedLabels)}` : "",
+      `・ADLの変化：${adlTxt}`,
+      `・ご本人の要望：${needsTxt}`,
+      `・環境・ご家族の状況：${envTxt}`,
+      `・その他・ご様子：${otherTxt}`,
     ]
-      .filter((s) => s && s.length > 0)
+      .filter((s) => s !== "")
       .join("\n");
 
     /* 5) OpenAIで“次回（今回）サービスの指示事項”（最大100字・平文1文） */
@@ -295,7 +290,13 @@ function uniqJoin(arr: string[], sep = " / "): string {
   return Array.from(set).join(sep);
 }
 
-/** ✅判定の頑健化（value_text が text のため表記ゆれを吸収） */
+/** 空なら「特変無」を返す */
+function withDefault(values: string[]): string {
+  const txt = uniqJoin(values);
+  return txt && txt.length > 0 ? txt : "特変無";
+}
+
+/** ✅判定（value_text は text のため表記ゆれを吸収） */
 function isChecked(raw: string): boolean {
   const v = raw.trim().toLowerCase();
   return (
@@ -327,18 +328,18 @@ async function generateInstruction(
     "出力は最大100文字・1文・句点で終える。",
   ].join("\n");
 
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: sys },
-      { role: "user", content: usr },
-    ],
-    temperature: 0.5,
-    max_tokens: 120,
-  });
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: usr },
+      ],
+      temperature: 0.5,
+      max_tokens: 120,
+    });
 
-  const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
-  return text.length > 110 ? text.slice(0, 110) : text;
+    const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
+    return text.length > 110 ? text.slice(0, 110) : text;
 }
 
 function getSeasonHint(): string {
