@@ -272,7 +272,33 @@ export default function ShiftCard({
     if (!csId) { setAdjId(undefined); return; }
 
     // ★ requestモードではここで先読みしない（遅延に任せる）
-    if (mode !== "reject") return;
+    // reject モード：自分が担当していないカードは非表示
+    if (mode === "reject") {
+      // myUserId の取得前は一瞬判定不能なので描画を抑止
+      if (myUserId === null) return null;
+
+      const mine = isMyAssignmentRejectMode(shift, myUserId);
+      if (!mine) {
+        // === DEBUG ALERT #2 (ShiftCard.tsx) =====================
+        // ※ 非表示にするカードだけ出る（= ここに来たものが原因の本丸）
+        try {
+          alert(
+            [
+              "[card] hidden (reject guard)",
+              `shift_id=${shift.shift_id}`,
+              `cs=${shift.kaipoke_cs_id}`,
+              `time=${(shift.shift_start_time || "").slice(0, 5)}`,
+              `staff1=${shift.staff_01_user_id}`,
+              `staff2=${shift.staff_02_user_id}`,
+              `staff3=${shift.staff_03_user_id}`,
+              `myUserId=${myUserId}`
+            ].join("\n")
+          );
+        } catch (_) { }
+        // ========================================================
+        return null;
+      }
+    }
 
     // ★ まずキャッシュ確認
     if (infoCache.has(csId)) {

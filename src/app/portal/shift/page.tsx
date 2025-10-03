@@ -890,6 +890,15 @@ export default function ShiftPage() {
                 return shiftTime >= startOfDay.getTime() && shiftTime <= endOfDay.getTime();
             });
 
+            try {
+                const dd = format(shiftDate, "yyyy-MM-dd");
+                const lines = filteredByDate
+                    .filter(s => s.shift_start_date === dd)
+                    .map(s => `${s.shift_id}/${s.kaipoke_cs_id}/${(s.shift_start_time || "").slice(0, 5)}`)
+                    .join(" , ");
+                alert(`[page] myShifts @ ${dd}\n${lines || "(none)"}`);
+            } catch (_) { }
+
             const sorted = filteredByDate.sort((a, b) => {
                 const d1 = a.shift_start_date + a.shift_start_time;
                 const d2 = b.shift_start_date + b.shift_start_time;
