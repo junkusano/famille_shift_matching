@@ -20,6 +20,8 @@ import Link from "next/link";
 // ShiftCard.tsx のファイル先頭（importの下）
 let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未取得, null=失敗, []=資格なし
 let __keysPromise: Promise<ServiceKey[]> | null = null;
+let __myUserId: string | null | undefined = undefined; // undefined=未取得
+let __myUserIdPromise: Promise<string | null> | null = null;
 type Mode = "request" | "reject";
 
 type Props = {
@@ -177,21 +179,25 @@ export default function ShiftCard({
 
   const [myUserId, setMyUserId] = useState<string | null>(null);
   useEffect(() => {
-    (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setMyUserId(null); return; }
-        const { data: me } = await supabase
-          .from("users")
-          .select("user_id")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
-        setMyUserId(me?.user_id ?? null);
-      } catch {
-        setMyUserId(null);
-      }
+    if (mode !== "reject") return;                 // ★ reject以外は何もしない
+    if (__myUserId !== undefined) { setMyUserId(__myUserId); return; }
+    if (__myUserIdPromise) { __myUserIdPromise.then(id => setMyUserId(id)); return; }
+
+    __myUserIdPromise = (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data: me } = await supabase
+        .from("users")
+        .select("user_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      return me?.user_id ?? null;
     })();
-  }, []);
+
+    __myUserIdPromise
+      .then(id => { __myUserId = id; setMyUserId(id); })
+      .finally(() => { __myUserIdPromise = null; });
+  }, [mode]);
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
@@ -635,7 +641,7 @@ export default function ShiftCard({
             <ShiftRecordLinkButton
               shiftId={shift.shift_id ?? shift.id}
               clientName={shift.client_name ?? ""}
-              tokuteiComment={shift.tokutei_comment ?? ""} 
+              tokuteiComment={shift.tokutei_comment ?? ""}
               standardRoute={kaipokeInfo?.standard_route ?? ""}
               standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
               standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
