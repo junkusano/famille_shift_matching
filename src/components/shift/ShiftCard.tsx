@@ -294,7 +294,7 @@ export default function ShiftCard({
               `myUserId=${myUserId}`
             ].join("\n")
           );
-        } catch (_) { }
+        } catch { }
         // ========================================================
         return null;
       }
