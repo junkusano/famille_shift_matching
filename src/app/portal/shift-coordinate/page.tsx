@@ -90,7 +90,6 @@ export default function ShiftPage() {
                     .order("shift_start_date", { ascending: true })
                     .order("shift_start_time", { ascending: true })
                     .order("shift_id", { ascending: true })
-                    .limit(2000); // 60日×日10件=600想定。保険で2000
 
                 if (error) {
                     console.error("fetch my 60d shifts error", error);
