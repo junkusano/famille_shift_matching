@@ -828,7 +828,7 @@ export default function MonthlyRosterPage() {
                                         {/* 開始日（テキスト + 曜日） */}
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <div className="w-[160px]">
+                                                <div className="w-[140px]">
                                                     <Input
                                                         type="date"
                                                         value={row.shift_start_date}
@@ -1143,7 +1143,7 @@ function NewAddRow(props: NewAddRowProps) {
                 {/* 開始日 */}
                 <TableCell>
                     <div className="flex items-center gap-2">
-                        <div className="w-[160px]">
+                        <div className="w-[140px]">
                             <Input
                                 type="date"
                                 value={draft.shift_start_date}
