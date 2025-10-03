@@ -220,7 +220,6 @@ export default function PrintViewMonthlyRoster() {
 
         {/* 操作行（印刷ボタン） */}
         <div className="flex items-center justify-between mb-3 print:hidden">
-          <div className="text-sm text-muted-foreground">/portal/roster/monthly のフィルター（利用者・月）を引き継いで表示します。</div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => router.back()}>戻る</Button>
             <Button onClick={handlePrint}>印刷 / PDF 保存</Button>
@@ -229,7 +228,7 @@ export default function PrintViewMonthlyRoster() {
 
         {/* Legend */}
         <div className="text-right text-sm text-muted-foreground mb-2">★は同行を表します</div>
-        <div className="text-left text-xs text-muted-foreground mb-2">URL は <code>/portal/roster/monthly/print-view</code> を想定（現在のファイルは <code>/portal/roster/month/print-view</code> なので配置先を変更してください）。</div>
+        <div className="text-left text-xs text-muted-foreground mb-2">サービス日時・担当者は変更する場合があります。</div>
 
         {/* Month Grid */}
         <div className="border rounded-md overflow-hidden">
@@ -291,7 +290,7 @@ export default function PrintViewMonthlyRoster() {
 
         {/* Print footnote */}
         <div className="mt-2 text-center text-xs text-muted-foreground print:hidden">
-          ブラウザの印刷ダイアログから「PDFに保存」を選ぶとPDF化できます。
+          ファミーユヘルパーサービス愛知　shi-on.net
         </div>
       </div>
 
