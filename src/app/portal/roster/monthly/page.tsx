@@ -120,7 +120,7 @@ const normalizeDateInput = (raw: string): string => {
     }
     return s
 }
-void　normalizeDateInput
+void normalizeDateInput
 // 入力から必ず HH:mm を返す（寛容に受けて矯正）
 const toHM = (val?: string | null): string => {
     if (!val) return ''
@@ -1053,10 +1053,21 @@ export default function MonthlyRosterPage() {
                                                 <div className="ml-auto flex gap-2">
                                                     {(() => {
                                                         const s = recordStatus[row.shift_id] as RecordStatus | undefined;
-                                                        const isGreen = s === 'submitted' || s === 'approved' || s === 'archived';
+
+                                                        // === 追加: シフト開始が現在より前かどうか ===
+                                                        // row.shift_start_time は "HH:mm" 前提なので ":00" を足して秒まで補完
+                                                        const startIso = `${row.shift_start_date}T${(row.shift_start_time || '00:00')}:00`;
+                                                        const shiftStart = new Date(startIso);
+                                                        const now = new Date();
+                                                        const isPastStart = shiftStart.getTime() < now.getTime();
+
+                                                        // === 判定 ===
+                                                        const isSubmitted = s === 'submitted';
+                                                        const isGreen = isSubmitted || s === 'approved' || s === 'archived';
+                                                        const isRed = !isSubmitted && isPastStart; // ★ 新条件：Submitted 以外 かつ 過去シフトのみ赤
 
                                                         const colorCls =
-                                                            s === 'draft'
+                                                            isRed
                                                                 ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
                                                                 : isGreen
                                                                     ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
@@ -1138,7 +1149,7 @@ function NewAddRow(props: NewAddRowProps) {
     return (
         <>
             <TableRow className="bg-muted/30">
-                <TableCell　className="w-[15px]">{/* チェックボックス列は空欄 */}</TableCell>
+                <TableCell className="w-[15px]">{/* チェックボックス列は空欄 */}</TableCell>
 
                 {/* 開始日 */}
                 <TableCell>
