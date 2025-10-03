@@ -61,23 +61,79 @@ export async function POST(req: NextRequest) {
     if (e0 || !curRow) throw e0 ?? new Error("shift not found");
     const cur = curRow as Shift;
 
-    /* 1) “次回” = 自シフト終了と開始が完全一致するシフト（同一利用者） */
-    let nextShift: Shift | undefined;
-    if (cur.kaipoke_cs_id && cur.shift_end_date && cur.shift_end_time) {
-      const { data: nexts, error: eNext } = await supabase
+    /* 1) “前方連結チェーン”をできるだけ進め、その先の「真の次回」を特定
+       - 条件A: prev_end == next_start のものは一連のサービスとして“前方”に連結し続ける
+       - ターゲット: チェーンの最終終了（chainEnd）より“厳密に後”に開始する最初のシフト
+    */
+    if (!cur.kaipoke_cs_id || !cur.shift_end_date || !cur.shift_end_time) {
+      return NextResponse.json({ ok: true, reason: "skip: insufficient end fields to compute next" });
+    }
+
+    // 1-1) まず「終了＝開始」で前方に進めるだけ進む
+    let chainEndDate = cur.shift_end_date;
+    let chainEndTime = cur.shift_end_time;
+
+    for (let i = 0; i < 20; i++) {
+      const { data: conts, error: eCont } = await supabase
         .from("shift")
         .select("*")
         .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
-        .eq("shift_start_date", cur.shift_end_date)
-        .eq("shift_start_time", cur.shift_end_time)
+        .eq("shift_start_date", chainEndDate)
+        .eq("shift_start_time", chainEndTime)
         .order("shift_start_date", { ascending: true })
         .order("shift_start_time", { ascending: true })
         .limit(1);
-      if (eNext) throw eNext;
-      nextShift = (nexts as unknown as Shift[] | null)?.[0];
+      if (eCont) throw eCont;
+
+      const cont = (conts as unknown as Shift[] | null)?.[0];
+      if (!cont) break; // 連結終端
+
+      // さらに先へ
+      chainEndDate = cont.shift_end_date ?? cont.shift_start_date ?? chainEndDate;
+      chainEndTime = cont.shift_end_time ?? cont.shift_start_time ?? chainEndTime;
     }
 
-    /* 2) “連続チェーン”を過去に遡って収集（prev.end == cur.start の連なり） */
+    // 1-2) 「chainEnd より後」の最初のシフトを検索（同一利用者）
+    // 同日・後時間 と 後日 の2系統に分けて取得し、最小開始を選ぶ
+    const [sameDayLater, laterDay] = await Promise.all([
+      supabase
+        .from("shift")
+        .select("*")
+        .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
+        .eq("shift_start_date", chainEndDate)
+        .gt("shift_start_time", chainEndTime)
+        .order("shift_start_date", { ascending: true })
+        .order("shift_start_time", { ascending: true })
+        .limit(1),
+      supabase
+        .from("shift")
+        .select("*")
+        .eq("kaipoke_cs_id", cur.kaipoke_cs_id)
+        .gt("shift_start_date", chainEndDate)
+        .order("shift_start_date", { ascending: true })
+        .order("shift_start_time", { ascending: true })
+        .limit(1),
+    ]);
+
+    const cand1 = (sameDayLater.data as unknown as Shift[] | null)?.[0];
+    const cand2 = (laterDay.data as unknown as Shift[] | null)?.[0];
+
+    let nextShift: Shift | undefined;
+    if (cand1 && cand2) {
+      // cand1 は同日後時間、cand2 は翌日以降 → 自然と cand1 の方が先
+      nextShift = cand1;
+    } else {
+      nextShift = cand1 ?? cand2 ?? undefined;
+    }
+
+    if (!nextShift) {
+      // 次回が存在しない → 今回に書かず、処理完了（誤書込み防止）
+      return NextResponse.json({ ok: true, reason: "no_next_shift_after_chain" });
+    }
+
+    /* 2) “過去連結チェーン”を遡って収集（prev.end == cur.start の連なり）
+          → 前回状況はこの直前連結列の全レコードを集約
+    */
     const series: Shift[] = [cur];
     let cursor = cur;
     for (let i = 0; i < 20; i++) {
@@ -177,15 +233,19 @@ export async function POST(req: NextRequest) {
       .filter((s) => s && s.length > 0)
       .join("\n");
 
-    /* 5) 書き込み先: 次回があれば次回、無ければ今回 */
-    const targetId = nextShift?.shift_id ?? cur.shift_id;
+    /* 5) 書き込み先: 必ず「真の次回」に書く（なければ書かない） */
     const { error: eUp } = await supabase
       .from("shift")
       .update({ tokutei_comment: finalPlain })
-      .eq("shift_id", targetId);
+      .eq("shift_id", nextShift.shift_id);
     if (eUp) throw eUp;
 
-    return NextResponse.json({ ok: true, target_shift_id: targetId, length: finalPlain.length });
+    return NextResponse.json({
+      ok: true,
+      target_shift_id: nextShift.shift_id,
+      wrote_to: "next_after_chain",
+      length: finalPlain.length,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[tokutei/sum-order] error", msg);
