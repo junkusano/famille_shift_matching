@@ -729,7 +729,7 @@ export default function ShiftPage() {
             setCreatingShiftRequest(false);
         }
     }
-    
+
     function clearFilters() {
         setFilterArea([]);
         setFilterService([]);
@@ -819,23 +819,36 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const thirtyDaysISO = thirtyDaysAgo.toISOString();
+            // 選択日を中心に ±30日（DATE型に合わせて 'YYYY-MM-DD' で比較）
+            const startStr = format(addDays(shiftDate, -30), "yyyy-MM-dd");
+            const endStr = format(addDays(shiftDate, +30), "yyyy-MM-dd");
 
+            // 取得コンテナは従来どおり allShifts を使う
             const allShifts: ShiftViewRow[] = [];
-            for (let i = 0; i < 10; i++) {
-                const { data, error } = await supabase
-                    .from("shift_csinfo_postalname_view")
-                    .select("*")
-                    .gte("shift_start_date", thirtyDaysISO)
-                    .order("shift_start_date", { ascending: true })
-                    .range(i * 1000, (i + 1) * 1000 - 1);
 
-                if (error || !data?.length) break;
-                allShifts.push(...(data as ShiftViewRow[]));
+            const orByMe =
+                [
+                    `staff_01_user_id.eq.${userRecord.user_id}`,
+                    `staff_02_user_id.eq.${userRecord.user_id}`,
+                    `staff_03_user_id.eq.${userRecord.user_id}`,
+                ].join(",");
+
+            // ★ user_id でサーバ側フィルタ（ページングなし・安定ORDER）
+            const { data, error } = await supabase
+                .from("shift_csinfo_postalname_view")
+                .select("*")
+                .gte("shift_start_date", startStr)
+                .lte("shift_start_date", endStr)
+                .or(orByMe)
+                .order("shift_start_date", { ascending: true })
+                .order("shift_start_time", { ascending: true })
+                .order("shift_id", { ascending: true });
+
+            if (error) {
+                console.error("fetch my 60d shifts error", error);
+            } else {
+                allShifts.push(...(data as ShiftViewRow[] ?? []));
             }
-
             const filteredByUser = allShifts.filter((s) =>
                 [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(userRecord.user_id)
             );
@@ -984,7 +997,7 @@ export default function ShiftPage() {
 
             if (!canUse) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
-                return;  
+                return;
             }
 
 
