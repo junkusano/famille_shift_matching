@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { extractFilterOptions, ShiftFilterOptions } from "@/lib/supabase/shiftFilterOptions";
 import type { SupabaseShiftRaw, ShiftData } from "@/types/shift";
-import { format, parseISO, addDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
@@ -51,7 +51,7 @@ export default function ShiftPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            //const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+            const jstNow = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -63,41 +63,17 @@ export default function ShiftPage() {
             setAccountId(userRecord?.user_id || "");
             setKaipokeUserId(userRecord?.kaipoke_user_id || "");
 
-            // 1) 中心日：そのファイルに「選択日」が無い場合は今日を使う
-            const centerDate = new Date(); // ← 選択日 state があるなら置き換え: 例) selectedDate
-
-            const startDate = addDays(centerDate, -30);
-            const endDate = addDays(centerDate, +30);
-            const startStr = format(startDate, "yyyy-MM-dd");
-            const endStr = format(endDate, "yyyy-MM-dd");
-
-            // 2) ログインユーザー（前段で取得済み）
-            const me = userRecord.user_id;
-
-            // 3) 本人担当だけを期間で絞って取得（ページング廃止）
             const allShifts: SupabaseShiftRaw[] = [];
-            {
+            for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
                     .from("shift_csinfo_postalname_view")
                     .select("*")
-                    .gte("shift_start_date", startStr)
-                    .lte("shift_start_date", endStr)
-                    .or([
-                        `staff_01_user_id.eq.${me}`,
-                        `staff_02_user_id.eq.${me}`,
-                        `staff_03_user_id.eq.${me}`,
-                    ].join(","))
-                    .order("shift_start_date", { ascending: true })
-                    .order("shift_start_time", { ascending: true })
-                    .order("shift_id", { ascending: true })
+                    .gte("shift_start_date", jstNow)
+                    .range(i * 1000, (i + 1) * 1000 - 1);
 
-                if (error) {
-                    console.error("fetch my 60d shifts error", error);
-                } else {
-                    allShifts.push(...(data as SupabaseShiftRaw[] ?? []));
-                }
+                if (error || !data?.length) break;
+                allShifts.push(...data);
             }
-            // 置き換えここまで
 
             //alert("allShifts length:" + allShifts?.length);
 
