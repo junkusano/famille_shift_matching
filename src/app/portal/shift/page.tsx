@@ -729,7 +729,7 @@ export default function ShiftPage() {
             setCreatingShiftRequest(false);
         }
     }
-
+    
     function clearFilters() {
         setFilterArea([]);
         setFilterService([]);
@@ -819,41 +819,21 @@ export default function ShiftPage() {
             setKaipokeUserId(userRecord.kaipoke_user_id || "");
             setUserId(userRecord.user_id);
 
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const thirtyDaysISO = thirtyDaysAgo.toISOString();
+
             const allShifts: ShiftViewRow[] = [];
-            allShifts.length = 0;
+            for (let i = 0; i < 10; i++) {
+                const { data, error } = await supabase
+                    .from("shift_csinfo_postalname_view")
+                    .select("*")
+                    .gte("shift_start_date", thirtyDaysISO)
+                    .order("shift_start_date", { ascending: true })
+                    .range(i * 1000, (i + 1) * 1000 - 1);
 
-            // 中心日：このファイルに“選択日”が無いなら今日でOK
-            const centerDate = new Date(); // ← 選択日 state があるなら置き換え
-
-            const startStr = format(addDays(centerDate, -30), "yyyy-MM-dd");
-            const endStr = format(addDays(centerDate, +30), "yyyy-MM-dd");
-
-            // ログイン名（文字列ID）で絞る
-            // 既に userRecord を取っているなら、そこに “文字列ID” があれば使う
-            const loginName = (userRecord?.kaipoke_user_id ?? "motoyomatsuzaka").trim();
-
-            const orClause = [
-                `staff_01_user_id.eq.${loginName}`,
-                `staff_02_user_id.eq.${loginName}`,
-                `staff_03_user_id.eq.${loginName}`,
-            ].join(",");
-
-            const { data, error } = await supabase
-                .from("shift_csinfo_postalname_view")
-                .select("*", { count: "exact" })
-                .gte("shift_start_date", startStr)
-                .lte("shift_start_date", endStr)
-                .or(orClause)                   // ← 文字列IDだけでマッチ
-                .order("shift_start_date", { ascending: true })
-                .order("shift_start_time", { ascending: true })
-                .order("shift_id", { ascending: true }); // ← limit は付けない
-
-            if (error) {
-                alert(`[fetch60d error] ${error.message}`);
-            } else {
-                allShifts.push(...(data as  ShiftViewRow[]?? []));
-                // 必要なら件数だけ一時確認
-                // alert(`[fetch60d ok] count=${count}`);
+                if (error || !data?.length) break;
+                allShifts.push(...(data as ShiftViewRow[]));
             }
 
             const filteredByUser = allShifts.filter((s) =>
@@ -1004,7 +984,7 @@ export default function ShiftPage() {
 
             if (!canUse) {
                 alert("アシスタントマネジャー以上はこの機能は使えません。マネジャーグループ内でリカバリー調整を行って下さい");
-                return;
+                return;  
             }
 
 
