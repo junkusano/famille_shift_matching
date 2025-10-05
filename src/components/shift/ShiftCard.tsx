@@ -241,7 +241,7 @@ export default function ShiftCard({
         const q = new URLSearchParams({ ids: shiftIdStr, format: "db" });
         const res = await fetch(`/api/shift-records?${q.toString()}`, { method: "GET", cache: "no-store" });
         if (!res.ok) {
-          alert(`[shift_records] HTTP ${res.status} / id=${shiftIdStr}`);
+          //alert(`[shift_records] HTTP ${res.status} / id=${shiftIdStr}`);
           return;
         }
         const json = await res.json();
@@ -251,9 +251,9 @@ export default function ShiftCard({
 
         setRecordStatus(s);
         // 取得結果の可視化
-        alert(`[shift_records] ok  id=${shiftIdStr}  status=${s ?? "(none)"}`);
+        //alert(`[shift_records] ok  id=${shiftIdStr}  status=${s ?? "(none)"}`);
       } catch (e) {
-        alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
+        //alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
       }
     })();
   }, [shiftIdStr]);
@@ -749,9 +749,8 @@ export default function ShiftCard({
           {mode === "reject" && (
             <Button
               asChild
-              // monthly 側と同様に、status が取れていれば 'default'、未取得は 'outline' 相当の見た目
-              variant={recordStatus ? 'default' : 'outline'}
-              className={recordBtnColorCls}
+              variant="ghost"  // ← ここを default → ghost に変更！
+              className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
             >
               <ShiftRecordLinkButton
                 shiftId={getShiftIdStr(shift)}
