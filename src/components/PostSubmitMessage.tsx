@@ -114,7 +114,7 @@ export default function PostSubmitMessage({ form }: { form: FormData }) {
                         <iframe
                             width="930"
                             height="523"
-                            src="https://www.youtube.com/embed/aOWp6dtvVTo"
+                            src="https://www.youtube.com/shorts/ePIuRm5OVQ8"
                             title="電子サインの方法（雇用契約書）"
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
