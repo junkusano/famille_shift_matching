@@ -49,6 +49,16 @@ const DEFAULT_BADGE_TEXT = "時間調整可能";
 const TBL_INFO = "cs_kaipoke_info";
 const TBL_ADJ = "cs_kaipoke_time_adjustability";
 
+// ShiftData から shift_id（なければ id）を必ず string にして返す
+const getShiftIdStr = (s: ShiftData): string => {
+  const sid = s.shift_id;
+  if (typeof sid === "number" || typeof sid === "string") return String(sid);
+  const n = pickNum(s, "id");
+  if (typeof n === "number") return String(n);
+  const t = pickStr(s, "id");
+  return t ?? "";
+};
+
 // ここはコンポーネント外（ShiftCard.tsx 先頭のヘルパ群の近く）
 type KaipokeInfo = {
   standard_route?: string | null;
@@ -57,6 +67,10 @@ type KaipokeInfo = {
   address?: string | null;
   postal_code?: string | null;
 };
+
+// ★ 追加：型（ShiftCard.tsx の他の型定義の近く）
+type RecordStatus = 'draft' | 'submitted' | 'approved' | 'archived';
+
 
 // ★ 追加：cs_idごとの情報キャッシュ & 進行中Promiseキャッシュ
 const infoCache = new Map<string, { adjId?: string; info: KaipokeInfo }>();
@@ -190,6 +204,11 @@ export default function ShiftCard({
   const [adjId, setAdjId] = useState<string | undefined>(undefined);
 
   const [myUserId, setMyUserId] = useState<string | null>(null);
+
+  // ★ 追加：state（コンポーネント内の他の useState 群の近く）
+  const [recordStatus, setRecordStatus] = useState<RecordStatus | undefined>(undefined);
+
+
   useEffect(() => {
     if (mode !== "reject") return;                 // ★ reject以外は何もしない
     if (__myUserId !== undefined) { setMyUserId(__myUserId); return; }
@@ -210,6 +229,30 @@ export default function ShiftCard({
       .then(id => { __myUserId = id; setMyUserId(id); })
       .finally(() => { __myUserIdPromise = null; });
   }, [mode]);
+
+  // ★ 追加：ステータス取得（コンポーネント内の useEffect 群の近く）
+  useEffect(() => {
+    // shift_id は number / string どちらでも来る可能性があるため安全に文字列化
+    const idStr = getShiftIdStr(shift);
+
+    if (!idStr) return;
+
+    (async () => {
+      try {
+        const q = new URLSearchParams({ ids: idStr, format: 'db' }); // monthly と同じAPI・同じ返却形式
+        const res = await fetch(`/api/shift-records?${q.toString()}`, { method: 'GET' });
+        if (!res.ok) return;
+        const rows: Array<{ shift_id: number; status: RecordStatus }> = await res.json();
+        const s = rows[0]?.status;
+        if (s) setRecordStatus(s);
+      } catch {
+        /* no-op */
+      }
+    })();
+    // shift_id が変わるケースのみ取り直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shift?.shift_id]);
+
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
@@ -391,26 +434,6 @@ export default function ShiftCard({
         .maybeSingle();
       if (error || !data) { return; }
       const rec = data as UnknownRecord;
-
-      /*
-      setKaipokeInfo({
-        standard_route: typeof rec.standard_route === "string" ? rec.standard_route : null,
-        standard_trans_ways: typeof rec.standard_trans_ways === "string" ? rec.standard_trans_ways : null,
-        standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
-      });
-      */
-
-      // デバッグ1発だけ
-      /*
-      alert(
-        [
-          "[ShiftCard] kaipoke_info",
-          `route="${rec.standard_route ?? ""}"`,
-          `trans="${rec.standard_trans_ways ?? ""}"`,
-          `purpose="${rec.standard_purpose ?? ""}"`,
-        ].join("\n")
-      );
-      */
       const lab = pickStr(rec, "label") ?? DEFAULT_BADGE_TEXT;
       const adv = pickNum(rec, "Advance_adjustability") ?? 0;
       const back = pickNum(rec, "Backwoard_adjustability") ?? 0;
@@ -546,6 +569,22 @@ export default function ShiftCard({
     pickNonEmptyString(shift, ["postal_code"]);
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
+
+  // ★ 追加：return の直前（addr/postal/mapsUrl 等の下あたりが分かりやすいです）
+  const startIsoForColor = `${shift.shift_start_date}T${(shift.shift_start_time || '00:00').slice(0, 5)}:00`;
+  const isPastStart = new Date(startIsoForColor).getTime() < new Date().getTime();
+
+  const isSubmitted = recordStatus === 'submitted';
+  const isGreen = isSubmitted || recordStatus === 'approved' || recordStatus === 'archived';
+  // Submitted 以外 かつ 開始時刻が過去 → 赤
+  const isRed = !isSubmitted && isPastStart;
+
+  const recordBtnColorCls =
+    isRed
+      ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+      : isGreen
+        ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+        : '';
 
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
@@ -704,20 +743,26 @@ export default function ShiftCard({
             </DialogPortal>
           </Dialog>
           {mode === "reject" && (
-            <ShiftRecordLinkButton
-              shiftId={shift.shift_id ?? shift.id}
-              clientName={shift.client_name ?? ""}
-              tokuteiComment={shift.tokutei_comment ?? ""}
-              standardRoute={kaipokeInfo?.standard_route ?? ""}
-              standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
-              standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
-
-              staff01UserId={shift.staff_01_user_id ?? ""}
-              staff02UserId={shift.staff_02_user_id ?? ""}
-              staff03UserId={shift.staff_03_user_id ?? ""}
-              staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
-              staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
-            />
+            <Button
+              asChild
+              // monthly 側と同様に、status が取れていれば 'default'、未取得は 'outline' 相当の見た目
+              variant={recordStatus ? 'default' : 'outline'}
+              className={recordBtnColorCls}
+            >
+              <ShiftRecordLinkButton
+                shiftId={getShiftIdStr(shift)}
+                clientName={shift.client_name ?? ""}
+                tokuteiComment={shift.tokutei_comment ?? ""}
+                standardRoute={kaipokeInfo?.standard_route ?? ""}
+                standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
+                standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
+                staff01UserId={shift.staff_01_user_id ?? ""}
+                staff02UserId={shift.staff_02_user_id ?? ""}
+                staff03UserId={shift.staff_03_user_id ?? ""}
+                staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
+                staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
+              />
+            </Button>
           )}
           {/* ▼ 追加：月間 */}
           {csId && shift.shift_start_date && (
