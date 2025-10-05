@@ -543,6 +543,22 @@ export default function ShiftCard({
     );
   };
 
+  // ★ 追加：return の直前（addr/postal/mapsUrl 等の下あたりが分かりやすいです）
+  const startIsoForColor = `${shift.shift_start_date}T${(shift.shift_start_time || '00:00').slice(0, 5)}:00`;
+  const isPastStart = new Date(startIsoForColor).getTime() < new Date().getTime();
+
+  const isSubmitted = recordStatus === 'submitted';
+  const isGreen = isSubmitted || recordStatus === 'approved' || recordStatus === 'archived';
+  // Submitted 以外 かつ 開始時刻が過去 → 赤
+  const isRed = !isSubmitted && isPastStart;
+
+  const recordBtnColorCls =
+    isRed
+      ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+      : isGreen
+        ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+        : '';
+
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
     const lso = shift.level_sort_order ?? null;
@@ -575,37 +591,21 @@ export default function ShiftCard({
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
 
-  // ★ 追加：return の直前（addr/postal/mapsUrl 等の下あたりが分かりやすいです）
-  const startIsoForColor = `${shift.shift_start_date}T${(shift.shift_start_time || '00:00').slice(0, 5)}:00`;
-  const isPastStart = new Date(startIsoForColor).getTime() < new Date().getTime();
-
-  const isSubmitted = recordStatus === 'submitted';
-  const isGreen = isSubmitted || recordStatus === 'approved' || recordStatus === 'archived';
-  // Submitted 以外 かつ 開始時刻が過去 → 赤
-  const isRed = !isSubmitted && isPastStart;
-
-  const recordBtnColorCls =
-    isRed
-      ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
-      : isGreen
-        ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-        : '';
-
   useEffect(() => {
-  if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
-  const el = document.getElementById(`srbtn-${shiftIdStr}`);
-  const domClass = el ? el.className : "(not found)";
-  alert(
-    [
-      "[ShiftCard btn debug]",
-      `id=${shiftIdStr}`,
-      `status=${recordStatus ?? "(none)"}`,
-      `isPastStart=${isPastStart}`,
-      `recordBtnColorCls(var)=${recordBtnColorCls || "(empty)"}`,
-      `element.className(final)=${domClass}`,
-    ].join("  |  ")
-  );
-}, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
+    if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
+    const el = document.getElementById(`srbtn-${shiftIdStr}`);
+    const domClass = el ? el.className : "(not found)";
+    alert(
+      [
+        "[ShiftCard btn debug]",
+        `id=${shiftIdStr}`,
+        `status=${recordStatus ?? "(none)"}`,
+        `isPastStart=${isPastStart}`,
+        `recordBtnColorCls(var)=${recordBtnColorCls || "(empty)"}`,
+        `element.className(final)=${domClass}`,
+      ].join("  |  ")
+    );
+  }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
 
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
