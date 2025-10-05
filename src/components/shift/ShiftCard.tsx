@@ -253,6 +253,7 @@ export default function ShiftCard({
         // 取得結果の可視化
         //alert(`[shift_records] ok  id=${shiftIdStr}  status=${s ?? "(none)"}`);
       } catch (e) {
+        void e
         //alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
       }
     })();
