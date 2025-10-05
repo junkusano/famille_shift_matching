@@ -233,6 +233,15 @@ export default function MonthlyRosterPage() {
     // 既存の state 群の近くに追加
     const [recordStatus, setRecordStatus] = useState<Record<string, RecordStatus | undefined>>({});
 
+    // required_staff_count:number → dispatch_size:'-'|'01'|'02'
+    const toDispatchSize = (n?: number): '-' | '01' | '02' => {
+        const v = n ?? 0;
+        return v === 1 ? '01' : v === 2 ? '02' : '-';
+    };
+
+    // two_person_work_flg:boolean → dup_role:'-'|'01'
+    const toDupRole = (b?: boolean): '-' | '01' => (b ? '01' : '-');
+
     // 初期反映：URLクエリ（ShiftCardの「月間」ボタンから渡す値を拾う）
     useEffect(() => {
         const qCs = searchParams.get('kaipoke_cs_id') ?? '';
@@ -463,27 +472,19 @@ export default function MonthlyRosterPage() {
             const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
             const res = await fetch(url, { cache: 'no-store' })
             const raw = await res.json()
-            const rows: ShiftRow[] = Array.isArray(raw) ? raw : []
+            const rows: ShiftRow[] = Array.isArray(raw) ? raw : [];
             const normalized: ShiftRow[] = rows.map((r) => {
-                const required = r.required_staff_count ?? 1;
+                // required_staff_count: 既定は 1、0～2 に丸める
+                const rawRequired = r.required_staff_count ?? 1;
+                const required = Math.max(0, Math.min(2, rawRequired));
 
-                // 修正箇所 1: required_staff_count（必要な人数）を dispatch_size（出動規模）にマッピング
-                let size: ShiftRow['dispatch_size'];
-                if (required >= 3) {
-                    size = '02'; // 3人以上なら '02'
-                } else if (required === 2) {
-                    size = '01'; // 2人なら '01'
-                } else {
-                    size = '-'; // 1人なら '-'
-                }
-                const dispatch_size: ShiftRow['dispatch_size'] = size;
-                // 修正箇所 2: two_person_work_flg（二人作業フラグ）を dup_role（重複役割）にマッピング
-                // true なら '01'、false なら '-'
-                const dup_role: ShiftRow['dup_role'] = r.two_person_work_flg ? '01' : '-';
+                const dispatch_size = toDispatchSize(required);
+                const dup_role = toDupRole(r.two_person_work_flg ?? false);
+
                 return {
                     ...r,
                     shift_id: String(r.shift_id),
-                    required_staff_count: required,
+                    required_staff_count: required,            // 0/1/2 に正規化して保持
                     two_person_work_flg: r.two_person_work_flg ?? false,
                     shift_start_time: toHM(r.shift_start_time),
                     shift_end_time: toHM(r.shift_end_time),
@@ -495,8 +496,8 @@ export default function MonthlyRosterPage() {
                     staff_03_attend_flg: r.staff_03_attend_flg ?? false,
                     dispatch_size,
                     dup_role,
-                }
-            })
+                };
+            });
             // 並べ替え：開始日 → 開始時間
             normalized.sort((a, b) => {
                 const d = a.shift_start_date.localeCompare(b.shift_start_date)
@@ -533,24 +534,28 @@ export default function MonthlyRosterPage() {
     // 保存
     const handleSave = async (row: ShiftRow) => {
         if (readOnly) return;
-        const required_staff_count = row.dispatch_size === '01' ? 2 : 1
-        const two_person_work_flg = row.dup_role !== '-'
+
+        // ★ ここを修正
+        const required_staff_count =
+            row.dispatch_size === '01' ? 1 :
+                row.dispatch_size === '02' ? 2 : 0;
+
+        const two_person_work_flg = row.dup_role === '01';
 
         // バリデーション（保存前）
-        const dateOk = isValidDateStr(row.shift_start_date)
-        const stOk = isValidTimeStr(row.shift_start_time)
-        const etOk = isValidTimeStr(row.shift_end_time)
-        //const jiOk = row.judo_ido ? isValidJudoIdo(row.judo_ido) : true
+        const dateOk = isValidDateStr(row.shift_start_date);
+        const stOk = isValidTimeStr(row.shift_start_time);
+        const etOk = isValidTimeStr(row.shift_end_time);
         if (!dateOk || !stOk || !etOk) {
-            alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）')
-            return
+            alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）');
+            return;
         }
 
         const body = {
             shift_id: row.shift_id,
             service_code: row.service_code,
-            required_staff_count,
-            two_person_work_flg,
+            required_staff_count,          // ★ 修正後の値を送る
+            two_person_work_flg,           // ★ 修正後の値を送る
             judo_ido: row.judo_ido ?? null,
             staff_01_user_id: row.staff_01_user_id,
             staff_02_user_id: row.staff_02_user_id,
@@ -559,20 +564,20 @@ export default function MonthlyRosterPage() {
             staff_03_attend_flg: !!row.staff_03_attend_flg,
             shift_start_time: hmToHMS(toHM(row.shift_start_time)),
             shift_end_time: hmToHMS(toHM(row.shift_end_time)),
-        }
+        };
 
         const res = await fetch('/api/shifts', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
-        })
+        });
         if (!res.ok) {
-            const msg = await res.text().catch(() => '')
-            alert(`保存に失敗しました\n${msg}`)
-            return
+            const msg = await res.text().catch(() => '');
+            alert(`保存に失敗しました\n${msg}`);
+            return;
         }
-        alert('保存しました')
-    }
+        alert('保存しました');
+    };
 
     // ローカル更新
     const updateRow = <K extends keyof ShiftRow>(shiftId: string, field: K, value: ShiftRow[K]) => {
@@ -891,19 +896,18 @@ export default function MonthlyRosterPage() {
                                         <TableCell>
                                             <div className="w-[112px]">
 
+                                                {/* 派遣人数（二人同時作業 ← dup_role） */}
                                                 <Select
-                                                    value={row.dispatch_size ?? '-'}
+                                                    value={row.dup_role}
                                                     onValueChange={(v: '-' | '01') => {
-                                                        updateRow(row.shift_id, 'dup_role', v)
-                                                        updateRow(row.shift_id, 'two_person_work_flg', v !== '-')
+                                                        updateRow(row.shift_id, 'dup_role', v);
+                                                        updateRow(row.shift_id, 'two_person_work_flg', v === '01');
                                                     }}
                                                 >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="-" />
-                                                    </SelectTrigger>
+                                                    <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="-">-</SelectItem>
-                                                        <SelectItem value="01">2人同時作業</SelectItem>
+                                                        <SelectItem value="01">二人同時作業</SelectItem>
                                                     </SelectContent>
                                                 </Select>
 
@@ -914,22 +918,25 @@ export default function MonthlyRosterPage() {
                                         <TableCell>
                                             <div className="w-[80px]">
 
+                                                {/* 重複（required_staff_count ← dispatch_size） */}
                                                 <Select
-                                                    value={row.dup_role ?? '-'}
+                                                    value={row.dispatch_size}
                                                     onValueChange={(v: '-' | '01' | '02') => {
-                                                        updateRow(row.shift_id, 'dispatch_size', v)
-                                                        updateRow(row.shift_id, 'required_staff_count', v === '01' ? 2 : 1)
+                                                        updateRow(row.shift_id, 'dispatch_size', v);
+                                                        updateRow(row.shift_id, 'required_staff_count',
+                                                            v === '01' ? 1 : v === '02' ? 2 : 0
+                                                        );
                                                     }}
                                                 >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="-" />
-                                                    </SelectTrigger>
+                                                    <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="-">-</SelectItem>
                                                         <SelectItem value="01">1人目</SelectItem>
                                                         <SelectItem value="02">2人目</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+
+
 
                                             </div>
                                         </TableCell>
@@ -1210,14 +1217,15 @@ function NewAddRow(props: NewAddRowProps) {
                 {/* 派遣人数 */}
                 <TableCell>
                     <div className="w-[112px]">
+                        {/* 派遣人数（draft） */}
                         <Select
                             value={draft.dup_role}
-                            onValueChange={(v: '-' | '01') => updateDraft('dispatch_size', v)}
+                            onValueChange={(v: '-' | '01') => updateDraft('dup_role', v)}
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="-">-</SelectItem>
-                                <SelectItem value="01">2人同時作業</SelectItem>
+                                <SelectItem value="01">二人同時作業</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -1226,9 +1234,10 @@ function NewAddRow(props: NewAddRowProps) {
                 {/* 重複 */}
                 <TableCell>
                     <div className="w-[80px]">
+                        {/* 重複（draft） */}
                         <Select
                             value={draft.dispatch_size}
-                            onValueChange={(v: '-' | '01' | '02') => updateDraft('dup_role', v)}
+                            onValueChange={(v: '-' | '01' | '02') => updateDraft('dispatch_size', v)}
                         >
                             <SelectTrigger><SelectValue placeholder="-" /></SelectTrigger>
                             <SelectContent>
