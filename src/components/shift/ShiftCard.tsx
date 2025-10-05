@@ -197,7 +197,9 @@ export default function ShiftCard({
   } | null>(null);
 
 
+  const shiftIdStr = useMemo(() => getShiftIdStr(shift), [shift]);
   // 1) shift から cs_id を取得（この前提だけに限定）
+
   const csId = useMemo(() => deepFindKaipokeCsId(shift), [shift]);
 
   // 2) cs_id -> time_adjustability_id
@@ -232,26 +234,37 @@ export default function ShiftCard({
 
   // ★ 追加：ステータス取得（コンポーネント内の useEffect 群の近く）
   useEffect(() => {
-    // shift_id は number / string どちらでも来る可能性があるため安全に文字列化
-    const idStr = getShiftIdStr(shift);
-
-    if (!idStr) return;
+    if (!shiftIdStr) return;
 
     (async () => {
       try {
-        const q = new URLSearchParams({ ids: idStr, format: 'db' }); // monthly と同じAPI・同じ返却形式
-        const res = await fetch(`/api/shift-records?${q.toString()}`, { method: 'GET' });
-        if (!res.ok) return;
-        const rows: Array<{ shift_id: number; status: RecordStatus }> = await res.json();
-        const s = rows[0]?.status;
+        const q = new URLSearchParams({ ids: shiftIdStr, format: "db" }); // ← バルク + DB生値
+        const res = await fetch(`/api/shift-records?${q.toString()}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          console.debug("[shift_records] HTTP", res.status);
+          return;
+        }
+        const json = await res.json();
+        // バルク(配列) / 単発(オブジェクト) の両対応
+        const raw = Array.isArray(json) ? json[0]?.status : json?.status;
+
+        // API単発モードの和文 → DB値へ寄せる（保険）
+        const normalized =
+          raw === "入力中" ? "draft"
+            : raw === "完了" ? "approved"
+              : raw;
+
+        const s = normalized as ('draft' | 'submitted' | 'approved' | 'archived' | undefined);
         if (s) setRecordStatus(s);
-      } catch {
-        /* no-op */
+        console.debug("[shift_records] status", shiftIdStr, s);
+      } catch (e) {
+        console.debug("[shift_records] fetch error", e);
       }
     })();
-    // shift_id が変わるケースのみ取り直す
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shift?.shift_id]);
+  }, [shiftIdStr]);
 
 
   // null = まだ未判定 / 取得失敗（判定不能）
