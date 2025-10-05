@@ -559,6 +559,22 @@ export default function ShiftCard({
         ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
         : '';
 
+  useEffect(() => {
+    if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
+    const el = document.getElementById(`srbtn-${shiftIdStr}`);
+    const domClass = el ? el.className : "(not found)";
+    alert(
+      [
+        "[ShiftCard btn debug]",
+        `id=${shiftIdStr}`,
+        `status=${recordStatus ?? "(none)"}`,
+        `isPastStart=${isPastStart}`,
+        `recordBtnColorCls(var)=${recordBtnColorCls || "(empty)"}`,
+        `element.className(final)=${domClass}`,
+      ].join("  |  ")
+    );
+  }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
+
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
     const lso = shift.level_sort_order ?? null;
@@ -590,22 +606,6 @@ export default function ShiftCard({
     pickNonEmptyString(shift, ["postal_code"]);
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
-
-  useEffect(() => {
-    if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
-    const el = document.getElementById(`srbtn-${shiftIdStr}`);
-    const domClass = el ? el.className : "(not found)";
-    alert(
-      [
-        "[ShiftCard btn debug]",
-        `id=${shiftIdStr}`,
-        `status=${recordStatus ?? "(none)"}`,
-        `isPastStart=${isPastStart}`,
-        `recordBtnColorCls(var)=${recordBtnColorCls || "(empty)"}`,
-        `element.className(final)=${domClass}`,
-      ].join("  |  ")
-    );
-  }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
 
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
