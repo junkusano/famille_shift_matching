@@ -238,34 +238,25 @@ export default function ShiftCard({
 
     (async () => {
       try {
-        const q = new URLSearchParams({ ids: shiftIdStr, format: "db" }); // ← バルク + DB生値
-        const res = await fetch(`/api/shift-records?${q.toString()}`, {
-          method: "GET",
-          cache: "no-store",
-        });
+        const q = new URLSearchParams({ ids: shiftIdStr, format: "db" });
+        const res = await fetch(`/api/shift-records?${q.toString()}`, { method: "GET", cache: "no-store" });
         if (!res.ok) {
-          console.debug("[shift_records] HTTP", res.status);
+          alert(`[shift_records] HTTP ${res.status} / id=${shiftIdStr}`);
           return;
         }
         const json = await res.json();
-        // バルク(配列) / 単発(オブジェクト) の両対応
+        // バルク形式（配列）を想定、単発でも status は拾えるよう保険
         const raw = Array.isArray(json) ? json[0]?.status : json?.status;
+        const s = raw as ("draft" | "submitted" | "approved" | "archived" | undefined);
 
-        // API単発モードの和文 → DB値へ寄せる（保険）
-        const normalized =
-          raw === "入力中" ? "draft"
-            : raw === "完了" ? "approved"
-              : raw;
-
-        const s = normalized as ('draft' | 'submitted' | 'approved' | 'archived' | undefined);
-        if (s) setRecordStatus(s);
-        console.debug("[shift_records] status", shiftIdStr, s);
+        setRecordStatus(s);
+        // 取得結果の可視化
+        alert(`[shift_records] ok  id=${shiftIdStr}  status=${s ?? "(none)"}`);
       } catch (e) {
-        console.debug("[shift_records] fetch error", e);
+        alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
       }
     })();
   }, [shiftIdStr]);
-
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
