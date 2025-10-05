@@ -563,6 +563,8 @@ export default function ShiftCard({
     if (mode !== "reject") return; // 対象のボタンが出ないモードでは無駄なので早期return
     const el = document.getElementById(`srbtn-${shiftIdStr}`);
     const domClass = el ? el.className : "(not found)";
+    void domClass
+    /*
     alert(
       [
         "[ShiftCard btn debug]",
@@ -573,6 +575,7 @@ export default function ShiftCard({
         `element.className(final)=${domClass}`,
       ].join("  |  ")
     );
+    */
   }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
 
   // components/shift/ShiftCard.tsx で return の直前に
