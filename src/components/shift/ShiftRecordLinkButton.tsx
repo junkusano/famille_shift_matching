@@ -21,9 +21,15 @@ interface ShiftRecordLinkButtonProps {
   // -----------------------------------
   label?: string;
   hrefBase?: string;
+  className?: string;
+  id?: string;
+  variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link"; // ★ 追加（必要なものだけ）
 }
 
 export default function ShiftRecordLinkButton({
+  className,
+  id,
+  variant = "ghost",        // ★ 追加（デフォは従来通り）
   shiftId,
   clientName,
   tokuteiComment,
@@ -39,25 +45,14 @@ export default function ShiftRecordLinkButton({
   hrefBase = "/portal/shift-records",
 }: ShiftRecordLinkButtonProps) { // 型はここで指定
   const router = useRouter();
-
+  
   return (
     <Button
-      variant="outline"
+      id={id}                 
+      className={className}  
+      variant={variant}
       onClick={() => {
-
-        // ① 受け取れてるか props を先に表示
-        /*
-        alert(
-          [
-            "[SRLB] props",
-            `shiftId=${JSON.stringify(shiftId)}`,
-            `clientName=${JSON.stringify(clientName)}`,
-            `standardRoute=${JSON.stringify(standardRoute)}`,
-            `standardTransWays=${JSON.stringify(standardTransWays)}`,
-            `standardPurpose=${JSON.stringify(standardPurpose)}`
-          ].join("\n")
-        );
-        */
+        
         let q =
           `?shift_id=${encodeURIComponent(shiftId)}`
         if (clientName) {

@@ -766,11 +766,14 @@ export default function ShiftCard({
           {mode === "reject" && (
             <Button
               asChild
-              variant="ghost"  // ← ここを default → ghost に変更！
+              variant="ghost"  
               className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
-              id={`srbtn-${shiftIdStr}`}  // ★ 追加：一意のid
+              id={`srbtn-${shiftIdStr}`}  
             >
               <ShiftRecordLinkButton
+                id={`srbtn-${shiftIdStr}`}
+                className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
+                variant="ghost"
                 shiftId={getShiftIdStr(shift)}
                 clientName={shift.client_name ?? ""}
                 tokuteiComment={shift.tokutei_comment ?? ""}
