@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
-aimport ShiftCard from "@/components/shift/ShiftCard";
+import ShiftCard from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
 import { format, startOfMonth } from "date-fns";
 import Link from "next/link";
