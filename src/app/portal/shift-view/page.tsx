@@ -1,7 +1,7 @@
-//portal/shift-view/page.tsx
+//portal/shift-view
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
@@ -15,11 +15,12 @@ import {
   isSameMonth,
   subMonths,
   addMonths,
+  subDays,
+  addDays,
 } from "date-fns";
 import { ja } from "date-fns/locale";
 import Link from "next/link";
-import type { JSX } from "react";
-
+import type { ReactNode } from "react";
 
 /**
  * /portal/shift-view
@@ -29,7 +30,7 @@ import type { JSX } from "react";
  * - 「月間」は本ページ内のオーバーレイで自己再描画
  * - 未ログインは /login へ（?next= 元URL）
  * - 訪問記録ボタン: 自分が担当 or role in {manager, admin} のときのみ
- * - お休みボタン: 指定日で自分の担当がある場合のみ
+ * - ※「この日すべてお休み」ボタンは廃止
  */
 
 type StaffLite = { user_id: string; label: string };
@@ -86,8 +87,8 @@ export default function ShiftViewPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         const qs = search?.toString();
-        const next = qs ? `${pathname}?${qs}` : pathname;
-        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        const nextUrl = qs ? `${pathname}?${qs}` : pathname;
+        router.replace(`/login?next=${encodeURIComponent(nextUrl)}`);
         return;
       }
       setAuthChecked(true);
@@ -96,8 +97,8 @@ export default function ShiftViewPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
         const qs = search?.toString();
-        const next = qs ? `${pathname}?${qs}` : pathname;
-        router.replace(`/login?next=${encodeURIComponent(next)}`);
+        const nextUrl = qs ? `${pathname}?${qs}` : pathname;
+        router.replace(`/login?next=${encodeURIComponent(nextUrl)}`);
       }
     });
     return () => {
@@ -131,7 +132,6 @@ export default function ShiftViewPage() {
   const [dateOptions, setDateOptions] = useState<string[]>([]);
   const [clientOptions, setClientOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [submitting, setSubmitting] = useState<boolean>(false);
 
   // ===== 月間UI（自己再描画） =====
   const [showMonth, setShowMonth] = useState<boolean>(false);
@@ -148,40 +148,43 @@ export default function ShiftViewPage() {
     return mine || elevated;
   };
 
-  const isMyShift = (s: ShiftData): boolean =>
-    !!meUserId &&
-    [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(meUserId);
-
   // ===== データ取得（クエリ反映） =====
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
       setLoading(true);
       try {
-        // 基本は今日以降
-        const jstToday = new Date(Date.now() + 9 * 3600 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
+        const fromDefault = format(subDays(jstNow, 30), "yyyy-MM-dd");
+        const toDefault = format(addDays(jstNow, 30), "yyyy-MM-dd");
 
         const query = supabase
           .from("shift_csinfo_postalname_view")
-          .select("*")
-          .gte("shift_start_date", jstToday)
-          .order("shift_start_date", { ascending: true })
-          .order("shift_start_time", { ascending: true })
-          .order("shift_id", { ascending: true });
+          .select("*");
 
-        if (qDate) query.eq("shift_start_date", qDate);
-        if (qClient) query.ilike("name", `%${qClient}%`);
-        if (qStaff) {
-          query.or(
-            [
-              `staff_01_user_id.eq.${qStaff}`,
-              `staff_02_user_id.eq.${qStaff}`,
-              `staff_03_user_id.eq.${qStaff}`,
-            ].join(",")
-          );
+        // 日付条件：指定があればその日のみ。無ければ前後30日で広く取得。
+        if (qDate) {
+          query.eq("shift_start_date", qDate);
+        } else {
+          query.gte("shift_start_date", fromDefault).lte("shift_start_date", toDefault);
         }
+
+        // 担当者（01/02/03 のいずれか）
+        if (qStaff) {
+          query.or([
+            `staff_01_user_id.eq.${qStaff}`,
+            `staff_02_user_id.eq.${qStaff}`,
+            `staff_03_user_id.eq.${qStaff}`,
+          ].join(","));
+        }
+
+        // 利用者名（部分一致）
+        if (qClient) query.ilike("name", `%${qClient}%`);
+
+        // 表示順
+        query.order("shift_start_date", { ascending: true })
+             .order("shift_start_time", { ascending: true })
+             .order("shift_id", { ascending: true });
 
         const { data, error } = await query;
         if (error) throw error;
@@ -245,44 +248,8 @@ export default function ShiftViewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, qStaff, qDate, qClient]);
 
-  // ===== ページ上「お休み」：この日の自分担当のみ対象 =====
-  const myShiftsToday = useMemo<ShiftData[]>(
-    () => shifts.filter((s) => isMyShift(s)),
-    [shifts, meUserId]
-  );
-  const canShowOffAll: boolean =
-    !!meUserId && qDate.length > 0 && myShiftsToday.length > 0;
-
-  async function handleOffAll(): Promise<void> {
-    if (!canShowOffAll) return;
-    if (!confirm("この日の自分の全シフトをお休み希望として登録しますか？")) return;
-
-    setSubmitting(true);
-    try {
-      for (const s of myShiftsToday) {
-        await fetch("/api/shift-reassign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            shiftId: s.shift_id,
-            fromUserId: meUserId,
-            toUserId: "manager:auto",
-            reason: "お休み希望(shift-view)",
-          }),
-        });
-      }
-      alert("お休み希望を登録しました");
-      router.refresh?.();
-    } catch (e) {
-      console.error(e);
-      alert("お休み処理に失敗しました");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   // ===== 月間UI（オーバーレイ） =====
-  function MonthOverlay(): JSX.Element | null {
+  function MonthOverlay(): ReactNode {
     if (!showMonth) return null;
     const start = startOfMonth(monthCursor);
     const end = endOfMonth(monthCursor);
@@ -341,9 +308,7 @@ export default function ShiftViewPage() {
     <div className="content min-w-0">
       {/* このページ内だけで ShiftCard の“既存・月間リンク”を非表示 */}
       <style jsx global>{`
-        a[href^="/portal/roster/monthly"] {
-          display: none !important;
-        }
+        a[href^="/portal/roster/monthly"] { display: none !important; }
       `}</style>
 
       <h2 className="text-xl font-bold mb-3">シフト一覧（Reject モード・柔軟フィルター）</h2>
@@ -351,7 +316,7 @@ export default function ShiftViewPage() {
       {/* フィルター（単一セレクト） */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
-          <label className="text-xs">担当者（Staff_01/02/03 の user_id）</label>
+          <label className="text-xs">担当者</label>
           <select
             className="w-full border rounded p-2"
             value={qStaff}
@@ -360,7 +325,7 @@ export default function ShiftViewPage() {
             <option value="">— 指定なし —</option>
             {staffOptions.map((s) => (
               <option key={s.user_id} value={s.user_id}>
-                {s.label}（{s.user_id}）
+                {s.label}
               </option>
             ))}
           </select>
@@ -405,15 +370,6 @@ export default function ShiftViewPage() {
       </div>
 
       {showMonth && <MonthOverlay />}
-
-      {/* 日別お休み（自分担当が存在するときのみ） */}
-      {canShowOffAll && (
-        <div className="text-right mb-3">
-          <Button disabled={submitting} className="bg-red-600 text-white" onClick={handleOffAll}>
-            {submitting ? "処理中..." : "この日はお休み希望（自分担当のみ）"}
-          </Button>
-        </div>
-      )}
 
       {loading ? (
         <div className="text-sm text-gray-500">読み込み中...</div>
