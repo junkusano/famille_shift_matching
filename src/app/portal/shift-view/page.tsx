@@ -126,24 +126,26 @@ export default function ShiftViewPage() {
   const [initDone, setInitDone] = useState<boolean>(false);
 
   // ---- デバッグ: dateのみ（user_id無し, client無し）で開いた時に一度だけ可視化 ----
-const [debugShownParams, setDebugShownParams] = useState(false);
-useEffect(() => {
-  // ?date=... だけ指定で開いた時の「パラメータ実態」を1回だけ表示
-  if (debugShownParams) return;
-  const onlyDate = !!qDate && !qUserId && !qClient;
-  if (onlyDate) {
-    alert(
-      [
-        "[params snapshot]",
-        `qDate=${qDate}`,
-        `qUserId=${qUserId || "(empty)"}`,
-        `qClient=${qClient || "(empty)"}`,
-      ].join("\n")
-    );
-    setDebugShownParams(true);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [qDate, qUserId, qClient]);
+  const [debugShownParams, setDebugShownParams] = useState(false);
+  useEffect(() => {
+    // ?date=... だけ指定で開いた時の「パラメータ実態」を1回だけ表示
+    if (debugShownParams) return;
+    const onlyDate = !!qDate && !qUserId && !qClient;
+    if (onlyDate) {
+      /*
+      alert(
+        [
+          "[params snapshot]",
+          `qDate=${qDate}`,
+          `qUserId=${qUserId || "(empty)"}`,
+          `qClient=${qClient || "(empty)"}`,
+        ].join("\n")
+      );
+      */
+      setDebugShownParams(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qDate, qUserId, qClient]);
 
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   useEffect(() => {
@@ -168,6 +170,16 @@ useEffect(() => {
 
   // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
+
+    alert(
+      [
+        "[fetch entry]",
+        `authChecked=${String(authChecked)}`,
+        `qDate=${qDate || "(empty)"}`,
+        `qUserId=${qUserId || "(empty)"}`,
+        `qClient=${qClient || "(empty)"}`
+      ].join("\n")
+    );
     if (!authChecked) return;
 
     (async () => {
