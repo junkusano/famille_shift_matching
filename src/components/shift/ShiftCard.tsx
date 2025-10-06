@@ -49,6 +49,13 @@ const DEFAULT_BADGE_TEXT = "時間調整可能";
 const TBL_INFO = "cs_kaipoke_info";
 const TBL_ADJ = "cs_kaipoke_time_adjustability";
 
+const REJECT_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
+  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
+  "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
+
+
 // ShiftData から shift_id（なければ id）を必ず string にして返す
 const getShiftIdStr = (s: ShiftData): string => {
   const sid = s.shift_id;
@@ -675,7 +682,7 @@ export default function ShiftCard({
               {mode === "request" ? (
                 <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
               ) : (
-                <Button className="bg-red-500 text-white" onClick={() => setOpen(true)}>
+                <Button className={REJECT_BTN_CLASS} onClick={() => setOpen(true)}>
                   このシフトに入れない
                 </Button>
               )}
