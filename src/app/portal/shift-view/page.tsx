@@ -106,24 +106,30 @@ export default function ShiftViewPage() {
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [clientOptions, setClientOptions] = useState<string[]>([]);
 
+  // 初期クエリ注入を一度だけにするフラグ
+  const [initDone, setInitDone] = useState<boolean>(false);
+
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   useEffect(() => {
-    if (!authChecked) return;
-
-    const needUserId = !qUserId && meUserId.length > 0;
-    const needDate = !qDate;
-    if (!needUserId && !needDate) return; // 何も不要
+    if (!authChecked || initDone) return;
 
     const params: Record<string, string> = {};
-    if (needUserId) params.user_id = meUserId;
-    if (needDate) {
+    if (!qUserId && meUserId) {
+      params.user_id = meUserId;
+    }
+    if (!qDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
       params.date = format(first, "yyyy-MM-dd");
     }
-    setQuery(params);
+
+    if (Object.keys(params).length > 0) {
+      setQuery(params);
+    }
+    // 以降は“指定なし”に戻しても再注入しない
+    setInitDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, meUserId, qUserId, qDate]);
+  }, [authChecked, meUserId, qUserId, qDate, initDone]);
 
   // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
