@@ -25,6 +25,12 @@ import GroupAddButton from "@/components/shift/GroupAddButton";
 
 const PAGE_SIZE = 50;
 
+const REJECT_BTN_CLASS =
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
+  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
+  "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
+
 type ShiftViewRow = {
     id: string;
     shift_id: string;
@@ -1219,7 +1225,7 @@ export default function ShiftPage() {
             </div>
 
             <div className="text-right mb-4">
-                <Button onClick={handleDeleteAll} className="bg-red-500 text-white">この日はお休み希望</Button>
+                <Button onClick={handleDeleteAll} className={REJECT_BTN_CLASS}>この日はお休み希望</Button>
             </div>
 
             {showMonth && (

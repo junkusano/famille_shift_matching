@@ -1,4 +1,3 @@
-//portal/shift-view/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -204,14 +203,23 @@ export default function ShiftViewPage() {
 
   return (
     <div className="content min-w-0">
+      {loading && (
+        <div className="fixed top-2 right-2 z-50 bg-black/70 text-white text-xs px-3 py-1 rounded">ロード中…</div>
+      )}
       {/* ShiftCard 内の“月間”リンクを強制非表示 */}
       <style jsx global>{`
         a[href*="/portal/roster/monthly"] { display: none !important; }
       `}</style>
 
-      <h2 className="text-xl font-bold mb-3">シフト一覧（Reject モード・柔軟フィルター）</h2>
+      <h2 className="text-xl font-bold">シフト・勤務一覧</h2>
+      <p className="text-sm text-gray-600 mb-3">過去の実績確認、訪問記録のエラー確認などで活用してください。</p>
 
       {/* フィルター */}
+      <div className="mb-2 flex justify-end">
+        <Button asChild variant="outline">
+          <Link href="/portal/shift-view">フィルターをクリア</Link>
+        </Button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
           <label className="text-xs">担当者（user_id）</label>
