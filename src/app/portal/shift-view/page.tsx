@@ -12,10 +12,10 @@ import Link from "next/link";
 
 /**
  * /portal/shift-view
- * - フィルター：担当者（user_id表示・昇順）/ 日付（カレンダー・選択日以降）/ 利用者
- * - URLクエリ (?user_id=, ?date=YYYY-MM-DD, ?client=) と同期
- * - 自分担当 or 管理権限 => ShiftCard(reject)、それ以外 => 簡易カード
- * - 未ログインは /login へ（?next= 元URL）
+ * フィルター：担当者（user_id）/ 日付（選択日以降）/ 利用者
+ * URLクエリ：?user_id=, ?date=YYYY-MM-DD, ?client=
+ * 初回のみ user_id と date を注入（URLに無い時だけ）。
+ * 自分担当か管理権限なら ShiftCard(reject)、他は簡易カード。
  */
 
 type ShiftRow = {
@@ -34,7 +34,7 @@ type ShiftRow = {
   male_flg: boolean | null;
   female_flg: boolean | null;
   postal_code_3: string | null;
-  district: string | null; // address summary
+  district: string | null; // address
   require_doc_group: string | null;
   level_sort_order?: number | null;
 };
@@ -45,12 +45,9 @@ export default function ShiftViewPage() {
   const search = useSearchParams();
   const pathname = usePathname();
 
-  const qUserId = (search.get("user_id") ?? "").trim(); // user_id
-  const qDate = (search.get("date") ?? "").trim(); // YYYY-MM-DD
-  const qClient = (search.get("client") ?? "").trim(); // 利用者名（部分一致）
-
-  // URLの実体値変化を厳密検知
-  const searchKey = search.toString();
+  const qUserId = (search.get("user_id") ?? "").trim();
+  const qDate = (search.get("date") ?? "").trim();
+  const qClient = (search.get("client") ?? "").trim();
 
   const setQuery = (params: Record<string, string | undefined>): void => {
     const next = new URLSearchParams(search.toString());
@@ -62,7 +59,7 @@ export default function ShiftViewPage() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
-  // ===== 認証ゲート =====
+  // ===== 認証（未ログインは /login へ） =====
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   useEffect(() => {
     (async () => {
@@ -88,7 +85,7 @@ export default function ShiftViewPage() {
 
   // ===== ログイン者情報 =====
   const [meUserId, setMeUserId] = useState<string>("");
-  const [meRole, setMeRole] = useState<string | null>(null); // "manager" | "admin" | ...
+  const [meRole, setMeRole] = useState<string | null>(null);
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
@@ -104,42 +101,43 @@ export default function ShiftViewPage() {
     })();
   }, [authChecked]);
 
-  // ===== データ状態 =====
+  // ===== 画面状態 =====
   const [loading, setLoading] = useState<boolean>(true);
   const [shifts, setShifts] = useState<ShiftData[]>([]);
-  const [staffOptions, setStaffOptions] = useState<string[]>([]); // user_id のみ
+  const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [clientOptions, setClientOptions] = useState<string[]>([]);
 
-  // ===== 初期注入（初回だけ）：user_id=自分 / date=当月1日 =====
-  const [initDone, setInitDone] = useState<boolean>(false);
+  // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   useEffect(() => {
-    if (!authChecked || initDone) return;
+    if (!authChecked) return;
+
+    const needUserId = !qUserId && meUserId.length > 0;
+    const needDate = !qDate;
+    if (!needUserId && !needDate) return; // 何も不要
 
     const params: Record<string, string> = {};
-    if (!qUserId && meUserId) params.user_id = meUserId;
-    if (!qDate) {
+    if (needUserId) params.user_id = meUserId;
+    if (needDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
       params.date = format(first, "yyyy-MM-dd");
     }
-    if (Object.keys(params).length > 0) setQuery(params);
-
-    setInitDone(true);
+    setQuery(params);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, meUserId, qUserId, qDate, initDone]);
+  }, [authChecked, meUserId, qUserId, qDate]);
 
-  // ===== データ取得（URL変化に追従） =====
+  // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
     if (!authChecked) return;
+
     (async () => {
       setLoading(true);
       try {
         const base = supabase.from("shift_csinfo_postalname_view").select("*");
 
-        if (qDate) base.gte("shift_start_date", qDate); // 選択日以降
+        if (qDate) base.gte("shift_start_date", qDate);
 
         if (qUserId) {
-          // 3列のいずれかに一致
           base.or(
             `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
           );
@@ -180,7 +178,7 @@ export default function ShiftViewPage() {
 
         setShifts(mapped);
 
-        // 担当者候補（user_id 昇順）
+        // セレクト用オプション
         const staffIds = Array.from(
           new Set(
             mapped
@@ -190,18 +188,15 @@ export default function ShiftViewPage() {
         ).sort((a, b) => a.localeCompare(b, "ja"));
         setStaffOptions(staffIds);
 
-        // 利用者候補
-        setClientOptions(
-          Array.from(new Set(mapped.map((m) => m.client_name!).filter((nm) => nm.length > 0)))
-        );
+        const clients = Array.from(new Set(mapped.map((m) => m.client_name).filter((v): v is string => !!v && v.length > 0)));
+        setClientOptions(clients);
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, searchKey]);
+  }, [authChecked, qUserId, qDate, qClient]);
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
@@ -268,54 +263,51 @@ export default function ShiftViewPage() {
             const elevated = meRole === "manager" || meRole === "admin";
             const allowReject = elevated || isMine;
 
-            return (
-              <div key={s.shift_id} className="relative">
-                {allowReject ? (
-                  <ShiftCard
-                    shift={s}
-                    mode="reject"
-                    onReject={(reason) => {
-                      fetch("/api/shift-reassign", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          shiftId: s.shift_id,
-                          fromUserId: meUserId,
-                          toUserId: "manager:auto",
-                          reason,
-                        }),
-                      }).then(() => router.refresh?.());
-                    }}
-                    extraActions={
-                      <Button asChild variant="secondary">
-                        <Link href={`/shift-record?shift_id=${encodeURIComponent(s.shift_id)}`}>
-                          訪問記録
-                        </Link>
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <div className="rounded-xl border bg-card text-card-foreground shadow">
-                    <div className="p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-semibold">
-                          {`${s.shift_start_date} ${s.shift_start_time}～${s.shift_end_time}`}
-                        </div>
-                      </div>
-                      <div className="text-sm mt-1">種別: {s.service_code || "-"}</div>
-                      <div className="text-sm">
-                        住所: {s.address}
-                        {s.postal_code_3 ? <span className="ml-2">（{s.postal_code_3}）</span> : null}
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        <div className="text-sm">利用者名: {s.client_name} 様</div>
-                        <div className="text-sm" style={{ color: "black" }}>
-                          性別希望: {s.gender_request_name || "-"}
-                        </div>
-                      </div>
+            return allowReject ? (
+              <ShiftCard
+                key={s.shift_id}
+                shift={s}
+                mode="reject"
+                onReject={(reason) => {
+                  fetch("/api/shift-reassign", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      shiftId: s.shift_id,
+                      fromUserId: meUserId,
+                      toUserId: "manager:auto",
+                      reason,
+                    }),
+                  }).then(() => router.refresh?.());
+                }}
+                extraActions={
+                  <Button asChild variant="secondary">
+                    <Link href={`/shift-record?shift_id=${encodeURIComponent(s.shift_id)}`}>
+                      訪問記録
+                    </Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <div key={s.shift_id} className="rounded-xl border bg-card text-card-foreground shadow">
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-sm font-semibold">
+                      {`${s.shift_start_date} ${s.shift_start_time}～${s.shift_end_time}`}
                     </div>
                   </div>
-                )}
+                  <div className="text-sm mt-1">種別: {s.service_code || "-"}</div>
+                  <div className="text-sm">
+                    住所: {s.address}
+                    {s.postal_code_3 ? <span className="ml-2">（{s.postal_code_3}）</span> : null}
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    <div className="text-sm">利用者名: {s.client_name} 様</div>
+                    <div className="text-sm" style={{ color: "black" }}>
+                      性別希望: {s.gender_request_name || "-"}
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })}
