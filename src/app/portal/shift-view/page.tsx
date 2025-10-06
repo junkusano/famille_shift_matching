@@ -49,13 +49,17 @@ export default function ShiftViewPage() {
   const qClient = (search.get("client") ?? "").trim();
 
   const setQuery = (params: Record<string, string | undefined>): void => {
-    const next = new URLSearchParams(search.toString());
+    // Next.js の searchParams スナップショットは古くなることがあるため、常に現在の URL から生成
+    const currentSearch = typeof window !== "undefined" ? window.location.search : search.toString();
+    const next = new URLSearchParams(currentSearch);
+
     for (const [k, v] of Object.entries(params)) {
       if (!v) next.delete(k);
       else next.set(k, v);
     }
+
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   // ===== 認証（未ログインは /login へ） =====
@@ -113,23 +117,22 @@ export default function ShiftViewPage() {
   useEffect(() => {
     if (!authChecked || initDone) return;
 
-    const params: Record<string, string> = {};
-    if (!qUserId && meUserId) {
-      params.user_id = meUserId;
-    }
-    if (!qDate) {
-      const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
-      const first = startOfMonth(jstNow);
-      params.date = format(first, "yyyy-MM-dd");
+    const hasAnyQuery = (search?.toString()?.length ?? 0) > 0;
+    // 既にクエリが付いている（例: date のみ等）場合は“意図的”とみなし、注入しない
+    if (hasAnyQuery) {
+      setInitDone(true);
+      return;
     }
 
-    if (Object.keys(params).length > 0) {
-      setQuery(params);
-    }
-    // 以降は“指定なし”に戻しても再注入しない
+    // 完全に初回アクセス（クエリ無し）のときだけ、user_id と当月1日を注入
+    if (!meUserId) return; // user_id 取得を待つ
+
+    const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
+    const first = startOfMonth(jstNow);
+    setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
+
     setInitDone(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, meUserId, qUserId, qDate, initDone]);
+  }, [authChecked, initDone, meUserId, search]);
 
   // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
@@ -138,28 +141,32 @@ export default function ShiftViewPage() {
     (async () => {
       setLoading(true);
       try {
-        const base = supabase.from("shift_csinfo_postalname_view").select("*");
+        const buildQuery = () => {
+          let q = supabase.from("shift_csinfo_postalname_view").select("*");
+          if (qDate) q = q.gte("shift_start_date", qDate);
+          if (qUserId) {
+            q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
+          }
+          if (qClient) q = q.ilike("name", `%${qClient}%`);
+          q = q
+            .order("shift_start_date", { ascending: true })
+            .order("shift_start_time", { ascending: true })
+            .order("shift_id", { ascending: true });
+          return q;
+        };
 
-        if (qDate) base.gte("shift_start_date", qDate);
-
-        if (qUserId) {
-          base.or(
-            `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
-          );
+        const PAGE = 1000; // Supabase(PostgREST)のデフォルト上限対策：ページングで取得
+        const all: ShiftRow[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const to = from + PAGE - 1;
+          const { data, error } = await buildQuery().range(from, to);
+          if (error) throw error;
+          const chunk = (data ?? []) as ShiftRow[];
+          all.push(...chunk);
+          if (chunk.length < PAGE) break; // 最終ページ
         }
 
-        if (qClient) base.ilike("name", `%${qClient}%`);
-
-        base
-          .order("shift_start_date", { ascending: true })
-          .order("shift_start_time", { ascending: true })
-          .order("shift_id", { ascending: true });
-
-        const { data, error } = await base;
-        if (error) throw error;
-
-        const rows = (data ?? []) as ShiftRow[];
-        const mapped: ShiftData[] = rows.map((s) => ({
+        const mapped: ShiftData[] = all.map((s) => ({
           id: String(s.id ?? s.shift_id),
           shift_id: s.shift_id,
           shift_start_date: s.shift_start_date,
@@ -183,7 +190,6 @@ export default function ShiftViewPage() {
 
         setShifts(mapped);
 
-        // セレクト用オプション
         const staffIds = Array.from(
           new Set(
             mapped
@@ -193,7 +199,9 @@ export default function ShiftViewPage() {
         ).sort((a, b) => a.localeCompare(b, "ja"));
         setStaffOptions(staffIds);
 
-        const clients = Array.from(new Set(mapped.map((m) => m.client_name).filter((v): v is string => !!v && v.length > 0)));
+        const clients = Array.from(
+          new Set(mapped.map((m) => m.client_name).filter((v): v is string => !!v && v.length > 0))
+        );
         setClientOptions(clients);
       } catch (e) {
         console.error(e);
