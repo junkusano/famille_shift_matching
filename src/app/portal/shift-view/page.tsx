@@ -1,36 +1,22 @@
-//portal/shift-view
 "use client";
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
-import ShiftCard from "@/components/shift/ShiftCard";
+aimport ShiftCard from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  isSameMonth,
-  subMonths,
-  addMonths,
-  subDays,
-  addDays,
-} from "date-fns";
-import { ja } from "date-fns/locale";
+import { format, startOfMonth } from "date-fns";
 import Link from "next/link";
-import type { ReactNode } from "react";
 
 /**
  * /portal/shift-view
- * - 単一セレクトのフィルター（担当者 / 日付 / 利用者）
+ * - フィルター：担当者（user_id表示）/ 日付（カレンダー入力）/ 利用者
  * - URLクエリ (?staff=, ?date=YYYY-MM-DD, ?client=) と同期
  * - 一覧は ShiftCard を reject モードで表示
- * - 「月間」は本ページ内のオーバーレイで自己再描画
  * - 未ログインは /login へ（?next= 元URL）
  * - 訪問記録ボタン: 自分が担当 or role in {manager, admin} のときのみ
- * - ※「この日すべてお休み」ボタンは廃止
+ * - 「この日すべてお休み」ボタン/「月間」オーバーレイは廃止
  */
 
 type StaffLite = { user_id: string; label: string };
@@ -56,9 +42,7 @@ type ShiftRow = {
   level_sort_order?: number | null;
 };
 
-function uniq<T>(arr: T[]): T[] {
-  return Array.from(new Set(arr));
-}
+function uniq<T>(arr: T[]): T[] { return Array.from(new Set(arr)); }
 
 export default function ShiftViewPage() {
   // ===== URLクエリ連携 =====
@@ -72,16 +56,14 @@ export default function ShiftViewPage() {
 
   const setQuery = (params: Record<string, string | undefined>): void => {
     const next = new URLSearchParams(search.toString());
-    Object.entries(params).forEach(([k, v]) => {
-      if (!v) next.delete(k);
-      else next.set(k, v);
-    });
+    for (const [k, v] of Object.entries(params)) {
+      if (!v) next.delete(k); else next.set(k, v);
+    }
     router.replace(`${pathname}?${next.toString()}`);
   };
 
   // ===== 認証ゲート（未ログインは /login） =====
   const [authChecked, setAuthChecked] = useState<boolean>(false);
-
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -93,24 +75,20 @@ export default function ShiftViewPage() {
       }
       setAuthChecked(true);
     })();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (!session?.user) {
         const qs = search?.toString();
         const nextUrl = qs ? `${pathname}?${qs}` : pathname;
         router.replace(`/login?next=${encodeURIComponent(nextUrl)}`);
       }
     });
-    return () => {
-      sub?.subscription?.unsubscribe?.();
-    };
+    return () => { sub?.subscription?.unsubscribe?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ===== ログイン者（user_id / role） =====
   const [meUserId, setMeUserId] = useState<string>("");
   const [meRole, setMeRole] = useState<string | null>(null); // "manager" | "admin" | ...
-
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
@@ -129,21 +107,30 @@ export default function ShiftViewPage() {
   // ===== データ状態 =====
   const [shifts, setShifts] = useState<ShiftData[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffLite[]>([]);
-  const [dateOptions, setDateOptions] = useState<string[]>([]);
   const [clientOptions, setClientOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // ===== 月間UI（自己再描画） =====
-  const [showMonth, setShowMonth] = useState<boolean>(false);
-  const [monthCursor, setMonthCursor] = useState<Date>(() =>
-    qDate ? new Date(qDate) : new Date()
-  );
+  // ===== 初期値設定：担当者＝自分の user_id、日付＝当月1日（JST） =====
+  useEffect(() => {
+    if (!authChecked) return;
+    // staff 初期値：未指定かつ自分のIDがあるとき
+    if (!qStaff && meUserId) {
+      setQuery({ staff: meUserId });
+      return; // 次のレンダ後に日付初期値評価
+    }
+    // date 初期値：未指定のとき当月1日（JST）
+    if (!qDate) {
+      const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
+      const first = startOfMonth(jstNow);
+      const ymd = format(first, "yyyy-MM-dd");
+      setQuery({ date: ymd });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, meUserId]);
 
   // ===== 権限制御 =====
   const canUseRecordFor = (s: ShiftData): boolean => {
-    const mine =
-      !!meUserId &&
-      [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(meUserId);
+    const mine = !!meUserId && [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(meUserId);
     const elevated = meRole === "manager" || meRole === "admin";
     return mine || elevated;
   };
@@ -154,19 +141,11 @@ export default function ShiftViewPage() {
     (async () => {
       setLoading(true);
       try {
-        const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
-        const fromDefault = format(subDays(jstNow, 30), "yyyy-MM-dd");
-        const toDefault = format(addDays(jstNow, 30), "yyyy-MM-dd");
+        const query = supabase.from("shift_csinfo_postalname_view").select("*");
 
-        const query = supabase
-          .from("shift_csinfo_postalname_view")
-          .select("*");
-
-        // 日付条件：指定があればその日のみ。無ければ前後30日で広く取得。
+        // 日付条件：選択日 以降
         if (qDate) {
-          query.eq("shift_start_date", qDate);
-        } else {
-          query.gte("shift_start_date", fromDefault).lte("shift_start_date", toDefault);
+          query.gte("shift_start_date", qDate);
         }
 
         // 担当者（01/02/03 のいずれか）
@@ -209,35 +188,26 @@ export default function ShiftViewPage() {
           postal_code_3: s.postal_code_3 ?? "",
           district: s.district ?? "",
           require_doc_group: s.require_doc_group ?? null,
-          level_sort_order:
-            typeof s.level_sort_order === "number" ? s.level_sort_order : null,
+          level_sort_order: (typeof s.level_sort_order === "number") ? s.level_sort_order : null,
         }));
 
         setShifts(mapped);
 
-        // セレクト候補の構築
+        // セレクト候補の構築（担当者は user_id 表示）
         const staffIds = uniq(
           mapped
             .flatMap((m) => [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id])
             .filter((v): v is string => v.length > 0)
         );
-
         const staffMap = new Map<string, string>();
         if (staffIds.length > 0) {
           const { data: userRows } = await supabase
             .from("users")
-            .select("user_id,last_name_kanji,first_name_kanji,display_name")
+            .select("user_id")
             .in("user_id", staffIds);
-          (userRows ?? []).forEach((u) => {
-            const label =
-              (u.display_name?.trim() ?? "") ||
-              `${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}` ||
-              u.user_id;
-            staffMap.set(u.user_id, label);
-          });
+          (userRows ?? []).forEach((u) => { staffMap.set(u.user_id, u.user_id); });
         }
         setStaffOptions(staffIds.map((id) => ({ user_id: id, label: staffMap.get(id) ?? id })));
-        setDateOptions(uniq(mapped.map((m) => m.shift_start_date)));
         setClientOptions(uniq(mapped.map((m) => m.client_name!).filter((nm) => nm.length > 0)));
       } catch (e) {
         console.error(e);
@@ -247,58 +217,6 @@ export default function ShiftViewPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, qStaff, qDate, qClient]);
-
-  // ===== 月間UI（オーバーレイ） =====
-  function MonthOverlay(): ReactNode {
-    if (!showMonth) return null;
-    const start = startOfMonth(monthCursor);
-    const end = endOfMonth(monthCursor);
-    const days = eachDayOfInterval({ start, end });
-
-    return (
-      <div className="fixed inset-0 z-[200] bg-black/30 flex items-start justify-center p-4 md:pl-[250px] md:pr-8">
-        <div className="w-full max-w-md rounded-2xl bg-white p-3 shadow-xl">
-          <div className="flex items-center justify-between mb-2">
-            <Button size="sm" variant="outline" onClick={() => setMonthCursor((d) => subMonths(d, 1))}>
-              前の月
-            </Button>
-            <div className="font-bold">{format(monthCursor, "yyyy年MM月", { locale: ja })}</div>
-            <Button size="sm" variant="outline" onClick={() => setMonthCursor((d) => addMonths(d, 1))}>
-              次の月
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((d) => {
-              const key = format(d, "yyyy-MM-dd");
-              const dim = !isSameMonth(d, monthCursor);
-              return (
-                <button
-                  key={key}
-                  className={`rounded-md border text-sm py-2 ${dim ? "opacity-40" : ""}`}
-                  onClick={() => {
-                    setShowMonth(false);
-                    setQuery({ date: key });
-                  }}
-                >
-                  {format(d, "d")}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 text-right">
-            <Button size="sm" variant="secondary" onClick={() => setShowMonth(false)}>
-              閉じる
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ===== 表示配列 =====
-  const visible: ShiftData[] = shifts; // 取得時にすでにクエリ適用済み
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
@@ -313,10 +231,10 @@ export default function ShiftViewPage() {
 
       <h2 className="text-xl font-bold mb-3">シフト一覧（Reject モード・柔軟フィルター）</h2>
 
-      {/* フィルター（単一セレクト） */}
+      {/* フィルター（単一セレクト + 日付カレンダー） */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
-          <label className="text-xs">担当者</label>
+          <label className="text-xs">担当者（user_id）</label>
           <select
             className="w-full border rounded p-2"
             value={qStaff}
@@ -324,32 +242,19 @@ export default function ShiftViewPage() {
           >
             <option value="">— 指定なし —</option>
             {staffOptions.map((s) => (
-              <option key={s.user_id} value={s.user_id}>
-                {s.label}
-              </option>
+              <option key={s.user_id} value={s.user_id}>{s.user_id}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="text-xs">日付</label>
-          <div className="flex gap-2">
-            <select
-              className="w-full border rounded p-2"
-              value={qDate}
-              onChange={(e) => setQuery({ date: e.target.value || undefined })}
-            >
-              <option value="">— 指定なし —</option>
-              {dateOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <Button variant="outline" onClick={() => setShowMonth(true)}>
-              月間
-            </Button>
-          </div>
+          <label className="text-xs">日付（この日以降を表示）</label>
+          <input
+            type="date"
+            className="w-full border rounded p-2"
+            value={qDate}
+            onChange={(e) => setQuery({ date: e.target.value || undefined })}
+          />
         </div>
 
         <div>
@@ -361,23 +266,19 @@ export default function ShiftViewPage() {
           >
             <option value="">— 指定なし —</option>
             {clientOptions.map((nm) => (
-              <option key={nm} value={nm}>
-                {nm}
-              </option>
+              <option key={nm} value={nm}>{nm}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {showMonth && <MonthOverlay />}
-
       {loading ? (
         <div className="text-sm text-gray-500">読み込み中...</div>
-      ) : visible.length === 0 ? (
+      ) : shifts.length === 0 ? (
         <div className="text-sm text-gray-500">該当するシフトがありません</div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {visible.map((s) => {
+          {shifts.map((s) => {
             const allowRecord = canUseRecordFor(s);
             const hideCss = allowRecord ? undefined : (
               <style>{`#srbtn-${s.shift_id}{ display:none !important; }`}</style>
