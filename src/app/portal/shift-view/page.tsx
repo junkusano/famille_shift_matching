@@ -1,3 +1,4 @@
+//portal/shift-view/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,10 +13,9 @@ import Link from "next/link";
 /**
  * /portal/shift-view
  * - フィルター：担当者（user_id表示・昇順）/ 日付（カレンダー・選択日以降）/ 利用者
- * - URLクエリ (?staff=, ?date=YYYY-MM-DD, ?client=) と同期
- * - 一覧は 自分担当 or 管理権限 => ShiftCard(reject)、それ以外 => 簡易カード
+ * - URLクエリ (?user_id=, ?date=YYYY-MM-DD, ?client=) と同期
+ * - 自分担当 or 管理権限 => ShiftCard(reject)、それ以外 => 簡易カード
  * - 未ログインは /login へ（?next= 元URL）
- * - 初期値：staff=ログイン者, date=当月1日（いずれもURL未指定のとき一度だけ）
  */
 
 type ShiftRow = {
@@ -29,12 +29,12 @@ type ShiftRow = {
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
-  name: string | null;
+  name: string | null; // client name
   gender_request_name: string | null;
   male_flg: boolean | null;
   female_flg: boolean | null;
   postal_code_3: string | null;
-  district: string | null;
+  district: string | null; // address summary
   require_doc_group: string | null;
   level_sort_order?: number | null;
 };
@@ -45,10 +45,11 @@ export default function ShiftViewPage() {
   const search = useSearchParams();
   const pathname = usePathname();
 
-  const qStaff = (search.get("staff") ?? "").trim(); // user_id
+  const qUserId = (search.get("user_id") ?? "").trim(); // user_id
   const qDate = (search.get("date") ?? "").trim(); // YYYY-MM-DD
   const qClient = (search.get("client") ?? "").trim(); // 利用者名（部分一致）
-  // URLの実体値変化をきっちり検知
+
+  // URLの実体値変化を厳密検知
   const searchKey = search.toString();
 
   const setQuery = (params: Record<string, string | undefined>): void => {
@@ -58,7 +59,7 @@ export default function ShiftViewPage() {
       else next.set(k, v);
     }
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
   // ===== 認証ゲート =====
@@ -109,13 +110,13 @@ export default function ShiftViewPage() {
   const [staffOptions, setStaffOptions] = useState<string[]>([]); // user_id のみ
   const [clientOptions, setClientOptions] = useState<string[]>([]);
 
-  // ===== 初期注入（初回だけ）：staff=自分 / date=当月1日 =====
+  // ===== 初期注入（初回だけ）：user_id=自分 / date=当月1日 =====
   const [initDone, setInitDone] = useState<boolean>(false);
   useEffect(() => {
     if (!authChecked || initDone) return;
 
     const params: Record<string, string> = {};
-    if (!qStaff && meUserId) params.staff = meUserId;
+    if (!qUserId && meUserId) params.user_id = meUserId;
     if (!qDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
@@ -125,7 +126,7 @@ export default function ShiftViewPage() {
 
     setInitDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, meUserId, qStaff, qDate, initDone]);
+  }, [authChecked, meUserId, qUserId, qDate, initDone]);
 
   // ===== データ取得（URL変化に追従） =====
   useEffect(() => {
@@ -133,30 +134,25 @@ export default function ShiftViewPage() {
     (async () => {
       setLoading(true);
       try {
-        const query = supabase.from("shift_csinfo_postalname_view").select("*");
+        const base = supabase.from("shift_csinfo_postalname_view").select("*");
 
-        // 日付条件：選択日 以降
-        if (qDate) query.gte("shift_start_date", qDate);
+        if (qDate) base.gte("shift_start_date", qDate); // 選択日以降
 
-        // 担当者（01/02/03 のいずれか）
-        if (qStaff) {
-          query.or([
-            `staff_01_user_id.eq.${qStaff}`,
-            `staff_02_user_id.eq.${qStaff}`,
-            `staff_03_user_id.eq.${qStaff}`,
-          ].join(","));
+        if (qUserId) {
+          // 3列のいずれかに一致
+          base.or(
+            `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
+          );
         }
 
-        // 利用者名（部分一致）
-        if (qClient) query.ilike("name", `%${qClient}%`);
+        if (qClient) base.ilike("name", `%${qClient}%`);
 
-        // 表示順
-        query
+        base
           .order("shift_start_date", { ascending: true })
           .order("shift_start_time", { ascending: true })
           .order("shift_id", { ascending: true });
 
-        const { data, error } = await query;
+        const { data, error } = await base;
         if (error) throw error;
 
         const rows = (data ?? []) as ShiftRow[];
@@ -215,7 +211,7 @@ export default function ShiftViewPage() {
     <div className="content min-w-0">
       {/* ShiftCard 内の“月間”リンクを強制非表示 */}
       <style jsx global>{`
-        a[href*="/portal/roster/monthly"] { display:none !important; }
+        a[href*="/portal/roster/monthly"] { display: none !important; }
       `}</style>
 
       <h2 className="text-xl font-bold mb-3">シフト一覧（Reject モード・柔軟フィルター）</h2>
@@ -226,8 +222,8 @@ export default function ShiftViewPage() {
           <label className="text-xs">担当者（user_id）</label>
           <select
             className="w-full border rounded p-2"
-            value={qStaff}
-            onChange={(e) => setQuery({ staff: e.target.value || undefined })}
+            value={qUserId}
+            onChange={(e) => setQuery({ user_id: e.target.value || undefined })}
           >
             <option value="">— 指定なし —</option>
             {staffOptions.map((id) => (
@@ -299,7 +295,7 @@ export default function ShiftViewPage() {
                     }
                   />
                 ) : (
-                  <div className="rounded-xl border text-card-foreground shadow bg-white">
+                  <div className="rounded-xl border bg-card text-card-foreground shadow">
                     <div className="p-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold">
@@ -307,7 +303,10 @@ export default function ShiftViewPage() {
                         </div>
                       </div>
                       <div className="text-sm mt-1">種別: {s.service_code || "-"}</div>
-                      <div className="text-sm">住所: {s.address}{s.postal_code_3 ? `（${s.postal_code_3}）` : ""}</div>
+                      <div className="text-sm">
+                        住所: {s.address}
+                        {s.postal_code_3 ? <span className="ml-2">（{s.postal_code_3}）</span> : null}
+                      </div>
                       <div className="mt-2 space-y-1">
                         <div className="text-sm">利用者名: {s.client_name} 様</div>
                         <div className="text-sm" style={{ color: "black" }}>
