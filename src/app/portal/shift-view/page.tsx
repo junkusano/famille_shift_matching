@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
@@ -44,34 +44,27 @@ export default function ShiftViewPage() {
   const search = useSearchParams();
   const pathname = usePathname();
 
-  const qUserId = (search.get("user_id") ?? "").trim();
-  const qDate = (search.get("date") ?? "").trim();
-  const qClient = (search.get("client") ?? "").trim();
+  // 最新のURL検索文字列を必ず読む util（useSearchParams の古いスナップショット対策）
+  const getSearch = () =>
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : search;
 
-  // ★追加：debug=1 のときだけ alert を出す
-  const isDebug =
-    (typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("debug") === "1"
-      : search.get("debug") === "1");
+  // URLクエリは必ず“最新URL”から読み直す
+  const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [pathname, search]);
+  const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [pathname, search]);
+  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [pathname, search]);
 
   const setQuery = (params: Record<string, string | undefined>): void => {
-    const currentSearch = typeof window !== "undefined" ? window.location.search : search.toString();
-    const next = new URLSearchParams(currentSearch);
-
+    const next = getSearch(); // ← いつも最新URLをベースに編集
     for (const [k, v] of Object.entries(params)) {
       if (!v) next.delete(k);
       else next.set(k, v);
     }
-
     const qs = next.toString();
-
-    // ★追加：debug=1 のときだけ、遷移先クエリを可視化
-    if (isDebug) {
-      alert(`[setQuery] -> ${qs ? `?${qs}` : "(no query)"}`);
-    }
-
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
+
 
 
   // ===== 認証（未ログインは /login へ） =====
@@ -125,172 +118,103 @@ export default function ShiftViewPage() {
   // 初期クエリ注入を一度だけにするフラグ
   const [initDone, setInitDone] = useState<boolean>(false);
 
-  // ---- デバッグ: dateのみ（user_id無し, client無し）で開いた時に一度だけ可視化 ----
-  const [debugShownParams, setDebugShownParams] = useState(false);
-  useEffect(() => {
-    // ?date=... だけ指定で開いた時の「パラメータ実態」を1回だけ表示
-    if (debugShownParams) return;
-    const onlyDate = !!qDate && !qUserId && !qClient;
-    if (onlyDate) {
-      /*
-      alert(
-        [
-          "[params snapshot]",
-          `qDate=${qDate}`,
-          `qUserId=${qUserId || "(empty)"}`,
-          `qClient=${qClient || "(empty)"}`,
-        ].join("\n")
-      );
-      */
-      setDebugShownParams(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qDate, qUserId, qClient]);
-
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   useEffect(() => {
     if (!authChecked || initDone) return;
 
-    const hasAnyQuery = (search?.toString()?.length ?? 0) > 0;
-    // 既にクエリが付いている（例: date のみ等）場合は“意図的”とみなし、注入しない
-    if (hasAnyQuery) {
-      setInitDone(true);
-      return;
-    }
+    // すでに ?date=... 等、何か1つでも付いていたら注入しない
+    const hasAnyQuery = getSearch().toString().length > 0;
+    if (hasAnyQuery) { setInitDone(true); return; }
 
-    // 完全に初回アクセス（クエリ無し）のときだけ、user_id と当月1日を注入
-    if (!meUserId) return; // user_id 取得を待つ
-
+    // 完全ノークエリの時だけ、自分の user_id と当月1日を注入
+    if (!meUserId) return;
     const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
     const first = startOfMonth(jstNow);
     setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
-
     setInitDone(true);
-  }, [authChecked, initDone, meUserId, search]);
+  }, [authChecked, initDone, meUserId, pathname, search]);
+
+
 
   // ===== データ取得（URLの各値に追従） =====
-  useEffect(() => {
+  // URL が「確定」してからだけフェッチを許可
+  const ready = useMemo(() => {
+    const hasAnyQuery = getSearch().toString().length > 0;
+    return authChecked && (hasAnyQuery || initDone);
+  }, [authChecked, initDone, pathname, search]);
 
-    alert(
-      [
-        "[fetch entry]",
-        `authChecked=${String(authChecked)}`,
-        `qDate=${qDate || "(empty)"}`,
-        `qUserId=${qUserId || "(empty)"}`,
-        `qClient=${qClient || "(empty)"}`
-      ].join("\n")
-    );
-    if (!authChecked) return;
+  useEffect(() => {
+    if (!ready) return; // ← ここで確定するまで1回も読まない
+
+    const ac = new AbortController();
+    let alive = true;
 
     (async () => {
       setLoading(true);
-      try {
-        const buildQuery = () => {
-          let q = supabase.from("shift_csinfo_postalname_view").select("*");
-          if (qDate) q = q.gte("shift_start_date", qDate);
-          if (qUserId) q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
-          if (qClient) q = q.ilike("name", `%${qClient}%`);
-          q = q
-            .order("shift_start_date", { ascending: true })
-            .order("shift_start_time", { ascending: true })
-            .order("shift_id", { ascending: true });
-          return q;
-        };
+      setShifts([]); // ← 前回表示の混入を防止
 
-        // ★追加：条件の見える化（アラートに出すテキスト）
-        const whereText = [
-          qDate ? `shift_start_date >= ${qDate}` : null,
-          qUserId ? `staff_*_user_id = ${qUserId}` : null,
-          qClient ? `name ILIKE %${qClient}%` : null,
-        ].filter(Boolean).join(" AND ") || "(none)";
+      const buildQuery = () => {
+        let q = supabase.from("shift_csinfo_postalname_view").select("*");
+        if (qDate) q = q.gte("shift_start_date", qDate);
+        if (qUserId) q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
+        if (qClient) q = q.ilike("name", `%${qClient}%`);
+        return q
+          .order("shift_start_date", { ascending: true })
+          .order("shift_start_time", { ascending: true })
+          .order("shift_id", { ascending: true });
+      };
 
-        const PAGE = 1000;
-        const all: ShiftRow[] = [];
-        let pages = 0;
-        for (let from = 0; ; from += PAGE) {
-          const to = from + PAGE - 1;
-          const { data, error } = await buildQuery().range(from, to);
-          if (error) throw error;
-          const chunk = (data ?? []) as ShiftRow[];
-          all.push(...chunk);
-          pages++;
-          if (chunk.length < PAGE) break;
-        }
-
-        // ★追加：サンプル表示（先頭3件）
-        const sample = all.slice(0, 3).map(s =>
-          `${s.shift_id}:${s.name}:${[s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].filter(Boolean).join("/")}`
-        ).join(" | ") || "(no data)";
-
-        if (isDebug) {
-          alert([
-            "[fetch]",
-            `where=${whereText}`,
-            `pages=${pages}`,
-            `total=${all.length}`,
-            `sample=${sample}`,
-          ].join("\n"));
-        }
-
-        // 既存の mapped, setShifts ... 以降はそのまま
-        const mapped: ShiftData[] = all.map((s) => ({
-          id: String(s.id ?? s.shift_id),
-          shift_id: s.shift_id,
-          shift_start_date: s.shift_start_date,
-          shift_start_time: s.shift_start_time,
-          shift_end_time: s.shift_end_time,
-          service_code: s.service_code ?? "",
-          kaipoke_cs_id: s.kaipoke_cs_id,
-          staff_01_user_id: s.staff_01_user_id ?? "",
-          staff_02_user_id: s.staff_02_user_id ?? "",
-          staff_03_user_id: s.staff_03_user_id ?? "",
-          address: s.district ?? "",
-          client_name: s.name ?? "",
-          gender_request_name: s.gender_request_name ?? "",
-          male_flg: Boolean(s.male_flg),
-          female_flg: Boolean(s.female_flg),
-          postal_code_3: s.postal_code_3 ?? "",
-          district: s.district ?? "",
-          require_doc_group: s.require_doc_group ?? null,
-          level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
-        }));
-
-        setShifts(mapped);
-
-        // ★追加：描画上の分岐件数（reject権限で出るカード数 など）
-        if (isDebug) {
-          const allowRejectCount = mapped.filter(m => {
-            const mine = !!meUserId && [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id].includes(meUserId);
-            const elevated = meRole === "manager" || meRole === "admin";
-            return elevated || mine;
-          }).length;
-
-          alert(`[map] mapped=${mapped.length}, allowReject=${allowRejectCount}`);
-        }
-
-        // 既存：staffOptions / clientOptions の算出
-        const staffIds = Array.from(
-          new Set(
-            mapped
-              .flatMap((m) => [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id])
-              .filter((v): v is string => v.length > 0)
-          )
-        ).sort((a, b) => a.localeCompare(b, "ja"));
-        setStaffOptions(staffIds);
-
-        const clients = Array.from(
-          new Set(mapped.map((m) => m.client_name).filter((v): v is string => !!v && v.length > 0))
-        );
-        setClientOptions(clients);
-
-      } catch (e) {
-        console.error(e);
-        if (isDebug) alert(`[fetch] error: ${String(e)}`);
-      } finally {
-        setLoading(false);
+      const PAGE = 1000;
+      const all: ShiftRow[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const to = from + PAGE - 1;
+        const { data, error } = await buildQuery().range(from, to);
+        if (ac.signal.aborted) return;
+        if (error) throw error;
+        const chunk = (data ?? []) as ShiftRow[];
+        all.push(...chunk);
+        if (chunk.length < PAGE) break;
       }
-    })();
-  }, [authChecked, qUserId, qDate, qClient, /* ←依存はそのまま */]);
+
+      if (!alive) return;
+
+      const mapped: ShiftData[] = all.map((s) => ({
+        id: String(s.id ?? s.shift_id),
+        shift_id: s.shift_id,
+        shift_start_date: s.shift_start_date,
+        shift_start_time: s.shift_start_time,
+        shift_end_time: s.shift_end_time,
+        service_code: s.service_code ?? "",
+        kaipoke_cs_id: s.kaipoke_cs_id,
+        staff_01_user_id: s.staff_01_user_id ?? "",
+        staff_02_user_id: s.staff_02_user_id ?? "",
+        staff_03_user_id: s.staff_03_user_id ?? "",
+        address: s.district ?? "",
+        client_name: s.name ?? "",
+        gender_request_name: s.gender_request_name ?? "",
+        male_flg: Boolean(s.male_flg),
+        female_flg: Boolean(s.female_flg),
+        postal_code_3: s.postal_code_3 ?? "",
+        district: s.district ?? "",
+        require_doc_group: s.require_doc_group ?? null,
+        level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
+      }));
+      setShifts(mapped);
+
+      const staffIds = Array.from(new Set(
+        mapped.flatMap(m => [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id]).filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, "ja"));
+      setStaffOptions(staffIds);
+
+      const clients = Array.from(new Set(mapped.map(m => m.client_name).filter(Boolean)));
+      setClientOptions(clients);
+    })()
+      .catch(console.error)
+      .finally(() => { if (alive) setLoading(false); });
+
+    return () => { alive = false; ac.abort(); };
+  }, [ready, qUserId, qDate, qClient]);
+
 
 
   if (!authChecked) {
