@@ -1,3 +1,4 @@
+//portal/shift-view/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -109,24 +110,24 @@ export default function ShiftViewPage() {
   const [staffOptions, setStaffOptions] = useState<StaffLite[]>([]);
   const [clientOptions, setClientOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [initDone, setInitDone] = useState<boolean>(false);
 
-  // ===== 初期値設定：担当者＝自分の user_id、日付＝当月1日（JST） =====
+  // ===== 初期値設定：初回アクセスのみ（URLに何も指定が無い場合だけ） =====
   useEffect(() => {
-    if (!authChecked) return;
-    // staff 初期値：未指定かつ自分のIDがあるとき
-    if (!qStaff && meUserId) {
-      setQuery({ staff: meUserId });
-      return; // 次のレンダ後に日付初期値評価
-    }
-    // date 初期値：未指定のとき当月1日（JST）
-    if (!qDate) {
+    if (!authChecked || initDone) return;
+
+    const hasAnyParam = Boolean(qStaff || qDate || qClient);
+    if (!hasAnyParam) {
+      const params: Record<string, string> = {};
+      if (meUserId) params.staff = meUserId; // 初回だけ自分の user_id を既定
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
-      const ymd = format(first, "yyyy-MM-dd");
-      setQuery({ date: ymd });
+      params.date = format(first, "yyyy-MM-dd");
+      setQuery(params);
     }
+    setInitDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, meUserId]);
+  }, [authChecked, meUserId, qStaff, qDate, qClient, initDone]);
 
   // ===== 権限制御 =====
   const canUseRecordFor = (s: ShiftData): boolean => {
