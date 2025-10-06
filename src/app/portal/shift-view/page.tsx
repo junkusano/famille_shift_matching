@@ -48,8 +48,13 @@ export default function ShiftViewPage() {
   const qDate = (search.get("date") ?? "").trim();
   const qClient = (search.get("client") ?? "").trim();
 
+  // ★追加：debug=1 のときだけ alert を出す
+  const isDebug =
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("debug") === "1"
+      : search.get("debug") === "1");
+
   const setQuery = (params: Record<string, string | undefined>): void => {
-    // Next.js の searchParams スナップショットは古くなることがあるため、常に現在の URL から生成
     const currentSearch = typeof window !== "undefined" ? window.location.search : search.toString();
     const next = new URLSearchParams(currentSearch);
 
@@ -59,8 +64,15 @@ export default function ShiftViewPage() {
     }
 
     const qs = next.toString();
+
+    // ★追加：debug=1 のときだけ、遷移先クエリを可視化
+    if (isDebug) {
+      alert(`[setQuery] -> ${qs ? `?${qs}` : "(no query)"}`);
+    }
+
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
+
 
   // ===== 認証（未ログインは /login へ） =====
   const [authChecked, setAuthChecked] = useState<boolean>(false);
@@ -144,9 +156,7 @@ export default function ShiftViewPage() {
         const buildQuery = () => {
           let q = supabase.from("shift_csinfo_postalname_view").select("*");
           if (qDate) q = q.gte("shift_start_date", qDate);
-          if (qUserId) {
-            q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
-          }
+          if (qUserId) q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
           if (qClient) q = q.ilike("name", `%${qClient}%`);
           q = q
             .order("shift_start_date", { ascending: true })
@@ -155,17 +165,42 @@ export default function ShiftViewPage() {
           return q;
         };
 
-        const PAGE = 1000; // Supabase(PostgREST)のデフォルト上限対策：ページングで取得
+        // ★追加：条件の見える化（アラートに出すテキスト）
+        const whereText = [
+          qDate ? `shift_start_date >= ${qDate}` : null,
+          qUserId ? `staff_*_user_id = ${qUserId}` : null,
+          qClient ? `name ILIKE %${qClient}%` : null,
+        ].filter(Boolean).join(" AND ") || "(none)";
+
+        const PAGE = 1000;
         const all: ShiftRow[] = [];
+        let pages = 0;
         for (let from = 0; ; from += PAGE) {
           const to = from + PAGE - 1;
           const { data, error } = await buildQuery().range(from, to);
           if (error) throw error;
           const chunk = (data ?? []) as ShiftRow[];
           all.push(...chunk);
-          if (chunk.length < PAGE) break; // 最終ページ
+          pages++;
+          if (chunk.length < PAGE) break;
         }
 
+        // ★追加：サンプル表示（先頭3件）
+        const sample = all.slice(0, 3).map(s =>
+          `${s.shift_id}:${s.name}:${[s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].filter(Boolean).join("/")}`
+        ).join(" | ") || "(no data)";
+
+        if (isDebug) {
+          alert([
+            "[fetch]",
+            `where=${whereText}`,
+            `pages=${pages}`,
+            `total=${all.length}`,
+            `sample=${sample}`,
+          ].join("\n"));
+        }
+
+        // 既存の mapped, setShifts ... 以降はそのまま
         const mapped: ShiftData[] = all.map((s) => ({
           id: String(s.id ?? s.shift_id),
           shift_id: s.shift_id,
@@ -190,6 +225,18 @@ export default function ShiftViewPage() {
 
         setShifts(mapped);
 
+        // ★追加：描画上の分岐件数（reject権限で出るカード数 など）
+        if (isDebug) {
+          const allowRejectCount = mapped.filter(m => {
+            const mine = !!meUserId && [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id].includes(meUserId);
+            const elevated = meRole === "manager" || meRole === "admin";
+            return elevated || mine;
+          }).length;
+
+          alert(`[map] mapped=${mapped.length}, allowReject=${allowRejectCount}`);
+        }
+
+        // 既存：staffOptions / clientOptions の算出
         const staffIds = Array.from(
           new Set(
             mapped
@@ -203,13 +250,16 @@ export default function ShiftViewPage() {
           new Set(mapped.map((m) => m.client_name).filter((v): v is string => !!v && v.length > 0))
         );
         setClientOptions(clients);
+
       } catch (e) {
         console.error(e);
+        if (isDebug) alert(`[fetch] error: ${String(e)}`);
       } finally {
         setLoading(false);
       }
     })();
-  }, [authChecked, qUserId, qDate, qClient]);
+  }, [authChecked, qUserId, qDate, qClient, /* ←依存はそのまま */]);
+
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
