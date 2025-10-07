@@ -44,28 +44,42 @@ export default function ShiftViewPage() {
   const search = useSearchParams();
   const pathname = usePathname();
 
-  // 最新のURL検索文字列を必ず読む util（useSearchParams の古いスナップショット対策）
+  // 現在のクエリ文字列を state に保持（これが変わるたびに再描画）
+  const [searchStr, setSearchStr] = useState<string>("");
+
+  useEffect(() => {
+    const s =
+      typeof window !== "undefined"
+        ? window.location.search
+        : (search?.toString() ?? "");
+    setSearchStr(s);
+  }, [search, pathname]);
+
+  // 常に“最新の”検索文字列から URLSearchParams を作る
   const getSearch = () =>
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : search;
+    new URLSearchParams(
+      typeof window !== "undefined"
+        ? (searchStr || window.location.search)
+        : (search?.toString() ?? "")
+    );
 
-  // URLクエリは必ず“最新URL”から読み直す
-  const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [pathname, search]);
-  const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [pathname, search]);
-  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [pathname, search]);
+  // URLクエリ値は searchStr の変化だけをトリガーに読む（=確実に更新される）
+  const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [searchStr]);
+  const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [searchStr]);
+  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
 
+  // URL書き換え：router.replace 後に searchStr も即同期して再描画を保証
   const setQuery = (params: Record<string, string | undefined>): void => {
-    const next = getSearch(); // ← いつも最新URLをベースに編集
+    const next = getSearch();
     for (const [k, v] of Object.entries(params)) {
       if (!v) next.delete(k);
       else next.set(k, v);
     }
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    const url = qs ? `${pathname}?${qs}` : pathname;
+    router.replace(url, { scroll: false });
+    setSearchStr(qs ? `?${qs}` : "");   // ← これが重要（URL変更を state にも反映）
   };
-
-
 
   // ===== 認証（未ログインは /login へ） =====
   const [authChecked, setAuthChecked] = useState<boolean>(false);
