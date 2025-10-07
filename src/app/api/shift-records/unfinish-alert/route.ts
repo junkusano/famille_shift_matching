@@ -1,3 +1,4 @@
+//api/shift-record/unfinish-alert/routes.ts
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
@@ -20,7 +21,7 @@ export async function GET() {
     const { data: usersData, error: usersError } = await supabase
       .from('user_entry_united_view_single')
       .select('user_id, channel_id')
-      .not('status', 'in', ['removed_from_lineworks_kaipoke', 'inactive']);
+      .not('status', 'in', ['removed_from_lineworks_kaipoke', 'inactive']); // 修正: 配列形式
 
     if (usersError) throw usersError;
 
@@ -79,8 +80,7 @@ export async function GET() {
 
         if (shiftError) throw shiftError;
 
-        // `clientUnfinishedShifts` を const で定義
-        const clientUnfinishedShifts: string[] = [];
+        let clientUnfinishedShifts: string[] = [];
 
         // 4. 未了判定とメッセージ作成
         for (const shift of shifts) {
