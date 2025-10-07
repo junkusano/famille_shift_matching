@@ -2,6 +2,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { NextRequest, NextResponse } from "next/server";  // NextRequestをインポート
 import { format } from "date-fns";
+void NextRequest
 
 const testUserId = "junkusano";  // テスト用のユーザーID
 
