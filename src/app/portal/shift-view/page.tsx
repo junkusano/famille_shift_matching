@@ -133,20 +133,30 @@ export default function ShiftViewPage() {
   const [initDone, setInitDone] = useState<boolean>(false);
 
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
+  // AFTER
   useEffect(() => {
     if (!authChecked || initDone) return;
 
-    // すでに ?date=... 等、何か1つでも付いていたら注入しない
-    const hasAnyQuery = getSearch().toString().length > 0;
-    if (hasAnyQuery) { setInitDone(true); return; }
+    const current = getSearch();
+    const next: Record<string, string> = {};
 
-    // 完全ノークエリの時だけ、自分の user_id と当月1日を注入
-    if (!meUserId) return;
-    const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
-    const first = startOfMonth(jstNow);
-    setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
+    // user_id が「URLに存在しない（空含む）」場合だけ、初期値として meUserId を入れる
+    if (!current.get("user_id") && meUserId) {
+      next.user_id = meUserId;
+    }
+
+    // date が URL にない場合だけ、当月1日を入れる
+    if (!current.get("date")) {
+      const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
+      const first = startOfMonth(jstNow);
+      next.date = format(first, "yyyy-MM-dd");
+    }
+
+    if (Object.keys(next).length > 0) {
+      setQuery(next);
+    }
     setInitDone(true);
-  }, [authChecked, initDone, meUserId, pathname, search]);
+  }, [authChecked, initDone, meUserId]);
 
   // ===== データ取得（URLの各値に追従） =====
   // URL が「確定」してからだけフェッチを許可
