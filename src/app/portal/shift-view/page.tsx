@@ -11,33 +11,10 @@ import Link from "next/link";
 
 /**
  * /portal/shift-view
- * フィルター：担当者（user_id）/ 日付（選択日以降）/ 利用者
- * URLクエリ：?user_id=, ?date=YYYY-MM-DD, ?client=
+ * フィルター：担当者（user_id＝値 / 表示は氏名 from user_entry_united_view）/ 日付（選択日以降）/ 利用者（kaipoke_cs_id）
+ * URLクエリ：?user_id=, ?date=YYYY-MM-DD, ?client=（= kaipoke_cs_id）
  * 初回のみ user_id と date を注入（URLに無い時だけ）。
- * 自分担当か管理権限なら ShiftCard(reject)、他は簡易カード。
  */
-/*
-type ShiftRow = {
-  id: string | number;
-  shift_id: string;
-  shift_start_date: string;
-  shift_start_time: string;
-  shift_end_time: string;
-  service_code: string | null;
-  kaipoke_cs_id: string;
-  staff_01_user_id: string | null;
-  staff_02_user_id: string | null;
-  staff_03_user_id: string | null;
-  name: string | null; // client name
-  gender_request_name: string | null;
-  male_flg: boolean | null;
-  female_flg: boolean | null;
-  postal_code_3: string | null;
-  district: string | null; // address
-  require_doc_group: string | null;
-  level_sort_order?: number | null;
-};
-*/
 
 export default function ShiftViewPage() {
   // ===== Router & URL =====
@@ -66,10 +43,11 @@ export default function ShiftViewPage() {
 
   // URLクエリ値は searchStr の変化だけをトリガーに読む（=確実に更新される）
   const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [searchStr]);
-  const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [searchStr]);
-  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
+  const qDate   = useMemo(() => (getSearch().get("date") ?? "").trim(),    [searchStr]);
+  // client は「名前」ではなく kaipoke_cs_id を持つ
+  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(),  [searchStr]);
 
-  // URL書き換え：router.replace 後に searchStr も即同期して再描画を保証
+  // URL書き換え
   const setQuery = (params: Record<string, string | undefined>): void => {
     const next = getSearch();
     for (const [k, v] of Object.entries(params)) {
@@ -79,7 +57,7 @@ export default function ShiftViewPage() {
     const qs = next.toString();
     const url = qs ? `${pathname}?${qs}` : pathname;
     router.replace(url, { scroll: false });
-    setSearchStr(qs ? `?${qs}` : "");   // ← これが重要（URL変更を state にも反映）
+    setSearchStr(qs ? `?${qs}` : "");
   };
 
   // ===== 認証（未ログインは /login へ） =====
@@ -106,39 +84,35 @@ export default function ShiftViewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ===== ログイン者情報 =====
-  
+  // ===== ログイン者情報（user_idのみ使う） =====
   const [meUserId, setMeUserId] = useState<string>("");
-  const [meRole, setMeRole] = useState<string | null>(null);
-  void meRole
 
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { setMeUserId(""); return; }
       const { data: me } = await supabase
         .from("users")
-        .select("user_id, system_role")
+        .select("user_id")
         .eq("auth_user_id", user.id)
         .maybeSingle();
       setMeUserId(me?.user_id ?? "");
-      setMeRole(me?.system_role ?? null);
     })();
   }, [authChecked]);
 
   // ===== 画面状態 =====
   const [loading, setLoading] = useState<boolean>(true);
   const [shifts, setShifts] = useState<ShiftData[]>([]);
-  const [staffOptions, setStaffOptions] = useState<string[]>([]);
+  // ▼ 担当者セレクト：value=user_id, label=氏名（last_name_kanji + " " + first_name_kanji）
+  const [staffOptions, setStaffOptions] = useState<Array<{ value: string; label: string }>>([]);
+  // ▼ 利用者セレクト：value=kaipoke_cs_id, 表示も kaipoke_cs_id
   const [clientOptions, setClientOptions] = useState<string[]>([]);
 
-  // 初期クエリ注入を一度だけにするフラグ
+  // 初期クエリ注入フラグ
   const [initDone, setInitDone] = useState<boolean>(false);
 
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
-  // AFTER
-  // ===== 初期注入：user_id と date の両方が無い（完全ノークエリ）の時だけ 1回注入 =====
   useEffect(() => {
     if (!authChecked || initDone || !meUserId) return;
 
@@ -146,23 +120,17 @@ export default function ShiftViewPage() {
     const hasUserId = !!current.get("user_id");
     const hasDate = !!current.get("date");
 
-    // 両方とも URL に無いときのみ、初期値を入れる
     if (!hasUserId && !hasDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
       setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
     }
-
-    // 初期注入の判定は完了
     setInitDone(true);
   }, [authChecked, initDone, meUserId]);
 
-
   // ===== データ取得（URLの各値に追従） =====
-  // URL が「確定」してからだけフェッチを許可
   const ready = useMemo(() => authChecked && initDone, [authChecked, initDone]);
 
-  // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
     if (!ready) return;
 
@@ -172,9 +140,9 @@ export default function ShiftViewPage() {
     (async () => {
       try {
         setLoading(true);
-        setShifts([]); // 前回表示の混入を防止
+        setShifts([]);
 
-        // クエリビルダー（qDate / qUserId / qClient をそのまま Supabase に渡す）
+        // クエリビルダー（qDate / qUserId / qClient（= kaipoke_cs_id））
         const buildQuery = () => {
           let q = supabase.from("shift_csinfo_postalname_view").select("*");
 
@@ -188,7 +156,8 @@ export default function ShiftViewPage() {
             );
           }
           if (qClient) {
-            q = q.ilike("name", `%${qClient}%`);
+            // ★ 変更点：名前ではなく kaipoke_cs_id でフィルタ
+            q = q.eq("kaipoke_cs_id", qClient);
           }
 
           return q
@@ -230,12 +199,12 @@ export default function ShiftViewPage() {
           const chunk = (data ?? []) as ShiftRow[];
           all.push(...chunk);
 
-          if (chunk.length < PAGE) break; // 取り切った
+          if (chunk.length < PAGE) break;
         }
 
         if (!alive) return;
 
-        // Supabaseの結果を UI 用の ShiftData に整形（ここで“追加の絞り込み”はしない）
+        // Supabaseの結果を UI 用の ShiftData に整形
         const mapped: ShiftData[] = all.map((s) => ({
           id: String(s.id ?? s.shift_id),
           shift_id: s.shift_id,
@@ -260,7 +229,8 @@ export default function ShiftViewPage() {
 
         setShifts(mapped);
 
-        // セレクト用の候補（表示のために unique & sort）
+        // ===== セレクト用の候補 =====
+        // 1) 担当者（user_entry_united_view から氏名ラベルを取得）
         const staffIds = Array.from(
           new Set(
             mapped.flatMap(m => [
@@ -270,12 +240,41 @@ export default function ShiftViewPage() {
             ]).filter(Boolean)
           )
         ).sort((a, b) => a.localeCompare(b, "ja"));
-        setStaffOptions(staffIds);
 
-        const clients = Array.from(
-          new Set(mapped.map(m => m.client_name).filter(Boolean))
+        type UserEntry = {
+          user_id: string;
+          last_name_kanji: string | null;
+          first_name_kanji: string | null;
+        };
+
+        let staffOpts: Array<{ value: string; label: string }> = staffIds.map(id => ({ value: id, label: id }));
+        if (staffIds.length > 0) {
+          const { data: entries, error: entriesErr } = await supabase
+            .from("user_entry_united_view")
+            .select("user_id,last_name_kanji,first_name_kanji")
+            .in("user_id", staffIds);
+
+          if (entriesErr) throw entriesErr;
+
+          const byId = new Map<string, UserEntry>();
+          (entries ?? []).forEach((e: UserEntry) => byId.set(e.user_id, e));
+
+          staffOpts = staffIds.map((id) => {
+            const rec = byId.get(id);
+            const ln = (rec?.last_name_kanji ?? "").trim();
+            const fn = (rec?.first_name_kanji ?? "").trim();
+            const label = (ln || fn) ? `${ln} ${fn}`.trim() : id;
+            return { value: id, label };
+          }).sort((a, b) => a.label.localeCompare(b.label, "ja"));
+        }
+        setStaffOptions(staffOpts);
+
+        // 2) 利用者（kaipoke_cs_id をそのまま value/label に）
+        const clientIds = Array.from(
+          new Set(mapped.map(m => m.kaipoke_cs_id).filter(Boolean))
         ).sort((a, b) => a.localeCompare(b, "ja"));
-        setClientOptions(clients);
+        setClientOptions(clientIds);
+
       } catch (e) {
         console.error(e);
       } finally {
@@ -288,7 +287,6 @@ export default function ShiftViewPage() {
       ac.abort();
     };
   }, [ready, qUserId, qDate, qClient]);
-
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
@@ -315,15 +313,15 @@ export default function ShiftViewPage() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
-          <label className="text-xs">担当者（user_id）</label>
+          <label className="text-xs">担当者（氏名表示 / 値は user_id）</label>
           <select
             className="w-full border rounded p-2"
             value={qUserId}
             onChange={(e) => setQuery({ user_id: e.target.value || undefined })}
           >
             <option value="">— 指定なし —</option>
-            {staffOptions.map((id) => (
-              <option key={id} value={id}>{id}</option>
+            {staffOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
@@ -339,15 +337,15 @@ export default function ShiftViewPage() {
         </div>
 
         <div>
-          <label className="text-xs">利用者</label>
+          <label className="text-xs">利用者（kaipoke_cs_id）</label>
           <select
             className="w-full border rounded p-2"
             value={qClient}
             onChange={(e) => setQuery({ client: e.target.value || undefined })}
           >
             <option value="">— 指定なし —</option>
-            {clientOptions.map((nm) => (
-              <option key={nm} value={nm}>{nm}</option>
+            {clientOptions.map((id) => (
+              <option key={id} value={id}>{id}</option>
             ))}
           </select>
         </div>
