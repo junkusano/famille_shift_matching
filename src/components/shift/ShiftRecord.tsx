@@ -469,9 +469,10 @@ export default function ShiftRecord({
     const role = (meRole ?? "").toLowerCase();
     const elevated = role === "manager" || role === "admin";
 
-    const s01 = String((mergedInfo as any)?.staff_01_user_id ?? "");
-    const s02 = String((mergedInfo as any)?.staff_02_user_id ?? "");
-    const s03 = String((mergedInfo as any)?.staff_03_user_id ?? "");
+    const mi = (mergedInfo ?? {}) as Record<string, unknown>;
+    const s01 = asString(mi["staff_01_user_id"]);
+    const s02 = asString(mi["staff_02_user_id"]);
+    const s03 = asString(mi["staff_03_user_id"]);
     const mine = String(meUserId ?? "");
 
     const isStaffMember = !!mine && [s01, s02, s03].filter(Boolean).includes(mine);
