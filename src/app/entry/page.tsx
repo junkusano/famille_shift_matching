@@ -191,8 +191,8 @@ export default function EntryPage() {
             .some(file => file && file.size > 0);
 
         if (!noCert && !hasCert) {
-            alert("資格証明書を1つ以上アップロードするか、資格なしにチェックしてください。");
-            return;
+            //alert("資格証明書を1つ以上アップロードするか、資格なしにチェックしてください。");
+            //return;
         }
 
         // --- Google Drive へファイルアップロードする関数 ---
