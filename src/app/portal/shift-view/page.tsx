@@ -158,77 +158,133 @@ export default function ShiftViewPage() {
   // URL が「確定」してからだけフェッチを許可
   const ready = useMemo(() => authChecked && initDone, [authChecked, initDone]);
 
+  // ===== データ取得（URLの各値に追従） =====
   useEffect(() => {
-    if (!ready) return; // ← ここで確定するまで1回も読まない
+    if (!ready) return;
 
     const ac = new AbortController();
     let alive = true;
 
     (async () => {
-      setLoading(true);
-      setShifts([]); // ← 前回表示の混入を防止
+      try {
+        setLoading(true);
+        setShifts([]); // 前回表示の混入を防止
 
-      const buildQuery = () => {
-        let q = supabase.from("shift_csinfo_postalname_view").select("*");
-        if (qDate) q = q.gte("shift_start_date", qDate);
-        if (qUserId) q = q.or(`staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`);
-        if (qClient) q = q.ilike("name", `%${qClient}%`);
-        return q
-          .order("shift_start_date", { ascending: true })
-          .order("shift_start_time", { ascending: true })
-          .order("shift_id", { ascending: true });
-      };
+        // クエリビルダー（qDate / qUserId / qClient をそのまま Supabase に渡す）
+        const buildQuery = () => {
+          let q = supabase.from("shift_csinfo_postalname_view").select("*");
 
-      const PAGE = 1000;
-      const all: ShiftRow[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const to = from + PAGE - 1;
-        const { data, error } = await buildQuery().range(from, to);
-        if (ac.signal.aborted) return;
-        if (error) throw error;
-        const chunk = (data ?? []) as ShiftRow[];
-        all.push(...chunk);
-        if (chunk.length < PAGE) break;
+          if (qDate) {
+            q = q.gte("shift_start_date", qDate);
+          }
+          if (qUserId) {
+            // 3枠の担当者いずれかに一致
+            q = q.or(
+              `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
+            );
+          }
+          if (qClient) {
+            q = q.ilike("name", `%${qClient}%`);
+          }
+
+          return q
+            .order("shift_start_date", { ascending: true })
+            .order("shift_start_time", { ascending: true })
+            .order("shift_id", { ascending: true });
+        };
+
+        // ページングで最大件数制限(1000件)を超えても全件取得
+        const PAGE = 1000;
+        type ShiftRow = {
+          id: string | number;
+          shift_id: string;
+          shift_start_date: string;
+          shift_start_time: string;
+          shift_end_time: string;
+          service_code: string | null;
+          kaipoke_cs_id: string;
+          staff_01_user_id: string | null;
+          staff_02_user_id: string | null;
+          staff_03_user_id: string | null;
+          name: string | null;
+          gender_request_name: string | null;
+          male_flg: boolean | null;
+          female_flg: boolean | null;
+          postal_code_3: string | null;
+          district: string | null;
+          require_doc_group: string | null;
+          level_sort_order?: number | null;
+        };
+
+        const all: ShiftRow[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const to = from + PAGE - 1;
+          const { data, error } = await buildQuery().range(from, to);
+          if (ac.signal.aborted) return;
+          if (error) throw error;
+
+          const chunk = (data ?? []) as ShiftRow[];
+          all.push(...chunk);
+
+          if (chunk.length < PAGE) break; // 取り切った
+        }
+
+        if (!alive) return;
+
+        // Supabaseの結果を UI 用の ShiftData に整形（ここで“追加の絞り込み”はしない）
+        const mapped: ShiftData[] = all.map((s) => ({
+          id: String(s.id ?? s.shift_id),
+          shift_id: s.shift_id,
+          shift_start_date: s.shift_start_date,
+          shift_start_time: s.shift_start_time,
+          shift_end_time: s.shift_end_time,
+          service_code: s.service_code ?? "",
+          kaipoke_cs_id: s.kaipoke_cs_id,
+          staff_01_user_id: s.staff_01_user_id ?? "",
+          staff_02_user_id: s.staff_02_user_id ?? "",
+          staff_03_user_id: s.staff_03_user_id ?? "",
+          address: s.district ?? "",
+          client_name: s.name ?? "",
+          gender_request_name: s.gender_request_name ?? "",
+          male_flg: Boolean(s.male_flg),
+          female_flg: Boolean(s.female_flg),
+          postal_code_3: s.postal_code_3 ?? "",
+          district: s.district ?? "",
+          require_doc_group: s.require_doc_group ?? null,
+          level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
+        }));
+
+        setShifts(mapped);
+
+        // セレクト用の候補（表示のために unique & sort）
+        const staffIds = Array.from(
+          new Set(
+            mapped.flatMap(m => [
+              m.staff_01_user_id,
+              m.staff_02_user_id,
+              m.staff_03_user_id
+            ]).filter(Boolean)
+          )
+        ).sort((a, b) => a.localeCompare(b, "ja"));
+        setStaffOptions(staffIds);
+
+        const clients = Array.from(
+          new Set(mapped.map(m => m.client_name).filter(Boolean))
+        ).sort((a, b) => a.localeCompare(b, "ja"));
+        setClientOptions(clients);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (alive) setLoading(false);
       }
+    })();
 
-      if (!alive) return;
-
-      const mapped: ShiftData[] = all.map((s) => ({
-        id: String(s.id ?? s.shift_id),
-        shift_id: s.shift_id,
-        shift_start_date: s.shift_start_date,
-        shift_start_time: s.shift_start_time,
-        shift_end_time: s.shift_end_time,
-        service_code: s.service_code ?? "",
-        kaipoke_cs_id: s.kaipoke_cs_id,
-        staff_01_user_id: s.staff_01_user_id ?? "",
-        staff_02_user_id: s.staff_02_user_id ?? "",
-        staff_03_user_id: s.staff_03_user_id ?? "",
-        address: s.district ?? "",
-        client_name: s.name ?? "",
-        gender_request_name: s.gender_request_name ?? "",
-        male_flg: Boolean(s.male_flg),
-        female_flg: Boolean(s.female_flg),
-        postal_code_3: s.postal_code_3 ?? "",
-        district: s.district ?? "",
-        require_doc_group: s.require_doc_group ?? null,
-        level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
-      }));
-      setShifts(mapped);
-
-      const staffIds = Array.from(new Set(
-        mapped.flatMap(m => [m.staff_01_user_id, m.staff_02_user_id, m.staff_03_user_id]).filter(Boolean)
-      )).sort((a, b) => a.localeCompare(b, "ja"));
-      setStaffOptions(staffIds);
-
-      const clients = Array.from(new Set(mapped.map(m => m.client_name).filter(Boolean)));
-      setClientOptions(clients);
-    })()
-      .catch(console.error)
-      .finally(() => { if (alive) setLoading(false); });
-
-    return () => { alive = false; ac.abort(); };
+    return () => {
+      alive = false;
+      ac.abort();
+    };
   }, [ready, qUserId, qDate, qClient]);
+
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
