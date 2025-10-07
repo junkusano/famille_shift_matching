@@ -148,8 +148,6 @@ export default function ShiftViewPage() {
     setInitDone(true);
   }, [authChecked, initDone, meUserId, pathname, search]);
 
-
-
   // ===== データ取得（URLの各値に追従） =====
   // URL が「確定」してからだけフェッチを許可
   const ready = useMemo(() => {
@@ -228,8 +226,6 @@ export default function ShiftViewPage() {
 
     return () => { alive = false; ac.abort(); };
   }, [ready, qUserId, qDate, qClient]);
-
-
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
