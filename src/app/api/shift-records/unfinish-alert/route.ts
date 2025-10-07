@@ -1,4 +1,3 @@
-//api/shift-records/unfinish-alert/route.ts
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
@@ -80,7 +79,8 @@ export async function GET() {
 
         if (shiftError) throw shiftError;
 
-        let clientUnfinishedShifts: string[] = [];
+        // `clientUnfinishedShifts` を const で定義
+        const clientUnfinishedShifts: string[] = [];
 
         // 4. 未了判定とメッセージ作成
         for (const shift of shifts) {
