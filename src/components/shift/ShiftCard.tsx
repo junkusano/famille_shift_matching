@@ -622,7 +622,7 @@ export default function ShiftCard({
 
   const monthlyHref = (cs?: string, ym?: string) =>
     (cs && ym)
-      ? `/portal/shift-view?kaipoke_cs_id=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
+      ? `/portal/shift-view?client=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
       : "#";
 
   /* ------- Render ------- */
