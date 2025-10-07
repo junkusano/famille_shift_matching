@@ -163,7 +163,13 @@ export default function ShiftViewPage() {
   const ready = useMemo(() => {
     const hasAnyQuery = getSearch().toString().length > 0;
     return authChecked && (hasAnyQuery || initDone);
-  }, [authChecked, initDone, pathname, search]);
+  }, [authChecked, initDone, searchStr]);
+
+  // データ取得 useEffect も searchStr を依存に含める
+  useEffect(() => {
+    if (!ready) return;
+    // ...（中身は既存のまま）
+  }, [ready, qUserId, qDate, qClient, searchStr]);
 
   useEffect(() => {
     if (!ready) return; // ← ここで確定するまで1回も読まない
