@@ -134,39 +134,29 @@ export default function ShiftViewPage() {
 
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   // AFTER
-  // ===== 初期注入：user_id と date の両方が無い（完全ノークエリ）場合のみ注入（1回だけ） =====
+  // ===== 初期注入：user_id と date の両方が無い（完全ノークエリ）の時だけ 1回注入 =====
   useEffect(() => {
-    // 認証チェックが完了していない、初期化済み、または meUserId が未取得なら何もしない
     if (!authChecked || initDone || !meUserId) return;
 
     const current = getSearch();
-    const hasUserIdInUrl = !!current.get("user_id");
-    const hasDateInUrl = !!current.get("date");
+    const hasUserId = !!current.get("user_id");
+    const hasDate = !!current.get("date");
 
-    // user_id と date の両方が URL に存在しない（完全に初期状態）場合にのみ注入を行う
-    if (!hasUserIdInUrl && !hasDateInUrl) {
+    // 両方とも URL に無いときのみ、初期値を入れる
+    if (!hasUserId && !hasDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
-
-      // ログインユーザーIDと当月1日を注入
       setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
     }
 
-    // 初期化完了フラグは、meUserIdが確定し、初期注入のチェックが完了した時点で立てる
+    // 初期注入の判定は完了
     setInitDone(true);
   }, [authChecked, initDone, meUserId]);
 
+
   // ===== データ取得（URLの各値に追従） =====
   // URL が「確定」してからだけフェッチを許可
-  const ready = useMemo(() => {
-    return authChecked && initDone; // 認証完了、かつ初期化ロジック完了
-  }, [authChecked, initDone]);
-
-  // データ取得 useEffect も searchStr を依存に含める
-  useEffect(() => {
-    if (!ready) return;
-    // ...（中身は既存のまま）
-  }, [ready, qUserId, qDate, qClient, searchStr]);
+  const ready = useMemo(() => authChecked && initDone, [authChecked, initDone]);
 
   useEffect(() => {
     if (!ready) return; // ← ここで確定するまで1回も読まない
