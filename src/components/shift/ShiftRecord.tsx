@@ -2,6 +2,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
@@ -11,6 +12,7 @@ const STATUS = {
   inProgress: "draft",     // 自動保存
   completed: "submitted",  // 「保存（完了）」ボタン
 } as const;
+
 
 // ===== 型（rules_json / meta_json）=====
 // 置き換え（includes_any を追加）
@@ -438,6 +440,48 @@ export default function ShiftRecord({
   const [recordLocked, setRecordLocked] = useState<boolean>(false); // 完了後にロック
   useEffect(() => { onSavedStatusChange?.(saveState); }, [saveState, onSavedStatusChange]);
 
+  // recordLocked 定義のすぐ下あたりに追加
+  const [meUserId, setMeUserId] = useState<string | null>(null);
+  const [meRole, setMeRole] = useState<string | null>(null);
+
+  // 現在ユーザー取得
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setMeUserId(null); setMeRole(null); return; }
+        const { data: me } = await supabase
+          .from("users")
+          .select("user_id, system_role")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        setMeUserId(me?.user_id ?? null);
+        setMeRole(me?.system_role ?? null);
+      } catch {
+        setMeUserId(null);
+        setMeRole(null);
+      }
+    })();
+  }, []);
+
+  // 編集可否（manager / admin / staff_01~03 のいずれか）
+  const canEdit = useMemo(() => {
+    const role = (meRole ?? "").toLowerCase();
+    const elevated = role === "manager" || role === "admin";
+
+    const s01 = String((mergedInfo as any)?.staff_01_user_id ?? "");
+    const s02 = String((mergedInfo as any)?.staff_02_user_id ?? "");
+    const s03 = String((mergedInfo as any)?.staff_03_user_id ?? "");
+    const mine = String(meUserId ?? "");
+
+    const isStaffMember = !!mine && [s01, s02, s03].filter(Boolean).includes(mine);
+    return elevated || isStaffMember;
+  }, [meRole, meUserId, mergedInfo]);
+
+  // 既存ロックと合成（完了済みは優先でロック）
+  const uiLocked = recordLocked || !canEdit;
+
+
   const parseValueText = useCallback((s: unknown): unknown => {
     if (s == null) return "";
     if (typeof s !== "string") return s;
@@ -525,11 +569,11 @@ export default function ShiftRecord({
 
   const handleChange = useCallback(
     (def: ShiftRecordItemDef, v: unknown) => {
-      if (recordLocked) return;
+      if (uiLocked) return;                 // ← ここを recordLocked から置換
       setValues((prev) => ({ ...prev, [def.id]: v }));
       enqueueSave({ item_def_id: def.id, value: v });
     },
-    [enqueueSave, recordLocked]
+    [enqueueSave, uiLocked]
   );
 
   // ===== ルール適用（defs.items -> effectiveItems） =====
@@ -810,7 +854,7 @@ export default function ShiftRecord({
                         allValues={values}
                         codeToId={codeToId}
                         idToDefault={idToDefault}
-                        locked={recordLocked}
+                        locked={uiLocked}
                         error={errors[def.id]}
                       />
                     ))}
@@ -836,12 +880,10 @@ export default function ShiftRecord({
         )}
         <SaveIndicator state={saveState} done={recordLocked} />
         <button
-          type="button"
-          className="text-xs px-3 py-1 border rounded disabled:opacity-50"
           onClick={handleComplete}
-          disabled={!rid || recordLocked}
-          aria-disabled={!rid || recordLocked}
-          title={recordLocked ? "完了済み" : "保存して完了にする"}
+          disabled={!rid || uiLocked}
+          aria-disabled={!rid || uiLocked}
+          title={recordLocked ? "完了済み" : (uiLocked ? "閲覧モード（編集不可）" : "保存して完了にする")}
         >
           保存（完了）
         </button>

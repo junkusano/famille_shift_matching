@@ -107,8 +107,11 @@ export default function ShiftViewPage() {
   }, []);
 
   // ===== ログイン者情報 =====
+  
   const [meUserId, setMeUserId] = useState<string>("");
   const [meRole, setMeRole] = useState<string | null>(null);
+  void meRole
+
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
@@ -356,52 +359,25 @@ export default function ShiftViewPage() {
         <div className="text-sm text-gray-500">該当するシフトがありません</div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {shifts.map((s) => {
-            const isMine = !!meUserId && [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id].includes(meUserId);
-            const elevated = meRole === "manager" || meRole === "admin";
-            const allowReject = elevated || isMine;
-
-            return allowReject ? (
-              <ShiftCard
-                key={s.shift_id}
-                shift={s}
-                mode="view"
-                onReject={(reason) => {
-                  fetch("/api/shift-reassign", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      shiftId: s.shift_id,
-                      fromUserId: meUserId,
-                      toUserId: "manager:auto",
-                      reason,
-                    }),
-                  }).then(() => router.refresh?.());
-                }}
-              />
-            ) : (
-              <div key={s.shift_id} className="rounded-xl border bg-card text-card-foreground shadow">
-                <div className="p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold">
-                      {`${s.shift_start_date} ${s.shift_start_time}～${s.shift_end_time}`}
-                    </div>
-                  </div>
-                  <div className="text-sm mt-1">種別: {s.service_code || "-"}</div>
-                  <div className="text-sm">
-                    住所: {s.address}
-                    {s.postal_code_3 ? <span className="ml-2">（{s.postal_code_3}）</span> : null}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <div className="text-sm">利用者名: {s.client_name} 様</div>
-                    <div className="text-sm" style={{ color: "black" }}>
-                      性別希望: {s.gender_request_name || "-"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {shifts.map((s) => (
+            <ShiftCard
+              key={s.shift_id}
+              shift={s}
+              mode="view"
+              onReject={(reason) => {
+                fetch("/api/shift-reassign", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    shiftId: s.shift_id,
+                    fromUserId: meUserId,
+                    toUserId: "manager:auto",
+                    reason,
+                  }),
+                }).then(() => router.refresh?.());
+              }}
+            />
+          ))}
         </div>
       )}
     </div>

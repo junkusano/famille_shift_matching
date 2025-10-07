@@ -24,6 +24,7 @@ let __myUserId: string | null | undefined = undefined; // undefined=未取得
 let __myUserIdPromise: Promise<string | null> | null = null;
 type Mode = "request" | "reject" | "view";
 
+
 type Props = {
   shift: ShiftData;
   mode: Mode;
@@ -216,7 +217,6 @@ export default function ShiftCard({
 
   // ★ 追加：state（コンポーネント内の他の useState 群の近く）
   const [recordStatus, setRecordStatus] = useState<RecordStatus | undefined>(undefined);
-
 
   useEffect(() => {
     if (mode !== "reject") return;                 // ★ reject以外は何もしない
