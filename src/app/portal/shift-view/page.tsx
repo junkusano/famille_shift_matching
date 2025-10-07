@@ -16,7 +16,7 @@ import Link from "next/link";
  * 初回のみ user_id と date を注入（URLに無い時だけ）。
  * 自分担当か管理権限なら ShiftCard(reject)、他は簡易カード。
  */
-
+/*
 type ShiftRow = {
   id: string | number;
   shift_id: string;
@@ -37,6 +37,7 @@ type ShiftRow = {
   require_doc_group: string | null;
   level_sort_order?: number | null;
 };
+*/
 
 export default function ShiftViewPage() {
   // ===== Router & URL =====
