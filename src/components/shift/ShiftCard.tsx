@@ -22,7 +22,7 @@ let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未�
 let __keysPromise: Promise<ServiceKey[]> | null = null;
 let __myUserId: string | null | undefined = undefined; // undefined=未取得
 let __myUserIdPromise: Promise<string | null> | null = null;
-type Mode = "request" | "reject" | "view";
+type Mode = "request" | "reject";
 
 type Props = {
   shift: ShiftData;
@@ -586,19 +586,22 @@ export default function ShiftCard({
   }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
 
   // components/shift/ShiftCard.tsx で return の直前に
-  // 「requestモードでの露出制御」ブロックを “request のときだけ” に限定
-  // （＝ view ではカード非表示にならない）
   if (mode === "request") {
     const lso = shift.level_sort_order ?? null;
+
     const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .every(v => !v || v === "-");
+
+    // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
     const canShowByLevel = ((lso === null) || (lso < 3500001));
     const canShow = noAssignees || canShowByLevel;
+
     if (!canShow) return null;
   }
 
   // reject モード：自分が担当していないカードは非表示
   if (mode === "reject") {
+    // myUserId の取得前は一瞬判定不能なので描画を抑止（チラつき防止）
     if (myUserId === null) return null;
     if (!isMyAssignmentRejectMode(shift, myUserId)) return null;
   }
@@ -645,7 +648,7 @@ export default function ShiftCard({
           )}
         </div>
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
-        {(mode === "reject" || mode === "view") ? (
+        {mode === "reject" ? (
           // Rejectモード時は 住所リンク を表示
           <div className="text-sm">
             住所: {addr ? (
@@ -676,16 +679,14 @@ export default function ShiftCard({
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              {mode === "request" && (
+              {mode === "request" ? (
                 <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
-              )}
-              {mode === "reject" && (
+              ) : (
                 <Button className={REJECT_BTN_CLASS} onClick={() => setOpen(true)}>
                   このシフトに入れない
                 </Button>
               )}
             </DialogTrigger>
-
             <DialogPortal>
               <DialogOverlay className="overlay-avoid-sidebar" />
               <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] sm:mx-auto ml-4 mr-0">
@@ -775,9 +776,9 @@ export default function ShiftCard({
           {mode === "reject" && (
             <Button
               asChild
-              variant="ghost"
+              variant="ghost"  
               className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
-              id={`srbtn-${shiftIdStr}`}
+              id={`srbtn-${shiftIdStr}`}  
             >
               <ShiftRecordLinkButton
                 id={`srbtn-${shiftIdStr}`}
