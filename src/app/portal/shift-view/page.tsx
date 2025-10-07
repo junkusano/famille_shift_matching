@@ -365,7 +365,7 @@ export default function ShiftViewPage() {
               <ShiftCard
                 key={s.shift_id}
                 shift={s}
-                mode="reject"
+                mode="view"
                 onReject={(reason) => {
                   fetch("/api/shift-reassign", {
                     method: "POST",
