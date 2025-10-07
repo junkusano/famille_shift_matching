@@ -22,7 +22,7 @@ let __keysCache: ServiceKey[] | null | undefined = undefined; // undefined=未�
 let __keysPromise: Promise<ServiceKey[]> | null = null;
 let __myUserId: string | null | undefined = undefined; // undefined=未取得
 let __myUserIdPromise: Promise<string | null> | null = null;
-type Mode = "request" | "reject";
+type Mode = "request" | "reject" | "view";
 
 type Props = {
   shift: ShiftData;
@@ -648,7 +648,7 @@ export default function ShiftCard({
           )}
         </div>
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
-        {mode === "reject" ? (
+        {(mode === "reject" || mode === "view") ? (
           // Rejectモード時は 住所リンク を表示
           <div className="text-sm">
             住所: {addr ? (
@@ -773,7 +773,7 @@ export default function ShiftCard({
               </DialogContent>
             </DialogPortal>
           </Dialog>
-          {mode === "reject" && (
+          {(mode === "reject" || mode === "view" )&& (
             <Button
               asChild
               variant="ghost"  
