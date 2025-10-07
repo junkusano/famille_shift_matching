@@ -134,36 +134,33 @@ export default function ShiftViewPage() {
 
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   // AFTER
+  // ===== 初期注入：user_id と date の両方が無い（完全ノークエリ）場合のみ注入（1回だけ） =====
   useEffect(() => {
-    if (!authChecked || initDone) return;
+    // 認証チェックが完了していない、初期化済み、または meUserId が未取得なら何もしない
+    if (!authChecked || initDone || !meUserId) return;
 
     const current = getSearch();
-    const next: Record<string, string> = {};
+    const hasUserIdInUrl = !!current.get("user_id");
+    const hasDateInUrl = !!current.get("date");
 
-    // user_id が「URLに存在しない（空含む）」場合だけ、初期値として meUserId を入れる
-    if (!current.get("user_id") && meUserId) {
-      next.user_id = meUserId;
-    }
-
-    // date が URL にない場合だけ、当月1日を入れる
-    if (!current.get("date")) {
+    // user_id と date の両方が URL に存在しない（完全に初期状態）場合にのみ注入を行う
+    if (!hasUserIdInUrl && !hasDateInUrl) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
-      next.date = format(first, "yyyy-MM-dd");
+
+      // ログインユーザーIDと当月1日を注入
+      setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
     }
 
-    if (Object.keys(next).length > 0) {
-      setQuery(next);
-    }
+    // 初期化完了フラグは、meUserIdが確定し、初期注入のチェックが完了した時点で立てる
     setInitDone(true);
   }, [authChecked, initDone, meUserId]);
 
   // ===== データ取得（URLの各値に追従） =====
   // URL が「確定」してからだけフェッチを許可
   const ready = useMemo(() => {
-    const hasAnyQuery = getSearch().toString().length > 0;
-    return authChecked && (hasAnyQuery || initDone);
-  }, [authChecked, initDone, searchStr]);
+    return authChecked && initDone; // 認証完了、かつ初期化ロジック完了
+  }, [authChecked, initDone]);
 
   // データ取得 useEffect も searchStr を依存に含める
   useEffect(() => {
