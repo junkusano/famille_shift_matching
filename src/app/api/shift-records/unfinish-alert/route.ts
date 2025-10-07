@@ -1,6 +1,6 @@
 //api/shift-records/unfinish-alert/route.ts
 import { supabase } from "@/lib/supabaseClient";
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server";  // NextRequestをインポート
 import { format } from "date-fns";
 
 const testUserId = "junkusano";  // テスト用のユーザーID
@@ -26,8 +26,8 @@ async function sendAlertToLineWorks(channelId: string, message: string) {
   }
 }
 
-// ここで、`GET`と`POST`などのHTTPメソッドをエクスポートします
-export async function GET(_req: NextApiRequest, res: NextApiResponse) {
+// NextRequest を使用
+export async function GET() {
   try {
     // シフトデータの取得処理
     const { data: shifts, error } = await supabase
@@ -53,9 +53,9 @@ export async function GET(_req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    res.status(200).json({ success: true });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("シフトの取得または処理エラー: ", error);
-    res.status(500).json({ success: false, message: error.message });
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
