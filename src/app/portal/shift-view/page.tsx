@@ -43,9 +43,9 @@ export default function ShiftViewPage() {
 
   // URLクエリ値は searchStr の変化だけをトリガーに読む（=確実に更新される）
   const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [searchStr]);
-  const qDate   = useMemo(() => (getSearch().get("date") ?? "").trim(),    [searchStr]);
+  const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [searchStr]);
   // client は「名前」ではなく kaipoke_cs_id を持つ
-  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(),  [searchStr]);
+  const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
 
   // URL書き換え
   const setQuery = (params: Record<string, string | undefined>): void => {
@@ -107,7 +107,7 @@ export default function ShiftViewPage() {
   // ▼ 担当者セレクト：value=user_id, label=氏名（last_name_kanji + " " + first_name_kanji）
   const [staffOptions, setStaffOptions] = useState<Array<{ value: string; label: string }>>([]);
   // ▼ 利用者セレクト：value=kaipoke_cs_id, 表示も kaipoke_cs_id
-  const [clientOptions, setClientOptions] = useState<string[]>([]);
+  const [clientOptions, setClientOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   // 初期クエリ注入フラグ
   const [initDone, setInitDone] = useState<boolean>(false);
@@ -270,10 +270,32 @@ export default function ShiftViewPage() {
         setStaffOptions(staffOpts);
 
         // 2) 利用者（kaipoke_cs_id をそのまま value/label に）
+        // 変更後（表示は cs_kaipoke_info.name、値は kaipoke_cs_id）
         const clientIds = Array.from(
           new Set(mapped.map(m => m.kaipoke_cs_id).filter(Boolean))
         ).sort((a, b) => a.localeCompare(b, "ja"));
-        setClientOptions(clientIds);
+
+        type CsInfo = { kaipoke_cs_id: string; name: string | null };
+
+        let clientOpts: Array<{ value: string; label: string }> = clientIds.map(id => ({ value: id, label: id }));
+        if (clientIds.length > 0) {
+          const { data: csList, error: csErr } = await supabase
+            .from("cs_kaipoke_info")
+            .select("kaipoke_cs_id,name")
+            .in("kaipoke_cs_id", clientIds);
+          if (csErr) throw csErr;
+
+          const byId = new Map<string, CsInfo>();
+          (csList ?? []).forEach((c: CsInfo) => byId.set(c.kaipoke_cs_id, c));
+
+          clientOpts = clientIds.map((id) => {
+            const rec = byId.get(id);
+            const label = (rec?.name ?? "").trim() || id;  // name が無ければ id を表示
+            return { value: id, label };
+          }).sort((a, b) => a.label.localeCompare(b.label, "ja"));
+        }
+        setClientOptions(clientOpts);
+
 
       } catch (e) {
         console.error(e);
@@ -344,8 +366,8 @@ export default function ShiftViewPage() {
             onChange={(e) => setQuery({ client: e.target.value || undefined })}
           >
             <option value="">— 指定なし —</option>
-            {clientOptions.map((id) => (
-              <option key={id} value={id}>{id}</option>
+            {clientOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
