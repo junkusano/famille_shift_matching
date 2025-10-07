@@ -378,13 +378,6 @@ export default function ShiftViewPage() {
                     }),
                   }).then(() => router.refresh?.());
                 }}
-                extraActions={
-                  <Button asChild variant="secondary">
-                    <Link href={`/shift-record?shift_id=${encodeURIComponent(s.shift_id)}`}>
-                      訪問記録
-                    </Link>
-                  </Button>
-                }
               />
             ) : (
               <div key={s.shift_id} className="rounded-xl border bg-card text-card-foreground shadow">

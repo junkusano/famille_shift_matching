@@ -679,7 +679,10 @@ export default function ShiftCard({
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              {mode === "request" ? (
+              {mode === "view" ? (
+                // mode が "view" の場合は何も表示しない
+                null
+              ) : mode === "request" ? (
                 <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>
               ) : (
                 <Button className={REJECT_BTN_CLASS} onClick={() => setOpen(true)}>
@@ -773,12 +776,12 @@ export default function ShiftCard({
               </DialogContent>
             </DialogPortal>
           </Dialog>
-          {(mode === "reject" || mode === "view" )&& (
+          {(mode === "reject" || mode === "view") && (
             <Button
               asChild
-              variant="ghost"  
+              variant="ghost"
               className={recordBtnColorCls || "bg-gray-100 text-black border-gray-300"}
-              id={`srbtn-${shiftIdStr}`}  
+              id={`srbtn-${shiftIdStr}`}
             >
               <ShiftRecordLinkButton
                 id={`srbtn-${shiftIdStr}`}
