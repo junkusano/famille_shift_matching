@@ -361,52 +361,35 @@ export default function ShiftViewPage() {
             const elevated = meRole === "manager" || meRole === "admin";
             const allowReject = elevated || isMine;
 
-            return allowReject ? (
+            return (
               <ShiftCard
                 key={s.shift_id}
                 shift={s}
-                mode="reject"
-                onReject={(reason) => {
-                  fetch("/api/shift-reassign", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      shiftId: s.shift_id,
-                      fromUserId: meUserId,
-                      toUserId: "manager:auto",
-                      reason,
-                    }),
-                  }).then(() => router.refresh?.());
-                }}
-                extraActions={
-                  <Button asChild variant="secondary">
-                    <Link href={`/shift-record?shift_id=${encodeURIComponent(s.shift_id)}`}>
-                      訪問記録
-                    </Link>
-                  </Button>
-                }
+                mode={allowReject ? "reject" : "view"}
+                {...(allowReject
+                  ? {
+                    onReject: (reason: string) => {
+                      fetch("/api/shift-reassign", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          shiftId: s.shift_id,
+                          fromUserId: meUserId,
+                          toUserId: "manager:auto",
+                          reason,
+                        }),
+                      }).then(() => router.refresh?.());
+                    },
+                    extraActions: (
+                      <Button asChild variant="secondary">
+                        <Link href={`/shift-record?shift_id=${encodeURIComponent(s.shift_id)}`}>
+                          訪問記録
+                        </Link>
+                      </Button>
+                    ),
+                  }
+                  : {})}
               />
-            ) : (
-              <div key={s.shift_id} className="rounded-xl border bg-card text-card-foreground shadow">
-                <div className="p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold">
-                      {`${s.shift_start_date} ${s.shift_start_time}～${s.shift_end_time}`}
-                    </div>
-                  </div>
-                  <div className="text-sm mt-1">種別: {s.service_code || "-"}</div>
-                  <div className="text-sm">
-                    住所: {s.address}
-                    {s.postal_code_3 ? <span className="ml-2">（{s.postal_code_3}）</span> : null}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <div className="text-sm">利用者名: {s.client_name} 様</div>
-                    <div className="text-sm" style={{ color: "black" }}>
-                      性別希望: {s.gender_request_name || "-"}
-                    </div>
-                  </div>
-                </div>
-              </div>
             );
           })}
         </div>
