@@ -52,7 +52,7 @@ export async function GET() {
         const { data: shifts, error: shiftError } = await supabase
             .from('shift_shift_record_view') // shift_shift_record_view を使って一発で取得
             .select('*')
-            .or(`status.eq.draft,status.is.null`)  // statusがdraftかnullのシフト
+            .or(`record_status.eq.draft,record_status.is.null`)  // statusがdraftかnullのシフト
             .lte('shift_start_date', endTimeLimitDate) // 終了日が指定日時以下
             .lte('shift_end_time', endTimeLimitTime); // 終了時間が指定日時以下
 
