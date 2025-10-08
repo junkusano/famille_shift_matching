@@ -18,6 +18,8 @@ export async function GET() {
         const oneHourAgo = subHours(currentTime, 1);
         const endTimeLimitDate = format(currentTime, 'yyyy-MM-dd');
         const endTimeLimitTime = format(oneHourAgo, 'HH:mm:ss');
+        console.log("endTimeDate:",endTimeLimitDate);
+        console.log("endTimeTime:",endTimeLimitTime);
 
         // 1. 全担当者（User）リストを取得
         // statusが除外条件に合わない user_id と channel_id (人事労務サポートルーム) を取得
