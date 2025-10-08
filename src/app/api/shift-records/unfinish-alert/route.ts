@@ -16,7 +16,7 @@ export async function GET() {
         const currentTime = new Date();
         // 現在時刻から1時間前を計算
         const oneHourAgo = subHours(currentTime, 1);
-        const endTimeLimitDate = format(oneHourAgo, 'yyyy-MM-dd');
+        const endTimeLimitDate = format(currentTime, 'yyyy-MM-dd');
         const endTimeLimitTime = format(oneHourAgo, 'HH:mm:ss');
 
         // 1. 全担当者（User）リストを取得
