@@ -86,7 +86,7 @@ export async function GET() {
                 // --- ログの追加 ---
                 console.log("Unfinished Shifts for UserId:", userId, "and Client:", kaipokeCsId, ":", unfinishedShifts); // フィルタ後のシフトを表示
 
-                let clientUnfinishedShifts: string[] = [];
+                const clientUnfinishedShifts: string[] = [];
 
                 // 5. 未了判定とメッセージ作成
                 for (const shift of unfinishedShifts) {
