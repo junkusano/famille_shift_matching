@@ -31,7 +31,7 @@ export async function GET() {
     // 2. 全利用者（Client）リストを取得し、別クエリで取得した channel_id と紐づける
     const { data: clientListRaw, error: clientError } = await supabase
       .from('cs_kaipoke_info')
-      .select('kaipoke_cs_id, name, lw_userid'); // lw_userid は cs_kaipoke_info にはないが、後で user_entry_united_view_single を使って結合するため、ここでは利用者IDと名前のみ取得
+      .select('kaipoke_cs_id, name'); 
 
     if (clientError) throw clientError;
 
