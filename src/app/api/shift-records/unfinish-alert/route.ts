@@ -22,15 +22,17 @@ export async function GET() {
     const { data: usersData, error: usersError } = await supabase
       .from('user_entry_united_view_single')
       .select('user_id, channel_id')
-      .not('status', 'in', ['removed_from_lineworks_kaipoke', 'inactive']);
+　    .neq('status', 'removed_from_lineworks_kaipoke')
+      .neq('status', 'inactive');
 
     if (usersError) throw usersError;
 
     // 2. 全利用者（Client）リストとそのチャンネルIDを取得
     // 利用者名と、利用者ごとのLineWorksチャンネルIDを取得
     const { data: clientList, error: clientError } = await supabase
-      .from('cs_kaipoke_info')
-      .select('kaipoke_cs_id, name, group_lw_channel_view(channel_id)');
+      .from('group_lw_channel_view')
+      .select('group_account, channel_id')
+      .eq('group_type','利用者様情報グループ');
 
     if (clientError) throw clientError;
 
@@ -50,7 +52,7 @@ export async function GET() {
       .from('shift_shift_record_view') // shift_shift_record_view を使って一発で取得
       .select('*')
       .or(`status.eq.draft,status.is.null`)  // statusがdraftかnullのシフト
-      .lte('shift_end_date', endTimeLimitDate) // 終了日が指定日時以下
+      .lte('shift_start_date', endTimeLimitDate) // 終了日が指定日時以下
       .lte('shift_end_time', endTimeLimitTime); // 終了時間が指定日時以下
 
     if (shiftError) throw shiftError;
@@ -66,10 +68,10 @@ export async function GET() {
 
       // --- (B) 利用者（Client）ループ (内側) ---
       for (const client of clientList) {
-        const kaipokeCsId = client.kaipoke_cs_id;
+        const kaipokeCsId = client.group_account;
 
         // 利用者のLwチャットルームID
-        const clientChannelId = client.group_lw_channel_view?.[0]?.channel_id;
+        const clientChannelId = client.channel_id;
 
         if (!clientChannelId) {
           // 利用者のLwチャンネルが未設定の場合はスキップ
@@ -114,7 +116,7 @@ export async function GET() {
 
         // 6. 利用者ごとの未了シフトが見つかった場合、メッセージキューに追加
         if (clientUnfinishedShifts.length > 0) {
-          const header = `${client.name} 様の訪問記録が未了です。`;
+          const header = `訪問記録が未了です。`;
           const body = clientUnfinishedShifts.join('\n');
 
           // 現在の日付を取得（現在が該当月かどうかを判断）
