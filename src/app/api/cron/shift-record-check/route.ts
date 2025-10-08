@@ -80,11 +80,11 @@ export async function GET() {
             const userId = user.user_id;
 
             // テスト用ユーザー制限
-            if (user.user_id !== 'aihasegawa') {
+            if (user.user_id !== 'tomominakagaki') {
                 continue; // テスト用ユーザー以外はスキップ
             }
 
-            console.log(`[DEBUG] : ${userId} ('aihasegawa')`);
+            console.log(`[DEBUG] : ${userId} ('tomominakagaki')`);
 
             // --- (B) 利用者（Client）ループ (内側) ---
             for (const client of clientList) {
