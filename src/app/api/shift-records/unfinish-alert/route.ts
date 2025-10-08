@@ -80,7 +80,7 @@ export async function GET() {
 
         if (shiftError) throw shiftError;
 
-        let clientUnfinishedShifts: string[] = [];
+        const clientUnfinishedShifts: string[] = [];
 
         // 4. 未了判定とメッセージ作成
         for (const shift of shifts) {
