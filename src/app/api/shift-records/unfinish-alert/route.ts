@@ -65,6 +65,7 @@ export async function GET() {
             // テスト用ユーザー制限
             if (user.user_id !== 'junkusano') {
                 continue; // テスト用ユーザー以外はスキップ
+                console.log(`[DEBUG] Skipping user: ${userId} (Not 'junkusano')`);
             }
 
             // --- (B) 利用者（Client）ループ (内側) ---
