@@ -78,8 +78,7 @@ export async function GET() {
             for (const client of clientList) {
                 const kaipokeCsId = client.group_account;
 
-                // 利用者ごとのシフト情報を処理
-                for (const client of clientList) {
+
                     const clientChannelId = client.channel_id;
 
                     if (!clientChannelId) {
@@ -105,21 +104,17 @@ export async function GET() {
 
                         const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
                         clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
-                    }
+                    
                 }
 
+            }
+            // 7. メッセージの送信
+            console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
 
-
+            for (const [channelId, message] of clientMessageQueue.entries()) {
+                await sendLWBotMessage(channelId, message, accessToken);
             }
         }
-
-        // 7. メッセージの送信
-        console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
-
-        for (const [channelId, message] of clientMessageQueue.entries()) {
-            await sendLWBotMessage(channelId, message, accessToken);
-        }
-
         console.log("--- Unfinished Shift Alert Cron Job Finished Successfully ---");
         return NextResponse.json({ success: true, count: clientMessageQueue.size });
     } catch (error) {
