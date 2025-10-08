@@ -87,6 +87,11 @@ export async function GET() {
                         && shift.kaipoke_cs_id === kaipokeCsId;
                 });
 
+
+                // --- ログの追加 ---
+                console.log("Client:", client); // client情報を表示
+                console.log("Unfinished Shifts for UserId:", userId, "and Client:", kaipokeCsId, ":", unfinishedShifts);
+
                 const clientUnfinishedShifts: string[] = [];
 
                 // 5. 未了判定とメッセージ作成
