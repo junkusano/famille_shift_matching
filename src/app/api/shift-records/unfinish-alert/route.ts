@@ -23,7 +23,7 @@ export async function GET() {
         // statusが除外条件に合わない user_id と channel_id (人事労務サポートルーム) を取得
         const { data: usersData, error: usersError } = await supabase
             .from('user_entry_united_view_single')
-            .select('user_id, channel_id')
+            .select('user_id, channel_id, lw_userid')
             .neq('status', 'removed_from_lineworks_kaipoke')
             .neq('status', 'inactive');
 
@@ -56,6 +56,7 @@ export async function GET() {
             .select('*')
             .or(`record_status.eq.draft,record_status.is.null`)  // statusがdraftかnullのシフト
             .lte('shift_start_date', endTimeLimitDate) // 終了日が指定日時以下
+            .gte('shift_start_date', "2025-10-01")
             .lte('shift_end_time', endTimeLimitTime); // 終了時間が指定日時以下
 
         if (shiftError) throw shiftError;
@@ -79,32 +80,32 @@ export async function GET() {
                 const kaipokeCsId = client.group_account;
 
 
-                    const clientChannelId = client.channel_id;
+                const clientChannelId = client.channel_id;
 
-                    if (!clientChannelId) {
-                        continue;
-                    }
+                if (!clientChannelId) {
+                    continue;
+                }
 
-                    // 担当者IDと利用者IDに絞って未了シフトを取得
-                    const unfinishedShifts = shifts.filter(shift => {
-                        return (shift.staff_01_user_id === userId || shift.staff_02_user_id === userId || shift.staff_03_user_id === userId)
-                            && shift.kaipoke_cs_id === kaipokeCsId;
-                    });
+                // 担当者IDと利用者IDに絞って未了シフトを取得
+                const unfinishedShifts = shifts.filter(shift => {
+                    return (shift.staff_01_user_id === userId || shift.staff_02_user_id === userId || shift.staff_03_user_id === userId)
+                        && shift.kaipoke_cs_id === kaipokeCsId;
+                });
 
-                    const clientUnfinishedShifts: string[] = unfinishedShifts.map(shift =>
-                        `・${shift.shift_start_date} ${shift.shift_start_time} - ${shift.shift_end_time}`
-                    );
+                const clientUnfinishedShifts: string[] = unfinishedShifts.map(shift =>
+                    `・${shift.shift_start_date} ${shift.shift_start_time} - ${shift.shift_end_time}`
+                );
 
-                    if (clientUnfinishedShifts.length > 0) {
-                        const header = `訪問記録が未了です。`;
-                        const body = clientUnfinishedShifts.join('\n');
-                        const link = `https://myfamille.shi-on.net/portal/shift-view`;
+                if (clientUnfinishedShifts.length > 0) {
+                    const header = `訪問記録が未了です。`;
+                    const body = clientUnfinishedShifts.join('\n');
+                    const link = `https://myfamille.shi-on.net/portal/shift-view`;
 
-                        const messageSegment = `\n\n<m userId="${userId}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
+                    const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
 
-                        const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
-                        clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
-                    
+                    const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
+                    clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
+
                 }
 
             }
