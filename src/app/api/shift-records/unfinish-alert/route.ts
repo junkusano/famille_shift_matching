@@ -21,7 +21,8 @@ export async function GET() {
     const { data: usersData, error: usersError } = await supabase
       .from('user_entry_united_view_single')
       .select('user_id, channel_id')
-      .filter('status', 'not.in', ['removed_from_lineworks_kaipoke', 'inactive']);
+      .neq('status', 'removed_from_lineworks_kaipoke')
+      .neq('status', 'inactive');
 
     if (usersError) throw usersError;
 
