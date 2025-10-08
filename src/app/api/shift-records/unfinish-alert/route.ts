@@ -32,7 +32,7 @@ export async function GET() {
     const { data: clientList, error: clientError } = await supabase
       .from('group_lw_channel_view')
       .select('group_account, channel_id')
-      .eq('group_type','利用者様情報グループ');
+      .eq('group_type', '利用者様情報グループ');
 
     if (clientError) throw clientError;
 
