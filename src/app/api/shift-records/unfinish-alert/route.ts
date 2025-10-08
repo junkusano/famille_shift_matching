@@ -4,8 +4,10 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { format, subHours } from "date-fns";
-//import moment from 'moment-timezone';
+import { subHours} from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+
+const timeZone = "Asia/Tokyo";
 
 
 // シフト情報を取得し、未対応のシフトに対してメッセージを送信
@@ -13,13 +15,20 @@ export async function GET() {
     console.log("--- Unfinished Shift Alert Cron Job Started ---");
 
     try {
-        const currentTime = new Date();
-        // 現在時刻から1時間前を計算
-        const oneHourAgo = subHours(currentTime, 1);
-        const endTimeLimitDate = format(currentTime, 'yyyy-MM-dd');
-        const endTimeLimitTime = format(oneHourAgo, 'HH:mm:ss');
-        console.log("endTimeDate:",endTimeLimitDate);
-        console.log("endTimeTime:",endTimeLimitTime);
+        // いま（UTCでもOK）→ JSTでフォーマットして扱う
+        const now = new Date();
+
+        // 「JSTで見た1時間前」
+        const oneHourAgo = subHours(now, 1);
+
+        // 文字列にするときも常にJSTで整形
+        const endTimeLimitDate = formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd");
+        const endTimeLimitTime = formatInTimeZone(oneHourAgo, timeZone, "HH:mm:ss");
+
+        // デバッグ出力（JSTで見えるように）
+        console.log("[JST] oneHourAgo:", formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd HH:mm:ss"));
+        console.log("[JST] endTimeDate:", endTimeLimitDate);
+        console.log("[JST] endTimeTime:", endTimeLimitTime);
 
         // 1. 全担当者（User）リストを取得
         // statusが除外条件に合わない user_id と channel_id (人事労務サポートルーム) を取得
