@@ -69,11 +69,11 @@ export async function GET() {
             const userId = user.user_id;
 
             // テスト用ユーザー制限
-            if (user.user_id !== 'junkusano') {
+            if (user.user_id !== 'chikakomasuda') {
                 continue; // テスト用ユーザー以外はスキップ
             }
 
-            console.log(`[DEBUG] : ${userId} ('junkusano')`);
+            console.log(`[DEBUG] : ${userId} ('chikakomasuda')`);
 
             // --- (B) 利用者（Client）ループ (内側) ---
             for (const client of clientList) {
