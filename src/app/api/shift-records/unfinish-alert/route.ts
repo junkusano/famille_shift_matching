@@ -1,4 +1,5 @@
-//api/shift-record/unfinish-alert/routes.ts
+//api/shift-records/unfinished-alert/route.ts
+// 未了シフトの担当者へのリマインドメッセージ送信 (cronジョブ用)
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
@@ -21,102 +22,75 @@ export async function GET() {
     const { data: usersData, error: usersError } = await supabase
       .from('user_entry_united_view_single')
       .select('user_id, channel_id')
-      .neq('status', 'removed_from_lineworks_kaipoke')
-      .neq('status', 'inactive');
+      .not('status', 'in', ['removed_from_lineworks_kaipoke', 'inactive']);
 
     if (usersError) throw usersError;
-    
-    // 担当者の channel_id は使わないが、データ構造を維持
 
-    // 2. 全利用者（Client）リストを取得し、別クエリで取得した channel_id と紐づける
-    const { data: clientListRaw, error: clientError } = await supabase
+    // 2. 全利用者（Client）リストとそのチャンネルIDを取得
+    // 利用者名と、利用者ごとのLineWorksチャンネルIDを取得
+    const { data: clientList, error: clientError } = await supabase
       .from('cs_kaipoke_info')
-      .select('kaipoke_cs_id, name'); 
+      .select('kaipoke_cs_id, name, group_lw_channel_view(channel_id)');
 
     if (clientError) throw clientError;
-
-    // --- ★ エラー解消のためのロジック ★ ---
-    // user_entry_united_view_single に含まれる kaipoke_user_id (利用者に相当するID) を使って
-    // 利用者ID(kaipoke_cs_id) と チャンネルID (channel_id) の対応表を作成
-    
-    // 利用者リストの構造を変換し、channel_id を追加
-    const clientList: { kaipoke_cs_id: string, name: string, channel_id: string | null }[] = [];
-    
-    // usersData（user_entry_united_view_single）を Map に変換して検索効率を上げる
-    // 注: user_entry_united_view_single の user_id は、staff_0x_user_id と一致し、kaipoke_cs_id ではないため、
-    // ここで必要なのは、kaipoke_cs_id と対応する channel_id を持つ別のビューからのデータ。
-    // しかし、cs_kaipoke_info に直接 channel_id がないため、
-    // 担当者のリスト (usersData) を使って、利用者ID (kaipoke_cs_id) に紐づくチャンネルを見つけるのは不適切です。
-    
-    // 代わりに、ユーザーが提供したテーブル定義から、kaipoke_cs_id と channel_id の関係は、
-    // cs_kaipoke_info の ID をキーとする別テーブルか、user_entry_united_view_single のような結合ビューにあると推測されます。
-    
-    // 暫定的に、**担当者リスト（usersData）**のデータを再利用し、**kaipoke_cs_idが group_account に登録されている** // という前提で channel_id を取得し直します。
-    
-    // 担当者のリストとは別に、kaipoke_cs_id (利用者ID) と channel_id (利用者のチャットルーム) の対応表を取得
-    const { data: clientChannels, error: clientChannelError } = await supabase
-        .from('group_lw_channel_view')
-        .select('group_account, channel_id'); // group_account に kaipoke_cs_id が入っていると仮定
-
-    if (clientChannelError) throw clientChannelError;
-    
-    const clientChannelMap = new Map(clientChannels.map(c => [c.group_account, c.channel_id]));
-
-    // clientListRaw に channel_id を付与
-    for (const client of clientListRaw) {
-        const channelId = clientChannelMap.get(client.kaipoke_cs_id);
-        clientList.push({
-            kaipoke_cs_id: client.kaipoke_cs_id,
-            name: client.name,
-            channel_id: channelId || null,
-        });
-    }
 
     if (clientList.length === 0) {
       console.log("No clients found. Exiting.");
       return NextResponse.json({ success: true, message: "No clients found" });
     }
-    
-    // --- ★ エラー解消のためのロジック終わり ★ ---
 
     // 送信するメッセージを格納する Map
+    // Key: 利用者チャンネルID (Bot送信先), Value: メッセージ本文
     const clientMessageQueue = new Map<string, string>();
 
-    // アクセストークンをlibから取得 (ループ外で取得)
     const accessToken = await getAccessToken();
+
+    // 3. シフト情報を先にフィルタリングして取得 (statusがdraftまたはnullのもの、1時間前のシフト)
+    const { data: shifts, error: shiftError } = await supabase
+      .from('shift_shift_record_view') // shift_shift_record_view を使って一発で取得
+      .select('*')
+      .or(`status.eq.draft,status.is.null`)  // statusがdraftかnullのシフト
+      .lte('shift_end_date', endTimeLimitDate) // 終了日が指定日時以下
+      .lte('shift_end_time', endTimeLimitTime); // 終了時間が指定日時以下
+
+    if (shiftError) throw shiftError;
 
     // --- (A) 担当者（User）ループ (外側) ---
     for (const user of usersData) {
       const userId = user.user_id;
 
+      // テスト用ユーザー制限
+      if (user.user_id !== 'junkusano') {
+        continue; // テスト用ユーザー以外はスキップ
+      }
+
       // --- (B) 利用者（Client）ループ (内側) ---
       for (const client of clientList) {
         const kaipokeCsId = client.kaipoke_cs_id;
-        const clientChannelId = client.channel_id;
+
+        // 利用者のLwチャットルームID
+        const clientChannelId = client.group_lw_channel_view?.[0]?.channel_id;
 
         if (!clientChannelId) {
           // 利用者のLwチャンネルが未設定の場合はスキップ
           continue;
         }
 
-        // 3. 担当者 かつ 利用者 に絞った未了シフトを取得 (shift_shift_record_viewビューを使用)
-        const { data: shifts, error: shiftError } = await supabase
-          .from('shift_shift_record_view')
-          .select('*')
-          .eq('kaipoke_cs_id', kaipokeCsId)
-          .or(`staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`)
-          .lte('shift_end_date', endTimeLimitDate)
-          .lte('shift_end_time', endTimeLimitTime);
-
-        if (shiftError) throw shiftError;
+        // 4. 担当者 かつ 利用者 に絞った未了シフトを取得
+        const unfinishedShifts = shifts.filter(shift => {
+          return (shift.staff_01_user_id === userId || shift.staff_02_user_id === userId || shift.staff_03_user_id === userId)
+            && shift.kaipoke_cs_id === kaipokeCsId;
+        });
 
         const clientUnfinishedShifts: string[] = [];
 
-        // 4. 未了判定とメッセージ作成
-        for (const shift of shifts) {
+        // 5. 未了判定とメッセージ作成
+        for (const shift of unfinishedShifts) {
+          // shift_end_date が null の場合は shift_start_date を使用
           const endDateString = shift.shift_end_date || shift.shift_start_date;
                     
           if (!endDateString || !shift.shift_end_time) {
+            // 日付情報がないシフトはスキップ (データ不備として)
             continue;
           }
 
@@ -124,26 +98,30 @@ export async function GET() {
           const shiftEndDateTime = new Date(`${endDateString}T${shift.shift_end_time}`);
 
           // 未了（未対応）の判定ロジック:
+          // 終了時刻が1時間以上過ぎている AND (記録がない OR ステータスが 'draft')
           const isUnrecorded = (
             shift.record_status === null || 
             shift.record_status === 'draft'
           );
 
           if (shiftEndDateTime < oneHourAgo && isUnrecorded) {
+            // メッセージに追加: 日時と未了である旨
             clientUnfinishedShifts.push(
               `・${shift.shift_start_date} ${shift.shift_start_time} - ${shift.shift_end_time}`
             );
           }
         }
 
-        // 5. 利用者ごとの未了シフトが見つかった場合、メッセージキューに追加
+        // 6. 利用者ごとの未了シフトが見つかった場合、メッセージキューに追加
         if (clientUnfinishedShifts.length > 0) {
           const header = `${client.name} 様の訪問記録が未了です。`;
           const body = clientUnfinishedShifts.join('\n');
 
+          // 現在の日付を取得（現在が該当月かどうかを判断）
           const currentMonth = format(currentTime, 'yyyy-MM');
-          const shiftDate = clientUnfinishedShifts[0].split(' ')[0];
+          const shiftDate = clientUnfinishedShifts[0].split(' ')[0]; // シフトの日付を取得（`yyyy/mm/dd`）
 
+          // 該当日が今月でなければ、リンクに `date=その月の1日` を追加
           let link = `https://myfamille.shi-on.net/portal/shift-view`;
           if (!shiftDate.startsWith(currentMonth)) {
             link += `?date=${shiftDate.substring(0, 7)}-01`;
@@ -160,7 +138,7 @@ export async function GET() {
       }
     } // End of User loop
 
-    // 6. メッセージの送信
+    // 7. メッセージの送信
     console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
 
     for (const [channelId, message] of clientMessageQueue.entries()) {
@@ -171,7 +149,6 @@ export async function GET() {
     return NextResponse.json({ success: true, count: clientMessageQueue.size });
   } catch (error) {
     console.error("Error processing shifts:", error);
-    // エラーがオブジェクトの場合は JSON に変換して返す
-    return NextResponse.json({ success: false, message: error.message || String(error) }, { status: 500 });
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
