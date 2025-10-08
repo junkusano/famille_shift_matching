@@ -21,7 +21,7 @@ export async function GET() {
     const { data: usersData, error: usersError } = await supabase
       .from('user_entry_united_view_single')
       .select('user_id, channel_id')
-      .not('status', 'in', ['removed_from_lineworks_kaipoke', 'inactive']); // 修正: 配列形式
+      .filter('status', 'not.in', ['removed_from_lineworks_kaipoke', 'inactive']);
 
     if (usersError) throw usersError;
 
