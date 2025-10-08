@@ -23,10 +23,10 @@ export async function GET() {
 
         // 文字列にするときも常にJSTで整形
         const endTimeLimitDate = formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd");
-        const endTimeLimitTime = formatInTimeZone(oneHourAgo, timeZone, "HH:mm:ss");
+        const endTimeLimitTime = formatInTimeZone(oneHourAgo, timeZone, "HH:mm");
 
         // デバッグ出力（JSTで見えるように）
-        console.log("[JST] oneHourAgo:", formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd HH:mm:ss"));
+        console.log("[JST] oneHourAgo:", formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd HH:mm"));
         console.log("[JST] endTimeDate:", endTimeLimitDate);
         console.log("[JST] endTimeTime:", endTimeLimitTime);
 
@@ -80,11 +80,11 @@ export async function GET() {
             const userId = user.user_id;
 
             // テスト用ユーザー制限
-            if (user.user_id !== 'chikakomasuda') {
+            if (user.user_id !== 'aihasegawa') {
                 continue; // テスト用ユーザー以外はスキップ
             }
 
-            console.log(`[DEBUG] : ${userId} ('chikakomasuda')`);
+            console.log(`[DEBUG] : ${userId} ('aihasegawa')`);
 
             // --- (B) 利用者（Client）ループ (内側) ---
             for (const client of clientList) {
