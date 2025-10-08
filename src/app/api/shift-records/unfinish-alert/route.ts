@@ -73,13 +73,9 @@ export async function GET() {
             for (const client of clientList) {
                 const kaipokeCsId = client.group_account;
 
-                // 利用者のLwチャットルームID
-                const clientChannelId = client.channel_id;
-
-                if (!clientChannelId) {
-                    // 利用者のLwチャンネルが未設定の場合はスキップ
-                    continue;
-                }
+                // --- ログの追加 ---
+                console.log("Client:", client); // client情報を表示
+                console.log("Checking unfinished shifts for UserId:", userId, "and Client:", kaipokeCsId);
 
                 // 4. 担当者 かつ 利用者 に絞った未了シフトを取得
                 const unfinishedShifts = shifts.filter(shift => {
@@ -87,18 +83,17 @@ export async function GET() {
                         && shift.kaipoke_cs_id === kaipokeCsId;
                 });
 
-
                 // --- ログの追加 ---
-                console.log("Client:", client); // client情報を表示
-                console.log("Unfinished Shifts for UserId:", userId, "and Client:", kaipokeCsId, ":", unfinishedShifts);
+                console.log("Unfinished Shifts for UserId:", userId, "and Client:", kaipokeCsId, ":", unfinishedShifts); // フィルタ後のシフトを表示
 
-                const clientUnfinishedShifts: string[] = [];
+                let clientUnfinishedShifts: string[] = [];
 
                 // 5. 未了判定とメッセージ作成
                 for (const shift of unfinishedShifts) {
                     // shift_end_date が null の場合は shift_start_date を使用
                     const endDateString = shift.shift_end_date || shift.shift_start_date;
 
+                    // 終了日時が存在しない場合のチェック
                     if (!endDateString || !shift.shift_end_time) {
                         // 日付情報がないシフトはスキップ (データ不備として)
                         continue;
@@ -108,14 +103,13 @@ export async function GET() {
                     const shiftEndDateTime = new Date(`${endDateString}T${shift.shift_end_time}`);
 
                     // 未了（未対応）の判定ロジック:
-                    // 終了時刻が1時間以上過ぎている AND (記録がない OR ステータスが 'draft')
                     const isUnrecorded = (
                         shift.record_status === null ||
                         shift.record_status === 'draft'
                     );
 
+                    // 1時間以上過ぎた未了のシフトを検出
                     if (shiftEndDateTime < oneHourAgo && isUnrecorded) {
-                        // メッセージに追加: 日時と未了である旨
                         clientUnfinishedShifts.push(
                             `・${shift.shift_start_date} ${shift.shift_start_time} - ${shift.shift_end_time}`
                         );
@@ -131,22 +125,19 @@ export async function GET() {
                     const currentMonth = format(currentTime, 'yyyy-MM');
                     const shiftDate = clientUnfinishedShifts[0].split(' ')[0]; // シフトの日付を取得（`yyyy/mm/dd`）
 
-                    // 該当日が今月でなければ、リンクに `date=その月の1日` を追加
                     let link = `https://myfamille.shi-on.net/portal/shift-view`;
                     if (!shiftDate.startsWith(currentMonth)) {
                         link += `?date=${shiftDate.substring(0, 7)}-01`;
                     }
 
-                    // LineWorksで担当者へメンション
                     const messageSegment = `\n\n<m userId="${userId}">さん\n${header}\n${body}\n\n未了の記録（赤いボタン：訪問記録）を確認し、完了させてください。\n${link}`;
 
-                    // 利用者チャンネルID（Bot送信先）にメッセージを追記
-                    const currentMessage = clientMessageQueue.get(clientChannelId) ||
+                    const currentMessage = clientMessageQueue.get(client.channel_id) ||
                         `【未了訪問記録の通知】\n`;
-                    clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
+                    clientMessageQueue.set(client.channel_id, currentMessage + messageSegment);
                 }
             }
-        } // End of User loop
+        }
 
         // 7. メッセージの送信
         console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
