@@ -40,6 +40,8 @@ export async function GET() {
 
         if (usersError) throw usersError;
 
+        console.log("usersData:", usersData);
+
         // 2. 全利用者（Client）リストとそのチャンネルIDを取得
         // 利用者名と、利用者ごとのLineWorksチャンネルIDを取得
         const { data: clientList, error: clientError } = await supabase
@@ -128,7 +130,9 @@ export async function GET() {
             console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
 
             for (const [channelId, message] of clientMessageQueue.entries()) {
-                await sendLWBotMessage(channelId, message, accessToken);
+                void channelId
+                void message
+                //await sendLWBotMessage(channelId, message, accessToken);
             }
         }
         console.log("--- Unfinished Shift Alert Cron Job Finished Successfully ---");
