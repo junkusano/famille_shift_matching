@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/analyzeAndAlert",
-      "schedule": "10 17,21,26 * * *"
+      "schedule": "10 17,21,2 * * *"
     },
     {
       "path": "/api/cron/dispatch-rpa-from-talks",
@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/shift-record-check",
-      "schedule": "5 17,21,26 * * *"
+      "schedule": "5 17,21,2 * * *"
     }
   ]
 }
