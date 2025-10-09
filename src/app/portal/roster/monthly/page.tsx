@@ -19,6 +19,10 @@ type KaipokeCs = {
     kaipoke_cs_id: string
     name: string
     end_at: string | null
+    // 追加：標準経路・手段・目的（APIが返す場合に拾う）
+    standard_route?: string | null
+    standard_trans_ways?: string | null
+    standard_purpose?: string | null
 }
 
 type StaffUser = {
@@ -684,35 +688,49 @@ export default function MonthlyRosterPage() {
     const pickNonEmpty = (...vals: Array<string | undefined | null>) =>
         vals.find((v): v is string => typeof v === "string" && v.trim().length > 0) ?? "";
 
-    // 3) ★cs_id → Kaipoke標準情報 の Map
-    const kaipokeByCsId: Map<
-        string,
-        { standard_route?: string; standard_trans_ways?: string; standard_purpose?: string }
-    > = useMemo(() => {
-        const m = new Map<
-            string,
-            { standard_route?: string; standard_trans_ways?: string; standard_purpose?: string }
-        >();
+    // 3) ★cs_id → Kaipoke標準情報 の Map（kaipokeCs を一次ソースに）
+    const kaipokeByCsId = useMemo(() => {
+        const m = new Map<string, { standard_route?: string; standard_trans_ways?: string; standard_purpose?: string }>();
 
-        // 行データから拾える分はまず入れておく（row のプロパティ名はページの実データに合わせて）
-        // 行データ（= shifts）から拾える分はまず入れておく
+        // まず /api/kaipoke-info の結果から埋める
+        for (const cs of kaipokeCs ?? []) {
+            const v = {
+                standard_route: getString(cs, "standard_route"),
+                standard_trans_ways: getString(cs, "standard_trans_ways"),
+                standard_purpose: getString(cs, "standard_purpose"),
+            };
+            if (v.standard_route || v.standard_trans_ways || v.standard_purpose) {
+                m.set(cs.kaipoke_cs_id, v);
+            }
+            // もし API が { cs_kaipoke_info: { ... } } で返す場合のフォールバック
+            const nested = (cs as unknown as Record<string, unknown>)?.cs_kaipoke_info as Record<string, unknown> | undefined;
+            if (nested) {
+                const nv = {
+                    standard_route: getString(nested, "standard_route"),
+                    standard_trans_ways: getString(nested, "standard_trans_ways"),
+                    standard_purpose: getString(nested, "standard_purpose"),
+                };
+                if (nv.standard_route || nv.standard_trans_ways || nv.standard_purpose) {
+                    m.set(cs.kaipoke_cs_id, { ...m.get(cs.kaipoke_cs_id), ...nv });
+                }
+            }
+        }
+
+        // 行データ(shifts)側に標準系があれば上書き
         for (const r of shifts ?? []) {
-            // ShiftRow には kaipoke_cs_id が型で定義されているので、素直にそれを使う
             const csId = r.kaipoke_cs_id;
             if (!csId) continue;
-
-            const v = {
+            const rv = {
                 standard_route: getString(r, "standard_route"),
                 standard_trans_ways: getString(r, "standard_trans_ways"),
                 standard_purpose: getString(r, "standard_purpose"),
             };
-            if (v.standard_route || v.standard_trans_ways || v.standard_purpose) {
-                m.set(String(csId), v);
+            if (rv.standard_route || rv.standard_trans_ways || rv.standard_purpose) {
+                m.set(csId, { ...m.get(csId), ...rv });
             }
         }
-
         return m;
-    }, [shifts]);
+    }, [kaipokeCs, shifts]);
 
     return (
         <div className="p-4 space-y-4">
