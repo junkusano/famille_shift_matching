@@ -1,7 +1,7 @@
 // components/shift/ShiftRecordLinkButton.tsx
 "use client";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 // Propsの型定義
 interface ShiftRecordLinkButtonProps {
@@ -45,6 +45,13 @@ export default function ShiftRecordLinkButton({
   hrefBase = "/portal/shift-records",
 }: ShiftRecordLinkButtonProps) { // 型はここで指定
   const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+
+  // いま居るURLを復元用に作る（例: /portal/shift-view?user_id=...）
+  const currentUrl = typeof window !== "undefined"
+    ? `${pathname}${search?.toString() ? `?${search.toString()}` : ""}`
+    : undefined;
   
   return (
     <Button
@@ -78,6 +85,9 @@ export default function ShiftRecordLinkButton({
           q += `&staff_02_attend_flg=${encodeURIComponent(String(staff02AttendFlg))}`;
         if (staff03AttendFlg !== undefined && staff03AttendFlg !== null)
           q += `&staff_03_attend_flg=${encodeURIComponent(String(staff03AttendFlg))}`;
+         if (currentUrl) {
+          q += `&return_to=${encodeURIComponent(currentUrl)}`;
+        }
 
         router.push(`${hrefBase}${q}`);
       }}

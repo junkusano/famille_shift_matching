@@ -1,7 +1,7 @@
 //component/shift/ShiftRecord.tsx
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 // 並び順ユーティリティ
@@ -350,6 +350,26 @@ export default function ShiftRecord({
   const qsStandardRoute = sp.get("standard_route") || undefined;
   const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
   const qsStandardPurpose = sp.get("standard_purpose") || undefined;
+
+  const router = useRouter();
+
+  // すでに sp は使っているので同居でOK
+  const returnTo = sp.get("return_to") || null;
+
+  const handleClose = useCallback(() => {
+    // A. 明示指定があれば最優先
+    if (returnTo) {
+      router.push(returnTo);
+      return;
+    }
+    // B. ブラウザ履歴で戻れるなら戻る（SSG/直叩きだと期待通りでない場合がある）
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    // C. フォールバック（任意：一覧など）
+    router.push("/portal/shift-view");
+  }, [returnTo, router]);
 
   // 追加（ここから）
   useEffect(() => {
@@ -801,6 +821,13 @@ export default function ShiftRecord({
             title={recordLocked ? "完了済み" : "保存して完了にする"}
           >
             保存（完了）
+          </button>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="text-xs px-3 py-1 border rounded hover:bg-gray-50"
+          >
+            閉じる
           </button>
         </div>
       </div>
