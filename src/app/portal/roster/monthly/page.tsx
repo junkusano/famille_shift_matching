@@ -6,7 +6,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import ShiftRecord from '@/components/shift/ShiftRecord'
+import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
 import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
 import { useSearchParams } from 'next/navigation'
@@ -262,6 +262,7 @@ export default function MonthlyRosterPage() {
     // 明細
     const [shifts, setShifts] = useState<ShiftRow[]>([])
     const [openRecordFor, setOpenRecordFor] = useState<string | null>(null)
+    void openRecordFor
 
     // 削除選択
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -298,7 +299,6 @@ export default function MonthlyRosterPage() {
         });
     };
 
-    // 1日分を追加（同日・同時刻があればスキップ）
     // 1日分を追加（同日・同時刻があればスキップ）
     const handleAddOne = useCallback(async (dateStr: string) => {
         const startHM = normalizeTimeLoose(draft.shift_start_time);
@@ -673,6 +673,46 @@ export default function MonthlyRosterPage() {
         }
         setSelectedIds(new Set(shifts.map((s) => s.shift_id)))
     }
+
+    const getString = (obj: unknown, key: string): string | undefined => {
+        if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
+            const v = (obj as Record<string, unknown>)[key];
+            return typeof v === "string" && v.trim() ? v : undefined;
+        }
+        return undefined;
+    };
+    const pickNonEmpty = (...vals: Array<string | undefined | null>) =>
+        vals.find((v): v is string => typeof v === "string" && v.trim().length > 0) ?? "";
+
+    // 3) ★cs_id → Kaipoke標準情報 の Map
+    const kaipokeByCsId: Map<
+        string,
+        { standard_route?: string; standard_trans_ways?: string; standard_purpose?: string }
+    > = useMemo(() => {
+        const m = new Map<
+            string,
+            { standard_route?: string; standard_trans_ways?: string; standard_purpose?: string }
+        >();
+
+        // 行データから拾える分はまず入れておく（row のプロパティ名はページの実データに合わせて）
+        // 行データ（= shifts）から拾える分はまず入れておく
+        for (const r of shifts ?? []) {
+            // ShiftRow には kaipoke_cs_id が型で定義されているので、素直にそれを使う
+            const csId = r.kaipoke_cs_id;
+            if (!csId) continue;
+
+            const v = {
+                standard_route: getString(r, "standard_route"),
+                standard_trans_ways: getString(r, "standard_trans_ways"),
+                standard_purpose: getString(r, "standard_purpose"),
+            };
+            if (v.standard_route || v.standard_trans_ways || v.standard_purpose) {
+                m.set(String(csId), v);
+            }
+        }
+
+        return m;
+    }, [shifts]);
 
     return (
         <div className="p-4 space-y-4">
@@ -1061,18 +1101,16 @@ export default function MonthlyRosterPage() {
                                                     {(() => {
                                                         const s = recordStatus[row.shift_id] as RecordStatus | undefined;
 
-                                                        // === 追加: シフト開始が現在より前かどうか ===
-                                                        // row.shift_start_time は "HH:mm" 前提なので ":00" を足して秒まで補完
+                                                        // === シフト開始が現在より前かどうか ===
                                                         const startIso = `${row.shift_start_date}T${(row.shift_start_time || '00:00')}:00`;
                                                         const shiftStart = new Date(startIso);
                                                         const now = new Date();
                                                         const isPastStart = shiftStart.getTime() < now.getTime();
 
-                                                        // === 判定 ===
+                                                        // === ボタン色 ===
                                                         const isSubmitted = s === 'submitted';
                                                         const isGreen = isSubmitted || s === 'approved' || s === 'archived';
-                                                        const isRed = !isSubmitted && isPastStart; // ★ 新条件：Submitted 以外 かつ 過去シフトのみ赤
-
+                                                        const isRed = !isSubmitted && isPastStart;
                                                         const colorCls =
                                                             isRed
                                                                 ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
@@ -1080,38 +1118,43 @@ export default function MonthlyRosterPage() {
                                                                     ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
                                                                     : '';
 
+                                                        // === 標準系の引き渡し値 ===
+                                                        const csId = row.kaipoke_cs_id;
+                                                        const k = csId ? kaipokeByCsId.get(csId) ?? {} : {};
+
+                                                        const sr = pickNonEmpty(getString(row, "standard_route"), k.standard_route);
+                                                        const stw = pickNonEmpty(getString(row, "standard_trans_ways"), k.standard_trans_ways);
+                                                        const sp = pickNonEmpty(getString(row, "standard_purpose"), k.standard_purpose);
+
                                                         return (
-                                                            <Button
-                                                                variant={s ? 'default' : 'outline'}
-                                                                className={colorCls}
-                                                                onClick={() => setOpenRecordFor(prev => (prev === row.shift_id ? null : row.shift_id))}
-                                                            >
-                                                                {openRecordFor === row.shift_id ? '閉じる' : '訪問記録'}
-                                                            </Button>
+                                                            <ShiftRecordLinkButton
+                                                                shiftId={String(row.shift_id)}
+                                                                clientName={getString(row, "name") ?? getString(row, "client_name") ?? ""}
+                                                                tokuteiComment={getString(row, "biko") ?? ""}
+                                                                standardRoute={sr}
+                                                                standardTransWays={stw}
+                                                                standardPurpose={sp}
+                                                                staff01UserId={row.staff_01_user_id ?? ""}
+                                                                staff02UserId={row.staff_02_user_id ?? ""}
+                                                                staff03UserId={row.staff_03_user_id ?? ""}
+                                                                staff02AttendFlg={String(!!row.staff_02_attend_flg)}
+                                                                staff03AttendFlg={String(!!row.staff_03_attend_flg)}
+                                                                className={`w-full ${colorCls}`}
+                                                                variant="secondary"
+                                                            />
                                                         );
                                                     })()}
+
                                                     <LockIf locked={readOnly}>
-                                                        <Button
-                                                            variant="default"
-                                                            onClick={() => handleSave(row)}
-                                                            disabled={saveDisabled}
-                                                            title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
-                                                        >
+                                                        <Button variant="default" onClick={() => handleSave(row)} disabled={saveDisabled}
+                                                            title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}>
                                                             保存
                                                         </Button>
-                                                        <Button variant="destructive" onClick={() => handleDeleteOne(row.shift_id)}>
-                                                            ×
-                                                        </Button>
+                                                        <Button variant="destructive" onClick={() => handleDeleteOne(row.shift_id)}>×</Button>
                                                     </LockIf>
                                                 </div>
                                             </div>
 
-                                            {/* インライン訪問記録 */}
-                                            {openRecordFor === row.shift_id && (
-                                                <div className="border rounded-md p-3 mt-3">
-                                                    <ShiftRecord shiftId={row.shift_id} />
-                                                </div>
-                                            )}
                                         </TableCell>
                                     </TableRow>
                                 </Fragment>
