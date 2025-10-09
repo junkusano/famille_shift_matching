@@ -1,7 +1,7 @@
 //api/cron/shift-record-check/route.ts
 // 未了シフトの担当者へのリマインドメッセージ送信 (cronジョブ用)
-//import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
-//import { getAccessToken } from "@/lib/getAccessToken";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { subHours } from "date-fns";
@@ -148,7 +148,7 @@ export async function GET() {
                 if (DRY_RUN) {
                     console.log("[DRY_RUN] メッセージは送信しません（ログのみ出力）。");
                 } else {
-                    //const accessToken = await getAccessToken();
+                    const accessToken = await getAccessToken();
                     const sent = new Set<string>();
                     let sentCount = 0;
 
@@ -156,7 +156,7 @@ export async function GET() {
                         if (sent.has(channelId)) continue;         // 二重送信ガード
                         sent.add(channelId);
                         console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
-                        //await sendLWBotMessage(channelId, message, accessToken);
+                        await sendLWBotMessage(channelId, message, accessToken);
                         sentCount++;
                     }
 
