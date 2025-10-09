@@ -41,6 +41,9 @@ type Props = {
   /** テーブル名の上書き（不要なら触らない） */
   kaipokeInfoTableName?: string;              // 既定: cs_kaipoke_info
   timeAdjustabilityTableName?: string;        // 既定: cs_kaipoke_time_adjustability
+  standardRoute: string;
+  standardTransWays: string;
+  standardPurpose: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -176,6 +179,19 @@ function pickBooleanish(obj: unknown, keys: readonly string[]): boolean | undefi
   }
   return undefined;
 }
+
+// unknown オブジェクトから安全に string を取得
+const getString = (obj: unknown, key: string): string | undefined => {
+  if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
+    const v = (obj as Record<string, unknown>)[key];
+    return typeof v === "string" && v.trim() ? v : undefined;
+  }
+  return undefined;
+};
+
+// 最初の「空でない文字列」を返す
+const pickNonEmpty = (...vals: Array<string | undefined | null>) =>
+  vals.find((v): v is string => typeof v === "string" && v.trim().length > 0) ?? "";
 
 /* ---------- Component ---------- */
 export default function ShiftCard({
@@ -791,9 +807,9 @@ export default function ShiftCard({
                 shiftId={getShiftIdStr(shift)}
                 clientName={shift.client_name ?? ""}
                 tokuteiComment={shift.tokutei_comment ?? ""}
-                standardRoute={kaipokeInfo?.standard_route ?? (shift as any).standard_route ?? ""}
-                standardTransWays={kaipokeInfo?.standard_trans_ways ?? (shift as any).standard_trans_ways ?? ""}
-                standardPurpose={kaipokeInfo?.standard_purpose ?? (shift as any).standard_purpose ?? ""}
+                standardRoute={pickNonEmpty(kaipokeInfo?.standard_route, getString(shift, "standard_route"))}
+                standardTransWays={pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"))}
+                standardPurpose={pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"))}
                 staff01UserId={shift.staff_01_user_id ?? ""}
                 staff02UserId={shift.staff_02_user_id ?? ""}
                 staff03UserId={shift.staff_03_user_id ?? ""}
