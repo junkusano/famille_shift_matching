@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
 import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 
 // ========= Types =========
@@ -226,14 +226,40 @@ const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<numb
 export default function MonthlyRosterPage() {
     const { role } = useRoleContext(); // Layoutと同じ判定に統一
     const readOnly = !["manager", "admin"].includes((role ?? "").toLowerCase());
-    const searchParams = useSearchParams();
     // マスタ
     const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
     const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
     const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
 
-    const router = useRouter()
-    
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
+    const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>(''); // kaipoke_cs_id
+    const [selectedMonth, setSelectedMonth] = useState<string>(yyyymm(new Date()));
+
+    // 初期注入は既存の useEffect のままでOK（URL → state）
+    useEffect(() => {
+        const qCs = searchParams.get('kaipoke_cs_id') ?? '';
+        const qMonth = searchParams.get('month') ?? '';
+        if (qCs) setSelectedKaipokeCS(qCs);
+        if (qMonth) setSelectedMonth(qMonth);
+        // 初回のみ
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ★ 追加：state → URL（双方向同期）
+    useEffect(() => {
+        // state が決まっていない初期は何もしない
+        if (!selectedMonth) return;
+        const q = new URLSearchParams();
+        if (selectedKaipokeCS) q.set("kaipoke_cs_id", selectedKaipokeCS);
+        if (selectedMonth) q.set("month", selectedMonth);
+
+        const nextUrl = q.toString() ? `${pathname}?${q.toString()}` : pathname;
+        router.replace(nextUrl, { scroll: false });
+    }, [selectedKaipokeCS, selectedMonth, pathname, router]);
+
     // 既存の state 群の近くに追加
     const [recordStatus, setRecordStatus] = useState<Record<string, RecordStatus | undefined>>({});
 
@@ -255,10 +281,6 @@ export default function MonthlyRosterPage() {
         // 初回のみでOK
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    // フィルタ
-    const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>('') // kaipoke_cs_id
-    const [selectedMonth, setSelectedMonth] = useState<string>(yyyymm(new Date()))
 
     // ★ 追加: 利用者検索キーワードの State
     const [clientSearchKeyword, setClientSearchKeyword] = useState<string>('')
