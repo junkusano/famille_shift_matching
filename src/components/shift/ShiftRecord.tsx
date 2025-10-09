@@ -354,12 +354,18 @@ export default function ShiftRecord({
   const router = useRouter();
 
   // すでに sp は使っているので同居でOK
-  const returnTo = sp.get("return_to") || null;
+  const qsReturnTo = sp.get("return_to") || null;
+  const storageReturnTo =
+    typeof window !== "undefined"
+      ? (sessionStorage.getItem("sr:return_to") || null)
+      : null;
+  const returnTo = qsReturnTo || storageReturnTo;
 
   const handleClose = useCallback(() => {
     // A. 明示指定があれば最優先
     if (returnTo) {
       router.push(returnTo);
+      try { sessionStorage.removeItem("sr:return_to"); } catch { }
       return;
     }
     // B. ブラウザ履歴で戻れるなら戻る（SSG/直叩きだと期待通りでない場合がある）

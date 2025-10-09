@@ -52,14 +52,14 @@ export default function ShiftRecordLinkButton({
   const currentUrl = typeof window !== "undefined"
     ? `${pathname}${search?.toString() ? `?${search.toString()}` : ""}`
     : undefined;
-  
+
   return (
     <Button
-      id={id}                 
-      className={className}  
+      id={id}
+      className={className}
       variant={variant}
       onClick={() => {
-        
+
         let q =
           `?shift_id=${encodeURIComponent(shiftId)}`
         if (clientName) {
@@ -85,10 +85,11 @@ export default function ShiftRecordLinkButton({
           q += `&staff_02_attend_flg=${encodeURIComponent(String(staff02AttendFlg))}`;
         if (staff03AttendFlg !== undefined && staff03AttendFlg !== null)
           q += `&staff_03_attend_flg=${encodeURIComponent(String(staff03AttendFlg))}`;
-         if (currentUrl) {
+        if (currentUrl) {
+          // URLクエリに積むだけでなく、セーフティに sessionStorage にも保持
+          try { sessionStorage.setItem("sr:return_to", currentUrl); } catch { }
           q += `&return_to=${encodeURIComponent(currentUrl)}`;
         }
-
         router.push(`${hrefBase}${q}`);
       }}
     >
