@@ -581,6 +581,7 @@ export default function ShiftRecord({
   const effectiveItems = useMemo(() => {
     const ctx: Record<string, unknown> = isRecord(mergedInfo) ? { ...mergedInfo } : {};
     if (!isRecord((ctx as Record<string, unknown>).shift)) (ctx as Record<string, unknown>).shift = ctx;
+    if (!isRecord((ctx as Record<string, unknown>).shiftInfo)) (ctx as Record<string, unknown>).shiftInfo = ctx; // ← 追加
 
     return (defs.items ?? [])
       .map((it) => {
@@ -609,17 +610,21 @@ export default function ShiftRecord({
   }, [defs.items]);
 
   // id -> rules適用後の default_value（非表示も含めて計算）
+  // id -> rules適用後の default_value（非表示も含めて計算）
   const idToDefault = useMemo<Record<string, unknown>>(() => {
     const ctx: Record<string, unknown> = isRecord(mergedInfo) ? { ...mergedInfo } : {};
     if (!isRecord((ctx as Record<string, unknown>).shift)) (ctx as Record<string, unknown>).shift = ctx;
+    if (!isRecord((ctx as Record<string, unknown>).shiftInfo)) (ctx as Record<string, unknown>).shiftInfo = ctx;
 
     const m: Record<string, unknown> = {};
     for (const it of (defs.items ?? [])) {
       // ルールを適用して default_value を決める（active は無視／filter しない）
       let effDefault = it.default_value;
       for (const rule of normalizeRules(it.rules_json)) {
-        if (whenSatisfied(rule.when, ctx)
-          && Object.prototype.hasOwnProperty.call(rule.set ?? {}, "default_value")) {
+        if (
+          whenSatisfied(rule.when, ctx) &&
+          Object.prototype.hasOwnProperty.call(rule.set ?? {}, "default_value")
+        ) {
           effDefault = rule.set?.default_value;
         }
       }
@@ -628,6 +633,7 @@ export default function ShiftRecord({
     }
     return m;
   }, [defs.items, mergedInfo]);
+
 
   // ===== Validation（必須のみ。active=false と display は対象外） =====
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -949,12 +955,17 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     if (typeof opt.template === "string" && shiftInfo) {
       text = renderTemplate(opt.template, shiftInfo);
     } else if (Array.isArray(opt.ref) && shiftInfo) {
+      // 既存: 配列キー連結
       const parts = opt.ref
         .filter((k): k is string => typeof k === "string")
         .map((k) => shiftInfo[k])
         .map((v) => (v == null ? "" : String(v)))
         .filter(Boolean);
       if (parts.length) text = parts.join(" ");
+    } else if (typeof opt.ref === "string" && shiftInfo) {
+      const path = opt.ref.replace(/^shiftInfo\./, "").replace(/^shift\./, "");
+      const v = getByPath(shiftInfo as Record<string, unknown>, path);
+      if (v != null && v !== "") text = String(v);
     }
 
     // default_value が "me.X" または { me: "X" } のとき、同レコードの値で埋める
