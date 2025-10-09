@@ -10,6 +10,9 @@ import { formatInTimeZone } from "date-fns-tz";
 const timeZone = "Asia/Tokyo";
 
 
+const DRY_RUN = false; // 送信せずログだけ出したい時は true
+
+
 // シフト情報を取得し、未対応のシフトに対してメッセージを送信
 export async function GET() {
     console.log("--- Unfinished Shift Alert Cron Job Started ---");
@@ -129,7 +132,6 @@ export async function GET() {
 
         // 7. メッセージの送信
         // === 7. 送信（詳細ログ付き・ループの外で1回だけ） ===
-        const DRY_RUN = true; // 送信せずログだけ出したい時は true
 
         console.log(`[INFO] Sending ${clientMessageQueue.size} messages to client channels...`);
 
