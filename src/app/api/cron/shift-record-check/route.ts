@@ -83,13 +83,13 @@ export async function GET() {
             const userId = user.user_id;
 
             // テスト用ユーザー制限
-            /*
+            
             if (user.user_id !== 'tomominakagaki') {
                 continue; // テスト用ユーザー以外はスキップ
             }
 
             console.log(`[DEBUG] : ${userId} ('tomominakagaki')`);
-            */
+            
 
             // --- (B) 利用者（Client）ループ (内側) ---
             for (const client of clientList) {
@@ -115,7 +115,7 @@ export async function GET() {
                 if (clientUnfinishedShifts.length > 0) {
                     const header = `訪問記録が未了です。`;
                     const body = clientUnfinishedShifts.join('\n');
-                    const link = `https://myfamille.shi-on.net/portal/shift-view`;
+                    const link = `https://myfamille.shi-on.net/portal/shift-view?openExternalBrowser=1 `;
 
                     const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
 
