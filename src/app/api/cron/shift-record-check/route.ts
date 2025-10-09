@@ -1,6 +1,6 @@
 //api/cron/shift-record-check/route.ts
 // 未了シフトの担当者へのリマインドメッセージ送信 (cronジョブ用)
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+//import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
