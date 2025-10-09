@@ -9,9 +9,7 @@ import { Button } from '@/components/ui/button'
 import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
 import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
-import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation'
-
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ========= Types =========
 type KaipokeCs = {
@@ -234,6 +232,7 @@ export default function MonthlyRosterPage() {
     const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
 
     const router = useRouter()
+    
     // 既存の state 群の近くに追加
     const [recordStatus, setRecordStatus] = useState<Record<string, RecordStatus | undefined>>({});
 
