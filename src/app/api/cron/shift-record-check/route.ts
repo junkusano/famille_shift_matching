@@ -124,44 +124,46 @@ export async function GET() {
                 }
 
             }
-            // 7. メッセージの送信
-            // === 7. 送信（詳細ログ付き・ループの外で1回だけ） ===
-            const DRY_RUN = true; // 送信せずログだけ出したい時は true
 
-            console.log(`[INFO] Sending ${clientMessageQueue.size} messages to client channels...`);
+        }
 
-            if (clientMessageQueue.size === 0) {
-                console.log("[INFO] No messages to send.");
+        // 7. メッセージの送信
+        // === 7. 送信（詳細ログ付き・ループの外で1回だけ） ===
+        const DRY_RUN = true; // 送信せずログだけ出したい時は true
+
+        console.log(`[INFO] Sending ${clientMessageQueue.size} messages to client channels...`);
+
+        if (clientMessageQueue.size === 0) {
+            console.log("[INFO] No messages to send.");
+        } else {
+            // 中身の確認ログ（必要に応じてsliceで短縮してOK）
+            let idx = 0;
+            for (const [channelId, message] of clientMessageQueue.entries()) {
+                console.log(
+                    `\n----- [MESSAGE ${++idx}/${clientMessageQueue.size}] -----\n` +
+                    `channelId: ${channelId}\n` +
+                    `length   : ${message.length}\n` +
+                    `content  :\n${message}\n` +
+                    `----- [END MESSAGE ${idx}] -----\n`
+                );
+            }
+
+            if (DRY_RUN) {
+                console.log("[DRY_RUN] メッセージは送信しません（ログのみ出力）。");
             } else {
-                // 中身の確認ログ（必要に応じてsliceで短縮してOK）
-                let idx = 0;
+                const accessToken = await getAccessToken();
+                const sent = new Set<string>();
+                let sentCount = 0;
+
                 for (const [channelId, message] of clientMessageQueue.entries()) {
-                    console.log(
-                        `\n----- [MESSAGE ${++idx}/${clientMessageQueue.size}] -----\n` +
-                        `channelId: ${channelId}\n` +
-                        `length   : ${message.length}\n` +
-                        `content  :\n${message}\n` +
-                        `----- [END MESSAGE ${idx}] -----\n`
-                    );
+                    if (sent.has(channelId)) continue;         // 二重送信ガード
+                    sent.add(channelId);
+                    console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
+                    await sendLWBotMessage(channelId, message, accessToken);
+                    sentCount++;
                 }
 
-                if (DRY_RUN) {
-                    console.log("[DRY_RUN] メッセージは送信しません（ログのみ出力）。");
-                } else {
-                    const accessToken = await getAccessToken();
-                    const sent = new Set<string>();
-                    let sentCount = 0;
-
-                    for (const [channelId, message] of clientMessageQueue.entries()) {
-                        if (sent.has(channelId)) continue;         // 二重送信ガード
-                        sent.add(channelId);
-                        console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
-                        await sendLWBotMessage(channelId, message, accessToken);
-                        sentCount++;
-                    }
-
-                    console.log(`[INFO] Sent ${sentCount} / ${clientMessageQueue.size} messages.`);
-                }
+                console.log(`[INFO] Sent ${sentCount} / ${clientMessageQueue.size} messages.`);
             }
         }
         console.log("--- Unfinished Shift Alert Cron Job Finished Successfully ---");
