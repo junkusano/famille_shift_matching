@@ -1,7 +1,7 @@
 //api/cron/shift-record-check/route.ts
 // 未了シフトの担当者へのリマインドメッセージ送信 (cronジョブ用)
 //import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
-import { getAccessToken } from "@/lib/getAccessToken";
+//import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { subHours} from "date-fns";
@@ -61,7 +61,7 @@ export async function GET() {
         // Key: 利用者チャンネルID (Bot送信先), Value: メッセージ本文
         const clientMessageQueue = new Map<string, string>();
 
-        const accessToken = await getAccessToken();
+        //const accessToken = await getAccessToken();
 
         // 3. シフト情報を先にフィルタリングして取得 (statusがdraftまたはnullのもの、1時間前のシフト)
         const { data: shifts, error: shiftError } = await supabase
