@@ -41,9 +41,9 @@ type Props = {
   /** テーブル名の上書き（不要なら触らない） */
   kaipokeInfoTableName?: string;              // 既定: cs_kaipoke_info
   timeAdjustabilityTableName?: string;        // 既定: cs_kaipoke_time_adjustability
-  standardRoute: string;
-  standardTransWays: string;
-  standardPurpose: string;
+  standardRoute?: string;
+  standardTransWays?: string;
+  standardPurpose?: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -634,6 +634,10 @@ export default function ShiftCard({
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
 
+  const sr = pickNonEmpty(kaipokeInfo?.standard_route, getString(shift, "standard_route"));
+  const stw = pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"));
+  const sp = pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"));
+
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
 
@@ -807,14 +811,15 @@ export default function ShiftCard({
                 shiftId={getShiftIdStr(shift)}
                 clientName={shift.client_name ?? ""}
                 tokuteiComment={shift.tokutei_comment ?? ""}
-                standardRoute={pickNonEmpty(kaipokeInfo?.standard_route, getString(shift, "standard_route"))}
-                standardTransWays={pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"))}
-                standardPurpose={pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"))}
+                standardRoute={sr}
+                standardTransWays={stw}
+                standardPurpose={sp}
                 staff01UserId={shift.staff_01_user_id ?? ""}
                 staff02UserId={shift.staff_02_user_id ?? ""}
                 staff03UserId={shift.staff_03_user_id ?? ""}
                 staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
                 staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
+
               />
             </Button>
           )}
