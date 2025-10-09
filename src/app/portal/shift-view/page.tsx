@@ -319,10 +319,6 @@ export default function ShiftViewPage() {
       {loading && (
         <div className="fixed top-2 right-2 z-50 bg-black/70 text-white text-xs px-3 py-1 rounded">ロード中…</div>
       )}
-      {/* ShiftCard 内の“月間”リンクを強制非表示 */}
-      <style jsx global>{`
-        a[href*="/portal/roster/monthly"] { display: none !important; }
-      `}</style>
 
       <h2 className="text-xl font-bold">シフト・勤務一覧</h2>
       <p className="text-sm text-gray-600 mb-3">過去の実績確認、訪問記録のエラー確認などで活用してください。</p>
