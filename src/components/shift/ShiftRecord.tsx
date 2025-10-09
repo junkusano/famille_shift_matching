@@ -361,21 +361,30 @@ export default function ShiftRecord({
       : null;
   const returnTo = qsReturnTo || storageReturnTo;
 
+  // ===== 追加: ステータス管理用の state =====
+  const [status, setStatus] = useState<string>("draft"); // ★★ 追加：現在のstatus保持
+
+
+  // handleClose を上で定義している箇所を以下に置き換え（確認ダイアログ対応）
   const handleClose = useCallback(() => {
-    // A. 明示指定があれば最優先
+    // ★★ 追加: draft の場合は閉じる前に警告
+    if ((status || "draft") === "draft") {
+      const ok = window.confirm("この記録は下書き（draft）のままです。保存（完了）せずに閉じますか？");
+      if (!ok) return;
+    }
+
+    // 既存の遷移ロジックはそのまま
     if (returnTo) {
       router.push(returnTo);
       try { sessionStorage.removeItem("sr:return_to"); } catch { }
       return;
     }
-    // B. ブラウザ履歴で戻れるなら戻る（SSG/直叩きだと期待通りでない場合がある）
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
     }
-    // C. フォールバック（任意：一覧など）
     router.push("/portal/shift-view");
-  }, [returnTo, router]);
+  }, [returnTo, router, status]); // ★★ 依存に status を追加
 
   // 追加（ここから）
   useEffect(() => {
@@ -527,18 +536,33 @@ export default function ShiftRecord({
     setValues((prev) => ({ ...next, ...prev }));
   }, [parseValueText]);
 
+  // ====== レコードの確保（既存 or 新規ドラフト） ======
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        if (recordId) { setRid(recordId); return; }
+        if (recordId) {
+          setRid(recordId);
+          // ★★ 追加: 既存レコードの status 取得
+          const r = await fetch(`/api/shift-records/${recordId}`, { cache: "no-store" });
+          if (r.ok) {
+            const j = await r.json();
+            if (!cancelled) {
+              const st = String(j?.status ?? "draft");
+              setStatus(st);
+              if (st === "完了" || st === STATUS.completed) setRecordLocked(true);
+            }
+          }
+          return;
+        }
         const res = await fetch(`/api/shift-records?shift_id=${encodeURIComponent(shiftId)}`, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (cancelled) return;
           setRid(data?.id);
           setValues(data?.values ?? {});
-          const st = data?.status;
+          const st = String(data?.status ?? "draft");
+          setStatus(st); // ★★ 追加
           if (st === "完了" || st === STATUS.completed) setRecordLocked(true);
         } else {
           const r2 = await fetch(`/api/shift-records`, {
@@ -551,11 +575,20 @@ export default function ShiftRecord({
           setRid(d2?.id);
           setValues({});
           setRecordLocked(false);
+          setStatus("draft"); // ★★ 追加
         }
       } catch (e) { console.error(e); }
     })();
     return () => { cancelled = true; };
   }, [shiftId, recordId]);
+
+  // ===== ユーティリティ: 「確定済み」判定 =====
+  const isFinalStatus = useMemo(() => {
+    const st = (status || "").toLowerCase();
+    return ["submitted", "approved", "archived"].includes(st); // ★★ 追加
+  }, [status]);
+
+
 
   useEffect(() => {
     if (!rid) return;
@@ -566,6 +599,7 @@ export default function ShiftRecord({
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queueRef = useRef<{ item_def_id: string; value: unknown }[] | null>(null);
 
+  // ===== 自動保存（既存）で draft を明示維持 =====
   const flushQueue = useCallback(async () => {
     if (!rid || !queueRef.current?.length) return;
     const payload = queueRef.current; queueRef.current = null;
@@ -578,15 +612,25 @@ export default function ShiftRecord({
         body: JSON.stringify(rows),
       });
       if (!res.ok) throw new Error("save failed");
+      // draft に戻す（/維持） ※「入力中は常に下書き」
       await fetch(`/api/shift-records/${rid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: STATUS.inProgress }),
       });
+      setStatus("draft"); // ★★ 追加
       setSaveState("saved");
       setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1200);
     } catch (e) { console.error(e); setSaveState("error"); }
   }, [rid]);
+
+  // ======== ボタンの見た目・文言を status で出し分け ========
+  const actionBtnClass = isFinalStatus
+    ? "text-xs px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+    : "text-xs px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"; // ★★ 追加
+
+  const actionBtnLabel = isFinalStatus ? "更新" : "保存（最後に必ず保存）"; // ★★ 追加
+
 
   const enqueueSave = useCallback((patch: { item_def_id: string; value: unknown }) => {
     queueRef.current = [...(queueRef.current ?? []), patch];
@@ -750,38 +794,63 @@ export default function ShiftRecord({
   }, [effectiveItems, values, mergedInfo, codeToId, idToDefault, defs.L, defs.S, isEmptyValue]);
 
 
-  // ===== 完了処理（Validation OK のときだけ PATCH で完了へ） =====
-  const handleComplete = useCallback(async () => {
-    if (!rid || recordLocked) return;
+  // ===== クリック処理を「保存/更新」両対応に変更 =====
+  const handleSubmitOrUpdate = useCallback(async () => {
+    if (!rid) return;
     try {
       await flushQueue();
-
-      // バリデーション（必須＆activeのみ）。NGなら完了させない
       const ok = runValidation();
-      if (!ok) { setSaveState("error"); return; }
 
-      setSaveState("saving");
-      const res = await fetch(`/api/shift-records/${rid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: STATUS.completed }),
-      });
+      // 最終確定（draft→submitted）
+      if (!isFinalStatus) {
+        if (!ok) {
+          setSaveState("error");
+          return; // draft のまま
+        }
+        setSaveState("saving");
+        const res = await fetch(`/api/shift-records/${rid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: STATUS.completed }),
+        });
+        // 付随処理は既存の tokutei 呼び出しを踏襲
+        void fetch("/api/tokutei/sum-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shift_id: Number(shiftId) }),
+        }).catch(() => { });
+        if (!res.ok) throw new Error("complete failed");
+        setRecordLocked(true);
+        setStatus(STATUS.completed); // ★★ 追加
+        setSaveState("saved");
+        return;
+      }
 
-      void fetch("/api/tokutei/sum-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shift_id: Number(shiftId) }),
-      }).catch(() => {/* no-op（UIは壊さない）*/ });
-
-
-      if (!res.ok) throw new Error("complete failed");
-      setRecordLocked(true);
-      setSaveState("saved");
+      // ここから「更新」分岐（final → update）
+      // OK: 現状ステータス維持で値だけ更新済み（flushQueue 済）
+      // NG: draft に戻す
+      if (!ok) {
+        setSaveState("saving");
+        await fetch(`/api/shift-records/${rid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: STATUS.inProgress }),
+        });
+        setRecordLocked(false);
+        setStatus("draft"); // ★★ 追加：draftに戻す
+        setSaveState("error");
+        alert("バリデーションを満たしていないため、ステータスを draft に戻しました。修正の上、保存（完了）してください。");
+      } else {
+        // OK の場合は status 維持（submitted/approved/archived のまま）
+        setSaveState("saved");
+        // ロックポリシー：submitted ならロック、approved/archived もロック
+        setRecordLocked(true);
+      }
     } catch (e) {
       console.error(e);
       setSaveState("error");
     }
-  }, [rid, recordLocked, flushQueue, runValidation]);
+  }, [rid, isFinalStatus, flushQueue, runValidation, shiftId]);
 
   // ====== UIレイヤのための整形 ======
   const sByL = useMemo(() => {
@@ -820,14 +889,15 @@ export default function ShiftRecord({
           <SaveIndicator state={saveState} done={recordLocked} />
           <button
             type="button"
-            className="text-xs px-3 py-1 border rounded disabled:opacity-50"
-            onClick={handleComplete}
-            disabled={!rid || recordLocked}
-            aria-disabled={!rid || recordLocked}
-            title={recordLocked ? "完了済み" : "保存して完了にする"}
+            className={actionBtnClass}
+            onClick={handleSubmitOrUpdate}
+            disabled={!rid}
+            aria-disabled={!rid}
+            title={isFinalStatus ? "内容を更新します" : "保存して完了にする"}
           >
-            保存（最後に必ず保存）
+            {actionBtnLabel}
           </button>
+
           <button
             type="button"
             onClick={handleClose}
@@ -919,13 +989,13 @@ export default function ShiftRecord({
           <SaveIndicator state={saveState} done={recordLocked} />
           <button
             type="button"
-            className="text-xs px-3 py-1 border rounded disabled:opacity-50"
-            onClick={handleComplete}
-            disabled={!rid || recordLocked}
-            aria-disabled={!rid || recordLocked}
-            title={recordLocked ? "完了済み" : "保存して完了にする"}
+            className={actionBtnClass}
+            onClick={handleSubmitOrUpdate}
+            disabled={!rid}
+            aria-disabled={!rid}
+            title={isFinalStatus ? "内容を更新します" : "保存して完了にする"}
           >
-            保存（最後に必ず保存）
+            {actionBtnLabel}
           </button>
           <button
             type="button"
