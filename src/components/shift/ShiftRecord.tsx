@@ -13,7 +13,6 @@ const STATUS = {
   completed: "submitted",  // 「保存（完了）」ボタン
 } as const;
 
-
 // ===== 型（rules_json / meta_json）=====
 // 置き換え（includes_any を追加）
 type RuleStringCond = {
@@ -588,8 +587,6 @@ export default function ShiftRecord({
     return ["submitted", "approved", "archived"].includes(st); // ★★ 追加
   }, [status]);
 
-
-
   useEffect(() => {
     if (!rid) return;
     loadItems(rid).catch((e) => { console.error("[ShiftRecord] loadItems error", e); });
@@ -612,12 +609,7 @@ export default function ShiftRecord({
         body: JSON.stringify(rows),
       });
       if (!res.ok) throw new Error("save failed");
-      // draft に戻す（/維持） ※「入力中は常に下書き」
-      await fetch(`/api/shift-records/${rid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: STATUS.inProgress }),
-      });
+      
       setStatus("draft"); // ★★ 追加
       setSaveState("saved");
       setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1200);
@@ -627,7 +619,7 @@ export default function ShiftRecord({
   // ======== ボタンの見た目・文言を status で出し分け ========
   const actionBtnClass = isFinalStatus
     ? "text-xs px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-    : "text-xs px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"; // ★★ 追加
+    : "text-xs px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"; 
 
   const actionBtnLabel = isFinalStatus ? "更新" : "保存（最後に必ず保存）"; // ★★ 追加
 
