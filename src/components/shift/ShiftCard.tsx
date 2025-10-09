@@ -327,7 +327,8 @@ export default function ShiftCard({
     if (!csId) { setAdjId(undefined); return; }
 
     // ★ requestモードではここで先読みしない（遅延に任せる）
-    if (mode !== "reject") return;
+    // ★ request 以外（= reject / view）はここで先読みする
+    if (mode === "request") return;
 
     // ★ まずキャッシュ確認
     if (infoCache.has(csId)) {
@@ -790,9 +791,9 @@ export default function ShiftCard({
                 shiftId={getShiftIdStr(shift)}
                 clientName={shift.client_name ?? ""}
                 tokuteiComment={shift.tokutei_comment ?? ""}
-                standardRoute={kaipokeInfo?.standard_route ?? ""}
-                standardTransWays={kaipokeInfo?.standard_trans_ways ?? ""}
-                standardPurpose={kaipokeInfo?.standard_purpose ?? ""}
+                standardRoute={kaipokeInfo?.standard_route ?? (shift as any).standard_route ?? ""}
+                standardTransWays={kaipokeInfo?.standard_trans_ways ?? (shift as any).standard_trans_ways ?? ""}
+                standardPurpose={kaipokeInfo?.standard_purpose ?? (shift as any).standard_purpose ?? ""}
                 staff01UserId={shift.staff_01_user_id ?? ""}
                 staff02UserId={shift.staff_02_user_id ?? ""}
                 staff03UserId={shift.staff_03_user_id ?? ""}
