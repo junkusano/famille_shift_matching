@@ -4,7 +4,7 @@
 //import { getAccessToken } from "@/lib/getAccessToken";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { subHours} from "date-fns";
+import { subHours } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 const timeZone = "Asia/Tokyo";
@@ -61,8 +61,6 @@ export async function GET() {
         // Key: 利用者チャンネルID (Bot送信先), Value: メッセージ本文
         const clientMessageQueue = new Map<string, string>();
 
-        //const accessToken = await getAccessToken();
-
         // 3. シフト情報を先にフィルタリングして取得 (statusがdraftまたはnullのもの、1時間前のシフト)
         const { data: shifts, error: shiftError } = await supabase
             .from('shift_shift_record_view') // shift_shift_record_view を使って一発で取得
@@ -108,7 +106,7 @@ export async function GET() {
                 });
 
                 const clientUnfinishedShifts: string[] = unfinishedShifts.map(shift =>
-                    `・${shift.shift_start_date} ${(shift.shift_start_time?? "").split(":").slice(0, 2).join(":")} - ${(shift.shift_end_time?? "").split(":").slice(0, 2).join(":")}`
+                    `・${shift.shift_start_date} ${(shift.shift_start_time ?? "").split(":").slice(0, 2).join(":")} - ${(shift.shift_end_time ?? "").split(":").slice(0, 2).join(":")}`
                 );
 
                 if (clientUnfinishedShifts.length > 0) {
@@ -120,19 +118,50 @@ export async function GET() {
 
                     const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
 
-                   
+
                     clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
 
                 }
 
             }
             // 7. メッセージの送信
-            console.log(`Sending ${clientMessageQueue.size} messages to client channels...`);
+            // === 7. 送信（詳細ログ付き・ループの外で1回だけ） ===
+            const DRY_RUN = true; // 送信せずログだけ出したい時は true
 
-            for (const [channelId, message] of clientMessageQueue.entries()) {
-                void channelId
-                void message
-                //await sendLWBotMessage(channelId, message, accessToken);
+            console.log(`[INFO] Sending ${clientMessageQueue.size} messages to client channels...`);
+
+            if (clientMessageQueue.size === 0) {
+                console.log("[INFO] No messages to send.");
+            } else {
+                // 中身の確認ログ（必要に応じてsliceで短縮してOK）
+                let idx = 0;
+                for (const [channelId, message] of clientMessageQueue.entries()) {
+                    console.log(
+                        `\n----- [MESSAGE ${++idx}/${clientMessageQueue.size}] -----\n` +
+                        `channelId: ${channelId}\n` +
+                        `length   : ${message.length}\n` +
+                        `content  :\n${message}\n` +
+                        `----- [END MESSAGE ${idx}] -----\n`
+                    );
+                }
+
+                if (DRY_RUN) {
+                    console.log("[DRY_RUN] メッセージは送信しません（ログのみ出力）。");
+                } else {
+                    //const accessToken = await getAccessToken();
+                    const sent = new Set<string>();
+                    let sentCount = 0;
+
+                    for (const [channelId, message] of clientMessageQueue.entries()) {
+                        if (sent.has(channelId)) continue;         // 二重送信ガード
+                        sent.add(channelId);
+                        console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
+                        //await sendLWBotMessage(channelId, message, accessToken);
+                        sentCount++;
+                    }
+
+                    console.log(`[INFO] Sent ${sentCount} / ${clientMessageQueue.size} messages.`);
+                }
             }
         }
         console.log("--- Unfinished Shift Alert Cron Job Finished Successfully ---");
