@@ -826,7 +826,7 @@ export default function ShiftRecord({
             aria-disabled={!rid || recordLocked}
             title={recordLocked ? "完了済み" : "保存して完了にする"}
           >
-            保存（完了）
+            保存（最後に必ず保存）
           </button>
           <button
             type="button"
@@ -908,24 +908,30 @@ export default function ShiftRecord({
         </main>
       </div>
       {/* フッター操作バー（ページ下部にも同じ操作を配置） */}
-      <div className="flex items-center justify-end gap-2 pt-3 border-t">
-        {/* ルール違反メッセージ（先頭だけを見やすく） */}
+      <div className="flex items-center gap-2">
+        {/* ← 追加: ルール違反メッセージ（先頭だけを見やすく） */}
         {globalErrors.length > 0 && (
-          <div
-            className="text-xs text-red-600 max-w-[40ch] line-clamp-2"
-            title={globalErrors.join(" / ")}
-          >
+          <div className="text-xs text-red-600 max-w-[40ch] line-clamp-2" title={globalErrors.join(" / ")}>
             {globalErrors[0]}
           </div>
         )}
         <SaveIndicator state={saveState} done={recordLocked} />
         <button
+          type="button"
+          className="text-xs px-3 py-1 border rounded disabled:opacity-50"
           onClick={handleComplete}
-          disabled={!rid || uiLocked}
-          aria-disabled={!rid || uiLocked}
-          title={recordLocked ? "完了済み" : (uiLocked ? "閲覧モード（編集不可）" : "保存して完了にする")}
+          disabled={!rid || recordLocked}
+          aria-disabled={!rid || recordLocked}
+          title={recordLocked ? "完了済み" : "保存して完了にする"}
         >
-          保存（完了）
+          保存（最後に必ず保存）
+        </button>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="text-xs px-3 py-1 border rounded hover:bg-gray-50"
+        >
+          閉じる
         </button>
       </div>
     </div>
