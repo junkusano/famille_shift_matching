@@ -206,7 +206,7 @@ export default function EntryPage() {
                     );
                 }
             }
-        } catch (err) {
+        } catch {
             // アップロードで致命的に失敗したら、ここで中断（画像あとでフローに切り替えるならここで分岐も可）
             setIsSubmitting(false);
             alert("ファイルのアップロードに失敗しました。回線状態を確認して再度お試しください。『画像はあとで』にチェックして送信も可能です。");
@@ -264,7 +264,7 @@ export default function EntryPage() {
             try {
                 // 既存の状態管理があれば使う（無ければ無視されるだけ）
                 setSubmitted(true);
-                // @ts-expect-error
+                // @ts-expect-error -- setFormDataはFormData|nullだが、確定後の表示用にオブジェクトpayloadを一時的に保存するため
                 setFormData(payload);
                 // 必要ならフォームをリセット
                 formEl.reset();
@@ -274,8 +274,8 @@ export default function EntryPage() {
                 ? "エントリー（テキスト）は送信しました。画像はあとからアップロードできます。"
                 : "エントリーを送信しました。");
 
-        } catch(err)  {
-            console.error("予期しないエラー");
+        } catch (err) {
+            console.error(err);
             alert("送信に失敗しました。時間をおいて再度お試しください。");
 
         } finally {
