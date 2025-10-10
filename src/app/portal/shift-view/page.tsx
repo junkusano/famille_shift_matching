@@ -395,7 +395,7 @@ export default function ShiftViewPage() {
             <Link
               href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(qClient)}&month=${encodeURIComponent(qMonth)}`}
             >
-              印刷ビュー（この利用者・{qMonth}）
+              印刷ビュー
             </Link>
           </Button>
         )}
@@ -439,7 +439,7 @@ export default function ShiftViewPage() {
           </select>
         </div>
       </div>
-      <Pager />
+      &nbsp;<Pager />
       {loading ? (
         <div className="text-sm text-gray-500">読み込み中...</div>
       ) : shifts.length === 0 ? (
