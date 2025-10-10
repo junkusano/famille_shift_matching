@@ -83,7 +83,7 @@ export default function EntryPage() {
         // 必須テキスト（氏名は姓+名を結合）
         const lastNameKanji = String(form.get("lastNameKanji") || "").trim();
         const firstNameKanji = String(form.get("firstNameKanji") || "").trim();
-        const applicantName = `${lastNameKanji}${firstNameKanji}`;
+        //const applicantName = `${lastNameKanji}${firstNameKanji}`;
         const email = String(form.get("email") || "").trim();
 
         if (!lastNameKanji || !firstNameKanji) {
@@ -170,27 +170,38 @@ export default function EntryPage() {
 
         // ---- 保存（Supabase 直） -------------------------------------------------
         const payloadForDB = {
-            applicant_name: applicantName,
-            applicant_kana: `${String(form.get("lastNameKana") || "")} ${String(form.get("firstNameKana") || "")}`.trim(),
+            // --- 名前 ---
+            last_name_kanji: lastNameKanji,
+            first_name_kanji: firstNameKanji,
+            last_name_kana: String(form.get("lastNameKana") || ""),
+            first_name_kana: String(form.get("firstNameKana") || ""),
+            // --- 生年月日・属性 ---
             birth_year: Number(form.get("birthYear") || 0) || null,
             birth_month: Number(form.get("birthMonth") || 0) || null,
             birth_day: Number(form.get("birthDay") || 0) || null,
             gender: String(form.get("gender") || ""),
+            // --- 連絡先・住所 ---
             email,
             phone: String(form.get("phone") || ""),
             postal_code: postalCode,
             address,
+            // --- 志望・健康 ---
             motivation: String(form.get("motivation") || ""),
             workstyle_other: String(form.get("workStyleOther") || ""),
-            commute_options: form.getAll("commute"),             // JSON[] カラム想定（TEXT[]でもOK）
             health_condition: String(form.get("healthCondition") || ""),
-            photo_url: photoUrl,
+            // --- 配列（text[]） ---
+            work_styles: form.getAll("workStyle").map(String),  // ← スキーマの work_styles に対応
+            commute_options: form.getAll("commute").map(String),
+            // --- 画像URL（個別列 & jsonb） ---
             license_front_url: licenseFrontUrl,
             license_back_url: licenseBackUrl,
             residence_card_url: residenceCardUrl,
-            certification_urls: certificationUrls,               // JSON[] カラム想定
-            status: anyAttachment ? "FILES_ATTACHED" : "PENDING_FILES",
-            submitted_at: new Date().toISOString(),
+            photo_url: photoUrl,
+            certifications: certificationUrls,                  // ← jsonb カラム
+            // --- 同意 ---
+            agreed_terms: Boolean(form.get("agreeTerms")),
+            agreed_privacy: Boolean(form.get("agreePrivacy")),
+            // created_at は DB の default now() に任せる
         };
 
         console.log("🚀 Supabaseへ送信するpayload:", payloadForDB);
@@ -200,9 +211,10 @@ export default function EntryPage() {
             .insert([payloadForDB])
             .select();
 
+
         if (insertError) {
-            console.error("送信失敗:", insertError.message);
-            alert("送信に失敗しました");
+            console.error("送信失敗:", insertError);
+            alert(`送信に失敗しました：${insertError.message ?? "不明なエラー"}`);
             setIsSubmitting(false);
             return;
         }
