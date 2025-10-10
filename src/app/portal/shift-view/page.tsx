@@ -48,6 +48,17 @@ export default function ShiftViewPage() {
   // client は「名前」ではなく kaipoke_cs_id を持つ
   const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
 
+  // 既存の qUserId, qDate, qClient の下に追加
+  const qPage = useMemo(() => {
+    const p = parseInt(getSearch().get("page") ?? "1", 10);
+    return Number.isFinite(p) && p > 0 ? p : 1;
+  }, [searchStr]);
+
+  const qPer = useMemo(() => {
+    const p = parseInt(getSearch().get("per") ?? "50", 10);
+    return Number.isFinite(p) && p > 0 ? p : 50;
+  }, [searchStr]);
+
   // URL書き換え
   const setQuery = (params: Record<string, string | undefined>): void => {
     const next = getSearch();
@@ -113,6 +124,10 @@ export default function ShiftViewPage() {
   // 初期クエリ注入フラグ
   const [initDone, setInitDone] = useState<boolean>(false);
 
+  // shifts の state 定義の近くに追加
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / qPer));
+
   // ===== 初期注入：URLに無ければ user_id & date を入れる（1回だけ） =====
   useEffect(() => {
     if (!authChecked || initDone || !meUserId) return;
@@ -124,7 +139,9 @@ export default function ShiftViewPage() {
     if (!hasUserId && !hasDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const first = startOfMonth(jstNow);
-      setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd") });
+      // 初期注入 useEffect 内の setQuery を次のように変更（per: "50" を追加）
+      setQuery({ user_id: meUserId, date: format(first, "yyyy-MM-dd"), per: "50", page: "1" });
+
     }
     setInitDone(true);
   }, [authChecked, initDone, meUserId]);
@@ -144,20 +161,21 @@ export default function ShiftViewPage() {
         setShifts([]);
 
         // クエリビルダー（qDate / qUserId / qClient（= kaipoke_cs_id））
+        // buildQuery の select を count 取得に変更
         const buildQuery = () => {
-          let q = supabase.from("shift_csinfo_postalname_view").select("*");
+          let q = supabase
+            .from("shift_csinfo_postalname_view")
+            .select("*", { count: "exact", head: false });
 
           if (qDate) {
             q = q.gte("shift_start_date", qDate);
           }
           if (qUserId) {
-            // 3枠の担当者いずれかに一致
             q = q.or(
               `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
             );
           }
           if (qClient) {
-            // ★ 変更点：名前ではなく kaipoke_cs_id でフィルタ
             q = q.eq("kaipoke_cs_id", qClient);
           }
 
@@ -166,6 +184,17 @@ export default function ShiftViewPage() {
             .order("shift_start_time", { ascending: true })
             .order("shift_id", { ascending: true });
         };
+
+        // ループで全件取得していた部分を、オフセット+リミットに置換
+        const from = (qPage - 1) * qPer;
+        const to = from + qPer - 1;
+
+        // count を受け取りたいので、buildQuery() に対して range() しつつ結果から count を参照
+        const { data, error, count } = await buildQuery().range(from, to);
+        if (ac.signal.aborted) return;
+        if (error) throw error;
+
+        setTotalCount(count ?? 0);
 
         // ページングで最大件数制限(1000件)を超えても全件取得
         const PAGE = 1000;
@@ -190,7 +219,8 @@ export default function ShiftViewPage() {
           level_sort_order?: number | null;
         };
 
-        const all: ShiftRow[] = [];
+        const all = (data ?? []) as ShiftRow[];
+
         for (let from = 0; ; from += PAGE) {
           const to = from + PAGE - 1;
           const { data, error } = await buildQuery().range(from, to);
@@ -309,11 +339,40 @@ export default function ShiftViewPage() {
       alive = false;
       ac.abort();
     };
-  }, [ready, qUserId, qDate, qClient]);
+  }, [ready, qUserId, qDate, qClient, qPage, qPer]);
 
   if (!authChecked) {
     return <div className="p-4 text-sm text-gray-500">ログイン状態を確認しています...</div>;
   }
+
+  // ページャー部品（簡易）：一覧の上と下に同じものを置くと便利
+  const Pager = () => (
+    <div className="flex items-center justify-between mt-3 mb-3">
+      <div className="text-xs text-gray-500">
+        {totalCount.toLocaleString()} 件中 {Math.min(totalCount, (qPage - 1) * qPer + 1)}–
+        {Math.min(totalCount, qPage * qPer)} を表示（{qPer}/ページ）
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          disabled={qPage <= 1}
+          onClick={() => setQuery({ page: String(qPage - 1), per: String(qPer) })}
+        >
+          前へ
+        </Button>
+        <span className="text-sm">
+          {qPage} / {totalPages}
+        </span>
+        <Button
+          variant="outline"
+          disabled={qPage >= totalPages}
+          onClick={() => setQuery({ page: String(qPage + 1), per: String(qPer) })}
+        >
+          次へ
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="content min-w-0">
@@ -369,7 +428,7 @@ export default function ShiftViewPage() {
           </select>
         </div>
       </div>
-
+      <Pager />
       {loading ? (
         <div className="text-sm text-gray-500">読み込み中...</div>
       ) : shifts.length === 0 ? (
@@ -397,6 +456,7 @@ export default function ShiftViewPage() {
           ))}
         </div>
       )}
+      <Pager />
     </div>
   );
 }

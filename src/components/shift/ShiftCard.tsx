@@ -48,6 +48,11 @@ type Props = {
 
 type UnknownRecord = Record<string, unknown>;
 
+type StaffRow = { user_id: string; last_name_kanji: string | null; first_name_kanji: string | null };
+
+const formatName = (r?: StaffRow) =>
+  r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
+
 /* ---------- helpers ---------- */
 const DEFAULT_BADGE_TEXT = "時間調整可能";
 const TBL_INFO = "cs_kaipoke_info";
@@ -233,6 +238,32 @@ export default function ShiftCard({
 
   // ★ 追加：state（コンポーネント内の他の useState 群の近く）
   const [recordStatus, setRecordStatus] = useState<RecordStatus | undefined>(undefined);
+
+  // 他の useEffect 群の近くに追加
+  const [staffMap, setStaffMap] = useState<Record<string, StaffRow>>({});
+
+  useEffect(() => {
+    if (!(mode === "view" || mode === "reject")) { setStaffMap({}); return; }
+
+    const ids = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+      .filter((v): v is string => !!v && v !== "-");
+
+    if (ids.length === 0) { setStaffMap({}); return; }
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_entry_united_view_single")
+        .select("user_id,last_name_kanji,first_name_kanji")
+        .in("user_id", ids);
+
+      if (error) { setStaffMap({}); return; }
+      const map: Record<string, StaffRow> = {};
+      (data ?? []).forEach((r) => { map[r.user_id] = r as StaffRow; });
+      setStaffMap(map);
+    })();
+  }, [mode, shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]);
+
+
 
   useEffect(() => {
     if (mode !== "reject") return;                 // ★ reject以外は何もしない
@@ -533,36 +564,37 @@ export default function ShiftCard({
             </Dialog>
           )}
         </div>
-
-        <div
-          className="text-sm"
-          style={{
-            color:
-              shift.gender_request_name === "男性希望"
-                ? "blue"
-                : shift.gender_request_name === "女性希望"
-                  ? "red"
-                  : "black",
-          }}
-        >
-          性別希望: {shift.gender_request_name ?? "—"}
-          {biko && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
-              </DialogTrigger>
-              <DialogPortal>
-                <DialogOverlay className="overlay-avoid-sidebar" />
-                <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
-                  <div className="text-sm space-y-2">
-                    <strong>備考</strong>
-                    <p>{biko}</p>
-                  </div>
-                </DialogContent>
-              </DialogPortal>
-            </Dialog>
-          )}
-        </div>
+        {mode === "request" && (
+          <div
+            className="text-sm"
+            style={{
+              color:
+                shift.gender_request_name === "男性希望"
+                  ? "blue"
+                  : shift.gender_request_name === "女性希望"
+                    ? "red"
+                    : "black",
+            }}
+          >
+            性別希望: {shift.gender_request_name ?? "—"}
+            {biko && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="ml-2 text-xs text-blue-500 underline">詳細情報</button>
+                </DialogTrigger>
+                <DialogPortal>
+                  <DialogOverlay className="overlay-avoid-sidebar" />
+                  <DialogContent className="z-[100] w-[calc(100vw-32px)] sm:max-w-[480px] ml-4 mr-0 modal-avoid-sidebar">
+                    <div className="text-sm space-y-2">
+                      <strong>備考</strong>
+                      <p>{biko}</p>
+                    </div>
+                  </DialogContent>
+                </DialogPortal>
+              </Dialog>
+            )}
+          </div>
+        )}
       </>
     );
   };
@@ -656,7 +688,6 @@ export default function ShiftCard({
       ].join(" ")}
       style={!eligible ? { opacity: 0.7, filter: "grayscale(0.1)" } : undefined}
     >
-
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-semibold">
@@ -669,8 +700,7 @@ export default function ShiftCard({
           )}
         </div>
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
-        {(mode === "reject" || mode === "view") ? (
-          // Rejectモード時は 住所リンク を表示
+        {mode === "reject" ? (
           <div className="text-sm">
             住所: {addr ? (
               <a
@@ -686,22 +716,32 @@ export default function ShiftCard({
             {postal && <span className="ml-2">（{postal}）</span>}
           </div>
         ) : (
-          // それ以外のモード（requestなど）は従来通り
           <>
             <div className="text-sm">郵便番号: {postal ?? "—"}</div>
             <div className="text-sm">エリア: {shift.district ?? "—"}</div>
           </>
         )}
-
         <div className="mt-2 space-y-1">
           <MiniInfo />
         </div>
-
+        {(mode === "view" || mode === "reject") && (
+          <div className="text-sm mt-2">
+            スタッフ（名）：
+            <span className="inline-block mr-3">
+              01：{formatName(staffMap[shift.staff_01_user_id ?? ""])}
+            </span>
+            <span className="inline-block mr-3">
+              02：{formatName(staffMap[shift.staff_02_user_id ?? ""])}
+            </span>
+            <span className="inline-block">
+              03：{formatName(staffMap[shift.staff_03_user_id ?? ""])}
+            </span>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               {mode === "view" ? (
-                // mode が "view" の場合は何も表示しない
                 null
               ) : mode === "request" ? (
                 <Button onClick={() => setOpen(true)}>このシフトを希望する</Button>

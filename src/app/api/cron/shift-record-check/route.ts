@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         'content-type': res.headers.get('content-type') ?? 'text/plain; charset=utf-8',
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Cron wrapper error', err?.message ?? err);
     const message =
       err?.name === 'AbortError'
