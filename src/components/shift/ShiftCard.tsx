@@ -728,13 +728,13 @@ export default function ShiftCard({
           <div className="text-sm mt-2">
             スタッフ：
             <span className="inline-block mr-3">
-              01：{formatName(staffMap[shift.staff_01_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-              02：{formatName(staffMap[shift.staff_02_user_id ?? ""])}
+             &nbsp; {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-              03：{formatName(staffMap[shift.staff_03_user_id ?? ""])}
+             &nbsp; {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
