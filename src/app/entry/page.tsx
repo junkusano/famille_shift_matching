@@ -263,9 +263,8 @@ export default function EntryPage() {
             // 成功時：UI反映
             try {
                 // 既存の状態管理があれば使う（無ければ無視されるだけ）
-                // @ts-ignore
                 setSubmitted(true);
-                // @ts-ignore
+                // @ts-expect-error
                 setFormData(payload);
                 // 必要ならフォームをリセット
                 formEl.reset();
@@ -275,8 +274,8 @@ export default function EntryPage() {
                 ? "エントリー（テキスト）は送信しました。画像はあとからアップロードできます。"
                 : "エントリーを送信しました。");
 
-        } catch (err) {
-            console.error(err);
+        } catch(err)  {
+            console.error("予期しないエラー");
             alert("送信に失敗しました。時間をおいて再度お試しください。");
 
         } finally {
