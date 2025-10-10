@@ -636,6 +636,20 @@ export default function ShiftCard({
 
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
+    const cs = csId ?? ""; // deepFindKaipokeCsId(shift) の結果（既存）
+    const service =
+      pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
+
+      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    if (cs.startsWith("999999999")) return null;
+
+    // ② サービスが「その他」 → 非表示
+    if (service === "その他") return null;
+
+    // ③ サービス名に「キャンセル」を含む → 非表示
+    if (service.includes("キャンセル")) return null;
+    // ▲ 追加ここまで
+
     const lso = shift.level_sort_order ?? null;
 
     const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
