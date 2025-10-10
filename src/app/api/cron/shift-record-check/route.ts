@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
 
   // ?dry_run= の既定は 1（Dry Run）。本番実行したいときは ?dry_run=0 を付けて叩く
-  const dryRun = url.searchParams.get('dry_run') ?? '1';
+  const dryRun = url.searchParams.get('dry_run') ?? '0';
 
   // ローカルは http、デプロイは https を想定
   const host = req.headers.get('host') ?? 'localhost:3000';
