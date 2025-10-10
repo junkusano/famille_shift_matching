@@ -167,63 +167,72 @@ export default function EntryPage() {
 
         // 画像の成否にかかわらず進める。取れたURLだけ載せる
         const anyAttachment = !!(licenseFrontUrl || licenseBackUrl || residenceCardUrl || photoUrl || certificationUrls.length);
-        const payload = {
-            ...textPayload,
-            applicantName,
+
+        // ---- 保存（Supabase 直） -------------------------------------------------
+        const payloadForDB = {
+            applicant_name: applicantName,
+            applicant_kana: `${String(form.get("lastNameKana") || "")} ${String(form.get("firstNameKana") || "")}`.trim(),
+            birth_year: Number(form.get("birthYear") || 0) || null,
+            birth_month: Number(form.get("birthMonth") || 0) || null,
+            birth_day: Number(form.get("birthDay") || 0) || null,
+            gender: String(form.get("gender") || ""),
+            email,
+            phone: String(form.get("phone") || ""),
+            postal_code: postalCode,
+            address,
+            motivation: String(form.get("motivation") || ""),
+            workstyle_other: String(form.get("workStyleOther") || ""),
+            commute_options: form.getAll("commute"),             // JSON[] カラム想定（TEXT[]でもOK）
+            health_condition: String(form.get("healthCondition") || ""),
+            photo_url: photoUrl,
+            license_front_url: licenseFrontUrl,
+            license_back_url: licenseBackUrl,
+            residence_card_url: residenceCardUrl,
+            certification_urls: certificationUrls,               // JSON[] カラム想定
             status: anyAttachment ? "FILES_ATTACHED" : "PENDING_FILES",
-            attachments: {
-                licenseFrontUrl,
-                licenseBackUrl,
-                residenceCardUrl,
-                photoUrl,
-                certificationUrls,
-            },
-            submittedAt: new Date().toISOString(),
+            submitted_at: new Date().toISOString(),
         };
 
-        // ---- 保存 → メール通知（失敗しても err をログし、UIは丁寧に案内） ----
+        console.log("🚀 Supabaseへ送信するpayload:", payloadForDB);
+
+        const { data: insertData, error: insertError } = await supabase
+            .from("form_entries")
+            .insert([payloadForDB])
+            .select();
+
+        if (insertError) {
+            console.error("送信失敗:", insertError.message);
+            alert("送信に失敗しました");
+            setIsSubmitting(false);
+            return;
+        }
+
+        console.log("✅ insert成功！次に進みます");
+
+        // ---- メール通知（失敗しても応募は成立） ----------------------------------
         try {
-            const saveRes = await fetch("/api/submit-entry", {
+            await fetch("/api/send-entry-email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    entryId: insertData?.[0]?.id,
+                    ...payloadForDB,  // ここは“フラットな”payloadをそのまま
+                }),
             });
-            if (!saveRes.ok) throw new Error(`submit-entry failed: ${saveRes.status}`);
-            const saved = await saveRes.json();
-
-            // メール通知（裏側キュー化が理想。失敗しても応募は成立）
-            try {
-                await fetch("/api/send-entry-email", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ entryId: saved.id, ...payload }),
-                });
-            } catch (err) {
-                console.warn("メール通知に失敗しました", err);
-            }
-
-            // 送信完了UI
-            try {
-                // 状態管理（確認画面に切り替え）
-        setSubmitted(true);
-        setFormData(form); // 送信時の入力値をそのまま渡す
-            } catch { }
-
-            // 成功メッセージは“画像の有無”で文言を分岐
-            if (anyAttachment) {
-                alert("エントリーを送信しました（画像も一部またはすべて受け取りました）。");
-            } else {
-                alert("エントリー（テキスト）は送信しました。画像は後からでも提出できます。");
-            }
-
-            formEl.reset();
         } catch (err) {
-            console.error(err);
-            // ここだけは本当に保存に失敗した場合
-            alert("送信に失敗しました。時間をおいて再度お試しください。");
-        } finally {
-            setIsSubmitting(false);
+            console.warn("メール通知に失敗しました", err);
         }
+
+        // ---- 完了UI --------------------------------------------------------------
+        formEl.reset();
+        alert(anyAttachment
+            ? "エントリーを送信しました（画像も一部またはすべて受け取りました）。"
+            : "エントリー（テキスト）は送信しました。画像は後からでも提出できます。"
+        );
+        setIsSubmitting(false);
+        setSubmitted(true);
+        setFormData(form);
+
     }
 
 
