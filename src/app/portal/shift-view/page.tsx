@@ -47,6 +47,7 @@ export default function ShiftViewPage() {
   const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [searchStr]);
   // client は「名前」ではなく kaipoke_cs_id を持つ
   const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
+  const qMonth = useMemo(() => (qDate ? qDate.slice(0, 7) : ""), [qDate]);
 
   // 既存の qUserId, qDate, qClient の下に追加
   const qPage = useMemo(() => {
@@ -388,6 +389,16 @@ export default function ShiftViewPage() {
         <Button asChild variant="outline">
           <Link href="/portal/shift-view">フィルターをクリア</Link>
         </Button>
+        {/* ▼ Client が選ばれている時だけ表示 */}
+        {qClient && qMonth && (
+          <Button asChild>
+            <Link
+              href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(qClient)}&month=${encodeURIComponent(qMonth)}`}
+            >
+              印刷ビュー（この利用者・{qMonth}）
+            </Link>
+          </Button>
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
         <div>
