@@ -726,7 +726,7 @@ export default function ShiftCard({
         </div>
         {(mode === "view" || mode === "reject") && (
           <div className="text-sm mt-2">
-            スタッフ（名）：
+            スタッフ：
             <span className="inline-block mr-3">
               01：{formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
