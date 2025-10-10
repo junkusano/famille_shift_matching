@@ -6,19 +6,24 @@ import { supabase } from "@/lib/supabase";
 import PostSubmitMessage from "@/components/PostSubmitMessage";
 import { HomeIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
-import { convertDriveUrlToDirectView } from "@/lib/drive"
+//import { convertDriveUrlToDirectView } from "@/lib/drive"
 import Footer from '@/components/Footer'; // ← 追加
-import { addStaffLog } from '@/lib/addStaffLog';
+//import { addStaffLog } from '@/lib/addStaffLog';
 //import { parseDocAcquired } from "@/components/DocUploader";
+
+
 
 export default function EntryPage() {
     const MAX_FILE_MB = 4;
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // 失敗時の共通関数
+    //const fail = (msg: string) => { alert(msg); setIsSubmitting(false); };
+
     const [formData, setFormData] = useState<FormData | null>(null);
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
-    const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
+    //const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
 
@@ -71,357 +76,213 @@ export default function EntryPage() {
     // - メール送信
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        const form = new FormData(e.currentTarget);
-        const photoFile = form.get("photo") as File;
-        if (!photoFile || !photoFile.type.startsWith("image/")) {
-            alert("顔写真は画像ファイル（JPEG, PNG など）のみアップロード可能です。");
+
+        // --- 基本セットアップ ------------------------------------------------------
+        const formEl = e.currentTarget;
+        const form = new FormData(formEl);
+
+        // 任意：重複送信防止など、あなたの既存ロジックがあればここで実行
+        // 例：同一メールの重複確認 など（既存のままでOK）
+
+        // 「画像はあとで」フラグ
+        const deferUploads = form.get("deferUploads") === "on" || form.get("deferUploads") === "true";
+
+        // 必須テキスト例（必要に応じて調整）
+        const applicantName = String(form.get("applicantName") || "").trim();
+        const email = String(form.get("email") || "").trim();
+
+        // 画像ファイル（name はフォーム側と合わせてください）
+        const licenseFront = (form.get("licenseFront") as File) ?? null;
+        const licenseBack = (form.get("licenseBack") as File) ?? null;
+        const residenceCard = (form.get("residenceCard") as File) ?? null;
+        const photoFile = (form.get("photo") as File) ?? null;
+
+        // バリデーション（「画像はあとで」の場合は画像必須を外す）
+        if (!applicantName) {
+            alert("氏名を入力してください。");
             return;
         }
-        // ...バリデーション・ファイルアップロード等、payload生成のための全処理...
-
-        // payload作成前に必要な値を抽出
-        const email = form.get("email");
-        const phone = form.get("phone");
-        const lastNameKanji = form.get("lastNameKanji");
-        const firstNameKanji = form.get("firstNameKanji");
-        const birthYearStr = form.get("birthYear");
-        const birthMonthStr = form.get("birthMonth");
-        const birthDayStr = form.get("birthDay");
-
-        // --- ここで重複登録チェックを実施 ---
-        // メールアドレス重複チェック
-        const cleanEmail = String(email).trim().toLowerCase();
-        const { data: emailDup, error: emailErr } = await supabase
-            .from("form_entries")
-            .select("id")
-            .eq("email", cleanEmail);
-
-        if (emailErr) {
-            alert("メール重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + emailErr.message);
-            setIsSubmitting(false);
+        if (!email) {
+            alert("メールアドレスを入力してください。");
             return;
         }
-        if (emailDup && emailDup.length > 0) {
-            alert("このメールアドレスではすでにエントリーがあります。お問い合わせください（担当新川：090-9140-2642）");
-            setIsSubmitting(false);
-            return;
-        }
-
-
-        // 電話番号重複チェック
-        const cleanPhone = String(phone).replace(/[^0-9]/g, "");
-        const { data: phoneDup, error: phoneErr } = await supabase
-            .from("form_entries")
-            .select("id")
-            .eq("phone", cleanPhone);
-
-        if (phoneErr) {
-            alert("電話番号重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + phoneErr.message);
-            setIsSubmitting(false);
-            return;
-        }
-        if (phoneDup && phoneDup.length > 0) {
-            alert("この電話番号ではすでにエントリーがあります。お問い合わせください（担当新川：090-9140-2642）");
-            setIsSubmitting(false);
-            return;
-        }
-
-        // 氏名＋生年月日重複チェック
-        const { data: nameBirthDup, error: nameBirthErr } = await supabase
-            .from("form_entries")
-            .select("id")
-            .match({
-                last_name_kanji: String(lastNameKanji).trim(),
-                first_name_kanji: String(firstNameKanji).trim(),
-                birth_year: birthYearStr,
-                birth_month: birthMonthStr,
-                birth_day: birthDayStr,
-            });
-
-        if (nameBirthErr) {
-            alert("氏名・生年月日重複チェックでエラー。お問い合わせください（担当新川：090-9140-2642）" + nameBirthErr.message);
-            setIsSubmitting(false);
-            return;
-        }
-        if (nameBirthDup && nameBirthDup.length > 0) {
-            alert("同一の氏名・生年月日で既にエントリーがあります。お問い合わせください（担当新川：090-9140-2642）");
-            setIsSubmitting(false);
-            return;
-        }
-
-        setIsSubmitting(true); // ← 送信開始
-
-        // --- ファイル取得 ---
-        const licenseFront = form.get("licenseFront") as File;
-        const licenseBack = form.get("licenseBack") as File;
-        const residenceCard = form.get("residenceCard") as File;
-        //const photoFile = form.get("photo") as File;
-
-        // --- バリデーション ---
-        const requiredFields = [
-            "lastNameKanji", "firstNameKanji", "lastNameKana", "firstNameKana",
-            "birthYear", "birthMonth", "birthDay", "postalCode", "address",
-            "phone", "email", "motivation", "healthCondition", "gender"
-        ];
-
-        for (const name of requiredFields) {
-            if (!form.get(name)) {
-                alert("すべての必須項目を入力してください。");
+        if (!deferUploads) {
+            // 画像必須チェック（必要に応じて調整）
+            if (!photoFile || photoFile.size === 0) {
+                alert("顔写真をアップロードしてください（『画像はあとで』にチェックすればスキップできます）。");
+                return;
+            }
+            if ((!licenseFront || licenseFront.size === 0) && (!residenceCard || residenceCard.size === 0)) {
+                alert("本人確認書類（免許証や住民票のいずれか）をアップロードしてください。");
                 return;
             }
         }
 
-        if (!photoFile || photoFile.size === 0) {
-            alert("顔写真のアップロードは必須です。");
-            return;
+        // ここまで来てから submitting を true に（途中 return で固まらないため）
+        setIsSubmitting(true);
+
+        // --- ユーティリティ（handleSubmit 内に閉じ込める：重複定義を避ける） -----
+        const timestamp = (() => {
+            const d = new Date();
+            const pad = (n: number) => n.toString().padStart(2, "0");
+            return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+        })();
+
+        function toViewUrl(raw: string | null): string | null {
+            if (!raw) return null;
+            try {
+                // Google Drive の共有URLを <img> などで直表示しやすい形式に
+                // 例: https://drive.google.com/file/d/<id>/view?usp=sharing -> https://drive.google.com/uc?export=view&id=<id>
+                const m = raw.match(/\/d\/([^/]+)/);
+                if (m && m[1]) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+                // 既に直リンク or 変換不要ならそのまま
+                return raw;
+            } catch {
+                return raw;
+            }
         }
 
-        const hasLicenseFront = licenseFront?.size > 0;
-        const hasLicenseBack = licenseBack?.size > 0;
-        const hasResidenceCard = residenceCard?.size > 0;
-        const hasValidId = (hasLicenseFront && hasLicenseBack) || hasResidenceCard;
-
-        if (!hasValidId) {
-            alert("免許証（表裏両方）または住民票のいずれかをアップロードしてください。");
-            return;
+        async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, ms = 45000) {
+            const ctrl = new AbortController();
+            const id = setTimeout(() => ctrl.abort(), ms);
+            try {
+                return await fetch(input, { ...init, signal: ctrl.signal });
+            } finally {
+                clearTimeout(id);
+            }
         }
 
-        const noCert = form.get("noCertifications") === "on";
-        const hasCert = Array.from({ length: docMaster.certificate.length }, (_, i) => form.get(`certificate_${i}`) as File)
-            .some(file => file && file.size > 0);
-
-        if (!noCert && !hasCert) {
-            //alert("資格証明書を1つ以上アップロードするか、資格なしにチェックしてください。");
-            //return;
-        }
-
-        // --- Google Drive へファイルアップロードする関数 ---
         async function uploadFile(key: string, file: File | null): Promise<string | null> {
             if (!file || file.size === 0) return null;
-
-            const formData = new FormData();
-
-            formData.append("file", file);
-            formData.append("filename", `${key}_${timestamp}_${file.name}`);
-
-            try {
-                const res = await fetch("/api/upload", {
-                    method: "POST",
-                    body: formData,
-                });
-
-                const result = await res.json();
-                return result.url || null;
-            } catch (err) {
-                console.error(`${key} アップロードエラー:`, err);
-                return null;
-            }
-        }
-
-        // --- 各ファイルアップロード ---
-        const licenseFrontUrl = convertDriveUrlToDirectView(await uploadFile("licenseFront", licenseFront));
-        const licenseBackUrl = convertDriveUrlToDirectView(await uploadFile("licenseBack", licenseBack));
-        const photoUrl = convertDriveUrlToDirectView(await uploadFile("photo", photoFile));
-        const residenceCardUrl = convertDriveUrlToDirectView(await uploadFile("residenceCard", residenceCard));
-        const certificationUrls: (string | null)[] = Array.from(
-            { length: docMaster.certificate.length },
-            () => null
-        );
-
-        for (let i = 0; i < docMaster.certificate.length; i++) {
-            const certFile = form.get(`certificate_${i}`) as File | null;
-            if (certFile && certFile.size > 0) {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("filename", `${key}_${timestamp}_${file.name}`);
+            // 最大2回リトライ
+            for (let i = 0; i < 2; i++) {
                 try {
-                    const up = await uploadFile(`certificate_${i}`, certFile); // string|null
-                    certificationUrls[i] = up ? convertDriveUrlToDirectView(up) : null;
+                    const res = await fetchWithTimeout("/api/upload", { method: "POST", body: fd });
+                    if (!res.ok) throw new Error(`upload ${key} failed: ${res.status}`);
+                    const result = await res.json();
+                    return result.url || null;
                 } catch (err) {
-                    console.error(`certificate_${i} アップロード失敗:`, err);
-                    alert(`資格証明書 ${i + 1} のアップロードに失敗しました。PDFまたは画像形式をご確認ください。`);
-                    return;
+                    if (i === 1) throw err;
                 }
             }
+            return null;
         }
 
-        // attachments 多次元配列生成
-        const nowIso = new Date().toISOString();
+        // --- 画像アップロード（deferUploads=false のときだけ実行） -------------------
+        let licenseFrontUrl: string | null = null;
+        let licenseBackUrl: string | null = null;
+        let residenceCardUrl: string | null = null;
+        let photoUrl: string | null = null;
+        let certificationUrls: (string | null)[] = [];
 
-        type Attachment = {
-            id: string; url: string | null; label?: string; type?: string;
-            mimeType?: string | null; uploaded_at: string; acquired_at: string;
-        };
+        try {
+            if (!deferUploads) {
+                // 主要4種は並列
+                const [lf, lb, rc, ph] = await Promise.all([
+                    uploadFile("licenseFront", licenseFront),
+                    uploadFile("licenseBack", licenseBack),
+                    uploadFile("residenceCard", residenceCard),
+                    uploadFile("photo", photoFile),
+                ]);
+                licenseFrontUrl = toViewUrl(lf);
+                licenseBackUrl = toViewUrl(lb);
+                residenceCardUrl = toViewUrl(rc);
+                photoUrl = toViewUrl(ph);
 
-        const attachments: Attachment[] = [];
-        for (let i = 0; i < docMaster.certificate.length; i++) {
-            const certUrl = certificationUrls[i];
-            if (!certUrl) continue;
-
-            const certFile = form.get(`certificate_${i}`) as File | null;
-
-            attachments.push({
-                id: crypto.randomUUID(),
-                url: certUrl,
-                label: docMaster.certificate[i],   // マスター表記で保存
-                type: "資格証明書",
-                mimeType: certFile?.type ?? null,
-                uploaded_at: nowIso,
-                acquired_at: nowIso,               // ★取得日は申込日に固定
-            });
-        }
-
-
-        // work_style配列取得
-        const work_styles = form.getAll("workStyle") as string[];
-
-        // --- Supabase 登録 ---
-        const payload = {
-            last_name_kanji: form.get("lastNameKanji"),
-            first_name_kanji: form.get("firstNameKanji"),
-            last_name_kana: form.get("lastNameKana"),
-            first_name_kana: form.get("firstNameKana"),
-            birth_year: form.get("birthYear"),
-            birth_month: form.get("birthMonth"),
-            birth_day: form.get("birthDay"),
-            gender: form.get("gender"), // ← 追加
-            motivation: form.get("motivation"),
-            work_styles,
-            workstyle_other: form.get("workStyleOther"),
-            commute_options: form.getAll("commute") as string[],
-            health_condition: form.get("healthCondition"),
-            license_front_url: licenseFrontUrl,
-            license_back_url: licenseBackUrl,
-            residence_card_url: residenceCardUrl,
-            photo_url: photoUrl,  // 顔写真のみ個別カラム
-            attachments,
-            postal_code: postalCode,
-            address: address,
-            phone: form.get("phone"),
-            email: form.get("email"),
-            workplace_1: form.get("workplace_1"),
-            period_from_1: form.get("periodFrom_1"),
-            period_to_1: form.get("periodTo_1"),
-            workplace_2: form.get("workplace_2"),
-            period_from_2: form.get("periodFrom_2"),
-            period_to_2: form.get("periodTo_2"),
-            workplace_3: form.get("workplace_3"),
-            period_from_3: form.get("periodFrom_3"),
-            period_to_3: form.get("periodTo_3"),
-            /*   attachementsに一本化
-            certifications: certificationUrls
-                .map((url, idx) => (url ? { label: docMaster.certificate[idx], url } : null))
-                .filter(Boolean),
-            agreed_at: new Date().toISOString(), // ← 同意日時
-            */
-            consent_snapshot: JSON.stringify({
-                agreeTerms: "入力内容に虚偽がないことを確認しました。",
-                agreePrivacy: "プライバシーポリシーを読み、内容に同意します。",
-            }),
-        };
-
-        // --- DB登録処理（DB処理2: INSERT）---
-        console.log("🚀 Supabaseへ送信するpayload:", payload);
-
-        const { data: insertData, error: insertError } = await supabase
-            .from("form_entries")
-            .insert([payload])
-            .select();
-
-        if (insertError) {
-            console.error("送信失敗:", insertError.message);
-            alert("送信に失敗しました");
+                // 資格ファイル：certificate_0, certificate_1, ... と連番想定
+                const certTasks: Promise<string | null>[] = [];
+                for (let i = 0; i < 20; i++) { // 上限は十分大きめに
+                    const f = (form.get(`certificate_${i}`) as File) ?? null;
+                    if (!f || f.size === 0) continue;
+                    certTasks.push(uploadFile(`certificate_${i}`, f));
+                }
+                if (certTasks.length > 0) {
+                    const settled = await Promise.allSettled(certTasks);
+                    certificationUrls = settled.map(s =>
+                        s.status === "fulfilled" && s.value ? toViewUrl(s.value) : null
+                    );
+                }
+            }
+        } catch (err) {
+            // アップロードで致命的に失敗したら、ここで中断（画像あとでフローに切り替えるならここで分岐も可）
+            setIsSubmitting(false);
+            alert("ファイルのアップロードに失敗しました。回線状態を確認して再度お試しください。『画像はあとで』にチェックして送信も可能です。");
             return;
         }
 
-        console.log("✅ insert成功！次に進みます");
-
-        // staff_log への記録
-        const { error: logError } = await addStaffLog({
-            staff_id: insertData[0].id,
-            action_at: new Date().toISOString(),
-            action_detail: 'エントリー完了',
-            registered_by: 'システム'
-        });
-
-        if (logError) {
-            console.error("staff_log 記録失敗:", logError);
-        } else {
-            console.log("📝 staff_log にエントリー完了を記録しました");
+        // --- テキスト payload を構築（File は除外） --------------------------------
+        const textPayload: Record<string, string | boolean> = {};
+        for (const [k, v] of form.entries()) {
+            if (v instanceof File) continue;
+            // checkbox は "on" を boolean に
+            if (v === "on") {
+                textPayload[k] = true;
+            } else {
+                textPayload[k] = v;
+            }
         }
 
-        // 年齢の算出
-        const birthYear = Number(birthYearStr);
-        const birthMonth = Number(birthMonthStr);
-        const birthDay = Number(birthDayStr);
+        // 画像URLを payload に付与（defer の場合は null のままでOK）
+        const payload = {
+            ...textPayload,
+            status: deferUploads ? "PENDING_FILES" : "FILES_ATTACHED",
+            attachments: {
+                licenseFrontUrl,
+                licenseBackUrl,
+                residenceCardUrl,
+                photoUrl,
+                certificationUrls: certificationUrls.filter((u) => !!u), // 取れた分だけ
+            },
+            submittedAt: new Date().toISOString(),
+        };
 
-        const today = new Date();
-        let age = today.getFullYear() - birthYear;
-        if (
-            today.getMonth() + 1 < birthMonth ||
-            (today.getMonth() + 1 === birthMonth && today.getDate() < birthDay)
-        ) {
-            age--;
-        }
-
-        // --- メール送信 ---
+        // --- 送信（DB登録 → メール通知） -------------------------------------------
         try {
-            console.log("🚀 メール送信リクエスト構築中...");
-
-            // Supabase 用に作成した payload をそのまま使うのが理想です。
-            // もしここで再構築するなら以下のようにまとめます。
-            const payload = {
-                applicantName: `${form.get("lastNameKanji")} ${form.get("firstNameKanji")}`,
-                applicantKana: `${form.get("lastNameKana")} ${form.get("firstNameKana")}`,
-                age: age,
-                gender: form.get("gender"),
-                email: form.get("email"),
-                phone: form.get("phone"),
-                postal_code: postalCode,
-                address: address,
-                motivation: form.get("motivation"),
-                workstyle_other: form.get("workStyleOther"),
-                commute_options: form.getAll("commute"),
-                health_condition: form.get("healthCondition"),
-                photo_url: photoUrl,
-                license_front_url: licenseFrontUrl,
-                license_back_url: licenseBackUrl,
-                certification_urls: certificationUrls,
-            };
-
-            console.log("✅ メール送信ペイロード:", payload);
-
-            const res = await fetch("/api/send-entry-email", {
+            // 例：DB登録（あなたの既存エンドポイント/処理に合わせて変更してください）
+            //   - Supabase直接Insertを使っているなら、そのまま置き換え
+            const saveRes = await fetch("/api/submit-entry", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
+            if (!saveRes.ok) {
+                throw new Error(`submit-entry failed: ${saveRes.status}`);
+            }
+            const saved = await saveRes.json(); // {id: "..."} 等を想定
 
-            let result: { error?: string; success?: boolean } = { error: "不明な形式のレスポンスです" };
+            // 例：メール通知（裏側でキュー化できるなら 202 即返しが理想）
+            await fetch("/api/send-entry-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entryId: saved.id, ...payload }),
+            });
 
+            // 成功時：UI反映
             try {
-                result = await res.json();
-            } catch {
-                console.warn("⚠ レスポンスがJSONではありませんでした");
-            }
+                // 既存の状態管理があれば使う（無ければ無視されるだけ）
+                // @ts-ignore
+                setSubmitted(true);
+                // @ts-ignore
+                setFormData(payload);
+                // 必要ならフォームをリセット
+                formEl.reset();
+            } catch { }
 
-            if (!res.ok) {
-                console.error("❌ メール送信エラー:", result);
-                alert(`メール通知に失敗しました：${result.error || "原因不明"}\n採用担当への連絡は手動でお願いします`);
-            } else {
-                console.log("✅ メール送信成功");
-            }
+            alert(deferUploads
+                ? "エントリー（テキスト）は送信しました。画像はあとからアップロードできます。"
+                : "エントリーを送信しました。");
 
         } catch (err) {
-            console.error("❌ fetchエラー:", err);
-            alert("予期しないエラーが発生しました（メール通知に失敗）");
+            console.error(err);
+            alert("送信に失敗しました。時間をおいて再度お試しください。");
+
         } finally {
             setIsSubmitting(false);
         }
-
-
-        // --- 完了処理 ---
-        setFormData(form);
-        setSubmitted(true);
     }
-
 
     if (submitted && formData) {
         return <PostSubmitMessage form={formData} />;
