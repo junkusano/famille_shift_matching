@@ -88,7 +88,10 @@ export default function EntryPage() {
         const deferUploads = form.get("deferUploads") === "on" || form.get("deferUploads") === "true";
 
         // 必須テキスト例（必要に応じて調整）
-        const applicantName = String(form.get("applicantName") || "").trim();
+        // 必須テキスト（氏名は姓/名を結合）
+        const lastNameKanji = String(form.get("lastNameKanji") || "").trim();
+        const firstNameKanji = String(form.get("firstNameKanji") || "").trim();
+        //const applicantName = `${lastNameKanji}${firstNameKanji}`;
         const email = String(form.get("email") || "").trim();
 
         // 画像ファイル（name はフォーム側と合わせてください）
@@ -98,7 +101,7 @@ export default function EntryPage() {
         const photoFile = (form.get("photo") as File) ?? null;
 
         // バリデーション（「画像はあとで」の場合は画像必須を外す）
-        if (!applicantName) {
+        if (!lastNameKanji || !firstNameKanji) {
             alert("氏名を入力してください。");
             return;
         }
