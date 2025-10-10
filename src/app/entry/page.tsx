@@ -77,30 +77,15 @@ export default function EntryPage() {
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
 
-        // --- 基本セットアップ ------------------------------------------------------
         const formEl = e.currentTarget;
         const form = new FormData(formEl);
 
-        // 任意：重複送信防止など、あなたの既存ロジックがあればここで実行
-        // 例：同一メールの重複確認 など（既存のままでOK）
-
-        // 「画像はあとで」フラグ
-        const deferUploads = form.get("deferUploads") === "on" || form.get("deferUploads") === "true";
-
-        // 必須テキスト例（必要に応じて調整）
-        // 必須テキスト（氏名は姓/名を結合）
+        // 必須テキスト（氏名は姓+名を結合）
         const lastNameKanji = String(form.get("lastNameKanji") || "").trim();
         const firstNameKanji = String(form.get("firstNameKanji") || "").trim();
-        //const applicantName = `${lastNameKanji}${firstNameKanji}`;
+        const applicantName = `${lastNameKanji}${firstNameKanji}`;
         const email = String(form.get("email") || "").trim();
 
-        // 画像ファイル（name はフォーム側と合わせてください）
-        const licenseFront = (form.get("licenseFront") as File) ?? null;
-        const licenseBack = (form.get("licenseBack") as File) ?? null;
-        const residenceCard = (form.get("residenceCard") as File) ?? null;
-        const photoFile = (form.get("photo") as File) ?? null;
-
-        // バリデーション（「画像はあとで」の場合は画像必須を外す）
         if (!lastNameKanji || !firstNameKanji) {
             alert("氏名を入力してください。");
             return;
@@ -109,182 +94,138 @@ export default function EntryPage() {
             alert("メールアドレスを入力してください。");
             return;
         }
-        if (!deferUploads) {
-            // 画像必須チェック（必要に応じて調整）
-            if (!photoFile || photoFile.size === 0) {
-                alert("顔写真をアップロードしてください（『画像はあとで』にチェックすればスキップできます）。");
-                return;
-            }
-            if ((!licenseFront || licenseFront.size === 0) && (!residenceCard || residenceCard.size === 0)) {
-                alert("本人確認書類（免許証や住民票のいずれか）をアップロードしてください。");
-                return;
-            }
-        }
 
-        // ここまで来てから submitting を true に（途中 return で固まらないため）
+        // 画像ファイル（name はフォーム側と合わせてください）
+        const licenseFront = (form.get("licenseFront") as File) ?? null;
+        const licenseBack = (form.get("licenseBack") as File) ?? null;
+        const residenceCard = (form.get("residenceCard") as File) ?? null;
+        const photoFile = (form.get("photo") as File) ?? null;
+
         setIsSubmitting(true);
 
-        // --- ユーティリティ（handleSubmit 内に閉じ込める：重複定義を避ける） -----
+        // ---- ユーティリティ（この関数内だけで完結：失敗しても throw しない） ----
         const timestamp = (() => {
             const d = new Date();
             const pad = (n: number) => n.toString().padStart(2, "0");
             return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
         })();
 
-        function toViewUrl(raw: string | null): string | null {
-            if (!raw) return null;
-            try {
-                // Google Drive の共有URLを <img> などで直表示しやすい形式に
-                // 例: https://drive.google.com/file/d/<id>/view?usp=sharing -> https://drive.google.com/uc?export=view&id=<id>
-                const m = raw.match(/\/d\/([^/]+)/);
-                if (m && m[1]) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
-                // 既に直リンク or 変換不要ならそのまま
-                return raw;
-            } catch {
-                return raw;
-            }
-        }
-
         async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, ms = 45000) {
             const ctrl = new AbortController();
             const id = setTimeout(() => ctrl.abort(), ms);
-            try {
-                return await fetch(input, { ...init, signal: ctrl.signal });
-            } finally {
-                clearTimeout(id);
-            }
+            try { return await fetch(input, { ...init, signal: ctrl.signal }); }
+            finally { clearTimeout(id); }
         }
 
-        async function uploadFile(key: string, file: File | null): Promise<string | null> {
+        function toViewUrl(raw: string | null): string | null {
+            if (!raw) return null;
+            const m = raw.match(/\/d\/([^/]+)/);
+            return m?.[1] ? `https://drive.google.com/uc?export=view&id=${m[1]}` : raw;
+        }
+
+        async function uploadFileOrNull(key: string, file: File | null): Promise<string | null> {
             if (!file || file.size === 0) return null;
             const fd = new FormData();
             fd.append("file", file);
             fd.append("filename", `${key}_${timestamp}_${file.name}`);
-            // 最大2回リトライ
+            // 最大2回リトライ。失敗しても throw せず null を返す
             for (let i = 0; i < 2; i++) {
                 try {
                     const res = await fetchWithTimeout("/api/upload", { method: "POST", body: fd });
                     if (!res.ok) throw new Error(`upload ${key} failed: ${res.status}`);
                     const result = await res.json();
-                    return result.url || null;
-                } catch (err) {
-                    if (i === 1) throw err;
+                    return toViewUrl(result.url || null);
+                } catch {
+                    /* retry */
                 }
             }
-            return null;
+            return null; // ← 失敗しても続行
         }
 
-        // --- 画像アップロード（deferUploads=false のときだけ実行） -------------------
-        let licenseFrontUrl: string | null = null;
-        let licenseBackUrl: string | null = null;
-        let residenceCardUrl: string | null = null;
-        let photoUrl: string | null = null;
-        let certificationUrls: (string | null)[] = [];
+        // ---- 画像はベストエフォートで並列アップロード（失敗しても止めない） ----
+        const [licenseFrontUrl, licenseBackUrl, residenceCardUrl, photoUrl] = await Promise.all([
+            uploadFileOrNull("licenseFront", licenseFront),
+            uploadFileOrNull("licenseBack", licenseBack),
+            uploadFileOrNull("residenceCard", residenceCard),
+            uploadFileOrNull("photo", photoFile),
+        ]);
 
-        try {
-            if (!deferUploads) {
-                // 主要4種は並列
-                const [lf, lb, rc, ph] = await Promise.all([
-                    uploadFile("licenseFront", licenseFront),
-                    uploadFile("licenseBack", licenseBack),
-                    uploadFile("residenceCard", residenceCard),
-                    uploadFile("photo", photoFile),
-                ]);
-                licenseFrontUrl = toViewUrl(lf);
-                licenseBackUrl = toViewUrl(lb);
-                residenceCardUrl = toViewUrl(rc);
-                photoUrl = toViewUrl(ph);
-
-                // 資格ファイル：certificate_0, certificate_1, ... と連番想定
-                const certTasks: Promise<string | null>[] = [];
-                for (let i = 0; i < 20; i++) { // 上限は十分大きめに
-                    const f = (form.get(`certificate_${i}`) as File) ?? null;
-                    if (!f || f.size === 0) continue;
-                    certTasks.push(uploadFile(`certificate_${i}`, f));
-                }
-                if (certTasks.length > 0) {
-                    const settled = await Promise.allSettled(certTasks);
-                    certificationUrls = settled.map(s =>
-                        s.status === "fulfilled" && s.value ? toViewUrl(s.value) : null
-                    );
-                }
-            }
-        } catch {
-            // アップロードで致命的に失敗したら、ここで中断（画像あとでフローに切り替えるならここで分岐も可）
-            setIsSubmitting(false);
-            alert("ファイルのアップロードに失敗しました。回線状態を確認して再度お試しください。『画像はあとで』にチェックして送信も可能です。");
-            return;
+        const certTasks: Promise<string | null>[] = [];
+        for (let i = 0; i < 20; i++) {
+            const f = (form.get(`certificate_${i}`) as File) ?? null;
+            if (f && f.size > 0) certTasks.push(uploadFileOrNull(`certificate_${i}`, f));
         }
+        const certSettled = await Promise.allSettled(certTasks);
+        const certificationUrls = certSettled.map(s => (s.status === "fulfilled" ? s.value : null)).filter(Boolean) as string[];
 
-        // --- テキスト payload を構築（File は除外） --------------------------------
-        const textPayload: Record<string, string | boolean> = {};
+        // ---- テキストpayloadを構築（Fileは除外） -----------------------------------
+        const textPayload: Record<string, string | boolean | null> = {};
         for (const [k, v] of form.entries()) {
             if (v instanceof File) continue;
-            // checkbox は "on" を boolean に
-            if (v === "on") {
-                textPayload[k] = true;
-            } else {
-                textPayload[k] = v;
-            }
+            textPayload[k] = v === "on" ? true : (typeof v === "string" ? v : String(v));
         }
 
-        // 画像URLを payload に付与（defer の場合は null のままでOK）
+        // 画像の成否にかかわらず進める。取れたURLだけ載せる
+        const anyAttachment = !!(licenseFrontUrl || licenseBackUrl || residenceCardUrl || photoUrl || certificationUrls.length);
         const payload = {
             ...textPayload,
-            status: deferUploads ? "PENDING_FILES" : "FILES_ATTACHED",
+            applicantName,
+            status: anyAttachment ? "FILES_ATTACHED" : "PENDING_FILES",
             attachments: {
                 licenseFrontUrl,
                 licenseBackUrl,
                 residenceCardUrl,
                 photoUrl,
-                certificationUrls: certificationUrls.filter((u) => !!u), // 取れた分だけ
+                certificationUrls,
             },
             submittedAt: new Date().toISOString(),
         };
 
-        // --- 送信（DB登録 → メール通知） -------------------------------------------
+        // ---- 保存 → メール通知（失敗しても err をログし、UIは丁寧に案内） ----
         try {
-            // 例：DB登録（あなたの既存エンドポイント/処理に合わせて変更してください）
-            //   - Supabase直接Insertを使っているなら、そのまま置き換え
             const saveRes = await fetch("/api/submit-entry", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
-            if (!saveRes.ok) {
-                throw new Error(`submit-entry failed: ${saveRes.status}`);
-            }
-            const saved = await saveRes.json(); // {id: "..."} 等を想定
+            if (!saveRes.ok) throw new Error(`submit-entry failed: ${saveRes.status}`);
+            const saved = await saveRes.json();
 
-            // 例：メール通知（裏側でキュー化できるなら 202 即返しが理想）
-            await fetch("/api/send-entry-email", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ entryId: saved.id, ...payload }),
-            });
-
-            // 成功時：UI反映
+            // メール通知（裏側キュー化が理想。失敗しても応募は成立）
             try {
-                // 既存の状態管理があれば使う（無ければ無視されるだけ）
-                setSubmitted(true);
-                // @ts-expect-error -- setFormDataはFormData|nullだが、確定後の表示用にオブジェクトpayloadを一時的に保存するため
-                setFormData(payload);
-                // 必要ならフォームをリセット
-                formEl.reset();
+                await fetch("/api/send-entry-email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ entryId: saved.id, ...payload }),
+                });
+            } catch (err) {
+                console.warn("メール通知に失敗しました", err);
+            }
+
+            // 送信完了UI
+            try {
+                // 状態管理（確認画面に切り替え）
+        setSubmitted(true);
+        setFormData(form); // 送信時の入力値をそのまま渡す
             } catch { }
 
-            alert(deferUploads
-                ? "エントリー（テキスト）は送信しました。画像はあとからアップロードできます。"
-                : "エントリーを送信しました。");
+            // 成功メッセージは“画像の有無”で文言を分岐
+            if (anyAttachment) {
+                alert("エントリーを送信しました（画像も一部またはすべて受け取りました）。");
+            } else {
+                alert("エントリー（テキスト）は送信しました。画像は後からでも提出できます。");
+            }
 
+            formEl.reset();
         } catch (err) {
             console.error(err);
+            // ここだけは本当に保存に失敗した場合
             alert("送信に失敗しました。時間をおいて再度お試しください。");
-
         } finally {
             setIsSubmitting(false);
         }
     }
+
 
     if (submitted && formData) {
         return <PostSubmitMessage form={formData} />;
