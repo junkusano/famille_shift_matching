@@ -66,12 +66,23 @@ export async function GET() {
 
         // 3. シフト情報を先にフィルタリングして取得 (statusがdraftまたはnullのもの、1時間前のシフト)
         const { data: shifts, error: shiftError } = await supabase
-            .from('shift_shift_record_view') // shift_shift_record_view を使って一発で取得
+            .from('shift_shift_record_view')
             .select('*')
-            .or(`record_status.eq.draft,record_status.is.null`)  // statusがdraftかnullのシフト
-            .lte('shift_start_date', endTimeLimitDate) // 終了日が指定日時以下
-            .gte('shift_start_date', "2025-10-01")
-            .lte('shift_end_time', endTimeLimitTime); // 終了時間が指定日時以下
+
+            // A) 未了（= draft または null）は従来どおり
+            .or(`record_status.eq.draft,record_status.is.null`)
+
+            // B) 「カットオフ以前」を “日付と時刻の複合条件” で判定
+            //    具体的には： (start_date < カットオフ日) OR
+            //                (start_date = カットオフ日 AND end_time <= カットオフ時刻)
+            //    これで“前日分”も拾えるようになる
+            .or(
+                `shift_start_date.lt.${endTimeLimitDate},` +
+                `and(shift_start_date.eq.${endTimeLimitDate},shift_end_time.lte.${endTimeLimitTime})`
+            )
+
+            // （任意の期間制限。必要なら残す/外すを判断）
+            .gte('shift_start_date', '2025-10-01');
 
         if (shiftError) throw shiftError;
 
