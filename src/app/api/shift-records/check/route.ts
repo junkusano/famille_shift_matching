@@ -1,188 +1,252 @@
-//api/shift-records/check/route.ts
-// 未了シフトの担当者へのリマインドメッセージ送信 (cronジョブ用)
-import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+// C:\Users\USER\famille_shift_matching\src\lib\supabase\analyzeTalksAndDispatchToRPA.ts
+
+import OpenAI from "openai";
+import { ChatCompletionMessageParam } from "openai/resources";
+import { supabaseAdmin as supabase } from "@/lib/supabase/service";
+import { rpaInstructionPrompt } from "@/lib/supabase/rpaInstructionPrompt";
 import { getAccessToken } from "@/lib/getAccessToken";
-import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
-import { subHours } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage"; // ★ 追加：既存の送信ヘルパーを使用
+// 既存（変更なし）
+import { insertShifts } from "@/lib/supabase/shiftAdd";
+import { deleteShifts } from "@/lib/supabase/shiftDelete";
 
-const timeZone = "Asia/Tokyo";
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+type GroupedTalk = {
+  ids: number[];
+  talks: { role: "user" | "assistant" | "system"; content: string }[];
+};
 
-const DRY_RUN = false; // 送信せずログだけ出したい時は true
+type GroupMember = {
+  externalKey: string;
+  id: string;
+  type: "USER" | "ORGUNIT" | "GROUP";
+};
 
+const analyzePendingTalksAndDispatch = async (): Promise<void> => {
+  const { data: logs, error } = await supabase
+    .from("msg_lw_log_with_group_account")
+    .select("id, user_id, channel_id, message, timestamp, group_account")
+    .eq("status", 0)
+    .eq("event_type", "message")
+    .neq("message", null)
+    .eq("is_numeric_group_account", true)
+    .order("timestamp", { ascending: true });
 
-// シフト情報を取得し、未対応のシフトに対してメッセージを送信
-export async function GET() {
-    console.log("--- Unfinished Shift Alert Cron Job Started ---");
+  console.log("Supabase status fetch error:", error);
+  console.log("logs:", logs);
+
+  if (error || !logs || logs.length === 0) return;
+
+  const grouped: Record<string, GroupedTalk> = logs.reduce((acc, log) => {
+    const key = log.channel_id || `user:${log.user_id}`;
+    if (!acc[key]) acc[key] = { ids: [], talks: [] };
+    acc[key].ids.push(log.id);
+    acc[key].talks.push({ role: "user", content: log.message });
+    return acc;
+  }, {} as Record<string, GroupedTalk>);
+
+  for (const [channel_id, { ids, talks }] of Object.entries(grouped)) {
+    if (talks.length === 0) continue;
+
+    const baseLog = logs.find((log) => ids.includes(log.id));
+    const group_account = baseLog?.group_account || "不明";
+    const timestampUtc = baseLog?.timestamp || new Date().toISOString();
+    const jstDate = new Date(timestampUtc);
+    jstDate.setHours(jstDate.getHours() + 9);
+    const timestamp = jstDate.toISOString().replace("T", " ").replace(".000Z", "");
+
+    // 既存：メンバー取得のためのトークン（この後の返信にも再利用）
+    const accessToken = await getAccessToken();
+
+    const groupRes = await fetch(`https://www.worksapis.com/v1.0/groups/${channel_id}/members`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    const groupData = await groupRes.json();
+    const members: GroupMember[] = groupData.members || [];
+
+    const mentionMap = members
+      .filter((m): m is GroupMember & { type: "USER" } => m.type === "USER")
+      .map((m) => ({ name: m.externalKey, user_id: m.id }));
+
+    const messages: ChatCompletionMessageParam[] = [
+      rpaInstructionPrompt,
+      { role: "system", content: `この会話は group_account=${group_account} のやりとりです。` },
+      { role: "system", content: `この会話の基準日（最終発言時刻）は ${timestamp} です。` },
+      {
+        role: "system",
+        content:
+          `この会話には以下のメンションがあります（JSON形式）。文中に出てくる @名前 に対応する user_id は以下のとおりです。内容に登場する人物の担当者IDを特定する際に必ず参考にしてください。\n` +
+          JSON.stringify(mentionMap, null, 2),
+      },
+      ...talks.map((t) => ({ role: t.role, content: t.content })),
+    ];
+
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      temperature: 0,
+    });
+
+    const responseText = (res.choices?.[0]?.message?.content ?? "").trim();
+    console.log("🔍 AI応答内容:", responseText);
+
+    await supabase.from("msg_lw_analysis_log").insert({
+      timestamp: new Date().toISOString(),
+      channel_id: channel_id,
+      text: responseText,
+      reason: responseText.toLowerCase() === "処理なし" ? "処理不要" : "処理判定済",
+    });
+
+    if (responseText.trim() === "処理なし") {
+      for (const id of ids) {
+        const { error: updateErr } = await supabase.from("msg_lw_log").update({ status: 2 }).eq("id", id);
+        if (updateErr) {
+          console.error(`❌ Update failed for id=${id} (status=2):`, updateErr.message);
+        }
+      }
+      continue;
+    }
 
     try {
-        // いま（UTCでもOK）→ JSTでフォーマットして扱う
-        const now = new Date();
+      let cleanedText = responseText;
+      if (cleanedText.startsWith("```") && cleanedText.endsWith("```")) {
+        cleanedText = cleanedText.replace(/^```(?:json)?\n?/, "").replace(/```$/, "").trim();
+      }
 
-        // 「JSTで見た1時間前」
-        const oneHourAgo = subHours(now, 1);
+      const parsed = JSON.parse(cleanedText) as {
+        template_id: string;
+        request_detail: any; // 既存仕様を維持
+      };
+      const { template_id, request_detail } = parsed;
 
-        // 文字列にするときも常にJSTで整形
-        const endTimeLimitDate = formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd");
-        const endTimeLimitTime = formatInTimeZone(oneHourAgo, timeZone, "HH:mm");
+      // === シフト削除（まずDBから直接削除） ===
+      if (template_id === "9bcfa71a-e800-4b49-a6aa-b80016b4b683") {
+        console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
+        const deleteResult = await deleteShifts(request_detail);
 
-        // デバッグ出力（JSTで見えるように）
-        console.log("[JST] oneHourAgo:", formatInTimeZone(oneHourAgo, timeZone, "yyyy-MM-dd HH:mm"));
-        console.log("[JST] endTimeDate:", endTimeLimitDate);
-        console.log("[JST] endTimeTime:", endTimeLimitTime);
+        if (deleteResult.success) {
+          // ★ 追加：成功時のフィードバックを元のチャネルへ
+          const deletions: Array<{ shift_date?: string; shift_time?: string }> =
+            Array.isArray(request_detail?.deletions) ? request_detail.deletions : [];
+          const ga = request_detail?.group_account ?? group_account;
 
-        // 1. 全担当者（User）リストを取得
-        // statusが除外条件に合わない user_id と channel_id (人事労務サポートルーム) を取得
-        const { data: usersData, error: usersError } = await supabase
-            .from('user_entry_united_view_single')
-            .select('user_id, channel_id, lw_userid')
-            .neq('status', 'removed_from_lineworks_kaipoke')
-            .neq('status', 'inactive');
+          const lines: string[] = ["✅ シフト削除を反映しました。"];
+          for (const d of deletions) {
+            lines.push(`・利用者: ${ga} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
+          }
+          lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
 
-        if (usersError) throw usersError;
-
-        console.log("usersData:", usersData);
-
-        // 2. 全利用者（Client）リストとそのチャンネルIDを取得
-        // 利用者名と、利用者ごとのLineWorksチャンネルIDを取得
-        const { data: clientList, error: clientError } = await supabase
-            .from('group_lw_channel_view')
-            .select('group_account, channel_id')
-            // ★ 修正: group_type が '利用者様情報連携グループ' のものに限定
-            .eq('group_type', '利用者様情報連携グループ');
-
-        if (clientError) throw clientError;
-
-        if (clientList.length === 0) {
-            console.log("No clients found. Exiting.");
-            return NextResponse.json({ success: true, message: "No clients found" });
-        }
-
-        // 送信するメッセージを格納する Map
-        // Key: 利用者チャンネルID (Bot送信先), Value: メッセージ本文
-        const clientMessageQueue = new Map<string, string>();
-
-        // 3. シフト情報を先にフィルタリングして取得 (statusがdraftまたはnullのもの、1時間前のシフト)
-        const { data: shifts, error: shiftError } = await supabase
-            .from('shift_shift_record_view')
-            .select('*')
-
-            // A) 未了（= draft または null）は従来どおり
-            .or(`record_status.eq.draft,record_status.is.null`)
-
-            // B) 「カットオフ以前」を “日付と時刻の複合条件” で判定
-            //    具体的には： (start_date < カットオフ日) OR
-            //                (start_date = カットオフ日 AND end_time <= カットオフ時刻)
-            //    これで“前日分”も拾えるようになる
-            .or(
-                `shift_start_date.lt.${endTimeLimitDate},` +
-                `and(shift_start_date.eq.${endTimeLimitDate},shift_end_time.lte.${endTimeLimitTime})`
-            )
-
-            // （任意の期間制限。必要なら残す/外すを判断）
-            .gte('shift_start_date', '2025-10-01');
-
-        if (shiftError) throw shiftError;
-
-        console.log("取得したシフトデータ:", shifts); // ここで取得したシフトデータの詳細を出力
-
-
-        // --- (A) 担当者（User）ループ (外側) ---
-        for (const user of usersData) {
-            const userId = user.user_id;
-
-            // テスト用ユーザー制限
-            /*
-            if (user.user_id !== 'tomominakagaki') {
-                continue; // テスト用ユーザー以外はスキップ
-            }
-
-            console.log(`[DEBUG] : ${userId} ('tomominakagaki')`);
-            */
-
-            // --- (B) 利用者（Client）ループ (内側) ---
-            for (const client of clientList) {
-                const kaipokeCsId = client.group_account;
-
-
-                const clientChannelId = client.channel_id;
-
-                if (!clientChannelId) {
-                    continue;
-                }
-
-                // 担当者IDと利用者IDに絞って未了シフトを取得
-                const unfinishedShifts = shifts.filter(shift => {
-                    return (shift.staff_01_user_id === userId || shift.staff_02_user_id === userId || shift.staff_03_user_id === userId)
-                        && shift.kaipoke_cs_id === kaipokeCsId;
-                });
-
-                const clientUnfinishedShifts: string[] = unfinishedShifts.map(shift =>
-                    `・${shift.shift_start_date} ${(shift.shift_start_time ?? "").split(":").slice(0, 2).join(":")} - ${(shift.shift_end_time ?? "").split(":").slice(0, 2).join(":")}`
-                );
-
-                if (clientUnfinishedShifts.length > 0) {
-                    const header = `訪問記録が未了です。`;
-                    const body = clientUnfinishedShifts.join('\n');
-                    const link = `https://myfamille.shi-on.net/portal/shift-view?openExternalBrowser=1 `;
-
-                    const messageSegment = `\n\n<m userId="${user.lw_userid}">さん\n${header}\n${body}\n未了の記録を確認し、完了させてください。\n${link}`;
-
-                    const currentMessage = clientMessageQueue.get(clientChannelId) || `【未了訪問記録の通知】\n`;
-
-
-                    clientMessageQueue.set(clientChannelId, currentMessage + messageSegment);
-
-                }
-
-            }
-
-        }
-
-        // 7. メッセージの送信
-        // === 7. 送信（詳細ログ付き・ループの外で1回だけ） ===
-
-        console.log(`[INFO] Sending ${clientMessageQueue.size} messages to client channels...`);
-
-        if (clientMessageQueue.size === 0) {
-            console.log("[INFO] No messages to send.");
+          await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
         } else {
-            // 中身の確認ログ（必要に応じてsliceで短縮してOK）
-            let idx = 0;
-            for (const [channelId, message] of clientMessageQueue.entries()) {
-                console.log(
-                    `\n----- [MESSAGE ${++idx}/${clientMessageQueue.size}] -----\n` +
-                    `channelId: ${channelId}\n` +
-                    `length   : ${message.length}\n` +
-                    `content  :\n${message}\n` +
-                    `----- [END MESSAGE ${idx}] -----\n`
-                );
-            }
+          console.error("⚠️ シフト削除処理中にエラーが発生しました:", deleteResult.errors);
 
-            if (DRY_RUN) {
-                console.log("[DRY_RUN] メッセージは送信しません（ログのみ出力）。");
-            } else {
-                const accessToken = await getAccessToken();
-                const sent = new Set<string>();
-                let sentCount = 0;
+          // ★ 既に実装済み：失敗理由を元の会話チャネルへ返す
+          const deletions: Array<{ shift_date?: string; shift_time?: string }> =
+            Array.isArray(request_detail?.deletions) ? request_detail.deletions : [];
+          const ga = request_detail?.group_account ?? group_account;
 
-                for (const [channelId, message] of clientMessageQueue.entries()) {
-                    if (sent.has(channelId)) continue;         // 二重送信ガード
-                    sent.add(channelId);
-                    console.log(`[SEND] -> channelId=${channelId}, bytes=${message.length}`);
-                    await sendLWBotMessage(channelId, message, accessToken);
-                    sentCount++;
-                }
+          const errs: string[] = Array.isArray(deleteResult.errors) ? deleteResult.errors : [];
+          const isMissing = errs.some((e) => typeof e === "string" && e.includes("必須情報不足"));
+          const isNotFound = errs.some(
+            (e) => typeof e === "string" && (e.includes("見つかりません") || e.includes("not found"))
+          );
 
-                console.log(`[INFO] Sent ${sentCount} / ${clientMessageQueue.size} messages.`);
-            }
+          let header = "⚠️ シフト削除に失敗しました。";
+          if (isMissing) header = "⚠️ シフト削除できませんでした（必須情報が不足しています）。";
+          else if (isNotFound) header = "⚠️ シフト削除警告: 対象シフトが見つかりませんでした。";
+
+          const lines: string[] = [header];
+          for (const d of deletions) {
+            lines.push(`・利用者: ${ga} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
+          }
+          if (isMissing) {
+            lines.push("", "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。");
+          } else if (isNotFound) {
+            lines.push("", "候補：時間の表記ゆれ（例: 08:00 / 8:00 / 8:00-9:00）や別日の同名案件が無いかをご確認ください。");
+          }
+          if (errs.length > 0) lines.push("", `詳細: ${errs[0]}`);
+
+          await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
         }
-        console.log("--- Unfinished Shift Alert Cron Job Finished Successfully ---");
-        return NextResponse.json({ success: true, count: clientMessageQueue.size });
-    } catch (error) {
-        console.error("Error processing shifts:", error);
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      }
+
+      // === シフト追加（直接挿入） ===
+      if (template_id === "2f9dacc7-92bc-4888-8ff3-eadca4e4f75a") {
+        console.log("🚀 シフト追加リクエストを検知。shiftテーブルに直接挿入を試行します。");
+        const insertResult = await insertShifts(request_detail);
+
+        if (insertResult.success) {
+          // ★ 追加：成功時のフィードバックを元のチャネルへ
+          // リクエスト形状の揺れに対応（insertions / additions / shifts）
+          const additions: Array<{ shift_date?: string; shift_time?: string; service_code?: string }> =
+            (Array.isArray(request_detail?.insertions) && request_detail.insertions) ||
+            (Array.isArray(request_detail?.additions) && request_detail.additions) ||
+            (Array.isArray(request_detail?.shifts) && request_detail.shifts) ||
+            [];
+
+          const ga = request_detail?.group_account ?? group_account;
+
+          const lines: string[] = ["✅ シフト追加を登録しました。"];
+          for (const a of additions) {
+            const svc = a.service_code ? ` / 種別:${a.service_code}` : "";
+            lines.push(`・利用者: ${ga} / 日付: ${a.shift_date ?? "不明"} / 時間: ${a.shift_time ?? "不明"}${svc}`);
+          }
+          lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
+
+          await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+        } else {
+          console.error("⚠️ シフト追加処理中にエラーが発生しました:", insertResult.errors);
+          // 既存仕様：失敗しても後続のRPA登録は継続（必要なら失敗通知も足せます）
+        }
+      }
+
+      // === 既存：RPAリクエストをキューへ ===
+      const lw_user_id = logs.find((l) => l.id === ids[0])?.user_id ?? null;
+      const { data: user } = await supabase
+        .from("users")
+        .select("auth_user_id")
+        .eq("lw_userid", lw_user_id)
+        .maybeSingle();
+      const requestorId = user?.auth_user_id ?? null;
+
+      await supabase.from("rpa_command_requests").insert({
+        template_id,
+        request_details: request_detail,
+        requester_id: requestorId,
+        status: "approved",
+        requested_at: new Date().toISOString(),
+      });
+
+      for (const id of ids) {
+        const { error: updateErr } = await supabase.from("msg_lw_log").update({ status: 9 }).eq("id", id);
+        if (updateErr) {
+          console.error(`❌ Update failed for id=${id} (status=3):`, updateErr.message);
+        }
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error("💥 JSON解析またはInsertエラー:", errorMsg);
+
+      await supabase.from("msg_lw_analysis_log").insert({
+        timestamp: new Date().toISOString(),
+        channel_id: channel_id,
+        text: responseText,
+        reason: "JSON parse or insert error",
+      });
+
+      for (const id of ids) {
+        const { error: updateErr } = await supabase.from("msg_lw_log").update({ status: 9 }).eq("id", id);
+        if (updateErr) {
+          console.error(`❌ Update failed for id=${id} (status=4):`, updateErr.message);
+        }
+      }
     }
-}
+  }
+};
+
+export default analyzePendingTalksAndDispatch;
