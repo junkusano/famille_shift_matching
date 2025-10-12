@@ -8,8 +8,7 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { insertShifts } from "@/lib/supabase/shiftAdd";
 import { deleteShifts } from "@/lib/supabase/shiftDelete";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
+// ====== 既存の型 ======
 type GroupedTalk = {
     ids: number[];
     talks: { role: "user" | "assistant" | "system"; content: string }[];
@@ -21,21 +20,31 @@ type GroupMember = {
     type: "USER" | "ORGUNIT" | "GROUP";
 };
 
-// ====== 厳密型（deleteShifts/insertShifts が期待する型） ======
+// ====== 厳密型（shiftAdd / shiftDelete が受け取る型）======
 type DeletionDetail = { shift_date: string; shift_time: string };
 type ShiftDeleteRequest = { group_account: string; deletions: DeletionDetail[] };
 
-type AdditionDetail = { user_id: string; shift_date: string; shift_time: string; service_code?: string };
+type AdditionDetail = {
+    user_id: string;
+    shift_date: string;
+    shift_time: string; // "HH:MM" or "HH:MM-HH:MM"
+    service_code?: string;
+};
 type ShiftAddRequest = { group_account: string; additions: AdditionDetail[] };
 
-// ====== AI出力の“ゆるい”型（既存に合わせる） ======
+// ====== AI出力など“ゆるい入力型” ======
 type ShiftDeletionItem = { shift_date?: string; shift_time?: string };
 type ShiftDeletionRequest = { group_account: string; deletions: ShiftDeletionItem[] };
 
-type ShiftAdditionItem = { shift_date?: string; shift_time?: string; service_code?: string; user_id?: string };
+type ShiftAdditionItem = {
+    shift_date?: string;
+    shift_time?: string;       // あいまい語（"朝" など）や空の可能性あり
+    service_code?: string;
+    user_id?: string;          // 明示されないことがある
+};
 type ShiftInsertionRequest = {
     group_account: string;
-    requested_by_user_id?: string; // あれば user_id 補完に利用
+    requested_by_user_id?: string; // 既定では依頼者を担当に
     insertions?: ShiftAdditionItem[];
     additions?: ShiftAdditionItem[];
     shifts?: ShiftAdditionItem[];
@@ -50,81 +59,21 @@ type InsertPayload = {
     request_detail: ShiftInsertionRequest;
 };
 
-// ---- あいまい時間表現 → 開始時刻ウィンドウ（開始基準） ----
-const PART_OF_DAY_WINDOWS: Record<string, { from: string; to: string }> = {
-    // ご要望：朝は 05:00～11:00（開始時刻がこの範囲に入る）
-    "朝": { from: "05:00", to: "11:00" },
-    "あさ": { from: "05:00", to: "11:00" },
-    "午前": { from: "05:00", to: "12:00" },
-
-    "昼": { from: "11:00", to: "15:00" },
-    "ひる": { from: "11:00", to: "15:00" },
-
-    "午後": { from: "12:00", to: "19:00" },
-    "夕": { from: "15:00", to: "19:00" },
-    "夕方": { from: "15:00", to: "19:00" },
-
-    "夜": { from: "19:00", to: "24:00" },
-    "よる": { from: "19:00", to: "24:00" },
-    "深夜": { from: "00:00", to: "05:00" },
-};
-// 文字列 "8:00" / "08:00" / "800" → 分に変換
-function timeToMinutes(label: string): number | null {
-    const s = label.trim();
-    const m1 = s.match(/^(\d{1,2}):?(\d{2})$/); // 8:00 / 800 / 08:00
-    if (m1) {
-        const h = parseInt(m1[1], 10);
-        const m = parseInt(m1[2], 10);
-        if (h >= 0 && h < 24 && m >= 0 && m < 60) return h * 60 + m;
-        return null;
-    }
-    const m2 = s.match(/^(\d{1,2})$/); // "8" 単独は 8:00 扱い
-    if (m2) {
-        const h = parseInt(m2[1], 10);
-        if (h >= 0 && h < 24) return h * 60;
-    }
-    return null;
+// ====== 既存 strict 変換 ======
+function toStrictDelete(req: ShiftDeletionRequest): ShiftDeleteRequest {
+    const deletions: DeletionDetail[] = (req.deletions ?? [])
+        .map((d) => ({
+            shift_date: (d.shift_date ?? "").trim(),
+            shift_time: (d.shift_time ?? "").trim(),
+        }))
+        .filter((d) => d.shift_date && d.shift_time);
+    return { group_account: req.group_account, deletions };
 }
 
-function minutesToHHMM(mins: number): string {
-    const clamped = Math.max(0, Math.min(23 * 60 + 59, mins));
-    const h = Math.floor(clamped / 60);
-    const m = clamped % 60;
-    const hh = h.toString().padStart(2, "0");
-    const mm = m.toString().padStart(2, "0");
-    return `${hh}:${mm}`;
-}
-
-// "8:00-9:00" / "8-9" / "8:00" → { start, end? }（分）
-function parseTimeRange(label: string): { start: number; end?: number } | null {
-    const t = label.replace(/\s/g, "");
-    const m = t.match(/^([^-\uFF0D～〜]+)[-\uFF0D～〜]?(.+)?$/); // -, 全角-, 波線にも対応
-    if (!m) return null;
-
-    const sMin = timeToMinutes(m[1]);
-    if (sMin == null) return null;
-
-    if (m[2]) {
-        const eMin = timeToMinutes(m[2]);
-        if (eMin != null) return { start: sMin, end: eMin };
-    }
-    return { start: sMin }; // 単独時刻
-}
-
-function detectWindowLabel(text: string): { from: string; to: string } | null {
-    const key = Object.keys(PART_OF_DAY_WINDOWS).find((k) => text.includes(k));
-    return key ? PART_OF_DAY_WINDOWS[key] : null;
-}
-
-function hhmm(t: string | null | undefined): string {
-    if (!t) return "";
-    // t が "08:30:00" 形式の場合に先頭5文字を使う
-    return t.slice(0, 5);
-}
-
-// ゆるい → 厳密 変換（追加）
-function toStrictAdd(req: ShiftInsertionRequest): ShiftAddRequest | { error: string } {
-    const src =
+function toStrictAdd(
+    req: ShiftInsertionRequest
+): ShiftAddRequest | { error: string } {
+    const src: ShiftAdditionItem[] =
         (Array.isArray(req.insertions) && req.insertions) ||
         (Array.isArray(req.additions) && req.additions) ||
         (Array.isArray(req.shifts) && req.shifts) ||
@@ -135,9 +84,9 @@ function toStrictAdd(req: ShiftInsertionRequest): ShiftAddRequest | { error: str
         const shift_date = (a.shift_date ?? "").trim();
         const shift_time = (a.shift_time ?? "").trim();
         const user_id = (a.user_id ?? req.requested_by_user_id ?? "").trim();
-
         if (!user_id) return { error: "user_id が不足しています（追加の割当先）" };
-        if (!shift_date || !shift_time) return { error: "shift_date/shift_time が不足しています（追加）" };
+        if (!shift_date || !shift_time)
+            return { error: "shift_date/shift_time が不足しています（追加）" };
 
         additions.push({
             user_id,
@@ -149,7 +98,241 @@ function toStrictAdd(req: ShiftInsertionRequest): ShiftAddRequest | { error: str
     return { group_account: req.group_account, additions };
 }
 
-// ---- type guard（any不使用）----
+// ====== 追加: あいまい判定 & 近傍検索用ヘルパ ======
+type TimeHint = "morning" | "noon" | "evening" | "night" | "deep" | null;
+
+function parseTimeHint(input: string | undefined): TimeHint {
+    if (!input) return null;
+    const s = input.replace(/\s/g, "").toLowerCase();
+
+    // 日本語/英語の代表的な語をざっくり拾う
+    if (/(朝|モーニング|午前|am)/.test(s)) return "morning";
+    if (/(昼|正午|ランチ|お昼)/.test(s)) return "noon";
+    if (/(夕|夕方|夕刻|夕食|pm)/.test(s)) return "evening";
+    if (/(夜|ナイト|夜間)/.test(s)) return "night";
+    if (/(深夜|未明)/.test(s)) return "deep";
+
+    // 完全に時間表記ならヒントなし
+    if (/\d{1,2}:\d{2}(-\d{1,2}:\d{2})?$/.test(s)) return null;
+    return null;
+}
+
+// ヒントごとの窓（開始時刻の範囲）※ユーザー要望：朝=05:00-11:00、16時は朝ヒットしない
+function hintWindow(h: TimeHint): { startMin: number; endMin: number; centerMin: number } | null {
+    switch (h) {
+        case "deep": return { startMin: 0, endMin: 300, centerMin: 150 };  // 00:00-05:00
+        case "morning": return { startMin: 300, endMin: 660, centerMin: 480 };  // 05:00-11:00
+        case "noon": return { startMin: 660, endMin: 840, centerMin: 750 };  // 11:00-14:00
+        case "evening": return { startMin: 960, endMin: 1140, centerMin: 1050 }; // 16:00-19:00
+        case "night": return { startMin: 1140, endMin: 1440, centerMin: 1320 };// 19:00-24:00
+        default: return null;
+    }
+}
+
+function tToMinutes(t: string): number | null {
+    // "HH:MM"
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+    return hh * 60 + mm;
+}
+
+type ShiftRow = {
+    shift_id: number;
+    kaipoke_cs_id: string | null;
+    shift_start_date: string | null; // YYYY-MM-DD
+    shift_start_time: string | null; // HH:MM:SS?
+    shift_end_time: string | null;   // HH:MM:SS?
+    service_code: string | null;
+    staff_01_user_id: string | null;
+    staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
+};
+
+// 近傍シフトを「前後5件」相当で取得するため、±14日で一括取得 → ローカルで前後を切り出し
+async function fetchNeighborShifts(
+    group_account: string,
+    baseDate: string
+): Promise<ShiftRow[]> {
+    // ±14日の範囲
+    const base = new Date(baseDate + "T12:00:00Z");
+    const before = new Date(base);
+    before.setUTCDate(before.getUTCDate() - 14);
+    const after = new Date(base);
+    after.setUTCDate(after.getUTCDate() + 14);
+
+    const from = before.toISOString().slice(0, 10);
+    const to = after.toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+        .from("shift")
+        .select(
+            "shift_id,kaipoke_cs_id,shift_start_date,shift_start_time,shift_end_time,service_code,staff_01_user_id,staff_02_user_id,staff_03_user_id"
+        )
+        .eq("kaipoke_cs_id", group_account)
+        .gte("shift_start_date", from)
+        .lte("shift_start_date", to)
+        .order("shift_start_date", { ascending: true })
+        .order("shift_start_time", { ascending: true });
+
+    if (error || !data) return [];
+
+    return (data as ShiftRow[]).filter(
+        (r) => r.shift_start_date && r.shift_start_time
+    );
+}
+
+function combineToUtc(r: ShiftRow): number {
+    // その日の開始時刻を UTC として組み立て（比較用）
+    const d = `${r.shift_start_date}T${(r.shift_start_time ?? "00:00").slice(0, 5)}:00Z`;
+    return Date.parse(d);
+}
+
+// 直前の 1 件（基準日時より前で最も近い）
+function pickLastBefore(neighbors: ShiftRow[], baseDate: string): ShiftRow | null {
+    const baseMs = Date.parse(baseDate + "T12:00:00Z");
+    const before = neighbors
+        .filter((r) => combineToUtc(r) <= baseMs)
+        .sort((a, b) => combineToUtc(b) - combineToUtc(a));
+    return before[0] ?? null;
+}
+
+// 朝/夕などのヒントに合う開始時刻（範囲内かつ center に最も近いもの）を前後5件から選ぶ
+function pickByHintFromAround(
+    neighbors: ShiftRow[],
+    baseDate: string,
+    hint: TimeHint
+): ShiftRow | null {
+    const w = hintWindow(hint);
+    if (!w) return null;
+
+    // 前後5件相当：基準の前後に最も近い 10 件を抽出
+    const baseMs = Date.parse(baseDate + "T12:00:00Z");
+    const sortedByDist = neighbors
+        .slice()
+        .sort((a, b) => Math.abs(combineToUtc(a) - baseMs) - Math.abs(combineToUtc(b) - baseMs))
+        .slice(0, 10);
+
+    // 窓に入る開始のみに絞る
+    const withStartMin = sortedByDist
+        .map((r) => {
+            const hhmm = (r.shift_start_time ?? "").slice(0, 5);
+            const min = tToMinutes(hhmm);
+            return { r, min };
+        })
+        .filter((x) => x.min !== null) as { r: ShiftRow; min: number }[];
+
+    const inWindow = withStartMin.filter(
+        (x) => x.min >= w.startMin && x.min < w.endMin
+    );
+
+    if (inWindow.length === 0) return null;
+
+    // center に最も近い
+    inWindow.sort((a, b) => Math.abs(a.min - w.centerMin) - Math.abs(b.min - w.centerMin));
+    return inWindow[0]?.r ?? null;
+}
+
+function buildShiftTimeFromRef(ref: ShiftRow): string | null {
+    const st = (ref.shift_start_time ?? "").slice(0, 5);
+    const et = (ref.shift_end_time ?? "").slice(0, 5);
+    if (!st) return null;
+    return et ? `${st}-${et}` : st;
+}
+
+function pickStaffFromRef(ref: ShiftRow): string | null {
+    return ref.staff_01_user_id ?? ref.staff_02_user_id ?? ref.staff_03_user_id ?? null;
+}
+
+// ====== 追加: strict NG 後の回復ロジック ======
+async function recoverAdditionsFromNeighbors(
+    req: ShiftInsertionRequest
+): Promise<ShiftAddRequest | { error: string; detail?: string[] }> {
+    const src: ShiftAdditionItem[] =
+        (Array.isArray(req.insertions) && req.insertions) ||
+        (Array.isArray(req.additions) && req.additions) ||
+        (Array.isArray(req.shifts) && req.shifts) ||
+        [];
+
+    if (!req.group_account) {
+        return { error: "group_account が不足しています" };
+    }
+
+    const additions: AdditionDetail[] = [];
+    const errors: string[] = [];
+
+    for (const [idx, item] of src.entries()) {
+        const date = (item.shift_date ?? "").trim();
+        if (!date) {
+            errors.push(`item#${idx + 1}: shift_date が不足`);
+            continue;
+        }
+
+        const hint: TimeHint = parseTimeHint(item.shift_time);
+        const neighbors = await fetchNeighborShifts(req.group_account, date);
+
+        let ref: ShiftRow | null = null;
+
+        if (!item.shift_time || (item.shift_time && hint === null && !/\d{1,2}:\d{2}/.test(item.shift_time))) {
+            // ① 時間指定なし（"朝/夕" 等を含まない）→ 直前の 1 件をコピー
+            ref = pickLastBefore(neighbors, date);
+        } else {
+            // ② "朝/夕" などのヒントあり → 前後5件から近似値
+            const effectiveHint = hint ?? null;
+            if (effectiveHint) {
+                ref = pickByHintFromAround(neighbors, date, effectiveHint);
+            } else {
+                // 文字列が純粋な時間表記ではないがヒントにも該当しない → 最後の前件にフォールバック
+                ref = pickLastBefore(neighbors, date);
+            }
+        }
+
+        if (!ref) {
+            // ④ 前後にサービスが一切ない → エラー
+            errors.push(
+                `item#${idx + 1}: 近傍に参照できるシフトがありません（${date} の前後）`
+            );
+            continue;
+        }
+
+        // 参照から時間とサービスコードを決定
+        const refShiftTime = buildShiftTimeFromRef(ref);
+        const shift_time = refShiftTime ?? ""; // null の場合は空→NG に
+        const service_code = item.service_code ?? ref.service_code ?? undefined;
+
+        // 担当者
+        // ③ 指定がなければ参照シフトの担当者（staff_01→02→03）をコピー
+        const user_id =
+            (item.user_id ?? req.requested_by_user_id)?.trim() ||
+            pickStaffFromRef(ref) ||
+            "";
+
+        if (!user_id) {
+            errors.push(`item#${idx + 1}: user_id を特定できませんでした（メンション/依頼者/参照シフト担当のいずれも不明）`);
+            continue;
+        }
+        if (!shift_time) {
+            errors.push(`item#${idx + 1}: shift_time を特定できませんでした（参照から時間が取得できない）`);
+            continue;
+        }
+
+        additions.push({
+            user_id,
+            shift_date: date,
+            shift_time,
+            service_code,
+        });
+    }
+
+    if (additions.length === 0) {
+        return { error: "すべてのアイテムで回復に失敗しました", detail: errors };
+    }
+    return { group_account: req.group_account, additions };
+}
+
+// ====== type guard（any不使用）======
 function isDeletePayload(x: unknown): x is DeletePayload {
     if (!x || typeof x !== "object") return false;
     const o = x as Record<string, unknown>;
@@ -160,7 +343,6 @@ function isDeletePayload(x: unknown): x is DeletePayload {
     if (typeof r.group_account !== "string") return false;
     return Array.isArray(r.deletions);
 }
-
 function isInsertPayload(x: unknown): x is InsertPayload {
     if (!x || typeof x !== "object") return false;
     const o = x as Record<string, unknown>;
@@ -172,77 +354,8 @@ function isInsertPayload(x: unknown): x is InsertPayload {
     return Array.isArray(r.insertions) || Array.isArray(r.additions) || Array.isArray(r.shifts);
 }
 
-// ---- 追加：あいまい語が来たら、その日に該当する開始時刻のシフトをDBから列挙して置換する ----
-// ---- 置換版：あいまい語 or 近傍(±45分) でDB実時刻に展開してから削除 ----
-async function expandDeletionsByWindow(
-    group_account: string,
-    items: ShiftDeletionItem[]
-): Promise<DeletionDetail[]> {
-    const out: DeletionDetail[] = [];
-
-    for (const d of items) {
-        const date = (d.shift_date ?? "").trim();
-        const timeText = (d.shift_time ?? "").trim();
-        if (!date || !timeText) continue;
-
-        // 1) 「朝/午前/…」などのラベル → ウィンドウで開始時刻マッチ
-        const win = detectWindowLabel(timeText);
-        if (win) {
-            const { data, error } = await supabase
-                .from("shift")
-                .select("shift_start_time, shift_end_time")
-                .eq("kaipoke_cs_id", group_account)
-                .eq("shift_start_date", date)
-                .gte("shift_start_time", win.from)
-                .lt("shift_start_time", win.to);
-
-            if (error || !data || data.length === 0) {
-                // 見つからなければ、とりあえず元テキストで1件置いておく（後段のメッセージ整合用）
-                out.push({ shift_date: date, shift_time: timeText });
-            } else {
-                for (const row of data as { shift_start_time: string; shift_end_time: string | null }[]) {
-                    const st = hhmm(row.shift_start_time);
-                    const et = hhmm(row.shift_end_time ?? "");
-                    out.push({ shift_date: date, shift_time: et ? `${st}-${et}` : st });
-                }
-            }
-            continue;
-        }
-
-        // 2) 具体時刻が来たがズレるケース → 開始時刻±45分の“近傍検索”
-        const pr = parseTimeRange(timeText);
-        if (pr && typeof pr.start === "number") {
-            const fromHHMM = minutesToHHMM(pr.start - 45);
-            const toHHMM = minutesToHHMM(pr.start + 45);
-
-            const { data, error } = await supabase
-                .from("shift")
-                .select("shift_start_time, shift_end_time")
-                .eq("kaipoke_cs_id", group_account)
-                .eq("shift_start_date", date)
-                .gte("shift_start_time", fromHHMM)
-                .lt("shift_start_time", toHHMM);
-
-            if (!error && data && data.length > 0) {
-                for (const row of data as { shift_start_time: string; shift_end_time: string | null }[]) {
-                    const st = hhmm(row.shift_start_time);
-                    const et = hhmm(row.shift_end_time ?? "");
-                    out.push({ shift_date: date, shift_time: et ? `${st}-${et}` : st });
-                }
-                continue;
-            }
-            // 近傍でも見つからなければ元の文言で1件残す
-            out.push({ shift_date: date, shift_time: timeText });
-            continue;
-        }
-
-        // 3) どれにも当てはまらない場合は素通し
-        out.push({ shift_date: date, shift_time: timeText });
-    }
-
-    return out;
-}
-
+// ====== 本体 ======
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const analyzePendingTalksAndDispatch = async (): Promise<void> => {
     const { data: logs, error } = await supabase
@@ -256,7 +369,6 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
     console.log("Supabase status fetch error:", error);
     console.log("logs:", logs);
-
     if (error || !logs || logs.length === 0) return;
 
     const grouped: Record<string, GroupedTalk> = logs.reduce((acc, log) => {
@@ -277,10 +389,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         jstDate.setHours(jstDate.getHours() + 9);
         const timestamp = jstDate.toISOString().replace("T", " ").replace(".000Z", "");
 
-        // Works API token（メンバー参照＆返信にも再利用）
         const accessToken = await getAccessToken();
-
-        // メンバー取得（@メンション→user_id解決に使用）
         const groupRes = await fetch(`https://www.worksapis.com/v1.0/groups/${channel_id}/members`, {
             method: "GET",
             headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -289,7 +398,7 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
         const members: GroupMember[] = groupData.members ?? [];
 
         const mentionMap = members
-            .filter((m): m is GroupMember => m.type === "USER")
+            .filter((m): m is GroupMember & { type: "USER" } => m.type === "USER")
             .map((m) => ({ name: m.externalKey, user_id: m.id }));
 
         const messages: ChatCompletionMessageParam[] = [
@@ -337,141 +446,136 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
             const parsedUnknown = JSON.parse(cleanedText) as unknown;
 
-            // RPA登録用に汎用保持（後段の共通処理で使う）
+            // RPA登録用に汎用保持（後段で共通処理）
             let templateIdForRPA: string | null = null;
             let requestDetailForRPA: unknown = null;
 
-            // === シフト削除（DB直接削除 + あいまい語展開） ===
+            // === 削除 ===
             if (isDeletePayload(parsedUnknown)) {
-                const { request_detail } = parsedUnknown; // ShiftDeletionRequest
+                const { request_detail } = parsedUnknown;
                 templateIdForRPA = parsedUnknown.template_id;
                 requestDetailForRPA = request_detail;
 
                 console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
+                const delReqStrict = toStrictDelete(request_detail);
+                const delResult = await deleteShifts(delReqStrict);
 
-                // ★ ここが今回の追加：あいまい語を時間帯に展開し、該当シフト時刻を列挙してから実行
-                const expanded: DeletionDetail[] = await expandDeletionsByWindow(
-                    request_detail.group_account,
-                    request_detail.deletions
-                );
-                const delReqStrict: ShiftDeleteRequest = { group_account: request_detail.group_account, deletions: expanded };
+                const rawErrs =
+                    delResult && typeof delResult === "object" && "errors" in delResult
+                        ? (delResult as { errors?: unknown }).errors
+                        : undefined;
+                const errs: string[] = Array.isArray(rawErrs)
+                    ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
+                    : [];
 
-                if (delReqStrict.deletions.length === 0) {
-                    // 早期エラー（必要情報不足）
-                    const lines = [
-                        "⚠️ シフト削除できませんでした（必須情報が不足しています）。",
-                        `・利用者: ${request_detail.group_account ?? "不明"}`,
-                        "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。",
-                    ];
+                const ok =
+                    delResult &&
+                    typeof delResult === "object" &&
+                    "success" in delResult &&
+                    Boolean((delResult as { success?: boolean }).success);
+
+                if (ok) {
+                    const lines: string[] = ["✅ シフト削除を反映しました。"];
+                    for (const d of request_detail.deletions) {
+                        lines.push(`・利用者: ${request_detail.group_account ?? "不明"} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
+                    }
+                    lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
                     await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                 } else {
-                    const deleteResult = await deleteShifts(delReqStrict);
+                    const isMissing = errs.some((e) => e.includes("必須情報不足"));
+                    const isNotFound = errs.some((e) => e.includes("見つかりません") || e.toLowerCase().includes("not found"));
+                    let header = "⚠️ シフト削除に失敗しました。";
+                    if (isMissing) header = "⚠️ シフト削除できませんでした（必須情報が不足しています）。";
+                    else if (isNotFound) header = "⚠️ シフト削除警告: 対象シフトが見つかりませんでした。";
 
-                    const rawErrs =
-                        deleteResult && typeof deleteResult === "object" && "errors" in deleteResult
-                            ? (deleteResult as { errors?: unknown }).errors
-                            : undefined;
-                    const errs = Array.isArray(rawErrs)
-                        ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
-                        : [];
-
-                    const ok =
-                        deleteResult &&
-                        typeof deleteResult === "object" &&
-                        "success" in deleteResult &&
-                        (deleteResult as { success: boolean }).success;
-
-                    if (ok) {
-                        // 成功：元チャンネルへ通知（展開後の実時刻で表示）
-                        const ga = request_detail.group_account ?? group_account;
-                        const lines: string[] = ["✅ シフト削除を反映しました。"];
-                        for (const d of delReqStrict.deletions) {
-                            lines.push(`・利用者: ${ga} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
-                        }
-                        lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
-                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
-                    } else {
-                        // 失敗：既存方針のメッセージ
-                        const ga = request_detail.group_account ?? group_account;
-                        const isMissing = errs.some((e) => e.includes("必須情報不足"));
-                        const isNotFound = errs.some((e) => e.includes("見つかりません") || e.toLowerCase().includes("not found"));
-
-                        let header = "⚠️ シフト削除に失敗しました。";
-                        if (isMissing) header = "⚠️ シフト削除できませんでした（必須情報が不足しています）。";
-                        else if (isNotFound) header = "⚠️ シフト削除警告: 対象シフトが見つかりませんでした。";
-
-                        const lines: string[] = [header];
-                        // もとの入力ではなく、実行に使った expanded を表示
-                        for (const d of delReqStrict.deletions) {
-                            lines.push(`・利用者: ${ga} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
-                        }
-                        if (isMissing) {
-                            lines.push("", "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。");
-                        } else if (isNotFound) {
-                            lines.push("", "候補：時間の表記ゆれ（例: 08:00 / 8:00 / 8:00-9:00）や別日の同名案件が無いかをご確認ください。");
-                        }
-                        if (errs.length > 0) lines.push("", `詳細: ${errs[0]}`);
-
-                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+                    const lines: string[] = [header];
+                    for (const d of request_detail.deletions) {
+                        lines.push(`・利用者: ${request_detail.group_account ?? "不明"} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
                     }
+                    if (isMissing) {
+                        lines.push("", "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。");
+                    } else if (isNotFound) {
+                        lines.push("", "候補：時間の表記ゆれ（例: 08:00 / 8:00 / 8:00-9:00）や別日の同名案件が無いかをご確認ください。");
+                    }
+                    if (errs.length > 0) lines.push("", `詳細: ${errs[0]}`);
+                    await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                 }
             }
 
-            // === シフト追加（DB直接挿入、既存ロジック） ===
+            // === 追加 ===
             if (isInsertPayload(parsedUnknown)) {
-                const { request_detail } = parsedUnknown; // ShiftInsertionRequest
+                const { request_detail } = parsedUnknown;
                 templateIdForRPA = parsedUnknown.template_id;
                 requestDetailForRPA = request_detail;
 
                 console.log("🚀 シフト追加リクエストを検知。shiftテーブルに直接挿入を試行します。");
 
+                // まず厳密チェック
                 const addReqConv = toStrictAdd(request_detail);
-                if (!("error" in addReqConv)) {
-                    const insertResult = await insertShifts(addReqConv);
+                let addReqFinal: ShiftAddRequest | null = null;
+                let usedFallback = false;
+
+                if ("error" in addReqConv) {
+                    // ★ ここからが“回復ロジック”（ユーザー要望 ①②③④）
+                    usedFallback = true;
+                    const recovered = await recoverAdditionsFromNeighbors(request_detail);
+                    if ("error" in recovered) {
+                        // 回復も不可 → エラーメッセージを返し、LWへ通知
+                        const lines: string[] = [
+                            "⚠️ シフト追加できませんでした（必須情報不足または近傍に参照なし）。",
+                            `・理由: ${recovered.error}`,
+                        ];
+                        if (Array.isArray(recovered.detail) && recovered.detail.length > 0) {
+                            lines.push("", ...recovered.detail.map((d) => `- ${d}`));
+                        }
+                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+                        // 既存フローは壊さず終了
+                        addReqFinal = null;
+                    } else {
+                        addReqFinal = recovered;
+                    }
+                } else {
+                    addReqFinal = addReqConv;
+                }
+
+                if (addReqFinal) {
+                    const insertResult = await insertShifts(addReqFinal);
 
                     const ok =
                         insertResult &&
                         typeof insertResult === "object" &&
                         "success" in insertResult &&
-                        (insertResult as { success: boolean }).success;
+                        Boolean((insertResult as { success?: boolean }).success);
 
                     if (ok) {
-                        const additions: ShiftAdditionItem[] =
-                            (Array.isArray(request_detail.insertions) && request_detail.insertions) ||
-                            (Array.isArray(request_detail.additions) && request_detail.additions) ||
-                            (Array.isArray(request_detail.shifts) && request_detail.shifts) ||
-                            [];
-                        const ga = request_detail.group_account ?? group_account;
-
-                        const lines: string[] = ["✅ シフト追加を登録しました。"];
-                        for (const a of additions) {
+                        // ⑤ 成功通知（日時・サービスコード・スタッフ）
+                        const lines: string[] = [
+                            usedFallback ? "✅ シフト追加を登録しました（参照シフトから補完）。" : "✅ シフト追加を登録しました。"
+                        ];
+                        for (const a of addReqFinal.additions) {
                             const svc = a.service_code ? ` / 種別:${a.service_code}` : "";
-                            lines.push(`・利用者: ${ga} / 日付: ${a.shift_date ?? "不明"} / 時間: ${a.shift_time ?? "不明"}${svc}`);
+                            lines.push(`・利用者: ${addReqFinal.group_account} / 日付: ${a.shift_date} / 時間: ${a.shift_time}${svc} / スタッフ:${a.user_id}`);
                         }
                         lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
-
                         await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                     } else {
                         const rawErrs =
                             insertResult && typeof insertResult === "object" && "errors" in insertResult
                                 ? (insertResult as { errors?: unknown }).errors
                                 : undefined;
-                        const errs = Array.isArray(rawErrs)
+                        const errs: string[] = Array.isArray(rawErrs)
                             ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
                             : [];
-                        console.error("⚠️ シフト追加処理中にエラーが発生しました:", errs);
+                        const lines: string[] = [
+                            "⚠️ シフト追加処理中にエラーが発生しました。",
+                            ...(errs.length > 0 ? [`詳細: ${errs[0]}`] : []),
+                        ];
+                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                     }
-                } else {
-                    // バリデーションNG
-                    const lines = [
-                        "⚠️ シフト追加できませんでした（必須情報が不足しています）。",
-                        `・理由: ${addReqConv.error}`,
-                    ];
-                    await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                 }
             }
 
-            // === 既存：RPAリクエストをキューへ ===
+            // === 既存：RPA キュー投入（成功/失敗に関わらず元の形で積む） ===
             if (templateIdForRPA && requestDetailForRPA) {
                 const lw_user_id = logs.find((l) => l.id === ids[0])?.user_id ?? null;
                 const { data: user } = await supabase
