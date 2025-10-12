@@ -60,16 +60,6 @@ type InsertPayload = {
 };
 
 // ====== 既存 strict 変換 ======
-function toStrictDelete(req: ShiftDeletionRequest): ShiftDeleteRequest {
-    const deletions: DeletionDetail[] = (req.deletions ?? [])
-        .map((d) => ({
-            shift_date: (d.shift_date ?? "").trim(),
-            shift_time: (d.shift_time ?? "").trim(),
-        }))
-        .filter((d) => d.shift_date && d.shift_time);
-    return { group_account: req.group_account, deletions };
-}
-
 function toStrictAdd(
     req: ShiftInsertionRequest
 ): ShiftAddRequest | { error: string } {
@@ -98,8 +88,111 @@ function toStrictAdd(
     return { group_account: req.group_account, additions };
 }
 
+
+
 // ====== 追加: あいまい判定 & 近傍検索用ヘルパ ======
 type TimeHint = "morning" | "noon" | "evening" | "night" | "deep" | null;
+
+// 既存: parseTimeHint / hintWindow / tToMinutes / minutesToHHMM がある前提でOK
+type ShiftRowLite = {
+    shift_start_time: string | null;
+    shift_end_time: string | null;
+};
+
+function parseRange(raw: string): { startMin: number; endMin: number | null } | null {
+    const s = raw.trim();
+    const m1 = s.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+    const m2 = s.match(/^(\d{1,2}:\d{2})$/);
+    if (m1) {
+        const a = tToMinutes(m1[1]);
+        const b = tToMinutes(m1[2]);
+        if (a !== null && b !== null) return { startMin: a, endMin: b };
+        return null;
+    }
+    if (m2) {
+        const a = tToMinutes(m2[1]);
+        if (a !== null) return { startMin: a, endMin: null };
+        return null;
+    }
+    return null;
+}
+
+async function resolveDeletionTimes(
+    req: ShiftDeletionRequest
+): Promise<ShiftDeleteRequest> {
+    const out: DeletionDetail[] = [];
+
+    for (const item of req.deletions ?? []) {
+        const date = (item.shift_date ?? "").trim();
+        const rawTime = (item.shift_time ?? "").trim();
+        if (!date || !rawTime) continue;
+
+        // その日の候補を取得
+        const { data } = await supabase
+            .from("shift")
+            .select("shift_start_time, shift_end_time")
+            .eq("kaipoke_cs_id", req.group_account)
+            .eq("shift_start_date", date)
+            .order("shift_start_time", { ascending: true });
+
+        const rows: ShiftRowLite[] = (data ?? []) as ShiftRowLite[];
+        if (rows.length === 0) {
+            // 候補なし → そのまま（deleteShifts 側で失敗→警告返す）
+            out.push({ shift_date: date, shift_time: rawTime });
+            continue;
+        }
+
+        const hint = parseTimeHint(rawTime);
+        let chosen: ShiftRowLite | null = null;
+
+        if (hint) {
+            // ヒント窓に入る開始のうち center に最も近い
+            const w = hintWindow(hint);
+            if (w) {
+                const scored = rows
+                    .map((r) => {
+                        const st = (r.shift_start_time ?? "").slice(0, 5);
+                        const m = tToMinutes(st);
+                        return { r, m };
+                    })
+                    .filter((x) => x.m !== null) as { r: ShiftRowLite; m: number }[];
+                const inWin = scored.filter((x) => x.m >= w.startMin && x.m < w.endMin);
+                inWin.sort((a, b) => Math.abs(a.m - w.centerMin) - Math.abs(b.m - w.centerMin));
+                chosen = inWin[0]?.r ?? null;
+            }
+        } else {
+            // 明示時間（8:00-9:00 等）の “ゆる合せ”：開始±90分で最も近い
+            const pr = parseRange(rawTime);
+            if (pr) {
+                const TOL = 90; // 分
+                const scored = rows
+                    .map((r) => {
+                        const st = (r.shift_start_time ?? "").slice(0, 5);
+                        const m = tToMinutes(st);
+                        return { r, m };
+                    })
+                    .filter((x) => x.m !== null) as { r: ShiftRowLite; m: number }[];
+                const inTol = scored
+                    .map((x) => ({ r: x.r, diff: Math.abs(x.m - pr.startMin) }))
+                    .filter((s) => s.diff <= TOL)
+                    .sort((a, b) => a.diff - b.diff);
+                chosen = inTol[0]?.r ?? null;
+            }
+        }
+
+        if (chosen) {
+            const st = (chosen.shift_start_time ?? "").slice(0, 5);
+            const et = (chosen.shift_end_time ?? "").slice(0, 5);
+            const time = et ? `${st}-${et}` : st;
+            out.push({ shift_date: date, shift_time: time });
+        } else {
+            // マッチできなければそのまま投げる（従来と同じ挙動）
+            out.push({ shift_date: date, shift_time: rawTime });
+        }
+    }
+
+    return { group_account: req.group_account, deletions: out };
+}
 
 function parseTimeHint(input: string | undefined): TimeHint {
     if (!input) return null;
@@ -457,9 +550,12 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                 requestDetailForRPA = request_detail;
 
                 console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
-                const delReqStrict = toStrictDelete(request_detail);
-                const delResult = await deleteShifts(delReqStrict);
 
+                // 🔁 ここを “toStrictDelete” ではなく、まず “resolveDeletionTimes” に戻す
+                const delReqResolved = await resolveDeletionTimes(request_detail);
+                const delResult = await deleteShifts(delReqResolved);
+
+                // （以下の成功/失敗メッセージ出力ロジックはそのまま流用）
                 const rawErrs =
                     delResult && typeof delResult === "object" && "errors" in delResult
                         ? (delResult as { errors?: unknown }).errors
@@ -476,8 +572,8 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
                 if (ok) {
                     const lines: string[] = ["✅ シフト削除を反映しました。"];
-                    for (const d of request_detail.deletions) {
-                        lines.push(`・利用者: ${request_detail.group_account ?? "不明"} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
+                    for (const d of delReqResolved.deletions) {
+                        lines.push(`・利用者: ${delReqResolved.group_account} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
                     }
                     lines.push("", "※ カイポケ側の反映には時間がかかる場合があります。");
                     await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
@@ -489,8 +585,8 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                     else if (isNotFound) header = "⚠️ シフト削除警告: 対象シフトが見つかりませんでした。";
 
                     const lines: string[] = [header];
-                    for (const d of request_detail.deletions) {
-                        lines.push(`・利用者: ${request_detail.group_account ?? "不明"} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`);
+                    for (const d of delReqResolved.deletions) {
+                        lines.push(`・利用者: ${delReqResolved.group_account} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
                     }
                     if (isMissing) {
                         lines.push("", "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。");
