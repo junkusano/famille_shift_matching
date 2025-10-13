@@ -68,12 +68,12 @@ export async function GET(req: Request) {
 
     // UI が使う形へ正規化（足りない列はデフォルト補完）
     const normalized = (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
-      console.log("init.staff_02_attend_flg:",row.staff_02_attend_flg);
-      console.log("init.staff_03_attend_flg:",row.staff_02_attend_flg);
+      //console.log("init.staff_02_attend_flg:",row.staff_02_attend_flg);
+      //console.log("init.staff_03_attend_flg:",row.staff_02_attend_flg);
       const staff02Attend = toBool(row['staff_02_attend_flg']);
       const staff03Attend = toBool(row['staff_03_attend_flg']);
-      console.log("aftertoBool.staff_02_attend_flg:",staff02Attend);
-      console.log("aftertoBool.staff_03_attend_flg:",staff03Attend);
+      //console.log("aftertoBool.staff_02_attend_flg:",staff02Attend);
+      //console.log("aftertoBool.staff_03_attend_flg:",staff03Attend);
 
       // 1. required_staff_count を取得 (number型)
       const requiredCount =
@@ -82,11 +82,7 @@ export async function GET(req: Request) {
       // 2. two_person_work_flg を計算
       // requiredCount が 2 以上の場合は、強制的に true にする。
       // DBの値 (row['two_person_work_flg']) よりも requiredCount を優先します。
-      const twoPerson = requiredCount >= 2 ? true :
-        (typeof row['two_person_work_flg'] === 'boolean'
-          ? (row['two_person_work_flg'] as boolean)
-          : Boolean(row['staff_02_user_id'])
-        )
+      const twoPerson = toBool(row['two_person_work_flg']);
 
       return {
         shift_id: String(row['shift_id'] ?? ''),
