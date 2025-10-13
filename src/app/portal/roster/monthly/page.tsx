@@ -272,7 +272,8 @@ export default function MonthlyRosterPage() {
     const asBool = (v: unknown): boolean => {
         if (typeof v === 'boolean') return v;
         if (v == null) return false;
-        return String(v).trim().toLowerCase() === 'true';
+        const s = String(v).trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 't' || s === 'yes' || s === 'on';
     };
     // two_person_work_flg:boolean → dup_role:'-'|'01'
     const toDupRole = (b: unknown): '-' | '01' => (asBool(b) ? '01' : '-');
