@@ -165,9 +165,9 @@ const newDraftInitial = (month: string): NewShiftDraft => {
         shift_start_time: '09:00',
         shift_end_time: '10:00',
         service_code: '',
-        dispatch_size: '-',
+        dispatch_size: '01',
         dup_role: '-',
-        judo_ido: '',
+        judo_ido: '0000',
         staff_01_user_id: null,
         staff_02_user_id: null,
         staff_03_user_id: null,
@@ -220,6 +220,71 @@ const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<numb
         }
     }
     return results;
+};
+
+// どこか上のヘルパ群の末尾あたりに追加
+const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
+
+type CheckResult = { ok: boolean; confirmMessage?: string; errorMessage?: string };
+
+// ご指定の業務ルール:
+// - two_person_work_flg = true のとき
+//   A) required_staff_count が 1 or 2 の場合：
+//      (staff_02 && s02_attend=true) か (staff_03 && s03_attend=true) ならOK
+//      かつ「staff_02 も staff_03 も未設定（どちらも空）」もOK
+//   B) required_staff_count = 0 の場合：
+//      (staff_02 && s02_attend=false) または (staff_03 && s03_attend=false) が **必須**
+//      さらに確認ダイアログを出す
+const checkTwoPersonRules = (
+    twoPerson: boolean,
+    requiredCount: number,
+    s2id?: string | null, s2attend?: boolean | null,
+    s3id?: string | null, s3attend?: boolean | null
+): CheckResult => {
+    if (!twoPerson) return { ok: true };
+
+    const s2Set = hasValue(s2id);
+    const s3Set = hasValue(s3id);
+    const s2Attend = !!s2attend;
+    const s3Attend = !!s3attend;
+
+    if (requiredCount === 1 || requiredCount === 2) {
+        const okWhenHelperPresent =
+            (s2Set && s2Attend) || (s3Set && s3Attend);
+        const okWhenNoHelperYet = !s2Set && !s3Set;
+        if (okWhenHelperPresent || okWhenNoHelperYet) return { ok: true };
+
+        return {
+            ok: false,
+            errorMessage:
+                '二人同時作業です。派遣人数が1または2のときは、\n' +
+                '・スタッフ2 同行✅ もしくは スタッフ3 同行✅ のいずれかを設定する\n' +
+                '  あるいは、スタッフ2/3 を両方とも未設定にしてください。'
+        };
+    }
+
+    if (requiredCount === 0) {
+        const needNonAttend =
+            (s2Set && !s2Attend) || (s3Set && !s3Attend);
+        if (!needNonAttend) {
+            return {
+                ok: false,
+                errorMessage:
+                    '二人同時作業かつ 派遣人数=0 の場合、\n' +
+                    'スタッフ2 か スタッフ3 のどちらか一方は「同行✅なし（未チェック）」で登録してください。'
+            };
+        }
+        return {
+            ok: true,
+            confirmMessage:
+                '2人介助請求対象ですか？\n' +
+                '単なるサービス同行の場合には 2人目・3人目のスタッフは「同行✅」する必要があります。\n\n' +
+                'OKで続行 / いいえで中止'
+        };
+    }
+
+    // requiredCount が 0/1/2 以外の値（将来拡張・異常）の場合は通す
+    return { ok: true };
 };
 
 // ========= Main =========
@@ -331,12 +396,17 @@ export default function MonthlyRosterPage() {
         });
     };
 
+
+
     // 1日分を追加（同日・同時刻があればスキップ）
     const handleAddOne = useCallback(async (dateStr: string) => {
         const startHM = normalizeTimeLoose(draft.shift_start_time);
         const endHM = normalizeTimeLoose(draft.shift_end_time);
-        const required_staff_count = draft.dispatch_size === '01' ? 2 : 1;
-        const two_person_work_flg = draft.dup_role !== '-';
+        // ▼ ここを正しいマッピングに
+        const required_staff_count =
+            draft.dispatch_size === '01' ? 1 :
+                draft.dispatch_size === '02' ? 2 : 0;
+        const two_person_work_flg = draft.dup_role === '01';
 
         // 重複チェック（同利用者・同日・同開始）
         const exists = shifts.some(r =>
@@ -345,6 +415,25 @@ export default function MonthlyRosterPage() {
             normalizeTimeLoose(r.shift_start_time ?? '') === startHM
         );
         if (exists) return { skipped: true };
+
+        // handleAddOne の body 作成直前あたりに
+        // two_person_work_flg, required_staff_count は 2) で直した変数を使う
+        const vr = checkTwoPersonRules(
+            two_person_work_flg,
+            required_staff_count,
+            draft.staff_02_user_id, draft.staff_02_attend_flg,
+            draft.staff_03_user_id, draft.staff_03_attend_flg
+        );
+
+        if (!vr.ok) {
+            alert(vr.errorMessage ?? '入力内容を確認してください');
+            return { skipped: true };
+        }
+        if (vr.confirmMessage) {
+            const yes = confirm(vr.confirmMessage);
+            if (!yes) return { skipped: true };
+        }
+
 
         const body = {
             kaipoke_cs_id: selectedKaipokeCS,
@@ -624,6 +713,23 @@ export default function MonthlyRosterPage() {
         if (!dateOk || !stOk || !etOk) {
             alert('入力に不備があります（開始日/開始時間/終了時間/重度移動）');
             return;
+        }
+
+        // handleSave 内、body を組み立てる前に:
+        const vr = checkTwoPersonRules(
+            two_person_work_flg,
+            required_staff_count,
+            row.staff_02_user_id, asBool(row.staff_02_attend_flg),
+            row.staff_03_user_id, asBool(row.staff_03_attend_flg)
+        );
+
+        if (!vr.ok) {
+            alert(vr.errorMessage ?? '入力内容を確認してください');
+            return;
+        }
+        if (vr.confirmMessage) {
+            const yes = confirm(vr.confirmMessage);
+            if (!yes) return;
         }
 
         const body = {
