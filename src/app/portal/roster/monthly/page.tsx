@@ -236,20 +236,22 @@ type CheckResult = { ok: boolean; confirmMessage?: string; errorMessage?: string
 //      (staff_02 && s02_attend=false) または (staff_03 && s03_attend=false) が **必須**
 //      さらに確認ダイアログを出す
 // ご指定の業務ルール + 追加分を統合
+// 置き換え版：two_person_work_flg=false の場合は確認ダイアログなし
 const checkTwoPersonRules = (
   twoPerson: boolean,
   requiredCount: number,
   s2id?: string | null, s2attend?: boolean | null,
   s3id?: string | null, s3attend?: boolean | null
 ): CheckResult => {
+  const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
   const s2Set = hasValue(s2id);
   const s3Set = hasValue(s3id);
   const s2Attend = !!s2attend;
   const s3Attend = !!s3attend;
 
-  // ▼ 追加要件(1) two_person_work_flg = false の場合
+  // ▼ two_person_work_flg = false
   if (!twoPerson) {
-    // A) required_staff_count は 1 or 2 必須（0 はエラー）
+    // 必須: required_staff_count は 1 または 2
     if (requiredCount !== 1 && requiredCount !== 2) {
       return {
         ok: false,
@@ -257,8 +259,7 @@ const checkTwoPersonRules = (
           '二人同時介助[重複:-]の場合、派遣人数は「1人目」または「2人目」を選択してください（派遣人数=0は不可）。'
       };
     }
-    // B) required_staff_count = 1 のとき、
-    //    スタッフ2/3 を設定するなら「同行✅」が必須
+    // required=1 のとき、スタッフ2/3 を設定するなら同行✅が必須
     if (requiredCount === 1) {
       if ((s2Set && !s2Attend) || (s3Set && !s3Attend)) {
         return {
@@ -268,16 +269,11 @@ const checkTwoPersonRules = (
         };
       }
     }
-    // C) 確認メッセージ（通知文面）
-    return {
-      ok: true,
-      confirmMessage:
-        '派遣人数＝二人同時介助の場合、重複＝1人目 もしくは 2人目にする必要があります。\n' +
-        '尚、二人介助請求対象になります。よろしいですか？'
-    };
+    // 確認メッセージは出さない
+    return { ok: true };
   }
 
-  // ▼ 既存要件: two_person_work_flg = true の場合
+  // ▼ two_person_work_flg = true（既存ルール）
   if (requiredCount === 1 || requiredCount === 2) {
     const okWhenHelperPresent = (s2Set && s2Attend) || (s3Set && s3Attend);
     const okWhenNoHelperYet = !s2Set && !s3Set;
