@@ -268,9 +268,13 @@ export default function MonthlyRosterPage() {
         const v = n ?? 0;
         return v === 1 ? '01' : v === 2 ? '02' : '-';
     };
+    // どんな型でも "真の true" だけ true にし、それ以外は false
+    const asBool = (v: unknown): boolean =>
+        v === true || v === 'true' || v === 1 || v === '1';
+
 
     // two_person_work_flg:boolean → dup_role:'-'|'01'
-    const toDupRole = (b?: boolean): '-' | '01' => (b ? '01' : '-');
+    const toDupRole = (b: unknown): '-' | '01' => (asBool(b) ? '01' : '-');
 
     // 初期反映：URLクエリ（ShiftCardの「月間」ボタンから渡す値を拾う）
     useEffect(() => {
@@ -500,26 +504,31 @@ export default function MonthlyRosterPage() {
             const raw = await res.json()
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : [];
             const normalized: ShiftRow[] = rows.map((r) => {
-                // required_staff_count: 既定は 1、0～2 に丸める
                 const rawRequired = r.required_staff_count ?? 1;
                 const required = Math.max(0, Math.min(2, rawRequired));
 
                 const dispatch_size = toDispatchSize(required);
-                const dup_role = toDupRole(r.two_person_work_flg ?? false);
+
+                // ← ここでまず厳密に boolean 化
+                const twoPerson = asBool(r.two_person_work_flg);
+
+                const dup_role = toDupRole(twoPerson);
 
                 return {
                     ...r,
                     shift_id: String(r.shift_id),
-                    required_staff_count: required,            // 0/1/2 に正規化して保持
-                    two_person_work_flg: r.two_person_work_flg ?? false,
+                    required_staff_count: required,
+                    // ← boolean に正規化して保持
+                    two_person_work_flg: twoPerson,
                     shift_start_time: toHM(r.shift_start_time),
                     shift_end_time: toHM(r.shift_end_time),
                     judo_ido: r.judo_ido ?? '',
                     staff_01_user_id: r.staff_01_user_id ?? null,
                     staff_02_user_id: r.staff_02_user_id ?? null,
                     staff_03_user_id: r.staff_03_user_id ?? null,
-                    staff_02_attend_flg: r.staff_02_attend_flg ?? false,
-                    staff_03_attend_flg: r.staff_03_attend_flg ?? false,
+                    // ついでに attend 系も文字列の "true"/"false" にされがちなら正規化推奨
+                    staff_02_attend_flg: asBool(r.staff_02_attend_flg),
+                    staff_03_attend_flg: asBool(r.staff_03_attend_flg),
                     dispatch_size,
                     dup_role,
                 };
