@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic';
 const CRON_TIMEOUT_MS = 55_000; // Vercelの制限に合わせて余裕を持たせる
 
 export async function GET(req: Request) {
+  const auth = req.headers.get('authorization');
+  console.info('[shift-records/check] auth header?', { hasAuth: !!auth, sample: auth?.slice(0, 16) });
+
   const url = new URL(req.url);
 
   // ?dry_run= の既定は 1（Dry Run）。本番実行したいときは ?dry_run=0 を付けて叩く

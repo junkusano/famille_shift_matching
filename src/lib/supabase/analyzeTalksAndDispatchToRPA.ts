@@ -172,16 +172,6 @@ function pickByDaypart<T extends HasStartTime>(
     }
     return null;
 }
-// ---------- ゆるい → 厳密（削除） ----------
-function toStrictDelete(req: ShiftDeletionRequest): ShiftDeleteRequest {
-    const deletions: DeletionDetail[] = (req.deletions ?? [])
-        .map((d) => ({
-            shift_date: (d.shift_date ?? "").trim(),
-            shift_time: (d.shift_time ?? "").trim(),
-        }))
-        .filter((d) => d.shift_date && d.shift_time);
-    return { group_account: req.group_account, deletions };
-}
 
 // ---------- ★ ゆるい追加 → まず補完（①〜③） → 厳密化 ----------
 async function enrichInsertRequest(
@@ -308,6 +298,191 @@ function isInsertPayload(x: unknown): x is InsertPayload {
     );
 }
 
+//type DayRowLite = { shift_start_time: string | null; shift_end_time: string | null };
+
+// ===== begin: helpers for deletion fallback =====
+type ShiftRowLite = { shift_start_time: string | null; shift_end_time: string | null };
+
+function hhmm5(t?: string | null): string {
+    return (t ?? '').slice(0, 5);
+}
+
+function tToMinutes(t: string): number | null {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+    return hh * 60 + mm;
+}
+
+function parseRange(raw: string): { startMin: number; endMin: number | null } | null {
+    const s = raw.trim();
+    const m1 = s.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+    const m2 = s.match(/^(\d{1,2}:\d{2})$/);
+    if (m1) {
+        const a = tToMinutes(m1[1]);
+        const b = tToMinutes(m1[2]);
+        if (a !== null && b !== null) return { startMin: a, endMin: b };
+        return null;
+    }
+    if (m2) {
+        const a = tToMinutes(m2[1]);
+        if (a !== null) return { startMin: a, endMin: null };
+        return null;
+    }
+    return null;
+}
+
+type TimeHint = 'morning' | 'noon' | 'evening' | 'night' | 'deep' | null;
+
+function parseTimeHint(input?: string): TimeHint {
+    if (!input) return null;
+    const s = input.replace(/\s/g, '').toLowerCase();
+    if (/(朝|モーニング|午前|am)/.test(s)) return 'morning';
+    if (/(昼|正午|ランチ|お昼)/.test(s)) return 'noon';
+    if (/(夕|夕方|夕刻|夕食|pm)/.test(s)) return 'evening';
+    if (/(夜|ナイト|夜間)/.test(s)) return 'night';
+    if (/(深夜|未明)/.test(s)) return 'deep';
+    if (/\d{1,2}:\d{2}(-\d{1,2}:\d{2})?$/.test(s)) return null; // 既に時刻
+    return null;
+}
+
+function hintWindow(h: TimeHint): { startMin: number; endMin: number; centerMin: number } | null {
+    switch (h) {
+        case 'deep': return { startMin: 0, endMin: 300, centerMin: 150 }; // 00:00-05:00
+        case 'morning': return { startMin: 300, endMin: 660, centerMin: 480 }; // 05:00-11:00
+        case 'noon': return { startMin: 660, endMin: 840, centerMin: 750 }; // 11:00-14:00
+        case 'evening': return { startMin: 960, endMin: 1140, centerMin: 1050 }; // 16:00-19:00
+        case 'night': return { startMin: 1140, endMin: 1440, centerMin: 1320 }; // 19:00-24:00
+        default: return null;
+    }
+}
+
+function splitIntoContiguousChains(rows: ShiftRowLite[]): ShiftRowLite[][] {
+    if (rows.length === 0) return [];
+    const chains: ShiftRowLite[][] = [];
+    let cur: ShiftRowLite[] = [rows[0]];
+    for (let i = 1; i < rows.length; i++) {
+        const prev = cur[cur.length - 1];
+        const now = rows[i];
+        if (hhmm5(prev.shift_end_time) === hhmm5(now.shift_start_time)) {
+            cur.push(now);
+        } else {
+            chains.push(cur);
+            cur = [now];
+        }
+    }
+    chains.push(cur);
+    return chains;
+}
+
+function isTimeUnknown(raw: string): boolean {
+    const s = (raw ?? '').trim();
+    if (!s || s === '不明') return true;
+    return !/\d{1,2}:\d{2}/.test(s); // 時刻が1つも含まれない
+}
+// ===== end: helpers for deletion fallback =====
+
+async function resolveDeletionTimes(
+    req: ShiftDeletionRequest
+): Promise<ShiftDeleteRequest> {
+    const out: DeletionDetail[] = [];
+
+    for (const item of req.deletions ?? []) {
+        const date = (item.shift_date ?? '').trim();
+        const rawTime = (item.shift_time ?? '').trim();
+        if (!date) continue;
+
+        // 当日の候補（開始時刻昇順）
+        const { data } = await supabase
+            .from('shift')
+            .select('shift_start_time, shift_end_time')
+            .eq('kaipoke_cs_id', req.group_account)
+            .eq('shift_start_date', date)
+            .order('shift_start_time', { ascending: true });
+
+        const rows: ShiftRowLite[] = (data ?? []) as ShiftRowLite[];
+
+        // A) 時間未指定: 同日1件 or 連結チェーン1本ならそれを自動確定
+        if (isTimeUnknown(rawTime)) {
+            if (rows.length === 1) {
+                const st = hhmm5(rows[0].shift_start_time);
+                const et = hhmm5(rows[0].shift_end_time);
+                out.push({ shift_date: date, shift_time: et ? `${st}-${et}` : st });
+                continue;
+            }
+            if (rows.length > 1) {
+                const chains = splitIntoContiguousChains(rows);
+                if (chains.length === 1) {
+                    for (const r of chains[0]) {
+                        const st = hhmm5(r.shift_start_time);
+                        const et = hhmm5(r.shift_end_time);
+                        out.push({ shift_date: date, shift_time: et ? `${st}-${et}` : st });
+                    }
+                    continue;
+                }
+            }
+            // 候補0件 or チェーン複数 → 従来どおり
+            out.push({ shift_date: date, shift_time: rawTime || '不明' });
+            continue;
+        }
+
+        // B) ヒント/明示時間あり → 既存の近似ロジック
+        if (rows.length === 0) {
+            out.push({ shift_date: date, shift_time: rawTime });
+            continue;
+        }
+
+        const hint = parseTimeHint(rawTime);
+        let chosen: ShiftRowLite | null = null;
+
+        if (hint) {
+            const w = hintWindow(hint);
+            if (w) {
+                const scored = rows
+                    .map((r) => {
+                        const st = hhmm5(r.shift_start_time);
+                        const m = tToMinutes(st);
+                        return { r, m };
+                    })
+                    .filter((x) => x.m !== null) as { r: ShiftRowLite; m: number }[];
+                const inWin = scored.filter((x) => x.m >= w.startMin && x.m < w.endMin);
+                inWin.sort((a, b) => Math.abs(a.m - w.centerMin) - Math.abs(b.m - w.centerMin));
+                chosen = inWin[0]?.r ?? null;
+            }
+        } else {
+            const pr = parseRange(rawTime);
+            if (pr) {
+                const TOL = 90; // 分
+                const scored = rows
+                    .map((r) => {
+                        const st = hhmm5(r.shift_start_time);
+                        const m = tToMinutes(st);
+                        return { r, m };
+                    })
+                    .filter((x) => x.m !== null) as { r: ShiftRowLite; m: number }[];
+                const inTol = scored
+                    .map((x) => ({ r: x.r, diff: Math.abs(x.m - pr.startMin) }))
+                    .filter((s) => s.diff <= TOL)
+                    .sort((a, b) => a.diff - b.diff);
+                chosen = inTol[0]?.r ?? null;
+            }
+        }
+
+        if (chosen) {
+            const st = hhmm5(chosen.shift_start_time);
+            const et = hhmm5(chosen.shift_end_time);
+            out.push({ shift_date: date, shift_time: et ? `${st}-${et}` : st });
+        } else {
+            out.push({ shift_date: date, shift_time: rawTime });
+        }
+    }
+
+    return { group_account: req.group_account, deletions: out };
+}
+
+
 // ---------- メイン ----------
 const analyzePendingTalksAndDispatch = async (): Promise<void> => {
     const { data: logs, error } = await supabase
@@ -412,22 +587,21 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
                 requestDetailForRPA = request_detail;
 
                 console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
-                const delReqStrict = toStrictDelete(request_detail);
-                const deleteResult = await deleteShifts(delReqStrict);
+                const delReqResolved = await resolveDeletionTimes(request_detail as ShiftDeletionRequest);
+                const delResult = await deleteShifts(delReqResolved);
+                const rawErrs = delResult && typeof delResult === "object" && "errors" in delResult
+                    ? (delResult as { errors?: unknown }).errors
+                    : undefined;
 
-                const rawErrs =
-                    deleteResult && typeof deleteResult === "object" && "errors" in deleteResult
-                        ? (deleteResult as { errors?: unknown }).errors
-                        : undefined;
-                const errs = Array.isArray(rawErrs)
+                const errs: string[] = Array.isArray(rawErrs)
                     ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
                     : [];
 
                 const ok =
-                    deleteResult &&
-                    typeof deleteResult === "object" &&
-                    "success" in deleteResult &&
-                    (deleteResult as { success: boolean }).success;
+                    delResult &&
+                    typeof delResult === "object" &&
+                    "success" in delResult &&
+                    Boolean((delResult as { success?: boolean }).success);
 
                 if (ok) {
                     const lines: string[] = ["✅ シフト削除を反映しました。"];
