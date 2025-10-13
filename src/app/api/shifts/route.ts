@@ -21,12 +21,8 @@ const toHMS = (v: string) => {
 };
 
 
-const parseBool = (v: unknown): boolean => {
-  if (typeof v === 'boolean') return v;
-  if (typeof v === 'number')  return v !== 0;
-  if (typeof v === 'string')  return v.trim().toLowerCase() === 'true';
-  return false;
-};
+const toBool = (v: unknown): boolean =>
+  typeof v === 'boolean' ? v : /^(true|t|1)$/i.test(String(v ?? '').trim());
 
 
 /**
@@ -74,8 +70,8 @@ export async function GET(req: Request) {
 
     // UI が使う形へ正規化（足りない列はデフォルト補完）
     const normalized = (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
-      const staff02Attend = parseBool(row['staff_02_attend_flg']);
-      const staff03Attend = parseBool(row['staff_03_attend_flg']);
+      const staff02Attend = toBool(row['staff_02_attend_flg']);
+      const staff03Attend = toBool(row['staff_03_attend_flg']);
 
       // 1. required_staff_count を取得 (number型)
       const requiredCount =
