@@ -20,10 +20,8 @@ const toHMS = (v: string) => {
   return s; // 想定外はDB側でエラー
 };
 
-/*
-const toBool = (v: unknown): boolean =>
-  typeof v === 'boolean' ? v : /^(true|t|1)$/i.test(String(v ?? '').trim());
-*/
+const toBool = (v: unknown): 0 | 1 =>
+  String(v ?? '').trim().toUpperCase() === 'TRUE' ? 1 : 0;
 
 /**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
@@ -70,8 +68,12 @@ export async function GET(req: Request) {
 
     // UI が使う形へ正規化（足りない列はデフォルト補完）
     const normalized = (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
-      const staff02Attend = row['staff_02_attend_flg'];
-      const staff03Attend = row['staff_03_attend_flg'];
+      console.log("init.staff_02_attend_flg:",row.staff_02_attend_flg);
+      console.log("init.staff_03_attend_flg:",row.staff_02_attend_flg);
+      const staff02Attend = toBool(row['staff_02_attend_flg']);
+      const staff03Attend = toBool(row['staff_03_attend_flg']);
+      console.log("aftertoBool.staff_02_attend_flg:",staff02Attend);
+      console.log("aftertoBool.staff_03_attend_flg:",staff03Attend);
 
       // 1. required_staff_count を取得 (number型)
       const requiredCount =
