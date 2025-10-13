@@ -269,8 +269,16 @@ export default function MonthlyRosterPage() {
         return v === 1 ? '01' : v === 2 ? '02' : '-';
     };
     // どんな型でも "真の true" だけ true にし、それ以外は false
-    const asBool = (v: unknown): boolean =>
-        v === true || v === 'true' || v === 1 || v === '1';
+    const asBool = (v: unknown): boolean => {
+        if (v === true) return true;
+        if (v === false || v == null) return false;
+        if (typeof v === 'number') return v !== 0;
+        if (typeof v === 'string') {
+            const s = v.trim().toLowerCase();
+            return s === 'true' || s === '1' || s === 't' || s === 'y' || s === 'yes' || s === 'on';
+        }
+        return false;
+    };
 
 
     // two_person_work_flg:boolean → dup_role:'-'|'01'
@@ -1106,7 +1114,7 @@ export default function MonthlyRosterPage() {
                                                     <input
                                                         type="checkbox"
                                                         className="h-3.5 w-3.5"
-                                                        checked={!!row.staff_02_attend_flg}
+                                                        checked={asBool(row.staff_02_attend_flg)}
                                                         onChange={(ev) => updateRow(row.shift_id, 'staff_02_attend_flg', ev.target.checked)}
                                                         disabled={readOnly}
                                                     />
@@ -1139,7 +1147,7 @@ export default function MonthlyRosterPage() {
                                                     <input
                                                         type="checkbox"
                                                         className="h-3.5 w-3.5"
-                                                        checked={!!row.staff_03_attend_flg}
+                                                        checked={asBool(row.staff_03_attend_flg)}
                                                         onChange={(ev) => updateRow(row.shift_id, 'staff_03_attend_flg', ev.target.checked)}
                                                         disabled={readOnly}
                                                     />
