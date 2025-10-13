@@ -20,14 +20,11 @@ const toHMS = (v: string) => {
   return s; // 想定外はDB側でエラー
 };
 
-// 文字列 "TRUE"/"FALSE" や "t"/"f"、1/0 を正しく boolean 化
+
 const parseBool = (v: unknown): boolean => {
   if (typeof v === 'boolean') return v;
-  if (typeof v === 'number') return v !== 0;
-  if (typeof v === 'string') {
-    const s = v.trim().toLowerCase();
-    return s === 'true' || s === 't' || s === '1';
-  }
+  if (typeof v === 'number')  return v !== 0;
+  if (typeof v === 'string')  return v.trim().toLowerCase() === 'true';
   return false;
 };
 
