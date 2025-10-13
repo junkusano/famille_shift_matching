@@ -503,8 +503,22 @@ export default function MonthlyRosterPage() {
             const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
             const res = await fetch(url, { cache: 'no-store' })
             const raw = await res.json()
+            try {
+                // 元レスポンスの先頭3件だけ覗く（any禁止なので Record<string, unknown> を使う）
+                const arr = Array.isArray(raw) ? raw as ReadonlyArray<Record<string, unknown>> : [];
+                const probe = arr.slice(0, 3).map((obj) => ({
+                    shift_id: String(obj['shift_id'] ?? ''),
+                    s02: obj['staff_02_attend_flg'],
+                    s02_type: typeof obj['staff_02_attend_flg'],
+                    s03: obj['staff_03_attend_flg'],
+                    s03_type: typeof obj['staff_03_attend_flg'],
+                }));
+                alert('API生データ (先頭3件):\n' + JSON.stringify(probe, null, 2));
+            } catch {
+                /* no-op */
+            }
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : [];
-            const normalized: ShiftRow[] = rows.map((r) => {
+            const normalized: ShiftRow[] = rows.map((r, idx) => {
                 const rawRequired = r.required_staff_count ?? 1;
                 const required = Math.max(0, Math.min(2, rawRequired));
 
@@ -514,6 +528,26 @@ export default function MonthlyRosterPage() {
                 const twoPerson = asBool(r.two_person_work_flg);
 
                 const dup_role = toDupRole(twoPerson);
+
+                // ▼▼▼ 一時デバッグ：最初の1件だけ正規化前後を比較 ▼▼▼
+                if (idx === 0) {
+                    alert(
+                        '正規化前後チェック(1件目):\n' +
+                        JSON.stringify(
+                            {
+                                s02_raw: r.staff_02_attend_flg,
+                                s02_after_asBool: asBool(r.staff_02_attend_flg),
+                                s03_raw: r.staff_03_attend_flg,
+                                s03_after_asBool: asBool(r.staff_03_attend_flg),
+                                two_raw: r.two_person_work_flg,
+                                two_after_asBool: asBool(r.two_person_work_flg),
+                            },
+                            null,
+                            2
+                        )
+                    );
+                }
+                // ▲▲▲ 一時デバッグ ここまで ▲▲▲
 
                 return {
                     ...r,
