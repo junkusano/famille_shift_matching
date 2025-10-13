@@ -270,17 +270,10 @@ export default function MonthlyRosterPage() {
     };
     // どんな型でも "真の true" だけ true にし、それ以外は false
     const asBool = (v: unknown): boolean => {
-        if (v === true) return true;
-        if (v === false || v == null) return false;
-        if (typeof v === 'number') return v !== 0;
-        if (typeof v === 'string') {
-            const s = v.trim().toLowerCase();
-            return s === 'true' || s === '1' || s === 't' || s === 'y' || s === 'yes' || s === 'on';
-        }
-        return false;
+        if (typeof v === 'boolean') return v;
+        if (v == null) return false;
+        return String(v).trim().toLowerCase() === 'true';
     };
-
-
     // two_person_work_flg:boolean → dup_role:'-'|'01'
     const toDupRole = (b: unknown): '-' | '01' => (asBool(b) ? '01' : '-');
 
