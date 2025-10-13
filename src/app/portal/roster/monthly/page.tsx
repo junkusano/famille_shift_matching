@@ -504,6 +504,7 @@ export default function MonthlyRosterPage() {
             const url = `/api/shifts?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
             const res = await fetch(url, { cache: 'no-store' })
             const raw = await res.json()
+            /*
             try {
                 // 元レスポンスの先頭3件だけ覗く（any禁止なので Record<string, unknown> を使う）
                 const arr = Array.isArray(raw) ? raw as ReadonlyArray<Record<string, unknown>> : [];
@@ -516,10 +517,11 @@ export default function MonthlyRosterPage() {
                 }));
                 alert('API生データ (先頭3件):\n' + JSON.stringify(probe, null, 2));
             } catch {
-                /* no-op */
-            }
+               
+            } 
+            */
             const rows: ShiftRow[] = Array.isArray(raw) ? raw : [];
-            const normalized: ShiftRow[] = rows.map((r, idx) => {
+            const normalized: ShiftRow[] = rows.map((r) => {
                 const rawRequired = r.required_staff_count ?? 1;
                 const required = Math.max(0, Math.min(2, rawRequired));
 
@@ -530,6 +532,7 @@ export default function MonthlyRosterPage() {
 
                 const dup_role = toDupRole(twoPerson);
 
+                /*
                 // ▼▼▼ 一時デバッグ：最初の1件だけ正規化前後を比較 ▼▼▼
                 if (idx === 0) {
                     alert(
@@ -549,6 +552,7 @@ export default function MonthlyRosterPage() {
                     );
                 }
                 // ▲▲▲ 一時デバッグ ここまで ▲▲▲
+                */
 
                 return {
                     ...r,
