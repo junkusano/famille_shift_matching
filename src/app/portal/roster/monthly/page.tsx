@@ -603,8 +603,8 @@ export default function MonthlyRosterPage() {
             staff_01_user_id: row.staff_01_user_id,
             staff_02_user_id: row.staff_02_user_id,
             staff_03_user_id: row.staff_03_user_id,
-            staff_02_attend_flg: !!row.staff_02_attend_flg,
-            staff_03_attend_flg: !!row.staff_03_attend_flg,
+            staff_02_attend_flg: asBool(row.staff_02_attend_flg),
+            staff_03_attend_flg: asBool(row.staff_03_attend_flg),
             shift_start_time: hmToHMS(toHM(row.shift_start_time)),
             shift_end_time: hmToHMS(toHM(row.shift_end_time)),
         };
@@ -1194,8 +1194,8 @@ export default function MonthlyRosterPage() {
                                                                 staff01UserId={row.staff_01_user_id ?? ""}
                                                                 staff02UserId={row.staff_02_user_id ?? ""}
                                                                 staff03UserId={row.staff_03_user_id ?? ""}
-                                                                staff02AttendFlg={String(!!row.staff_02_attend_flg)}
-                                                                staff03AttendFlg={String(!!row.staff_03_attend_flg)}
+                                                                staff02AttendFlg={String(asBool(row.staff_02_attend_flg))}
+                                                                staff03AttendFlg={String(asBool(row.staff_03_attend_flg))}
                                                                 className={`w-full ${colorCls}`}
                                                                 variant="secondary"
                                                             />
