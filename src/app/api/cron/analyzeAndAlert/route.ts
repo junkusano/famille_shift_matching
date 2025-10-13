@@ -1,15 +1,28 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 import { analyzeMessages } from '@/lib/supabase/analyzeMessages';
 import { getAccessToken } from '@/lib/getAccessToken';
 import { sendLWBotMessage } from '@/lib/lineworks/sendLWBotMessage';
 import type { MsgLwLog } from '@/types/msgLwLog';
 
-export async function GET() {
+/** 簡易認証（CRON / 手動叩き用） */
+function ok(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET ?? "";
+  if (!secret) return true;
+  const bearer = req.headers.get("authorization") || "";
+  if (bearer === `Bearer ${secret}`) return true;
+  const q = new URL(req.url).searchParams.get("secret");
+  return q === secret;
+}
+
+
+export async function GET(req: NextRequest) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  if (!ok(req)) return new NextResponse("forbidden", { status: 403 });
 
   const { data: logs, error } = await supabase
     .from('msg_lw_log')

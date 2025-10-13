@@ -1,4 +1,5 @@
-// Cron -> /api/shift-records/check を内部リクエストするラッパー
+//api/cron/shift-record-check/route.ts 
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
