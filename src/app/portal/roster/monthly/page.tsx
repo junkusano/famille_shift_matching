@@ -223,7 +223,7 @@ const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<numb
 };
 
 // どこか上のヘルパ群の末尾あたりに追加
-const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
+//const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
 
 type CheckResult = { ok: boolean; confirmMessage?: string; errorMessage?: string };
 
