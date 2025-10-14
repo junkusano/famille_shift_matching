@@ -658,13 +658,13 @@ export default function ShiftCard({
     if (service.includes("キャンセル")) return null;
 
     // === 既存の表示条件（必要なら残す）========================
-    const lso = shift.level_sort_order ?? null;
-    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every((v) => !v || v === "-");
+    //const lso = shift.level_sort_order ?? null;
+    //const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+    //  .every((v) => !v || v === "-");
 
     // lso が取れた時だけしきい値判定。取れないなら true 扱い（従来通り）
-    const canShowByLevel = (lso === null) || (lso < 3_500_001);
-    const canShowLegacy = noAssignees || canShowByLevel;
+    //const canShowByLevel = (lso === null) || (lso < 3_500_001);
+    //const canShowLegacy = noAssignees || canShowByLevel;
     // ========================================================
 
     // === 追加：staff_01/02/03 の level_sort + attend 条件 ===
@@ -699,7 +699,7 @@ export default function ShiftCard({
     }
 
     // 最終判定：従来条件 と 新条件 の両方を満たす
-    if (!(canShowLegacy && passByStaff)) return null;
+    if (!passByStaff) return null;
   }
 
   // reject モード：自分が担当していないカードは非表示
