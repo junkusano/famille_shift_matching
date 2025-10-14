@@ -648,7 +648,7 @@ export default function ShiftCard({
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -699,35 +699,7 @@ export default function ShiftCard({
     (cs && ym)
       ? `/portal/shift-view?client=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
       : "#";
-
-  // ▼ 取得完了までは判定しない
-  // ▼ s1/s2/s3 を参照する “直前” に入れてください
-  const idsNeeded = [
-    shift.staff_01_user_id,
-    shift.staff_02_user_id,
-    shift.staff_03_user_id,
-  ].filter((v): v is string => !!v && v !== "-"); // 空や "-" は除外
-
-  const isLoaded = idsNeeded.every((id) => staffMap[id] !== undefined);
-  if (!isLoaded) return null;
-
-
-  // ▼ 表示判定（最小変更）
-  const s1 = staffMap[shift.staff_01_user_id ?? ""] as StaffRow | undefined;
-  const s2 = staffMap[shift.staff_02_user_id ?? ""] as StaffRow | undefined;
-  const s3 = staffMap[shift.staff_03_user_id ?? ""] as StaffRow | undefined;
-
-  const eligibleByLevel = (s?: StaffRow) =>
-    (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
-
-  const shouldShow =
-    shift.staff_01_user_id === "-" || // ★ 旧page.tsxの条件を復活
-    eligibleByLevel(s1) ||
-    (eligibleByLevel(s2) && s2?.staff_02_attend_flg === false) ||
-    (eligibleByLevel(s3) && s3?.staff_03_attend_flg === false);
-
-  if (!shouldShow) return null;
-
+      
 
   /* ------- Render ------- */
   return (
@@ -782,10 +754,10 @@ export default function ShiftCard({
               {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+             {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+             {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
