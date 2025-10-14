@@ -52,6 +52,8 @@ type StaffRow = {
   user_id: string;
   last_name_kanji: string;
   first_name_kanji: string;
+  staff_02_attend_flg?: number | null; // 1=参加, 0=不参加 など
+  staff_03_attend_flg?: number | null;
   level_sort?: number | null;
 };
 
@@ -320,7 +322,7 @@ export default function ShiftCard({
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
+        .select("user_id,last_name_kanji,first_name_kanji,staff_02_attend_flg,staff_03_attend_flg,level_sort")
         .in("user_id", ids);
 
       if (error) {
