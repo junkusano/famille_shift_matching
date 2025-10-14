@@ -651,7 +651,7 @@ export default function ShiftCard({
     // ▲ 追加ここまで
 
     const getLv = (n: 1 | 2 | 3) => {
-      const rec: UnknownRecord = shift as UnknownRecord;
+      const rec: UnknownRecord = shift as unknown as UnknownRecord;
       const candKeys = [
         `staff_0${n}_lv_sort`,
         `staff_0${n}_level_sort`,
@@ -670,7 +670,7 @@ export default function ShiftCard({
     };
 
     const getAttendFalse = (n: 2 | 3) => {
-      const rec: UnknownRecord = shift as UnknownRecord;
+      const rec: UnknownRecord = shift as unknown as UnknownRecord;
       const key = `staff_0${n}_attend_flg`;
       return coerceBool(rec[key]) === false;
     };
