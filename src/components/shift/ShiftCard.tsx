@@ -644,11 +644,11 @@ export default function ShiftCard({
 
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
-    const cs = csId ?? ""; // deepFindKaipokeCsId(shift) の結果（既存）
+    const cs = csId ?? "";
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    // ① kaipoke_cs_id が 999999999* → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -656,18 +656,50 @@ export default function ShiftCard({
 
     // ③ サービス名に「キャンセル」を含む → 非表示
     if (service.includes("キャンセル")) return null;
-    // ▲ 追加ここまで
 
+    // === 既存の表示条件（必要なら残す）========================
     const lso = shift.level_sort_order ?? null;
-
     const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every(v => !v || v === "-");
+      .every((v) => !v || v === "-");
 
-    // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
-    const canShowByLevel = ((lso === null) || (lso < 3500001));
-    const canShow = noAssignees || canShowByLevel;
+    // lso が取れた時だけしきい値判定。取れないなら true 扱い（従来通り）
+    const canShowByLevel = (lso === null) || (lso < 3_500_001);
+    const canShowLegacy = noAssignees || canShowByLevel;
+    // ========================================================
 
-    if (!canShow) return null;
+    // === 追加：staff_01/02/03 の level_sort + attend 条件 ===
+    // 必要な user_id が staffMap に読み込まれているかを確認
+    const idsNeeded = [
+      shift.staff_01_user_id,
+      shift.staff_02_user_id,
+      shift.staff_03_user_id,
+    ].filter((v): v is string => !!v && v !== "-");
+
+    const isLoaded = idsNeeded.length === 0 || idsNeeded.every((id) => staffMap[id] !== undefined);
+
+    // staffMap 未読込の間は「ここで非表示にはしない」＝ true 扱いにして既存条件で流す
+    let passByStaff = true;
+
+    if (isLoaded) {
+      const s1 = staffMap[shift.staff_01_user_id ?? ""];
+      const s2 = staffMap[shift.staff_02_user_id ?? ""];
+      const s3 = staffMap[shift.staff_03_user_id ?? ""];
+
+      const eligibleByLevel = (s?: { level_sort?: number }) =>
+        (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
+
+      // 要件：
+      // ・01/02/03 のいずれかに level_sort < 5,000,000 がいる
+      // ・02/03 は attend_flg === false のときに表示対象
+      passByStaff =
+        (shift.staff_01_user_id === "-") ||            // 旧互換：01が "-" のとき表示
+        eligibleByLevel(s1) ||
+        (eligibleByLevel(s2) && shift.staff_02_attend_flg === false) ||
+        (eligibleByLevel(s3) && shift.staff_03_attend_flg === false);
+    }
+
+    // 最終判定：従来条件 と 新条件 の両方を満たす
+    if (!(canShowLegacy && passByStaff)) return null;
   }
 
   // reject モード：自分が担当していないカードは非表示
