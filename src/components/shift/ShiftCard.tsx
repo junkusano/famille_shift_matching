@@ -685,23 +685,29 @@ export default function ShiftCard({
       const s2 = staffMap[shift.staff_02_user_id ?? ""];
       const s3 = staffMap[shift.staff_03_user_id ?? ""];
 
+
+
+      if (s1.level_sort >= 5000000) return null;
+      if (s2.level_sort >= 5000000 && s2.staff_02_attend_flg === false) return null;
+
+
       const eligibleByLevel = (s?: { level_sort?: number }) =>
         (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
-
-     if(s1.level_sort < 5000000) return null;
 
       // 要件：
       // ・01/02/03 のいずれかに level_sort < 5,000,000 がいる
       // ・02/03 は attend_flg === false のときに表示対象
+
       passByStaff =
         (shift.staff_01_user_id === "-") ||            // 旧互換：01が "-" のとき表示
         eligibleByLevel(s1) ||
-        (eligibleByLevel(s2) && shift.staff_02_attend_flg === false) ||
-        (eligibleByLevel(s3) && shift.staff_03_attend_flg === false);
+        (eligibleByLevel(s2) && s2.staff_02_attend_flg === false) ||
+        (eligibleByLevel(s3) && s3.staff_03_attend_flg === false);
     }
 
     // 最終判定：従来条件 と 新条件 の両方を満たす
     if (!passByStaff) return null;
+
   }
 
   // reject モード：自分が担当していないカードは非表示
