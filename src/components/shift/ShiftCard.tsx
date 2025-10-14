@@ -48,7 +48,15 @@ type Props = {
 
 type UnknownRecord = Record<string, unknown>;
 
-type StaffRow = { user_id: string; last_name_kanji: string | null; first_name_kanji: string | null };
+type StaffRow = {
+  user_id: string;
+  last_name_kanji?: string;
+  first_name_kanji?: string;
+  level_sort?: number | null;
+  staff_02_attend_flg?: boolean | null;
+  staff_03_attend_flg?: boolean | null;
+};
+
 
 const formatName = (r?: StaffRow) =>
   r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
@@ -253,7 +261,7 @@ export default function ShiftCard({
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji")
+        .select("user_id,last_name_kanji,first_name_kanji,staff_02_attend_flg,staff_03_attend_flg,level_sort")
         .in("user_id", ids);
 
       if (error) { setStaffMap({}); return; }
@@ -640,7 +648,7 @@ export default function ShiftCard({
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -691,6 +699,28 @@ export default function ShiftCard({
     (cs && ym)
       ? `/portal/shift-view?client=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
       : "#";
+
+
+  // ▼ 追加：表示判定（最小変更）
+  const s1 = staffMap[shift.staff_01_user_id ?? ""] as StaffRow | undefined;
+  const s2 = staffMap[shift.staff_02_user_id ?? ""] as StaffRow | undefined;
+  const s3 = staffMap[shift.staff_03_user_id ?? ""] as StaffRow | undefined;
+
+  const eligibleByLevel = (s?: StaffRow) =>
+    (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
+
+  const shouldShow =
+    eligibleByLevel(s1) ||
+    (eligibleByLevel(s2) && s2?.staff_02_attend_flg === false) ||
+    (eligibleByLevel(s3) && s3?.staff_03_attend_flg === false);
+
+  if (!shouldShow) return null; // ← 既存の非表示ロジックがあればこれに置き換え
+
+  console.debug("[check] levels", {
+    s1: s1?.user_id, lvl1: s1?.level_sort,
+    s2: s2?.user_id, lvl2: s2?.level_sort, att2: s2?.staff_02_attend_flg,
+    s3: s3?.user_id, lvl3: s3?.level_sort, att3: s3?.staff_03_attend_flg,
+  });
 
   /* ------- Render ------- */
   return (
@@ -745,10 +775,10 @@ export default function ShiftCard({
               {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-             {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-             {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
