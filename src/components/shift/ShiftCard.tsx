@@ -688,6 +688,8 @@ export default function ShiftCard({
       const eligibleByLevel = (s?: { level_sort?: number }) =>
         (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
 
+     if(s1.level_sort < 5000000) return null;
+
       // 要件：
       // ・01/02/03 のいずれかに level_sort < 5,000,000 がいる
       // ・02/03 は attend_flg === false のときに表示対象
