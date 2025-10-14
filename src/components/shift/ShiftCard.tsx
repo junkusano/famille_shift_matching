@@ -55,6 +55,10 @@ type StaffRow = {
   level_sort?: number | null;
 };
 
+// 環境変数でオンオフ（ブラウザの DevTools にだけ出る）
+const __DEBUG__ = typeof window !== "undefined" && process.env.NEXT_PUBLIC_DEBUG_SHIFTCARD === "1";
+const dlog = (...args: unknown[]) => { if (__DEBUG__) console.debug("[ShiftCard]", ...args); };
+
 const formatName = (r?: StaffRow) =>
   r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
 
@@ -246,28 +250,35 @@ export default function ShiftCard({
 
   // 他の useEffect 群の近くに追加
   const [staffMap, setStaffMap] = useState<Record<string, StaffRow>>({});
+  const [staffMapLoaded, setStaffMapLoaded] = useState(false);
 
   useEffect(() => {
-    if (!(mode === "view" || mode === "reject")) { setStaffMap({}); return; }
+    // view / reject に加え、request でも取得する
+    if (!(mode === "view" || mode === "reject" || mode === "request")) {
+      setStaffMap({});
+      setStaffMapLoaded(false);
+      return;
+    }
 
     const ids = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .filter((v): v is string => !!v && v !== "-");
 
-    if (ids.length === 0) { setStaffMap({}); return; }
+    if (ids.length === 0) { setStaffMap({}); setStaffMapLoaded(true); return; }
 
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
-      .in("user_id", ids);
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort") // ← level_sort を取得
+        .in("user_id", ids);
 
-      if (error) { setStaffMap({}); return; }
+      if (error) { dlog("staff fetch error", error); setStaffMap({}); setStaffMapLoaded(true); return; }
       const map: Record<string, StaffRow> = {};
       (data ?? []).forEach((r) => { map[r.user_id] = r as StaffRow; });
       setStaffMap(map);
+      setStaffMapLoaded(true);
+      dlog("staffMap loaded", map);
     })();
   }, [mode, shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]);
-
 
 
   useEffect(() => {
@@ -645,7 +656,7 @@ export default function ShiftCard({
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -655,14 +666,37 @@ export default function ShiftCard({
     if (service.includes("キャンセル")) return null;
     // ▲ 追加ここまで
 
-    const lso = shift.level_sort_order ?? null;
+    // ---------- 可視判定ユーティリティ ----------
+    type UnknownRecord = Record<string, unknown>;
+    const toNum = (v: unknown): number =>
+      typeof v === "number" ? v : (typeof v === "string" && v.trim() !== "") ? Number(v) : NaN;
+    const isStrictFalse = (v: unknown): boolean => v === false; // 文字列や null は false とみなさない
+    // -------------------------------------------
 
-    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every(v => !v || v === "-");
+    // ロードがまだなら判定を保留（初期フレームでの誤表示を防止）
+    if (mode === "request" && !staffMapLoaded) return null;
 
-    // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
-    const canShowByLevel = ((lso === null) || (lso < 3500001));
-    const canShow = noAssignees || canShowByLevel;
+    // staffMap から 3者の lv を取得（01はフォールバックで shift.level_sort_order も見る）
+    const rec = shift as unknown as UnknownRecord;
+    const lv01 = (() => {
+      const v = staffMap[shift.staff_01_user_id || ""]?.level_sort;
+      if (v !== undefined && v !== null) return toNum(v);
+      return toNum(rec["level_sort_order"]); // 旧フィールドが来ている場合のフォールバック
+    })();
+    const lv02 = toNum(staffMap[shift.staff_02_user_id || ""]?.level_sort);
+    const lv03 = toNum(staffMap[shift.staff_03_user_id || shift.staff_03_user_id || ""]?.level_sort);
+
+    // attend は “真偽値 false” のみを false と解釈（空欄や文字列は対象外）
+    const att2False = isStrictFalse(rec["staff_02_attend_flg"]);
+    const att3False = isStrictFalse(rec["staff_03_attend_flg"]);
+
+    // ✅ 最終：この3条件のみ
+    const canShow =
+      (Number.isFinite(lv01) && lv01 < 5_000_000) ||
+      (Number.isFinite(lv02) && lv02 < 5_000_000 && att2False) ||
+      (Number.isFinite(lv03) && lv03 < 5_000_000 && att3False);
+
+    dlog("lv01/lv02/lv03/att2/att3 ->", lv01, lv02, lv03, att2False, att3False, "canShow:", canShow);
 
     if (!canShow) return null;
   }
@@ -750,10 +784,10 @@ export default function ShiftCard({
               {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-             {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-             {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
