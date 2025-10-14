@@ -1,6 +1,6 @@
 // components/shift/ShiftCard.tsx
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,7 +56,7 @@ type StaffRow = {
 };
 
 // 環境変数でオンオフ（ブラウザの DevTools にだけ出る）
-const __DEBUG__ = typeof window !== "undefined" && process.env.NEXT_PUBLIC_DEBUG_SHIFTCARD === "1";
+const __DEBUG__ = true;
 const dlog = (...args: unknown[]) => { if (__DEBUG__) console.debug("[ShiftCard]", ...args); };
 
 const formatName = (r?: StaffRow) =>
@@ -72,6 +72,20 @@ const REJECT_BTN_CLASS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
   "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
   "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
+
+// ブラウザの Console にだけ出したいとき用（Vercel サーバーログには出ません）
+const DEBUG_FETCH = typeof window !== "undefined" && process.env.NEXT_PUBLIC_DEBUG_SHIFTCARD === "1";
+const dfetch = (...args: unknown[]) => { if (DEBUG_FETCH) console.debug("[ShiftCard:fetch]", ...args); };
+
+// 「一度だけ」ログしたい用
+const useOnce = () => {
+  const ref = useRef(false);
+  return () => {
+    if (ref.current) return false;
+    ref.current = true;
+    return true;
+  };
+};
 
 
 // ShiftData から shift_id（なければ id）を必ず string にして返す
@@ -253,7 +267,7 @@ export default function ShiftCard({
   const [staffMapLoaded, setStaffMapLoaded] = useState(false);
 
   useEffect(() => {
-    // view / reject に加え、request でも取得する
+    // request も含めて取得する（他モードならリセットして終了）
     if (!(mode === "view" || mode === "reject" || mode === "request")) {
       setStaffMap({});
       setStaffMapLoaded(false);
@@ -263,20 +277,78 @@ export default function ShiftCard({
     const ids = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
       .filter((v): v is string => !!v && v !== "-");
 
-    if (ids.length === 0) { setStaffMap({}); setStaffMapLoaded(true); return; }
+    if (ids.length === 0) {
+      setStaffMap({});
+      setStaffMapLoaded(true);
+      return;
+    }
 
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji,level_sort") // ← level_sort を取得
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
         .in("user_id", ids);
 
-      if (error) { dlog("staff fetch error", error); setStaffMap({}); setStaffMapLoaded(true); return; }
+      if (error) {
+        dlog("staff fetch error", error);
+        setStaffMap({});
+        setStaffMapLoaded(true);
+        return;
+      }
+
       const map: Record<string, StaffRow> = {};
       (data ?? []).forEach((r) => { map[r.user_id] = r as StaffRow; });
       setStaffMap(map);
       setStaffMapLoaded(true);
       dlog("staffMap loaded", map);
+    })();
+  }, [mode, shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]);
+
+
+  useEffect(() => {
+    if (!(mode === "view" || mode === "reject")) { setStaffMap({}); return; }
+
+    const ids = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
+      .filter((v): v is string => !!v && v !== "-");
+
+    if (ids.length === 0) { setStaffMap({}); return; }
+
+    const once = useOnce(); // ← 追加：同じカードで多重ログを防ぐ
+
+    (async () => {
+      if (once()) {
+        dfetch("start", { shiftId: shift.id ?? "(unknown)", ids });
+      }
+
+      const { data, error } = await supabase
+        .from("user_entry_united_view_single")
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort") // ← 必須
+        .in("user_id", ids);
+
+      if (error) {
+        dfetch("error", { shiftId: shift.id, error });
+        setStaffMap({});
+        return;
+      }
+
+      const rows = (data ?? []).map((r) => ({
+        user_id: r.user_id,
+        last: r.last_name_kanji,
+        first: r.first_name_kanji,
+        level_sort: r.level_sort,
+      }));
+
+      // ここで一括ログ（各レコードごとには出さない）
+      dfetch("done", {
+        shiftId: shift.id,
+        requestedIds: ids,
+        returnedCount: rows.length,
+        rows, // DevTools で見やすいよう配列で
+      });
+
+      const map: Record<string, StaffRow> = {};
+      rows.forEach((r) => { map[r.user_id] = r as unknown as StaffRow; });
+      setStaffMap(map);
     })();
   }, [mode, shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]);
 
