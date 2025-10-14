@@ -686,10 +686,7 @@ export default function ShiftCard({
       const s3 = staffMap[shift.staff_03_user_id ?? ""];
 
 
-
-      if (s1.level_sort >= 5000000) return null;
-      if (s2.level_sort >= 5000000 && s2.staff_02_attend_flg === false) return null;
-
+      if ((s1.user_id !== "-" || s1.level_sort >= 5000000) ) return null;
 
       const eligibleByLevel = (s?: { level_sort?: number }) =>
         (s?.level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000;
@@ -707,7 +704,6 @@ export default function ShiftCard({
 
     // 最終判定：従来条件 と 新条件 の両方を満たす
     if (!passByStaff) return null;
-
   }
 
   // reject モード：自分が担当していないカードは非表示
