@@ -48,7 +48,12 @@ type Props = {
 
 type UnknownRecord = Record<string, unknown>;
 
-type StaffRow = { user_id: string; last_name_kanji: string | null; first_name_kanji: string | null };
+type StaffRow = {
+  user_id: string;
+  last_name_kanji: string;
+  first_name_kanji: string;
+  level_sort?: number | null;
+};
 
 const formatName = (r?: StaffRow) =>
   r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
@@ -253,8 +258,8 @@ export default function ShiftCard({
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji")
-        .in("user_id", ids);
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
+      .in("user_id", ids);
 
       if (error) { setStaffMap({}); return; }
       const map: Record<string, StaffRow> = {};
