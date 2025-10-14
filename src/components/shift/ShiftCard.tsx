@@ -640,7 +640,7 @@ export default function ShiftCard({
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -650,16 +650,35 @@ export default function ShiftCard({
     if (service.includes("キャンセル")) return null;
     // ▲ 追加ここまで
 
-    const lso = shift.level_sort_order ?? null;
+    const getLv = (n: 1 | 2 | 3) => {
+      const anyShift = shift as any;
+      const candKeys = [
+        `staff_0${n}_lv_sort`,
+        `staff_0${n}_level_sort`,
+        n === 1 ? "level_sort_order" : undefined, // 既存の全体用が1の値ならフォールバック
+      ].filter(Boolean) as string[];
 
-    const noAssignees = [shift.staff_01_user_id, shift.staff_02_user_id, shift.staff_03_user_id]
-      .every(v => !v || v === "-");
+      for (const k of candKeys) {
+        const v = Number(anyShift?.[k]);
+        if (Number.isFinite(v)) return v;
+      }
+      return NaN;
+    };
 
-    // lso が取れた時だけしきい値判定。取れないなら false（= 閾値条件は満たさない）
-    const canShowByLevel = ((lso === null) || (lso < 3500001));
-    const canShow = noAssignees || canShowByLevel;
+    const getAttendFalse = (n: 2 | 3) =>
+      coerceBool((shift as any)[`staff_0${n}_attend_flg`]) === false;
+
+    const lv01 = getLv(1);
+    const lv02 = getLv(2);
+    const lv03 = getLv(3);
+
+    const canShow =
+      (Number.isFinite(lv01) && lv01 < 5_000_000) ||
+      (Number.isFinite(lv02) && lv02 < 5_000_000 && getAttendFalse(2)) ||
+      (Number.isFinite(lv03) && lv03 < 5_000_000 && getAttendFalse(3));
 
     if (!canShow) return null;
+
   }
 
   // reject モード：自分が担当していないカードは非表示
@@ -745,10 +764,10 @@ export default function ShiftCard({
               {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-             {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-             {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
