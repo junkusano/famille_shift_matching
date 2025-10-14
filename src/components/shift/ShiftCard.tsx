@@ -651,22 +651,29 @@ export default function ShiftCard({
     // ▲ 追加ここまで
 
     const getLv = (n: 1 | 2 | 3) => {
-      const anyShift = shift as any;
+      const rec: UnknownRecord = shift as UnknownRecord;
       const candKeys = [
         `staff_0${n}_lv_sort`,
         `staff_0${n}_level_sort`,
-        n === 1 ? "level_sort_order" : undefined, // 既存の全体用が1の値ならフォールバック
+        n === 1 ? "level_sort_order" : undefined,
       ].filter(Boolean) as string[];
 
       for (const k of candKeys) {
-        const v = Number(anyShift?.[k]);
-        if (Number.isFinite(v)) return v;
+        const raw = rec[k];
+        const v =
+          typeof raw === "number" ? raw :
+            typeof raw === "string" ? Number(raw) :
+              NaN;
+        if (Number.isFinite(v)) return Number(v);
       }
       return NaN;
     };
 
-    const getAttendFalse = (n: 2 | 3) =>
-      coerceBool((shift as any)[`staff_0${n}_attend_flg`]) === false;
+    const getAttendFalse = (n: 2 | 3) => {
+      const rec: UnknownRecord = shift as UnknownRecord;
+      const key = `staff_0${n}_attend_flg`;
+      return coerceBool(rec[key]) === false;
+    };
 
     const lv01 = getLv(1);
     const lv02 = getLv(2);
