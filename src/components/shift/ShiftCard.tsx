@@ -261,7 +261,7 @@ export default function ShiftCard({
     (async () => {
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji,staff_02_attend_flg,staff_03_attend_flg,level_sort")
+        .select("user_id,last_name_kanji,first_name_kanji,level_sort")
         .in("user_id", ids);
 
       if (error) { setStaffMap({}); return; }
@@ -648,7 +648,7 @@ export default function ShiftCard({
     const service =
       pickNonEmptyString(shift, ["shift_service_code", "service_code"]) ?? "";
 
-      // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
+    // ① cs_kaipoke_info.kaipoke_cs_id が 999999999 で始まる → 非表示
     if (cs.startsWith("999999999")) return null;
 
     // ② サービスが「その他」 → 非表示
@@ -699,7 +699,7 @@ export default function ShiftCard({
     (cs && ym)
       ? `/portal/shift-view?client=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
       : "#";
-      
+
 
   /* ------- Render ------- */
   return (
@@ -754,10 +754,10 @@ export default function ShiftCard({
               {formatName(staffMap[shift.staff_01_user_id ?? ""])}
             </span>
             <span className="inline-block mr-3">
-             {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
             </span>
             <span className="inline-block">
-             {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
           </div>
         )}
