@@ -609,7 +609,7 @@ export default function ShiftRecord({
         body: JSON.stringify(rows),
       });
       if (!res.ok) throw new Error("save failed");
-      
+
       setStatus("draft"); // ★★ 追加
       setSaveState("saved");
       setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1200);
@@ -619,7 +619,7 @@ export default function ShiftRecord({
   // ======== ボタンの見た目・文言を status で出し分け ========
   const actionBtnClass = isFinalStatus
     ? "text-xs px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-    : "text-xs px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"; 
+    : "text-xs px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700 disabled:opacity-50";
 
   const actionBtnLabel = isFinalStatus ? "更新" : "保存（最後に必ず保存）"; // ★★ 追加
 
@@ -1044,6 +1044,8 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
   codeToId: Record<string, string>;
   idToDefault: Record<string, unknown>;
 }) {
+  const hasValue = Object.prototype.hasOwnProperty.call(allValues, def.id);
+
   const t = def.input_type;
 
   // display（読み取り専用テキスト）
@@ -1169,7 +1171,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     // D) options 無し：単体チェック（"1" / ""）
     {
       const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
-      const rawCur = (value === "" || value == null) ? defVal : value;
+      const rawCur = hasValue ? value : defVal;
       const cur = String(rawCur ?? "");
       return (
         <label className="inline-flex items-center gap-2">
@@ -1185,7 +1187,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     const { items: selectItems, placeholder } = parseSelectOptions(raw); // ← opts という変数名の重複を避ける
     const defVal = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
     const rawVal = value as unknown;
-    const cur = String((rawVal === "" || rawVal == null) ? (defVal ?? "") : rawVal);
+    const cur = String(hasValue ? (rawVal ?? "") : (defVal ?? ""));
 
     return (
       <select
@@ -1204,7 +1206,7 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     const unit = def.unit ? String(def.unit) : "";
     const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
     const rawVal = value as unknown;
-    const cur = String((rawVal === "" || rawVal == null) ? (baseDef ?? "") : rawVal);
+    const cur = String(hasValue ? (rawVal ?? "") : (baseDef ?? ""));
 
     return (
       <div className="flex items-center gap-1">
@@ -1236,8 +1238,6 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
   const unit = def.unit ? String(def.unit) : "";
   const baseDef = resolveDefaultValue(def, shiftInfo, allValues, codeToId, idToDefault);
   const rawVal = value as unknown;
-
-  // ... (データ連携を強制するロジックはそのまま) ...
   let finalDefaultValue = baseDef ?? "";
 
   // URLパラメータから渡された値を、フォームの 'code' に基づいて優先的に適用する
@@ -1255,9 +1255,9 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
 
   // rawValが未設定（""またはnull/undefined）の場合にのみ、最終的なデフォルト値をStringにして適用する
   // finalDefaultValueがオブジェクト（{"template":""}）の場合でも、String()で空文字になることを期待する。
-  const cur = (rawVal === "" || rawVal == null)
-    ? String(finalDefaultValue ?? "") // finalDefaultValueをStringに変換
-    : String(rawVal); // rawValが設定済みならそれをStringに変換
+  const cur = hasValue
+    ? String(rawVal ?? "")     // ← ユーザー入力（空文字も尊重）
+    : String(finalDefaultValue ?? ""); // ← 初期表示だけdefault
 
   return (
     <div className="flex items-center gap-1">
