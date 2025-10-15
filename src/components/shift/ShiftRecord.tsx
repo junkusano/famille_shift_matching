@@ -394,15 +394,16 @@ export default function ShiftRecord({
 
   // 追加（ここから）
   useEffect(() => {
-    /*
+    
     alert(
       [
         `standard_route: "${qsStandardRoute ?? ""}"`,
         `standard_trans_ways: "${qsStandardTransWays ?? ""}"`,
         `standard_purpose: "${qsStandardPurpose ?? ""}"`,
+        `judo_ido: "${qsJudoIdo ?? ""}"`,
       ].join("\n")
     );
-    */
+    
   }, [qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
 
   // 既存 mergedInfo を拡張
