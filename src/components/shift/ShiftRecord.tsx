@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabaseClient";
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
+// ★ 追加: 初期デフォルト保存をレコードごとに1回だけ実行するためのフラグ
+const seededDefaultsRef = React.createRef<{ rid: string | null }>();
+
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
   inProgress: "draft",     // 自動保存
@@ -614,6 +617,7 @@ export default function ShiftRecord({
     loadItems(rid).catch((e) => { console.error("[ShiftRecord] loadItems error", e); });
   }, [rid, loadItems]);
 
+
   // ====== 自動保存（500msデバウンス） ======
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queueRef = useRef<{ item_def_id: string; value: unknown }[] | null>(null);
@@ -886,6 +890,78 @@ export default function ShiftRecord({
   const [activeL, setActiveL] = useState<string | null>(null);
   useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
 
+
+  // ===== 初期デフォルトの自動保存（一度だけ） =====
+  useEffect(() => {
+    if (!rid) return;
+    // すでにこの rid で実行済みならスキップ
+    if (seededDefaultsRef.current?.rid === rid) return;
+
+    // 定義やルールがまだ揃っていない間はスキップ
+    if (!defs.items?.length) return;
+
+    // 保存対象を収集
+    const rows: { record_id: string; item_def_id: string; value: unknown }[] = [];
+    const nextValues: Record<string, unknown> = {};
+
+    for (const it of effectiveItems) {
+      // display は保存しない
+      if (it.input_type === "display") continue;
+
+      const has = Object.prototype.hasOwnProperty.call(values, it.id);
+      const cur = has ? values[it.id] : undefined;
+
+      // 既に値があり、空でなければスキップ
+      if (has) {
+        const empty = isEmptyValue(it, cur);
+        if (!empty) continue;
+      }
+
+      // ルール適用込みの default を取得
+      const dv = resolveDefaultValue(it, mergedInfo, values, codeToId, idToDefault);
+
+      // default が未定義 or 空なら保存しない
+      const isEmptyDefault =
+        dv == null ||
+        (Array.isArray(dv) ? dv.length === 0 : String(dv).trim() === "");
+
+      if (isEmptyDefault) continue;
+
+      // 保存対象へ
+      rows.push({ record_id: rid, item_def_id: it.id, value: dv });
+      nextValues[it.id] = dv;
+    }
+
+    if (rows.length === 0) {
+      // 実施済みマークだけ付けて終了
+      seededDefaultsRef.current = { rid };
+      return;
+    }
+
+    (async () => {
+      try {
+        setSaveState("saving");
+        const res = await fetch(`/api/shift-record-items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(rows),
+        });
+        if (!res.ok) throw new Error("initial default save failed");
+        // 画面側の state も default ぶんだけ埋めておく
+        setValues((prev) => ({ ...nextValues, ...prev }));
+        setSaveState("saved");
+      } catch (e) {
+        console.error("[ShiftRecord] seed default save error", e);
+        setSaveState("error");
+      } finally {
+        // 二重実行防止
+        seededDefaultsRef.current = { rid };
+        // 表示のための軽いリセット
+        setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1200);
+      }
+    })();
+    // 依存関係：
+  }, [rid, defs.items, effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
 
   // ====== レンダラ ======
   return (
