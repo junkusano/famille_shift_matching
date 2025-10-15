@@ -91,6 +91,29 @@ export default function ShiftRecordLinkButton({
         if (judoIdo !== undefined && judoIdo !== null && String(judoIdo).trim() !== "") {
           q += `&judo_ido=${encodeURIComponent(String(judoIdo))}`;
         }
+
+        alert(
+          [
+            `[ShiftRecordLinkButton] push params`,
+            `hrefBase: ${hrefBase}`,
+            `q: ${q}`,
+            `--- raw props ---`,
+            `shiftId: ${shiftId}`,
+            `clientName: ${clientName ?? ""}`,
+            `standard_route: ${standardRoute ?? ""}`,
+            `standard_trans_ways: ${standardTransWays ?? ""}`,
+            `standard_purpose: ${standardPurpose ?? ""}`,
+            `judo_ido: ${judoIdo ?? ""}`,
+            `staff_01_user_id: ${staff01UserId ?? ""}`,
+            `staff_02_user_id: ${staff02UserId ?? ""}`,
+            `staff_03_user_id: ${staff03UserId ?? ""}`,
+            `staff_02_attend_flg: ${String(staff02AttendFlg ?? "")}`,
+            `staff_03_attend_flg: ${String(staff03AttendFlg ?? "")}`,
+          ].join("\n")
+        );
+
+
+
         router.push(`${hrefBase}${q}`);
       }}
     >
