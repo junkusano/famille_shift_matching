@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
 // ★ 追加: 初期デフォルト保存をレコードごとに1回だけ実行するためのフラグ
-//const seededDefaultsRef = React.createRef<{ rid: string | null }>();
+const seededDefaultsRef = React.createRef<{ rid: string | null }>();
 
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
@@ -890,9 +890,57 @@ export default function ShiftRecord({
   const [activeL, setActiveL] = useState<string | null>(null);
   useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
 
+  type TemplateObj = { template: string };
+
+  function isTemplateObj(v: unknown): v is TemplateObj {
+    return typeof v === "object" && v !== null && "template" in (v as Record<string, unknown>) &&
+      typeof (v as Record<string, unknown>).template === "string";
+  }
+
+  function replaceBraces(s: string, info: Record<string, unknown>): string {
+    return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, k) => {
+      const path = String(k);
+      const val = path.split(".").reduce<unknown>((acc, key) => {
+        if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
+        return undefined;
+      }, info);
+      return val == null ? "" : String(val);
+    });
+  }
+
+  // ★ def は使わないので引数名を _def にするか、引数を削除してOK
+  const toResolvedDefaultForSave = useCallback((
+    _def: ShiftRecordItemDef,                // ← 未使用なので _def に
+    dv: unknown,
+    info: Record<string, unknown>
+  ): string | null => {
+    if (dv == null) return null;
+
+    // 1) { template: "..." } 形式
+    if (isTemplateObj(dv)) {
+      const tpl = dv.template.trim();
+      if (!tpl) return null;
+      const resolved = replaceBraces(tpl, info);
+      if (/\{\{.+\}\}/.test(resolved)) return null;      // 未解決プレースホルダが残る → 保存しない
+      return resolved.trim() || null;
+    }
+
+    // 2) 文字列で {{...}} を含む
+    if (typeof dv === "string") {
+      const s = dv.includes("{{") ? replaceBraces(dv, info) : dv;
+      if (/\{\{.+\}\}/.test(s)) return null;             // 未解決 → 保存しない
+      return s.trim() ? s : null;
+    }
+
+    // 3) 配列は JSON 文字列に。空なら保存しない
+    if (Array.isArray(dv)) return dv.length ? JSON.stringify(dv) : null;
+
+    // 4) それ以外はプリミティブ想定で文字列化
+    const str = String(dv).trim();
+    return str ? str : null;
+  }, []);
 
   // ===== 初期デフォルトの自動保存（一度だけ） =====
-  /*
   useEffect(() => {
     if (!rid) return;
     // すでにこの rid で実行済みならスキップ
@@ -906,31 +954,21 @@ export default function ShiftRecord({
     const nextValues: Record<string, unknown> = {};
 
     for (const it of effectiveItems) {
-      // display は保存しない
       if (it.input_type === "display") continue;
 
       const has = Object.prototype.hasOwnProperty.call(values, it.id);
       const cur = has ? values[it.id] : undefined;
+      if (has && !isEmptyValue(it, cur)) continue;
 
-      // 既に値があり、空でなければスキップ
-      if (has) {
-        const empty = isEmptyValue(it, cur);
-        if (!empty) continue;
-      }
-
-      // ルール適用込みの default を取得
       const dv = resolveDefaultValue(it, mergedInfo, values, codeToId, idToDefault);
+      const saveValue = toResolvedDefaultForSave(it, dv, mergedInfo);
 
-      // default が未定義 or 空なら保存しない
-      const isEmptyDefault =
-        dv == null ||
-        (Array.isArray(dv) ? dv.length === 0 : String(dv).trim() === "");
+      // 未解決 or 空 → 保存しない
+      if (saveValue == null) continue;
 
-      if (isEmptyDefault) continue;
+      rows.push({ record_id: rid, item_def_id: it.id, value: saveValue });
+      nextValues[it.id] = saveValue;
 
-      // 保存対象へ
-      rows.push({ record_id: rid, item_def_id: it.id, value: dv });
-      nextValues[it.id] = dv;
     }
 
     if (rows.length === 0) {
@@ -963,7 +1001,6 @@ export default function ShiftRecord({
     })();
     // 依存関係：
   }, [rid, defs.items, effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
-  */
 
   // ====== レンダラ ======
   return (
