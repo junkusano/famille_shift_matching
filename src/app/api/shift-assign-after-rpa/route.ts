@@ -54,13 +54,15 @@ export async function POST(req: NextRequest) {
     stages.push({ t: now(), stage: 'rpc_call', shift_id, requested_by_user_id, accompany, traceId });
     console.log('[AFTER-RPA]', traceId, 'rpc_call', { shift_id, requested_by_user_id, accompany });
 
+    //supabase の function assign_user_to_shift_v2' を実行
+
     const { data: assignRes, error: assignErr } = await supabaseAdmin.rpc(
-      'assign_user_to_shift',
+      'assign_user_to_shift_v2',
       {
         p_shift_id: Number(shift_id),
         p_user_id: String(requested_by_user_id),
-        p_role_code: role_code,
-        p_accompany: !!accompany,
+        p_role_code: role_code,      // '01' | '02' | '-999' | null を想定（それ以外は無視される）
+        p_accompany: !!accompany,    // true=同行希望あり（ずらし＋attend_flg制御）
       }
     );
 

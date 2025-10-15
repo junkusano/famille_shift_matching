@@ -239,7 +239,7 @@ export default function ShiftPage() {
                 const mention = sender ? `<m userId="${sender}">さん` : `${sender ?? "不明"}さん`;
 
                 if (chanData?.channel_id) {
-                    const message = `✅シフト希望が登録されました\n\n・カイポケ反映までお待ちください\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
+                    const message = `✅シフト希望が登録されました\n\n・マイファミーユ反映までお待ちください\n\n・日付: ${shift.shift_start_date}\n・時間: ${shift.shift_start_time}～${shift.shift_end_time}\n・利用者: ${shift.client_name} 様\n・種別: ${shift.service_code}\n・エリア: ${shift.postal_code_3}（${shift.district}）\n・同行希望: ${attendRequest ? "あり" : "なし"}\n・担当者: ${mention}`;
 
                     await fetch("/api/lw-send-botmessage", {
                         method: "POST",
