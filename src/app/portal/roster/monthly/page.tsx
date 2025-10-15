@@ -1358,6 +1358,7 @@ export default function MonthlyRosterPage() {
                                                                 staff03UserId={row.staff_03_user_id ?? ""}
                                                                 staff02AttendFlg={String(asBool(row.staff_02_attend_flg))}
                                                                 staff03AttendFlg={String(asBool(row.staff_03_attend_flg))}
+                                                                judoIdo={row.judo_ido != null ? String(row.judo_ido) : ""}
                                                                 className={`w-full ${colorCls}`}
                                                                 variant="secondary"
                                                             />

@@ -248,6 +248,7 @@ export default function ShiftViewPage() {
           staff_01_user_id: s.staff_01_user_id ?? "",
           staff_02_user_id: s.staff_02_user_id ?? "",
           staff_03_user_id: s.staff_03_user_id ?? "",
+          judo_ido: (s as any).judo_ido ?? "", 
           address: s.district ?? "",
           client_name: s.name ?? "",
           gender_request_name: s.gender_request_name ?? "",

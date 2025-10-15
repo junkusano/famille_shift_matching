@@ -42,6 +42,7 @@ type ShiftViewRow = {
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
     staff_03_user_id: string | null;
+    judo_ido: string | null;
     name: string | null;
     gender_request_name: string | null;
     male_flg: boolean | null;
@@ -176,6 +177,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         staff_01_user_id: s.staff_01_user_id ?? "",
         staff_02_user_id: s.staff_02_user_id ?? "",
         staff_03_user_id: s.staff_03_user_id ?? "",
+        judo_ido: s.judo_ido ?? "", 
         address: s.postal_code ?? "",
         client_name: s.name ?? "",
         gender_request_name: s.gender_request_name ?? "",
