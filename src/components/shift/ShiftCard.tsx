@@ -72,11 +72,27 @@ const REJECT_BTN_CLASS =
   "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
   "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
 
-const getJudoIdoAsString = (obj: unknown): string | undefined => {
-  const s = pickNonEmptyString(obj, ["judo_ido"]);
-  if (s) return s;
-  const n = pickNum(obj, "judo_ido");
-  return (typeof n === "number" && !Number.isNaN(n)) ? String(n) : undefined;
+// ShiftData から judo_ido（なければ shiftInfo.*）を必ず string にして返す
+const getJudoIdoStr = (s: ShiftData): string => {
+  // 1) トップレベル（getShiftIdStr と同じ手順）
+  const jid = (s as unknown as { judo_ido?: number | string }).judo_ido;
+  if (typeof jid === "number" || typeof jid === "string") return String(jid);
+  const n = pickNum(s, "judo_ido");
+  if (typeof n === "number") return String(n);
+  const t = pickStr(s, "judo_ido");
+  if (t != null) return t;
+
+  // 2) 最小のネスト対応（shiftInfo）
+  const info = (s as unknown as {
+    shiftInfo?: { judo_ido_num?: number | string; judo_ido?: number | string };
+  }).shiftInfo;
+  if (info) {
+    const v = info.judo_ido_num ?? info.judo_ido;
+    if (typeof v === "number" || typeof v === "string") return String(v);
+  }
+
+  // 3) 見つからなければ空文字
+  return "";
 };
 
 // ShiftData から shift_id（なければ id）を必ず string にして返す
@@ -926,7 +942,7 @@ export default function ShiftCard({
                 staff03UserId={shift.staff_03_user_id ?? ""}
                 staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
                 staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
-                judoIdo={getJudoIdoAsString(shift)} 
+                judoIdo={getJudoIdoStr(shift)} 
               />
             </Button>
           )}
