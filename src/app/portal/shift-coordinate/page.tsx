@@ -15,7 +15,6 @@ import GroupAddButton from "@/components/shift/GroupAddButton";
 const PAGE_SIZE = 100;
 
 
-
 export default function ShiftPage() {
     const [shifts, setShifts] = useState<ShiftData[]>([]);
     const [filteredShifts, setFilteredShifts] = useState<ShiftData[]>([]);
@@ -85,7 +84,12 @@ export default function ShiftPage() {
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
-                .filter((s) => s.level_sort_order < 5000000 || s.staff_01_user_id === "-")
+                .filter((s) =>
+                    s.staff_01_user_id === "-" ||                         // 既存の特例を維持
+                    s.level_sort_order < 5_000_000 ||                    // staff_01 のレベル基準（既存）
+                    ((s.staff_02_level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000 && s.staff_02_attend_flg === false) || // 追加：02
+                    ((s.staff_03_level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000 && s.staff_03_attend_flg === false)    // 追加：03
+                )
                 .map((s): ShiftData => ({
                     id: String(s.id ?? s.shift_id),
                     shift_id: s.shift_id,
@@ -97,6 +101,9 @@ export default function ShiftPage() {
                     staff_01_user_id: s.staff_01_user_id,
                     staff_02_user_id: s.staff_02_user_id,
                     staff_03_user_id: s.staff_03_user_id,
+                    staff_01_level_sort: s.staff_01_level_sort,
+                    staff_02_level_sort: s.staff_01_level_sort,
+                    staff_03_level_sort: s.staff_01_level_sort,
                     address: s.postal_code || "",
                     client_name: s.name || "",
                     gender_request_name: s.gender_request_name || "",

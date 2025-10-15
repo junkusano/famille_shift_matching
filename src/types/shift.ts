@@ -10,6 +10,11 @@ export interface SupabaseShiftRaw {
   staff_01_user_id?: string;
   staff_02_user_id?: string;
   staff_03_user_id?: string;
+  staff_02_attend_flg?: string | number | boolean | null;
+  staff_03_attend_flg?: string | number | boolean | null;
+  staff_01_level_sort?: number | null;
+  staff_02_level_sort?: number | null;
+  staff_03_level_sort?: number | null;
   postal_code?: string;
   name?: string;
   gender_request_name?: string;
@@ -35,6 +40,9 @@ export interface ShiftData {
   staff_03_user_id?: string;
   staff_02_attend_flg?: string | number | boolean | null;
   staff_03_attend_flg?: string | number | boolean | null;
+  staff_01_level_sort?: number | null;
+  staff_02_level_sort?: number | null;
+  staff_03_level_sort?: number | null;
   address: string;
   client_name: string;
   gender_request_name: string;

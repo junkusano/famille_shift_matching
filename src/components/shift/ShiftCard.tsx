@@ -669,6 +669,7 @@ export default function ShiftCard({
 
     // === 追加：staff_01/02/03 の level_sort + attend 条件 ===
     // 必要な user_id が staffMap に読み込まれているかを確認
+    /*
     const idsNeeded = [
       shift.staff_01_user_id,
       shift.staff_02_user_id,
@@ -704,6 +705,7 @@ export default function ShiftCard({
 
     // 最終判定：従来条件 と 新条件 の両方を満たす
     if (!passByStaff) return null;
+    */
   }
 
   // reject モード：自分が担当していないカードは非表示
