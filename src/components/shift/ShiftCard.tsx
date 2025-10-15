@@ -72,6 +72,12 @@ const REJECT_BTN_CLASS =
   "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
   "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
 
+const getJudoIdoAsString = (obj: unknown): string | undefined => {
+  const s = pickNonEmptyString(obj, ["judo_ido"]);
+  if (s) return s;
+  const n = pickNum(obj, "judo_ido");
+  return (typeof n === "number" && !Number.isNaN(n)) ? String(n) : undefined;
+};
 
 // ShiftData から shift_id（なければ id）を必ず string にして返す
 const getShiftIdStr = (s: ShiftData): string => {
@@ -920,7 +926,7 @@ export default function ShiftCard({
                 staff03UserId={shift.staff_03_user_id ?? ""}
                 staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
                 staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
-                judoIdo={getString(shift, "judo_ido")}
+                judoIdo={getJudoIdoAsString(shift)} 
               />
             </Button>
           )}
