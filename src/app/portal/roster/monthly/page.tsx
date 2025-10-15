@@ -1237,7 +1237,6 @@ export default function MonthlyRosterPage() {
                                                                 <SelectValue placeholder="選択" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
                                                                 {staffOptions.map((o) => (
                                                                     <SelectItem key={o.value} value={o.value}>
                                                                         {o.label}
@@ -1262,7 +1261,6 @@ export default function MonthlyRosterPage() {
                                                                 <SelectValue placeholder="選択" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
                                                                 {staffOptions.map((o) => (
                                                                     <SelectItem key={o.value} value={o.value}>
                                                                         {o.label}
@@ -1295,7 +1293,6 @@ export default function MonthlyRosterPage() {
                                                                 <SelectValue placeholder="選択" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="">-</SelectItem>
                                                                 {staffOptions.map((o) => (
                                                                     <SelectItem key={o.value} value={o.value}>
                                                                         {o.label}
