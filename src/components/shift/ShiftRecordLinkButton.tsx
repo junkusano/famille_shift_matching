@@ -92,6 +92,7 @@ export default function ShiftRecordLinkButton({
           q += `&judo_ido=${encodeURIComponent(String(judoIdo))}`;
         }
 
+        /*
         alert(
           [
             `[ShiftRecordLinkButton] push params`,
@@ -111,7 +112,7 @@ export default function ShiftRecordLinkButton({
             `staff_03_attend_flg: ${String(staff03AttendFlg ?? "")}`,
           ].join("\n")
         );
-
+        */
 
 
         router.push(`${hrefBase}${q}`);

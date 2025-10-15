@@ -393,6 +393,7 @@ export default function ShiftRecord({
   }, [returnTo, router, status]); // ★★ 依存に status を追加
 
   // 追加（ここから）
+  /*
   useEffect(() => {
     
     alert(
@@ -404,7 +405,9 @@ export default function ShiftRecord({
       ].join("\n")
     );
     
+    
   }, [qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
+  */
 
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
