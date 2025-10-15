@@ -1,11 +1,30 @@
 //api/cron/shift-record-check/route.ts 
+import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const CRON_TIMEOUT_MS = 55_000; // Vercelの制限に合わせて余裕を持たせる
+function bearerOK(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  const token = process.env.CRON_SECRET;
+  return !!token && !!auth && auth.startsWith('Bearer ') && auth.slice(7) === token;
+}
 
-export async function GET(req: Request) {
+function querySecretOK(req: NextRequest) {
+  const token = process.env.CRON_SECRET;
+  const secret = new URL(req.url).searchParams.get('secret');
+  return !!token && secret === token;          // ← 手動は /check?secret=XXXX で通る
+}
+
+function vercelCronOK(req: NextRequest) {
+  return req.headers.get('x-vercel-cron') === '1';
+}
+
+export async function GET(req: NextRequest) {
+  const authorized = vercelCronOK(req) || bearerOK(req) || querySecretOK(req);
+  if (!authorized) return new Response('Unauthorized', { status: 401 });
+
   const auth = req.headers.get('authorization');
   console.info('[shift-records/check] auth header?', { hasAuth: !!auth, sample: auth?.slice(0, 16) });
 
