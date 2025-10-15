@@ -12,13 +12,12 @@ interface ShiftRecordLinkButtonProps {
   standardRoute?: string | null;
   standardTransWays?: string | null;
   standardPurpose?: string | null;
-
   staff01UserId?: string | null;
   staff02UserId?: string | null;
   staff03UserId?: string | null;
   staff02AttendFlg?: string | number | boolean | null;
   staff03AttendFlg?: string | number | boolean | null;
-  // -----------------------------------
+  judoIdo?: string | number | null;
   label?: string;
   hrefBase?: string;
   className?: string;
@@ -37,10 +36,9 @@ export default function ShiftRecordLinkButton({
   standardRoute,
   standardTransWays,
   standardPurpose,
-
   staff01UserId, staff02UserId, staff03UserId,
   staff02AttendFlg, staff03AttendFlg,
-  // ----------------------------------------------------
+  judoIdo,
   label = "訪問記録",
   hrefBase = "/portal/shift-records",
 }: ShiftRecordLinkButtonProps) { // 型はここで指定
@@ -89,6 +87,9 @@ export default function ShiftRecordLinkButton({
           // URLクエリに積むだけでなく、セーフティに sessionStorage にも保持
           try { sessionStorage.setItem("sr:return_to", currentUrl); } catch { }
           q += `&return_to=${encodeURIComponent(currentUrl)}`;
+        }
+        if (judoIdo !== undefined && judoIdo !== null && String(judoIdo).trim() !== "") {
+          q += `&judo_ido=${encodeURIComponent(String(judoIdo))}`;
         }
         router.push(`${hrefBase}${q}`);
       }}

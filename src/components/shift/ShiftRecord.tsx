@@ -53,6 +53,11 @@ type LRule = {
 };
 type LRulesJson = { version?: number; rules?: LRule[] } | null;
 
+interface MergedInfo extends Record<string, unknown> {
+  judo_ido?: string;
+  judo_ido_num?: number;
+}
+
 export type ShiftRecordCategoryL = {
   id: string;
   code?: string;
@@ -350,6 +355,8 @@ export default function ShiftRecord({
   const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
   const qsStandardPurpose = sp.get("standard_purpose") || undefined;
 
+  const qsJudoIdo = sp.get("judo_ido") || undefined;
+
   const router = useRouter();
 
   // すでに sp は使っているので同居でOK
@@ -400,7 +407,7 @@ export default function ShiftRecord({
 
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
-    const base = { ...(shiftInfo ?? {}) } as Record<string, unknown>;
+    const base: MergedInfo = { ...(shiftInfo ?? {}) };
 
     // client_name（API空ならQSで補完）
     {
@@ -417,6 +424,17 @@ export default function ShiftRecord({
       if (qsStandardRoute && !apiRoute) base.standard_route = qsStandardRoute;
       if (qsStandardTransWays && !apiTrans) base.standard_trans_ways = qsStandardTransWays;
       if (qsStandardPurpose && !apiPurpose) base.standard_purpose = qsStandardPurpose;
+    }
+
+    {
+      const raw = (qsJudoIdo ?? (typeof base.judo_ido === "string" ? base.judo_ido : "")).toString();
+      if (!base.judo_ido && qsJudoIdo) base.judo_ido = qsJudoIdo;
+
+      const onlyDigits = raw.replace(/[^\d]/g, "");
+      if (onlyDigits) {
+        const n = Number(onlyDigits);
+        if (!Number.isNaN(n)) base.judo_ido_num = n;
+      }
     }
 
     // ★ staff_xxx / attend_flg（API空ならQSで補完）
@@ -437,7 +455,7 @@ export default function ShiftRecord({
     shiftInfo, clientNameFromQS,
     qsStandardRoute, qsStandardTransWays, qsStandardPurpose,
     qsStaff01UserId, qsStaff02UserId, qsStaff03UserId, qsStaff02AttendFlg, qsStaff03AttendFlg,
-    qsTokuteiComment,
+    qsTokuteiComment, qsJudoIdo
   ]);
 
   // ====== 定義ロード ======
