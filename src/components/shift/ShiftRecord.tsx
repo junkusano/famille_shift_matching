@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
 // ★ 追加: 初期デフォルト保存をレコードごとに1回だけ実行するためのフラグ
-const seededDefaultsRef = React.createRef<{ rid: string | null }>();
+//const seededDefaultsRef = React.createRef<{ rid: string | null }>();
 
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
@@ -892,6 +892,7 @@ export default function ShiftRecord({
 
 
   // ===== 初期デフォルトの自動保存（一度だけ） =====
+  /*
   useEffect(() => {
     if (!rid) return;
     // すでにこの rid で実行済みならスキップ
@@ -962,6 +963,7 @@ export default function ShiftRecord({
     })();
     // 依存関係：
   }, [rid, defs.items, effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
+  */
 
   // ====== レンダラ ======
   return (
