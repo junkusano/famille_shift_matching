@@ -1541,7 +1541,6 @@ function NewAddRow(props: NewAddRowProps) {
                                 >
                                     <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">-</SelectItem>
                                         {staffOptions.map((o) => (
                                             <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                         ))}
@@ -1560,7 +1559,6 @@ function NewAddRow(props: NewAddRowProps) {
                                 >
                                     <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">-</SelectItem>
                                         {staffOptions.map((o) => (
                                             <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                         ))}
@@ -1586,7 +1584,6 @@ function NewAddRow(props: NewAddRowProps) {
                                 >
                                     <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">-</SelectItem>
                                         {staffOptions.map((o) => (
                                             <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                         ))}
