@@ -893,8 +893,9 @@ export default function ShiftRecord({
   type TemplateObj = { template: string };
 
   function isTemplateObj(v: unknown): v is TemplateObj {
-    return typeof v === "object" && v !== null && "template" in (v as Record<string, unknown>) &&
-      typeof (v as Record<string, unknown>).template === "string";
+    return typeof v === "object" && v !== null
+      && "template" in (v as Record<string, unknown>)
+      && typeof (v as Record<string, unknown>).template === "string";
   }
 
   function replaceBraces(s: string, info: Record<string, unknown>): string {
@@ -908,34 +909,34 @@ export default function ShiftRecord({
     });
   }
 
-  // ★ def は使わないので引数名を _def にするか、引数を削除してOK
+  // default値を「保存用の最終文字列」に解決。未解決なら null を返して保存しない
   const toResolvedDefaultForSave = useCallback((
-    _def: ShiftRecordItemDef,                // ← 未使用なので _def に
+    _def: ShiftRecordItemDef,     // 未使用なので _def 名
     dv: unknown,
     info: Record<string, unknown>
   ): string | null => {
     if (dv == null) return null;
 
-    // 1) { template: "..." } 形式
+    // パターン1: { template: "..." } 形式
     if (isTemplateObj(dv)) {
       const tpl = dv.template.trim();
       if (!tpl) return null;
       const resolved = replaceBraces(tpl, info);
-      if (/\{\{.+\}\}/.test(resolved)) return null;      // 未解決プレースホルダが残る → 保存しない
+      if (/\{\{.+\}\}/.test(resolved)) return null;     // 未解決 {{...}} が残る → 保存しない
       return resolved.trim() || null;
     }
 
-    // 2) 文字列で {{...}} を含む
+    // パターン2: 文字列で {{...}} を含む
     if (typeof dv === "string") {
       const s = dv.includes("{{") ? replaceBraces(dv, info) : dv;
-      if (/\{\{.+\}\}/.test(s)) return null;             // 未解決 → 保存しない
+      if (/\{\{.+\}\}/.test(s)) return null;            // 未解決 → 保存しない
       return s.trim() ? s : null;
     }
 
-    // 3) 配列は JSON 文字列に。空なら保存しない
+    // 配列は JSON 文字列（空は保存しない）
     if (Array.isArray(dv)) return dv.length ? JSON.stringify(dv) : null;
 
-    // 4) それ以外はプリミティブ想定で文字列化
+    // その他は文字列化（空は保存しない）
     const str = String(dv).trim();
     return str ? str : null;
   }, []);
@@ -961,11 +962,13 @@ export default function ShiftRecord({
       if (has && !isEmptyValue(it, cur)) continue;
 
       const dv = resolveDefaultValue(it, mergedInfo, values, codeToId, idToDefault);
+      // dv を「保存用の最終プレーン文字列」に解決（未解決なら null）
       const saveValue = toResolvedDefaultForSave(it, dv, mergedInfo);
 
-      // 未解決 or 空 → 保存しない
+      // 未解決 or 空は保存しない
       if (saveValue == null) continue;
 
+      // 保存対象へ（プレーン文字列のみ）
       rows.push({ record_id: rid, item_def_id: it.id, value: saveValue });
       nextValues[it.id] = saveValue;
 
