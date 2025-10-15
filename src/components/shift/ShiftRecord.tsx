@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
 // ★ 追加: 初期デフォルト保存をレコードごとに1回だけ実行するためのフラグ
-const seededDefaultsRef = React.createRef<{ rid: string | null }>();
+//const seededDefaultsRef = React.createRef<{ rid: string | null }>();
 
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
@@ -878,6 +878,7 @@ export default function ShiftRecord({
     return map;
   }, [defs.S]);
 
+  
   const itemsByS = useMemo(() => {
     const map: Record<string, ShiftRecordItemDef[]> = {};
     effectiveItems.forEach((it) => { (map[it.s_id] ||= []).push(it); });
@@ -890,6 +891,7 @@ export default function ShiftRecord({
   const [activeL, setActiveL] = useState<string | null>(null);
   useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
 
+  /*
   type TemplateObj = { template: string };
 
   function isTemplateObj(v: unknown): v is TemplateObj {
@@ -898,7 +900,7 @@ export default function ShiftRecord({
       typeof (v as Record<string, unknown>).template === "string";
   }
 
-  /** default値から、保存用のプレーン文字列を抽出。得られなければ null */
+  // default値から、保存用のプレーン文字列を抽出。得られなければ null
   function extractPlainStringForSave(dv: unknown): string | null {
     if (dv == null) return null;
 
@@ -985,6 +987,7 @@ export default function ShiftRecord({
     })();
     // 依存関係：
   }, [rid, defs.items, effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
+  */
 
   // ====== レンダラ ======
   return (
