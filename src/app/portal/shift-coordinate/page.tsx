@@ -86,9 +86,9 @@ export default function ShiftPage() {
             const formatted = (allShifts as SupabaseShiftRaw[])
                 .filter((s) =>
                     s.staff_01_user_id === "-" ||                         // 既存の特例を維持
-                    s.level_sort_order < 5_000_000 ||                    // staff_01 のレベル基準（既存）
-                    ((s.staff_02_level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000 && s.staff_02_attend_flg === false) || // 追加：02
-                    ((s.staff_03_level_sort ?? Number.MAX_SAFE_INTEGER) < 5_000_000 && s.staff_03_attend_flg === false)    // 追加：03
+                    s.level_sort_order < 4_000_000 ||                    // staff_01 のレベル基準（既存）
+                    ((s.staff_02_level_sort ?? Number.MAX_SAFE_INTEGER) < 4_000_000 && s.staff_02_attend_flg === false) || // 追加：02
+                    ((s.staff_03_level_sort ?? Number.MAX_SAFE_INTEGER) < 4_000_000 && s.staff_03_attend_flg === false)    // 追加：03
                 )
                 .map((s): ShiftData => ({
                     id: String(s.id ?? s.shift_id),
