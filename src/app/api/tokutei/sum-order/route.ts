@@ -365,7 +365,7 @@ function serviceScopeHint(code: string | null): string {
   return "サービス種別の範囲を逸脱しない内容に限定。";
 }
 
-
+/*
 function getSeasonHint(): string {
   const now = new Date();
   const m = now.getMonth() + 1;
@@ -376,6 +376,7 @@ function getSeasonHint(): string {
   if (m <= 10) return "秋（寒暖差・乾燥傾向）";
   return "冬（乾燥・低温・感染予防）";
 }
+  */
 
 // 教訓リマインド要約（短文化・圧縮）— 生成時の多様性ソース
 const REMINDER_GUIDE = `
