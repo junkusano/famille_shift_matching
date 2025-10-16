@@ -317,30 +317,57 @@ async function generateInstruction(
   ctx: { cur: Shift; prevSummaryText: string }
 ): Promise<string> {
   const season = getSeasonHint();
+  const scopeHint = serviceScopeHint(ctx.cur.service_code);
+
   const sys =
-    "あなたは訪問介護のサービス提供責任者です。日本語で簡潔・平文・最大100文字で指示を1文だけ返します。医療行為の推奨や計画の断定は避け、現場で実施可能な声掛け・確認事項に限定してください。";
+    "あなたは訪問介護のサービス提供責任者です。" +
+    " 指示は「前回状況（30%）＋前回特記事項（40%）＋サービス種別の範囲（30%）」を考慮して作成します。" +
+    " 季節的配慮は必要な場合のみ補助的に含めます。" +
+    " 前回状況や特記事項の具体内容を起点に、次回確認・配慮すべき1〜2点をまとめて1文で示してください。" +
+    " サービス範囲を逸脱しないこと（移動支援で室温管理などは禁止）。" +
+    " 医療的断定・診断・過大提案は禁止。" +
+    " 出力は日本語で150文字以内、平文1文、句点で終える。";
+
+  const prevTokutei = ctx.cur.tokutei_comment?.trim() || "(前回特記事項なし)";
+
   const usr = [
     `今回シフト: ${ctx.cur.shift_start_date ?? ""} ${ctx.cur.shift_start_time ?? ""} / サービス: ${ctx.cur.service_code ?? "-"}`,
+    `サービス範囲ヒント: ${scopeHint}`,
+    "考慮配点: 前回状況=30, 前回特記事項=40, サービス範囲=30（季節は必要時のみ補助）。",
     `前回状況:\n${ctx.prevSummaryText || "(記載なし)"}`,
-    `季節配慮: ${season}`,
-    "含めたい観点: 体調の継続確認・ご意見のフォロー・水分/室温/感染症・行事(盆/正月等)予定確認。",
-    "禁止: 医療的助言の断定、ケアマネ領域の限定的断定、大掃除等の過大提案、料理の華美化、庭掃除等。",
-    "出力は最大100文字・1文・句点で終える。",
+    `前回特記事項:\n${prevTokutei}`,
+    `季節の補助要素: ${season}`,
+    "出力条件: 具体的・実施可能・1文・150文字以内。常套句や抽象表現は避け、前回内容に基づく具体的確認・配慮を述べる。",
   ].join("\n");
 
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: usr },
-      ],
-      temperature: 0.5,
-      max_tokens: 120,
-    });
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: usr },
+    ],
+    temperature: 0.4,
+    max_tokens: 200,
+  });
 
-    const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
-    return text.length > 110 ? text.slice(0, 110) : text;
+  const text = resp.choices?.[0]?.message?.content?.trim() ?? "";
+  return text.length > 150 ? text.slice(0, 150) : text;
 }
+
+function serviceScopeHint(code: string | null): string {
+  const c = (code ?? "").toLowerCase();
+  if (c.includes("移動") || c.includes("同行")) {
+    return "移動支援/同行援護：交通・待機・道中の安全配慮に限定。居宅内の室温管理・掃除・調理は含めない。";
+  }
+  if (c.includes("生活") || c.includes("援助")) {
+    return "生活援助：掃除・洗濯・買物・調理など家事に限定。医療判断や訓練の断定は不可。";
+  }
+  if (c.includes("身体") || c.includes("入浴") || c.includes("排泄")) {
+    return "身体介護：体調観察・移乗・清拭・入浴・排泄などに限定。医療行為や診断の断定は禁止。";
+  }
+  return "サービス範囲を逸脱しない内容に限定。";
+}
+
 
 function getSeasonHint(): string {
   const now = new Date();
