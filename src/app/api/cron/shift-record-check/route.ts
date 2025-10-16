@@ -5,19 +5,37 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  // ✅ Vercel のスケジュール実行時に付くヘッダを許可（他は拒否）
+  // ✅ Vercel のスケジュール実行時だけ許可（ローカルは常に許可）
   const isVercelCron = req.headers.get('x-vercel-cron') === '1';
-
-  // ローカル開発は通す（本番のみ制限）
   const isLocalDev = process.env.NODE_ENV !== 'production';
-
   if (!isVercelCron && !isLocalDev) {
-    // ここだけ 401 にすることで「手動アクセス」を遮断（他cronと同じなら無認証でもOK）
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // 以降は元の本処理
-  const res = await fetch(new URL('/api/shift-records/check', req.url), {
+  // ✅ origin を頑健に決定（未定義対策）
+  const proto =
+    req.headers.get('x-forwarded-proto') ??
+    (isLocalDev ? 'http' : 'https');
+  const hostHeader = req.headers.get('host');
+
+  const origin =
+    // 明示的に設定してあるなら最優先
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') ||
+    process.env.SITE_URL?.replace(/\/+$/, '') ||
+    // Vercel環境なら VERCEL_URL を https で
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`.replace(/\/+$/, '')
+      : undefined) ||
+    // リクエストの Host ヘッダから推定（ローカル含む）
+    (hostHeader ? `${proto}://${hostHeader}` : undefined);
+
+  if (!origin) {
+    return new Response('Server misconfigured: origin not resolvable', { status: 500 });
+  }
+
+  const url = `${origin}/api/cron/shift-record-check/runner`;
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ invokedBy: 'cron' }),
@@ -30,6 +48,9 @@ export async function GET(req: NextRequest) {
 
   return new Response(await res.text(), {
     status: 200,
-    headers: { 'content-type': res.headers.get('content-type') ?? 'text/plain; charset=utf-8' },
+    headers: {
+      'content-type':
+        res.headers.get('content-type') ?? 'text/plain; charset=utf-8',
+    },
   });
 }
