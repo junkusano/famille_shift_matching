@@ -1,56 +1,63 @@
-// /api/cron/shift-record-check/route.ts
-import { NextRequest } from 'next/server';
+//api/cron/shift-record-check/route.ts 
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
-  // ✅ Vercel のスケジュール実行時だけ許可（ローカルは常に許可）
-  const isVercelCron = req.headers.get('x-vercel-cron') === '1';
-  const isLocalDev = process.env.NODE_ENV !== 'production';
-  if (!isVercelCron && !isLocalDev) {
-    return new Response('Unauthorized', { status: 401 });
+const CRON_TIMEOUT_MS = 55_000; // Vercelの制限に合わせて余裕を持たせる
+
+export async function GET(req: Request) {
+  const auth = req.headers.get('authorization');
+  console.info('[shift-records/check] auth header?', { hasAuth: !!auth, sample: auth?.slice(0, 16) });
+
+  const url = new URL(req.url);
+
+  // ?dry_run= の既定は 1（Dry Run）。本番実行したいときは ?dry_run=0 を付けて叩く
+  const dryRun = url.searchParams.get('dry_run') ?? '0';
+
+  // ローカルは http、デプロイは https を想定
+  const host = req.headers.get('host') ?? 'localhost:3000';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+
+  // 元のチェック用APIへ内部リクエスト
+  const target = `${protocol}://${host}/api/shift-records/check?dry_run=${dryRun}`;
+
+  // タイムアウト制御
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CRON_TIMEOUT_MS);
+
+  try {
+    console.info('--- Cron wrapper started ---', { target, dryRun });
+
+    const res = await fetch(target, {
+      method: 'GET',
+      headers: {
+        // 内部呼び出しの目印（必要なら元API側で参照）
+        'x-cron-trigger': '1',
+        // キャッシュしない
+        'cache-control': 'no-store',
+      },
+      cache: 'no-store',
+      signal: ctrl.signal,
+    });
+
+    const text = await res.text();
+    console.info('--- Cron wrapper finished ---', { status: res.status });
+
+    // 元APIのステータスとContent-Typeをそのまま返す
+    return new Response(text, {
+      status: res.status,
+      headers: {
+        'content-type': res.headers.get('content-type') ?? 'text/plain; charset=utf-8',
+      },
+    });
+  } catch (err) {
+    console.error('Cron wrapper error', err?.message ?? err);
+    const message =
+      err?.name === 'AbortError'
+        ? 'Cron wrapper: upstream timed out'
+        : `Cron wrapper error: ${err?.message ?? String(err)}`;
+    return new Response(message, { status: 500 });
+  } finally {
+    clearTimeout(timer);
   }
-
-  // ✅ origin を頑健に決定（未定義対策）
-  const proto =
-    req.headers.get('x-forwarded-proto') ??
-    (isLocalDev ? 'http' : 'https');
-  const hostHeader = req.headers.get('host');
-
-  const origin =
-    // 明示的に設定してあるなら最優先
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') ||
-    process.env.SITE_URL?.replace(/\/+$/, '') ||
-    // Vercel環境なら VERCEL_URL を https で
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`.replace(/\/+$/, '')
-      : undefined) ||
-    // リクエストの Host ヘッダから推定（ローカル含む）
-    (hostHeader ? `${proto}://${hostHeader}` : undefined);
-
-  if (!origin) {
-    return new Response('Server misconfigured: origin not resolvable', { status: 500 });
-  }
-
-  const url = `${origin}/api/cron/shift-record-check/runner`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ invokedBy: 'cron' }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    return new Response(`Upstream error: ${res.status}\n${text}`, { status: 500 });
-  }
-
-  return new Response(await res.text(), {
-    status: 200,
-    headers: {
-      'content-type':
-        res.headers.get('content-type') ?? 'text/plain; charset=utf-8',
-    },
-  });
 }
