@@ -855,7 +855,7 @@ export default function ShiftRecord({
           body: JSON.stringify({ status: STATUS.inProgress }),
         });
         setRecordLocked(false);
-        setStatus("draft"); // ★★ 追加：draftに戻す
+        //setStatus("draft"); // ★★ 追加：draftに戻す
         setSaveState("error");
         alert("バリデーションを満たしていないため、ステータスを draft に戻しました。修正の上、保存（完了）してください。");
       } else {
