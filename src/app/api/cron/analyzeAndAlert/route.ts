@@ -1,3 +1,4 @@
+//api/cron/analyzeAndAlert/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 import { analyzeMessages } from '@/lib/supabase/analyzeMessages';

@@ -1,3 +1,4 @@
+//api/cron/refreshAccessToken
 import { NextResponse } from 'next/server';
 import { refreshAccessToken } from '@/lib/lineworks/refreshAccessToken'; // ← 修正ここ
 
