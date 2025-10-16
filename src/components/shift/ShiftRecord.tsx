@@ -980,6 +980,11 @@ export default function ShiftRecord({
 
     // 保存対象を収集
     const rows: { record_id: string; item_def_id: string; value: unknown }[] = [];
+    const sanitizedRows = rows.flatMap((r) => {
+      // ここで JSON 文字列 / {template:...} / {{...}} 未解決 などを全部吸収
+      const s = defaultValueToPlainString(r.value, mergedInfo);
+      return s == null ? [] : [{ ...r, value: s }]; // 文字列だけを送る。nullなら送らない
+    });
     const nextValues: Record<string, unknown> = {};
 
     for (const it of effectiveItems) {
@@ -1012,10 +1017,11 @@ export default function ShiftRecord({
     (async () => {
       try {
         setSaveState("saving");
+        // 以降は sanitizedRows を送る
         const res = await fetch(`/api/shift-record-items`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(rows),
+          body: JSON.stringify(sanitizedRows),
         });
         if (!res.ok) throw new Error("initial default save failed");
         // 画面側の state も default ぶんだけ埋めておく
