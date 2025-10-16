@@ -8,7 +8,6 @@ import { subHours } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { NextRequest } from 'next/server';
 
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +16,25 @@ const timeZone = "Asia/Tokyo";
 const DRY_RUN = false; // 送信せずログだけ出したい時は true
 
 function isAuthorized(req: NextRequest) {
-  const isLocal = process.env.NODE_ENV !== "production";
-  if (isLocal) return true;
+    const h = req.headers;
 
-  // ① Vercel Cron からの直接叩き（入口）
-  if (req.headers.get("x-vercel-cron") === "1") return true;
+    // 1) Vercel Cron ヘッダー
+    if (h.get('x-vercel-cron') === '1') return true;
 
-  // ② 内部呼び出し／手動実行用の共通シークレット
-  const auth = req.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  return Boolean(token) && token === process.env.CRON_SECRET;
+    // 2) Bearer トークン（共有トークン）
+    const auth = h.get('authorization');
+    const bearer = auth?.startsWith('Bearer ') ? auth.slice(7) : undefined;
+    if (bearer && process.env.CRON_SECRET && bearer === process.env.CRON_SECRET) return true;
+
+    // 3) クエリの ?secret=
+    const url = new URL(req.url);
+    const secret = url.searchParams.get('secret');
+    if (secret && process.env.CRON_SECRET && secret === process.env.CRON_SECRET) return true;
+
+    // 4) 既存のセッション認証（任意）
+    // 例: if (await isUserSessionValid(req)) return true;
+
+    return false;
 }
 
 // シフト情報を取得し、未対応のシフトに対してメッセージを送信
