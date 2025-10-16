@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
 
 // ★ 追加: 初期デフォルト保存をレコードごとに1回だけ実行するためのフラグ
-//const seededDefaultsRef = React.createRef<{ rid: string | null }>();
+const seededDefaultsRef = React.createRef<{ rid: string | null }>();
 
 // ===== ステータスマッピング（APIのenumに合わせて必要なら調整） =====
 const STATUS = {
@@ -878,7 +878,7 @@ export default function ShiftRecord({
     return map;
   }, [defs.S]);
 
-  
+
   const itemsByS = useMemo(() => {
     const map: Record<string, ShiftRecordItemDef[]> = {};
     effectiveItems.forEach((it) => { (map[it.s_id] ||= []).push(it); });
@@ -891,7 +891,7 @@ export default function ShiftRecord({
   const [activeL, setActiveL] = useState<string | null>(null);
   useEffect(() => { if (!activeL && defs.L.length) setActiveL(defs.L[0].id); }, [defs.L, activeL]);
 
-  /*
+
   type TemplateObj = { template: string };
 
   function isTemplateObj(v: unknown): v is TemplateObj {
@@ -900,26 +900,71 @@ export default function ShiftRecord({
       typeof (v as Record<string, unknown>).template === "string";
   }
 
-  // default値から、保存用のプレーン文字列を抽出。得られなければ null
-  function extractPlainStringForSave(dv: unknown): string | null {
+  function replaceBraces(s: string, info: Record<string, unknown>): string {
+    return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, k) => {
+      const path = String(k);
+      const val = path.split(".").reduce<unknown>((acc, key) => {
+        if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
+        return undefined;
+      }, info);
+      return val == null ? "" : String(val);
+    });
+  }
+
+  /** 
+   * default値を「保存用プレーン文字列」に正規化。
+   * - オブジェクト {template:"..."} は中身へ
+   * - 文字列 '{"template":"..."}' は JSON.parse して中身へ
+   * - 文字列の {{...}} は mergedInfo で置換、未解決が残れば保存しない(null)
+   */
+  function defaultValueToPlainString(
+    dv: unknown,
+    info: Record<string, unknown>
+  ): string | null {
     if (dv == null) return null;
 
+    // 1) まずオブジェクト { template: "..."}
     if (isTemplateObj(dv)) {
-      const s = dv.template.trim();
-      return s.length ? s : null;
+      let base = dv.template.trim();
+      if (!base) return null;
+      if (base.includes("{{")) base = replaceBraces(base, info);
+      if (/\{\{.+\}\}/.test(base)) return null; // 未解決プレースホルダは保存しない
+      const out = base.trim();
+      return out.length ? out : null;
     }
+
+    // 2) 文字列
     if (typeof dv === "string") {
-      const s = dv.trim();
-      return s.length ? s : null;
+      let base = dv.trim();
+      if (!base) return null;
+
+      // 2-a) 文字列が JSON っぽければパースを試みる
+      if (base.startsWith("{") && base.endsWith("}")) {
+        try {
+          const obj = JSON.parse(base) as unknown;
+          if (isTemplateObj(obj)) {
+            base = obj.template.trim();
+          }
+        } catch {
+          // パース失敗はそのまま base を使う
+        }
+      }
+
+      // 2-b) {{...}} 置換
+      if (base.includes("{{")) base = replaceBraces(base, info);
+      if (/\{\{.+\}\}/.test(base)) return null; // 未解決は保存しない
+
+      const out = base.trim();
+      return out.length ? out : null;
     }
-    if (typeof dv === "number" || typeof dv === "boolean") {
-      return String(dv);
-    }
-    if (Array.isArray(dv)) {
-      // 配列は今回スキップ（要件次第で join(",") などに変更可）
-      return null;
-    }
-    // オブジェクトなどは保存しない（JSON文字列化もしない）
+
+    // 3) number / boolean はそのまま文字列化
+    if (typeof dv === "number" || typeof dv === "boolean") return String(dv);
+
+    // 4) 配列は要件に合わせて。今回は保存しない（必要なら join(",") などに変更）
+    if (Array.isArray(dv)) return null;
+
+    // 5) その他のオブジェクトは保存しない
     return null;
   }
 
@@ -946,12 +991,13 @@ export default function ShiftRecord({
 
       const dv = resolveDefaultValue(it, mergedInfo, values, codeToId, idToDefault);
 
-      // ★ dv から「保存用のプレーン文字列」を抽出
-      const saveStr = extractPlainStringForSave(dv);
-      if (saveStr == null) continue; // 文字列にできない（未解決/空）は保存しない
+      // ★ ここで正規化（JSON文字列も含めて吸収）
+      const saveStr = defaultValueToPlainString(dv, mergedInfo);
+      if (saveStr == null) continue;
 
-      // ★ rows は value_text をキーにして送る（サーバ側もこれを受ける想定）
+      // 既存の契約どおり value キーで送る（value_text にしない）
       rows.push({ record_id: rid, item_def_id: it.id, value: saveStr });
+      nextValues[it.id] = saveStr;
 
       // ★ 画面 state もプレーン文字列で埋める
       nextValues[it.id] = saveStr;
@@ -987,7 +1033,7 @@ export default function ShiftRecord({
     })();
     // 依存関係：
   }, [rid, defs.items, effectiveItems, values, mergedInfo, codeToId, idToDefault, isEmptyValue]);
-  */
+
 
   // ====== レンダラ ======
   return (
