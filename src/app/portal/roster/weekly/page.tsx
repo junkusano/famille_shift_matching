@@ -170,12 +170,11 @@ async function apiBulkDelete(templateIds: number[]) {
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   return res.json();
 }
-async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean): Promise<PreviewRow[]> {
+async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean) {
   const q = new URLSearchParams({ month, cs, recurrence: String(useRecurrence) });
-  const res = await fetch("/api/roster/weekly/preview?" + q.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error(await summarizeHTTP(res));
-  const data = (await res.json()) as { rows?: PreviewRow[] };
-  return data && data.rows ? data.rows : [];
+  const res = await fetch(`/api/roster/weekly/preview?${q}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as PreviewRow[];
 }
 
 // =========================
@@ -265,45 +264,24 @@ export default function WeeklyRosterPage() {
 
   // templates：利用者が変われば自動再取得（onChange適用）
   useEffect(() => {
-    const load = async () => {
-      if (!selectedKaipokeCS) {
-        setRows([]);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      setPreview(null); // 切替時はいったん消す
-      try {
-        const data = await apiFetchTemplates(selectedKaipokeCS);
-        setRows(data);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
+    if (!selectedKaipokeCS) return;
+    setLoading(true);
+    apiFetchTemplates(selectedKaipokeCS) // ← monthは渡さない
+      .then(setRows)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
   }, [selectedKaipokeCS]);
+
 
   // preview：月/利用者/隔週フラグの変更時に自動再生成（onChange適用）
   useEffect(() => {
-    const run = async () => {
-      if (!selectedKaipokeCS) {
-        setPreview(null);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const p = await apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence);
-        setPreview(p);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-      }
-    };
-    void run();
+    if (!selectedKaipokeCS || !selectedMonth) return;
+    setLoading(true);
+    setError(null);
+    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+      .then(setPreview)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
   }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
 
   // ==== Actions ====
@@ -398,25 +376,6 @@ export default function WeeklyRosterPage() {
     <div className="p-6 space-y-4">
       {/* ======= フィルターバー（monthly同等UI） ======= */}
       <div className="flex flex-wrap items-end gap-3">
-        {/* 実施月 */}
-        <div className="flex flex-col">
-          <label className="text-sm text-muted-foreground">実施月</label>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => setSelectedMonth((m) => addMonths(m, -1))}>前月</Button>
-            <div style={{ width: 160 }}>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="secondary" onClick={() => setSelectedMonth((m) => addMonths(m, +1))}>次月</Button>
-          </div>
-        </div>
-
         {/* 利用者 */}
         <div className="flex flex-col">
           <label className="text-sm text-muted-foreground">利用者</label>
@@ -430,7 +389,7 @@ export default function WeeklyRosterPage() {
             </Button>
 
             {/* 検索ボックス（先頭一致/部分一致） */}
-            <div style={{ width: 160 }}>
+            <div style={{ width: 100 }}>
               <Input
                 type="text"
                 placeholder="利用者名検索"
@@ -439,7 +398,7 @@ export default function WeeklyRosterPage() {
               />
             </div>
 
-            <div style={{ width: 260 }}>
+            <div style={{ width: 100 }}>
               <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
                 <SelectTrigger><SelectValue placeholder="利用者を選択" /></SelectTrigger>
                 <SelectContent>
@@ -463,7 +422,8 @@ export default function WeeklyRosterPage() {
         </div>
 
         {/* 操作群（「読み込み」ボタンは削除） */}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-end gap-2 ml-auto">
+          {/* 行を追加 / 選択削除 / 保存 */}
           <Button variant="outline" onClick={addRow} disabled={!selectedKaipokeCS}>
             <Plus className="w-4 h-4 mr-2" /> 行を追加
           </Button>
@@ -473,295 +433,314 @@ export default function WeeklyRosterPage() {
           <Button onClick={saveAll} disabled={!rows.length || saving || duplicate}>
             <Save className="w-4 h-4 mr-2" /> 保存
           </Button>
-          <Button variant="secondary" onClick={() => {
-            // 手動プレビューも残す（自動も動いています）
-            setPreview(null);
-            setLoading(true);
-            setError(null);
-            apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-              .then(setPreview)
-              .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-              .finally(() => setLoading(false));
-          }}>
+
+          {/* 反映月（プレビューのすぐ左） */}
+          <div className="flex items-end gap-2">
+            <label className="text-sm text-muted-foreground">反映月</label>
+            <div style={{ width: 100 }}>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* 月展開プレビュー */}
+          <Button
+            variant="secondary"
+            disabled={!selectedKaipokeCS || !selectedMonth}
+            onClick={() => {
+              setPreview(null);
+              setLoading(true);
+              setError(null);
+              apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+                .then(setPreview)
+                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                .finally(() => setLoading(false));
+            }}
+          >
             <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
           </Button>
         </div>
-      </div>
 
-      {/* ステータス */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Pill label={"行数: " + rows.length} />
-        <Pill label={"合計時間: " + (totalMinutes / 60).toFixed(1) + "h"} />
-        {duplicate ? <Pill tone="warn" label="重複 (同曜日×開始時刻) あり" /> : null}
-        {invalidCount > 0 ? <Pill tone="warn" label={"警告 " + invalidCount + "件"} /> : null}
-        {useRecurrence ? <Pill tone="ok" label="隔週/第n週 有効" /> : <Pill tone="muted" label="隔週/第n週 無効" />}
-        <button className="text-xs underline text-slate-600" onClick={() => setUseRecurrence((v) => !v)}>切り替え</button>
-        {error ? <span className="text-xs text-red-600">エラー: {safeErr(error)}</span> : null}
-      </div>
-
-      {/* テンプレ編集テーブル */}
-      <div className="grid grid-cols-1 gap-3">
-        <div className="overflow-auto rounded-2xl border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">選択</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">重訪移動</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当(1/2/3)</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">ロール(1/2/3)</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">有効期間</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">隔週/第n週</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const errs = validateRow(r);
-                return (
-                  <tr key={r._cid} className={errs.length ? "bg-amber-50" : ""}>
-                    <td className="px-2 py-2 align-top border-b">
-                      <input type="checkbox" checked={!!r._selected} onChange={(e) => updateRow(r._cid as string, { _selected: e.target.checked })} />
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <select
-                        value={r.weekday}
-                        onChange={(e) => updateRow(r._cid as string, { weekday: Number(e.target.value) })}
-                        className="border rounded-lg px-2 py-1"
-                      >
-                        {WEEKS_JP.map((w, i) => <option key={i} value={i}>{w}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex items-center gap-1">
-                        <input type="time" value={r.start_time} onChange={(e) => updateRow(r._cid as string, { start_time: e.target.value })} className="border rounded-lg px-2 py-1" />
-                        <span className="text-slate-400">〜</span>
-                        <input type="time" value={r.end_time} onChange={(e) => updateRow(r._cid as string, { end_time: e.target.value })} className="border rounded-lg px-2 py-1" />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <input
-                        value={r.service_code}
-                        onChange={(e) => updateRow(r._cid as string, { service_code: e.target.value })}
-                        placeholder="身体/重訪Ⅱ など"
-                        className="border rounded-lg px-2 py-1 w-36"
-                      />
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={r.required_staff_count}
-                          onChange={(e) => updateRow(r._cid as string, { required_staff_count: Number(e.target.value) })}
-                          className="border rounded-lg px-2 py-1 w-16"
-                        />
-                        <label className="inline-flex items-center gap-1 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={r.two_person_work_flg}
-                            onChange={(e) => updateRow(r._cid as string, { two_person_work_flg: e.target.checked })}
-                          /> 2人従事
-                        </label>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <input
-                        value={r.judo_ido || ""}
-                        onChange={(e) => updateRow(r._cid as string, { judo_ido: e.target.value || null })}
-                        placeholder="例: 0015"
-                        className="border rounded-lg px-2 py-1 w-20"
-                      />
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_01_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_01_user_id: e.target.value || null })}
-                            placeholder="staff1"
-                            className="border rounded-lg px-2 py-1 w-32"
-                          />
-                          <span className="text-xs text-slate-400">出動</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_02_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_02_user_id: e.target.value || null })}
-                            placeholder="staff2"
-                            className="border rounded-lg px-2 py-1 w-32"
-                          />
-                          <label className="text-xs inline-flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={r.staff_02_attend_flg}
-                              onChange={(e) => updateRow(r._cid as string, { staff_02_attend_flg: e.target.checked })}
-                            /> 同行
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_03_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_03_user_id: e.target.value || null })}
-                            placeholder="staff3"
-                            className="border rounded-lg px-2 py-1 w-32"
-                          />
-                          <label className="text-xs inline-flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={r.staff_03_attend_flg}
-                              onChange={(e) => updateRow(r._cid as string, { staff_03_attend_flg: e.target.checked })}
-                            /> 同行
-                          </label>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex flex-col gap-1">
-                        <input
-                          value={r.staff_01_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_01_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                        <input
-                          value={r.staff_02_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_02_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                        <input
-                          value={r.staff_03_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_03_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="date"
-                          value={r.effective_from || ""}
-                          onChange={(e) => updateRow(r._cid as string, { effective_from: e.target.value || null })}
-                          className="border rounded-lg px-2 py-1"
-                        />
-                        <span className="text-slate-400">〜</span>
-                        <input
-                          type="date"
-                          value={r.effective_to || ""}
-                          onChange={(e) => updateRow(r._cid as string, { effective_to: e.target.value || null })}
-                          className="border rounded-lg px-2 py-1"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs inline-flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={!!r.is_biweekly}
-                            onChange={(e) => updateRow(r._cid as string, { is_biweekly: e.target.checked })}
-                          /> 隔週
-                        </label>
-                        <input
-                          value={(r.nth_weeks || []).join(",")}
-                          onChange={(e) => {
-                            const v = e.target.value
-                              ? e.target.value.split(",").map((x) => Number(x.trim())).filter((n) => !!n)
-                              : [];
-                            updateRow(r._cid as string, { nth_weeks: v });
-                          }}
-                          placeholder="第n週(例: 1,3,5)"
-                          className="border rounded-lg px-2 py-1 w-28"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={r.active}
-                          onChange={(e) => updateRow(r._cid as string, { active: e.target.checked })}
-                        />
-                        <span className="text-xs text-slate-600">{r.active ? "有効" : "無効"}</span>
-                      </label>
-                      {errs.length > 0 ? (
-                        <div className="mt-1 text-[11px] text-amber-700 space-y-0.5">
-                          {errs.slice(0, 3).map((m, i) => <div key={i}>• {m}</div>)}
-                          {errs.length > 3 ? <div>…他{errs.length - 3}件</div> : null}
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-              {rows.length === 0 ? (
-                <tr>
-                  <td className="text-center text-slate-400 py-8" colSpan={11}>
-                    テンプレ行がありません。利用者を変更するか、行を追加してください。
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        {/* ステータス */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Pill label={"行数: " + rows.length} />
+          <Pill label={"合計時間: " + (totalMinutes / 60).toFixed(1) + "h"} />
+          {duplicate ? <Pill tone="warn" label="重複 (同曜日×開始時刻) あり" /> : null}
+          {invalidCount > 0 ? <Pill tone="warn" label={"警告 " + invalidCount + "件"} /> : null}
+          {useRecurrence ? <Pill tone="ok" label="隔週/第n週 有効" /> : <Pill tone="muted" label="隔週/第n週 無効" />}
+          <button className="text-xs underline text-slate-600" onClick={() => setUseRecurrence((v) => !v)}>切り替え</button>
+          {error ? <span className="text-xs text-red-600">エラー: {safeErr(error)}</span> : null}
         </div>
-      </div>
 
-      {/* プレビュー（HTMLタグ混入対策：cleanTextで表示） */}
-      {preview ? (
-        <div className="rounded-2xl border overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
-            <div className="text-sm text-slate-700">{selectedMonth} の展開プレビュー（{selectedKaipokeCS || "全員"}）</div>
-            <div className="text-xs text-slate-500">{useRecurrence ? "隔週/第n週: 有効" : "隔週/第n週: 無効"}</div>
-          </div>
-          <div className="max-h-[50vh] overflow-auto">
+        {/* テンプレ編集テーブル */}
+        <div className="grid grid-cols-1 gap-3">
+          <div className="overflow-auto rounded-2xl border">
             <table className="min-w-full text-sm">
-              <thead className="bg-white sticky top-0 shadow-sm">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">日付</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">選択</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">衝突</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">重訪移動</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当(1/2/3)</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">ロール(1/2/3)</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">有効期間</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">隔週/第n週</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">Active</th>
                 </tr>
               </thead>
               <tbody>
-                {preview.map((p, i) => {
-                  const d = new Date(p.shift_start_date + "T00:00:00");
-                  const wd = isNaN(d.getTime()) ? "-" : WEEKS_JP[d.getDay()];
+                {rows.map((r) => {
+                  const errs = validateRow(r);
                   return (
-                    <tr key={i} className="border-b">
-                      <td className="px-2 py-2 align-top border-b">{p.shift_start_date}</td>
-                      <td className="px-2 py-2 align-top border-b">{wd}</td>
+                    <tr key={r._cid} className={errs.length ? "bg-amber-50" : ""}>
                       <td className="px-2 py-2 align-top border-b">
-                        {p.shift_start_time.substring(0, 5)}〜{p.shift_end_time.substring(0, 5)}
-                      </td>
-                      <td className="px-2 py-2 align-top border-b">{cleanText(p.service_code)}</td>
-                      <td className="px-2 py-2 align-top border-b">
-                        {p.required_staff_count}{p.two_person_work_flg ? " / 2人従事" : ""}
-                      </td>
-                      <td className="px-2 py-2 align-top border-b text-xs text-slate-600">
-                        {cleanText(p.staff_01_user_id || "-")}
-                        {p.staff_02_user_id ? " / " + cleanText(p.staff_02_user_id) + (p.staff_02_attend_flg ? "(同)" : "") : ""}
-                        {p.staff_03_user_id ? " / " + cleanText(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
+                        <input type="checkbox" checked={!!r._selected} onChange={(e) => updateRow(r._cid as string, { _selected: e.target.checked })} />
                       </td>
                       <td className="px-2 py-2 align-top border-b">
-                        {p.has_conflict ? <span className="text-amber-700 text-xs">重なり有</span> : <span className="text-green-700 text-xs">OK</span>}
+                        <select
+                          value={r.weekday}
+                          onChange={(e) => updateRow(r._cid as string, { weekday: Number(e.target.value) })}
+                          className="border rounded-lg px-2 py-1"
+                        >
+                          {WEEKS_JP.map((w, i) => <option key={i} value={i}>{w}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex items-center gap-1">
+                          <input type="time" value={r.start_time} onChange={(e) => updateRow(r._cid as string, { start_time: e.target.value })} className="border rounded-lg px-2 py-1" />
+                          <span className="text-slate-400">〜</span>
+                          <input type="time" value={r.end_time} onChange={(e) => updateRow(r._cid as string, { end_time: e.target.value })} className="border rounded-lg px-2 py-1" />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <input
+                          value={r.service_code}
+                          onChange={(e) => updateRow(r._cid as string, { service_code: e.target.value })}
+                          placeholder="身体/重訪Ⅱ など"
+                          className="border rounded-lg px-2 py-1 w-36"
+                        />
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            value={r.required_staff_count}
+                            onChange={(e) => updateRow(r._cid as string, { required_staff_count: Number(e.target.value) })}
+                            className="border rounded-lg px-2 py-1 w-16"
+                          />
+                          <label className="inline-flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={r.two_person_work_flg}
+                              onChange={(e) => updateRow(r._cid as string, { two_person_work_flg: e.target.checked })}
+                            /> 2人従事
+                          </label>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <input
+                          value={r.judo_ido || ""}
+                          onChange={(e) => updateRow(r._cid as string, { judo_ido: e.target.value || null })}
+                          placeholder="例: 0015"
+                          className="border rounded-lg px-2 py-1 w-20"
+                        />
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1">
+                            <input
+                              value={r.staff_01_user_id || ""}
+                              onChange={(e) => updateRow(r._cid as string, { staff_01_user_id: e.target.value || null })}
+                              placeholder="staff1"
+                              className="border rounded-lg px-2 py-1 w-32"
+                            />
+                            <span className="text-xs text-slate-400">出動</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              value={r.staff_02_user_id || ""}
+                              onChange={(e) => updateRow(r._cid as string, { staff_02_user_id: e.target.value || null })}
+                              placeholder="staff2"
+                              className="border rounded-lg px-2 py-1 w-32"
+                            />
+                            <label className="text-xs inline-flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={r.staff_02_attend_flg}
+                                onChange={(e) => updateRow(r._cid as string, { staff_02_attend_flg: e.target.checked })}
+                              /> 同行
+                            </label>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              value={r.staff_03_user_id || ""}
+                              onChange={(e) => updateRow(r._cid as string, { staff_03_user_id: e.target.value || null })}
+                              placeholder="staff3"
+                              className="border rounded-lg px-2 py-1 w-32"
+                            />
+                            <label className="text-xs inline-flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={r.staff_03_attend_flg}
+                                onChange={(e) => updateRow(r._cid as string, { staff_03_attend_flg: e.target.checked })}
+                              /> 同行
+                            </label>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex flex-col gap-1">
+                          <input
+                            value={r.staff_01_role_code || ""}
+                            onChange={(e) => updateRow(r._cid as string, { staff_01_role_code: e.target.value || null })}
+                            placeholder="-999/01/02"
+                            className="border rounded-lg px-2 py-1 w-24"
+                          />
+                          <input
+                            value={r.staff_02_role_code || ""}
+                            onChange={(e) => updateRow(r._cid as string, { staff_02_role_code: e.target.value || null })}
+                            placeholder="-999/01/02"
+                            className="border rounded-lg px-2 py-1 w-24"
+                          />
+                          <input
+                            value={r.staff_03_role_code || ""}
+                            onChange={(e) => updateRow(r._cid as string, { staff_03_role_code: e.target.value || null })}
+                            placeholder="-999/01/02"
+                            className="border rounded-lg px-2 py-1 w-24"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={r.effective_from || ""}
+                            onChange={(e) => updateRow(r._cid as string, { effective_from: e.target.value || null })}
+                            className="border rounded-lg px-2 py-1"
+                          />
+                          <span className="text-slate-400">〜</span>
+                          <input
+                            type="date"
+                            value={r.effective_to || ""}
+                            onChange={(e) => updateRow(r._cid as string, { effective_to: e.target.value || null })}
+                            className="border rounded-lg px-2 py-1"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs inline-flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={!!r.is_biweekly}
+                              onChange={(e) => updateRow(r._cid as string, { is_biweekly: e.target.checked })}
+                            /> 隔週
+                          </label>
+                          <input
+                            value={(r.nth_weeks || []).join(",")}
+                            onChange={(e) => {
+                              const v = e.target.value
+                                ? e.target.value.split(",").map((x) => Number(x.trim())).filter((n) => !!n)
+                                : [];
+                              updateRow(r._cid as string, { nth_weeks: v });
+                            }}
+                            placeholder="第n週(例: 1,3,5)"
+                            className="border rounded-lg px-2 py-1 w-28"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 align-top border-b">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={r.active}
+                            onChange={(e) => updateRow(r._cid as string, { active: e.target.checked })}
+                          />
+                          <span className="text-xs text-slate-600">{r.active ? "有効" : "無効"}</span>
+                        </label>
+                        {errs.length > 0 ? (
+                          <div className="mt-1 text-[11px] text-amber-700 space-y-0.5">
+                            {errs.slice(0, 3).map((m, i) => <div key={i}>• {m}</div>)}
+                            {errs.length > 3 ? <div>…他{errs.length - 3}件</div> : null}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   );
                 })}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td className="text-center text-slate-400 py-8" colSpan={11}>
+                      テンプレ行がありません。利用者を変更するか、行を追加してください。
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
         </div>
-      ) : null}
-    </div>
-  );
+
+        {/* プレビュー（HTMLタグ混入対策：cleanTextで表示） */}
+        {preview ? (
+          <div className="rounded-2xl border overflow-hidden">
+            <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
+              <div className="text-sm text-slate-700">{selectedMonth} の展開プレビュー（{selectedKaipokeCS || "全員"}）</div>
+              <div className="text-xs text-slate-500">{useRecurrence ? "隔週/第n週: 有効" : "隔週/第n週: 無効"}</div>
+            </div>
+            <div className="max-h-[50vh] overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-white sticky top-0 shadow-sm">
+                  <tr>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">日付</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">衝突</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((p, i) => {
+                    const d = new Date(p.shift_start_date + "T00:00:00");
+                    const wd = isNaN(d.getTime()) ? "-" : WEEKS_JP[d.getDay()];
+                    return (
+                      <tr key={i} className="border-b">
+                        <td className="px-2 py-2 align-top border-b">{p.shift_start_date}</td>
+                        <td className="px-2 py-2 align-top border-b">{wd}</td>
+                        <td className="px-2 py-2 align-top border-b">
+                          {p.shift_start_time.substring(0, 5)}〜{p.shift_end_time.substring(0, 5)}
+                        </td>
+                        <td className="px-2 py-2 align-top border-b">{cleanText(p.service_code)}</td>
+                        <td className="px-2 py-2 align-top border-b">
+                          {p.required_staff_count}{p.two_person_work_flg ? " / 2人従事" : ""}
+                        </td>
+                        <td className="px-2 py-2 align-top border-b text-xs text-slate-600">
+                          {cleanText(p.staff_01_user_id || "-")}
+                          {p.staff_02_user_id ? " / " + cleanText(p.staff_02_user_id) + (p.staff_02_attend_flg ? "(同)" : "") : ""}
+                          {p.staff_03_user_id ? " / " + cleanText(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
+                        </td>
+                        <td className="px-2 py-2 align-top border-b">
+                          {p.has_conflict ? <span className="text-amber-700 text-xs">重なり有</span> : <span className="text-green-700 text-xs">OK</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      );
 }
