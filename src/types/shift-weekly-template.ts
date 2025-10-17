@@ -1,4 +1,4 @@
-// 週間テンプレートの1レコード（DBスキーマに合わせて定義）
+//types/shift-weekly-template
 export interface ShiftWeeklyTemplate {
   template_id: number
   kaipoke_cs_id: string
