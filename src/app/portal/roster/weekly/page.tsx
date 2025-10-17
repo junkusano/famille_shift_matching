@@ -173,8 +173,9 @@ async function apiBulkDelete(templateIds: number[]) {
 async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean) {
   const q = new URLSearchParams({ month, cs, recurrence: String(useRecurrence) });
   const res = await fetch(`/api/roster/weekly/preview?${q}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as PreviewRow[];
+  if (!res.ok) throw new Error(await summarizeHTTP(res));
+  const data = await res.json();
+  return Array.isArray(data) ? (data as PreviewRow[]) : [];
 }
 
 // =========================
@@ -279,7 +280,7 @@ export default function WeeklyRosterPage() {
     setLoading(true);
     setError(null);
     apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-      .then(setPreview)
+      .then((v) => setPreview(Array.isArray(v) ? v : []))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
@@ -458,14 +459,14 @@ export default function WeeklyRosterPage() {
             setLoading(true);
             setError(null);
             apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-              .then(setPreview)
+              .then((v) => setPreview(Array.isArray(v) ? v : []))
               .catch((e) => setError(e instanceof Error ? e.message : String(e)))
               .finally(() => setLoading(false));
           }}
         >
           <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
         </Button>
-        
+
       </div>
 
       {/* ステータス */}
@@ -692,7 +693,7 @@ export default function WeeklyRosterPage() {
       </div>
 
       {/* プレビュー（HTMLタグ混入対策：cleanTextで表示） */}
-      {preview ? (
+      {Array.isArray(preview) ? (
         <div className="rounded-2xl border overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
             <div className="text-sm text-slate-700">{selectedMonth} の展開プレビュー（{selectedKaipokeCS || "全員"}）</div>
@@ -713,14 +714,17 @@ export default function WeeklyRosterPage() {
               </thead>
               <tbody>
                 {preview.map((p, i) => {
-                  const d = new Date(p.shift_start_date + "T00:00:00");
-                  const wd = isNaN(d.getTime()) ? "-" : WEEKS_JP[d.getDay()];
+                  const dateStr = typeof p.shift_start_date === "string" ? p.shift_start_date : "";
+                  const d = dateStr ? new Date(dateStr + "T00:00:00") : null;
+                  const wd = d && !isNaN(d.getTime()) ? WEEKS_JP[d.getDay()] : "-";
+                  const sst = typeof p.shift_start_time === "string" ? p.shift_start_time.slice(0, 5) : "--:--";
+                  const set = typeof p.shift_end_time === "string" ? p.shift_end_time.slice(0, 5) : "--:--";
                   return (
                     <tr key={i} className="border-b">
-                      <td className="px-2 py-2 align-top border-b">{p.shift_start_date}</td>
+                      <td className="px-2 py-2 align-top border-b">{dateStr || "-"}</td>
                       <td className="px-2 py-2 align-top border-b">{wd}</td>
                       <td className="px-2 py-2 align-top border-b">
-                        {p.shift_start_time.substring(0, 5)}〜{p.shift_end_time.substring(0, 5)}
+                        {sst}〜{set}
                       </td>
                       <td className="px-2 py-2 align-top border-b">{cleanText(p.service_code)}</td>
                       <td className="px-2 py-2 align-top border-b">
