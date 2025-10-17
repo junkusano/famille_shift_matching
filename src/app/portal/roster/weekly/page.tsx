@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Save, Eye } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // =========================
 // Types
@@ -139,7 +140,8 @@ const safeErr = (s: string | null) => (s ? stripTags(decodeEntities(s)).slice(0,
 // API wrappers
 // =========================
 async function apiFetchTemplates(cs: string): Promise<TemplateRow[]> {
-  const url = "/api/roster/weekly/templates?kaipoke_cs_id=" + encodeURIComponent(cs);
+  const usp = new URLSearchParams({ kaipoke_cs_id: cs, cs }); // 両方投げる
+  const url = "/api/roster/weekly/templates?" + usp.toString();
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = (await res.json()) as { rows?: TemplateRow[] };
@@ -169,7 +171,7 @@ async function apiBulkDelete(templateIds: number[]) {
   return res.json();
 }
 async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean): Promise<PreviewRow[]> {
-  const q = new URLSearchParams({ month, kaipoke_cs_id: cs, recurrence: String(useRecurrence) });
+  const q = new URLSearchParams({ month, cs, recurrence: String(useRecurrence) });
   const res = await fetch("/api/roster/weekly/preview?" + q.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = (await res.json()) as { rows?: PreviewRow[] };
@@ -197,6 +199,14 @@ export default function WeeklyRosterPage() {
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
+  const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
+
+  // 名前で絞り込む（先頭一致/部分一致はお好みで）
+  const filteredKaipokeCs = useMemo(() => {
+    const kw = clientSearchKeyword.trim().toLowerCase();
+    if (!kw) return kaipokeCs;
+    return kaipokeCs.filter(cs => cs.name.toLowerCase().includes(kw));
+  }, [kaipokeCs, clientSearchKeyword]);
 
   // ==== Page states ====
   const [rows, setRows] = useState<TemplateRow[]>([]);
@@ -411,20 +421,42 @@ export default function WeeklyRosterPage() {
         <div className="flex flex-col">
           <label className="text-sm text-muted-foreground">利用者</label>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" disabled={!csPrev} onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}>
+            <Button
+              variant="secondary"
+              disabled={!csPrev}
+              onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}
+            >
               前へ（{csPrev?.name ?? "-"}）
             </Button>
+
+            {/* 検索ボックス（先頭一致/部分一致） */}
+            <div style={{ width: 160 }}>
+              <Input
+                type="text"
+                placeholder="利用者名検索"
+                value={clientSearchKeyword}
+                onChange={(e) => setClientSearchKeyword(e.target.value)}
+              />
+            </div>
+
             <div style={{ width: 260 }}>
               <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
                 <SelectTrigger><SelectValue placeholder="利用者を選択" /></SelectTrigger>
                 <SelectContent>
-                  {kaipokeCs.map((cs) => (
-                    <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>{cs.name}</SelectItem>
+                  {filteredKaipokeCs.map((cs) => (
+                    <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
+                      {cs.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="secondary" disabled={!csNext} onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}>
+
+            <Button
+              variant="secondary"
+              disabled={!csNext}
+              onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
+            >
               次へ（{csNext?.name ?? "-"}）
             </Button>
           </div>
