@@ -267,14 +267,28 @@ export default function WeeklyRosterPage() {
   useEffect(() => {
     alert('選択された利用者 ID: ' + selectedKaipokeCS);
     alert('選択された月: ' + selectedMonth);
-    if (!selectedKaipokeCS) return;
-    setLoading(true);
-    apiFetchTemplates(selectedKaipokeCS) // ← monthは渡さない
-      .then(setRows)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  }, [selectedKaipokeCS]);
 
+    // 必要なデータがない場合は何もしない
+    if (!selectedKaipokeCS || !selectedMonth) return;
+
+    setLoading(true);
+    setError(null);
+
+    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+      .then((v) => {
+        if (!v || v.length === 0) {
+          alert('データがありません。レスポンス: ' + JSON.stringify(v));  // データが空の場合でも表示
+        } else {
+          alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータを表示
+          setPreview(Array.isArray(v) ? v : []);
+        }
+      })
+      .catch((e) => {
+        alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージを表示
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => setLoading(false));
+  }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
 
   // preview：月/利用者/隔週フラグの変更時に自動再生成（onChange適用）
   useEffect(() => {
