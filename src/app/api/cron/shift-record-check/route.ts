@@ -1,25 +1,18 @@
 // /src/app/api/cron/shift-record-check/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { runShiftRecordCheck } from "@/lib/shiftRecordCheck";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET ?? "";
-  const auth = req.headers.get("authorization") || "";
-  const headerKey = req.headers.get("x-cron-secret") || "";
-  const vercelCron = req.headers.get("x-vercel-cron");
+export async function GET(req: Request) {
+  const hasVercelCron = !!req.headers.get('x-vercel-cron'); // Vercel Cron からの実行判定
+  const hasSharedKey  = req.headers.get('x-cron-key') === process.env.CRON_SECRET;
 
-  // 許可する認証パターン
-  const okBearer = !!secret && auth === `Bearer ${secret}`;
-  const okHeader = !!secret && headerKey === secret;
-  const okVercel = !!vercelCron; // Vercel Cron からの実行時に付与される
-
-  if (!(okBearer || okHeader || okVercel)) {
-    return NextResponse.json({ ok: false, error: "unauthorized_cron" }, { status: 401 });
+  if (!hasVercelCron && !hasSharedKey) {
+    return NextResponse.json({ ok: false, error: 'unauthorized_cron' }, { status: 401 });
   }
 
-  // まずはDRY RUN（本番で更新したいときは false に）
-  const result = await runShiftRecordCheck({ dryRun: true });
-  return NextResponse.json({ source: "cron-api", ...result });
+  const result = await runShiftRecordCheck({ dryRun: true }); // ← 送信はしない
+  return NextResponse.json({ source: 'cron-api', ...result });
 }
+
