@@ -1,23 +1,35 @@
 // /src/app/api/roster/weekly/preview/route.ts
+// app/api/roster/weekly/preview/route.ts
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 import type { ShiftWeeklyTemplate, ShiftRow } from '@/types/shift-weekly-template'
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+// ---- 型（既存シフトの最小限カラムだけ）----
+interface ExistingShift {
+  shift_start_date: string
+  shift_start_time: string
+  shift_end_time: string
+  kaipoke_cs_id: string
+}
 
 // ---- helpers ----
 const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
+
 const toHM = (t: string) => {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
+
 const monthRange = (month: string) => {
   const [y, m] = month.split('-').map(Number)
   const start = new Date(y, (m ?? 1) - 1, 1)
   const end = new Date(y, m!, 0)
   return { start, end, startStr: fmtDate(start), endStr: fmtDate(end) }
 }
+
 function* eachDay(start: Date, end: Date): Generator<Date> {
   const cur = new Date(start)
   while (cur <= end) {
@@ -25,7 +37,9 @@ function* eachDay(start: Date, end: Date): Generator<Date> {
     cur.setDate(cur.getDate() + 1)
   }
 }
+
 const nthOfMonth = (d: Date) => Math.floor((d.getDate() - 1) / 7) + 1
+
 const isBiweeklyHit = (date: Date, effectiveFrom: string | null): boolean => {
   const anchor = effectiveFrom ? new Date(effectiveFrom + 'T00:00:00') : date
   const diffDays = Math.floor((date.getTime() - anchor.getTime()) / 86_400_000)
@@ -34,7 +48,7 @@ const isBiweeklyHit = (date: Date, effectiveFrom: string | null): boolean => {
 }
 
 async function handlePreview(cs: string, month: string) {
-  // 1) テンプレ取得（csのみ）
+  // 1) テンプレ取得
   const tplRes = await supabaseAdmin
     .from('shift_weekly_template')
     .select('*')
@@ -45,7 +59,7 @@ async function handlePreview(cs: string, month: string) {
   if (tplRes.error) {
     return NextResponse.json({ error: tplRes.error.message }, { status: 500 })
   }
-  const templates = (tplRes.data ?? []) as ShiftWeeklyTemplate[]
+  const templates: ShiftWeeklyTemplate[] = (tplRes.data ?? []) as ShiftWeeklyTemplate[]
   if (templates.length === 0) {
     return NextResponse.json({ rows: [] }, { status: 200 })
   }
@@ -62,10 +76,11 @@ async function handlePreview(cs: string, month: string) {
   if (existRes.error) {
     return NextResponse.json({ error: existRes.error.message }, { status: 500 })
   }
-  const existing = existRes.data ?? []
+  const existing: ExistingShift[] = (existRes.data ?? []) as ExistingShift[]
 
   // 3) 候補生成
   const rows: (ShiftRow & { conflict: boolean; weekday: number })[] = []
+
   for (const date of eachDay(start, end)) {
     const dow = date.getDay()
     const nth = nthOfMonth(date)
@@ -99,11 +114,11 @@ async function handlePreview(cs: string, month: string) {
 
       const s1 = toHM(cand.shift_start_time)
       const e1 = toHM(cand.shift_end_time)
-      const conflict = existing.some(
-        (z: any) =>
-          z.shift_start_date === cand.shift_start_date &&
-          toHM(z.shift_start_time) < e1 &&
-          toHM(z.shift_end_time) > s1
+
+      const conflict = existing.some((z: ExistingShift) =>
+        z.shift_start_date === cand.shift_start_date &&
+        toHM(z.shift_start_time) < e1 &&
+        toHM(z.shift_end_time) > s1
       )
 
       rows.push({ ...cand, conflict, weekday: dow })
@@ -124,17 +139,17 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const cs = searchParams.get('cs')
   const month = searchParams.get('month')
-
   if (!cs || !month) {
     return NextResponse.json({ error: 'cs and month are required' }, { status: 400 })
   }
-
   return handlePreview(cs, month)
 }
 
-// --- POST: body { cs, month } でも同じ動作にしておく ---
+// --- POST: body { cs, month } でもOK ---
 export async function POST(req: Request) {
-  const { cs, month } = await req.json().catch(() => ({}))
+  const body = await req.json().catch(() => ({} as Partial<{ cs: string; month: string }>>))
+  const cs = body.cs
+  const month = body.month
   if (!cs || !month) {
     return NextResponse.json({ error: 'cs and month are required' }, { status: 400 })
   }
