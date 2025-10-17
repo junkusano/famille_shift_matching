@@ -265,6 +265,8 @@ export default function WeeklyRosterPage() {
 
   // templates：利用者が変われば自動再取得（onChange適用）
   useEffect(() => {
+    alert('選択された利用者 ID: ' + selectedKaipokeCS);
+    alert('選択された月: ' + selectedMonth);
     if (!selectedKaipokeCS) return;
     setLoading(true);
     apiFetchTemplates(selectedKaipokeCS) // ← monthは渡さない
@@ -316,6 +318,8 @@ export default function WeeklyRosterPage() {
       _cid: (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random()),
       _selected: false,
     };
+
+    alert('新しい行を追加: ' + JSON.stringify(newRow));
     setRows((rs) => rs.concat([newRow]));
   }
 
@@ -459,8 +463,14 @@ export default function WeeklyRosterPage() {
             setLoading(true);
             setError(null);
             apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-              .then((v) => setPreview(Array.isArray(v) ? v : []))
-              .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+              .then((v) => {
+                alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータをアラート表示
+                setPreview(Array.isArray(v) ? v : []);
+              })
+              .catch((e) => {
+                alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージをアラート表示
+                setError(e instanceof Error ? e.message : String(e));
+              })
               .finally(() => setLoading(false));
           }}
         >
