@@ -147,7 +147,7 @@ export async function GET(req: Request) {
 
 // --- POST: body { cs, month } でもOK ---
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({} as Partial<{ cs: string; month: string }>>))
+  const body = await req.json().catch(() => ({} as Partial<{ cs: string; month: string }>))
   const cs = body.cs
   const month = body.month
   if (!cs || !month) {
