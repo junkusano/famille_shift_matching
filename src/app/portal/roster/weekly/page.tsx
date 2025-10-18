@@ -265,8 +265,8 @@ export default function WeeklyRosterPage() {
 
   // templates：利用者が変われば自動再取得（onChange適用）
   useEffect(() => {
-    alert('選択された利用者 ID: ' + selectedKaipokeCS);
-    alert('選択された月: ' + selectedMonth);
+    //alert('選択された利用者 ID: ' + selectedKaipokeCS);
+    //alert('選択された月: ' + selectedMonth);
 
     // 必要なデータがない場合は何もしない
     if (!selectedKaipokeCS || !selectedMonth) return;
@@ -301,6 +301,52 @@ export default function WeeklyRosterPage() {
       .finally(() => setLoading(false));
   }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
 
+
+  // templates：利用者が変われば自動再取得
+useEffect(() => {
+  if (!selectedKaipokeCS) return;
+
+  setLoading(true);
+  setError(null);
+  setPreview(null); // 利用者が変わったらプレビューをリセット
+
+  apiFetchTemplates(selectedKaipokeCS) // テンプレートを取得
+    .then((data) => {
+      setRows(data);
+      // テンプレート取得後、改めてプレビューを生成
+      // このuseEffectではプレビュー生成はしない。下のuseEffectに任せる
+    })
+    .catch((e) => {
+      alert('テンプレート取得中のエラー: ' + (e instanceof Error ? e.message : String(e)));
+      setError(e instanceof Error ? e.message : String(e));
+      setRows([]); // エラー時は空に
+    })
+    .finally(() => setLoading(false));
+}, [selectedKaipokeCS]); // 依存配列に selectedKaipokeCS のみ
+
+// preview：月/利用者/隔週フラグの変更時に自動再生成
+useEffect(() => {
+  // テンプレートデータがロード済みであることを確認するために rows を監視に追加
+  if (!selectedKaipokeCS || !selectedMonth) return;
+
+  // テンプレートのロードを待つためにこの処理を分離する
+  // テンプレートのロードは上のuseEffectで行うため、ここでは単にプレビュー生成を行う
+  setLoading(true); // プレビュー生成時にもローディング状態にする
+  setError(null);
+
+  // プレビューAPIを叩く
+  apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+    .then((v) => {
+      // alert('API レスポンス: ' + JSON.stringify(v)); // デバッグアラートは削除
+      setPreview(Array.isArray(v) ? v : []);
+    })
+    .catch((e) => {
+      // alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // デバッグアラートは削除
+      setError(e instanceof Error ? e.message : String(e));
+    })
+    .finally(() => setLoading(false));
+}, [selectedMonth, selectedKaipokeCS, useRecurrence]); // 依存配列に selectedMonth, selectedKaipokeCS, useRecurrence
+
   // ==== Actions ====
   function addRow() {
     if (!selectedKaipokeCS) {
@@ -333,7 +379,7 @@ export default function WeeklyRosterPage() {
       _selected: false,
     };
 
-    alert('新しい行を追加: ' + JSON.stringify(newRow));
+    //alert('新しい行を追加: ' + JSON.stringify(newRow));
     setRows((rs) => rs.concat([newRow]));
   }
 
@@ -478,11 +524,11 @@ export default function WeeklyRosterPage() {
             setError(null);
             apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
               .then((v) => {
-                alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータをアラート表示
+                //alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータをアラート表示
                 setPreview(Array.isArray(v) ? v : []);
               })
               .catch((e) => {
-                alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージをアラート表示
+                //alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージをアラート表示
                 setError(e instanceof Error ? e.message : String(e));
               })
               .finally(() => setLoading(false));
