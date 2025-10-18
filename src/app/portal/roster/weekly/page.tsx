@@ -140,13 +140,15 @@ const safeErr = (s: string | null) => (s ? stripTags(decodeEntities(s)).slice(0,
 // API wrappers
 // =========================
 async function apiFetchTemplates(cs: string): Promise<TemplateRow[]> {
-  const usp = new URLSearchParams({ kaipoke_cs_id: cs, cs }); // 両方投げる
+  const usp = new URLSearchParams({ kaipoke_cs_id: cs, cs });
   const url = "/api/roster/weekly/templates?" + usp.toString();
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
-  const data = (await res.json()) as { rows?: TemplateRow[] };
-  const base = data && data.rows ? data.rows : [];
-  return base.map((r) => ({
+  
+  // ★ 修正点: APIが配列を直接返しているので、dataをそのまま配列として扱う
+  const data = (await res.json()) as TemplateRow[]; 
+
+  return data.map((r) => ({ // ★ 修正点: dataを直接マップする
     ...r,
     _cid: (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random()),
     _selected: false,
@@ -175,7 +177,10 @@ async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean
   const res = await fetch(`/api/roster/weekly/preview?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = await res.json();
-  return Array.isArray(data) ? (data as PreviewRow[]) : [];
+  
+  // ★ 修正点: プレビューAPIのレスポンスが { rows: [...] } の形式であることを仮定し、rowsプロパティを取り出す
+  const rows = (data && data.rows) ? data.rows : [];
+  return Array.isArray(rows) ? (rows as PreviewRow[]) : []; // ★ 修正点: rowsが配列かチェック
 }
 
 // =========================
@@ -277,9 +282,9 @@ export default function WeeklyRosterPage() {
     apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
       .then((v) => {
         if (!v || v.length === 0) {
-          alert('データがありません。レスポンス: ' + JSON.stringify(v));  // データが空の場合でも表示
+          //alert('データがありません。レスポンス: ' + JSON.stringify(v));  // データが空の場合でも表示
         } else {
-          alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータを表示
+          //alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータを表示
           setPreview(Array.isArray(v) ? v : []);
         }
       })
