@@ -25,12 +25,9 @@ export type TemplateRow = {
   staff_03_user_id?: string | null;
   staff_02_attend_flg: boolean;
   staff_03_attend_flg: boolean;
-  staff_01_role_code?: string | null; // "-999" | "01" | "02"
-  staff_02_role_code?: string | null;
-  staff_03_role_code?: string | null;
+  // ⑤ 役割コードは削除
   active: boolean;
-  effective_from?: string | null; // YYYY-MM-DD
-  effective_to?: string | null;   // YYYY-MM-DD
+  // ⑥ 有効期間は削除
   is_biweekly?: boolean | null;
   nth_weeks?: number[] | null; // [1..5]
   _cid?: string;
@@ -51,9 +48,7 @@ export type PreviewRow = {
   staff_03_user_id: string | null;
   staff_02_attend_flg: boolean;
   staff_03_attend_flg: boolean;
-  staff_01_role_code: string | null;
-  staff_02_role_code: string | null;
-  staff_03_role_code: string | null;
+  // PreviewRow の role_code も表示しない
   has_conflict: boolean;
 };
 
@@ -63,6 +58,8 @@ type KaipokeCs = {
   name: string;
   end_at: string | null;
 };
+
+type StaffOption = { value: string; label: string }; // user_id と name を格納
 
 // =========================
 // Helpers（monthlyのフィルター仕様を踏襲）
@@ -87,23 +84,26 @@ const cleanText = (v: string | null) => (v ? stripTags(decodeEntities(v)) : "");
 // =========================
 function validateRow(r: TemplateRow): string[] {
   const errs: string[] = [];
+  // ① 修正: HH:MM 形式を厳密にチェック (DBからはHH:MM:SSが来るが、フロントでHH:MMに変換しているため)
   const re = /^\d{2}:\d{2}$/;
   if (!re.test(r.start_time)) errs.push("開始時刻の形式が不正です");
   if (!re.test(r.end_time)) errs.push("終了時刻の形式が不正です");
-  if (re.test(r.start_time) && re.test(r.end_time) && r.end_time <= r.start_time) {
+
+  // HH:MM形式に統一して時刻比較を行う（HH:MM:SSで比較する場合は:00を補完する必要があるが、HH:MMで十分）
+  const st = r.start_time;
+  const et = r.end_time;
+  if (re.test(st) && re.test(et) && et <= st) {
     errs.push("終了時刻は開始より後である必要があります");
   }
+
   if (r.weekday < 0 || r.weekday > 6) errs.push("曜日が不正です");
   if (!r.service_code) errs.push("サービス内容（service_code）を入力してください");
   if (r.required_staff_count < 1) errs.push("派遣人数は1以上にしてください");
   if (r.nth_weeks && r.nth_weeks.some((n) => n < 1 || n > 5)) errs.push("第n週は1〜5で指定してください");
   if (r.judo_ido && !/^([0-2][0-9][0-5][0-9])$/.test(r.judo_ido)) errs.push("重訪移動（judo_ido）はHHMM形式");
-  const rolesOk = (x?: string | null) => !x || x === "-999" || x === "01" || x === "02";
-  if (!rolesOk(r.staff_01_role_code) || !rolesOk(r.staff_02_role_code) || !rolesOk(r.staff_03_role_code)) {
-    errs.push("ロールコードは '-999' / '01' / '02' のみ有効です");
-  }
   return errs;
 }
+
 
 function hasDuplicate(rows: TemplateRow[]): boolean {
   const key = (r: TemplateRow) => r.kaipoke_cs_id + "|" + r.weekday + "|" + r.start_time;
@@ -144,16 +144,23 @@ async function apiFetchTemplates(cs: string): Promise<TemplateRow[]> {
   const url = "/api/roster/weekly/templates?" + usp.toString();
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
-  
-  // ★ 修正点: APIが配列を直接返しているので、dataをそのまま配列として扱う
-  const data = (await res.json()) as TemplateRow[]; 
+  const data = (await res.json()) as TemplateRow[];
 
-  return data.map((r) => ({ // ★ 修正点: dataを直接マップする
+  // 取得したHH:MM:SS形式をHH:MMに変換
+  const toHHMM = (t?: string | null) =>
+    (t && t.length >= 5) ? t.slice(0, 5) : (t ?? "");
+
+  return data.map((r) => ({
     ...r,
+    start_time: toHHMM(r.start_time),
+    end_time: toHHMM(r.end_time),
+    // ⑤ ⑥ 不要なフィールドは省略 (DBから返ってくる場合は含めてもOKだが、ここでは型を合わせるために省略)
+    // r.staff_01_role_code, r.effective_from などは TemplateRow の定義から除外された
     _cid: (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random()),
     _selected: false,
   }));
 }
+
 async function apiBulkUpsert(rows: Omit<TemplateRow, "_cid" | "_selected">[]) {
   const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
     method: "POST",
@@ -177,10 +184,8 @@ async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean
   const res = await fetch(`/api/roster/weekly/preview?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = await res.json();
-  
-  // ★ 修正点: プレビューAPIのレスポンスが { rows: [...] } の形式であることを仮定し、rowsプロパティを取り出す
   const rows = (data && data.rows) ? data.rows : [];
-  return Array.isArray(rows) ? (rows as PreviewRow[]) : []; // ★ 修正点: rowsが配列かチェック
+  return Array.isArray(rows) ? (rows as PreviewRow[]) : [];
 }
 
 // =========================
@@ -206,12 +211,20 @@ export default function WeeklyRosterPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
   const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
 
-  // 名前で絞り込む（先頭一致/部分一致はお好みで）
-  const filteredKaipokeCs = useMemo(() => {
-    const kw = clientSearchKeyword.trim().toLowerCase();
-    if (!kw) return kaipokeCs;
-    return kaipokeCs.filter(cs => cs.name.toLowerCase().includes(kw));
-  }, [kaipokeCs, clientSearchKeyword]);
+  // ③ スタッフマスタ
+  const [staffOpts, setStaffOpts] = useState<StaffOption[]>([]);
+  
+  // id -> 名前 の高速参照
+  const staffNameById = useMemo<Record<string, string>>(
+    () => Object.fromEntries(staffOpts.map(o => [o.value, o.label])),
+    [staffOpts]
+  );
+  // 名前取得ヘルパー
+  const nameOf = (id: string | null | undefined): string => {
+    if (!id) return "-";
+    // ユーザーIDが見つからない場合はIDをそのまま表示
+    return staffNameById[id] ?? id;
+  };
 
   // ==== Page states ====
   const [rows, setRows] = useState<TemplateRow[]>([]);
@@ -230,8 +243,52 @@ export default function WeeklyRosterPage() {
       const [hh, mm] = hhmm.split(":").map((x) => Number(x));
       return hh * 60 + mm;
     };
-    return rows.reduce((acc, r) => acc + Math.max(0, toMin(r.end_time) - toMin(r.start_time)), 0);
+    // 時刻形式が不正な場合は 0 にする
+    const validRows = rows.filter(r => validateRow(r).length === 0);
+    return validRows.reduce((acc, r) => acc + Math.max(0, toMin(r.end_time) - toMin(r.start_time)), 0);
   }, [rows]);
+
+  // 利用者フィルタリング
+  const filteredKaipokeCs = useMemo(() => {
+    if (!clientSearchKeyword) return kaipokeCs;
+    const keyword = clientSearchKeyword.toLowerCase();
+    return kaipokeCs.filter(
+      (cs) =>
+        cs.name.toLowerCase().includes(keyword) ||
+        cs.kaipoke_cs_id.toLowerCase().includes(keyword) // IDでも検索可能に
+    );
+  }, [kaipokeCs, clientSearchKeyword]);
+
+  // スタッフ選択コンポーネント (SelectBox)
+  const StaffSelect: React.FC<{
+    userId: string | null | undefined;
+    staffOpts: StaffOption[];
+    onChange: (value: string | null) => void;
+  }> = ({ userId, staffOpts, onChange }) => {
+    return (
+      <Select
+        value={userId || ""}
+        onValueChange={(v) => onChange(v || null)}
+        // Selectコンポーネント自体に幅とフォントサイズを付与
+      >
+        <SelectTrigger>
+          {/* SelectTrigger から className="w-40 h-8 text-xs" を削除し、h-8のみ残す */}
+          <SelectValue placeholder="スタッフを選択" />
+        </SelectTrigger>
+        <SelectContent>
+          {/* SelectItem から className は削除済み */}
+          <SelectItem value={""}>
+            - 担当なし -
+          </SelectItem>
+          {staffOpts.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const monthOptions = useMemo(() => {
     const base = nowYYYYMM();
@@ -248,7 +305,7 @@ export default function WeeklyRosterPage() {
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
   // ==== Effects ====
-  // masters（monthly同等のロード）:contentReference[oaicite:4]{index=4}
+  // masters, staffs のロード
   useEffect(() => {
     const loadMasters = async () => {
       try {
@@ -261,19 +318,48 @@ export default function WeeklyRosterPage() {
         setKaipokeCs(valid);
         if (valid.length && !selectedKaipokeCS) setSelectedKaipokeCS(valid[0].kaipoke_cs_id);
       } catch (e) {
-        // マスタ取得は UI に致命ではないため console へ
-        console.error(e);
+        console.error("利用者マスタ取得エラー", e);
       }
     };
     void loadMasters();
-  }, []); // :contentReference[oaicite:5]{index=5}
 
-  // templates：利用者が変われば自動再取得（onChange適用）
+    // ③ スタッフマスタのロード
+    const loadStaffs = async () => {
+      try {
+        const res = await fetch("/api/users", { cache: "no-store" });
+        const js = await res.json();
+        // user_entry_united_view_single のカラム名が user_id と name であると仮定
+        const arr: { user_id: string; name: string }[] = Array.isArray(js) ? js : [];
+        setStaffOpts(arr.map(u => ({ value: u.user_id, label: u.name })));
+      } catch (e) {
+        console.error("スタッフマスタ取得エラー", e);
+      }
+    };
+    void loadStaffs();
+
+  }, []);
+
+  // templates：利用者が変われば自動再取得
   useEffect(() => {
-    //alert('選択された利用者 ID: ' + selectedKaipokeCS);
-    //alert('選択された月: ' + selectedMonth);
+    if (!selectedKaipokeCS) return;
 
-    // 必要なデータがない場合は何もしない
+    setLoading(true);
+    setError(null);
+    setPreview(null); // 利用者が変わったらプレビューをリセット
+
+    apiFetchTemplates(selectedKaipokeCS) // テンプレートを取得
+      .then((data) => {
+        setRows(data);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+        setRows([]); // エラー時は空に
+      })
+      .finally(() => setLoading(false));
+  }, [selectedKaipokeCS]); // 依存配列に selectedKaipokeCS のみ
+
+  // preview：月/利用者/隔週フラグの変更時に自動再生成
+  useEffect(() => {
     if (!selectedKaipokeCS || !selectedMonth) return;
 
     setLoading(true);
@@ -281,76 +367,13 @@ export default function WeeklyRosterPage() {
 
     apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
       .then((v) => {
-        if (!v || v.length === 0) {
-          //alert('データがありません。レスポンス: ' + JSON.stringify(v));  // データが空の場合でも表示
-        } else {
-          //alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータを表示
-          setPreview(Array.isArray(v) ? v : []);
-        }
+        setPreview(Array.isArray(v) ? v : []);
       })
       .catch((e) => {
-        alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージを表示
         setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setLoading(false));
-  }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
-
-  // preview：月/利用者/隔週フラグの変更時に自動再生成（onChange適用）
-  useEffect(() => {
-    if (!selectedKaipokeCS || !selectedMonth) return;
-    setLoading(true);
-    setError(null);
-    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-      .then((v) => setPreview(Array.isArray(v) ? v : []))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
-
-
-  // templates：利用者が変われば自動再取得
-useEffect(() => {
-  if (!selectedKaipokeCS) return;
-
-  setLoading(true);
-  setError(null);
-  setPreview(null); // 利用者が変わったらプレビューをリセット
-
-  apiFetchTemplates(selectedKaipokeCS) // テンプレートを取得
-    .then((data) => {
-      setRows(data);
-      // テンプレート取得後、改めてプレビューを生成
-      // このuseEffectではプレビュー生成はしない。下のuseEffectに任せる
-    })
-    .catch((e) => {
-      alert('テンプレート取得中のエラー: ' + (e instanceof Error ? e.message : String(e)));
-      setError(e instanceof Error ? e.message : String(e));
-      setRows([]); // エラー時は空に
-    })
-    .finally(() => setLoading(false));
-}, [selectedKaipokeCS]); // 依存配列に selectedKaipokeCS のみ
-
-// preview：月/利用者/隔週フラグの変更時に自動再生成
-useEffect(() => {
-  // テンプレートデータがロード済みであることを確認するために rows を監視に追加
-  if (!selectedKaipokeCS || !selectedMonth) return;
-
-  // テンプレートのロードを待つためにこの処理を分離する
-  // テンプレートのロードは上のuseEffectで行うため、ここでは単にプレビュー生成を行う
-  setLoading(true); // プレビュー生成時にもローディング状態にする
-  setError(null);
-
-  // プレビューAPIを叩く
-  apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-    .then((v) => {
-      // alert('API レスポンス: ' + JSON.stringify(v)); // デバッグアラートは削除
-      setPreview(Array.isArray(v) ? v : []);
-    })
-    .catch((e) => {
-      // alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // デバッグアラートは削除
-      setError(e instanceof Error ? e.message : String(e));
-    })
-    .finally(() => setLoading(false));
-}, [selectedMonth, selectedKaipokeCS, useRecurrence]); // 依存配列に selectedMonth, selectedKaipokeCS, useRecurrence
+  }, [selectedMonth, selectedKaipokeCS, useRecurrence]); // 依存配列に selectedMonth, selectedKaipokeCS, useRecurrence
 
   // ==== Actions ====
   function addRow() {
@@ -372,19 +395,13 @@ useEffect(() => {
       staff_03_user_id: null,
       staff_02_attend_flg: false,
       staff_03_attend_flg: false,
-      staff_01_role_code: null,
-      staff_02_role_code: null,
-      staff_03_role_code: null,
       active: true,
-      effective_from: null,
-      effective_to: null,
       is_biweekly: null,
       nth_weeks: null,
       _cid: (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random()),
       _selected: false,
     };
 
-    //alert('新しい行を追加: ' + JSON.stringify(newRow));
     setRows((rs) => rs.concat([newRow]));
   }
 
@@ -421,14 +438,21 @@ useEffect(() => {
     setSaving(true);
     setError(null);
     try {
+      // ⑤ ⑥ role code, effective_from/to は型から削除しているため、ここでは除外処理を省略
       type ServerRow = Omit<TemplateRow, "_cid" | "_selected">;
+      // DB保存時に HH:MM:SS に補完
+      const toHHMMSS = (t: string) => t.length === 5 ? `${t}:00` : t;
       const payload: ServerRow[] = rows.map((r) => {
         const obj: Record<string, unknown> = { ...r };
         delete (obj as { _cid?: string })._cid;
         delete (obj as { _selected?: boolean })._selected;
+        // 時刻を HH:MM:SS へ
+        (obj).start_time = toHHMMSS(r.start_time);
+        (obj).end_time = toHHMMSS(r.end_time);
         return obj as ServerRow;
       });
       await apiBulkUpsert(payload);
+
       // 保存後に最新再取得
       const data = await apiFetchTemplates(selectedKaipokeCS);
       setRows(data);
@@ -490,58 +514,6 @@ useEffect(() => {
             </Button>
           </div>
         </div>
-
-        {/* 操作群（「読み込み」ボタンは削除） */}
-        <div className="flex items-end gap-2 ml-auto">
-          {/* 行を追加 / 選択削除 / 保存 */}
-          <Button variant="outline" onClick={addRow} disabled={!selectedKaipokeCS}>
-            <Plus className="w-4 h-4 mr-2" /> 行を追加
-          </Button>
-          <Button variant="outline" onClick={removeSelected} disabled={rows.every((r) => !r._selected)}>
-            <Trash2 className="w-4 h-4 mr-2" /> 選択削除
-          </Button>
-          <Button onClick={saveAll} disabled={!rows.length || saving || duplicate}>
-            <Save className="w-4 h-4 mr-2" /> 保存
-          </Button>
-
-          {/* 反映月（プレビューのすぐ左） */}
-          <div className="flex items-end gap-2">
-            <label className="text-sm text-muted-foreground">反映月</label>
-            <div style={{ width: 120 }}>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-        {/* 月展開プレビュー */}
-        <Button
-          variant="secondary"
-          disabled={!selectedKaipokeCS || !selectedMonth}
-          onClick={() => {
-            setPreview(null);
-            setLoading(true);
-            setError(null);
-            apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-              .then((v) => {
-                //alert('API レスポンス: ' + JSON.stringify(v)); // レスポンスデータをアラート表示
-                setPreview(Array.isArray(v) ? v : []);
-              })
-              .catch((e) => {
-                //alert('プレビュー取得中のエラー: ' + (e instanceof Error ? e.message : String(e))); // エラーメッセージをアラート表示
-                setError(e instanceof Error ? e.message : String(e));
-              })
-              .finally(() => setLoading(false));
-          }}
-        >
-          <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
-        </Button>
-
       </div>
 
       {/* ステータス */}
@@ -568,10 +540,10 @@ useEffect(() => {
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">重訪移動</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当(1/2/3)</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">ロール(1/2/3)</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">有効期間</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">隔週/第n週</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">Active</th>
+                {/* ⑦ ラベル変更 */}
+                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">隔週（不定期実施）</th>
+                {/* ⑧ ラベル変更 */}
+                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">適用 ✅</th>
               </tr>
             </thead>
             <tbody>
@@ -634,86 +606,52 @@ useEffect(() => {
                     </td>
                     <td className="px-2 py-2 align-top border-b">
                       <div className="flex flex-col gap-1">
+                        {/* 担当スタッフ1 (SelectBox + 名前表示) */}
                         <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_01_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_01_user_id: e.target.value || null })}
-                            placeholder="staff1"
-                            className="border rounded-lg px-2 py-1 w-32"
+                          <StaffSelect
+                            userId={r.staff_01_user_id}
+                            staffOpts={staffOpts}
+                            onChange={(v) => updateRow(r._cid as string, { staff_01_user_id: v })}
                           />
                           <span className="text-xs text-slate-400">出動</span>
                         </div>
+                        {/* 担当スタッフ2 (SelectBox + 同行フラグ) */}
                         <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_02_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_02_user_id: e.target.value || null })}
-                            placeholder="staff2"
-                            className="border rounded-lg px-2 py-1 w-32"
+                          <StaffSelect
+                            userId={r.staff_02_user_id}
+                            staffOpts={staffOpts}
+                            onChange={(v) => updateRow(r._cid as string, { staff_02_user_id: v })}
                           />
                           <label className="text-xs inline-flex items-center gap-1">
                             <input
                               type="checkbox"
                               checked={r.staff_02_attend_flg}
                               onChange={(e) => updateRow(r._cid as string, { staff_02_attend_flg: e.target.checked })}
+                              disabled={!r.staff_02_user_id} /* IDがない場合はチェック不可 */
                             /> 同行
                           </label>
                         </div>
+                        {/* 担当スタッフ3 (SelectBox + 同行フラグ) */}
                         <div className="flex items-center gap-1">
-                          <input
-                            value={r.staff_03_user_id || ""}
-                            onChange={(e) => updateRow(r._cid as string, { staff_03_user_id: e.target.value || null })}
-                            placeholder="staff3"
-                            className="border rounded-lg px-2 py-1 w-32"
+                          <StaffSelect
+                            userId={r.staff_03_user_id}
+                            staffOpts={staffOpts}
+                            onChange={(v) => updateRow(r._cid as string, { staff_03_user_id: v })}
                           />
                           <label className="text-xs inline-flex items-center gap-1">
                             <input
                               type="checkbox"
                               checked={r.staff_03_attend_flg}
                               onChange={(e) => updateRow(r._cid as string, { staff_03_attend_flg: e.target.checked })}
+                              disabled={!r.staff_03_user_id} /* IDがない場合はチェック不可 */
                             /> 同行
                           </label>
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex flex-col gap-1">
-                        <input
-                          value={r.staff_01_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_01_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                        <input
-                          value={r.staff_02_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_02_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                        <input
-                          value={r.staff_03_role_code || ""}
-                          onChange={(e) => updateRow(r._cid as string, { staff_03_role_code: e.target.value || null })}
-                          placeholder="-999/01/02"
-                          className="border rounded-lg px-2 py-1 w-24"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 align-top border-b">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="date"
-                          value={r.effective_from || ""}
-                          onChange={(e) => updateRow(r._cid as string, { effective_from: e.target.value || null })}
-                          className="border rounded-lg px-2 py-1"
-                        />
-                        <span className="text-slate-400">〜</span>
-                        <input
-                          type="date"
-                          value={r.effective_to || ""}
-                          onChange={(e) => updateRow(r._cid as string, { effective_to: e.target.value || null })}
-                          className="border rounded-lg px-2 py-1"
-                        />
-                      </div>
-                    </td>
+
+                    {/* ⑤ role code と ⑥ 有効期間の列を削除 */}
+
                     <td className="px-2 py-2 align-top border-b">
                       <div className="flex flex-col gap-1">
                         <label className="text-xs inline-flex items-center gap-1">
@@ -729,7 +667,7 @@ useEffect(() => {
                             const v = e.target.value
                               ? e.target.value.split(",").map((x) => Number(x.trim())).filter((n) => !!n)
                               : [];
-                            updateRow(r._cid as string, { nth_weeks: v });
+                            updateRow(r._cid as string, { nth_weeks: v.length ? v : null });
                           }}
                           placeholder="第n週(例: 1,3,5)"
                           className="border rounded-lg px-2 py-1 w-28"
@@ -737,13 +675,14 @@ useEffect(() => {
                       </div>
                     </td>
                     <td className="px-2 py-2 align-top border-b">
+                      {/* ⑧ 適用フラグ */}
                       <label className="inline-flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={r.active}
                           onChange={(e) => updateRow(r._cid as string, { active: e.target.checked })}
                         />
-                        <span className="text-xs text-slate-600">{r.active ? "有効" : "無効"}</span>
+                        <span className="text-xs text-slate-600">{r.active ? "適用" : "未適用"}</span>
                       </label>
                       {errs.length > 0 ? (
                         <div className="mt-1 text-[11px] text-amber-700 space-y-0.5">
@@ -757,7 +696,7 @@ useEffect(() => {
               })}
               {rows.length === 0 ? (
                 <tr>
-                  <td className="text-center text-slate-400 py-8" colSpan={11}>
+                  <td className="text-center text-slate-400 py-8" colSpan={9}>
                     テンプレ行がありません。利用者を変更するか、行を追加してください。
                   </td>
                 </tr>
@@ -767,9 +706,52 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* ===== ② 操作群（テンプレ表の下に移動） ===== */}
+      <div className="flex items-end gap-2 justify-end">
+        <Button variant="outline" onClick={addRow} disabled={!selectedKaipokeCS}>
+          <Plus className="w-4 h-4 mr-2" /> 行を追加
+        </Button>
+        <Button variant="outline" onClick={removeSelected} disabled={rows.every((r) => !r._selected)}>
+          <Trash2 className="w-4 h-4 mr-2" /> 選択削除
+        </Button>
+        <Button onClick={saveAll} disabled={!rows.length || saving || duplicate}>
+          <Save className="w-4 h-4 mr-2" /> 保存
+        </Button>
+
+        <div className="flex items-end gap-2 ml-4">
+          <label className="text-sm text-muted-foreground">反映月</label>
+          <div style={{ width: 120 }}>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Button
+          variant="secondary"
+          disabled={!selectedKaipokeCS || !selectedMonth}
+          onClick={() => {
+            setPreview(null);
+            setLoading(true);
+            setError(null);
+            apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+              .then((v) => setPreview(Array.isArray(v) ? v : []))
+              .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+              .finally(() => setLoading(false));
+          }}
+        >
+          <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
+        </Button>
+      </div>
+
       {/* プレビュー（HTMLタグ混入対策：cleanTextで表示） */}
       {Array.isArray(preview) ? (
-        <div className="rounded-2xl border overflow-hidden">
+        <div className="rounded-2xl border overflow-hidden mt-6">
           <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
             <div className="text-sm text-slate-700">{selectedMonth} の展開プレビュー（{selectedKaipokeCS || "全員"}）</div>
             <div className="text-xs text-slate-500">{useRecurrence ? "隔週/第n週: 有効" : "隔週/第n週: 無効"}</div>
@@ -784,7 +766,7 @@ useEffect(() => {
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">衝突</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">既存シフトと重なり</th>
                 </tr>
               </thead>
               <tbody>
@@ -794,8 +776,11 @@ useEffect(() => {
                   const wd = d && !isNaN(d.getTime()) ? WEEKS_JP[d.getDay()] : "-";
                   const sst = typeof p.shift_start_time === "string" ? p.shift_start_time.slice(0, 5) : "--:--";
                   const set = typeof p.shift_end_time === "string" ? p.shift_end_time.slice(0, 5) : "--:--";
+                  // ④ 競合行の背景色を設定: 既存シフトと重なっている場合は警告色 (赤系)
+                  const rowClass = p.has_conflict ? "bg-red-50" : "hover:bg-slate-50";
+
                   return (
-                    <tr key={i} className="border-b">
+                    <tr key={i} className={`border-b ${rowClass}`}>
                       <td className="px-2 py-2 align-top border-b">{dateStr || "-"}</td>
                       <td className="px-2 py-2 align-top border-b">{wd}</td>
                       <td className="px-2 py-2 align-top border-b">
@@ -805,13 +790,18 @@ useEffect(() => {
                       <td className="px-2 py-2 align-top border-b">
                         {p.required_staff_count}{p.two_person_work_flg ? " / 2人従事" : ""}
                       </td>
+                      {/* ③ 名前表示と連記 */}
                       <td className="px-2 py-2 align-top border-b text-xs text-slate-600">
-                        {cleanText(p.staff_01_user_id || "-")}
-                        {p.staff_02_user_id ? " / " + cleanText(p.staff_02_user_id) + (p.staff_02_attend_flg ? "(同)" : "") : ""}
-                        {p.staff_03_user_id ? " / " + cleanText(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
+                        {nameOf(p.staff_01_user_id)}
+                        {p.staff_02_user_id ? " / " + nameOf(p.staff_02_user_id) + (p.staff_02_attend_flg ? "(同)" : "") : ""}
+                        {p.staff_03_user_id ? " / " + nameOf(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
                       </td>
+                      {/* ④ 衝突表示の文言変更と色分け */}
                       <td className="px-2 py-2 align-top border-b">
-                        {p.has_conflict ? <span className="text-amber-700 text-xs">重なり有</span> : <span className="text-green-700 text-xs">OK</span>}
+                        {p.has_conflict
+                          ? <span className="text-red-700 text-xs font-semibold">既存シフトと重なり</span>
+                          : <span className="text-green-700 text-xs">空き枠</span>
+                        }
                       </td>
                     </tr>
                   );
