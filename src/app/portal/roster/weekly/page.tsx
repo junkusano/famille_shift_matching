@@ -227,16 +227,30 @@ const Pill: React.FC<{ label: string; tone?: "ok" | "warn" | "muted" }> = ({ lab
 // =========================
 export default function WeeklyRosterPage() {
   const router = useRouter();
+  // 1. useSearchParams の取得
   const searchParams = useSearchParams();
 
-  // 1. URLパラメータから kaipoke_cs_id を取得
-  const urlCsId = useMemo(() => searchParams.get("cs") || "", [searchParams]);
+  // 2. URLからcsIDを直接取得
+  const currentCsId = searchParams.get("cs") || "";
+
+  // 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
+  // ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
+  /*
+  useEffect(() => {
+    // ...
+    fetchTemplateList(currentCsId)
+      .then(setTemplates)
+      // ...
+  }, [currentCsId]);
+  */
 
   // 2. 状態の管理: selectedKaipokeCsId を URLの値で初期化
-  const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>(urlCsId);
+  // FIX: urlCsId -> currentCsId
+  const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>(currentCsId);
 
   // ==== Masters for filters ====
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
+  // NOTE: selectedKaipokeCS は NavボタンやFetchingで使われるため残す
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
   const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); // ③ 新規追加
@@ -345,20 +359,24 @@ export default function WeeklyRosterPage() {
 
   // 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
   useEffect(() => {
-    if (selectedKaipokeCsId !== urlCsId) {
+    // FIX: urlCsId -> currentCsId
+    if (selectedKaipokeCsId !== currentCsId) {
       // URLの値が変更されたら、内部状態も更新
-      setSelectedKaipokeCsId(urlCsId);
+      // FIX: urlCsId -> currentCsId
+      setSelectedKaipokeCsId(currentCsId);
+      // selectedKaipokeCS も URLの値に合わせ、Fetchingがトリガーされるようにします
+      setSelectedKaipokeCS(currentCsId);
     }
-    // NOTE: ここで selectedKaipokeCsId の変更をトリガーとして
-    // テンプレートやプレビューのデータ取得（fetchTemplates, fetchPreview）を呼ぶ必要があります。
-    // 例: fetchTemplates(urlCsId);
-  }, [urlCsId, selectedKaipokeCsId]);
+    // FIX: urlCsId -> currentCsId
+  }, [currentCsId, selectedKaipokeCsId]);
 
   // 4. kaipoke_cs_id 変更ハンドラ: 状態とURLを更新
   // Select コンポーネントの onChange/onValueChange に渡す
   const handleCsIdChange = (newCsId: string) => {
     // 状態を即時更新
     setSelectedKaipokeCsId(newCsId);
+    // FIX: selectedKaipokeCS も更新し、テンプレート/プレビューの自動再取得をトリガー
+    setSelectedKaipokeCS(newCsId);
 
     // URLSearchParams を更新
     const newParams = new URLSearchParams(searchParams.toString());
@@ -593,7 +611,8 @@ export default function WeeklyRosterPage() {
             <Button
               variant="secondary"
               disabled={!csPrev}
-              onClick={() => csPrev && setSelectedKaipokeCS(csPrev.kaipoke_cs_id)}
+              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
+              onClick={() => csPrev && handleCsIdChange(csPrev.kaipoke_cs_id)}
             >
               前へ（{csPrev?.name ?? "-"}）
             </Button>
@@ -636,7 +655,8 @@ export default function WeeklyRosterPage() {
             <Button
               variant="secondary"
               disabled={!csNext}
-              onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
+              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
+              onClick={() => csNext && handleCsIdChange(csNext.kaipoke_cs_id)}
             >
               次へ（{csNext?.name ?? "-"}）
             </Button>
