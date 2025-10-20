@@ -293,12 +293,11 @@ export default function WeeklyRosterPage() {
         value={userId || ""}
         onValueChange={(v) => onChange(v || null)}
       >
-        {/* @ts-ignore: SelectTrigger に className を渡すと型エラーが出るため一時的に無視 */}
-        <SelectTrigger className="w-40 h-8 text-xs">
+        <SelectTrigger>
           <SelectValue placeholder="スタッフを選択" />
         </SelectTrigger>
         <SelectContent> // Line 301: Error 2741 解消
-          {staffOpts.map((opt) => ( // staffOpts の使用 (Warning 6133 解消)
+          {staffOpts.map((opt) => ( 
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
             </SelectItem>
@@ -599,20 +598,17 @@ export default function WeeklyRosterPage() {
                         <input type="time" value={r.end_time} onChange={(e) => updateRow(r._cid as string, { end_time: e.target.value })} className="border rounded-lg px-2 py-1" />
                       </div>
                     </td>
-                    // ... TemplateRow のテーブルマップ内 ...
-
                     <td className="px-2 py-2 align-top border-b">
                       {/* サービスコード Select (Line 603: Error 2322 の解消) */}
                       <Select
                         value={r.service_code}
                         onValueChange={(v) => updateRow(r._cid as string, { service_code: v })}
                       >
-                        {/* @ts-ignore: SelectTrigger に className を渡すと型エラーが出るため一時的に無視 */}
-                        <SelectTrigger className="w-36 h-8 text-xs">
+                        <SelectTrigger>
                           <SelectValue placeholder="サービスを選択" />
                         </SelectTrigger>
                         <SelectContent>
-                          {serviceCodeOpts.map((opt) => ( // serviceCodeOpts の使用 (Warning 6133 解消)
+                          {serviceCodeOpts.map((opt) => ( 
                             <SelectItem key={opt.value} value={opt.value}>
                               {opt.label}
                             </SelectItem>
@@ -627,8 +623,7 @@ export default function WeeklyRosterPage() {
                           value={String(r.required_staff_count)}
                           onValueChange={(v) => updateRow(r._cid as string, { required_staff_count: Number(v) })}
                         >
-                          {/* @ts-ignore: SelectTrigger に className を渡すと型エラーが出るため一時的に無視 */}
-                          <SelectTrigger className="w-16 h-8 text-xs">
+                          <SelectTrigger>
                             <SelectValue placeholder="人数" />
                           </SelectTrigger>
                           <SelectContent>
