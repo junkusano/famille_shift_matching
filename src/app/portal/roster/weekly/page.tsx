@@ -296,7 +296,7 @@ export default function WeeklyRosterPage() {
         <SelectTrigger>
           <SelectValue placeholder="スタッフを選択" />
         </SelectTrigger>
-        <SelectContent> // Line 301: Error 2741 解消
+        <SelectContent>
           {staffOpts.map((opt) => ( 
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
