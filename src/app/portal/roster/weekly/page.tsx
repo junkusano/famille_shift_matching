@@ -6,6 +6,8 @@ import { Plus, Trash2, Save, Eye, ChevronLeft, ChevronRight } from "lucide-react
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useRouter, useSearchParams } from "next/navigation";
+
 
 // =========================
 // Types
@@ -224,6 +226,15 @@ const Pill: React.FC<{ label: string; tone?: "ok" | "warn" | "muted" }> = ({ lab
 // Main Page
 // =========================
 export default function WeeklyRosterPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // 1. URLパラメータから kaipoke_cs_id を取得
+  const urlCsId = useMemo(() => searchParams.get("cs") || "", [searchParams]);
+
+  // 2. 状態の管理: selectedKaipokeCsId を URLの値で初期化
+  const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>(urlCsId);
+
   // ==== Masters for filters ====
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
@@ -332,6 +343,34 @@ export default function WeeklyRosterPage() {
   const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null;
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
+  // 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
+  useEffect(() => {
+    if (selectedKaipokeCsId !== urlCsId) {
+      // URLの値が変更されたら、内部状態も更新
+      setSelectedKaipokeCsId(urlCsId);
+    }
+    // NOTE: ここで selectedKaipokeCsId の変更をトリガーとして
+    // テンプレートやプレビューのデータ取得（fetchTemplates, fetchPreview）を呼ぶ必要があります。
+    // 例: fetchTemplates(urlCsId);
+  }, [urlCsId, selectedKaipokeCsId]);
+
+  // 4. kaipoke_cs_id 変更ハンドラ: 状態とURLを更新
+  // Select コンポーネントの onChange/onValueChange に渡す
+  const handleCsIdChange = (newCsId: string) => {
+    // 状態を即時更新
+    setSelectedKaipokeCsId(newCsId);
+
+    // URLSearchParams を更新
+    const newParams = new URLSearchParams(searchParams.toString());
+    if (newCsId) {
+      newParams.set('cs', newCsId);
+    } else {
+      newParams.delete('cs'); // 全選択などの場合はパラメータを削除
+    }
+    // router.replace() で履歴を残さずURLを更新
+    router.replace(`/portal/roster/weekly?${newParams.toString()}`, { scroll: false });
+  };
+
   // ==== Effects ====
   // masters, staffs のロード
   useEffect(() => {
@@ -424,6 +463,10 @@ export default function WeeklyRosterPage() {
     setError(null);
     setPreview(null);
 
+    if (selectedKaipokeCsId) {
+      apiFetchTemplates(selectedKaipokeCsId);
+    }
+
     apiFetchTemplates(selectedKaipokeCS)
       .then((data) => {
         setRows(data);
@@ -433,7 +476,7 @@ export default function WeeklyRosterPage() {
         setRows([]);
       })
       .finally(() => setLoading(false));
-  }, [selectedKaipokeCS]);
+  }, [selectedKaipokeCsId]);
 
   // preview：月/利用者/隔週フラグの変更時に自動再生成
   useEffect(() => {
@@ -566,9 +609,21 @@ export default function WeeklyRosterPage() {
             </div>
 
             <div style={{ width: 100 }}>
-              <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
-                <SelectTrigger><SelectValue placeholder="利用者を選択" /></SelectTrigger>
+              <Select
+                // 1. ステート変数を合わせます
+                value={selectedKaipokeCsId}
+
+                // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
+                onValueChange={handleCsIdChange}
+              >
+                <SelectTrigger>
+                  {/* 利用者を選択 (カイポケID) */}
+                  <SelectValue placeholder="利用者を選択" />
+                </SelectTrigger>
                 <SelectContent>
+                  {/* 3. （全選択）オプションを追加（handleCsIdChange が "" で URLパラメータを削除） */}
+                  <SelectItem value="">利用者を選択（すべて）</SelectItem>
+
                   {filteredKaipokeCs.map((cs) => (
                     <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
                       {cs.name}
@@ -849,7 +904,7 @@ export default function WeeklyRosterPage() {
             </Select>
           </div>
           <Button
-            onClick={deployShift} 
+            onClick={deployShift}
             disabled={!selectedKaipokeCS || !selectedMonth || deploying}
             className="bg-red-600 hover:bg-red-700"
           >
