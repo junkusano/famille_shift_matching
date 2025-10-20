@@ -49,6 +49,12 @@ export type PreviewRow = {
   has_conflict: boolean;
 };
 
+// 展開ポリシーを3パターンに
+export type DeployPolicy =
+  | 'skip_conflict'
+  | 'overwrite_only'
+  | 'delete_month_insert';
+
 type KaipokeCs = {
   id: string;
   kaipoke_cs_id: string;
@@ -200,6 +206,7 @@ async function apiFetchServiceCodes(): Promise<ServiceCodeOption[]> {
     : [];
 }
 
+
 // =========================
 // Small UI bits
 // =========================
@@ -221,6 +228,8 @@ export default function WeeklyRosterPage() {
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
+  const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); // ③ 新規追加
+  const [deploying, setDeploying] = useState(false); // ④ 新規追加 (展開中ステート)
   const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
 
   // ③ スタッフマスタ
@@ -297,7 +306,7 @@ export default function WeeklyRosterPage() {
           <SelectValue placeholder="スタッフを選択" />
         </SelectTrigger>
         <SelectContent>
-          {staffOpts.map((opt) => ( 
+          {staffOpts.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
             </SelectItem>
@@ -372,6 +381,40 @@ export default function WeeklyRosterPage() {
     void loadServiceCodes();
 
   }, []);
+
+  async function apiDeployMonth(month: string, cs: string, policy: DeployPolicy) {
+    const res = await fetch("/api/roster/weekly/deploy", { // 新規APIエンドポイント
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month, kaipoke_cs_id: cs, policy }),
+    });
+    if (!res.ok) throw new Error(await summarizeHTTP(res));
+    return res.json();
+  }
+
+  async function deployShift() {
+    if (!selectedKaipokeCS) {
+      alert("利用者を選択してください。");
+      return;
+    }
+    if (!confirm(`【${selectedMonth}】の週間シフト展開を実行します。\nポリシー: ${deployPolicy} で実行。よろしいですか？`)) return;
+
+    setDeploying(true);
+    setError(null);
+    setPreview(null); // 展開後はプレビューをリフレッシュ（自動で再生成される想定）
+
+    try {
+      const result = await apiDeployMonth(selectedMonth, selectedKaipokeCS, deployPolicy);
+      alert(`シフト展開が完了しました。\n挿入: ${result.inserted_count || 0}件, 更新: ${result.updated_count || 0}件, 削除: ${result.deleted_count || 0}件`);
+      // 展開後、プレビューを強制更新
+      apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence).then(setPreview).catch(setError);
+    } catch (s) {
+      setError(s instanceof Error ? s.message : String(s));
+      alert("シフト展開中にエラーが発生しました: " + safeErr(s)); // safeErrの引数を e に修正
+    } finally {
+      setDeploying(false); // ★ 利用する (Warning 6133 解消)
+    }
+  }
 
   // templates：利用者が変われば自動再取得
   useEffect(() => {
@@ -608,7 +651,7 @@ export default function WeeklyRosterPage() {
                           <SelectValue placeholder="サービスを選択" />
                         </SelectTrigger>
                         <SelectContent>
-                          {serviceCodeOpts.map((opt) => ( 
+                          {serviceCodeOpts.map((opt) => (
                             <SelectItem key={opt.value} value={opt.value}>
                               {opt.label}
                             </SelectItem>
@@ -788,6 +831,30 @@ export default function WeeklyRosterPage() {
             <ChevronRight className="w-4 h-4" />
           </Button>
 
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted-foreground">重なり時の処理/月間削除</label>
+            <Select
+              value={deployPolicy}
+              onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
+            // disabled={deploying} を削除 (Error 2322 対応)
+            >
+              <SelectTrigger >
+                <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="skip_conflict">既存と重なるときは展開スキップ (既存維持)</SelectItem>
+                <SelectItem value="overwrite_only">既存と重なるときは週間シフトで上書き (既存維持)</SelectItem>
+                <SelectItem value="delete_month_insert">月全体を削除し、全て新規挿入</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            onClick={deployShift} // ④ 展開実行アクション
+            disabled={!selectedKaipokeCS || !selectedMonth || deploying}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {deploying ? '展開中...' : '月間シフト展開を実行'}
+          </Button>
           <Button
             variant="secondary"
             disabled={!selectedKaipokeCS || !selectedMonth}
