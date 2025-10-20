@@ -849,7 +849,7 @@ export default function WeeklyRosterPage() {
             </Select>
           </div>
           <Button
-            onClick={deployShift} // ④ 展開実行アクション
+            onClick={deployShift} 
             disabled={!selectedKaipokeCS || !selectedMonth || deploying}
             className="bg-red-600 hover:bg-red-700"
           >
