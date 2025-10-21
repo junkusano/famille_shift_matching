@@ -199,7 +199,7 @@ async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean
 // ① サービスコードマスタ取得API
 async function apiFetchServiceCodes(): Promise<ServiceCodeOption[]> {
   // /api/shift_service_codes は存在すると仮定
-  const res = await fetch("/api/shift-service-codes", { cache: "no-store" });
+  const res = await fetch("/api/shift-service-code", { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = await res.json();
   // shift_service_code テーブルから service_code を取得し、値とラベルに設定
