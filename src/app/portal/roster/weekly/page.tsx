@@ -802,7 +802,7 @@ export default function WeeklyRosterPage() {
                         value={r.judo_ido || ""}
                         onChange={(e) => updateRow(r._cid as string, { judo_ido: e.target.value || null })}
                         placeholder="例: 0015"
-                        className="border rounded-lg px-2 py-1 w-20"
+                        className="border rounded-lg px-2 py-1 w-16"
                       />
                     </td>
 
@@ -867,9 +867,10 @@ export default function WeeklyRosterPage() {
                               : [];
                             updateRow(r._cid as string, { nth_weeks: v.length ? v : null });
                           }}
-                          placeholder="第n週(例: 1,3,5)"
+                          placeholder="例:1,3,5"
                           className="border rounded-lg px-2 py-1 w-20"
                         />
+                        第n週(例: 1,3,5)
                       </div>
                     </td>
                     <td className="px-2 py-2 align-top border-b">
@@ -949,7 +950,7 @@ export default function WeeklyRosterPage() {
           </Button>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">重なり時の処理/月間削除</label>
+            <label className="text-sm text-muted-foreground">重なり処理</label>
             <Select
               value={deployPolicy}
               onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
