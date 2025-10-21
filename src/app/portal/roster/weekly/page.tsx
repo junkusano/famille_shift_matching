@@ -433,21 +433,21 @@ export default function WeeklyRosterPage() {
     const loadServiceCodes = async () => {
       try {
         // [ALERT 1] API呼び出し前
-        alert("ALERT 1: サービスコードAPI呼び出し開始");
+        //alert("ALERT 1: サービスコードAPI呼び出し開始");
         const data = await apiFetchServiceCodes();
         
         // [ALERT 2] APIレスポンス確認
-        alert(`ALERT 2: サービスコード取得成功。件数: ${data.length}件。`);
+        //alert(`ALERT 2: サービスコード取得成功。件数: ${data.length}件。`);
 
         if (data.length === 0) {
-             alert("ALERT 2-B: 警告！APIは成功したが件数が 0 です。APIの戻り値を確認してください。");
+             //alert("ALERT 2-B: 警告！APIは成功したが件数が 0 です。APIの戻り値を確認してください。");
         }
 
         setServiceCodeOpts(data);
       } catch (e) {
         // [ALERT 3] APIエラー発生時
         alert("ALERT 3: サービスコードマスタ取得エラー: " + (e instanceof Error ? e.message : String(e)));
-        console.error("サービスコードマスタ取得エラー", e);
+        //console.error("サービスコードマスタ取得エラー", e);
       }
     };
     void loadServiceCodes();
@@ -701,7 +701,7 @@ export default function WeeklyRosterPage() {
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
-                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
+                <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人目/2人同時</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">重訪移動</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当(1/2/3)</th>
                 <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">隔週（不定期実施）</th>
@@ -760,10 +760,10 @@ export default function WeeklyRosterPage() {
                           onValueChange={(v) => updateRow(r._cid as string, { required_staff_count: Number(v) })}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="人数" />
+                            <SelectValue placeholder="重複" />
                           </SelectTrigger>
                           <SelectContent>
-                            {[1, 2, 3].map((count) => (
+                            {["-","1人目","2人目"].map((count) => (
                               <SelectItem key={count} value={String(count)}>
                                 {count}
                               </SelectItem>
@@ -771,6 +771,11 @@ export default function WeeklyRosterPage() {
                           </SelectContent>
                         </Select>
                         {/* ... 2人従事チェックボックスなど ... */}
+                        <input
+                            type="checkbox"
+                            checked={!!r.two_person_work_flg}
+                            onChange={(e) => updateRow(r._cid as string, { two_person_work_flg: e.target.checked })}
+                          /> 2人介助
                       </div>
                     </td>
                     <td className="px-2 py-2 align-top border-b">
@@ -844,7 +849,7 @@ export default function WeeklyRosterPage() {
                             updateRow(r._cid as string, { nth_weeks: v.length ? v : null });
                           }}
                           placeholder="第n週(例: 1,3,5)"
-                          className="border rounded-lg px-2 py-1 w-28"
+                          className="border rounded-lg px-2 py-1 w-20"
                         />
                       </div>
                     </td>
