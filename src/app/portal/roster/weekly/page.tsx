@@ -227,22 +227,24 @@ const Pill: React.FC<{ label: string; tone?: "ok" | "warn" | "muted" }> = ({ lab
 // =========================
 export default function WeeklyRosterPage() {
   const router = useRouter();
-  // 1. useSearchParams の取得
-  const searchParams = useSearchParams();
+// 1. useSearchParams の取得
+const searchParams = useSearchParams();
 
-  // 2. URLからcsIDを直接取得
-  const currentCsId = searchParams.get("cs") || "";
+// 2. URLからcsIDを直接取得
+const currentCsId = searchParams.get("cs") || "";
 
-  // 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
-  // ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
-  /*
-  useEffect(() => {
+
+
+// 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
+// ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
+/*
+useEffect(() => {
+  // ...
+  fetchTemplateList(currentCsId)
+    .then(setTemplates)
     // ...
-    fetchTemplateList(currentCsId)
-      .then(setTemplates)
-      // ...
-  }, [currentCsId]);
-  */
+}, [currentCsId]);
+*/
 
   // 2. 状態の管理: selectedKaipokeCsId を URLの値で初期化
   // FIX: urlCsId -> currentCsId
@@ -263,6 +265,7 @@ export default function WeeklyRosterPage() {
 
   // ① サービスコードマスタ
   const [serviceCodeOpts, setServiceCodeOpts] = useState<ServiceCodeOption[]>([]);
+  // サービスコードのオプションを保持するステートを定義
 
   // id -> 名前 の高速参照
   const staffNameById = useMemo<Record<string, string>>(
@@ -357,7 +360,7 @@ export default function WeeklyRosterPage() {
   const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null;
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
-  // 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
+// 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
   useEffect(() => {
     // FIX: urlCsId -> currentCsId
     if (selectedKaipokeCsId !== currentCsId) {
@@ -367,8 +370,8 @@ export default function WeeklyRosterPage() {
       // selectedKaipokeCS も URLの値に合わせ、Fetchingがトリガーされるようにします
       setSelectedKaipokeCS(currentCsId);
     }
-    // FIX: urlCsId -> currentCsId
-  }, [currentCsId, selectedKaipokeCsId]);
+  // FIX: urlCsId -> currentCsId
+  }, [currentCsId, selectedKaipokeCsId]); 
 
   // 4. kaipoke_cs_id 変更ハンドラ: 状態とURLを更新
   // Select コンポーネントの onChange/onValueChange に渡す
@@ -655,8 +658,7 @@ export default function WeeklyRosterPage() {
             <Button
               variant="secondary"
               disabled={!csNext}
-              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
-              onClick={() => csNext && handleCsIdChange(csNext.kaipoke_cs_id)}
+              onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
             >
               次へ（{csNext?.name ?? "-"}）
             </Button>
