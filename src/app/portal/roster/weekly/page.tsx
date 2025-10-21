@@ -435,12 +435,12 @@ export default function WeeklyRosterPage() {
         // [ALERT 1] API呼び出し前
         //alert("ALERT 1: サービスコードAPI呼び出し開始");
         const data = await apiFetchServiceCodes();
-        
+
         // [ALERT 2] APIレスポンス確認
         //alert(`ALERT 2: サービスコード取得成功。件数: ${data.length}件。`);
 
         if (data.length === 0) {
-             //alert("ALERT 2-B: 警告！APIは成功したが件数が 0 です。APIの戻り値を確認してください。");
+          //alert("ALERT 2-B: 警告！APIは成功したが件数が 0 です。APIの戻り値を確認してください。");
         }
 
         setServiceCodeOpts(data);
@@ -612,7 +612,7 @@ export default function WeeklyRosterPage() {
     }
   }
 
-  
+
 
   // =========================
   // Render
@@ -756,26 +756,45 @@ export default function WeeklyRosterPage() {
                       <div className="flex items-center gap-2">
                         {/* 人数 Select (Line 618: Error 2322 の解消) */}
                         <Select
-                          value={String(r.required_staff_count)}
-                          onValueChange={(v) => updateRow(r._cid as string, { required_staff_count: Number(v) })}
+                          // 1. レコードの値(0, 1, 2)を対応する文字列に変換して Select の value に渡す
+                          // 例: r.required_staff_count が 1 なら "1人目"、0 なら "-"
+                          value={
+                            r.required_staff_count === 1 ? "1人目" :
+                              r.required_staff_count === 2 ? "2人目" :
+                                "-" // 0 やその他の値の場合は "-" にマッピング
+                          }
+                          onValueChange={(v) => {
+                            let numericValue: number;
+
+                            // 2. Select から受け取った文字列をレコードに保存すべき数値に変換する
+                            if (v === "1人目") {
+                              numericValue = 1;
+                            } else if (v === "2人目") {
+                              numericValue = 2;
+                            } else {
+                              // "-", または予期しない値の場合は 0 に変換
+                              numericValue = 0;
+                            }
+
+                            updateRow(r._cid as string, { required_staff_count: numericValue });
+                          }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="重複" />
+                            <SelectValue placeholder="人数を選択" />
                           </SelectTrigger>
                           <SelectContent>
-                            {["-","1人目","2人目"].map((count) => (
-                              <SelectItem key={count} value={String(count)}>
-                                {count}
-                              </SelectItem>
-                            ))}
+                            {/* SelectItem の value には、Select の value と一致する表示文字列を設定する */}
+                            <SelectItem key="-" value="-">-</SelectItem>
+                            <SelectItem key="1人目" value="1人目">1人目</SelectItem>
+                            <SelectItem key="2人目" value="2人目">2人目</SelectItem>
                           </SelectContent>
                         </Select>
                         {/* ... 2人従事チェックボックスなど ... */}
                         <input
-                            type="checkbox"
-                            checked={!!r.two_person_work_flg}
-                            onChange={(e) => updateRow(r._cid as string, { two_person_work_flg: e.target.checked })}
-                          /> 2人介助
+                          type="checkbox"
+                          checked={!!r.two_person_work_flg}
+                          onChange={(e) => updateRow(r._cid as string, { two_person_work_flg: e.target.checked })}
+                        /> 2人介助
                       </div>
                     </td>
                     <td className="px-2 py-2 align-top border-b">
