@@ -227,24 +227,24 @@ const Pill: React.FC<{ label: string; tone?: "ok" | "warn" | "muted" }> = ({ lab
 // =========================
 export default function WeeklyRosterPage() {
   const router = useRouter();
-// 1. useSearchParams の取得
-const searchParams = useSearchParams();
+  // 1. useSearchParams の取得
+  const searchParams = useSearchParams();
 
-// 2. URLからcsIDを直接取得
-const currentCsId = searchParams.get("cs") || "";
+  // 2. URLからcsIDを直接取得
+  const currentCsId = searchParams.get("cs") || "";
 
 
 
-// 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
-// ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
-/*
-useEffect(() => {
-  // ...
-  fetchTemplateList(currentCsId)
-    .then(setTemplates)
+  // 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
+  // ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
+  /*
+  useEffect(() => {
     // ...
-}, [currentCsId]);
-*/
+    fetchTemplateList(currentCsId)
+      .then(setTemplates)
+      // ...
+  }, [currentCsId]);
+  */
 
   // 2. 状態の管理: selectedKaipokeCsId を URLの値で初期化
   // FIX: urlCsId -> currentCsId
@@ -360,7 +360,7 @@ useEffect(() => {
   const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null;
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
-// 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
+  // 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
   useEffect(() => {
     // FIX: urlCsId -> currentCsId
     if (selectedKaipokeCsId !== currentCsId) {
@@ -370,8 +370,8 @@ useEffect(() => {
       // selectedKaipokeCS も URLの値に合わせ、Fetchingがトリガーされるようにします
       setSelectedKaipokeCS(currentCsId);
     }
-  // FIX: urlCsId -> currentCsId
-  }, [currentCsId, selectedKaipokeCsId]); 
+    // FIX: urlCsId -> currentCsId
+  }, [currentCsId, selectedKaipokeCsId]);
 
   // 4. kaipoke_cs_id 変更ハンドラ: 状態とURLを更新
   // Select コンポーネントの onChange/onValueChange に渡す
@@ -721,13 +721,15 @@ useEffect(() => {
                     <td className="px-2 py-2 align-top border-b">
                       {/* サービスコード Select (Line 603: Error 2322 の解消) */}
                       <Select
-                        value={r.service_code}
-                        onValueChange={(v) => updateRow(r._cid as string, { service_code: v })}
+                        value={r.service_code || ""} // null/undefined 対策
+                        onValueChange={(v) => updateRow(r._cid as string, { service_code: v || "" })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="サービスを選択" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="">-</SelectItem> {/* 未選択オプション */}
+                          {/* serviceCodeOpts はクロージャ（スコープ）を通じて参照される */}
                           {serviceCodeOpts.map((opt) => (
                             <SelectItem key={opt.value} value={opt.value}>
                               {opt.label}
