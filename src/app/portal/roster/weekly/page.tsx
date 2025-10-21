@@ -432,9 +432,21 @@ export default function WeeklyRosterPage() {
     // ① サービスコードマスタのロード
     const loadServiceCodes = async () => {
       try {
+        // [ALERT 1] API呼び出し前
+        alert("ALERT 1: サービスコードAPI呼び出し開始");
         const data = await apiFetchServiceCodes();
+        
+        // [ALERT 2] APIレスポンス確認
+        alert(`ALERT 2: サービスコード取得成功。件数: ${data.length}件。`);
+
+        if (data.length === 0) {
+             alert("ALERT 2-B: 警告！APIは成功したが件数が 0 です。APIの戻り値を確認してください。");
+        }
+
         setServiceCodeOpts(data);
       } catch (e) {
+        // [ALERT 3] APIエラー発生時
+        alert("ALERT 3: サービスコードマスタ取得エラー: " + (e instanceof Error ? e.message : String(e)));
         console.error("サービスコードマスタ取得エラー", e);
       }
     };
@@ -599,6 +611,8 @@ export default function WeeklyRosterPage() {
       setSaving(false);
     }
   }
+
+  
 
   // =========================
   // Render
