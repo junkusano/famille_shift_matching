@@ -4,7 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 import type { ShiftWeeklyTemplateUpsert } from '@/types/shift-weekly-template'
 
 export async function POST(req: Request) {
-  const payload = (await req.json()) as ShiftWeeklyTemplateUpsert[]
+  // ★ 修正点1: リクエストボディ全体をパースし、rowsキーからペイロードを取得する
+  const body = await req.json();
+  const payload = body.rows as ShiftWeeklyTemplateUpsert[];
 
   if (!Array.isArray(payload) || payload.length === 0) {
     return NextResponse.json({ error: 'empty payload' }, { status: 400 })
@@ -14,11 +16,11 @@ export async function POST(req: Request) {
   const { error } = await supabaseAdmin
     .from('shift_weekly_template')
     .upsert(payload, {
-      onConflict: 'kaipoke_cs_id,weekday,start_time,required_staff_count',
+      onConflict: 'template_id', // ✅ ここを修正
       ignoreDuplicates: false,
     })
-    // .select() を付けなければ最小返却（minimal）
-    // .select() // ←返り値が必要なら有効化
+  // .select() を付けなければ最小返却（minimal）
+  // .select() // ←返り値が必要なら有効化
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
