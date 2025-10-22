@@ -1032,7 +1032,7 @@ export default function MonthlyRosterPage() {
                         印刷ビュー（PDF）
                     </Button>
 
-                    {/* 追加：週間テンプレートへ */}
+                    {/* 追加：週間シフトへ */}
                     <Button
                         variant="secondary"
                         onClick={() => {
@@ -1040,7 +1040,7 @@ export default function MonthlyRosterPage() {
                             router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}`);
                         }}
                     >
-                        週間テンプレートへ
+                        週間シフトへ
                     </Button>
                 </div>
 

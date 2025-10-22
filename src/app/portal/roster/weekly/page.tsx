@@ -254,7 +254,6 @@ export default function WeeklyRosterPage() {
 
   // 2. 状態の管理: selectedKaipokeCsId を URLの値で初期化
   // FIX: urlCsId -> currentCsId
-  const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>(currentCsId);
 
   // ==== Masters for filters ====
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
@@ -366,24 +365,18 @@ export default function WeeklyRosterPage() {
   const csPrev = csIndex > 0 ? kaipokeCs[csIndex - 1] : null;
   const csNext = csIndex >= 0 && csIndex < kaipokeCs.length - 1 ? kaipokeCs[csIndex + 1] : null;
 
+
   // 3. URLの変更を監視し、状態を同期させる (ブラウザ操作に対応)
   useEffect(() => {
-    // FIX: urlCsId -> currentCsId
-    if (selectedKaipokeCsId !== currentCsId) {
-      // URLの値が変更されたら、内部状態も更新
-      // FIX: urlCsId -> currentCsId
-      setSelectedKaipokeCsId(currentCsId);
-      // selectedKaipokeCS も URLの値に合わせ、Fetchingがトリガーされるようにします
-      setSelectedKaipokeCS(currentCsId);
-    }
-    // FIX: urlCsId -> currentCsId
-  }, [currentCsId, selectedKaipokeCsId]);
+    if (currentCsId) setSelectedKaipokeCS(currentCsId);
+
+  }, [currentCsId]);
 
   // 4. kaipoke_cs_id 変更ハンドラ: 状態とURLを更新
   // Select コンポーネントの onChange/onValueChange に渡す
   const handleCsIdChange = (newCsId: string) => {
     // 状態を即時更新
-    setSelectedKaipokeCsId(newCsId);
+    //setSelectedKaipokeCsId(newCsId);
     // FIX: selectedKaipokeCS も更新し、テンプレート/プレビューの自動再取得をトリガー
     setSelectedKaipokeCS(newCsId);
 
@@ -410,7 +403,10 @@ export default function WeeklyRosterPage() {
           .filter((c) => c.kaipoke_cs_id && c.name)
           .sort((a, b) => a.name.localeCompare(b.name, "ja"));
         setKaipokeCs(valid);
-        if (valid.length && !selectedKaipokeCS) setSelectedKaipokeCS(valid[0].kaipoke_cs_id);
+        if (valid.length && !selectedKaipokeCS) {
+          // URLにcsが無いときだけデフォルト選択
+          if (!currentCsId) setSelectedKaipokeCS(valid[0].kaipoke_cs_id);
+        }
       } catch (e) {
         console.error("利用者マスタ取得エラー", e);
       }
@@ -499,25 +495,18 @@ export default function WeeklyRosterPage() {
   // templates：利用者が変われば自動再取得
   useEffect(() => {
     if (!selectedKaipokeCS) return;
-
     setLoading(true);
     setError(null);
     setPreview(null);
 
-    if (selectedKaipokeCsId) {
-      apiFetchTemplates(selectedKaipokeCsId);
-    }
-
     apiFetchTemplates(selectedKaipokeCS)
-      .then((data) => {
-        setRows(data);
-      })
+      .then(setRows)
       .catch((e) => {
         setError(e instanceof Error ? e.message : String(e));
         setRows([]);
       })
       .finally(() => setLoading(false));
-  }, [selectedKaipokeCsId]);
+  }, [selectedKaipokeCS]);
 
   // (1) 初期プレビューの effect
   useEffect(() => {
@@ -633,7 +622,10 @@ export default function WeeklyRosterPage() {
               variant="secondary"
               disabled={!csPrev}
               // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
-              onClick={() => csPrev && handleCsIdChange(csPrev.kaipoke_cs_id)}
+              onClick={() => csPrev && (
+                setSelectedKaipokeCS(csPrev.kaipoke_cs_id),
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`, { scroll: false })
+              )}
             >
               前へ（{csPrev?.name ?? "-"}）
             </Button>
@@ -651,7 +643,7 @@ export default function WeeklyRosterPage() {
             <div style={{ width: 100 }}>
               <Select
                 // 1. ステート変数を合わせます
-                value={selectedKaipokeCsId}
+                value={selectedKaipokeCS}
 
                 // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
                 onValueChange={handleCsIdChange}
@@ -676,8 +668,10 @@ export default function WeeklyRosterPage() {
             <Button
               variant="secondary"
               disabled={!csNext}
-              onClick={() => csNext && setSelectedKaipokeCS(csNext.kaipoke_cs_id)}
-            >
+              onClick={() => csNext && (
+                setSelectedKaipokeCS(csNext.kaipoke_cs_id),
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csNext.kaipoke_cs_id)}`, { scroll: false })
+              )}  >
               次へ（{csNext?.name ?? "-"}）
             </Button>
           </div>
