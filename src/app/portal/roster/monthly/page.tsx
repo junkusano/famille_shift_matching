@@ -1017,7 +1017,8 @@ export default function MonthlyRosterPage() {
                         </Button>
                     </div>
                 )}
-                <div>
+
+                <div className="flex gap-2">
                     <Button
                         variant="outline"
                         onClick={() => {
@@ -1030,32 +1031,19 @@ export default function MonthlyRosterPage() {
                     >
                         印刷ビュー（PDF）
                     </Button>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                const q = new URLSearchParams({
-                                    kaipoke_cs_id: selectedKaipokeCS,
-                                    month: selectedMonth,
-                                })
-                                router.push(`/portal/roster/monthly/print-view?${q.toString()}`)
-                            }}
-                        >
-                            印刷ビュー（PDF）
-                        </Button>
 
-                        {/* 追加：週間テンプレートへ */}
-                        <Button
-                            variant="secondary"
-                            onClick={() => {
-                                if (!selectedKaipokeCS) return;
-                                router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}`);
-                            }}
-                        >
-                            週間テンプレートへ
-                        </Button>
-                    </div>
+                    {/* 追加：週間テンプレートへ */}
+                    <Button
+                        variant="secondary"
+                        onClick={() => {
+                            if (!selectedKaipokeCS) return;
+                            router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}`);
+                        }}
+                    >
+                        週間テンプレートへ
+                    </Button>
                 </div>
+
             </div>
 
             {/* テーブル（ヘッダー固定・行境界くっきり） */}
