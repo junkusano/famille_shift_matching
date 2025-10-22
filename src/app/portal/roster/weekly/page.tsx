@@ -317,13 +317,13 @@ export default function WeeklyRosterPage() {
   }, [rows]);
 
   const getQueryParams = (selectedMonth: string, selectedKaipokeCS: string, useRecurrence: boolean, deployPolicy: DeployPolicy) => {
-  return new URLSearchParams({
-    month: selectedMonth,
-    cs: selectedKaipokeCS,
-    recurrence: String(useRecurrence),
-    policy: deployPolicy,
-  });
-};
+    return new URLSearchParams({
+      month: selectedMonth,
+      cs: selectedKaipokeCS,
+      recurrence: String(useRecurrence),
+      policy: deployPolicy,
+    });
+  };
 
   // 利用者フィルタリング
   const filteredKaipokeCs = useMemo(() => {
@@ -402,7 +402,7 @@ export default function WeeklyRosterPage() {
       newParams.delete('cs'); // 全選択などの場合はパラメータを削除
     }
     // queryParamsを毎回定義する代わりに、関数を使って動的に生成
-  const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
+    const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
 
     // router.replace() で履歴を残さずURLを更新
     router.replace(`${pathname}?${queryParams.toString()}`);
@@ -436,12 +436,36 @@ export default function WeeklyRosterPage() {
         const res = await fetch("/api/users", { cache: "no-store" });
         const js = await res.json();
         // user_entry_united_view_single のカラム名を使用
-        const arr: StaffUserEntry[] = Array.isArray(js) ? js : [];
-        setStaffOpts(arr.map(u => ({
-          value: u.user_id,
-          // 姓名をスペース区切りで結合
-          label: `${u.last_name_kanji ?? ''} ${u.first_name_kanji ?? ''}`.trim()
-        })).filter(o => o.label)); // 姓名が空の場合は除外
+        // ★ ソートのために roster_sort プロパティの存在を一時的に想定
+        const arr: (StaffUserEntry & { roster_sort?: number | null })[] = Array.isArray(js) ? js : [];
+
+        const staffOptions = arr
+          .map(u => ({
+            value: u.user_id,
+            // 姓名をスペース区切りで結合
+            label: `${u.last_name_kanji ?? ''} ${u.first_name_kanji ?? ''}`.trim(),
+            // ★ ソートのために roster_sort を一時的に追加
+            rosterSort: u.roster_sort,
+          }))
+          .filter(o => o.label); // 姓名が空の場合は除外
+
+        // ★ ソートロジックを roster_sort -> label の順に変更
+        staffOptions.sort((a, b) => {
+          // 1. roster_sort で比較 (昇順)
+          // null/undefinedの場合は、一番最後に表示されるよう大きな値を設定
+          const sortA = a.rosterSort ?? Number.MAX_SAFE_INTEGER;
+          const sortB = b.rosterSort ?? Number.MAX_SAFE_INTEGER;
+
+          if (sortA !== sortB) {
+            return sortA - sortB;
+          }
+
+          // 2. roster_sort が同じ場合は label（姓名）で比較 (昇順/日本語の五十音順)
+          // localeCompare('ja')を使用することで、日本語の適切な順序（五十音順など）でソートされます
+          return a.label.localeCompare(b.label, 'ja');
+        });
+
+        setStaffOpts(staffOptions);
       } catch (e) {
         console.error("スタッフマスタ取得エラー", e);
       }
@@ -530,7 +554,7 @@ export default function WeeklyRosterPage() {
     if (!selectedKaipokeCS || !selectedMonth) return;
 
     // queryParamsを毎回定義する代わりに、関数を使って動的に生成
-  const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
+    const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
 
     // URLにクエリを反映
     router.replace(`${pathname}?${queryParams.toString()}`);
@@ -634,6 +658,10 @@ export default function WeeklyRosterPage() {
 
       const data = await apiFetchTemplates(selectedKaipokeCS);
       setRows(data);
+
+      // ✅ 修正箇所: 保存成功メッセージを追加
+      // ※注意：alertではなく、ToastなどのモダンなUIコンポーネントを使用することを推奨します。
+      alert("テンプレートを保存しました。"); 
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -896,9 +924,23 @@ export default function WeeklyRosterPage() {
                         <input
                           value={(r.nth_weeks || []).join(",")}
                           onChange={(e) => {
-                            const v = e.target.value
-                              ? e.target.value.split(",").map((x) => Number(x.trim())).filter((n) => !!n)
+                            // ★ 修正開始: 入力規制を緩める
+                            // 1. 入力値から数字とカンマ以外の文字をすべて除去し、サニタイズされた値を使用
+                            //    -> これにより、全角文字などが入力されても無視され、数字とカンマだけが残る
+                            const rawValue = e.target.value.replace(/[^0-9,]/g, '');
+
+                            const v = rawValue
+                              ? rawValue.split(",")
+                                // 2. 空文字列を除去 (例: "1,,3" のように連続カンマがある場合を処理)
+                                .filter((s) => s.trim() !== "")
+                                // 3. 数値に変換
+                                .map((s) => Number(s.trim()))
+                                // 4. 正の整数（1, 2, 3...）のみを保持。
+                                //    NaN、0、小数を排除し、データの整合性を保つ
+                                .filter((n) => Number.isInteger(n) && n > 0)
                               : [];
+                            // ★ 修正終了
+
                             updateRow(r._cid as string, { nth_weeks: v.length ? v : null });
                           }}
                           placeholder="例:1,3,5"
