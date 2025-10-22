@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: 'unauthorized_cron' }, { status: 401 });
   }
 
-  const result = await runShiftRecordCheck({ dryRun: true }); // ← 送信はしない
+  const result = await runShiftRecordCheck({ dryRun: false }); // ← 送信する
   return NextResponse.json({ source: 'cron-api', ...result });
 }
 

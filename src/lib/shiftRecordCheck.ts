@@ -8,7 +8,7 @@ import { formatInTimeZone } from "date-fns-tz";
 
 const timeZone = "Asia/Tokyo";
 
-const DRY_RUN = true; // 送信せずログだけ出したい時は true
+const DRY_RUN = false; // 送信せずログだけ出したい時は true
 
 export type ShiftRecordCheckResult = {
     ok: boolean;
