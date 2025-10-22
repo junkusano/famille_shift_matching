@@ -6,7 +6,8 @@ import { Plus, Trash2, Save, RefreshCw, CalendarDays, ChevronLeft, ChevronRight 
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from 'next/router';
 
 
 // =========================
@@ -313,6 +314,15 @@ export default function WeeklyRosterPage() {
     return validRows.reduce((acc, r) => acc + Math.max(0, toMin(r.end_time) - toMin(r.start_time)), 0);
   }, [rows]);
 
+  const getQueryParams = (selectedMonth: string, selectedKaipokeCS: string, useRecurrence: boolean, deployPolicy: DeployPolicy) => {
+  return new URLSearchParams({
+    month: selectedMonth,
+    cs: selectedKaipokeCS,
+    recurrence: String(useRecurrence),
+    policy: deployPolicy,
+  });
+};
+
   // 利用者フィルタリング
   const filteredKaipokeCs = useMemo(() => {
     if (!clientSearchKeyword) return kaipokeCs;
@@ -351,6 +361,8 @@ export default function WeeklyRosterPage() {
     );
   };
 
+
+
   const monthOptions = useMemo(() => {
     const base = nowYYYYMM();
     const list: string[] = [];
@@ -387,8 +399,11 @@ export default function WeeklyRosterPage() {
     } else {
       newParams.delete('cs'); // 全選択などの場合はパラメータを削除
     }
+    // queryParamsを毎回定義する代わりに、関数を使って動的に生成
+  const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
+
     // router.replace() で履歴を残さずURLを更新
-    router.replace(`/portal/roster/weekly?${newParams.toString()}`, { scroll: false });
+    router.replace(`${router.pathname}?${queryParams.toString()}`);
   };
 
   // ==== Effects ====
@@ -508,16 +523,35 @@ export default function WeeklyRosterPage() {
       .finally(() => setLoading(false));
   }, [selectedKaipokeCS]);
 
-  // (1) 初期プレビューの effect
+  // プレビューの取得部分を修正
   useEffect(() => {
     if (!selectedKaipokeCS || !selectedMonth) return;
+
+    // queryParamsを毎回定義する代わりに、関数を使って動的に生成
+  const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
+
+    // URLにクエリを反映
+    router.replace(`${router.pathname}?${queryParams.toString()}`);
+
     setLoading(true);
     setError(null);
-    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy) // ← policy 追加
+
+    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)
       .then((v) => setPreview(Array.isArray(v) ? v : []))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy]); // ← 依存に deployPolicy も入れる
+  }, [selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy, router]);
+
+
+  // selectedMonth と selectedKaipokeCS の同期：`selectedMonth` が変更されたときにURLのクエリも更新
+  useEffect(() => {
+    if (!selectedMonth) return;
+
+    const queryParams = new URLSearchParams(searchParams.toString());
+    queryParams.set("month", selectedMonth);  // selectedMonthが変更されるたびにURLに反映
+
+    router.replace(`${router.pathname}?${queryParams.toString()}`);
+  }, [selectedMonth, searchParams, router]); // `selectedMonth` が変更されたら反映
 
 
 
@@ -624,7 +658,7 @@ export default function WeeklyRosterPage() {
               // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
               onClick={() => csPrev && (
                 setSelectedKaipokeCS(csPrev.kaipoke_cs_id),
-                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`, { scroll: false })
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`)
               )}
             >
               前へ（{csPrev?.name ?? "-"}）
@@ -670,7 +704,7 @@ export default function WeeklyRosterPage() {
               disabled={!csNext}
               onClick={() => csNext && (
                 setSelectedKaipokeCS(csNext.kaipoke_cs_id),
-                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csNext.kaipoke_cs_id)}`, { scroll: false })
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csNext.kaipoke_cs_id)}`)
               )}  >
               次へ（{csNext?.name ?? "-"}）
             </Button>
@@ -925,13 +959,11 @@ export default function WeeklyRosterPage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              setPreview(null);
-              setLoading(true);
-              setError(null);
-              apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy) // ← policy 追加
-                .then((v) => setPreview(Array.isArray(v) ? v : []))
-                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-                .finally(() => setLoading(false));
+              const newMonth = addMonths(selectedMonth, -1);
+              setSelectedMonth(newMonth);
+              const newParams = new URLSearchParams(searchParams.toString());
+              newParams.set('month', newMonth);
+              router.replace(`/portal/roster/weekly?${newParams.toString()}`);
             }}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -950,7 +982,13 @@ export default function WeeklyRosterPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSelectedMonth(addMonths(selectedMonth, 1))}
+            onClick={() => {
+              const newMonth = addMonths(selectedMonth, 1);
+              setSelectedMonth(newMonth);
+              const newParams = new URLSearchParams(searchParams.toString());
+              newParams.set('month', newMonth);
+              router.replace(`/portal/roster/weekly?${newParams.toString()}`);
+            }}
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
