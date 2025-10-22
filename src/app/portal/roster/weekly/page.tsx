@@ -6,8 +6,9 @@ import { Plus, Trash2, Save, RefreshCw, CalendarDays, ChevronLeft, ChevronRight 
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from 'next/router';
+import { usePathname, useSearchParams } from "next/navigation";
+//import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 
 // =========================
@@ -234,6 +235,7 @@ const Pill: React.FC<{ label: string; tone?: "ok" | "warn" | "muted" }> = ({ lab
 // =========================
 export default function WeeklyRosterPage() {
   const router = useRouter();
+  const pathname = usePathname();
   // 1. useSearchParams の取得
   const searchParams = useSearchParams();
 
@@ -403,7 +405,7 @@ export default function WeeklyRosterPage() {
   const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
 
     // router.replace() で履歴を残さずURLを更新
-    router.replace(`${router.pathname}?${queryParams.toString()}`);
+    router.replace(`${pathname}?${queryParams.toString()}`);
   };
 
   // ==== Effects ====
@@ -531,7 +533,7 @@ export default function WeeklyRosterPage() {
   const queryParams = getQueryParams(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy);
 
     // URLにクエリを反映
-    router.replace(`${router.pathname}?${queryParams.toString()}`);
+    router.replace(`${pathname}?${queryParams.toString()}`);
 
     setLoading(true);
     setError(null);
@@ -550,7 +552,7 @@ export default function WeeklyRosterPage() {
     const queryParams = new URLSearchParams(searchParams.toString());
     queryParams.set("month", selectedMonth);  // selectedMonthが変更されるたびにURLに反映
 
-    router.replace(`${router.pathname}?${queryParams.toString()}`);
+    router.replace(`${pathname}?${queryParams.toString()}`);
   }, [selectedMonth, searchParams, router]); // `selectedMonth` が変更されたら反映
 
 
