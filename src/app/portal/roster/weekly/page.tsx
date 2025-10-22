@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Save, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Save, RefreshCw, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -985,8 +985,11 @@ export default function WeeklyRosterPage() {
           >
             {deploying ? '展開中...' : '月間シフト展開を実行'}
           </Button>
+          {/* プレビュー更新（アイコンのみ） */}
           <Button
-            variant="secondary"
+            variant="outline"
+            size="sm"
+            title="プレビューを更新"
             disabled={!selectedKaipokeCS || !selectedMonth}
             onClick={() => {
               setPreview(null);
@@ -994,9 +997,25 @@ export default function WeeklyRosterPage() {
               setError(null);
               apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)
                 .then((v) => setPreview(Array.isArray(v) ? v : []))
+                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                .finally(() => setLoading(false));
             }}
           >
-            <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+
+          {/* 月間シフトへ（クエリ引き継ぎ） */}
+          <Button
+            variant="secondary"
+            disabled={!selectedKaipokeCS || !selectedMonth}
+            onClick={() =>
+              router.push(
+                `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`
+              )
+            }
+          >
+            <CalendarDays className="w-4 h-4 mr-2" />
+            月間シフトへ
           </Button>
         </div>
       </div>

@@ -238,76 +238,76 @@ type CheckResult = { ok: boolean; confirmMessage?: string; errorMessage?: string
 // ご指定の業務ルール + 追加分を統合
 // 置き換え版：two_person_work_flg=false の場合は確認ダイアログなし
 const checkTwoPersonRules = (
-  twoPerson: boolean,
-  requiredCount: number,
-  s2id?: string | null, s2attend?: boolean | null,
-  s3id?: string | null, s3attend?: boolean | null
+    twoPerson: boolean,
+    requiredCount: number,
+    s2id?: string | null, s2attend?: boolean | null,
+    s3id?: string | null, s3attend?: boolean | null
 ): CheckResult => {
-  const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
-  const s2Set = hasValue(s2id);
-  const s3Set = hasValue(s3id);
-  const s2Attend = !!s2attend;
-  const s3Attend = !!s3attend;
+    const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
+    const s2Set = hasValue(s2id);
+    const s3Set = hasValue(s3id);
+    const s2Attend = !!s2attend;
+    const s3Attend = !!s3attend;
 
-  // ▼ two_person_work_flg = false
-  if (!twoPerson) {
-    // 必須: required_staff_count は 1 または 2
-    if (requiredCount !== 1 && requiredCount !== 2) {
-      return {
-        ok: false,
-        errorMessage:
-          '二人同時介助[重複:-]の場合、派遣人数は「1人目」または「2人目」を選択してください（派遣人数=0は不可）。'
-      };
+    // ▼ two_person_work_flg = false
+    if (!twoPerson) {
+        // 必須: required_staff_count は 1 または 2
+        if (requiredCount !== 1 && requiredCount !== 2) {
+            return {
+                ok: false,
+                errorMessage:
+                    '二人同時介助[重複:-]の場合、派遣人数は「1人目」または「2人目」を選択してください（派遣人数=0は不可）。'
+            };
+        }
+        // required=1 のとき、スタッフ2/3 を設定するなら同行✅が必須
+        if (requiredCount === 1) {
+            if ((s2Set && !s2Attend) || (s3Set && !s3Attend)) {
+                return {
+                    ok: false,
+                    errorMessage:
+                        '一人介助の場合、スタッフ2人目・3人目を設定する時は「同行」に✅を入れる必要があります。'
+                };
+            }
+        }
+        // 確認メッセージは出さない
+        return { ok: true };
     }
-    // required=1 のとき、スタッフ2/3 を設定するなら同行✅が必須
-    if (requiredCount === 1) {
-      if ((s2Set && !s2Attend) || (s3Set && !s3Attend)) {
+
+    // ▼ two_person_work_flg = true（既存ルール）
+    if (requiredCount === 1 || requiredCount === 2) {
+        const okWhenHelperPresent = (s2Set && s2Attend) || (s3Set && s3Attend);
+        const okWhenNoHelperYet = !s2Set && !s3Set;
+        if (okWhenHelperPresent || okWhenNoHelperYet) return { ok: true };
+
         return {
-          ok: false,
-          errorMessage:
-            '一人介助の場合、スタッフ2人目・3人目を設定する時は「同行」に✅を入れる必要があります。'
+            ok: false,
+            errorMessage:
+                '二人同時作業です。派遣人数が1または2のときは、\n' +
+                '・スタッフ2 同行✅ もしくは スタッフ3 同行✅ のいずれかを設定する\n' +
+                '  あるいは、スタッフ2/3 を両方とも未設定にしてください。'
         };
-      }
     }
-    // 確認メッセージは出さない
+
+    if (requiredCount === 0) {
+        const needNonAttend = (s2Set && !s2Attend) || (s3Set && !s3Attend);
+        if (!needNonAttend) {
+            return {
+                ok: false,
+                errorMessage:
+                    '二人同時作業かつ 派遣人数=0 の場合、\n' +
+                    'スタッフ2 か スタッフ3 のどちらか一方は「同行✅なし（未チェック）」で登録してください。'
+            };
+        }
+        return {
+            ok: true,
+            confirmMessage:
+                '2人介助請求対象ですか？\n' +
+                '単なるサービス同行の場合には 2人目・3人目のスタッフは「同行✅」する必要があります。\n\n' +
+                'OKで続行 / いいえで中止'
+        };
+    }
+
     return { ok: true };
-  }
-
-  // ▼ two_person_work_flg = true（既存ルール）
-  if (requiredCount === 1 || requiredCount === 2) {
-    const okWhenHelperPresent = (s2Set && s2Attend) || (s3Set && s3Attend);
-    const okWhenNoHelperYet = !s2Set && !s3Set;
-    if (okWhenHelperPresent || okWhenNoHelperYet) return { ok: true };
-
-    return {
-      ok: false,
-      errorMessage:
-        '二人同時作業です。派遣人数が1または2のときは、\n' +
-        '・スタッフ2 同行✅ もしくは スタッフ3 同行✅ のいずれかを設定する\n' +
-        '  あるいは、スタッフ2/3 を両方とも未設定にしてください。'
-    };
-  }
-
-  if (requiredCount === 0) {
-    const needNonAttend = (s2Set && !s2Attend) || (s3Set && !s3Attend);
-    if (!needNonAttend) {
-      return {
-        ok: false,
-        errorMessage:
-          '二人同時作業かつ 派遣人数=0 の場合、\n' +
-          'スタッフ2 か スタッフ3 のどちらか一方は「同行✅なし（未チェック）」で登録してください。'
-      };
-    }
-    return {
-      ok: true,
-      confirmMessage:
-        '2人介助請求対象ですか？\n' +
-        '単なるサービス同行の場合には 2人目・3人目のスタッフは「同行✅」する必要があります。\n\n' +
-        'OKで続行 / いいえで中止'
-    };
-  }
-
-  return { ok: true };
 };
 
 
@@ -1030,6 +1030,31 @@ export default function MonthlyRosterPage() {
                     >
                         印刷ビュー（PDF）
                     </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                const q = new URLSearchParams({
+                                    kaipoke_cs_id: selectedKaipokeCS,
+                                    month: selectedMonth,
+                                })
+                                router.push(`/portal/roster/monthly/print-view?${q.toString()}`)
+                            }}
+                        >
+                            印刷ビュー（PDF）
+                        </Button>
+
+                        {/* 追加：週間テンプレートへ */}
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                if (!selectedKaipokeCS) return;
+                                router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}`);
+                            }}
+                        >
+                            週間テンプレートへ
+                        </Button>
+                    </div>
                 </div>
             </div>
 
