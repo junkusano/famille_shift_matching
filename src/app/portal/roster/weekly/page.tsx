@@ -49,6 +49,11 @@ export type PreviewRow = {
   staff_02_attend_flg: boolean;
   staff_03_attend_flg: boolean;
   has_conflict: boolean;
+  // ★ここから追加★
+  shift_id?: string | null;      // 既存シフト側のID
+  is_template?: boolean;         // true=テンプレ由来, false=既存
+  will_be_deleted?: boolean;     // 既存のうち削除予定（policy次第）
+  action?: 'new' | 'keep' | 'delete' | 'new_conflict'; // 表示用
 };
 
 // 展開ポリシーを3パターンに
@@ -187,8 +192,9 @@ async function apiBulkDelete(templateIds: number[]) {
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   return res.json();
 }
-async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean) {
-  const q = new URLSearchParams({ month, cs, recurrence: String(useRecurrence) });
+
+async function apiPreviewMonth(month: string, cs: string, useRecurrence: boolean, policy: DeployPolicy) {
+  const q = new URLSearchParams({ month, cs, recurrence: String(useRecurrence), policy });
   const res = await fetch(`/api/roster/weekly/preview?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await summarizeHTTP(res));
   const data = await res.json();
@@ -479,7 +485,9 @@ export default function WeeklyRosterPage() {
       const result = await apiDeployMonth(selectedMonth, selectedKaipokeCS, deployPolicy);
       alert(`シフト展開が完了しました。\n挿入: ${result.inserted_count || 0}件, 更新: ${result.updated_count || 0}件, 削除: ${result.deleted_count || 0}件`);
       // 展開後、プレビューを強制更新
-      apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence).then(setPreview).catch(setError);
+      apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)
+        .then(setPreview)
+        .catch(setError);
     } catch (s) {
       setError(s instanceof Error ? s.message : String(s));
       alert("シフト展開中にエラーが発生しました: " + safeErr(s)); // safeErrの引数を e に修正
@@ -511,22 +519,18 @@ export default function WeeklyRosterPage() {
       .finally(() => setLoading(false));
   }, [selectedKaipokeCsId]);
 
-  // preview：月/利用者/隔週フラグの変更時に自動再生成
+  // (1) 初期プレビューの effect
   useEffect(() => {
     if (!selectedKaipokeCS || !selectedMonth) return;
-
     setLoading(true);
     setError(null);
-
-    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
-      .then((v) => {
-        setPreview(Array.isArray(v) ? v : []);
-      })
-      .catch((e) => {
-        setError(e instanceof Error ? e.message : String(e));
-      })
+    apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy) // ← policy 追加
+      .then((v) => setPreview(Array.isArray(v) ? v : []))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [selectedMonth, selectedKaipokeCS, useRecurrence]);
+  }, [selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy]); // ← 依存に deployPolicy も入れる
+
+
 
   // ==== Actions ====
   function addRow() {
@@ -926,7 +930,15 @@ export default function WeeklyRosterPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSelectedMonth(addMonths(selectedMonth, -1))}
+            onClick={() => {
+              setPreview(null);
+              setLoading(true);
+              setError(null);
+              apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy) // ← policy 追加
+                .then((v) => setPreview(Array.isArray(v) ? v : []))
+                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                .finally(() => setLoading(false));
+            }}
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -980,10 +992,8 @@ export default function WeeklyRosterPage() {
               setPreview(null);
               setLoading(true);
               setError(null);
-              apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence)
+              apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)
                 .then((v) => setPreview(Array.isArray(v) ? v : []))
-                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-                .finally(() => setLoading(false));
             }}
           >
             <Eye className="w-4 h-4 mr-2" /> 月展開プレビュー
@@ -1003,13 +1013,13 @@ export default function WeeklyRosterPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-white sticky top-0 shadow-sm">
                 <tr>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">日付</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">曜日</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">提供時間</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">サービス</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">人数/2人従事</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">担当</th>
-                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">既存シフトと重なり</th>
+                  <th className="...">日付</th>
+                  <th className="...">曜日</th>
+                  <th className="...">提供時間</th>
+                  <th className="...">サービス</th>
+                  <th className="...">人数/2人従事</th>
+                  <th className="...">担当</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 px-2 py-2 border-b">アクション</th>
                 </tr>
               </thead>
               <tbody>
@@ -1020,34 +1030,37 @@ export default function WeeklyRosterPage() {
                   const sst = typeof p.shift_start_time === "string" ? p.shift_start_time.slice(0, 5) : "--:--";
                   const set = typeof p.shift_end_time === "string" ? p.shift_end_time.slice(0, 5) : "--:--";
 
-                  // ⑤ プレビュー背景色ロジック修正
-                  const rowClass = p.has_conflict
-                    ? "bg-red-50 hover:bg-red-100 border-b"
-                    : "bg-blue-50 hover:bg-blue-100 border-b";
+                  // アクション決定（バックエンドで action を返しても良いが、ここで決めてもOK）
+                  const isNew = p.is_template === true;
+                  const isDeleted = p.will_be_deleted === true;
+                  const isKept = !isNew && !isDeleted;
+                  const isConflict = p.has_conflict === true;
+
+                  let statusText = "";
+                  let statusClass = "bg-slate-100 text-slate-700";
+                  if (isDeleted) { statusText = "削除（既存）"; statusClass = "bg-red-100 text-red-700 font-semibold"; }
+                  else if (isNew && isConflict) { statusText = "新規（重なりあり）"; statusClass = "bg-amber-100 text-amber-700 font-semibold"; }
+                  else if (isNew) { statusText = "新規追加"; statusClass = "bg-blue-100 text-blue-700 font-semibold"; }
+                  else if (isKept) { statusText = "維持（既存）"; statusClass = "bg-green-100 text-green-700 font-semibold"; }
 
                   return (
-                    <tr key={i} className={rowClass}>
+                    <tr key={p.shift_id ?? `${p.kaipoke_cs_id}-${i}`} className="border-b">
                       <td className="px-2 py-2 align-top border-b">{dateStr || "-"}</td>
                       <td className="px-2 py-2 align-top border-b">{wd}</td>
-                      <td className="px-2 py-2 align-top border-b">
-                        {sst}〜{set}
-                      </td>
+                      <td className="px-2 py-2 align-top border-b">{sst}〜{set}</td>
                       <td className="px-2 py-2 align-top border-b">{cleanText(p.service_code)}</td>
                       <td className="px-2 py-2 align-top border-b">
                         {p.required_staff_count}{p.two_person_work_flg ? " / 2人従事" : ""}
                       </td>
-                      {/* ⑥ 担当者表示を ID 姓名 に変更 */}
                       <td className="px-2 py-2 align-top border-b text-xs text-slate-600">
                         {idAndNameOf(p.staff_01_user_id)}
                         {p.staff_02_user_id ? " / " + idAndNameOf(p.staff_02_user_id) + (p.staff_02_attend_flg ? "(同)" : "") : ""}
                         {p.staff_03_user_id ? " / " + idAndNameOf(p.staff_03_user_id) + (p.staff_03_attend_flg ? "(同)" : "") : ""}
                       </td>
-                      {/* ⑤ 衝突表示の文言変更と色分け */}
-                      <td className="px-2 py-2 align-top border-b">
-                        {p.has_conflict
-                          ? <span className="text-red-700 text-xs font-semibold">既存シフトと重なり</span>
-                          : <span className="text-blue-700 text-xs font-semibold">テンプレート展開</span>
-                        }
+
+                      {/* ★アクション列 */}
+                      <td className={`px-2 py-2 align-top border-b text-xs rounded ${statusClass}`}>
+                        {statusText}
                       </td>
                     </tr>
                   );
