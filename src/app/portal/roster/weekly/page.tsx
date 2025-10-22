@@ -363,8 +363,6 @@ export default function WeeklyRosterPage() {
     );
   };
 
-
-
   const monthOptions = useMemo(() => {
     const base = nowYYYYMM();
     const list: string[] = [];
@@ -406,6 +404,67 @@ export default function WeeklyRosterPage() {
 
     // router.replace() で履歴を残さずURLを更新
     router.replace(`${pathname}?${queryParams.toString()}`);
+  };
+
+
+  // ユーザー入力用のカスタムコンポーネントを作成し、その中でローカルステートを管理
+  const NthWeeksInput = ({ row, updateRow }: { row: TemplateRow, updateRow: (cid: string, data: Partial<TemplateRow>) => void }) => {
+    // 1. 入力フィールドに表示する「生の値」を管理するローカルステート
+    // row.nth_weeksが配列ならカンマ区切り文字列、そうでなければ空文字列
+    const initialValue = (row.nth_weeks || []).join(",");
+    const [inputValue, setInputValue] = useState(initialValue);
+
+    // row.nth_weeks の値が外部から更新された場合（例：保存後の再フェッチ）に、inputValueを同期させる
+    useEffect(() => {
+      setInputValue((row.nth_weeks || []).join(","));
+    }, [row.nth_weeks]);
+
+    // 2. 入力が変更されるたびにローカルステートを更新（入力規制なし）
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // ユーザーが入力したそのままの値を保持（全角文字なども許容）
+      setInputValue(e.target.value);
+    };
+
+    // 3. フォーカスが外れたとき（onBlur）にサニタイズして親ステートを更新
+    const handleBlur = () => {
+      // 1. 数字とカンマ以外の文字をすべて除去
+      const rawValue = inputValue.replace(/[^0-9,]/g, '');
+
+      const v = rawValue
+        ? rawValue.split(",")
+          // 2. 空文字列を除去 (例: "1,,3")
+          .filter((s) => s.trim() !== "")
+          // 3. 数値に変換
+          .map((s) => Number(s.trim()))
+          // 4. 正の整数（1, 2, 3...）のみを保持
+          .filter((n) => Number.isInteger(n) && n > 0)
+        : [];
+
+      // 親コンポーネントのステートを更新
+      const newNthWeeks = v.length ? v : null;
+
+      // 値が実際に変更された場合にのみ更新処理を行う（不要なレンダリングを防ぐ）
+      const currentNthWeeksString = (row.nth_weeks || []).join(',');
+      const newNthWeeksString = (newNthWeeks || []).join(',');
+
+      if (currentNthWeeksString !== newNthWeeksString) {
+        updateRow(row._cid as string, { nth_weeks: newNthWeeks });
+      }
+
+      // サニタイズされた値で入力欄を上書きし、表示を確定する
+      setInputValue(newNthWeeksString);
+    };
+
+
+    return (
+      <input
+        value={inputValue}
+        onChange={handleChange}
+        onBlur={handleBlur} // フォーカスが外れたときにサニタイズとデータ更新を行う
+        placeholder="例:1,3,5"
+        className="border rounded-lg px-2 py-1 w-20"
+      />
+    );
   };
 
   // ==== Effects ====
@@ -661,7 +720,7 @@ export default function WeeklyRosterPage() {
 
       // ✅ 修正箇所: 保存成功メッセージを追加
       // ※注意：alertではなく、ToastなどのモダンなUIコンポーネントを使用することを推奨します。
-      alert("テンプレートを保存しました。"); 
+      alert("テンプレートを保存しました。");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -921,31 +980,7 @@ export default function WeeklyRosterPage() {
                             onChange={(e) => updateRow(r._cid as string, { is_biweekly: e.target.checked })}
                           /> 隔週
                         </label>
-                        <input
-                          value={(r.nth_weeks || []).join(",")}
-                          onChange={(e) => {
-                            // ★ 修正開始: 入力規制を緩める
-                            // 1. 入力値から数字とカンマ以外の文字をすべて除去し、サニタイズされた値を使用
-                            //    -> これにより、全角文字などが入力されても無視され、数字とカンマだけが残る
-                            const rawValue = e.target.value.replace(/[^0-9,]/g, '');
-
-                            const v = rawValue
-                              ? rawValue.split(",")
-                                // 2. 空文字列を除去 (例: "1,,3" のように連続カンマがある場合を処理)
-                                .filter((s) => s.trim() !== "")
-                                // 3. 数値に変換
-                                .map((s) => Number(s.trim()))
-                                // 4. 正の整数（1, 2, 3...）のみを保持。
-                                //    NaN、0、小数を排除し、データの整合性を保つ
-                                .filter((n) => Number.isInteger(n) && n > 0)
-                              : [];
-                            // ★ 修正終了
-
-                            updateRow(r._cid as string, { nth_weeks: v.length ? v : null });
-                          }}
-                          placeholder="例:1,3,5"
-                          className="border rounded-lg px-2 py-1 w-20"
-                        />
+                        <NthWeeksInput row={r} updateRow={updateRow} />
                         第n週(例: 1,3,5)
                       </div>
                     </td>
