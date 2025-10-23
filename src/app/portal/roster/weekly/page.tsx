@@ -841,7 +841,7 @@ export default function WeeklyRosterPage() {
             </Button>
           </div>
         </div>
-        <div　className="flex flex-col">
+        <div className="flex flex-col">
           <label className="text-sm text-muted-foreground">反映月</label>
           {/* 前月ボタン */}
           <Button
@@ -881,6 +881,8 @@ export default function WeeklyRosterPage() {
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
+        </div>
+        <div className="flex flex-col">
           <label className="text-sm text-muted-foreground">重なり処理</label>
           <Select
             value={deployPolicy}
