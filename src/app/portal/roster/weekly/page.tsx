@@ -242,8 +242,6 @@ export default function WeeklyRosterPage() {
   // 2. URLからcsIDを直接取得
   const currentCsId = searchParams.get("cs") || "";
 
-
-
   // 3. 既存の useEffect の依存配列はそのまま (currentCsId に依存しているはず)
   // ERROR: fetchTemplateList, setTemplates のため、このブロックを削除します
   /*
@@ -263,8 +261,8 @@ export default function WeeklyRosterPage() {
   // NOTE: selectedKaipokeCS は NavボタンやFetchingで使われるため残す
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
-  const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); // ③ 新規追加
-  const [deploying, setDeploying] = useState(false); // ④ 新規追加 (展開中ステート)
+  const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); 
+  const [deploying, setDeploying] = useState(false); 
   const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
 
   // ③ スタッフマスタ

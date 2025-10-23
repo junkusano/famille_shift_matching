@@ -1037,7 +1037,7 @@ export default function MonthlyRosterPage() {
                         variant="secondary"
                         onClick={() => {
                             if (!selectedKaipokeCS) return;
-                            router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}`);
+                            router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`)
                         }}
                     >
                         週間シフトへ
