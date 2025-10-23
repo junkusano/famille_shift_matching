@@ -881,10 +881,10 @@ export default function MonthlyRosterPage() {
 
         try {
             // API呼び出しパスとペイロードのキーを、既存の週間シフトのAPIに合わせる
-            const res = await fetch('/api/roster/weekly/templates/bulk_upsert', {
+            const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                // ▼ 修正: ペイロードのキーを 'records' から 'rows' に変更
+                // ▼ 修正: ペイロードのキーを 'rows' に変更
                 body: JSON.stringify({ rows: weeklyTemplateRecords }),
             });
 
