@@ -841,7 +841,7 @@ export default function WeeklyRosterPage() {
             </Button>
           </div>
         </div>
-        <div>
+        <div　className="flex flex-col">
           <label className="text-sm text-muted-foreground">反映月</label>
           {/* 前月ボタン */}
           <Button
@@ -897,7 +897,7 @@ export default function WeeklyRosterPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="flex flex-col">
           <Button
             onClick={deployShift}
             disabled={!selectedKaipokeCS || !selectedMonth || deploying}
