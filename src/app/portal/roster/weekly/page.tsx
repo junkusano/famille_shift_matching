@@ -264,8 +264,8 @@ export default function WeeklyRosterPage() {
   const monthFromUrl = searchParams.get("month");
   const [selectedMonth, setSelectedMonth] = useState<string>(monthFromUrl || nowYYYYMM());
   //const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
-  const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); 
-  const [deploying, setDeploying] = useState(false); 
+  const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict');
+  const [deploying, setDeploying] = useState(false);
   const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
 
   // ③ スタッフマスタ
@@ -567,6 +567,19 @@ export default function WeeklyRosterPage() {
     return res.json();
   }
 
+  // page.tsx の apiDeployMonth 関数の近くに追記
+
+  async function apiBulkDeployMonth(month: string, policy: DeployPolicy) {
+    // 新規APIエンドポイント /api/roster/weekly/bulk_deploy を呼び出す
+    const res = await fetch("/api/roster/weekly/bulk_deploy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month, policy }), // kaipoke_cs_id は不要
+    });
+    if (!res.ok) throw new Error(await summarizeHTTP(res));
+    return res.json();
+  }
+
   async function deployShift() {
     if (!selectedKaipokeCS) {
       alert("利用者を選択してください。");
@@ -590,6 +603,33 @@ export default function WeeklyRosterPage() {
       alert("シフト展開中にエラーが発生しました: " + safeErr(s)); // safeErrの引数を e に修正
     } finally {
       setDeploying(false); // ★ 利用する (Warning 6133 解消)
+    }
+  }
+
+
+  async function deployAllShift() {
+    if (!confirm(`【${selectedMonth}】の週間シフトを全利用者に対して一括展開を実行します。\nポリシー: ${deployPolicy} で実行。よろしいですか？`)) return;
+
+    setDeploying(true);
+    setError(null);
+    setPreview(null); // プレビューは全利用者分ではないため、リセットのみ
+
+    try {
+      const result = await apiBulkDeployMonth(selectedMonth, deployPolicy);
+      alert(`全利用者へのシフト一括展開が完了しました。\n合計挿入: ${result.inserted_count || 0}件, 合計更新: ${result.updated_count || 0}件, 合計削除: ${result.deleted_count || 0}件`);
+
+      // 展開後、現在選択中の利用者（selectedKaipokeCS）のプレビューを強制更新
+      if (selectedKaipokeCS) {
+        apiPreviewMonth(selectedMonth, selectedKaipokeCS, useRecurrence, deployPolicy)
+          .then(setPreview)
+          .catch(setError);
+      }
+
+    } catch (s) {
+      setError(s instanceof Error ? s.message : String(s));
+      alert("シフト一括展開中にエラーが発生しました: " + safeErr(s));
+    } finally {
+      setDeploying(false);
     }
   }
 
@@ -800,6 +840,40 @@ export default function WeeklyRosterPage() {
             </Button>
           </div>
         </div>
+        <label className="text-sm text-muted-foreground">重なり処理</label>
+        <Select
+          value={deployPolicy}
+          onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
+        // disabled={deploying} を削除 (Error 2322 対応)
+        >
+          <SelectTrigger >
+            <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="skip_conflict">既存と重なるときは展開スキップ (既存維持)</SelectItem>
+            <SelectItem value="overwrite_only">既存と重なるときは週間シフトで上書き (既存維持)</SelectItem>
+            <SelectItem value="delete_month_insert">月全体を削除し、全て新規挿入</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          onClick={deployShift}
+          disabled={!selectedKaipokeCS || !selectedMonth || deploying}
+          className="bg-red-600 hover:bg-red-700"
+        >
+          {deploying ? '展開中...' : '月間シフト展開を実行'}
+        </Button>
+
+        {/* 【ここに一括展開ボタンを追記】 */}
+        <Button
+          onClick={deployAllShift}
+          disabled={!selectedMonth || deploying}
+          variant="destructive" // 目立つ色で
+          className="bg-purple-600 hover:bg-purple-700 ml-4" // 左にマージンを追加
+        >
+          {deploying ? '全展開中...' : '全利用者へ一括展開'}
+        </Button>
+
       </div>
 
       {/* ステータス */}
