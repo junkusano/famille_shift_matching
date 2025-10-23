@@ -1061,7 +1061,7 @@ export default function MonthlyRosterPage() {
                         </Button>
                         <div style={{ width: 160 }}>
                             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                                <SelectTrigger>
+                                <SelectTrigger bg-amber-50>
                                     <SelectValue placeholder="月を選択" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1094,12 +1094,13 @@ export default function MonthlyRosterPage() {
                                 placeholder="利用者名検索 (冒頭一致)"
                                 value={clientSearchKeyword}
                                 onChange={(e) => setClientSearchKeyword(e.target.value)}
+                                bg-sky-50
                             />
                         </div>
 
                         <div style={{ width: 180 }}>
                             <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
-                                <SelectTrigger>
+                                <SelectTrigger bg-amber-50>
                                     <SelectValue placeholder="利用者を選択" />
                                 </SelectTrigger>
                                 <SelectContent>

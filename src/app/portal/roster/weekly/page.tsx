@@ -801,6 +801,7 @@ export default function WeeklyRosterPage() {
                 placeholder="利用者名検索"
                 value={clientSearchKeyword}
                 onChange={(e) => setClientSearchKeyword(e.target.value)}
+                bg-sky-50
               />
             </div>
             <div style={{ width: 100 }}>
@@ -811,10 +812,10 @@ export default function WeeklyRosterPage() {
                 // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
                 onValueChange={handleCsIdChange}
               >
-                <SelectTrigger>
+                <SelectTrigger bg-amber-50>
                   {/* 利用者を選択 (カイポケID) */}
                   <SelectValue placeholder="利用者を選択" />
-                </SelectTrigger>
+                </SelectTrigger >
                 <SelectContent>
                   {/* 3. （全選択）オプションを追加（handleCsIdChange が "" で URLパラメータを削除） */}
                   <SelectItem value="">利用者を選択（すべて）</SelectItem>
@@ -858,7 +859,7 @@ export default function WeeklyRosterPage() {
             </Button>
             <div style={{ width: 120 }}>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
+                <SelectTrigger bg-amber-50><SelectValue placeholder="月を選択" /></SelectTrigger>
                 <SelectContent>
                   {monthOptions.map((m) => (
                     <SelectItem key={m} value={m}>{m}</SelectItem>
@@ -890,7 +891,7 @@ export default function WeeklyRosterPage() {
               onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
             // disabled={deploying} を削除 (Error 2322 対応)
             >
-              <SelectTrigger >
+              <SelectTrigger bg-amber-50>
                 <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
               </SelectTrigger>
               <SelectContent>
@@ -1164,7 +1165,7 @@ export default function WeeklyRosterPage() {
           </Button>
           <div style={{ width: 120 }}>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
+              <SelectTrigger　bg-amber-50><SelectValue placeholder="月を選択" /></SelectTrigger>
               <SelectContent>
                 {monthOptions.map((m) => (
                   <SelectItem key={m} value={m}>{m}</SelectItem>
@@ -1194,7 +1195,7 @@ export default function WeeklyRosterPage() {
               onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
             // disabled={deploying} を削除 (Error 2322 対応)
             >
-              <SelectTrigger >
+              <SelectTrigger bg-amber-50>
                 <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
               </SelectTrigger>
               <SelectContent>
