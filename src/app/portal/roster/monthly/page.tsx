@@ -176,6 +176,15 @@ const newDraftInitial = (month: string): NewShiftDraft => {
     };
 };
 
+// 日付文字列から曜日の数値 (0=日〜6=土) を取得
+const getWeekdayNumber = (dateStr: string): number | null => {
+    if (!isValidDateStr(dateStr)) return null;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    // Date.getDay() はローカルタイムゾーンに基づいて 0 (日曜) 〜 6 (土曜) を返す
+    return dt.getDay();
+};
+
 // --- time input helpers (loose) ---
 // "1030" → "10:30", "930" → "09:30", "7" → "07:00", "24" → "23:00"(上限丸め), "1261" → "12:59"(分上限丸め)
 // === ゆるい時刻整形（既にあれば流用） ===
@@ -801,6 +810,112 @@ export default function MonthlyRosterPage() {
         })
     }
 
+    // shift_weekly_template スキーマに合わせた変換と upsert API コール
+    const handleCopySelectedToWeeklyTemplate = async () => {
+        if (readOnly) return;
+        if (selectedIds.size === 0) {
+            alert('コピーするシフトを選択してください。');
+            return;
+        }
+
+        const confirmMsg =
+            '選択したシフトを週間シフトへ追加します。重なるデータが既にある場合には、追加されない場合があります。\n' +
+            'シフト追加後、週間シフトへページ移動します。よろしいですか？';
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        const selectedShifts = shifts.filter(r => selectedIds.has(r.shift_id));
+
+        if (selectedShifts.length === 0) {
+            alert('選択されたシフトレコードが見つかりませんでした。');
+            return;
+        }
+
+        const weeklyTemplateRecords = selectedShifts
+            .map(r => {
+                const weekday = getWeekdayNumber(r.shift_start_date);
+                if (weekday === null) {
+                    console.warn(`Skipping shift_id ${r.shift_id}: Invalid date ${r.shift_start_date}`);
+                    return null; // 無効な日付はスキップ
+                }
+
+                // 週シフトのコラムに合わせて変換
+                // HH:mm → HH:mm:ss 形式に変換
+                const start_time_hms = hmToHMS(r.shift_start_time);
+                const end_time_hms = hmToHMS(r.shift_end_time);
+
+                // shift_weekly_template スキーマに合わせたデータを作成
+                return {
+                    kaipoke_cs_id: r.kaipoke_cs_id,
+                    weekday: weekday, // 0-6
+                    start_time: start_time_hms,
+                    end_time: end_time_hms,
+                    service_code: r.service_code || null,
+                    required_staff_count: r.required_staff_count ?? 1,
+                    two_person_work_flg: !!r.two_person_work_flg,
+                    judo_ido: r.judo_ido || null,
+                    staff_01_user_id: r.staff_01_user_id,
+                    staff_02_user_id: r.staff_02_user_id,
+                    staff_03_user_id: r.staff_03_user_id,
+                    staff_02_attend_flg: !!r.staff_02_attend_flg,
+                    staff_03_attend_flg: !!r.staff_03_attend_flg,
+                    active: true,
+                    is_biweekly: false,
+                    // role_code, effective_from/to, nth_weeks は月間シフトに存在しないためデフォルト値または null
+                    staff_01_role_code: null,
+                    staff_02_role_code: null,
+                    staff_03_role_code: null,
+                    effective_from: null,
+                    effective_to: null,
+                    nth_weeks: null,
+                };
+            })
+            .filter(r => r !== null);
+
+        if (weeklyTemplateRecords.length === 0) {
+            alert('有効なデータを持つシフトが選択されていません。');
+            return;
+        }
+
+        try {
+            // 週シフトテンプレートAPIのバルクupsertエンドポイントを呼び出す（エンドポイントは仮定）
+            const res = await fetch('/api/shift-weekly-template/upsert-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ records: weeklyTemplateRecords }),
+            });
+
+            const result = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                const msg = result.error?.message || result.message || 'サーバーエラーが発生しました。';
+                alert(`週間シフトへの追加に失敗しました。\nエラー: ${msg}`);
+                return;
+            }
+
+            const addedCount = result.addedCount ?? result.insertedCount ?? '不明な件数';
+            const updatedCount = result.updatedCount ?? '不明な件数';
+
+            alert(
+                `週間シフトへの追加・更新が完了しました。\n` +
+                `成功: ${weeklyTemplateRecords.length}件 (新規追加: ${addedCount}件, 更新: ${updatedCount}件)\n\n` +
+                '週間シフトページへ移動します。'
+            );
+
+            // 週間シフトのページに遷移
+            router.push('/roster/weekly');
+            // 選択状態を解除
+            setSelectedIds(new Set());
+
+
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            alert(`週間シフトへの追加処理中に予期せぬエラーが発生しました: ${msg}`);
+        }
+    };
+
     // 一括削除
     const handleDeleteSelected = async () => {
         if (readOnly) return;
@@ -1010,12 +1125,20 @@ export default function MonthlyRosterPage() {
 
 
                 {/* 一括削除（必要時のみ表示） */}
-                {selectedIds.size > 0 && (
-                    <div className="ml-auto">
-                        <Button variant="destructive" onClick={handleDeleteSelected}>
-                            選択行を削除（{selectedIds.size}）
+                {selectedIds.size > 0 && !readOnly && (
+                    <Fragment>
+                        {/* ▼ 追加: 週間シフトにコピー ボタン ▼ */}
+                        <Button
+                            variant="default" // primaryカラー
+                            onClick={handleCopySelectedToWeeklyTemplate}
+                        >
+                            {selectedIds.size} 件を週間シフトへコピー
                         </Button>
-                    </div>
+                        {/* ▲ 追加 ここまで ▲ */}
+                        <Button variant="destructive" onClick={handleDeleteSelected}>
+                            {selectedIds.size} 件を 削除
+                        </Button>
+                    </Fragment>
                 )}
 
                 <div className="flex gap-2">
