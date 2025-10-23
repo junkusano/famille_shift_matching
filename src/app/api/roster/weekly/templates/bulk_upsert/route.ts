@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const { error } = await supabaseAdmin
     .from('shift_weekly_template')
     .upsert(payload, {
-      onConflict: 'template_id', // ✅ ここを修正
+      onConflict: 'kaipoke_cs_id, weekday, start_time, required_staff_count',
       ignoreDuplicates: false,
     })
   // .select() を付けなければ最小返却（minimal）

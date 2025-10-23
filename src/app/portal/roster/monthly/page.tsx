@@ -819,7 +819,7 @@ export default function MonthlyRosterPage() {
         }
 
         const confirmMsg =
-            '選択したシフトを週間シフトへ追加します。重なるデータが既にある場合には、追加されない場合があります。\n' +
+            '選択したシフトを週間シフトへ追加します。重なるデータが既にある場合には、選択データで上書きされます。\n' +
             'シフト追加後、週間シフトへページ移動します。よろしいですか？';
 
         if (!confirm(confirmMsg)) {
@@ -905,7 +905,7 @@ export default function MonthlyRosterPage() {
             );
 
             // 週間シフトのページに遷移
-            router.push('/roster/weekly');
+            router.push(`/portal/roster/weekly?cs=${encodeURIComponent(selectedKaipokeCS)}&month=${encodeURIComponent(selectedMonth)}`)
             // 選択状態を解除
             setSelectedIds(new Set());
 
