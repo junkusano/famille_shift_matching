@@ -903,13 +903,6 @@ export default function WeeklyRosterPage() {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={deployShift}
-              disabled={!selectedKaipokeCS || !selectedMonth || deploying}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deploying ? '展開中...' : '月間シフト展開を実行'}
-            </Button>
             {/* 【ここに一括展開ボタンを追記】 */}
             <Button
               onClick={deployAllShift}
