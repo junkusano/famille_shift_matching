@@ -840,40 +840,54 @@ export default function WeeklyRosterPage() {
             </Button>
           </div>
         </div>
-        <label className="text-sm text-muted-foreground">重なり処理</label>
-        <Select
-          value={deployPolicy}
-          onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
-        // disabled={deploying} を削除 (Error 2322 対応)
-        >
-          <SelectTrigger >
-            <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="skip_conflict">既存と重なるときは展開スキップ (既存維持)</SelectItem>
-            <SelectItem value="overwrite_only">既存と重なるときは週間シフトで上書き (既存維持)</SelectItem>
-            <SelectItem value="delete_month_insert">月全体を削除し、全て新規挿入</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          onClick={deployShift}
-          disabled={!selectedKaipokeCS || !selectedMonth || deploying}
-          className="bg-red-600 hover:bg-red-700"
-        >
-          {deploying ? '展開中...' : '月間シフト展開を実行'}
-        </Button>
-
-        {/* 【ここに一括展開ボタンを追記】 */}
-        <Button
-          onClick={deployAllShift}
-          disabled={!selectedMonth || deploying}
-          variant="destructive" // 目立つ色で
-          className="bg-purple-600 hover:bg-purple-700 ml-4" // 左にマージンを追加
-        >
-          {deploying ? '全展開中...' : '全利用者へ一括展開'}
-        </Button>
-
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const newMonth = addMonths(selectedMonth, 1);
+              setSelectedMonth(newMonth);
+              const newParams = new URLSearchParams(searchParams.toString());
+              newParams.set('month', newMonth);
+              router.replace(`/portal/roster/weekly?${newParams.toString()}`);
+            }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          <label className="text-sm text-muted-foreground">重なり処理</label>
+          <Select
+            value={deployPolicy}
+            onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
+          // disabled={deploying} を削除 (Error 2322 対応)
+          >
+            <SelectTrigger >
+              <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="skip_conflict">既存と重なるときは展開スキップ (既存維持)</SelectItem>
+              <SelectItem value="overwrite_only">既存と重なるときは週間シフトで上書き (既存維持)</SelectItem>
+              <SelectItem value="delete_month_insert">月全体を削除し、全て新規挿入</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Button
+            onClick={deployShift}
+            disabled={!selectedKaipokeCS || !selectedMonth || deploying}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {deploying ? '展開中...' : '月間シフト展開を実行'}
+          </Button>
+          {/* 【ここに一括展開ボタンを追記】 */}
+          <Button
+            onClick={deployAllShift}
+            disabled={!selectedMonth || deploying}
+            variant="destructive" // 目立つ色で
+            className="bg-purple-600 hover:bg-purple-700 ml-4" // 左にマージンを追加
+          >
+            {deploying ? '全展開中...' : '全利用者へ一括展開'}
+          </Button>
+        </div>
       </div>
 
       {/* ステータス */}
