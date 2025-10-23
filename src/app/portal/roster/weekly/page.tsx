@@ -778,7 +778,7 @@ export default function WeeklyRosterPage() {
   return (
     <div className="p-6 space-y-4">
       {/* ======= フィルターバー（monthly同等UI） ======= */}
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-6">
         {/* 利用者 */}
         <div className="flex flex-col">
           <label className="text-sm text-muted-foreground">利用者</label>
@@ -842,6 +842,32 @@ export default function WeeklyRosterPage() {
           </div>
         </div>
         <div>
+          <label className="text-sm text-muted-foreground">反映月</label>
+          {/* 前月ボタン */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const newMonth = addMonths(selectedMonth, -1);
+              setSelectedMonth(newMonth);
+              const newParams = new URLSearchParams(searchParams.toString());
+              newParams.set('month', newMonth);
+              router.replace(`/portal/roster/weekly?${newParams.toString()}`);
+            }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div style={{ width: 120 }}>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger><SelectValue placeholder="月を選択" /></SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* 次月ボタン */}
           <Button
             variant="outline"
             size="sm"
