@@ -260,7 +260,10 @@ export default function WeeklyRosterPage() {
   const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([]);
   // NOTE: selectedKaipokeCS は NavボタンやFetchingで使われるため残す
   const [selectedKaipokeCS, setSelectedKaipokeCS] = useState<string>("");
-  const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
+  // 【✅ 修正箇所】URLパラメータから 'month' を取得し、なければ現在の月を使用
+  const monthFromUrl = searchParams.get("month");
+  const [selectedMonth, setSelectedMonth] = useState<string>(monthFromUrl || nowYYYYMM());
+  //const [selectedMonth, setSelectedMonth] = useState<string>(nowYYYYMM());
   const [deployPolicy, setDeployPolicy] = useState<DeployPolicy>('skip_conflict'); 
   const [deploying, setDeploying] = useState(false); 
   const [clientSearchKeyword, setClientSearchKeyword] = useState<string>("");
