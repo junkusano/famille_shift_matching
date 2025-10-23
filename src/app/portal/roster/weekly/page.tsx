@@ -811,8 +811,9 @@ export default function WeeklyRosterPage() {
 
                 // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
                 onValueChange={handleCsIdChange}
+                className="bg-amber-50"
               >
-                <SelectTrigger bg-amber-50>
+                <SelectTrigger>
                   {/* 利用者を選択 (カイポケID) */}
                   <SelectValue placeholder="利用者を選択" />
                 </SelectTrigger >

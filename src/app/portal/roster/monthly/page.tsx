@@ -1061,7 +1061,7 @@ export default function MonthlyRosterPage() {
                         </Button>
                         <div style={{ width: 160 }}>
                             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                                <SelectTrigger bg-amber-50>
+                                <SelectTrigger>
                                     <SelectValue placeholder="月を選択" />
                                 </SelectTrigger>
                                 <SelectContent>
