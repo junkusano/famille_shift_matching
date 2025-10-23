@@ -794,7 +794,6 @@ export default function WeeklyRosterPage() {
             >
               前へ（{csPrev?.name ?? "-"}）
             </Button>
-
             {/* 検索ボックス（先頭一致/部分一致） */}
             <div style={{ width: 100 }}>
               <Input
@@ -804,7 +803,6 @@ export default function WeeklyRosterPage() {
                 onChange={(e) => setClientSearchKeyword(e.target.value)}
               />
             </div>
-
             <div style={{ width: 100 }}>
               <Select
                 // 1. ステート変数を合わせます
@@ -841,7 +839,7 @@ export default function WeeklyRosterPage() {
             </Button>
           </div>
         </div>
-        <div className="flex flex-col">
+        <div className="flex items-center gap-3">
           <label className="text-sm text-muted-foreground">反映月</label>
           {/* 前月ボタン */}
           <Button
