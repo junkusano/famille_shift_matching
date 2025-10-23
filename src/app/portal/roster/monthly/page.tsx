@@ -880,27 +880,27 @@ export default function MonthlyRosterPage() {
         }
 
         try {
-            // 週シフトテンプレートAPIのバルクupsertエンドポイントを呼び出す（エンドポイントは仮定）
-            const res = await fetch('/api/shift-weekly-template/upsert-bulk', {
+            // API呼び出しパスとペイロードのキーを、既存の週間シフトのAPIに合わせる
+            const res = await fetch('/api/roster/weekly/templates/bulk_upsert', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ records: weeklyTemplateRecords }),
+                // ▼ 修正: ペイロードのキーを 'records' から 'rows' に変更
+                body: JSON.stringify({ rows: weeklyTemplateRecords }),
             });
 
             const result = await res.json().catch(() => ({}));
 
             if (!res.ok) {
                 const msg = result.error?.message || result.message || 'サーバーエラーが発生しました。';
+                // result.error.messageが詳細なエラーメッセージを保持していることを期待
                 alert(`週間シフトへの追加に失敗しました。\nエラー: ${msg}`);
                 return;
             }
 
-            const addedCount = result.addedCount ?? result.insertedCount ?? '不明な件数';
-            const updatedCount = result.updatedCount ?? '不明な件数';
-
+            // 週間シフトのAPIが { ok: true } のみを返す（挿入件数を返さない）場合に対応
             alert(
                 `週間シフトへの追加・更新が完了しました。\n` +
-                `成功: ${weeklyTemplateRecords.length}件 (新規追加: ${addedCount}件, 更新: ${updatedCount}件)\n\n` +
+                `成功: ${weeklyTemplateRecords.length}件が追加または更新された可能性があります。\n\n` +
                 '週間シフトページへ移動します。'
             );
 
