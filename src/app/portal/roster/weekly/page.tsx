@@ -609,6 +609,7 @@ export default function WeeklyRosterPage() {
 
   async function deployAllShift() {
     if (!confirm(`【${selectedMonth}】の週間シフトを全利用者に対して一括展開を実行します。\nポリシー: ${deployPolicy} で実行。よろしいですか？`)) return;
+    if (!confirm(`【${selectedMonth}】の週間シフトを全利用者に対して一括展開を実行します。\nポリシー: ${deployPolicy} で実行。影響が大きいです。本当によろしいですか？`)) return;
 
     setDeploying(true);
     setError(null);
