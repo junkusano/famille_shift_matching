@@ -162,7 +162,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     client_name: cn ?? "",
     service_name: sn ?? "",
     service_code: sc ?? "",
-    kaipoke_cs_id: kcid,
+    kaipoke_cs_id: kcid ?? "",
   });
 
   const shifts: RosterShiftCard[] = [];

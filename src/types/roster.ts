@@ -18,9 +18,7 @@ export type RosterShiftCard = {
     client_name: string; // 利用者名
     service_code: string; // サービスコード
     service_name: string; // サービス名
-    kaipoke_cs_id?: string | number;
-    client_kaipoke_cs_id?: string | number;
-    client_id?: string | number;
+    kaipoke_cs_id?: string | number; // カイポケ顧客サービスID
 };
 
 
