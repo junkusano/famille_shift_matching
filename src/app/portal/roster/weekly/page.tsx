@@ -778,69 +778,8 @@ export default function WeeklyRosterPage() {
   return (
     <div className="p-6 space-y-4">
       {/* ======= フィルターバー（monthly同等UI） ======= */}
-      <div className="flex flex-wrap items-end gap-2">
-        {/* 利用者 */}
-        <div>
-          <label className="text-sm text-muted-foreground">利用者</label>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={!csPrev}
-              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
-              onClick={() => csPrev && (
-                setSelectedKaipokeCS(csPrev.kaipoke_cs_id),
-                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`)
-              )}
-            >
-              前へ（{csPrev?.name ?? "-"}）
-            </Button>
-            {/* 検索ボックス（先頭一致/部分一致） */}
-            <div style={{ width: 100 }}>
-              <Input
-                type="text"
-                placeholder="利用者名検索"
-                value={clientSearchKeyword}
-                onChange={(e) => setClientSearchKeyword(e.target.value)}
-                bg-sky-50
-              />
-            </div>
-            <div style={{ width: 100 }}>
-              <Select
-                // 1. ステート変数を合わせます
-                value={selectedKaipokeCS}
-
-                // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
-                onValueChange={handleCsIdChange}
-                className="bg-amber-50"
-              >
-                <SelectTrigger>
-                  {/* 利用者を選択 (カイポケID) */}
-                  <SelectValue placeholder="利用者を選択" />
-                </SelectTrigger >
-                <SelectContent>
-                  {/* 3. （全選択）オプションを追加（handleCsIdChange が "" で URLパラメータを削除） */}
-                  <SelectItem value="">利用者を選択（すべて）</SelectItem>
-
-                  {filteredKaipokeCs.map((cs) => (
-                    <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
-                      {cs.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              variant="secondary"
-              disabled={!csNext}
-              onClick={() => csNext && (
-                setSelectedKaipokeCS(csNext.kaipoke_cs_id),
-                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csNext.kaipoke_cs_id)}`)
-              )}  >
-              次へ（{csNext?.name ?? "-"}）
-            </Button>
-          </div>
-        </div>
+      <div className="flex flex-wrap items-end gap-2 p-2 border border-red-400 bg-red-50 rounded-lg">
+        <span className="font-bold text-red-700">この枠内の機能は全利用者のシフトに影響あり。注意！</span>
         <div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">反映月</label>
@@ -858,8 +797,12 @@ export default function WeeklyRosterPage() {
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <div style={{ width: 120 }}>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <div>
+              <Select
+                value={selectedMonth}
+                onValueChange={setSelectedMonth}
+                className="w-[100px] bg-amber-50"
+              >
                 <SelectTrigger bg-amber-50><SelectValue placeholder="月を選択" /></SelectTrigger>
                 <SelectContent>
                   {monthOptions.map((m) => (
@@ -886,13 +829,13 @@ export default function WeeklyRosterPage() {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">重なり処理</label>
+            <label className="text-sm text-muted-foreground">重なり<br />処理</label>
             <Select
               value={deployPolicy}
               onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
-            // disabled={deploying} を削除 (Error 2322 対応)
+              className="w-[300px] bg-amber-50"
             >
-              <SelectTrigger bg-amber-50>
+              <SelectTrigger>
                 <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
               </SelectTrigger>
               <SelectContent>
@@ -913,6 +856,71 @@ export default function WeeklyRosterPage() {
               className="bg-purple-600 hover:bg-purple-700 ml-4" // 左にマージンを追加
             >
               {deploying ? '全展開中...' : '全利用者へ一括展開'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        {/* 利用者 */}
+        <div>
+          <label className="text-sm text-muted-foreground">利用者</label>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={!csPrev}
+              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
+              onClick={() => csPrev && (
+                setSelectedKaipokeCS(csPrev.kaipoke_cs_id),
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`)
+              )}
+            >
+              前へ（{csPrev?.name ?? "-"}）
+            </Button>
+            {/* 検索ボックス（先頭一致/部分一致） */}
+            <div style={{ width: 100 }}>
+              <Input
+                type="text"
+                placeholder="利用者名検索"
+                value={clientSearchKeyword}
+                onChange={(e) => setClientSearchKeyword(e.target.value)}
+                className="w-[150px] bg-sky-50"
+              />
+            </div>
+            <div style={{ width: 100 }}>
+              <Select
+                // 1. ステート変数を合わせます
+                value={selectedKaipokeCS}
+
+                // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
+                onValueChange={handleCsIdChange}
+                className="w-[150px] bg-amber-50"
+              >
+                <SelectTrigger>
+                  {/* 利用者を選択 (カイポケID) */}
+                  <SelectValue placeholder="利用者を選択" />
+                </SelectTrigger >
+                <SelectContent>
+                  {/* 3. （全選択）オプションを追加（handleCsIdChange が "" で URLパラメータを削除） */}
+                  <SelectItem value="">利用者を選択（すべて）</SelectItem>
+
+                  {filteredKaipokeCs.map((cs) => (
+                    <SelectItem key={cs.kaipoke_cs_id} value={cs.kaipoke_cs_id}>
+                      {cs.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="secondary"
+              disabled={!csNext}
+              onClick={() => csNext && (
+                setSelectedKaipokeCS(csNext.kaipoke_cs_id),
+                router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csNext.kaipoke_cs_id)}`)
+              )}  >
+              次へ（{csNext?.name ?? "-"}）
             </Button>
           </div>
         </div>
@@ -1166,7 +1174,7 @@ export default function WeeklyRosterPage() {
           </Button>
           <div style={{ width: 120 }}>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger　bg-amber-50><SelectValue placeholder="月を選択" /></SelectTrigger>
+              <SelectTrigger bg-amber-50><SelectValue placeholder="月を選択" /></SelectTrigger>
               <SelectContent>
                 {monthOptions.map((m) => (
                   <SelectItem key={m} value={m}>{m}</SelectItem>

@@ -1059,8 +1059,11 @@ export default function MonthlyRosterPage() {
                         <Button variant="secondary" onClick={() => setSelectedMonth((m) => addMonths(m, -1))}>
                             前月
                         </Button>
-                        <div style={{ width: 160 }}>
-                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <div>
+                            <Select
+                                value={selectedMonth}
+                                onValueChange={setSelectedMonth}
+                                className="w-[120px] bg-amber-50">
                                 <SelectTrigger>
                                     <SelectValue placeholder="月を選択" />
                                 </SelectTrigger>
@@ -1088,18 +1091,21 @@ export default function MonthlyRosterPage() {
                         </Button>
 
                         {/* ★ 追加: 検索用テキストボックス */}
-                        <div style={{ width: 100 }}>
+                        <div>
                             <Input
                                 type="text"
                                 placeholder="利用者名検索 (冒頭一致)"
                                 value={clientSearchKeyword}
                                 onChange={(e) => setClientSearchKeyword(e.target.value)}
-                                bg-sky-50
+                                className="w-[150px] bg-sky-50"
                             />
                         </div>
 
-                        <div style={{ width: 180 }}>
-                            <Select value={selectedKaipokeCS} onValueChange={setSelectedKaipokeCS}>
+                        <div>
+                            <Select
+                                value={selectedKaipokeCS}
+                                onValueChange={setSelectedKaipokeCS}
+                                className="w-[150px] bg-amber-50">
                                 <SelectTrigger bg-amber-50>
                                     <SelectValue placeholder="利用者を選択" />
                                 </SelectTrigger>
