@@ -45,7 +45,6 @@ const dispHHmm = (t: string) => {
 // ✅ kaipoke_cs_id を安全に推定（API差異に強い）
 function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined {
     const anyC = c as Record<string, unknown>;
-
     const pick = (...keys: string[]): string | undefined => {
         for (const k of keys) {
             const v = anyC[k];
@@ -53,12 +52,9 @@ function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined
         }
         return undefined;
     };
-
-    // まずはトップレベルに色々なキーが来るケースへ対応
-    let csId =
-        pick("kaipoke_cs_id", "client_kaipoke_cs_id", "client_id", "clientCsId", "client_cs_id", "cs_id");
-
-    // ネスト（client.{...}）で渡ってくるケースにも対応
+    // トップレベル候補
+    let csId = pick("kaipoke_cs_id", "client_kaipoke_cs_id", "client_id", "clientCsId", "client_cs_id", "cs_id");
+    // ネスト候補 client.{...}
     if (!csId && typeof anyC["client"] === "object" && anyC["client"]) {
         const cli = anyC["client"] as Record<string, unknown>;
         for (const k of ["kaipoke_cs_id", "cs_id", "id"]) {
@@ -66,11 +62,9 @@ function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined
             if (v != null && String(v).trim() !== "") { csId = String(v); break; }
         }
     }
-
-    return csId
-        ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(csId)}&month=${encodeURIComponent(monthStr)}`
-        : undefined;
+    return csId ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}` : undefined;
 }
+
 
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
@@ -602,10 +596,12 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         {/* カード */}
                         {cards.map((c) => {
                             const rowIdx = rowIndexByStaff.get(c.staff_id);
-                            if (rowIdx == null) return null; // チーム絞り込みで非表示のスタッフ
+                            if (rowIdx == null) return null;
+
 
                             // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
                             const monthlyUrl = getMonthlyUrl(c, monthStr);
+
 
                             return (
                                 <div
@@ -614,12 +610,10 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
-                                    {/* ✅ hh:mm 表示に統一 */}
                                     <div className="text-[11px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
-
-                                    {/* ✅ 利用者名は月間ビューへのリンク、後半はサービスコード表示 */}
                                     {monthlyUrl ? (
-                                        <a href={monthlyUrl}
+                                        <a
+                                            href={monthlyUrl}
                                             target="_blank"
                                             rel="noreferrer"
                                             onClick={(e) => e.stopPropagation()}
@@ -632,7 +626,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                             {c.client_name}：{c.service_code ?? ''}
                                         </div>
                                     )}
-
                                     <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
                                     {deletable && (
                                         <button
@@ -650,7 +643,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                             ×
                                         </button>
                                     )}
-
                                 </div>
                             );
                         })}
