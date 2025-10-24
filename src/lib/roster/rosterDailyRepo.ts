@@ -60,6 +60,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "orgunitname",
     "org_order_num",
     "level_sort",
+    "kaipoke_cs_id",
   ].join(",");
 
   const { data: staffRaw, error: staffErr } = await SB
