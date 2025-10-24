@@ -1,4 +1,3 @@
-// ▼ 3) src/components/roster/RosterBoardDaily.tsx（全文：並び順を roster_sort → 氏名 に変更）
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -9,11 +8,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 const MINUTES_IN_DAY = 24 * 60;
 const SNAP_MIN = 5;                 // 5分刻み
 const PX_PER_MIN = 2;               // 1分=2px（横幅）
-const ROW_HEIGHT = 56;              // 2行表示に合わせて少し高め
+const ROW_HEIGHT = 56;              // ✅ 2行表示の下が切れないように拡張
 const NAME_COL_WIDTH = 112;         // 氏名列を少し広げ視認性UP
 const HEADER_H = 40;                // 時間ヘッダー高さ
 const MIN_DURATION_MIN = 10;        // 最小長さ（分）
-const CARD_VPAD = 8;                // カードの上下余白（縦位置調整）
+const CARD_VPAD = 4;                // カードの上下余白（縦位置調整）
 
 // ===== ユーティリティ =====
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -34,6 +33,14 @@ const widthPx = (start: string, end: string) => {
     return Math.max(2, w);
 };
 const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
+
+// ✅ 表示用 hh:mm（秒ありの文字列でも5桁に丸める）
+const dispHHmm = (t: string) => {
+    if (!t) return "";
+    // 例: "09:00:00" → "09:00"
+    const m = t.match(/^(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t.slice(0, 5);
+};
 
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
@@ -96,6 +103,10 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const onPickDate: React.ChangeEventHandler<HTMLInputElement> = (e) => {
         if (e.target.value) go(e.target.value);
     };
+
+    // ✅ 月文字列（YYYY-MM）と月初（YYYY-MM-01）
+    const monthStr = useMemo(() => date?.slice(0, 7) ?? "", [date]);
+    const monthFirst = useMemo(() => (monthStr ? `${monthStr}-01` : date), [monthStr, date]);
 
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
@@ -216,8 +227,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
         e.preventDefault();
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
-        const s = hhmmToMin(card.start_at);
-        const en = hhmmToMin(card.end_at);
+        const s = hhmmToMin(dispHHmm(card.start_at));
+        const en = hhmmToMin(dispHHmm(card.end_at));
         const pointerMin = minuteFromClientX(e.clientX);
         const grabOffsetMin = clamp(pointerMin - s, 0, en - s);
         setDrag({
@@ -240,8 +251,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         e.preventDefault();
         e.stopPropagation();
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
-        const s = hhmmToMin(card.start_at);
-        const en = hhmmToMin(card.end_at);
+        const s = hhmmToMin(dispHHmm(card.start_at));
+        const en = hhmmToMin(dispHHmm(card.end_at));
         setDrag({
             mode: "resizeEnd",
             cardId: card.id,
@@ -407,8 +418,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         return {
             position: "absolute",
             top: topPx,
-            left: leftPx(c.start_at),
-            width: widthPx(c.start_at, c.end_at),
+            left: leftPx(dispHHmm(c.start_at)),
+            width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
             height: ROW_HEIGHT - CARD_VPAD * 2,
             borderRadius: 6,
             background: "#DBEAFE",
@@ -417,12 +428,12 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-start",
-            justifyContent: "center",
+            justifyContent: "flex-start",
             padding: "4px 8px",
             boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
             cursor: "grab",
             userSelect: "none",
-            lineHeight: 1.1,
+            lineHeight: 1.15,
             gap: 2,
         };
     };
@@ -517,7 +528,15 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                     <div style={{ position: "relative" }}>
                         {displayStaff.map((st) => (
                             <div key={st.id} style={nameRowStyle} title={st.name}>
-                                <div className="truncate">{st.name}</div>
+                                {/* ✅ スタッフ詳細（シフトビュー）へのリンク */}
+                                <a
+                                    href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="truncate text-blue-700 hover:underline"
+                                >
+                                    {st.name}
+                                </a>
                             </div>
                         ))}
                     </div>
@@ -550,15 +569,39 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         {cards.map((c) => {
                             const rowIdx = rowIndexByStaff.get(c.staff_id);
                             if (rowIdx == null) return null; // チーム絞り込みで非表示のスタッフ
+
+                            // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
+                            const csId = c.kaipoke_cs_id || c.client_kaipoke_cs_id || c.client_id || "";
+                            const monthlyUrl = csId
+                                ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}`
+                                : undefined;
+
                             return (
                                 <div
                                     key={c.id}
                                     style={cardStyle(c)}
-                                    title={`${c.start_at}-${c.end_at}\n${c.client_name}：${c.service_name}`}
+                                    title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
-                                    <div className="text-[11px] md:text-xs font-semibold">{c.start_at}-{c.end_at}</div>
-                                    <div className="text-[11px] md:text-xs truncate">{c.client_name}：{c.service_name}</div>
+                                    {/* ✅ hh:mm 表示に統一 */}
+                                    <div className="text-[11px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
+
+                                    {/* ✅ 利用者名は月間ビューへのリンク、後半はサービスコード表示 */}
+                                    {monthlyUrl ? (
+                                        <a
+                                            href={monthlyUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[11px] md:text-xs truncate text-blue-700 hover:underline"
+                                        >
+                                            {c.client_name}：{c.service_code ?? ''}
+                                        </a>
+                                    ) : (
+                                        <div className="text-[11px] md:text-xs truncate">
+                                            {c.client_name}：{c.service_code ?? ''}
+                                        </div>
+                                    )}
+
                                     <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
                                     {deletable && (
                                         <button
