@@ -779,7 +779,7 @@ export default function WeeklyRosterPage() {
     <div className="p-6 space-y-4">
       {/* ======= フィルターバー（monthly同等UI） ======= */}
       <div className="flex flex-wrap items-end gap-2 p-2 border border-red-400 bg-red-50 rounded-lg">
-        <span className="font-bold text-red-700">この枠内の機能は全利用者のシフトに影響あり。注意！</span>
+        <span className="font-bold text-red-700">この枠内の機能は全利用者<br />のシフトに影響あり。注意！</span>
         <div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted-foreground">反映月</label>
@@ -829,11 +829,11 @@ export default function WeeklyRosterPage() {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">重なり<br />処理</label>
+            <label className="text-sm text-muted-foreground">重なり処理</label>
             <Select
               value={deployPolicy}
               onValueChange={(v) => setDeployPolicy(v as DeployPolicy)}
-              className="w-[300px] bg-amber-50"
+              className="w-[280px] bg-amber-50"
             >
               <SelectTrigger>
                 <SelectValue placeholder="展開ポリシーを選択" /> {/* placeholder を追加 (Error 2741 対応) */}
@@ -869,7 +869,6 @@ export default function WeeklyRosterPage() {
             <Button
               variant="secondary"
               disabled={!csPrev}
-              // FIX: setSelectedKaipokeCS から handleCsIdChange へ変更
               onClick={() => csPrev && (
                 setSelectedKaipokeCS(csPrev.kaipoke_cs_id),
                 router.replace(`/portal/roster/weekly?cs=${encodeURIComponent(csPrev.kaipoke_cs_id)}`)
@@ -878,7 +877,7 @@ export default function WeeklyRosterPage() {
               前へ（{csPrev?.name ?? "-"}）
             </Button>
             {/* 検索ボックス（先頭一致/部分一致） */}
-            <div style={{ width: 100 }}>
+            <div>
               <Input
                 type="text"
                 placeholder="利用者名検索"
@@ -887,17 +886,14 @@ export default function WeeklyRosterPage() {
                 className="w-[150px] bg-sky-50"
               />
             </div>
-            <div style={{ width: 100 }}>
+            {/* 利用者を選択 (カイポケID) */}
+            <div>
               <Select
-                // 1. ステート変数を合わせます
                 value={selectedKaipokeCS}
-
-                // 2. 【✅ 警告解消のための修正箇所】onValueChange に handleCsIdChange を渡します
                 onValueChange={handleCsIdChange}
                 className="w-[150px] bg-amber-50"
               >
                 <SelectTrigger>
-                  {/* 利用者を選択 (カイポケID) */}
                   <SelectValue placeholder="利用者を選択" />
                 </SelectTrigger >
                 <SelectContent>

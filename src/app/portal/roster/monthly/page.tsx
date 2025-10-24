@@ -1105,7 +1105,8 @@ export default function MonthlyRosterPage() {
                             <Select
                                 value={selectedKaipokeCS}
                                 onValueChange={setSelectedKaipokeCS}
-                                className="w-[150px] bg-amber-50">
+                                className="w-[150px] bg-amber-50"
+                            >
                                 <SelectTrigger bg-amber-50>
                                     <SelectValue placeholder="利用者を選択" />
                                 </SelectTrigger>
