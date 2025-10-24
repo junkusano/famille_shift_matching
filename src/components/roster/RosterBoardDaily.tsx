@@ -225,6 +225,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
     // 既存 onCardMouseDownMove / ResizeEnd 内でセット
     const onCardMouseDownMove = (e: React.MouseEvent, card: RosterShiftCard) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('a')) return; // リンク操作時はドラッグ開始しない
         e.preventDefault();
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
@@ -248,6 +250,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     };
 
     const onCardMouseDownResizeEnd = (e: React.MouseEvent, card: RosterShiftCard) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('a')) return; // 念のため
         e.preventDefault();
         e.stopPropagation();
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
@@ -592,6 +596,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                             href={monthlyUrl}
                                             target="_blank"
                                             rel="noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
                                             className="text-[11px] md:text-xs truncate text-blue-700 hover:underline"
                                         >
                                             {c.client_name}：{c.service_code ?? ''}
