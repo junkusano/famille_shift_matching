@@ -1,26 +1,27 @@
 "use client";
 
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 import { useRouter, useSearchParams } from "next/navigation";
 
-// ===== タイムライン設定 =====
-const MINUTES_IN_DAY = 24 * 60;
-const SNAP_MIN = 5;                 // 5分刻み
-const PX_PER_MIN = 2;               // 1分=2px（横幅）
-const ROW_HEIGHT = 56;              // ✅ 2行表示の下が切れないように拡張
-const NAME_COL_WIDTH = 112;         // 氏名列を少し広げ視認性UP
-const HEADER_H = 40;                // 時間ヘッダー高さ
-const MIN_DURATION_MIN = 10;        // 最小長さ（分）
-const CARD_VPAD = 4;                // カードの上下余白（縦位置調整）
-
-const DEBUG_MONTHLY_URL = true as const;
 
 declare global {
-    interface Window {
-        __monthlyUrlAlerted?: boolean;
-    }
+    interface Window { __monthlyUrlAlerted?: boolean }
 }
+const DEBUG_MONTHLY_URL = true;
+
+
+// ===== タイムライン設定 =====
+const MINUTES_IN_DAY = 24 * 60;
+const SNAP_MIN = 5; // 5分刻み
+const PX_PER_MIN = 2; // 1分=2px（横幅）
+const ROW_HEIGHT = 60; // ✅ 高さを56に変更
+const NAME_COL_WIDTH = 112; // 氏名列を少し広げ視認性UP
+const HEADER_H = 40; // 時間ヘッダー高さ
+const MIN_DURATION_MIN = 10; // 最小長さ（分）
+const CARD_VPAD = 4; // カードの上下余白（縦位置調整）
+
 
 // ===== ユーティリティ =====
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -42,13 +43,14 @@ const widthPx = (start: string, end: string) => {
 };
 const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
 
+
 // ✅ 表示用 hh:mm（秒ありの文字列でも5桁に丸める）
 const dispHHmm = (t: string) => {
     if (!t) return "";
-    // 例: "09:00:00" → "09:00"
     const m = t.match(/^(\d{1,2}):(\d{2})/);
     return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t.slice(0, 5);
 };
+
 
 // ✅ kaipoke_cs_id を安全に推定（API差異に強い）
 function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined {
@@ -608,25 +610,27 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                             // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
                             const monthlyUrl = getMonthlyUrl(c, monthStr);
+
+
                             // ✅ デバッグ：monthlyUrl が取れていない最初の1件で alert
                             if (!monthlyUrl && DEBUG_MONTHLY_URL && typeof window !== 'undefined' && !window.__monthlyUrlAlerted) {
-                                const anyC = c as any;
-                                const dbg = (() => {
-                                    const _keys = Object.keys(anyC || {}).join(', ');
-                                    const _clientKeys = anyC?.client ? Object.keys(anyC.client).join(', ') : '';
-                                    const _directVals = ['kaipoke_cs_id', 'client_kaipoke_cs_id', 'client_id', 'clientCsId', 'client_cs_id', 'cs_id']
-                                        .map((k: string) => `${k}=${String(anyC?.[k] ?? '')}`).join(', ');
-                                    const _clientVals = anyC?.client ? ['kaipoke_cs_id', 'cs_id', 'id']
-                                        .map((k: string) => `${k}=${String(anyC.client?.[k] ?? '')}`).join(', ') : '';
-                                    return { _keys, _clientKeys, _directVals, _clientVals };
-                                })();
+                                const rec: Record<string, unknown> = c as unknown as Record<string, unknown>;
+                                const toStr = (v: unknown) => (v == null ? '' : String(v));
+                                const get = (o: Record<string, unknown> | undefined, k: string): string => (o ? toStr(o[k]) : '');
+                                const clientObj = (typeof rec['client'] === 'object' && rec['client'] !== null) ? (rec['client'] as Record<string, unknown>) : undefined;
+                                const directKeys = ['kaipoke_cs_id', 'client_kaipoke_cs_id', 'client_id', 'clientCsId', 'client_cs_id', 'cs_id'];
+                                const clientKeys = ['kaipoke_cs_id', 'cs_id', 'id'];
+                                const dbg_keys = Object.keys(rec).join(', ');
+                                const dbg_clientKeys = clientObj ? Object.keys(clientObj).join(', ') : '';
+                                const dbg_directVals = directKeys.map((k) => `${k}=${get(rec, k)}`).join(', ');
+                                const dbg_clientVals = clientObj ? clientKeys.map((k) => `${k}=${get(clientObj, k)}`).join(', ') : '';
                                 alert(`monthlyUrl not found
 card.id=${c.id}
 client_name=${c.client_name}
-keys=[${dbg._keys}]
-client.keys=[${dbg._clientKeys}]
-directVals=[${dbg._directVals}]
-clientVals=[${dbg._clientVals}]`);
+keys=[${dbg_keys}]
+client.keys=[${dbg_clientKeys}]
+directVals=[${dbg_directVals}]
+clientVals=[${dbg_clientVals}]`);
                                 window.__monthlyUrlAlerted = true;
                             }
 
