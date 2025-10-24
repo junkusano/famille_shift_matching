@@ -614,12 +614,14 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                             // ✅ デバッグ：monthlyUrl が取れていない最初の1件で alert
                             if (!monthlyUrl && DEBUG_MONTHLY_URL && typeof window !== 'undefined' && !window.__monthlyUrlAlerted) {
+                                /*
                                 const rec: Record<string, unknown> = c as unknown as Record<string, unknown>;
                                 const toStr = (v: unknown) => (v == null ? '' : String(v));
                                 const get = (o: Record<string, unknown> | undefined, k: string): string => (o ? toStr(o[k]) : '');
                                 const clientObj = (typeof rec['client'] === 'object' && rec['client'] !== null) ? (rec['client'] as Record<string, unknown>) : undefined;
                                 const directKeys = ['kaipoke_cs_id', 'client_kaipoke_cs_id', 'client_id', 'clientCsId', 'client_cs_id', 'cs_id'];
                                 const clientKeys = ['kaipoke_cs_id', 'cs_id', 'id'];
+                                
                                 const dbg_keys = Object.keys(rec).join(', ');
                                 const dbg_clientKeys = clientObj ? Object.keys(clientObj).join(', ') : '';
                                 const dbg_directVals = directKeys.map((k) => `${k}=${get(rec, k)}`).join(', ');
@@ -631,6 +633,7 @@ keys=[${dbg_keys}]
 client.keys=[${dbg_clientKeys}]
 directVals=[${dbg_directVals}]
 clientVals=[${dbg_clientVals}]`);
+*/
                                 window.__monthlyUrlAlerted = true;
                             }
 
