@@ -779,31 +779,35 @@ export default function ShiftRecord({
         const whenOk = Object.keys(whenObj).every((k) => {
           const v = String(getByPath({ shift: shiftCtx, ...shiftCtx }, k) ?? "");
           const cond = whenObj[k];
-          // includes / equals / matches / includes_any の簡易対応
           if (cond?.includes_any && Array.isArray(cond.includes_any)) {
             return cond.includes_any.some((needle: string) => v.includes(String(needle)));
           }
-          return testStringCond(v, cond); // equals / includes / matches は既存ヘルパで
+          return testStringCond(v, cond);
         });
         if (!whenOk) continue;
-
 
         // L配下のSと、そのSに属する item を抽出
         const sInL = (defs.S ?? []).filter((s) => s.l_id === l.id).map((s) => s.id);
         const itemDefsInL = effectiveItems.filter((it) => sInL.includes(it.s_id));
 
-
-        // --- ここで skip_if 判定（★必ず rule のスコープ内）---
-        const skipCodes: string[] = rule?.skip_if?.any_checked_by_code ?? [];
+        // ✅ ★ここに skip_if 判定を追加 ★
+        const skipCodes: string[] = (rule as any)?.skip_if?.any_checked_by_code ?? [];
         if (skipCodes.length > 0) {
           const shouldSkip = itemDefsInL.some((it) => {
             const isTarget = it.code && skipCodes.includes(String(it.code));
             if (!isTarget) return false;
             const val = values[it.id];
-            return isTruthyValue(val);
+            return (
+              Array.isArray(val) ? val.length > 0 :
+                typeof val === "string" ? val.trim() !== "" && val !== "0" :
+                  typeof val === "number" ? !Number.isNaN(val) && String(val) !== "0" :
+                    typeof val === "boolean" ? val : !!val
+            );
           });
-          if (shouldSkip) continue; // ← この rule のチェック自体をスキップ
+          if (shouldSkip) continue; // ← ルールを完全スキップ！
         }
+
+        // 除外リストと必要数 …
 
 
         // 除外リストと必要数
