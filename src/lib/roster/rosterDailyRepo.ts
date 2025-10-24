@@ -167,9 +167,9 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   const shifts: RosterShiftCard[] = [];
   for (const r of shiftRows ?? []) {
-    if (r.staff_id_1) shifts.push(makeCard(r.shift_id, r.staff_id_1, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
-    if (r.staff_id_2) shifts.push(makeCard(r.shift_id, r.staff_id_2, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
-    if (r.staff_id_3) shifts.push(makeCard(r.shift_id, r.staff_id_3, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code));
+    if (r.staff_id_1) shifts.push(makeCard(r.shift_id, r.staff_id_1, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
+    if (r.staff_id_2) shifts.push(makeCard(r.shift_id, r.staff_id_2, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
+    if (r.staff_id_3) shifts.push(makeCard(r.shift_id, r.staff_id_3, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
   }
 
   if (shifts.length === 0) console.warn("[roster] no shifts for", date);
