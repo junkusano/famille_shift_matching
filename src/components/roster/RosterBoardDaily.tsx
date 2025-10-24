@@ -50,29 +50,6 @@ const dispHHmm = (t: string) => {
 };
 
 
-// ✅ kaipoke_cs_id を安全に推定（API差異に強い）
-function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined {
-    const anyC = c as Record<string, unknown>;
-    const pick = (...keys: string[]): string | undefined => {
-        for (const k of keys) {
-            const v = anyC[k];
-            if (v != null && String(v).trim() !== "") return String(v);
-        }
-        return undefined;
-    };
-    // トップレベル候補
-    let csId = pick("kaipoke_cs_id", "client_kaipoke_cs_id", "client_id", "clientCsId", "client_cs_id", "cs_id");
-    // ネスト候補 client.{...}
-    if (!csId && typeof anyC["client"] === "object" && anyC["client"]) {
-        const cli = anyC["client"] as Record<string, unknown>;
-        for (const k of ["kaipoke_cs_id", "cs_id", "id"]) {
-            const v = cli[k];
-            if (v != null && String(v).trim() !== "") { csId = String(v); break; }
-        }
-    }
-    return csId ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}` : undefined;
-}
-
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
     if (idx < 0) return { shiftId: Number(id), staffId: "" };
@@ -605,10 +582,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                             const rowIdx = rowIndexByStaff.get(c.staff_id);
                             if (rowIdx == null) return null;
 
-
-                            // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
-                            const monthlyUrl = getMonthlyUrl(c, monthStr);
-
                             return (
                                 <div
                                     key={c.id}
@@ -617,21 +590,15 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
                                     <div className="text-[13px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
-                                    {monthlyUrl ? (
-                                        <a
-                                            href={monthlyUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="text-[13px] md:text-xs truncate text-blue-700 hover:underline"
-                                        >
-                                            {c.client_name}：{c.service_code ?? ''}
-                                        </a>
-                                    ) : (
-                                        <div className="text-[13px] md:text-xs truncate">
-                                            {c.client_name}：{c.service_code ?? ''}
-                                        </div>
-                                    )}
+                                    <a
+                                        href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(c.kaipoke_cs_id))}&month=${encodeURIComponent(monthStr)}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()} // ドラッグ抑止
+                                        className="text-[11px] md:text-xs truncate text-blue-700 hover:underline"
+                                    >
+                                        {c.client_name}：{c.service_code ?? ''}
+                                    </a>
                                     <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
                                     {deletable && (
                                         <button
