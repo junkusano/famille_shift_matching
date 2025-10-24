@@ -32,6 +32,7 @@ interface ShiftRowView {
   client_name: string | null;
   service_name: string | null;
   service_code: string | null;
+  kaipoke_cs_id?: string | number;
 }
 
 interface ShiftRowFallback {
@@ -45,6 +46,7 @@ interface ShiftRowFallback {
   name: string | null;                 // client_name
   kaipoke_servicecode: string | null; // service_name
   service_code: string | null;
+  kaipoke_cs_id?: string | number;
 }
 
 const makeFullName = (last?: string | null, first?: string | null) => `${last ?? ""}${first ?? ""}`;
@@ -137,6 +139,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         client_name: r.name,
         service_name: r.kaipoke_servicecode,
         service_code: r.service_code,
+        kaipoke_cs_id: r.kaipoke_cs_id,
       }));
     }
   }
