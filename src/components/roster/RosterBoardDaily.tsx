@@ -545,7 +545,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="truncate text-blue-700 hover:underline text-[15px]"
+                                    className="truncate text-blue-700 hover:underline text-[17px]"
                                 >
                                     {st.name}
                                 </a>
@@ -589,12 +589,12 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
-                                    <div className="text-[13px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
+                                    <div className="text-[15px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
                                     <a
                                         href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}`}
                                         rel="noreferrer"
                                         onClick={(e) => e.stopPropagation()} // ドラッグ抑止
-                                        className="text-[15px] md:text-xs truncate text-blue-700 hover:underline"
+                                        className="text-[17px] md:text-xs truncate text-blue-700 hover:underline"
                                     >
                                         {c.client_name}：{c.service_code ?? ''}
                                     </a>
