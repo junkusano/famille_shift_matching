@@ -93,7 +93,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
   const shiftSel = [
     "shift_id","shift_date","start_at","end_at",
     "staff_id_1","staff_id_2","staff_id_3",
-    "client_name","service_name","service_code",
+    "client_name","service_name","service_code","kaipoke_cs_id",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
@@ -113,7 +113,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     const fbSel = [
       "shift_id","shift_start_date","shift_start_time","shift_end_time",
       "staff_01_user_id","staff_02_user_id","staff_03_user_id",
-      "name","kaipoke_servicecode","service_code",
+      "name","kaipoke_servicecode","service_code","kaipoke_cs_id",
     ].join(",");
 
     const { data, error } = await SB

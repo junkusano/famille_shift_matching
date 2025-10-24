@@ -592,10 +592,9 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     <div className="text-[13px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
                                     <a
                                         href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}`}
-                                        target="_blank"
                                         rel="noreferrer"
                                         onClick={(e) => e.stopPropagation()} // ドラッグ抑止
-                                        className="text-[11px] md:text-xs truncate text-blue-700 hover:underline"
+                                        className="text-[15px] md:text-xs truncate text-blue-700 hover:underline"
                                     >
                                         {c.client_name}：{c.service_code ?? ''}
                                     </a>
