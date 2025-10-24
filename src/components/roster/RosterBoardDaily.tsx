@@ -580,7 +580,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         {/* カード */}
                         {cards.map((c) => {
                             const rowIdx = rowIndexByStaff.get(c.staff_id);
-                            const csId = c.kaipoke_cs_id ?? c.client_kaipoke_cs_id ?? c.client_id;
                             if (rowIdx == null) return null;
                             return (
                                 <div
@@ -591,7 +590,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                 >
                                     <div className="text-[15px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
                                     <a
-                                        href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}`}
+                                        href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(c.kaipoke_cs_id))}&month=${encodeURIComponent(monthStr)}`}
                                         rel="noreferrer"
                                         onClick={(e) => e.stopPropagation()} // ドラッグ抑止
                                         className="text-[17px] md:text-xs truncate text-blue-700 hover:underline"
