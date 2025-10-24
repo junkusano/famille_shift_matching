@@ -42,6 +42,36 @@ const dispHHmm = (t: string) => {
     return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t.slice(0, 5);
 };
 
+// ✅ kaipoke_cs_id を安全に推定（API差異に強い）
+function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined {
+    const anyC = c as Record<string, unknown>;
+
+    const pick = (...keys: string[]): string | undefined => {
+        for (const k of keys) {
+            const v = anyC[k];
+            if (v != null && String(v).trim() !== "") return String(v);
+        }
+        return undefined;
+    };
+
+    // まずはトップレベルに色々なキーが来るケースへ対応
+    let csId =
+        pick("kaipoke_cs_id", "client_kaipoke_cs_id", "client_id", "clientCsId", "client_cs_id", "cs_id");
+
+    // ネスト（client.{...}）で渡ってくるケースにも対応
+    if (!csId && typeof anyC["client"] === "object" && anyC["client"]) {
+        const cli = anyC["client"] as Record<string, unknown>;
+        for (const k of ["kaipoke_cs_id", "cs_id", "id"]) {
+            const v = cli[k];
+            if (v != null && String(v).trim() !== "") { csId = String(v); break; }
+        }
+    }
+
+    return csId
+        ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(csId)}&month=${encodeURIComponent(monthStr)}`
+        : undefined;
+}
+
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
     if (idx < 0) return { shiftId: Number(id), staffId: "" };
@@ -537,7 +567,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="truncate text-blue-700 hover:underline"
+                                    className="truncate text-blue-700 hover:underline text-[12px]"
                                 >
                                     {st.name}
                                 </a>
@@ -575,10 +605,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                             if (rowIdx == null) return null; // チーム絞り込みで非表示のスタッフ
 
                             // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
-                            const csId = c.kaipoke_cs_id || c.client_kaipoke_cs_id || c.client_id || "";
-                            const monthlyUrl = csId
-                                ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}`
-                                : undefined;
+                            const monthlyUrl = getMonthlyUrl(c, monthStr);
 
                             return (
                                 <div
@@ -592,8 +619,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                                     {/* ✅ 利用者名は月間ビューへのリンク、後半はサービスコード表示 */}
                                     {monthlyUrl ? (
-                                        <a
-                                            href={monthlyUrl}
+                                        <a href={monthlyUrl}
                                             target="_blank"
                                             rel="noreferrer"
                                             onClick={(e) => e.stopPropagation()}
@@ -634,6 +660,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
