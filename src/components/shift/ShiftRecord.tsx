@@ -40,6 +40,11 @@ export type ItemMeta = { notify?: MetaNotify };
 
 type RulesJson = ItemRules | ItemRules[] | null;
 
+type LRuleSkipIf = {
+  /** このカテゴリ(L)内で、指定 code のいずれかが ON(= truthy) なら、このルールをスキップ */
+  any_checked_by_code?: string[];
+};
+
 // ===== 型（APIの実体に寄せて最低限の想定。柔らかくしておく） =====
 // 置き換え（rules_json を追加）
 type LRuleIf = Record<string, RuleStringCond>;
@@ -51,6 +56,7 @@ type LRule = {
   id: string;
   if?: LRuleIf;
   check?: LRuleCheck;
+  skip_if?: LRuleSkipIf; // ★ 追加
   message?: string;
   severity?: "error" | "warn";
 };
@@ -330,6 +336,14 @@ function resolveDefaultValue(
   }
   return raw;
 }
+
+const isTruthyValue = (val: unknown): boolean => {
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === "string") return val.trim() !== "" && val !== "0";
+  if (typeof val === "number") return !Number.isNaN(val) && String(val) !== "0";
+  if (typeof val === "boolean") return val;
+  return !!val;
+};
 
 export default function ShiftRecord({
   shiftId,
@@ -685,6 +699,7 @@ export default function ShiftRecord({
               effDefault = rule.set?.default_value;
           }
         }
+
         return { ...it, active: effActive, required: effRequired, default_value: effDefault };
       })
       .filter((it) => it.active !== false); // ← active=false はここで除外（= バリデーション対象外になる）
@@ -757,6 +772,7 @@ export default function ShiftRecord({
     for (const l of (defs.L ?? [])) {
       const lRules = (l)?.rules_json?.rules ?? [];
 
+
       for (const rule of lRules) {
         // when 判定
         const whenObj = rule?.if ?? {};
@@ -771,14 +787,30 @@ export default function ShiftRecord({
         });
         if (!whenOk) continue;
 
+
         // L配下のSと、そのSに属する item を抽出
         const sInL = (defs.S ?? []).filter((s) => s.l_id === l.id).map((s) => s.id);
         const itemDefsInL = effectiveItems.filter((it) => sInL.includes(it.s_id));
+
+
+        // --- ここで skip_if 判定（★必ず rule のスコープ内）---
+        const skipCodes: string[] = rule?.skip_if?.any_checked_by_code ?? [];
+        if (skipCodes.length > 0) {
+          const shouldSkip = itemDefsInL.some((it) => {
+            const isTarget = it.code && skipCodes.includes(String(it.code));
+            if (!isTarget) return false;
+            const val = values[it.id];
+            return isTruthyValue(val);
+          });
+          if (shouldSkip) continue; // ← この rule のチェック自体をスキップ
+        }
+
 
         // 除外リストと必要数
         const exCodes: string[] = rule?.check?.exclude_items?.by_code ?? [];
         const exNames: string[] = rule?.check?.exclude_items?.by_name_exact ?? [];
         const minNeeded = Math.max(1, Number(rule?.check?.min_checked_in_this_category ?? 1));
+
 
         // 実際に「チェックされている」個数を数える
         const checkedCount = itemDefsInL.reduce((acc, it) => {
@@ -787,15 +819,12 @@ export default function ShiftRecord({
             exNames.includes(String(it.label));
           if (excluded) return acc;
 
-          const val = values[it.id];
-          const isOn =
-            Array.isArray(val) ? val.length > 0 :
-              typeof val === "string" ? val.trim() !== "" && val !== "0" :
-                typeof val === "number" ? !Number.isNaN(val) && String(val) !== "0" :
-                  typeof val === "boolean" ? val : !!val;
 
+          const val = values[it.id];
+          const isOn = isTruthyValue(val);
           return acc + (isOn ? 1 : 0);
         }, 0);
+
 
         if (checkedCount < minNeeded) {
           const msg = String(rule?.message ?? "カテゴリの必須条件を満たしていません。");
