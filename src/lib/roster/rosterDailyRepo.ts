@@ -153,6 +153,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     cn: string | null,
     sn: string | null,
     sc: string | null,
+    kcid?: string | number,
   ): RosterShiftCard => ({
     id: `${sid}_${uid ?? ""}`,
     staff_id: String(uid),
@@ -161,6 +162,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     client_name: cn ?? "",
     service_name: sn ?? "",
     service_code: sc ?? "",
+    kaipoke_cs_id: kcid,
   });
 
   const shifts: RosterShiftCard[] = [];
