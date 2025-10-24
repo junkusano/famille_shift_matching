@@ -14,6 +14,14 @@ const HEADER_H = 40;                // 時間ヘッダー高さ
 const MIN_DURATION_MIN = 10;        // 最小長さ（分）
 const CARD_VPAD = 4;                // カードの上下余白（縦位置調整）
 
+const DEBUG_MONTHLY_URL = true as const;
+
+declare global {
+    interface Window {
+        __monthlyUrlAlerted?: boolean;
+    }
+}
+
 // ===== ユーティリティ =====
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 const snapMin = (m: number) => Math.round(m / SNAP_MIN) * SNAP_MIN;
@@ -64,7 +72,6 @@ function getMonthlyUrl(c: RosterShiftCard, monthStr: string): string | undefined
     }
     return csId ? `/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(csId))}&month=${encodeURIComponent(monthStr)}` : undefined;
 }
-
 
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
@@ -561,7 +568,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="truncate text-blue-700 hover:underline text-[12px]"
+                                    className="truncate text-blue-700 hover:underline text-[15px]"
                                 >
                                     {st.name}
                                 </a>
@@ -601,7 +608,27 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                             // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
                             const monthlyUrl = getMonthlyUrl(c, monthStr);
-
+                            // ✅ デバッグ：monthlyUrl が取れていない最初の1件で alert
+                            if (!monthlyUrl && DEBUG_MONTHLY_URL && typeof window !== 'undefined' && !window.__monthlyUrlAlerted) {
+                                const anyC = c as any;
+                                const dbg = (() => {
+                                    const _keys = Object.keys(anyC || {}).join(', ');
+                                    const _clientKeys = anyC?.client ? Object.keys(anyC.client).join(', ') : '';
+                                    const _directVals = ['kaipoke_cs_id', 'client_kaipoke_cs_id', 'client_id', 'clientCsId', 'client_cs_id', 'cs_id']
+                                        .map((k: string) => `${k}=${String(anyC?.[k] ?? '')}`).join(', ');
+                                    const _clientVals = anyC?.client ? ['kaipoke_cs_id', 'cs_id', 'id']
+                                        .map((k: string) => `${k}=${String(anyC.client?.[k] ?? '')}`).join(', ') : '';
+                                    return { _keys, _clientKeys, _directVals, _clientVals };
+                                })();
+                                alert(`monthlyUrl not found
+card.id=${c.id}
+client_name=${c.client_name}
+keys=[${dbg._keys}]
+client.keys=[${dbg._clientKeys}]
+directVals=[${dbg._directVals}]
+clientVals=[${dbg._clientVals}]`);
+                                window.__monthlyUrlAlerted = true;
+                            }
 
                             return (
                                 <div
