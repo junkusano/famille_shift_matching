@@ -9,8 +9,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 declare global {
     interface Window { __monthlyUrlAlerted?: boolean }
 }
-const DEBUG_MONTHLY_URL = true;
-
 
 // ===== タイムライン設定 =====
 const MINUTES_IN_DAY = 24 * 60;
@@ -611,32 +609,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                             // ✅ 利用者月間表示リンク（kaipoke_cs_id 優先）
                             const monthlyUrl = getMonthlyUrl(c, monthStr);
 
-
-                            // ✅ デバッグ：monthlyUrl が取れていない最初の1件で alert
-                            if (!monthlyUrl && DEBUG_MONTHLY_URL && typeof window !== 'undefined' && !window.__monthlyUrlAlerted) {
-                                /*
-                                const rec: Record<string, unknown> = c as unknown as Record<string, unknown>;
-                                const toStr = (v: unknown) => (v == null ? '' : String(v));
-                                const get = (o: Record<string, unknown> | undefined, k: string): string => (o ? toStr(o[k]) : '');
-                                const clientObj = (typeof rec['client'] === 'object' && rec['client'] !== null) ? (rec['client'] as Record<string, unknown>) : undefined;
-                                const directKeys = ['kaipoke_cs_id', 'client_kaipoke_cs_id', 'client_id', 'clientCsId', 'client_cs_id', 'cs_id'];
-                                const clientKeys = ['kaipoke_cs_id', 'cs_id', 'id'];
-                                
-                                const dbg_keys = Object.keys(rec).join(', ');
-                                const dbg_clientKeys = clientObj ? Object.keys(clientObj).join(', ') : '';
-                                const dbg_directVals = directKeys.map((k) => `${k}=${get(rec, k)}`).join(', ');
-                                const dbg_clientVals = clientObj ? clientKeys.map((k) => `${k}=${get(clientObj, k)}`).join(', ') : '';
-                                alert(`monthlyUrl not found
-card.id=${c.id}
-client_name=${c.client_name}
-keys=[${dbg_keys}]
-client.keys=[${dbg_clientKeys}]
-directVals=[${dbg_directVals}]
-clientVals=[${dbg_clientVals}]`);
-*/
-                                window.__monthlyUrlAlerted = true;
-                            }
-
                             return (
                                 <div
                                     key={c.id}
@@ -644,19 +616,19 @@ clientVals=[${dbg_clientVals}]`);
                                     title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
-                                    <div className="text-[11px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
+                                    <div className="text-[13px] md:text-xs font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
                                     {monthlyUrl ? (
                                         <a
                                             href={monthlyUrl}
                                             target="_blank"
                                             rel="noreferrer"
                                             onClick={(e) => e.stopPropagation()}
-                                            className="text-[11px] md:text-xs truncate text-blue-700 hover:underline"
+                                            className="text-[13px] md:text-xs truncate text-blue-700 hover:underline"
                                         >
                                             {c.client_name}：{c.service_code ?? ''}
                                         </a>
                                     ) : (
-                                        <div className="text-[11px] md:text-xs truncate">
+                                        <div className="text-[13px] md:text-xs truncate">
                                             {c.client_name}：{c.service_code ?? ''}
                                         </div>
                                     )}
