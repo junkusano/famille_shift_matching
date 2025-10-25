@@ -791,20 +791,25 @@ export default function ShiftRecord({
         const itemDefsInL = effectiveItems.filter((it) => sInL.includes(it.s_id));
 
         // ✅ ★ここに skip_if 判定を追加 ★
-        const skipCodes: string[] = (rule as any)?.skip_if?.any_checked_by_code ?? [];
+        const skipCodes: string[] = rule.skip_if?.any_checked_by_code ?? [];
         if (skipCodes.length > 0) {
-          const shouldSkip = itemDefsInL.some((it) => {
+          // 1) 同じL内で cancel 等がONか？
+          const inThisL = itemDefsInL.some((it) => {
             const isTarget = it.code && skipCodes.includes(String(it.code));
             if (!isTarget) return false;
             const val = values[it.id];
-            return (
-              Array.isArray(val) ? val.length > 0 :
-                typeof val === "string" ? val.trim() !== "" && val !== "0" :
-                  typeof val === "number" ? !Number.isNaN(val) && String(val) !== "0" :
-                    typeof val === "boolean" ? val : !!val
-            );
+            return isTruthyValue(val);
           });
-          if (shouldSkip) continue; // ← ルールを完全スキップ！
+
+          // 2) 見つからない場合、他Lも含めて全項目で探す（例: 身体の cancel_p で生活ルールを飛ばす）
+          const inAnyL = !inThisL && effectiveItems.some((it) => {
+            const isTarget = it.code && skipCodes.includes(String(it.code));
+            if (!isTarget) return false;
+            const val = values[it.id];
+            return isTruthyValue(val);
+          });
+
+          if (inThisL || inAnyL) continue; // ← この rule 全体をスキップ
         }
 
         // 除外リストと必要数 …
