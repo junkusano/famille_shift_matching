@@ -345,6 +345,132 @@ const isTruthyValue = (val: unknown): boolean => {
   return !!val;
 };
 
+
+// ✅ 追加：LW連携ユーティリティ（ShiftRecord.tsx 内のどこか上部に配置）
+type LwMeta = { lw_forward?: boolean; lw_channel_id?: boolean; label?: string };
+
+function getString(v: unknown) {
+  if (v == null) return "";
+  return typeof v === "string" ? v : JSON.stringify(v);
+}
+
+function isTruthyOne(v: unknown) {
+  // "1" / 1 / true を肯定扱い
+  if (v === 1 || v === "1" || v === true) return true;
+  return false;
+}
+
+function pickLwChannelId(
+  defs: ShiftRecordItemDef[],
+  values: Record<string, unknown>
+): string | null {
+  // code===lw_channel_id or meta_json.lw_channel_id === true を優先
+  const cand = defs.find(d =>
+    (d.code && d.code === "lw_channel_id") ||
+    (d.meta_json && (d.meta_json as LwMeta).lw_channel_id === true)
+  );
+  if (!cand) return null;
+  const v = values[cand.id];
+  const s = getString(v).trim();
+  return s || null;
+}
+
+function shouldConnectLW(
+  defs: ShiftRecordItemDef[],
+  values: Record<string, unknown>
+): boolean {
+  const key = defs.find(d => d.code === "lw_connect");
+  if (!key) return false;
+  const v = values[key.id];
+  return isTruthyOne(v);
+}
+
+function buildLwMessage(
+  defs: ShiftRecordItemDef[],
+  values: Record<string, unknown>,
+  header?: string
+): string {
+  // meta_json.lw_forward === true の項目、または既定の code 群を採用
+  const DEFAULT_FORWARD_CODES = new Set([
+    "lw_message", "memo", "note", "request", "incident", "detail"
+  ]);
+
+  const lines: string[] = [];
+  if (header) lines.push(header);
+
+  for (const d of defs) {
+    const meta = (d.meta_json ?? {}) as LwMeta;
+    const shouldForward =
+      meta.lw_forward === true ||
+      (d.code ? DEFAULT_FORWARD_CODES.has(d.code) : false);
+
+    if (!shouldForward) continue;
+
+    const raw = values[d.id];
+    const text = getString(raw).trim();
+    if (!text) continue;
+
+    const label = (meta.label || d.label || d.code || "").toString().trim();
+    lines.push(label ? `${label}：${text}` : text);
+  }
+
+  return lines.join("\n").trim();
+}
+
+// ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
+async function postToLW(channelId: string, text: string) {
+  const res = await fetch("/api/lw-send-botmessage", {  // ← 既存の成功API
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channelId, text }),
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    console.error("Line Works 送信失敗", res.status, msg);
+  }
+}
+
+
+// ShiftRecord.tsx 先頭のユーティリティ群の近くに追記
+async function resolveChannelIdForClient(
+  values: Record<string, unknown>,
+  defs: ShiftRecordItemDef[],
+  info: Record<string, unknown> | null
+): Promise<string | null> {
+  // 1) mergedInfo.group_account を優先
+  const gi = (info ?? {}) as Record<string, unknown>;
+  let groupAccount = "";
+  if (typeof gi.group_account === "string" && gi.group_account.trim()) {
+    groupAccount = gi.group_account.trim();
+  }
+  // 2) code === "group_account" の値
+  if (!groupAccount) {
+    const defGA = defs.find(d => d.code === "group_account");
+    const raw = defGA ? values[defGA.id] : undefined;
+    if (typeof raw === "string" && raw.trim()) groupAccount = raw.trim();
+  }
+  // 3) 見つからなければ既存の lw_channel_id をフォールバック
+  if (!groupAccount) return pickLwChannelId(defs, values);
+
+  try {
+    const { data, error } = await supabase
+      .from("group_lw_channel_view")
+      .select("channel_id")
+      .eq("group_account", groupAccount)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[LW] channel_id lookup error:", error);
+      return null;
+    }
+    return (data?.channel_id as string) || null;
+  } catch (e) {
+    console.error("[LW] channel_id lookup exception:", e);
+    return null;
+  }
+}
+
+
 export default function ShiftRecord({
   shiftId,
   recordId,
@@ -621,9 +747,11 @@ export default function ShiftRecord({
   }, [shiftId, recordId]);
 
   // ===== ユーティリティ: 「確定済み」判定 =====
+  // ===== ユーティリティ: 「確定済み」判定（既存運用に合わせて最小修正）=====
   const isFinalStatus = useMemo(() => {
-    const st = (status || "").toLowerCase();
-    return ["submitted", "approved", "archived"].includes(st); // ★★ 追加
+    const s = String(status ?? "").trim();
+    // サーバから「完了」で返ってくるケースも吸収
+    return s === STATUS.completed || s === "完了"; // STATUS.completed は "submitted"
   }, [status]);
 
   useEffect(() => {
@@ -879,6 +1007,18 @@ export default function ShiftRecord({
         setRecordLocked(true);
         setStatus(STATUS.completed); // ★★ 追加
         setSaveState("saved");
+        // === LW連携（確定時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
+        try {
+          if (shouldConnectLW(effectiveItems, values)) {
+            const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            if (channelId) {
+              const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
+              if (text) await postToLW(channelId, text);
+            }
+          }
+        } catch (e) {
+          console.error("[LW] send-on-complete error:", e);
+        }
         return;
       }
 
@@ -901,6 +1041,20 @@ export default function ShiftRecord({
         setSaveState("saved");
         // ロックポリシー：submitted ならロック、approved/archived もロック
         setRecordLocked(true);
+
+        // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
+        try {
+          if (shouldConnectLW(effectiveItems, values)) {
+            const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            if (channelId) {
+              const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
+              if (text) await postToLW(channelId, text);
+            }
+          }
+        } catch (e) {
+          console.error("[LW] send-on-update error:", e);
+        }
+
       }
     } catch (e) {
       console.error(e);
