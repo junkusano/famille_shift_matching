@@ -363,6 +363,7 @@ function isTruthyOne(v: unknown) {
   return false;
 }
 
+/*
 function pickLwChannelId(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
@@ -377,6 +378,7 @@ function pickLwChannelId(
   const s = getString(v).trim();
   return s || null;
 }
+  */
 
 function shouldConnectLW(
   defs: ShiftRecordItemDef[],
@@ -440,6 +442,7 @@ async function postToLW(channelId: string, text: string) {
   }
 }
 
+/*
 const dbgAlert = (msg: string) => {
   // クライアント実行時のみ alert、常に console にも出す
   if (typeof window !== "undefined") alert(msg);
@@ -447,7 +450,7 @@ const dbgAlert = (msg: string) => {
   // eslint-disable-next-line no-console
   console.log(`[LW-DEBUG] ${msg}`);
 };
-
+*/
 
 // ShiftRecord.tsx 先頭のユーティリティ群の近くに追記
 async function resolveChannelIdForClient(
@@ -455,32 +458,17 @@ async function resolveChannelIdForClient(
   defs: ShiftRecordItemDef[],
   info: Record<string, unknown> | null
 ): Promise<string | null> {
+  void values;
+  void defs;
   //dbgAlert("resolveChannelIdForClient: start");
   // 1) mergedInfo.group_account を優先
   const gi = (info ?? {}) as Record<string, unknown>;
-  dbgAlert(`kaipoke_cs_id from info: "${gi.kaipoke_cs_id}"`);
-  let groupAccount = "";
-  if (typeof gi.kaipoke_cs_info === "string" && gi.kaipoke_cs_info) {
-    groupAccount = gi.kaipoke_cs_info;
-    dbgAlert(`group_account from info: "${groupAccount}"`);
-  }
-  // 2) code === "group_account" の値
-  if (!groupAccount) {
-    const defGA = defs.find(d => d.code === "group_account");
-    const raw = defGA ? values[defGA.id] : undefined;
-    if (typeof raw === "string" && raw.trim()) groupAccount = raw.trim();
-    dbgAlert(`group_account from defs/values: "${groupAccount}"`);
-  } else {
-    dbgAlert("group_account not found in defs/values");
-  }
-  // 3) 見つからなければ既存の lw_channel_id をフォールバック
-  if (!groupAccount) return pickLwChannelId(defs, values);
 
   try {
     const { data, error } = await supabase
       .from("group_lw_channel_view")
       .select("channel_id")
-      .eq("group_account", groupAccount)
+      .eq("group_account", gi.kaipoke_cs_id)
       .maybeSingle();
 
     if (error) {
