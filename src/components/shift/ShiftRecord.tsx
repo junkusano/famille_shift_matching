@@ -1016,18 +1016,23 @@ export default function ShiftRecord({
         setRecordLocked(true);
         setStatus(STATUS.completed); // ★★ 追加
         setSaveState("saved");
-        // === LW連携（確定時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
+        // === LW連携（確定時） ===
+        alert("[LW] after PATCH completed: 確定時ブロックに到達");
         try {
-          if (shouldConnectLW(effectiveItems, values) || shouldConnectLW(defs.items ?? [], values)) {
+          const condEff = shouldConnectLW(effectiveItems, values);
+          const condAll = shouldConnectLW(defs.items ?? [], values);
+          alert(`[LW] connect 判定\neffective=${condEff}\nallItems=${condAll}`);
+          if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
-            console.info("[LW] connect=YES, channelId:", channelId);
+            alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
+              alert(`[LW] buildLwMessage 完了\ntext.head=${text?.slice(0, 40) ?? ""}`);
               if (text) await postToLW(channelId, text);
             }
           }
         } catch (e) {
-          console.info("[LW] connect=NO (lw_connect not truthy / not found)");
+          alert("[LW] 例外: send-on-complete error（詳細はConsole）");
           console.error("[LW] send-on-complete error:", e);
         }
         return;
@@ -1052,19 +1057,24 @@ export default function ShiftRecord({
         setSaveState("saved");
         // ロックポリシー：submitted ならロック、approved/archived もロック
         setRecordLocked(true);
+        // === LW連携（更新時） ===
+        +        alert("[LW] 更新ブロックに到達");
 
         // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
         try {
-          if (shouldConnectLW(effectiveItems, values) || shouldConnectLW(defs.items ?? [], values)) {
+          const condEff = shouldConnectLW(effectiveItems, values);
+          const condAll = shouldConnectLW(defs.items ?? [], values);
+          alert(`[LW] connect 判定（更新）\neffective=${condEff}\nallItems=${condAll}`);
+          if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
-            console.info("[LW] connect=YES, channelId:", channelId);
+            alert(`[LW] resolveChannelIdForClient 結果（更新）\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
               if (text) await postToLW(channelId, text);
             }
           }
         } catch (e) {
-          console.info("[LW] connect=NO (lw_connect not truthy / not found)");
+          alert("[LW] 例外: send-on-update error（詳細はConsole）");
           console.error("[LW] send-on-update error:", e);
         }
 
