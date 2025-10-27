@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-//import { Merge } from "lucide-react";
 //import type { RosterShiftCard } from '@/types/roster' 
 
 // 並び順ユーティリティ
@@ -272,7 +271,6 @@ function useShiftInfo(shiftId: string) {
     if (!shiftId) return;
     (async () => {
       const r = await fetch(`/api/shift-custom-view?shift_id=${encodeURIComponent(shiftId)}&expand=staff`);
-      alert("[LW] useShiftInfo: fetched shift info:"+r);
       if (r.ok) setInfo(await r.json());
     })();
   }, [shiftId]);
@@ -563,7 +561,6 @@ export default function ShiftRecord({
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
     const base: MergedInfo = { ...(shiftInfo ?? {}) };
-    alert("[LW] mergedInfo="+JSON.stringify(mergedInfo));
 
     // client_name（API空ならQSで補完）
     {
