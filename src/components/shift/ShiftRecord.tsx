@@ -356,7 +356,7 @@ function getString(v: unknown) {
 
 function isTruthyOne(v: unknown) {
   // "1" / 1 / true を肯定扱い
-  if(v === 1 || v === "1" || v === true) return true;
+  if (v === 1 || v === "1" || v === true) return true;
   // 文字列 "true" / "on" も肯定扱いに
   if (v === "true" || v === "on" || v === "はい" || v === "有") return true;
   return false;
@@ -384,6 +384,9 @@ function shouldConnectLW(
   const key = defs.find(d => d.code === "lw_connect");
   if (!key) return false;
   const v = values[key.id];
+  try {
+    alert(`[LW] shouldConnectLW check\nitem_def_id=${key.id}\nraw=${String(v)}\ntruthy=${String(isTruthyOne(v))}`);
+  } catch { }
   return isTruthyOne(v);
 }
 
@@ -421,6 +424,7 @@ function buildLwMessage(
 
 // ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
 async function postToLW(channelId: string, text: string) {
+  alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
   const res = await fetch("/api/lw-send-botmessage", {  // ← 既存の成功API
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -428,7 +432,10 @@ async function postToLW(channelId: string, text: string) {
   });
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
+    alert(`[LW] APIレスポンス not ok\nstatus=${res.status}\nmsg=${msg}`);
     console.error("Line Works 送信失敗", res.status, msg);
+  } else {
+    alert("[LW] APIレスポンス ok（/api/lw-send-botmessage 成功）");
   }
 }
 
