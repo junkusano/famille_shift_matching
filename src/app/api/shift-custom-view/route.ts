@@ -176,6 +176,7 @@ export async function GET(req: Request) {
     district,
     shift_start_time_hm: toHHmm(s.shift_start_time),
     shift_end_time_hm: toHHmm(s.shift_end_time),
+    kaipoke_cs_id: s?.kaipoke_cs_id ?? null,
     // full_name は expand=staff のときだけ値が入る（オプショナル）
     ...(expand.includes("staff")
       ? {

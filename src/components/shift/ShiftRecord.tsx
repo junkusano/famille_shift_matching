@@ -1020,7 +1020,7 @@ export default function ShiftRecord({
           const condAll = shouldConnectLW(defs.items ?? [], values);
           //alert(`[LW] connect 判定\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
             //alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
@@ -1063,7 +1063,7 @@ export default function ShiftRecord({
           const condAll = shouldConnectLW(defs.items ?? [], values);
           //alert(`[LW] connect 判定（更新）\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
             //alert(`[LW] resolveChannelIdForClient 結果（更新）\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
