@@ -153,7 +153,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
 
     const filtered = all.filter(
         (s) => s.staff_01_user_id === "-" || (
-            (s.level_sort_order ?? 9999999) < 5_000_000 && (s.level_sort_order ?? 0) !== 1_250_000
+            (s.level_sort_order ?? 9999999) < 4_500_000 && (s.level_sort_order ?? 0) !== 1_250_000
         )
     );
 
@@ -998,7 +998,7 @@ export default function ShiftPage() {
 
             // ★ここを修正（! の位置がNGなので括弧で明示 or 数値化して判定）
             const levelSort = Number(userData?.level_sort);
-            const canUse = Number.isFinite(levelSort) && levelSort >= 5_000_000;
+            const canUse = Number.isFinite(levelSort) && levelSort >= 4_500_000;
             //alert("sort_level: " + levelSort);
             //alert("canUse: " + canUse);
 

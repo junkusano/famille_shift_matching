@@ -1058,7 +1058,7 @@ export default function ShiftRecord({
         // ロックポリシー：submitted ならロック、approved/archived もロック
         setRecordLocked(true);
         // === LW連携（更新時） ===
-        +        alert("[LW] 更新ブロックに到達");
+        alert("[LW] 更新ブロックに到達");
 
         // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
         try {
