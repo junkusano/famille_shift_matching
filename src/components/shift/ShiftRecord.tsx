@@ -356,7 +356,9 @@ function getString(v: unknown) {
 
 function isTruthyOne(v: unknown) {
   // "1" / 1 / true を肯定扱い
-  if (v === 1 || v === "1" || v === true) return true;
+  if(v === 1 || v === "1" || v === true) return true;
+  // 文字列 "true" / "on" も肯定扱いに
+  if (v === "true" || v === "on" || v === "はい" || v === "有") return true;
   return false;
 }
 
@@ -1009,14 +1011,16 @@ export default function ShiftRecord({
         setSaveState("saved");
         // === LW連携（確定時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
         try {
-          if (shouldConnectLW(effectiveItems, values)) {
+          if (shouldConnectLW(effectiveItems, values) || shouldConnectLW(defs.items ?? [], values)) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            console.info("[LW] connect=YES, channelId:", channelId);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
               if (text) await postToLW(channelId, text);
             }
           }
         } catch (e) {
+          console.info("[LW] connect=NO (lw_connect not truthy / not found)");
           console.error("[LW] send-on-complete error:", e);
         }
         return;
@@ -1044,14 +1048,16 @@ export default function ShiftRecord({
 
         // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
         try {
-          if (shouldConnectLW(effectiveItems, values)) {
+          if (shouldConnectLW(effectiveItems, values) || shouldConnectLW(defs.items ?? [], values)) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
+            console.info("[LW] connect=YES, channelId:", channelId);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
               if (text) await postToLW(channelId, text);
             }
           }
         } catch (e) {
+          console.info("[LW] connect=NO (lw_connect not truthy / not found)");
           console.error("[LW] send-on-update error:", e);
         }
 
