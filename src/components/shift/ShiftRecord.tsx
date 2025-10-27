@@ -459,8 +459,8 @@ async function resolveChannelIdForClient(
   // 1) mergedInfo.group_account を優先
   const gi = (info ?? {}) as Record<string, unknown>;
   let groupAccount = "";
-  if (typeof gi.group_account === "string" && gi.kaipoke_cs_info) {
-    groupAccount = gi.group_account.trim();
+  if (typeof gi.kaipoke_cs_info === "string" && gi.kaipoke_cs_info) {
+    groupAccount = gi.kaipoke_cs_info;
     dbgAlert(`group_account from info: "${groupAccount}"`);
   }
   // 2) code === "group_account" の値
