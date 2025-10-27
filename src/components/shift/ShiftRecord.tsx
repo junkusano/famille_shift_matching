@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+//import type { RosterShiftCard } from '@/types/roster' 
 
 // 並び順ユーティリティ
 const byAsc = (x?: number, y?: number) => Number(x ?? 0) - Number(y ?? 0);
@@ -385,7 +386,7 @@ function shouldConnectLW(
   if (!key) return false;
   const v = values[key.id];
   try {
-    alert(`[LW] shouldConnectLW check\nitem_def_id=${key.id}\nraw=${String(v)}\ntruthy=${String(isTruthyOne(v))}`);
+    //alert(`[LW] shouldConnectLW check\nitem_def_id=${key.id}\nraw=${String(v)}\ntruthy=${String(isTruthyOne(v))}`);
   } catch { }
   return isTruthyOne(v);
 }
@@ -479,7 +480,6 @@ async function resolveChannelIdForClient(
   }
 }
 
-
 export default function ShiftRecord({
   shiftId,
   recordId,
@@ -544,22 +544,6 @@ export default function ShiftRecord({
     router.push("/portal/shift-view");
   }, [returnTo, router, status]); // ★★ 依存に status を追加
 
-  // 追加（ここから）
-  /*
-  useEffect(() => {
-    
-    alert(
-      [
-        `standard_route: "${qsStandardRoute ?? ""}"`,
-        `standard_trans_ways: "${qsStandardTransWays ?? ""}"`,
-        `standard_purpose: "${qsStandardPurpose ?? ""}"`,
-        `judo_ido: "${qsJudoIdo ?? ""}"`,
-      ].join("\n")
-    );
-    
-    
-  }, [qsStandardRoute, qsStandardTransWays, qsStandardPurpose]);
-  */
 
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
@@ -1017,17 +1001,17 @@ export default function ShiftRecord({
         setStatus(STATUS.completed); // ★★ 追加
         setSaveState("saved");
         // === LW連携（確定時） ===
-        alert("[LW] after PATCH completed: 確定時ブロックに到達");
+        //alert("[LW] after PATCH completed: 確定時ブロックに到達");
         try {
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
-          alert(`[LW] connect 判定\neffective=${condEff}\nallItems=${condAll}`);
+          //alert(`[LW] connect 判定\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
-            alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
+            //alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
-              alert(`[LW] buildLwMessage 完了\ntext.head=${text?.slice(0, 40) ?? ""}`);
+              //alert(`[LW] buildLwMessage 完了\ntext.head=${text?.slice(0, 40) ?? ""}`);
               if (text) await postToLW(channelId, text);
             }
           }
@@ -1058,16 +1042,16 @@ export default function ShiftRecord({
         // ロックポリシー：submitted ならロック、approved/archived もロック
         setRecordLocked(true);
         // === LW連携（更新時） ===
-        alert("[LW] 更新ブロックに到達");
+        //alert("[LW] 更新ブロックに到達");
 
         // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
         try {
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
-          alert(`[LW] connect 判定（更新）\neffective=${condEff}\nallItems=${condAll}`);
+          //alert(`[LW] connect 判定（更新）\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, effectiveItems, mergedInfo);
-            alert(`[LW] resolveChannelIdForClient 結果（更新）\nchannelId=${String(channelId)}`);
+            //alert(`[LW] resolveChannelIdForClient 結果（更新）\nchannelId=${String(channelId)}`);
             if (channelId) {
               const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
               if (text) await postToLW(channelId, text);
