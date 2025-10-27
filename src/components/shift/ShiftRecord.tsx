@@ -406,13 +406,24 @@ function extractTokuteiStatusSlice(raw: string): string {
 
 // tokutei_comment を優先して本文を作り、先頭固定文を付ける
 function buildLwTokuteiMessage(
-  defs: ShiftRecordItemDef[],
-  values: Record<string, unknown>
+  allDefs: ShiftRecordItemDef[],                   // ← defs.items を渡す
+  values: Record<string, unknown>,
+  mergedInfo?: Record<string, unknown> | null      // ← 追加
 ): string {
   const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
 
-  const tok = defs.find(d => d.code === "tokutei_comment");
-  const raw = tok ? (values[tok.id] ?? "") : "";
+  // 全アイテムから tokutei_comment を探す（effectiveItems だと非表示で落ちる場合がある）
+  const tok = allDefs.find(d => d.code === "tokutei_comment");
+
+  // 1) values から item_def_id で取り出し
+  let raw = tok ? (values[tok.id] ?? "") : "";
+
+  // 2) 空なら mergedInfo.tokutei_comment をフォールバック
+  if (!raw || String(raw).trim() === "") {
+    const mi = (mergedInfo ?? {}) as Record<string, unknown>;
+    raw = mi.tokutei_comment ?? "";
+  }
+
   const body = extractTokuteiStatusSlice(String(raw));
 
   // 本文が空ならヘッダのみ（空投げ防止）
