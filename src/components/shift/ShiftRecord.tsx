@@ -455,11 +455,11 @@ async function resolveChannelIdForClient(
   defs: ShiftRecordItemDef[],
   info: Record<string, unknown> | null
 ): Promise<string | null> {
-  dbgAlert("resolveChannelIdForClient: start");
+  //dbgAlert("resolveChannelIdForClient: start");
   // 1) mergedInfo.group_account を優先
   const gi = (info ?? {}) as Record<string, unknown>;
   let groupAccount = "";
-  if (typeof gi.group_account === "string" && gi.group_account.trim()) {
+  if (typeof gi.group_account === "string" && gi.kaipoke_cs_info) {
     groupAccount = gi.group_account.trim();
     dbgAlert(`group_account from info: "${groupAccount}"`);
   }
