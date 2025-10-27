@@ -378,6 +378,36 @@ function extractTokuteiStatusSlice(raw: string): string {
   return seg.replace(/^[ \t]*\n+/, "").trim();
 }
 
+// 特記事項サマリを生成して本文を抽出して返す
+async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
+  try {
+    const res = await fetch("/api/tokutei/sum-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shift_id: Number(shiftId) }),
+    });
+    if (!res.ok) return "";
+    // レスポンス型を明示（想定される全キーをカバー）
+    type TokuteiResponse = {
+      summary?: string;
+      text?: string;
+      content?: string;
+      body?: string;
+    };
+    const j: TokuteiResponse | null = await res.json().catch(() => null);
+    const raw =
+      j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "";
+    return extractTokuteiStatusSlice(String(raw));
+  } catch {
+    return "";
+  }
+}
+
+// 先頭固定文（共通で使う）
+const LW_HEADER =
+  "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
+
+
 // ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
 async function postToLW(channelId: string, text: string) {
   //alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
@@ -924,7 +954,6 @@ export default function ShiftRecord({
       const ok = runValidation();
 
       // 最終確定（draft→submitted）
-      // 最終確定（draft→submitted）
       if (!isFinalStatus) {
         if (!ok) {
           setSaveState("error");
@@ -939,20 +968,8 @@ export default function ShiftRecord({
         });
         if (!res.ok) throw new Error("complete failed");
 
-        // ★ ここで一度だけサマリを生成し、その返り値を使う（以前の void fetch(...) は削除）
-        let summaryText = "";
-        try {
-          const r = await fetch("/api/tokutei/sum-order", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ shift_id: Number(shiftId) }),
-          });
-          if (r.ok) {
-            const j: any = await r.json().catch(() => null);
-            const raw = String(j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "");
-            summaryText = extractTokuteiStatusSlice(raw);
-          }
-        } catch { /* noop */ }
+        // ★ サマリ生成は1回だけ呼び、返り値を本文として使う
+        const summaryText = await fetchTokuteiSummarySlice(shiftId);
 
         setRecordLocked(true);
         setStatus(STATUS.completed);
@@ -963,10 +980,13 @@ export default function ShiftRecord({
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
           if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
+            const channelId = await resolveChannelIdForClient(
+              values,
+              defs.items ?? [],
+              mergedInfo
+            );
             if (channelId) {
-              const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
-              const text = summaryText ? `${header}\n${summaryText}` : header;
+              const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
               await postToLW(channelId, text);
             }
           }
@@ -978,8 +998,6 @@ export default function ShiftRecord({
       }
 
       // ここから「更新」分岐（final → update）
-      // OK: 現状ステータス維持で値だけ更新済み（flushQueue 済）
-      // NG: draft に戻す
       if (!ok) {
         setSaveState("saving");
         await fetch(`/api/shift-records/${rid}`, {
@@ -1000,25 +1018,15 @@ export default function ShiftRecord({
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
           if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
+            const channelId = await resolveChannelIdForClient(
+              values,
+              defs.items ?? [],
+              mergedInfo
+            );
             if (channelId) {
-              // ★ 更新時も“直近サマリ”を生成→返り値を使う（POSTはここで1回だけ）
-              let summaryText = "";
-              try {
-                const r = await fetch("/api/tokutei/sum-order", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ shift_id: Number(shiftId) }),
-                });
-                if (r.ok) {
-                  const j: any = await r.json().catch(() => null);
-                  const raw = String(j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "");
-                  summaryText = extractTokuteiStatusSlice(raw);
-                }
-              } catch { /* noop */ }
-
-              const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
-              const text = summaryText ? `${header}\n${summaryText}` : header;
+              // ★ 更新時も最新サマリを1回生成して使う
+              const summaryText = await fetchTokuteiSummarySlice(shiftId);
+              const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
               await postToLW(channelId, text);
             }
           }
@@ -1032,6 +1040,7 @@ export default function ShiftRecord({
       setSaveState("error");
     }
   }, [rid, isFinalStatus, flushQueue, runValidation, shiftId]);
+
 
   // ====== UIレイヤのための整形 ======
   const sByL = useMemo(() => {
