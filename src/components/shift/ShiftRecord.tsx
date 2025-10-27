@@ -393,6 +393,32 @@ function shouldConnectLW(
   return isTruthyOne(v);
 }
 
+// 「状況】」の直後〜「【指示】」の直前を抽出
+function extractTokuteiStatusSlice(raw: string): string {
+  const s = String(raw ?? "").replace(/\r\n/g, "\n");
+  const m1 = s.match(/状況】/); // 例: 「【前回の状況】」などもヒット
+  const start = m1 ? s.indexOf(m1[0]) + m1[0].length : 0;
+  const end = s.indexOf("【指示】", start);
+  const seg = s.slice(start, end === -1 ? undefined : end);
+  // 先頭の空行や空白を落として整形
+  return seg.replace(/^[ \t]*\n+/, "").trim();
+}
+
+// tokutei_comment を優先して本文を作り、先頭固定文を付ける
+function buildLwTokuteiMessage(
+  defs: ShiftRecordItemDef[],
+  values: Record<string, unknown>
+): string {
+  const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
+
+  const tok = defs.find(d => d.code === "tokutei_comment");
+  const raw = tok ? (values[tok.id] ?? "") : "";
+  const body = extractTokuteiStatusSlice(String(raw));
+
+  // 本文が空ならヘッダのみ（空投げ防止）
+  return body ? `${header}\n${body}` : header;
+}
+
 function buildLwMessage(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>,
@@ -427,18 +453,17 @@ function buildLwMessage(
 
 // ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
 async function postToLW(channelId: string, text: string) {
-  alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
+  //alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
   const res = await fetch("/api/lw-send-botmessage", {  // ← 既存の成功API
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ channelId, text }),
   });
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    alert(`[LW] APIレスポンス not ok\nstatus=${res.status}\nmsg=${msg}`);
-    console.error("Line Works 送信失敗", res.status, msg);
+    //const msg = await res.text().catch(() => "");
+    //alert(`[LW] APIレスポンス not ok\nstatus=${res.status}\nmsg=${msg}`);
   } else {
-    alert("[LW] APIレスポンス ok（/api/lw-send-botmessage 成功）");
+    //alert("[LW] APIレスポンス ok（/api/lw-send-botmessage 成功）");
   }
 }
 
@@ -1013,7 +1038,7 @@ export default function ShiftRecord({
             const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
             //alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
             if (channelId) {
-              const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 連携");
+              const text = buildLwTokuteiMessage(effectiveItems, values);
               //alert(`[LW] buildLwMessage 完了\ntext.head=${text?.slice(0, 40) ?? ""}`);
               if (text) await postToLW(channelId, text);
             }
