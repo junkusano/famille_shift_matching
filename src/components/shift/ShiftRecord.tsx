@@ -346,15 +346,6 @@ const isTruthyValue = (val: unknown): boolean => {
   return !!val;
 };
 
-
-// ✅ 追加：LW連携ユーティリティ（ShiftRecord.tsx 内のどこか上部に配置）
-type LwMeta = { lw_forward?: boolean; lw_channel_id?: boolean; label?: string };
-
-function getString(v: unknown) {
-  if (v == null) return "";
-  return typeof v === "string" ? v : JSON.stringify(v);
-}
-
 function isTruthyOne(v: unknown) {
   // "1" / 1 / true を肯定扱い
   if (v === 1 || v === "1" || v === true) return true;
@@ -362,23 +353,6 @@ function isTruthyOne(v: unknown) {
   if (v === "true" || v === "on" || v === "はい" || v === "有") return true;
   return false;
 }
-
-/*
-function pickLwChannelId(
-  defs: ShiftRecordItemDef[],
-  values: Record<string, unknown>
-): string | null {
-  // code===lw_channel_id or meta_json.lw_channel_id === true を優先
-  const cand = defs.find(d =>
-    (d.code && d.code === "lw_channel_id") ||
-    (d.meta_json && (d.meta_json as LwMeta).lw_channel_id === true)
-  );
-  if (!cand) return null;
-  const v = values[cand.id];
-  const s = getString(v).trim();
-  return s || null;
-}
-  */
 
 function shouldConnectLW(
   defs: ShiftRecordItemDef[],
@@ -404,64 +378,6 @@ function extractTokuteiStatusSlice(raw: string): string {
   return seg.replace(/^[ \t]*\n+/, "").trim();
 }
 
-// tokutei_comment を優先して本文を作り、先頭固定文を付ける
-function buildLwTokuteiMessage(
-  allDefs: ShiftRecordItemDef[],                   // ← defs.items を渡す
-  values: Record<string, unknown>,
-  mergedInfo?: Record<string, unknown> | null      // ← 追加
-): string {
-  const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
-
-  // 全アイテムから tokutei_comment を探す（effectiveItems だと非表示で落ちる場合がある）
-  const tok = allDefs.find(d => d.code === "tokutei_comment");
-
-  // 1) values から item_def_id で取り出し
-  let raw = tok ? (values[tok.id] ?? "") : "";
-
-  // 2) 空なら mergedInfo.tokutei_comment をフォールバック
-  if (!raw || String(raw).trim() === "") {
-    const mi = (mergedInfo ?? {}) as Record<string, unknown>;
-    raw = mi.tokutei_comment ?? "";
-  }
-
-  const body = extractTokuteiStatusSlice(String(raw));
-
-  // 本文が空ならヘッダのみ（空投げ防止）
-  return body ? `${header}\n${body}` : header;
-}
-
-function buildLwMessage(
-  defs: ShiftRecordItemDef[],
-  values: Record<string, unknown>,
-  header?: string
-): string {
-  // meta_json.lw_forward === true の項目、または既定の code 群を採用
-  const DEFAULT_FORWARD_CODES = new Set([
-    "lw_message", "memo", "note", "request", "incident", "detail"
-  ]);
-
-  const lines: string[] = [];
-  if (header) lines.push(header);
-
-  for (const d of defs) {
-    const meta = (d.meta_json ?? {}) as LwMeta;
-    const shouldForward =
-      meta.lw_forward === true ||
-      (d.code ? DEFAULT_FORWARD_CODES.has(d.code) : false);
-
-    if (!shouldForward) continue;
-
-    const raw = values[d.id];
-    const text = getString(raw).trim();
-    if (!text) continue;
-
-    const label = (meta.label || d.label || d.code || "").toString().trim();
-    lines.push(label ? `${label}：${text}` : text);
-  }
-
-  return lines.join("\n").trim();
-}
-
 // ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
 async function postToLW(channelId: string, text: string) {
   //alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
@@ -477,16 +393,6 @@ async function postToLW(channelId: string, text: string) {
     //alert("[LW] APIレスポンス ok（/api/lw-send-botmessage 成功）");
   }
 }
-
-/*
-const dbgAlert = (msg: string) => {
-  // クライアント実行時のみ alert、常に console にも出す
-  if (typeof window !== "undefined") alert(msg);
-  // 長文でも潰れないよう console にも残す
-  // eslint-disable-next-line no-console
-  console.log(`[LW-DEBUG] ${msg}`);
-};
-*/
 
 // ShiftRecord.tsx 先頭のユーティリティ群の近くに追記
 async function resolveChannelIdForClient(
@@ -1018,40 +924,50 @@ export default function ShiftRecord({
       const ok = runValidation();
 
       // 最終確定（draft→submitted）
+      // 最終確定（draft→submitted）
       if (!isFinalStatus) {
         if (!ok) {
           setSaveState("error");
           return; // draft のまま
         }
         setSaveState("saving");
+
         const res = await fetch(`/api/shift-records/${rid}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: STATUS.completed }),
         });
-        // 付随処理は既存の tokutei 呼び出しを踏襲
-        void fetch("/api/tokutei/sum-order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ shift_id: Number(shiftId) }),
-        }).catch(() => { });
         if (!res.ok) throw new Error("complete failed");
+
+        // ★ ここで一度だけサマリを生成し、その返り値を使う（以前の void fetch(...) は削除）
+        let summaryText = "";
+        try {
+          const r = await fetch("/api/tokutei/sum-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ shift_id: Number(shiftId) }),
+          });
+          if (r.ok) {
+            const j: any = await r.json().catch(() => null);
+            const raw = String(j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "");
+            summaryText = extractTokuteiStatusSlice(raw);
+          }
+        } catch { /* noop */ }
+
         setRecordLocked(true);
-        setStatus(STATUS.completed); // ★★ 追加
+        setStatus(STATUS.completed);
         setSaveState("saved");
+
         // === LW連携（確定時） ===
-        //alert("[LW] after PATCH completed: 確定時ブロックに到達");
         try {
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
-          //alert(`[LW] connect 判定\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
-            //alert(`[LW] resolveChannelIdForClient 結果\nchannelId=${String(channelId)}`);
             if (channelId) {
-              const text = buildLwTokuteiMessage(effectiveItems, values);
-              //alert(`[LW] buildLwMessage 完了\ntext.head=${text?.slice(0, 40) ?? ""}`);
-              if (text) await postToLW(channelId, text);
+              const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
+              const text = summaryText ? `${header}\n${summaryText}` : header;
+              await postToLW(channelId, text);
             }
           }
         } catch (e) {
@@ -1072,35 +988,44 @@ export default function ShiftRecord({
           body: JSON.stringify({ status: STATUS.inProgress }),
         });
         setRecordLocked(false);
-        //setStatus("draft"); // ★★ 追加：draftに戻す
         setSaveState("error");
         alert("バリデーションを満たしていないため、ステータスを draft に戻しました。修正の上、保存（完了）してください。");
       } else {
-        // OK の場合は status 維持（submitted/approved/archived のまま）
+        // OK の場合は status 維持
         setSaveState("saved");
-        // ロックポリシー：submitted ならロック、approved/archived もロック
         setRecordLocked(true);
-        // === LW連携（更新時） ===
-        //alert("[LW] 更新ブロックに到達");
 
-        // === LW連携（更新時）: lw_connect=1 なら、該当利用者のチャンネルへ送信 ===
+        // === LW連携（更新時） ===
         try {
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
-          //alert(`[LW] connect 判定（更新）\neffective=${condEff}\nallItems=${condAll}`);
           if (condEff || condAll) {
             const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
-            //alert(`[LW] resolveChannelIdForClient 結果（更新）\nchannelId=${String(channelId)}`);
             if (channelId) {
-              const text = buildLwMessage(effectiveItems, values, "🧾 シフト記録 更新");
-              if (text) await postToLW(channelId, text);
+              // ★ 更新時も“直近サマリ”を生成→返り値を使う（POSTはここで1回だけ）
+              let summaryText = "";
+              try {
+                const r = await fetch("/api/tokutei/sum-order", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ shift_id: Number(shiftId) }),
+                });
+                if (r.ok) {
+                  const j: any = await r.json().catch(() => null);
+                  const raw = String(j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "");
+                  summaryText = extractTokuteiStatusSlice(raw);
+                }
+              } catch { /* noop */ }
+
+              const header = "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
+              const text = summaryText ? `${header}\n${summaryText}` : header;
+              await postToLW(channelId, text);
             }
           }
         } catch (e) {
           alert("[LW] 例外: send-on-update error（詳細はConsole）");
           console.error("[LW] send-on-update error:", e);
         }
-
       }
     } catch (e) {
       console.error(e);
