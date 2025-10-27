@@ -458,6 +458,7 @@ async function resolveChannelIdForClient(
   //dbgAlert("resolveChannelIdForClient: start");
   // 1) mergedInfo.group_account を優先
   const gi = (info ?? {}) as Record<string, unknown>;
+  dbgAlert(`kaipoke_cs_id from info: "${gi.kaipoke_cs_id}"`);
   let groupAccount = "";
   if (typeof gi.kaipoke_cs_info === "string" && gi.kaipoke_cs_info) {
     groupAccount = gi.kaipoke_cs_info;
@@ -561,6 +562,7 @@ export default function ShiftRecord({
   // 既存 mergedInfo を拡張
   const mergedInfo = useMemo(() => {
     const base: MergedInfo = { ...(shiftInfo ?? {}) };
+    //alert(`[ShiftRecord] mergedInfo start\nbase=${JSON.stringify(base)}`);
 
     // client_name（API空ならQSで補完）
     {
