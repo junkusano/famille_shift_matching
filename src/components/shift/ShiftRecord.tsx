@@ -408,21 +408,35 @@ const LW_HEADER =
   "🧾 訪問記録の内容を連携します。対応が必要な場合があります。確認して対応をしてください。";
 
 
-// ShiftRecord.tsx 内（既存APIのパスに合わせて1行だけ修正）
+// ShiftRecord.tsx 内
 async function postToLW(channelId: string, text: string) {
-  //alert(`[LW] postToLW() 呼び出し\nchannelId=${channelId}\ntext.length=${text?.length ?? 0}`);
-  const res = await fetch("/api/lw-send-botmessage", {  // ← 既存の成功API
+  // === テストモード: 実送信しない ===
+  const TEST_MODE = true;
+
+  if (TEST_MODE) {
+    alert(
+      `[LWテストモード]\n\n` +
+      `送信先チャンネルID:\n${channelId}\n\n` +
+      `送信内容:\n${text}`
+    );
+    return; // ← 実送信はスキップ
+  }
+
+  // === 通常モード（本番運用） ===
+  const res = await fetch("/api/lw-send-botmessage", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ channelId, text }),
   });
+
   if (!res.ok) {
-    //const msg = await res.text().catch(() => "");
-    //alert(`[LW] APIレスポンス not ok\nstatus=${res.status}\nmsg=${msg}`);
+    const msg = await res.text().catch(() => "");
+    alert(`[LW] 送信失敗\nstatus=${res.status}\n${msg}`);
   } else {
-    //alert("[LW] APIレスポンス ok（/api/lw-send-botmessage 成功）");
+    alert("[LW] メッセージ送信成功");
   }
 }
+
 
 // ShiftRecord.tsx 先頭のユーティリティ群の近くに追記
 async function resolveChannelIdForClient(
