@@ -109,7 +109,7 @@ export async function GET(req: Request) {
   if (!client_name && s.kaipoke_cs_id) {
     const { data: cs, error: e2 } = await supabase
       .from("shift_csinfo_postalname_view")
-      .select("name, postal_code, postal_code_3, district")
+      .select("name, postal_code, postal_code_3, district,kaipoke_cs_id")
       .eq("kaipoke_cs_id", s.kaipoke_cs_id)
       .maybeSingle<CsInfo>();
 
