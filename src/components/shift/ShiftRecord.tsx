@@ -447,6 +447,7 @@ async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
 
     return slice;
   } catch (e) {
+    void e;
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
       //alert(`[TOKUTEI][client] exception: ${e instanceof Error ? e.message : String(e)}`);
     }
