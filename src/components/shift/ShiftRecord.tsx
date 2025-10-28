@@ -348,16 +348,34 @@ const isTruthyValue = (val: unknown): boolean => {
   return !!val;
 };
 
+/*
 function isTruthyOne(v: unknown) {
   if (v === 1 || v === "1" || v === true) return true;
   if (v === "true" || v === "on" || v === "はい" || v === "有") return true;
   return false;
 }
+*/
 
 // JSON安全パース
-function safeParseJson<T = any>(raw: unknown): T | null {
-  if (!raw) return null;
-  try { return JSON.parse(String(raw)) as T; } catch { return null; }
+function safeParseJson<T>(raw: unknown): T | null {
+  if (raw == null) return null;
+
+  // すでにオブジェクトの場合（DBがJSONとして返すケース）
+  if (typeof raw === "object") {
+    return raw as T;
+  }
+
+  // 文字列の場合のみ JSON.parse
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  // それ以外の型は非対応
+  return null;
 }
 
 // 入力が“実質的に”空じゃないか
@@ -367,6 +385,8 @@ function hasNonEmpty(v: unknown): boolean {
   return s.length > 0 && s !== "0"; // "0" は意図的に未入力扱い（必要なら外してOK）
 }
 
+type LwOptions = { lw_connect?: boolean };
+
 function shouldConnectLW(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
@@ -375,14 +395,13 @@ function shouldConnectLW(
 
   // A) 従来のスイッチ：code=lw_connect（値が入っていれば発火）
   const dConnect = find("lw_connect");
-  if (dConnect && isTruthyOne(values[dConnect.id])) return true;
+  //if (dConnect && isTruthyOne(values[dConnect.id])) return true;
   if (dConnect && hasNonEmpty(values[dConnect.id])) return true;
 
   // B) 任意項目：options_json.lw_connect === true が付いていて、値が入っていれば発火
   for (const d of defs) {
-    // @ts-ignore 型に options_json が無ければ any でOK
-    const opts = safeParseJson<{ lw_connect?: boolean }>(d.options_json);
-    if (opts?.lw_connect === true && hasNonEmpty(values[d.id])) {
+    const opts = safeParseJson<LwOptions>(d.options_json);
+    if (opts?.lw_connect === true) {
       // デバッグしたければ↓
       // alert(`[LW DEBUG] trigger by options_json on code=${d.code} id=${d.id} val="${String(values[d.id]).slice(0,40)}"`);
       return true;
