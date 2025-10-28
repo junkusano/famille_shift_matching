@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { ShiftWeeklyTemplateUpsert } from "@/types/shift-weekly-template";
 
+/**
+ * 上書き（例：月→火）時の重複を避けるための方針A+削除：
+ *  1) 受け取った行のうち template_id が付いている既存行を先に削除（または非アクティブ化）
+ *  2) template_id を除去して upsert（実質 INSERT、PKはDB採番）
+ *
+ * ※ ID維持が必要なら、このAPIではなく「UPDATE/INSERT分離」版を使ってください。
+ */
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as { rows?: ShiftWeeklyTemplateUpsert[] };
@@ -16,7 +23,7 @@ export async function POST(req: Request) {
     // 1) 既存ID（上書き対象の旧レコード）を収集
     const idsToDelete = rows
       .map((r) => r.template_id)
-      .filter((v): v is number => Number.isFinite(v as number));
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 
     // 2) 旧レコードを削除（履歴に残す場合は update({ active:false }) へ）
     if (idsToDelete.length > 0) {
@@ -34,10 +41,16 @@ export async function POST(req: Request) {
     }
 
     // 3) 新レコードとして投入（PKはDBに採番）
-    //    template_id を除外（ここだけ unused になるため抑制）
-    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+    //    - template_id をオブジェクトから物理的に削除して渡す（unused変数を作らない）
     const upsertRows: Omit<ShiftWeeklyTemplateUpsert, "template_id">[] = rows.map(
-      ({ template_id, ...rest }) => rest
+      (r) => {
+        const clone = { ...r } as Omit<ShiftWeeklyTemplateUpsert, "template_id"> &
+          { template_id?: never };
+        // eslintがunused判定しない delete アプローチ
+        // @ts-expect-error: property exists only in the original type; removed before upsert
+        delete clone.template_id;
+        return clone;
+      }
     );
 
     const { error: upsertErr } = await supabaseAdmin
