@@ -349,9 +349,7 @@ const isTruthyValue = (val: unknown): boolean => {
 };
 
 function isTruthyOne(v: unknown) {
-  // "1" / 1 / true を肯定扱い
   if (v === 1 || v === "1" || v === true) return true;
-  // 文字列 "true" / "on" も肯定扱いに
   if (v === "true" || v === "on" || v === "はい" || v === "有") return true;
   return false;
 }
@@ -360,13 +358,23 @@ function shouldConnectLW(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
 ): boolean {
-  const key = defs.find(d => d.code === "lw_connect");
-  if (!key) return false;
-  const v = values[key.id];
-  try {
-    //alert(`[LW] shouldConnectLW check\nitem_def_id=${key.id}\nraw=${String(v)}\ntruthy=${String(isTruthyOne(v))}`);
-  } catch { }
-  return isTruthyOne(v);
+  const defConnect = defs.find(d => d.code === "lw_connect");
+  const defChan = defs.find(d => d.code === "lw_channel_id");
+
+  // ① lw_connect が「真」なら送る
+  if (defConnect) {
+    const v = values[defConnect.id];
+    if (isTruthyOne(v)) return true;
+  }
+
+  // ② lw_channel_id が「非空」なら送る
+  if (defChan) {
+    const raw = values[defChan.id];
+    const s = raw == null ? "" : String(raw).trim();
+    if (s) return true;
+  }
+
+  return false;
 }
 
 // 「状況】」の直後〜「【指示】」の直前を抽出
@@ -494,16 +502,21 @@ async function resolveChannelIdForClient(
   defs: ShiftRecordItemDef[],
   info: Record<string, unknown> | null
 ): Promise<string | null> {
-  void values;
-  void defs;
-  //dbgAlert("resolveChannelIdForClient: start");
-  // 1) mergedInfo.group_account を優先
-  const gi = (info ?? {}) as Record<string, unknown>;
+  // 0) フォームの lw_channel_id が入っていれば最優先で使う
+  const defChan = defs.find(d => d.code === "lw_channel_id");
+  if (defChan) {
+    const raw = values[defChan.id];
+    const s = raw == null ? "" : String(raw).trim();
+    if (s) return s; // これが最優先
+  }
 
+  // 1) 既存ロジック：mergedInfo(=shiftInfo) から group_account/kaipoke_cs_id を見て Supabase で解決
+  const gi = (info ?? {}) as Record<string, unknown>;
   try {
     const { data, error } = await supabase
       .from("group_lw_channel_view")
       .select("channel_id")
+      // group_account = kaipoke_cs_id 連携
       .eq("group_account", gi.kaipoke_cs_id)
       .maybeSingle();
 
@@ -517,6 +530,7 @@ async function resolveChannelIdForClient(
     return null;
   }
 }
+
 
 export default function ShiftRecord({
   shiftId,
