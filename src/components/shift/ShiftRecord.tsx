@@ -378,27 +378,72 @@ function extractTokuteiStatusSlice(raw: string): string {
   return seg.replace(/^[ \t]*\n+/, "").trim();
 }
 
+const TOKUTEI_DEBUG = true;
+  // === テストモード: 実送信しない ===
+const TEST_MODE = true;
+
 // 特記事項サマリを生成して本文を抽出して返す
 async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
   try {
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      alert(`[TOKUTEI][client] POST /api/tokutei/sum-order\nshiftId=${shiftId}`);
+    }
+
     const res = await fetch("/api/tokutei/sum-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ shift_id: Number(shiftId) }),
     });
+
+    // レスポンス一次情報
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      alert(`[TOKUTEI][client] res.ok=${res.ok} status=${res.status}`);
+    }
     if (!res.ok) return "";
-    // レスポンス型を明示（想定される全キーをカバー）
+
+    // 生テキストも確認（json前に clone で生テキストを取る）
+    const rawText = await res.clone().text().catch(() => "");
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      const head = rawText.slice(0, 300);
+      alert(`[TOKUTEI][client] rawText(len=${rawText.length})\n---\n${head}\n---`);
+    }
+
+    // 期待キーのどれかを拾う
     type TokuteiResponse = {
       summary?: string;
       text?: string;
       content?: string;
       body?: string;
+      [k: string]: unknown;
     };
     const j: TokuteiResponse | null = await res.json().catch(() => null);
-    const raw =
-      j?.summary ?? j?.text ?? j?.content ?? j?.body ?? "";
-    return extractTokuteiStatusSlice(String(raw));
-  } catch {
+
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      const keys = j ? Object.keys(j) : [];
+      alert(`[TOKUTEI][client] json keys: ${keys.join(",") || "(none)"}`);
+    }
+
+    const raw = String(
+      j?.summary ?? j?.text ?? j?.content ?? j?.body ?? ""
+    );
+
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      const head = raw.slice(0, 200).replace(/\n/g, "\\n");
+      alert(`[TOKUTEI][client] picked raw(len=${raw.length}) head="${head}"`);
+    }
+
+    const slice = extractTokuteiStatusSlice(raw);
+
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      const head = slice.slice(0, 200).replace(/\n/g, "\\n");
+      alert(`[TOKUTEI][client] slice(len=${slice.length}) head="${head}"`);
+    }
+
+    return slice;
+  } catch (e) {
+    if (TOKUTEI_DEBUG && typeof window !== "undefined") {
+      alert(`[TOKUTEI][client] exception: ${e instanceof Error ? e.message : String(e)}`);
+    }
     return "";
   }
 }
@@ -410,8 +455,6 @@ const LW_HEADER =
 
 // ShiftRecord.tsx 内
 async function postToLW(channelId: string, text: string) {
-  // === テストモード: 実送信しない ===
-  const TEST_MODE = true;
 
   if (TEST_MODE) {
     alert(

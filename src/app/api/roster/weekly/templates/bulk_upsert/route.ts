@@ -12,13 +12,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'empty payload' }, { status: 400 })
   }
 
+  const upsertRows = payload.map(({ template_id, ...rest }) => rest);
+
   // onConflict で (cs, weekday, start_time) をキーとして upsert
   const { error } = await supabaseAdmin
     .from('shift_weekly_template')
-    .upsert(payload, {
+    .upsert(upsertRows, {
       onConflict: 'kaipoke_cs_id, weekday, start_time, required_staff_count',
       ignoreDuplicates: false,
-    })
+    });
+
   // .select() を付けなければ最小返却（minimal）
   // .select() // ←返り値が必要なら有効化
 
