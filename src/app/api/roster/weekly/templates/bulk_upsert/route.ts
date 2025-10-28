@@ -3,13 +3,6 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { ShiftWeeklyTemplateUpsert } from "@/types/shift-weekly-template";
 
-/**
- * 上書き（例：月→火）時の重複を避けるための方針A+削除：
- *  1) 受け取った行のうち template_id が付いている既存行を先に削除（または非アクティブ化）
- *  2) template_id を除去して upsert（実質 INSERT、PKはDB採番）
- *
- * ※ ID維持が必要なら、このAPIではなく「UPDATE/INSERT分離」版を使ってください。
- */
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as { rows?: ShiftWeeklyTemplateUpsert[] };
@@ -18,7 +11,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "empty payload" }, { status: 400 });
     }
 
-    // 型利用（静的チェック用）。runtimeは軽い整形のみ行う
     const rows: ShiftWeeklyTemplateUpsert[] = body.rows;
 
     // 1) 既存ID（上書き対象の旧レコード）を収集
@@ -26,7 +18,7 @@ export async function POST(req: Request) {
       .map((r) => r.template_id)
       .filter((v): v is number => Number.isFinite(v as number));
 
-    // 2) 旧レコードを削除（履歴を残したい場合は下の delete() を update({ active:false }) に変更）
+    // 2) 旧レコードを削除（履歴に残す場合は update({ active:false }) へ）
     if (idsToDelete.length > 0) {
       const { error: delErr } = await supabaseAdmin
         .from("shift_weekly_template")
@@ -41,11 +33,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3) 新レコードとして投入（PKはDBに採番させる）
-    //    - template_id は渡さない
-    //    - onConflict は自然キー（kaipoke_cs_id, weekday, start_time, required_staff_count）
-    //      ※通常は「完全新規行」になる想定だが、同一キーが既に存在した場合は UPDATE される
-    const upsertRows = rows.map(({ template_id, ...rest }) => rest);
+    // 3) 新レコードとして投入（PKはDBに採番）
+    //    template_id を除外（ここだけ unused になるため抑制）
+    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+    const upsertRows: Omit<ShiftWeeklyTemplateUpsert, "template_id">[] = rows.map(
+      ({ template_id, ...rest }) => rest
+    );
+
     const { error: upsertErr } = await supabaseAdmin
       .from("shift_weekly_template")
       .upsert(upsertRows, {
@@ -58,10 +52,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "unexpected error" },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "unexpected error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
