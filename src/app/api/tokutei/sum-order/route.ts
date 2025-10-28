@@ -265,11 +265,16 @@ export async function POST(req: NextRequest) {
       .eq("shift_id", nextShift.shift_id);
     if (eUp) throw eUp;
 
+    console.log("[tokutei/sum-order] finalPlain.len", finalPlain.length);
+    console.log("[tokutei/sum-order] finalPlain.head", finalPlain.slice(0, 120).replace(/\n/g, "\\n"));
+
     return NextResponse.json({
       ok: true,
       target_shift_id: nextShift.shift_id,
       wrote_to: "next_after_chain",
       length: finalPlain.length,
+      tokutei_comment: finalPlain,
+      summary: finalPlain,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
