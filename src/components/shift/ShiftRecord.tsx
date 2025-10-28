@@ -389,8 +389,8 @@ function extractTokuteiStatusSlice(raw: string): string {
 }
 
 const TOKUTEI_DEBUG = false;
-  // === テストモード: 実送信しない ===
-const TEST_MODE = false;
+// === テストモード: 実送信しない ===
+const TEST_MODE = true;
 
 // 特記事項サマリを生成して本文を抽出して返す
 async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
@@ -1057,21 +1057,25 @@ export default function ShiftRecord({
         try {
           const condEff = shouldConnectLW(effectiveItems, values);
           const condAll = shouldConnectLW(defs.items ?? [], values);
+          alert(`[LW DEBUG] trigger check\ncondEff=${condEff}\ncondAll=${condAll}`);
+
           if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(
-              values,
-              defs.items ?? [],
-              mergedInfo
-            );
+            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
+            alert(`[LW DEBUG] resolved channelId=${String(channelId)}`);
+            // ★ ここを再宣言せず、そのまま使う
+            alert(`[LW DEBUG] summaryText.len=${summaryText?.length ?? 0}\nhead="${(summaryText || "").slice(0, 80)}"`);
+
             if (channelId) {
               const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
+              alert(`[LW DEBUG] postToLW()\nchannelId=${channelId}\ntext.len=${text.length}`);
               await postToLW(channelId, text);
             }
           }
         } catch (e) {
-          alert("[LW] 例外: send-on-complete error（詳細はConsole）");
-          console.error("[LW] send-on-complete error:", e);
+          alert("[LW] 例外: send-on-xxx error（詳細はConsole）");
+          console.error("[LW] send-on-xxx error:", e);
         }
+
         return;
       }
 
