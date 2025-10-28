@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { he } from "date-fns/locale";
+void he;
 //import type { RosterShiftCard } from '@/types/roster' 
 
 // 並び順ユーティリティ
@@ -378,15 +380,15 @@ function extractTokuteiStatusSlice(raw: string): string {
   return seg.replace(/^[ \t]*\n+/, "").trim();
 }
 
-const TOKUTEI_DEBUG = true;
+const TOKUTEI_DEBUG = false;
   // === テストモード: 実送信しない ===
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 // 特記事項サマリを生成して本文を抽出して返す
 async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
   try {
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
-      alert(`[TOKUTEI][client] POST /api/tokutei/sum-order\nshiftId=${shiftId}`);
+      //alert(`[TOKUTEI][client] POST /api/tokutei/sum-order\nshiftId=${shiftId}`);
     }
 
     const res = await fetch("/api/tokutei/sum-order", {
@@ -397,7 +399,7 @@ async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
 
     // レスポンス一次情報
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
-      alert(`[TOKUTEI][client] res.ok=${res.ok} status=${res.status}`);
+      //alert(`[TOKUTEI][client] res.ok=${res.ok} status=${res.status}`);
     }
     if (!res.ok) return "";
 
@@ -405,7 +407,8 @@ async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
     const rawText = await res.clone().text().catch(() => "");
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
       const head = rawText.slice(0, 300);
-      alert(`[TOKUTEI][client] rawText(len=${rawText.length})\n---\n${head}\n---`);
+      void head;
+      //alert(`[TOKUTEI][client] rawText(len=${rawText.length})\n---\n${head}\n---`);
     }
 
     // 期待キーのどれかを拾う
@@ -420,7 +423,8 @@ async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
 
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
       const keys = j ? Object.keys(j) : [];
-      alert(`[TOKUTEI][client] json keys: ${keys.join(",") || "(none)"}`);
+      void keys;
+      //alert(`[TOKUTEI][client] json keys: ${keys.join(",") || "(none)"}`);
     }
 
     const raw = String(
@@ -429,20 +433,22 @@ async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
 
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
       const head = raw.slice(0, 200).replace(/\n/g, "\\n");
-      alert(`[TOKUTEI][client] picked raw(len=${raw.length}) head="${head}"`);
+      void head;
+      //alert(`[TOKUTEI][client] picked raw(len=${raw.length}) head="${head}"`);
     }
 
     const slice = extractTokuteiStatusSlice(raw);
 
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
       const head = slice.slice(0, 200).replace(/\n/g, "\\n");
-      alert(`[TOKUTEI][client] slice(len=${slice.length}) head="${head}"`);
+      void head;
+      //alert(`[TOKUTEI][client] slice(len=${slice.length}) head="${head}"`);
     }
 
     return slice;
   } catch (e) {
     if (TOKUTEI_DEBUG && typeof window !== "undefined") {
-      alert(`[TOKUTEI][client] exception: ${e instanceof Error ? e.message : String(e)}`);
+      //alert(`[TOKUTEI][client] exception: ${e instanceof Error ? e.message : String(e)}`);
     }
     return "";
   }
