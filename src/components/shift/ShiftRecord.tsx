@@ -358,24 +358,32 @@ function shouldConnectLW(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
 ): boolean {
-  const defConnect = defs.find(d => d.code === "lw_connect");
-  const defChan = defs.find(d => d.code === "lw_channel_id");
+  const find = (code: string) => defs.find(d => d.code === code);
 
-  // ① lw_connect が「真」なら送る
-  if (defConnect) {
-    const v = values[defConnect.id];
-    if (isTruthyOne(v)) return true;
-  }
+  const dConnect = find("lw_connect");
+  const dChan = find("lw_channel_id");
 
-  // ② lw_channel_id が「非空」なら送る
-  if (defChan) {
-    const raw = values[defChan.id];
-    const s = raw == null ? "" : String(raw).trim();
+  // デバッグ（必要なら外してOK）
+  alert(
+    `[LW DEBUG] shouldConnect\n` +
+    `has lw_connect=${!!dConnect} (id=${dConnect?.id ?? "-"})\n` +
+    `has lw_channel_id=${!!dChan} (id=${dChan?.id ?? "-"})\n` +
+    `val(lw_connect)=${String(dConnect ? values[dConnect.id] : "")}\n` +
+    `val(lw_channel_id)=${String(dChan ? values[dChan.id] : "")}`
+  );
+
+  // ① lw_connect が真なら送る
+  if (dConnect && isTruthyOne(values[dConnect.id])) return true;
+
+  // ② lw_channel_id が非空なら送る
+  if (dChan) {
+    const s = (values[dChan.id] ?? "").toString().trim();
     if (s) return true;
   }
 
   return false;
 }
+
 
 // 「状況】」の直後〜「【指示】」の直前を抽出
 function extractTokuteiStatusSlice(raw: string): string {
@@ -1055,12 +1063,12 @@ export default function ShiftRecord({
 
         // === LW連携（確定時） ===
         try {
-          const condEff = shouldConnectLW(effectiveItems, values);
-          const condAll = shouldConnectLW(defs.items ?? [], values);
-          alert(`[LW DEBUG] trigger check\ncondEff=${condEff}\ncondAll=${condAll}`);
+          const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
+          const shouldSend = shouldConnectLW(mergedDefs, values);
+          alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
-          if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(values, defs.items ?? [], mergedInfo);
+          if (shouldSend) {
+            const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
             alert(`[LW DEBUG] resolved channelId=${String(channelId)}`);
             // ★ ここを再宣言せず、そのまま使う
             alert(`[LW DEBUG] summaryText.len=${summaryText?.length ?? 0}\nhead="${(summaryText || "").slice(0, 80)}"`);
@@ -1097,14 +1105,13 @@ export default function ShiftRecord({
 
         // === LW連携（更新時） ===
         try {
-          const condEff = shouldConnectLW(effectiveItems, values);
-          const condAll = shouldConnectLW(defs.items ?? [], values);
-          if (condEff || condAll) {
-            const channelId = await resolveChannelIdForClient(
-              values,
-              defs.items ?? [],
-              mergedInfo
-            );
+          const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
+          const shouldSend = shouldConnectLW(mergedDefs, values);
+          alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
+
+          if (shouldSend) {
+            const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
+
             if (channelId) {
               // ★ 更新時も最新サマリを1回生成して使う
               const summaryText = await fetchTokuteiSummarySlice(shiftId);
