@@ -354,35 +354,48 @@ function isTruthyOne(v: unknown) {
   return false;
 }
 
+// JSON安全パース
+function safeParseJson<T = any>(raw: unknown): T | null {
+  if (!raw) return null;
+  try { return JSON.parse(String(raw)) as T; } catch { return null; }
+}
+
+// 入力が“実質的に”空じゃないか
+function hasNonEmpty(v: unknown): boolean {
+  if (v == null) return false;
+  const s = String(v).trim();
+  return s.length > 0 && s !== "0"; // "0" は意図的に未入力扱い（必要なら外してOK）
+}
+
 function shouldConnectLW(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
 ): boolean {
   const find = (code: string) => defs.find(d => d.code === code);
 
+  // A) 従来のスイッチ：code=lw_connect（値が入っていれば発火）
   const dConnect = find("lw_connect");
-  const dChan = find("lw_channel_id");
-
-  // デバッグ（必要なら外してOK）
-  alert(
-    `[LW DEBUG] shouldConnect\n` +
-    `has lw_connect=${!!dConnect} (id=${dConnect?.id ?? "-"})\n` +
-    `has lw_channel_id=${!!dChan} (id=${dChan?.id ?? "-"})\n` +
-    `val(lw_connect)=${String(dConnect ? values[dConnect.id] : "")}\n` +
-    `val(lw_channel_id)=${String(dChan ? values[dChan.id] : "")}`
-  );
-
-  // ① lw_connect が真なら送る
   if (dConnect && isTruthyOne(values[dConnect.id])) return true;
+  if (dConnect && hasNonEmpty(values[dConnect.id])) return true;
 
-  // ② lw_channel_id が非空なら送る
-  if (dChan) {
-    const s = (values[dChan.id] ?? "").toString().trim();
-    if (s) return true;
+  // B) 任意項目：options_json.lw_connect === true が付いていて、値が入っていれば発火
+  for (const d of defs) {
+    // @ts-ignore 型に options_json が無ければ any でOK
+    const opts = safeParseJson<{ lw_connect?: boolean }>(d.options_json);
+    if (opts?.lw_connect === true && hasNonEmpty(values[d.id])) {
+      // デバッグしたければ↓
+      // alert(`[LW DEBUG] trigger by options_json on code=${d.code} id=${d.id} val="${String(values[d.id]).slice(0,40)}"`);
+      return true;
+    }
   }
+
+  // C) 予備：code=lw_channel_id が非空なら発火
+  const dChan = find("lw_channel_id");
+  if (dChan && hasNonEmpty(values[dChan.id])) return true;
 
   return false;
 }
+
 
 
 // 「状況】」の直後〜「【指示】」の直前を抽出
@@ -1065,6 +1078,7 @@ export default function ShiftRecord({
         try {
           const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
           const shouldSend = shouldConnectLW(mergedDefs, values);
+
           alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
           if (shouldSend) {
