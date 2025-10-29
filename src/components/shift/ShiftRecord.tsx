@@ -1576,6 +1576,24 @@ function ItemInput({ def, value, onChange, shiftInfo, allValues, codeToId, idToD
     const unit = def.unit ? String(def.unit) : "";
     const out = text ? (unit ? `${text}${unit}` : text) : "—";
 
+    // ★ 追加: リンク描画モード（オプションで as: "link" または link: true を指定）
+    const asLink = opt && (opt.as === "link" || opt.link === true);
+    const href = String(text ?? "").trim();
+    if (asLink && /^https?:\/\//.test(href)) {
+      const label = typeof opt.label === "string" && opt.label.trim() ? opt.label.trim() : href;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm underline break-all"
+          title={href}
+        >
+          {label}
+        </a>
+      );
+    }
+
     return <div className="text-sm whitespace-pre-wrap break-words">{out}</div>;
   }
 
