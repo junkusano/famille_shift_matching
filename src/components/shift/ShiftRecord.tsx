@@ -385,6 +385,7 @@ function hasNonEmpty(v: unknown): boolean {
   return s.length > 0 && s !== "0"; // "0" は意図的に未入力扱い（必要なら外してOK）
 }
 
+// 発火オプションの型
 type LwOptions = { lw_connect?: boolean };
 
 function shouldConnectLW(
@@ -393,17 +394,18 @@ function shouldConnectLW(
 ): boolean {
   const find = (code: string) => defs.find(d => d.code === code);
 
-  // A) 従来のスイッチ：code=lw_connect（値が入っていれば発火）
+  // A) 固定スイッチ：code=lw_connect（値が入っていれば発火）
   const dConnect = find("lw_connect");
-  //if (dConnect && isTruthyOne(values[dConnect.id])) return true;
   if (dConnect && hasNonEmpty(values[dConnect.id])) return true;
 
-  // B) 任意項目：options_json.lw_connect === true が付いていて、値が入っていれば発火
+  // B) 任意項目：options または options_json に { "lw_connect": true } があり、
+  //    かつ当該項目に値が入っていれば発火
   for (const d of defs) {
-    const opts = safeParseJson<LwOptions>(d.options_json);
-    if (opts?.lw_connect === true) {
-      // デバッグしたければ↓
-      // alert(`[LW DEBUG] trigger by options_json on code=${d.code} id=${d.id} val="${String(values[d.id]).slice(0,40)}"`);
+    const rawOpts = (typeof d.options_json !== "undefined" ? d.options_json : d.options);
+    const opts = safeParseJson<LwOptions>(rawOpts);
+    if (opts?.lw_connect === true && hasNonEmpty(values[d.id])) {
+      // デバッグしたければ↓のalertを一時的に有効化
+      // alert(`[LW DEBUG] trigger by ${d.code ?? d.id} value="${String(values[d.id]).slice(0,40)}"`);
       return true;
     }
   }
@@ -414,7 +416,6 @@ function shouldConnectLW(
 
   return false;
 }
-
 
 
 // 「状況】」の直後〜「【指示】」の直前を抽出
