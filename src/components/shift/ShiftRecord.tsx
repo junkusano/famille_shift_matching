@@ -388,6 +388,14 @@ function hasNonEmpty(v: unknown): boolean {
 // 発火オプションの型
 type LwOptions = { lw_connect?: boolean };
 
+// LW連携フラグを「定義」から判定（code=lw_connect もOK）
+function isLwConnectDef(def: ShiftRecordItemDef): boolean {
+  if ((def.code ?? "") === "lw_connect") return true;
+  const raw = typeof def.options_json !== "undefined" ? def.options_json : def.options;
+  const opt = safeParseJson<LwOptions>(raw);
+  return opt?.lw_connect === true;
+}
+
 function shouldConnectLW(
   defs: ShiftRecordItemDef[],
   values: Record<string, unknown>
@@ -431,7 +439,7 @@ function extractTokuteiStatusSlice(raw: string): string {
 
 const TOKUTEI_DEBUG = false;
 // === テストモード: 実送信しない ===
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 // 特記事項サマリを生成して本文を抽出して返す
 async function fetchTokuteiSummarySlice(shiftId: string): Promise<string> {
@@ -1099,22 +1107,22 @@ export default function ShiftRecord({
           const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
           const shouldSend = shouldConnectLW(mergedDefs, values);
 
-          alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
+          //alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
           if (shouldSend) {
             const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
-            alert(`[LW DEBUG] resolved channelId=${String(channelId)}`);
+            //alert(`[LW DEBUG] resolved channelId=${String(channelId)}`);
             // ★ ここを再宣言せず、そのまま使う
-            alert(`[LW DEBUG] summaryText.len=${summaryText?.length ?? 0}\nhead="${(summaryText || "").slice(0, 80)}"`);
+            //alert(`[LW DEBUG] summaryText.len=${summaryText?.length ?? 0}\nhead="${(summaryText || "").slice(0, 80)}"`);
 
             if (channelId) {
               const text = summaryText ? `${LW_HEADER}\n${summaryText}` : LW_HEADER;
-              alert(`[LW DEBUG] postToLW()\nchannelId=${channelId}\ntext.len=${text.length}`);
+              //alert(`[LW DEBUG] postToLW()\nchannelId=${channelId}\ntext.len=${text.length}`);
               await postToLW(channelId, text);
             }
           }
         } catch (e) {
-          alert("[LW] 例外: send-on-xxx error（詳細はConsole）");
+          //alert("[LW] 例外: send-on-xxx error（詳細はConsole）");
           console.error("[LW] send-on-xxx error:", e);
         }
 
@@ -1141,7 +1149,7 @@ export default function ShiftRecord({
         try {
           const mergedDefs = [...(defs.items ?? []), ...(effectiveItems ?? [])];
           const shouldSend = shouldConnectLW(mergedDefs, values);
-          alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
+          //alert(`[LW DEBUG] trigger=${shouldSend} (mergedDefs=${mergedDefs.length})`);
 
           if (shouldSend) {
             const channelId = await resolveChannelIdForClient(values, mergedDefs, mergedInfo);
@@ -1154,7 +1162,7 @@ export default function ShiftRecord({
             }
           }
         } catch (e) {
-          alert("[LW] 例外: send-on-update error（詳細はConsole）");
+          //alert("[LW] 例外: send-on-update error（詳細はConsole）");
           console.error("[LW] send-on-update error:", e);
         }
       }
@@ -1341,7 +1349,13 @@ export default function ShiftRecord({
     <div className="flex flex-col gap-3">
       {/* ヘッダ */}
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm text-gray-600">Shift ID: {shiftId}</div>
+        <div className="text-sm text-gray-600">
+          Shift ID: {shiftId}
+          <span className="ml-3 text-xs text-gray-500">
+            <span className="text-red-500">*</span>…必須
+            <span className="text-green-600">*</span>…LW連携
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {/* ← 追加: ルール違反メッセージ（先頭だけを見やすく） */}
           {globalErrors.length > 0 && (
@@ -1498,6 +1512,7 @@ function FieldRow({ def, value, onChange, shiftInfo, allValues, codeToId, idToDe
       <label className="text-xs font-medium text-gray-700">
         {def.label}
         {def.required && <span className="ml-1 text-red-500">*</span>}
+        {isLwConnectDef(def) && <span className="ml-1 text-green-600">*</span>}
       </label>
       <ItemInput def={def} value={value} onChange={onChange} shiftInfo={shiftInfo} allValues={allValues} codeToId={codeToId} idToDefault={idToDefault} />
       {error && <p className="text-[11px] text-red-600">{error}</p>}
