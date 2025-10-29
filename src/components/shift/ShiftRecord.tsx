@@ -1352,7 +1352,7 @@ export default function ShiftRecord({
         <div className="text-sm text-gray-600">
           Shift ID: {shiftId}
           <span className="ml-3 text-xs text-gray-500">
-            <span className="text-red-500">*</span>…必須
+            <span className="text-red-500">*</span>…必須&nbsp;
             <span className="text-green-600">*</span>…LW連携
           </span>
         </div>
