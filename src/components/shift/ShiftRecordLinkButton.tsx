@@ -15,6 +15,7 @@ interface ShiftRecordLinkButtonProps {
   staff01UserId?: string | null;
   staff02UserId?: string | null;
   staff03UserId?: string | null;
+  kodoengoPlanLink?: string | null;
   staff02AttendFlg?: string | number | boolean | null;
   staff03AttendFlg?: string | number | boolean | null;
   judoIdo?: string | number | null;
@@ -36,6 +37,7 @@ export default function ShiftRecordLinkButton({
   standardRoute,
   standardTransWays,
   standardPurpose,
+  kodoengoPlanLink,
   staff01UserId, staff02UserId, staff03UserId,
   staff02AttendFlg, staff03AttendFlg,
   judoIdo,
@@ -74,6 +76,9 @@ export default function ShiftRecordLinkButton({
         }
         if (standardPurpose) {
           q += `&standard_purpose=${encodeURIComponent(standardPurpose)}`;
+        }
+        if (kodoengoPlanLink) {
+          q += `&kodoengo_plan_link=${encodeURIComponent(kodoengoPlanLink)}`;
         }
 
         if (staff01UserId) q += `&staff_01_user_id=${encodeURIComponent(staff01UserId)}`;

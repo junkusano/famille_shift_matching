@@ -44,6 +44,7 @@ export interface ShiftData {
   staff_01_level_sort?: number | null;
   staff_02_level_sort?: number | null;
   staff_03_level_sort?: number | null;
+  kodoengo_plan_link?: string | null;
   judo_ido?: string | number | null;
   address: string;
   client_name: string;

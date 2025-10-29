@@ -937,6 +937,7 @@ export default function ShiftCard({
                 standardRoute={sr}
                 standardTransWays={stw}
                 standardPurpose={sp}
+                kodoengoPlanLink={shift.kodoengo_plan_link}
                 staff01UserId={shift.staff_01_user_id ?? ""}
                 staff02UserId={shift.staff_02_user_id ?? ""}
                 staff03UserId={shift.staff_03_user_id ?? ""}

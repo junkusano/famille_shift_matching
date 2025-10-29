@@ -608,6 +608,8 @@ export default function ShiftRecord({
   const qsStandardTransWays = sp.get("standard_trans_ways") || undefined;
   const qsStandardPurpose = sp.get("standard_purpose") || undefined;
 
+  const qsKodoengoPlanLink = sp.get("kodoengo_plan_link") || undefined;
+
   const qsJudoIdo = sp.get("judo_ido") || undefined;
 
   const router = useRouter();
@@ -669,6 +671,11 @@ export default function ShiftRecord({
     }
 
     {
+      const apiKodoLink = typeof base.kodoengo_plan_link === "string" ? String(base.kodoengo_plan_link).trim() : "";
+      if (qsKodoengoPlanLink && !apiKodoLink) base.kodoengo_plan_link = qsKodoengoPlanLink;
+    }
+
+    {
       const raw = (qsJudoIdo ?? (typeof base.judo_ido === "string" ? base.judo_ido : "")).toString();
       if (!base.judo_ido && qsJudoIdo) base.judo_ido = qsJudoIdo;
 
@@ -696,6 +703,7 @@ export default function ShiftRecord({
   }, [
     shiftInfo, clientNameFromQS,
     qsStandardRoute, qsStandardTransWays, qsStandardPurpose,
+    qsKodoengoPlanLink,
     qsStaff01UserId, qsStaff02UserId, qsStaff03UserId, qsStaff02AttendFlg, qsStaff03AttendFlg,
     qsTokuteiComment, qsJudoIdo
   ]);
