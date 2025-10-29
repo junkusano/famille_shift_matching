@@ -75,6 +75,8 @@ type KaipokeInfo = {
     // 追加分
     documents: Attachment[] | null; // JSONB
     time_adjustability_id: string | null; // マスタ参照
+
+    kodoengo_plan_link: string | null;
 };
 
 type DocMasterRow = {
@@ -279,6 +281,7 @@ export default function KaipokeInfoDetailPage() {
                     standard_trans_ways: (row.standard_trans_ways ?? '').trim() || null,
                     standard_purpose: (row.standard_purpose ?? '').trim() || null,
                     time_adjustability_id: row.time_adjustability_id || null,
+                    kodoengo_plan_link: (row.kodoengo_plan_link ?? '').trim() || null,
                 })
                 .eq('id', row.id);
             if (error) throw new Error(error.message);
@@ -424,27 +427,75 @@ export default function KaipokeInfoDetailPage() {
             </div>
 
             {/* 標準ルート / 通勤可否 / 手段 / 目的 */}
-            <div className="grid md:grid-cols-2 gap-4">
+            {/* 標準ルート / 通勤可否 / 手段 / 目的 / 行動援護プランURL */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">標準ルート（初期値）</label>
-                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_route ?? ''} onChange={(e) => setRow({ ...row, standard_route: e.target.value })} />
+                    <textarea
+                        className="w-full border rounded p-2"
+                        rows={2}
+                        value={row.standard_route ?? ''}
+                        onChange={(e) => setRow({ ...row, standard_route: e.target.value })}
+                    />
                 </div>
+
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">通勤可否（初期値）</label>
-                    <select className="border rounded px-2 py-1" value={row.commuting_flg ? '1' : '0'} onChange={(e) => setRow({ ...row, commuting_flg: e.target.value === '1' })}>
+                    <select
+                        className="border rounded px-2 py-1 w-full"
+                        value={row.commuting_flg ? '1' : '0'}
+                        onChange={(e) => setRow({ ...row, commuting_flg: e.target.value === '1' })}
+                    >
                         <option value="0">不可</option>
                         <option value="1">可</option>
                     </select>
                 </div>
+
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">手段（初期値）</label>
-                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_trans_ways ?? ''} onChange={(e) => setRow({ ...row, standard_trans_ways: e.target.value })} />
+                    <textarea
+                        className="w-full border rounded p-2"
+                        rows={2}
+                        value={row.standard_trans_ways ?? ''}
+                        onChange={(e) => setRow({ ...row, standard_trans_ways: e.target.value })}
+                    />
                 </div>
+
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">目的（初期値）</label>
-                    <textarea className="w-full border rounded p-2" rows={2} value={row.standard_purpose ?? ''} onChange={(e) => setRow({ ...row, standard_purpose: e.target.value })} />
+                    <textarea
+                        className="w-full border rounded p-2"
+                        rows={2}
+                        value={row.standard_purpose ?? ''}
+                        onChange={(e) => setRow({ ...row, standard_purpose: e.target.value })}
+                    />
+                </div>
+
+                {/* 追加：行動援護プランURL（支援手順書リンク） */}
+                <div className="space-y-2 md:col-span-2">
+                    <label className="block text-sm text-gray-600">行動援護プラン（支援手順書）リンク</label>
+                    <div className="flex gap-2">
+                        <input
+                            type="url"
+                            placeholder="https://...（Driveや社内URLなど）"
+                            className="w-full border rounded px-2 py-1"
+                            value={row.kodoengo_plan_link ?? ''}
+                            onChange={(e) => setRow({ ...row, kodoengo_plan_link: e.target.value })}
+                        />
+                        {(row.kodoengo_plan_link ?? '').trim() && (
+                            <a
+                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                href={row.kodoengo_plan_link!}
+                                target="_blank" rel="noreferrer"
+                            >
+                                開く
+                            </a>
+                        )}
+                    </div>
+                    <p className="text-xs text-gray-500">※ 行動援護実施者のプラン／支援手順書の参照URLを登録</p>
                 </div>
             </div>
+
 
             {/* 書類（documents: JSONB） */}
             <div className="space-y-2">
