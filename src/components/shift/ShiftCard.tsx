@@ -44,6 +44,7 @@ type Props = {
   standardRoute?: string;
   standardTransWays?: string;
   standardPurpose?: string;
+  kodoengoPlanLink?: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -110,8 +111,10 @@ type KaipokeInfo = {
   standard_route?: string | null;
   standard_trans_ways?: string | null;
   standard_purpose?: string | null;
+  kodoengoPlanLink?: string;
   address?: string | null;
   postal_code?: string | null;
+  kodoengo_plan_link?: string | null;
 };
 
 // ★ 追加：型（ShiftCard.tsx の他の型定義の近く）
@@ -253,6 +256,7 @@ export default function ShiftCard({
     standard_purpose?: string | null;
     address?: string | null;       // ← 追加
     postal_code?: string | null;
+    kodoengo_plan_link?: string | null;
   } | null>(null);
 
 
@@ -421,7 +425,7 @@ export default function ShiftCard({
       p = (async () => {
         const { data } = await supabase
           .from(kaipokeInfoTableName)
-          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code")
+          .select("time_adjustability_id, standard_route, standard_trans_ways, standard_purpose, address, postal_code, kodoengo_plan_link")
           .eq("kaipoke_cs_id", csId)
           .maybeSingle();
 
@@ -432,6 +436,7 @@ export default function ShiftCard({
           standard_purpose: typeof rec.standard_purpose === "string" ? rec.standard_purpose : null,
           address: typeof rec.address === "string" ? rec.address : null,
           postal_code: typeof rec.postal_code === "string" ? rec.postal_code : null,
+          kodoengo_plan_link: typeof rec.kodoengo_plan_link === "string" ? rec.kodoengo_plan_link : null,
         };
         const id =
           typeof rec.time_adjustability_id === "string" ? rec.time_adjustability_id as string
@@ -752,6 +757,11 @@ export default function ShiftCard({
   const stw = pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"));
   const sp = pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"));
 
+  const kpl =
+  (kaipokeInfo?.kodoengo_plan_link && kaipokeInfo.kodoengo_plan_link.trim()) ?
+    kaipokeInfo.kodoengo_plan_link :
+    (getString(shift, "kodoengo_plan_link") ?? "");
+
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
 
@@ -937,7 +947,7 @@ export default function ShiftCard({
                 standardRoute={sr}
                 standardTransWays={stw}
                 standardPurpose={sp}
-                kodoengoPlanLink={shift.kodoengo_plan_link}
+                kodoengoPlanLink={kpl}
                 staff01UserId={shift.staff_01_user_id ?? ""}
                 staff02UserId={shift.staff_02_user_id ?? ""}
                 staff03UserId={shift.staff_03_user_id ?? ""}
