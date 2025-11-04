@@ -16,6 +16,7 @@ type KaipokeInfo = {
   service_kind: string
   postal_code: string
   email: string
+  care_consultant?: string | null
   gender_request: string
   biko: string
   standard_route: string
@@ -27,6 +28,8 @@ type KaipokeInfo = {
 }
 
 type TimeAdjustRow = { id: string; label: string }
+
+type FaxOption = { id: string; office_name: string }
 
 type Filters = {
   id: string
@@ -57,6 +60,7 @@ const PAGE_SIZE = 50
 export default function KaipokeInfoPage() {
   const [items, setItems] = useState<KaipokeInfo[]>([])
   const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([])
+  const [faxOptions, setFaxOptions] = useState<FaxOption[]>([])
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [page, setPage] = useState(1)
   const listTopRef = useRef<HTMLDivElement>(null)
@@ -83,8 +87,17 @@ export default function KaipokeInfoPage() {
       if (!error && data) setTimeAdjustOptions(data as TimeAdjustRow[])
     }
 
+    const loadFaxOptions = async () => {
+      const { data, error } = await supabase
+        .from("fax")
+        .select("id, office_name")
+        .order("office_name")
+      if (!error && data) setFaxOptions(data as FaxOption[])
+    }
+
     fetchData()
     loadTimeAdjust()
+    loadFaxOptions()
   }, [])
 
   const handleChange = (
@@ -128,7 +141,7 @@ export default function KaipokeInfoPage() {
         kaipoke_cs_id: item.kaipoke_cs_id,
         service_kind: item.service_kind,
         postal_code: item.postal_code,
-        email: item.email,
+        care_consultant: item.care_consultant || null,
         gender_request: item.gender_request,
         biko: item.biko,
         standard_route: item.standard_route,
@@ -370,7 +383,7 @@ export default function KaipokeInfoPage() {
               <th className="border p-2">カイポケ内部ID</th>
               <th className="border p-2">サービス種別</th>
               <th className="border p-2">郵便番号</th>
-              <th className="border p-2">メール</th>
+              <th className="border p-2">ケアマネ/相談支援</th>
               <th className="border p-2">性別希望</th>
               <th className="border p-2">時間変更可否</th>
               <th className="border p-2">通所・通学</th>
@@ -433,13 +446,19 @@ export default function KaipokeInfoPage() {
                     />
                   </td>
                   <td className="border p-2">
-                    <label className="text-sm">メール：</label>
-                    <input
-                      type="email"
-                      value={item.email || ""}
-                      onChange={e => handleChange(item.id, "email", e.target.value)}
+                    <label className="text-sm">ケアマネ（相談支援）：</label>
+                    <select
+                      value={item.care_consultant || ""}
+                      onChange={e => handleChange(item.id, "care_consultant", e.target.value || null)}
                       className="w-full border px-2 py-1"
-                    />
+                    >
+                      <option value="">（未選択）</option>
+                      {faxOptions.map(opt => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.office_name}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="border p-2">
                     <label className="text-sm">性別希望：</label>
