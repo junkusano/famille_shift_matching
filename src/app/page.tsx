@@ -100,8 +100,8 @@ export default function Home() {
           </p>
           <div style={{ position: "relative", paddingBottom: "177.78%", height: 0, overflow: "hidden", maxWidth: "100%" }}>
             <iframe
-              src="https://www.youtube.com/embed/Hydp7EY268A?modestbranding=1&rel=0&playsinline=1"
-              title="YouTube Shorts"
+              src="https://www.instagram.com/reel/DQtWPwOE01s/?utm_source=ig_web_copy_link"
+              title="Shifco紹介動画"
               style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerPolicy="strict-origin-when-cross-origin"
