@@ -1,4 +1,7 @@
 //portal/disability-check/page.tsx
+// "use client" を追加
+"use client";
+
 import React, { useState, useEffect } from "react";
 
 const DisabilityCheckPage = () => {
@@ -6,7 +9,6 @@ const DisabilityCheckPage = () => {
   const [kaipokeServicek, setKaipokeServicek] = useState<string>("障害"); // 初期サービス
   const [records, setRecords] = useState<any[]>([]); // 利用者リスト
 
-  // データを取得するための関数
   const fetchRecords = async () => {
     const response = await fetch(`/api/disability-check`, {
       method: "POST",
@@ -24,7 +26,6 @@ const DisabilityCheckPage = () => {
     }
   };
 
-  // データ更新用関数
   const handleCheckChange = async (id: string, check: boolean) => {
     await fetch(`/api/disability-check/update`, {
       method: "PUT",
@@ -34,7 +35,6 @@ const DisabilityCheckPage = () => {
       body: JSON.stringify({ id, check }),
     });
 
-    // 更新後にローカルステートを更新
     setRecords((prev) =>
       prev.map((record) =>
         record.id === id ? { ...record, is_checked: check } : record
@@ -59,14 +59,12 @@ const DisabilityCheckPage = () => {
   };
 
   useEffect(() => {
-    fetchRecords(); // 初回レンダリング時にデータを取得
+    fetchRecords();
   }, [yearMonth, kaipokeServicek]);
 
   return (
     <div>
       <h1>実績記録チェック</h1>
-
-      {/* 年月とサービスコードのフィルター */}
       <div className="filters">
         <label>
           年月:
@@ -76,7 +74,6 @@ const DisabilityCheckPage = () => {
           >
             <option value="2025-11">2025-11</option>
             <option value="2025-12">2025-12</option>
-            {/* 他の年月オプションを追加 */}
           </select>
         </label>
 
@@ -92,7 +89,6 @@ const DisabilityCheckPage = () => {
         </label>
       </div>
 
-      {/* 利用者リストの表示 */}
       <table>
         <thead>
           <tr>
@@ -132,5 +128,3 @@ const DisabilityCheckPage = () => {
 };
 
 export default DisabilityCheckPage;
-
-
