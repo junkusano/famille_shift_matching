@@ -1,12 +1,6 @@
 //api/disability-check/route.ts
 import { NextRequest, NextResponse } from "next/server";  // NextRequestとNextResponseをインポート
-import { createClient } from "@supabase/supabase-js";
-
-// Supabase クライアントの作成
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,  // .envからSupabase URLを取得
-  process.env.SUPABASE_SERVICE_ROLE_KEY!  // サービスロールキー
-);
+import { supabaseAdmin } from "@/lib/supabase/service";
 
 export async function POST(req: NextRequest) {
   const { yearMonth, kaipokeServicek } = await req.json();  // JSONボディを取得
