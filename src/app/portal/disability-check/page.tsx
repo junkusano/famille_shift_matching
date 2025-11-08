@@ -1,13 +1,20 @@
 //portal/disability-check/page.tsx
-// "use client" を追加
 "use client";
 
 import React, { useState, useEffect } from "react";
 
+// Record 型を定義
+interface Record {
+  id: string;
+  name: string;
+  ido_jukyusyasho: string;
+  is_checked: boolean;
+}
+
 const DisabilityCheckPage = () => {
   const [yearMonth, setYearMonth] = useState<string>("2025-11"); // 初期年月
   const [kaipokeServicek, setKaipokeServicek] = useState<string>("障害"); // 初期サービス
-  const [records, setRecords] = useState<any[]>([]); // 利用者リスト
+  const [records, setRecords] = useState<Record[]>([]); // 利用者リストの型を指定
 
   const fetchRecords = async () => {
     const response = await fetch(`/api/disability-check`, {
@@ -20,7 +27,7 @@ const DisabilityCheckPage = () => {
 
     if (response.ok) {
       const data = await response.json();
-      setRecords(data);
+      setRecords(data); // 型がRecord[]なのでそのままセット
     } else {
       console.error("Failed to fetch records");
     }
