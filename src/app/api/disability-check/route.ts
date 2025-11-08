@@ -1,5 +1,5 @@
 //api/disability-check/route.ts
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server";  // NextRequestとNextResponseをインポート
 import { createClient } from "@supabase/supabase-js";
 
 // Supabase クライアントの作成
@@ -8,8 +8,8 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!  // サービスロールキー
 );
 
-export async function POST(req: NextApiRequest, res: NextApiResponse) {
-  const { yearMonth, kaipokeServicek } = req.body;
+export async function POST(req: NextRequest) {
+  const { yearMonth, kaipokeServicek } = await req.json();  // JSONボディを取得
 
   try {
     // Supabaseでデータを取得
@@ -23,9 +23,10 @@ export async function POST(req: NextApiRequest, res: NextApiResponse) {
       throw new Error(error.message);
     }
 
-    res.status(200).json(data);  // 取得したデータを返す
+    return NextResponse.json(data);  // 取得したデータを返す
   } catch (err) {
     console.error("Error fetching records", err);
-    res.status(500).json({ error: "Error fetching records" });
+    return NextResponse.json({ error: "Error fetching records" }, { status: 500 });
   }
 }
+
