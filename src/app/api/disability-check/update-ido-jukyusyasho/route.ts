@@ -1,5 +1,5 @@
 //api/disability-check/update-ido-jukyusyasho/route.ts
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server";  // NextRequest と NextResponse をインポート
 import { createClient } from "@supabase/supabase-js";
 
 // Supabase クライアントの作成
@@ -8,14 +8,11 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!  // サービスロールキー
 );
 
-const updateIjoJukyusyashoHandler = async (
-  req: NextApiRequest,
-  res: NextApiResponse
-) => {
-  const { id, idoJukyusyasho } = req.body;
+export async function POST(req: NextRequest) {
+  const { id, idoJukyusyasho } = await req.json();  // リクエストボディを取得
 
   try {
-    // Supabaseで移動受給者所の情報を更新
+    // Supabase でデータを更新
     const { error } = await supabaseAdmin
       .from("disability_check")
       .update({ ido_jukyusyasho: idoJukyusyasho })
@@ -25,11 +22,9 @@ const updateIjoJukyusyashoHandler = async (
       throw new Error(error.message);
     }
 
-    res.status(200).send("Updated successfully");
+    return NextResponse.json({ message: "Updated successfully" });  // 成功した場合のレスポンス
   } catch (err) {
     console.error("Error updating ido_jukyusyasho", err);
-    res.status(500).send("Error updating ido_jukyusyasho");
+    return NextResponse.json({ error: "Error updating ido_jukyusyasho" }, { status: 500 });  // エラーレスポンス
   }
-};
-
-export default updateIjoJukyusyashoHandler;
+}
