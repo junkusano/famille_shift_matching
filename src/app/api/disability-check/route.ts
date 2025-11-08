@@ -8,10 +8,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!  // サービスロールキー
 );
 
-const disabilityCheckHandler = async (
-  req: NextApiRequest,
-  res: NextApiResponse
-) => {
+export async function POST(req: NextApiRequest, res: NextApiResponse) {
   const { yearMonth, kaipokeServicek } = req.body;
 
   try {
@@ -31,7 +28,4 @@ const disabilityCheckHandler = async (
     console.error("Error fetching records", err);
     res.status(500).json({ error: "Error fetching records" });
   }
-};
-
-export default disabilityCheckHandler;
-
+}
