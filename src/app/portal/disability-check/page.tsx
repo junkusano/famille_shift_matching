@@ -25,6 +25,22 @@ const DisabilityCheckPage = () => {
   const [allDistricts, setAllDistricts] = useState<District[]>([]); // 利用可能な地域リスト（型定義）
   const [records, setRecords] = useState<Record[]>([]); // 利用者リストの型を指定
 
+  // 年月のリストを生成する関数
+  const generateYearMonthOptions = () => {
+    const months: string[] = [];
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();  // 月は0から始まるのでそのまま
+
+    // 過去5年と将来6ヶ月分を生成
+    for (let i = -5; i <= 6; i++) {
+      const targetDate = new Date(currentYear, currentMonth + i, 1);
+      const formattedMonth = targetDate.toISOString().slice(0, 7);  // YYYY-MM形式
+      months.push(formattedMonth);
+    }
+
+    return months;
+  };
+
   // 地域を取得する関数
   const fetchDistricts = async () => {
     const response = await fetch("/api/postal-district");  // 地域のAPI
@@ -102,35 +118,43 @@ const DisabilityCheckPage = () => {
   return (
     <div>
       <h1>実績記録チェック</h1>
-      <div className="filters">
-        <label>
+      <div className="filters" style={{ display: "flex", gap: "20px" }}>
+        <label style={{ width: "180px" }}>
           年月:
           <select
             value={yearMonth}
             onChange={(e) => setYearMonth(e.target.value)}
+            style={{ width: "180px" }}
           >
-            <option value="2025-11">2025-11</option>
-            <option value="2025-12">2025-12</option>
+            {generateYearMonthOptions().map((month, index) => (
+              <option key={index} value={month}>
+                {month}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label>
+        <label style={{ width: "180px" }}>
           サービス:
           <select
             value={kaipokeServicek}
             onChange={(e) => setKaipokeServicek(e.target.value)}
+            style={{ width: "180px" }}
           >
             <option value="障害">障害</option>
             <option value="移動支援">移動支援</option>
           </select>
         </label>
 
-        <label>
+        <label style={{ width: "180px" }}>
           地域:
           <select
             multiple
             value={districts}
-            onChange={(e) => handleDistrictChange([...e.target.selectedOptions].map(option => option.value))}
+            onChange={(e) =>
+              handleDistrictChange([...e.target.selectedOptions].map(option => option.value))
+            }
+            style={{ width: "180px" }}
           >
             {allDistricts.map((district, index) => (
               <option key={index} value={district.district}>
