@@ -1,26 +1,25 @@
 //api/disability-check/update-ido-jukyusyasho/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/service";  // supabaseAdmin をインポート
+import { supabaseAdmin } from "@/lib/supabase/service";
+
+type Body = {
+  id: string;               // kaipoke_cs_id
+  idoJukyusyasho: string;   // 新しい受給者証番号
+};
 
 export async function PUT(req: NextRequest) {
-  const { id, idoJukyusyasho } = await req.json();  // リクエストボディを取得
-
   try {
-    // `cs_kaipoke_info` テーブルの `ido_jukyusyasho` を更新
+    const { id, idoJukyusyasho } = (await req.json()) as Body;
+
     const { error } = await supabaseAdmin
       .from("cs_kaipoke_info")
-      .update({
-        ido_jukyusyasho: idoJukyusyasho,  // 受給者証番号を更新
-      })
-      .eq("kaipoke_cs_id", id);  // `id` に対応する `kaipoke_cs_id` を更新
+      .update({ ido_jukyusyasho: idoJukyusyasho })
+      .eq("kaipoke_cs_id", id);
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return NextResponse.json({ message: "ido_jukyusyasho updated successfully" });  // 成功した場合のレスポンス
-  } catch (err) {
-    console.error("Error updating ido_jukyusyasho", err);
-    return NextResponse.json({ error: "Error updating ido_jukyusyasho" }, { status: 500 });
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("[ido_jukyusyasho] update error", e);
+    return NextResponse.json({ error: "update_failed" }, { status: 500 });
   }
 }

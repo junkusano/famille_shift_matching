@@ -1,34 +1,18 @@
 // app/api/postal-districts/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/service";  // supabaseAdmin をインポート
+import { supabaseAdmin } from "@/lib/supabase/service";
 
-export async function GET(req: NextRequest) {
+export async function GET(_: NextRequest) {
   try {
-    // リクエストのクエリパラメータから postalCode3 を取得
-    const postalCode3 = req.nextUrl.searchParams.get('postalCode3');  // URLのクエリパラメータから取得
-    
-    // クエリの作成
-    const query = supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("postal_district")
-      .select("postal_code_3,district");  // 必要なカラムを選択
+      .select("postal_code_3,district")
+      .order("district", { ascending: true });
 
-    if (postalCode3) {
-      query.eq("postal_code_3", postalCode3);  // postal_code_3 に基づく絞り込み
-    }
-
-    // 結果を district で昇順に並べ替え
-    query.order("district", { ascending: true });
-
-    // データを取得
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return NextResponse.json(data);  // 結果をレスポンスとして返す
-  } catch (err) {
-    console.error("Error fetching districts", err);
-    return NextResponse.json({ error: "Error fetching districts" }, { status: 500 });
+    if (error) throw error;
+    return NextResponse.json(data ?? []);
+  } catch (e) {
+    console.error("[postal-districts] fetch error", e);
+    return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   }
 }
