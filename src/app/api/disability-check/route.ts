@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
     const query = supabaseAdmin
       .from("disability_check_view")
       .select(`
-        disability_check_id,
         kaipoke_cs_id,
         kaipoke_servicek,
         year_month,
