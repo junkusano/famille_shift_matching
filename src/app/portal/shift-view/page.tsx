@@ -198,7 +198,7 @@ export default function ShiftViewPage() {
         setTotalCount(count ?? 0);
 
         // ページングで最大件数制限(1000件)を超えても全件取得
-        const PAGE = 1000;
+        //const PAGE = 1000;
         type ShiftRow = {
           id: string | number;
           shift_id: string;
@@ -210,7 +210,7 @@ export default function ShiftViewPage() {
           staff_01_user_id: string | null;
           staff_02_user_id: string | null;
           staff_03_user_id: string | null;
-          judo_ido:string | null;
+          judo_ido: string | null;
           name: string | null;
           gender_request_name: string | null;
           male_flg: boolean | null;
@@ -221,6 +221,7 @@ export default function ShiftViewPage() {
           level_sort_order?: number | null;
         };
 
+        /*
         const all = (data ?? []) as ShiftRow[];
 
         for (let from = 0; ; from += PAGE) {
@@ -234,11 +235,12 @@ export default function ShiftViewPage() {
 
           if (chunk.length < PAGE) break;
         }
+        */
+        //if (!alive) return;
 
-        if (!alive) return;
-
+        const pageRows = (data ?? []) as ShiftRow[];
         // Supabaseの結果を UI 用の ShiftData に整形
-        const mapped: ShiftData[] = all.map((s) => ({
+        const mappedPage: ShiftData[] = pageRows.map((s) => ({
           id: String(s.id ?? s.shift_id),
           shift_id: s.shift_id,
           shift_start_date: s.shift_start_date,
@@ -249,7 +251,7 @@ export default function ShiftViewPage() {
           staff_01_user_id: s.staff_01_user_id ?? "",
           staff_02_user_id: s.staff_02_user_id ?? "",
           staff_03_user_id: s.staff_03_user_id ?? "",
-          judo_ido: s.judo_ido ?? "", 
+          judo_ido: s.judo_ido ?? "",
           address: s.district ?? "",
           client_name: s.name ?? "",
           gender_request_name: s.gender_request_name ?? "",
@@ -261,17 +263,23 @@ export default function ShiftViewPage() {
           level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
         }));
 
-        setShifts(mapped);
+        //setShifts(mappedPage);
+        //setShifts(mapped);
+        setShifts(mappedPage);
 
         // ===== セレクト用の候補 =====
         // 1) 担当者（user_entry_united_view から氏名ラベルを取得）
-        const staffIds = Array.from(
-          new Set(
-            mapped.flatMap(m => [
-              m.staff_01_user_id,
-              m.staff_02_user_id,
-              m.staff_03_user_id
-            ]).filter(Boolean)
+        // mapped -> mappedPage に統一し、型を明示
+        const staffIds: string[] = Array.from(
+          new Set<string>(
+            mappedPage
+              .flatMap((m) => [
+                m.staff_01_user_id,
+                m.staff_02_user_id,
+                m.staff_03_user_id,
+              ])
+              // 空文字を除外しつつ string に絞る
+              .filter((v): v is string => !!v)
           )
         ).sort((a, b) => a.localeCompare(b, "ja"));
 
@@ -305,8 +313,12 @@ export default function ShiftViewPage() {
 
         // 2) 利用者（kaipoke_cs_id をそのまま value/label に）
         // 変更後（表示は cs_kaipoke_info.name、値は kaipoke_cs_id）
-        const clientIds = Array.from(
-          new Set(mapped.map(m => m.kaipoke_cs_id).filter(Boolean))
+        const clientIds: string[] = Array.from(
+          new Set<string>(
+            mappedPage
+              .map((m) => m.kaipoke_cs_id)
+              .filter((v): v is string => !!v)
+          )
         ).sort((a, b) => a.localeCompare(b, "ja"));
 
         type CsInfo = { kaipoke_cs_id: string; name: string | null };
@@ -322,7 +334,7 @@ export default function ShiftViewPage() {
           const byId = new Map<string, CsInfo>();
           (csList ?? []).forEach((c: CsInfo) => byId.set(c.kaipoke_cs_id, c));
 
-          clientOpts = clientIds.map((id) => {
+          clientOpts = clientIds.map((id: string) => {
             const rec = byId.get(id);
             const label = (rec?.name ?? "").trim() || id;  // name が無ければ id を表示
             return { value: id, label };

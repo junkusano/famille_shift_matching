@@ -1,8 +1,8 @@
 // app/api/postal-districts/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
-export async function GET(_: NextRequest) {
+export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from("postal_district")
