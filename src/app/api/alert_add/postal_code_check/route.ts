@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     for (const row of rows) {
       const csid = row.kaipoke_cs_id;
-      const message = `【要入力】利用者(${row.name ?? '不明'}) の郵便番号が未設定です。kaipoke_cs_id=${csid}`;
+      const message = `【要入力】kaipoke_cs_id=${csid} 利用者(${row.name ?? '不明'}) の郵便番号が未設定です。各種地域検索が不能になっています。カイポケの基本情報に郵便番号を追加してください。`;
       const res = await ensureSystemAlert({
         message,
         severity: 2,

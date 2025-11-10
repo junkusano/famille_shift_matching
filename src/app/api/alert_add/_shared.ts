@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 
 export type VisibleRole = 'admin' | 'manager' | 'staff';
 export type AlertStatus = 'open' | 'in_progress' | 'done' | 'muted' | 'cancelled';
+export const runtime = 'nodejs';
 
 type EnsureAlertParams = {
   message: string;
@@ -16,11 +17,38 @@ type EnsureAlertParams = {
   rpa_request_id?: string | null;
 };
 
+function getServerCronSecret(): string | undefined {
+  // どちらでもOK（Vercelは CRON_SECRET を使いがち）
+  return process.env.ALERT_CRON_TOKEN || process.env.CRON_SECRET || undefined;
+}
+
+function extractToken(req: NextRequest): string | null {
+  // 1) query ?token=xxx
+  const q = req.nextUrl.searchParams.get('token');
+  if (q) return q;
+
+  // 2) header x-cron-token: xxx
+  const h = req.headers.get('x-cron-token');
+  if (h) return h;
+
+  // 3) Authorization: Bearer xxx
+  const auth = req.headers.get('authorization');
+  if (auth && auth.toLowerCase().startsWith('bearer ')) {
+    return auth.slice(7).trim();
+  }
+  return null;
+}
+
+/** Cron 用の簡易認証 */
 export function assertCronAuth(req: NextRequest) {
-  const token =
-    req.nextUrl.searchParams.get('token') ||
-    req.headers.get('x-cron-token');
-  if (!process.env.ALERT_CRON_TOKEN || token !== process.env.ALERT_CRON_TOKEN) {
+  // dev/previewでスキップしたい場合は環境変数で（任意）
+  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_ALERT_CRON_AUTH === '1') {
+    return;
+  }
+
+  const serverSecret = getServerCronSecret();
+  const clientToken = extractToken(req);
+  if (!serverSecret || !clientToken || clientToken !== serverSecret) {
     throw new Error('Unauthorized');
   }
 }
