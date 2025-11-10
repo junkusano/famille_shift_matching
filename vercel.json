@@ -17,8 +17,13 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/alert-check-excuse",
+      "schedule": "*/7 * * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 0,4,8 * * *"
     }
+
   ]
 }
