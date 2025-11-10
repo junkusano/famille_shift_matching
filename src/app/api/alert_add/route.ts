@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
 
     const urls = [
       '/api/alert_add/postal_code_check',
+      '/api/alert_add/resigner_shift_check',
+      '/api/alert_add/shift_record_unfinish_check',
       // '/api/alert_add/xxx_check',
     ];
 
