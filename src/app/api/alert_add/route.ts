@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
     assertCronAuth(req);
 
     const baseUrl = new URL(req.url);
-    // 受け取ったトークン（Authorization 等）を抽出。なければサーバのシークレット。
     const incoming = getIncomingCronToken(req);
-    const token = incoming ?? getServerCronSecret() ?? '';
+    const token = incoming.token ?? getServerCronSecret() ?? '';
+    const debug = baseUrl.searchParams.get('debug') === '1';
 
     const urls = [
       '/api/alert_add/postal_code_check',
@@ -22,17 +22,21 @@ export async function GET(req: NextRequest) {
     ];
 
     const results: { path: string; ok: boolean; status: number; body: unknown }[] = [];
+
     for (const path of urls) {
       const u = new URL(path, baseUrl.origin);
-      // デバッグの伝播（任意）
-      if (baseUrl.searchParams.get('debug') === '1') u.searchParams.set('debug', '1');
+      if (debug) u.searchParams.set('debug', '1');
+      if (token) u.searchParams.set('token', token); // ★ クエリにも
+
+      const headers: Record<string,string> = {};
+      if (token) {
+        headers['authorization'] = `Bearer ${token}`;
+        headers['x-cron-token']  = token;
+      }
 
       const res = await fetch(u.toString(), {
         method: 'GET',
-        headers: {
-          'authorization': token ? `Bearer ${token}` : '',
-          'x-cron-token': token,
-        },
+        headers,
         cache: 'no-store',
         next: { revalidate: 0 },
       });
