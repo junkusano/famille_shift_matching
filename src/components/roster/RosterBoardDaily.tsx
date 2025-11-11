@@ -140,7 +140,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         });
     }, [allTeams]);
 
-    // roster_sort（文字列数値）を取得
+    // sort（文字列数値）を取得
     const getRosterSort = (st: RosterStaff): string => {
         const rs = (st as unknown as { roster_sort?: string }).roster_sort;
         return rs ?? "9999";
@@ -434,8 +434,9 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
             height: ROW_HEIGHT - CARD_VPAD * 2,
             borderRadius: 6,
-            background: "#DBEAFE",
-            border: "1px solid #93C5FD",
+            background: "rgba(59, 130, 246, 0.28)",    // 青系をやや透過
+            border: "1px solid rgba(59, 130, 246, 0.55)",
+            mixBlendMode: "multiply",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
