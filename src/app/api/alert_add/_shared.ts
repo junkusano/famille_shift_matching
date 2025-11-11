@@ -1,13 +1,16 @@
 // /src/app/api/alert_add/_shared.ts
 import 'server-only';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { NextRequest } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/service';
+import { supabaseAdmin } from '@/lib/supabase/service'; // ← エイリアス無ければ相対に
 
 export type VisibleRole = 'admin' | 'manager' | 'staff';
 export type AlertStatus = 'open' | 'in_progress' | 'done' | 'muted' | 'cancelled';
-export const runtime = 'nodejs';
 
-type EnsureAlertParams = {
+export type EnsureAlertParams = {
   message: string;
   severity?: 1 | 2 | 3;
   visible_roles?: VisibleRole[];
@@ -17,43 +20,31 @@ type EnsureAlertParams = {
   rpa_request_id?: string | null;
 };
 
+export type EnsureResult = { created: boolean; id: string | null };
+
 function getServerCronSecret(): string | undefined {
-  // どちらでもOK（Vercelは CRON_SECRET を使いがち）
   return process.env.ALERT_CRON_TOKEN || process.env.CRON_SECRET || undefined;
 }
 
 function extractToken(req: NextRequest): string | null {
-  // 1) query ?token=xxx
   const q = req.nextUrl.searchParams.get('token');
   if (q) return q;
-
-  // 2) header x-cron-token: xxx
   const h = req.headers.get('x-cron-token');
   if (h) return h;
-
-  // 3) Authorization: Bearer xxx
   const auth = req.headers.get('authorization');
-  if (auth && auth.toLowerCase().startsWith('bearer ')) {
-    return auth.slice(7).trim();
-  }
+  if (auth && auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
   return null;
 }
 
-/** Cron 用の簡易認証 */
 export function assertCronAuth(req: NextRequest) {
-  // dev/previewでスキップしたい場合は環境変数で（任意）
-  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_ALERT_CRON_AUTH === '1') {
-    return;
-  }
-
+  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_ALERT_CRON_AUTH === '1') return;
   const serverSecret = getServerCronSecret();
   const clientToken = extractToken(req);
   if (!serverSecret || !clientToken || clientToken !== serverSecret) {
+    console.warn('[cron][auth] unauthorized', { hasServerSecret: !!serverSecret, path: req.nextUrl.pathname });
     throw new Error('Unauthorized');
   }
 }
-
-type EnsureResult = { created: boolean; id: string | null };
 
 export async function ensureSystemAlert(params: EnsureAlertParams): Promise<EnsureResult> {
   const {
@@ -66,6 +57,8 @@ export async function ensureSystemAlert(params: EnsureAlertParams): Promise<Ensu
     rpa_request_id = null,
   } = params;
 
+  console.log('[alert][ensure] try', { msg: message.slice(0, 60), kaipoke_cs_id, user_id, shift_id });
+
   const { data: exists, error: selErr } = await supabaseAdmin
     .from('alert_log')
     .select('id, status')
@@ -75,10 +68,13 @@ export async function ensureSystemAlert(params: EnsureAlertParams): Promise<Ensu
     .eq('message', message)
     .limit(1);
 
-  if (selErr) throw selErr;
-  if (exists && exists.length > 0) {
+  if (selErr) {
+    console.error('[alert][ensure] select error', selErr);
+    throw selErr;
+  }
+  if (exists?.length) {
+    console.log('[alert][ensure] skip duplicate', { id: exists[0].id });
     return { created: false, id: exists[0].id as string };
-    // NOTE: ここで “重複” と判定
   }
 
   const { data: inserted, error: insErr } = await supabaseAdmin
@@ -97,6 +93,10 @@ export async function ensureSystemAlert(params: EnsureAlertParams): Promise<Ensu
     .select('id')
     .single();
 
-  if (insErr) throw insErr;
+  if (insErr) {
+    console.error('[alert][ensure] insert error', insErr);
+    throw insErr;
+  }
+  console.log('[alert][ensure] created', { id: inserted?.id });
   return { created: true, id: (inserted?.id as string) ?? null };
 }
