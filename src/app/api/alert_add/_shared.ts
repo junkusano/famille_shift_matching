@@ -20,7 +20,7 @@ export type EnsureAlertParams = {
 export type EnsureResult = { created: boolean; id: string | null };
 
 export function getServerCronSecret(): string | undefined {
-  return process.env.ALERT_CRON_TOKEN || process.env.CRON_SECRET || undefined;
+  return process.env.CRON_SECRET || undefined;
 }
 
 export function getIncomingCronToken(req: NextRequest): { token: string | null; src: 'query'|'header'|'auth'|'none' } {

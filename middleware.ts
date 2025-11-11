@@ -9,11 +9,6 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const pathname = req.nextUrl.pathname
 
-   // ★ Cron / バッチ挿入APIはミドルウェアで素通りさせる
-  if (pathname.startsWith('/api/cron/')) return NextResponse.next();
-  if (pathname.startsWith('/api/alert_add/')) return NextResponse.next();
-
-
   // 🔸 ログインが必要なパス（/portal 全体）
   if (pathname.startsWith('/portal')) {
     if (!user) {
@@ -47,9 +42,3 @@ export async function middleware(req: NextRequest) {
 
   return res
 }
-
-// すでに config.matcher を使っている場合は、除外を反映
-export const config = {
-  // 例: すべてに適用しつつ、cron/alert_add/_next等を除外するパターン
-  matcher: ['/((?!api/cron/|api/alert_add/|_next/|favicon.ico).*)'],
-};
