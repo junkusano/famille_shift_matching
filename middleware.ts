@@ -7,7 +7,11 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
   const { data: { user } } = await supabase.auth.getUser()
-  const pathname = req.nextUrl.pathname
+  //const pathname = req.nextUrl.pathname
+  const { pathname } = req.nextUrl;
+
+  // ★ まずは /api 全体をミドルウェア対象外にして切り分け
+  if (pathname.startsWith('/api/')) return NextResponse.next();
 
   // 🔸 ログインが必要なパス（/portal 全体）
   if (pathname.startsWith('/portal')) {
