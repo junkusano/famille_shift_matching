@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       { inserted_count, pruned_count, status: "ok" },
       { status: 200 }
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[deploy] unhandled error:", e);
     return NextResponse.json(
       { error: e?.message ?? String(e) },
