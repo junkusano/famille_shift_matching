@@ -10,9 +10,17 @@ export async function middleware(req: NextRequest) {
   //const pathname = req.nextUrl.pathname
   const { pathname } = req.nextUrl;
 
+  /*
   // ★ Cron/内部バッチは素通り（ミドルウェア対象外）
   if (pathname.startsWith('/api/cron/')) return NextResponse.next();
   if (pathname.startsWith('/api/alert_add/')) return NextResponse.next();
+  */
+
+  // まずは /api を全部素通りして確実に到達させる（診断用）
+  if (pathname.startsWith('/api/')) {
+    console.log('[mw][bypass]', pathname);
+    return NextResponse.next();
+  }
 
   // 🔸 ログインが必要なパス（/portal 全体）
   if (pathname.startsWith('/portal')) {
@@ -51,3 +59,8 @@ export async function middleware(req: NextRequest) {
 
   //return res
 }
+
+// “/api” と “_next/ 静的” は対象外（＝つまり他のURLにだけ middleware を適用）
+export const config = {
+  matcher: ['/((?!api/|_next/|favicon.ico).*)'],
+};
