@@ -33,37 +33,64 @@ interface TmplInfo {
 }
 
 export async function POST(req: Request) {
+  const tAllStart = Date.now();
   try {
     const body = (await req.json()) as DeployRequestBody;
     const month = body.month;
     const kaipoke_cs_id = body.kaipoke_cs_id;
     const policy: DeployPolicy = body.policy ?? "overwrite_only";
 
+    console.log("[deploy] START", {
+      month,
+      kaipoke_cs_id,
+      policy,
+      at: new Date().toISOString(),
+    });
+
     if (!month || !kaipoke_cs_id) {
+      console.warn("[deploy] missing params", { month, kaipoke_cs_id });
       return NextResponse.json(
         { error: "month と kaipoke_cs_id は必須です" },
         { status: 400 }
       );
     }
 
-    // ① まずは従来どおり DB側でシフト展開
+    // ① DB側でシフト展開（ここが timeout しているかを確認したい）
+    const tDeployStart = Date.now();
+    console.log("[deploy] step1: call deploy_weekly_template RPC");
+
     const dep = await supabaseAdmin.rpc("deploy_weekly_template", {
       p_month: month,
       p_cs_id: kaipoke_cs_id,
       p_policy: policy,
     });
 
+    const tDeployEnd = Date.now();
+    console.log("[deploy] step1: RPC deploy_weekly_template finished", {
+      ms: tDeployEnd - tDeployStart,
+      error: dep.error ? dep.error.message : null,
+      rawDataType: typeof dep.data,
+    });
+
     if (dep.error) {
       console.error("[deploy] deploy_weekly_template error:", dep.error);
       return NextResponse.json(
-        { error: `deploy_weekly_template failed: ${dep.error.message}` },
+        {
+          error: `deploy_weekly_template failed: ${dep.error.message}`,
+          at: new Date().toISOString(),
+          elapsed_ms: tDeployEnd - tAllStart,
+        },
         { status: 500 }
       );
     }
 
     const inserted_count = Number(dep.data ?? 0);
+    console.log("[deploy] step1: inserted_count", { inserted_count });
 
     // ② 隔週テンプレート取得（is_biweekly=true & nth_weeksあり）
+    const tTmplStart = Date.now();
+    console.log("[deploy] step2: fetch biweekly templates");
+
     const tmplRes = await supabaseAdmin
       .from("shift_weekly_template")
       .select(
@@ -73,12 +100,20 @@ export async function POST(req: Request) {
       .eq("active", true)
       .eq("is_biweekly", true);
 
+    const tTmplEnd = Date.now();
+    console.log("[deploy] step2: templates fetched", {
+      ms: tTmplEnd - tTmplStart,
+      error: tmplRes.error ? tmplRes.error.message : null,
+      count: tmplRes.data ? tmplRes.data.length : 0,
+    });
+
     if (tmplRes.error) {
       console.error("[deploy] fetch templates error:", tmplRes.error);
       return NextResponse.json(
         {
           error: `template fetch failed: ${tmplRes.error.message}`,
           inserted_count,
+          elapsed_ms: tTmplEnd - tAllStart,
         },
         { status: 500 }
       );
@@ -121,7 +156,18 @@ export async function POST(req: Request) {
       }
     }
 
+    console.log("[deploy] step2: tmplMap built", {
+      tmplCountRaw: templates.length,
+      tmplMapSize: tmplMap.size,
+    });
+
     if (tmplMap.size === 0) {
+      const tEnd = Date.now();
+      console.log("[deploy] END (no biweekly templates)", {
+        inserted_count,
+        pruned_count: 0,
+        elapsed_ms: tEnd - tAllStart,
+      });
       // 隔週テンプレ無し → prune 不要
       return NextResponse.json(
         { inserted_count, pruned_count: 0, status: "ok(no-biweekly)" },
@@ -130,6 +176,9 @@ export async function POST(req: Request) {
     }
 
     // ③ 当月の shift を取得
+    const tShiftStart = Date.now();
+    console.log("[deploy] step3: fetch shifts for month");
+
     const startDate = `${month}-01`;
     const endDate = `${month}-31`; // 実際は存在する日だけヒットする前提
 
@@ -142,12 +191,20 @@ export async function POST(req: Request) {
       .gte("shift_start_date", startDate)
       .lte("shift_start_date", endDate);
 
+    const tShiftEnd = Date.now();
+    console.log("[deploy] step3: shifts fetched", {
+      ms: tShiftEnd - tShiftStart,
+      error: shiftRes.error ? shiftRes.error.message : null,
+      count: shiftRes.data ? shiftRes.data.length : 0,
+    });
+
     if (shiftRes.error) {
       console.error("[deploy] fetch shifts error:", shiftRes.error);
       return NextResponse.json(
         {
           error: `shift fetch failed: ${shiftRes.error.message}`,
           inserted_count,
+          elapsed_ms: tShiftEnd - tAllStart,
         },
         { status: 500 }
       );
@@ -156,6 +213,9 @@ export async function POST(req: Request) {
     const shifts = (shiftRes.data ?? []) as ShiftRow[];
 
     // ④ nthWeek 判定して「不要な週」の shift_id を拾う
+    const tPruneCalcStart = Date.now();
+    console.log("[deploy] step4: calculate toDelete");
+
     const toDelete: number[] = [];
 
     for (const s of shifts) {
@@ -181,7 +241,20 @@ export async function POST(req: Request) {
       }
     }
 
+    const tPruneCalcEnd = Date.now();
+    console.log("[deploy] step4: toDelete calculated", {
+      ms: tPruneCalcEnd - tPruneCalcStart,
+      shiftsCount: shifts.length,
+      deleteCount: toDelete.length,
+    });
+
     if (toDelete.length === 0) {
+      const tEnd = Date.now();
+      console.log("[deploy] END (no-delete)", {
+        inserted_count,
+        pruned_count: 0,
+        elapsed_ms: tEnd - tAllStart,
+      });
       return NextResponse.json(
         {
           inserted_count,
@@ -195,6 +268,15 @@ export async function POST(req: Request) {
     // ⑤ 削除を小さなバッチで実行（Timeout 回避用）
     const BATCH_SIZE = 100;
     let pruned_count = 0;
+
+    
+    const tDeleteStart = Date.now();
+    console.log("[deploy] step5: delete batches", {
+      totalDelete: toDelete.length,
+      batchSize: BATCH_SIZE,
+    });
+    void tDeleteStart
+    
 
     for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
       const batch = toDelete.slice(i, i + BATCH_SIZE);
@@ -211,18 +293,31 @@ export async function POST(req: Request) {
           "batchIds:",
           batch
         );
+        const tError = Date.now();
         return NextResponse.json(
           {
             error: `delete failed: ${delRes.error.message}`,
             inserted_count,
             pruned_count,
+            elapsed_ms: tError - tAllStart,
           },
           { status: 500 }
         );
       }
 
       pruned_count += batch.length;
+      console.log("[deploy] step5: batch deleted", {
+        batchSize: batch.length,
+        pruned_count,
+      });
     }
+
+    const tEnd = Date.now();
+    console.log("[deploy] END", {
+      inserted_count,
+      pruned_count,
+      elapsed_ms: tEnd - tAllStart,
+    });
 
     return NextResponse.json(
       {
@@ -233,9 +328,12 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (e: unknown) {
+    const tError = Date.now();
     const message =
       e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
-    console.error("[deploy] unhandled error:", e);
+    console.error("[deploy] unhandled error:", e, {
+      elapsed_ms: tError - tAllStart,
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
