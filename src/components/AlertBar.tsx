@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabase/service';
 import { useRoleContext } from '@/context/RoleContext';
 
 type AlertStatus = 'open' | 'in_progress' | 'done' | 'muted' | 'cancelled';
@@ -61,7 +61,7 @@ export default function AlertBar() {
     const fetchAlerts = async () => {
         setLoading(true);
         // RLSでroleフィルタされる前提（アプリ側フィルタも保険で実施）
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('alert_log')
             .select('*')
             .order('severity', { ascending: false })
@@ -87,11 +87,11 @@ export default function AlertBar() {
     useEffect(() => {
         fetchAlerts();
         // Realtime購読（任意）
-        const ch = supabase
+        const ch = supabaseAdmin
             .channel('alert_log_changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'alert_log' }, fetchAlerts)
             .subscribe();
-        return () => { supabase.removeChannel(ch); };
+        return () => { supabaseAdmin.removeChannel(ch); };
     }, [role]);
 
     const openCount = useMemo(
@@ -103,12 +103,12 @@ export default function AlertBar() {
         const message = prompt('メッセージを入力');
         if (!message) return;
 
-        const { data: userData } = await supabase.auth.getUser();
+        const { data: userData } = await supabaseAdmin.auth.getUser();
         const visible_roles = role === 'admin' ? ['admin', 'manager', 'staff'] :
             role === 'manager' ? ['manager', 'staff'] :
                 ['staff'];
 
-        const { error } = await supabase.from('alert_log').insert({
+        const { error } = await supabaseAdmin.from('alert_log').insert({
             message,
             visible_roles,
             severity: 2,
@@ -119,7 +119,7 @@ export default function AlertBar() {
     };
 
     const updateStatus = async (row: AlertRow, next: AlertStatus) => {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
             .from('alert_log')
             .update({
                 status: next,
@@ -137,8 +137,8 @@ export default function AlertBar() {
 
     const saveComment = async () => {
         if (!commentTarget) return;
-        const { data: auth } = await supabase.auth.getUser();
-        const { error } = await supabase
+        const { data: auth } = await supabaseAdmin.auth.getUser();
+        const { error } = await supabaseAdmin
             .from('alert_log')
             .update({
                 result_comment: commentText,
