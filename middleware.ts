@@ -16,10 +16,10 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/api/alert_add/')) return NextResponse.next();
   */
 
-  // まずは /api を全部素通りして確実に到達させる（診断用）
+  // ★ 診断のため必ずログを残す
   if (pathname.startsWith('/api/')) {
     console.log('[mw][bypass]', pathname);
-    return NextResponse.next();
+    return NextResponse.next(); // /api は無条件素通り
   }
 
   // 🔸 ログインが必要なパス（/portal 全体）
