@@ -1,7 +1,7 @@
 // /src/app/api/alert_add/postal_code_check/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '..//_shared';
+import { assertCronAuth, ensureSystemAlert } from '../_shared';
 
 type CsRow = {
   kaipoke_cs_id: string;
@@ -13,9 +13,9 @@ type CsRow = {
 
 type ApiBody = { ok: true; scanned: number; created: number } | { ok: false; error: string };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    //assertCronAuth(req);
+    assertCronAuth(req);
 
     const { data, error } = await supabaseAdmin
       .from('cs_kaipoke_info')

@@ -21,6 +21,10 @@
       "schedule": "9 0 * * *"
     },
     {
+      "path": "/api/alert_add/postal_code_check",
+      "schedule": "9 0 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 0,4,8 * * *"
     }
