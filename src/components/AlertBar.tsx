@@ -73,11 +73,13 @@ export default function AlertBar() {
             setLoading(false);
             return;
         }
-        // fetchAlerts の最後を修正
-        const filtered = (data as AlertRow[])
-            .filter((r) => r.visible_roles?.includes(role ?? ''))
-            .filter((r) => r.status !== 'done'); // 完了は表示しない
+        // components/AlertBar.tsx 内 fetchAlerts の末尾フィルタだけ差し替え
+        const myRole = (role && typeof role === 'string' && role.trim() !== '') ? role : 'staff';
 
+        // 可視ロール未設定(=null/[])は可、設定されていれば myRole を含むものだけ
+        const filtered = (data as AlertRow[])
+            .filter((r) => !Array.isArray(r.visible_roles) || r.visible_roles.length === 0 || r.visible_roles.includes(myRole))
+            .filter((r) => r.status !== 'done');
         setRows(filtered);
         setLoading(false);
     };
