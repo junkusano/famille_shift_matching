@@ -7,14 +7,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertCronAuth, getIncomingCronToken, getServerCronSecret } from '../../alert_add/_shared';
 
 type CheckItem = { path: string; label?: string; enabled?: boolean };
-type ChildResp = { ok: boolean; [k: string]: unknown };
+type ChildResp = { ok: boolean;[k: string]: unknown };
 
 const CHECKS: CheckItem[] = [
+  { path: '/api/alert_add/ping', label: 'diag:ping', enabled: true }, // ← 追加（暫定）
   { path: '/api/alert_add/postal_code_check', label: '郵便番号未設定', enabled: true },
   { path: '/api/alert_add/resigner_shift_check', label: '退職者シフト残り', enabled: true },
   { path: '/api/alert_add/shift_record_unfinish_check', label: '実施記録 未提出', enabled: true },
 ];
-
 export async function GET(req: NextRequest) {
   try {
     assertCronAuth(req);
@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
       // ★ 念のためクエリにも token を載せる
       if (token) u.searchParams.set('token', token);
 
-      const headers: Record<string,string> = {};
+      const headers: Record<string, string> = {};
       if (token) {
         headers['authorization'] = `Bearer ${token}`;
-        headers['x-cron-token']  = token;
+        headers['x-cron-token'] = token;
       }
 
       const res = await fetch(u.toString(), {
