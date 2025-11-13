@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/shift-record-check",
-      "schedule": "4 0,4,8 * * *"
+      "schedule": "4 2,8 * * *"
     }
 
   ]
