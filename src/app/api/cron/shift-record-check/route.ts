@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     assertCronAuth(req);
 
-    const result = await runShiftRecordCheck({ dryRun: true });
+    const result = await runShiftRecordCheck({ dryRun: false });
 
     return NextResponse.json({
       ok: true,

@@ -1,104 +1,87 @@
-// app/api/alert_log/route.ts
+// src/app/api/alert_log/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import {
-  AlertStatus,
-  CreateInput,
-  Result,
-  ok,
-  err,
-  isAlertRow,
-  isErr,
-} from "@/types/alert_log";
 
-function parseRole(s: string | null): "admin" | "manager" | "member" {
-  if (s === "admin" || s === "manager" || s === "member") return s;
-  return "member";
-}
-function toBoolean(s: string | null, fallback = false): boolean {
-  if (s === null) return fallback;
-  const v = s.trim().toLowerCase();
-  return v === "1" || v === "true";
+type AlertStatus = "open" | "in_progress" | "done" | "muted" | "cancelled";
+
+type CreateInput = {
+  message: string;
+  visible_roles?: string[];
+  severity?: number;
+  status?: AlertStatus;
+  status_source?: string;
+  kaipoke_cs_id?: string | null;
+  user_id?: string | null;
+  shift_id?: string | null;
+  rpa_request_id?: string | null;
+};
+
+// ------- GET: アクティブなアラート一覧を返す（roleは見ない） -------
+export async function GET() {
+  const { data, error } = await supabaseAdmin
+    .from("alert_log")
+    .select("*")
+    .in("status", ["open", "in_progress"])
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error("[alert_log][GET] error", error);
+    return NextResponse.json(
+      { error: "Failed to fetch alerts" },
+      { status: 500 }
+    );
+  }
+
+  // AlertBar は配列を期待しているのでそのまま返す
+  return NextResponse.json(data ?? []);
 }
 
-// ================= GET =================
-export async function GET(req: Request) {
+// ------- POST: 新規アラート作成 -------
+// クライアント / バックエンドどちらからでも使える想定
+export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const role = parseRole(url.searchParams.get("role"));
-    const includeDone = toBoolean(url.searchParams.get("includeDone"), false);
+    const body = (await req.json()) as CreateInput;
+
+    if (!body.message || typeof body.message !== "string") {
+      return NextResponse.json(
+        { error: "message is required" },
+        { status: 400 }
+      );
+    }
+
+    const insert: Record<string, unknown> = {
+      message: body.message,
+      visible_roles: body.visible_roles ?? ["admin", "manager", "staff"],
+      severity: body.severity ?? 2,
+      status: body.status ?? "open",
+      status_source: body.status_source ?? "manual",
+      kaipoke_cs_id: body.kaipoke_cs_id ?? null,
+      user_id: body.user_id ?? null,
+      shift_id: body.shift_id ?? null,
+      rpa_request_id: body.rpa_request_id ?? null,
+    };
 
     const { data, error } = await supabaseAdmin
       .from("alert_log")
+      .insert(insert)
       .select("*")
-      .order("severity", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[alert_log][POST] error", error);
+      return NextResponse.json(
+        { error: "Failed to create alert" },
+        { status: 500 }
+      );
+    }
 
-    const rows = (data ?? []).filter(isAlertRow);
-
-    const filtered = rows
-      .filter((r) => r.visible_roles.length === 0 || r.visible_roles.includes(role))
-      .filter((r) => (includeDone ? true : r.status !== "done"));
-
-    return NextResponse.json(filtered);
+    return NextResponse.json(data, { status: 201 });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
-}
-
-// ================= POST =================
-
-function sanitizeCreateBody(body: unknown): Result<CreateInput> {
-  if (typeof body !== "object" || body === null) return err("invalid body");
-  const b = body as Record<string, unknown>;
-
-  const message = typeof b.message === "string" && b.message.trim() ? b.message : null;
-  if (!message) return err("message is required");
-
-  const sev = typeof b.severity === "number" ? b.severity : 2;
-  const severity = Math.min(3, Math.max(1, sev));
-
-  const roles =
-    Array.isArray(b.visible_roles) ? b.visible_roles.filter((v) => typeof v === "string") : ["manager", "member"];
-
-  const status = ((): AlertStatus => {
-    const s = typeof b.status === "string" ? b.status : "open";
-    return ["open", "in_progress", "done", "muted", "cancelled"].includes(s) ? (s as AlertStatus) : "open";
-  })();
-
-  const status_source = typeof b.status_source === "string" ? b.status_source : "manual";
-
-  const pickNullable = (k: string) =>
-    typeof b[k] === "string" && (b[k] as string).trim() ? (b[k] as string) : null;
-
-  return ok({
-    message,
-    severity,
-    visible_roles: roles,
-    status,
-    status_source,
-    kaipoke_cs_id: pickNullable("kaipoke_cs_id"),
-    user_id: pickNullable("user_id"),
-    shift_id: pickNullable("shift_id"),
-    rpa_request_id: pickNullable("rpa_request_id"),
-    created_by: pickNullable("auth_user_id"),
-    assigned_to: pickNullable("assigned_to"),
-  });
-}
-
-export async function POST(req: Request) {
-  try {
-    const parsed = sanitizeCreateBody(await req.json());
-    if (isErr(parsed)) return NextResponse.json({ error: parsed.error }, { status: 400 });
-
-    const { error } = await supabaseAdmin.from("alert_log").insert(parsed.value);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error("[alert_log][POST] exception", e);
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 }
+    );
   }
 }

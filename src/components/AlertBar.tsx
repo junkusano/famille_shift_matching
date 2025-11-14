@@ -289,7 +289,7 @@ export default function AlertBar() {
       <div className="w-full border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold">アラート</span>
+            <span className="text-lg font-semibold">優先対応が必要なもの（完了せず、放置すれば不備計上されます）</span>
             <span className="text-sm rounded-full px-2 py-0.5 border">
               未処理 {openCount} 件
             </span>
