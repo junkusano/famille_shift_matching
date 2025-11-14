@@ -1,80 +1,106 @@
-// src/lib/alert/ensureSystemAlert.ts
-import { supabaseAdmin } from '@/lib/supabase/service';
+// lib/alert/ensureSystemAlert.ts
 
-export type VisibleRole = 'admin' | 'manager' | 'staff';
+import { supabaseAdmin } from "@/lib/supabase/service";
 
 export type EnsureAlertParams = {
   message: string;
-  severity?: 1 | 2 | 3;
-  visible_roles?: VisibleRole[];
+  visible_roles?: string[];
+  status?: "open" | "in_progress" | "done" | "muted" | "cancelled";
   kaipoke_cs_id?: string | null;
   user_id?: string | null;
   shift_id?: string | null;
   rpa_request_id?: string | null;
 };
 
-export type EnsureResult = { created: boolean; id: string | null };
+export type EnsureResult = {
+  created: boolean;
+  id: string | null;
+  severity: number;
+};
 
+/**
+ * アラート Upsert
+ * ・message + status が唯一キー
+ * ・severity は created_at からの経過日数（2日ごとに+1、Lv5上限）
+ */
 export async function ensureSystemAlert(
-  params: EnsureAlertParams,
+  params: EnsureAlertParams
 ): Promise<EnsureResult> {
   const {
     message,
-    severity = 2,
-    visible_roles = ['manager', 'staff'],
+    visible_roles = ["manager"],
+    status = "open",
     kaipoke_cs_id = null,
     user_id = null,
     shift_id = null,
     rpa_request_id = null,
   } = params;
 
-  console.log('[alert][ensure] try', {
-    msg: message.slice(0, 60),
-    kaipoke_cs_id,
-    user_id,
-    shift_id,
-  });
+  const now = new Date();
 
-  const { data: exists, error: selErr } = await supabaseAdmin
-    .from('alert_log')
-    .select('id, status')
-    .in('status', ['open', 'in_progress', 'muted'])
-    .eq('status_source', 'system')
-    .eq('kaipoke_cs_id', kaipoke_cs_id)
-    .eq('message', message)
-    .limit(1);
+  // 1. 既存レコード検索
+  const { data: existing } = await supabaseAdmin
+    .from("alert_log")
+    .select("*")
+    .eq("message", message)
+    .eq("status", status)
+    .maybeSingle();
 
-  if (selErr) {
-    console.error('[alert][ensure] select error', selErr);
-    throw selErr;
+  // ==========================
+  // 2. 新規挿入（初回検出）
+  // ==========================
+  if (!existing) {
+    const { data: inserted } = await supabaseAdmin
+      .from("alert_log")
+      .insert({
+        message,
+        visible_roles,
+        status,
+        severity: 1,
+        kaipoke_cs_id,
+        user_id,
+        shift_id,
+        rpa_request_id,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .select()
+      .maybeSingle();
+
+    return {
+      created: true,
+      id: inserted?.id ?? null,
+      severity: 1,
+    };
   }
 
-  if (exists?.length) {
-    console.log('[alert][ensure] skip duplicate', { id: exists[0].id });
-    return { created: false, id: exists[0].id as string };
-  }
+  // ==========================
+  // 3. 既存あり → severity 自動再計算
+  // ==========================
+  const createdAt = new Date(existing.created_at);
+  const diffDays = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
 
-  const { data: inserted, error: insErr } = await supabaseAdmin
-    .from('alert_log')
-    .insert({
-      message,
-      visible_roles,
-      status: 'open',
-      status_source: 'system',
+  // 2日で +1Lv
+  const autoLevel = 1 + Math.floor(diffDays / 2);
+  const severity = Math.min(Math.max(existing.severity, autoLevel), 5);
+
+  // UPDATE
+  await supabaseAdmin
+    .from("alert_log")
+    .update({
       severity,
+      updated_at: now.toISOString(),
+      visible_roles,
       kaipoke_cs_id,
       user_id,
       shift_id,
       rpa_request_id,
     })
-    .select('id')
-    .single();
+    .eq("id", existing.id);
 
-  if (insErr) {
-    console.error('[alert][ensure] insert error', insErr);
-    throw insErr;
-  }
-
-  console.log('[alert][ensure] created', { id: inserted?.id });
-  return { created: true, id: (inserted?.id as string) ?? null };
+  return {
+    created: false,
+    id: existing.id,
+    severity,
+  };
 }

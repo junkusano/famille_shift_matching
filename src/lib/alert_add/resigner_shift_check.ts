@@ -3,7 +3,7 @@
 // その人が今後の shift に残っていたら alert を出す。
 
 import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '@/app/api/alert_add/_shared';
+import { ensureSystemAlert } from '@/lib/alert/ensureSystemAlert';
 
 type UserRow = {
   user_id: string;
@@ -123,14 +123,13 @@ export async function runResignerShiftCheck(): Promise<ResignerShiftResult> {
     )}&date=${firstOfMonth}&per=50&page=1`;
 
     const message =
-      `【要修正】カイポケ削除済みスタッフがシフトに残っています：${fullName}（user_id: ${u.user_id}）\n` +
-      `シフト件数: ${count} 件 / 最初の日付: ${firstShift.shift_start_date}\n` +
-      `シフト一覧: ${link}`;
+      `【要修正】カイポケ削除済みスタッフがシフトに残っています：${fullName}（user_id: ${u.user_id}）` +
+      `　シフト件数: ${count} 件 / 最初の日付: ${firstShift.shift_start_date}` +
+      `<a href="${link}" target="_blank" rel="noreferrer">シフト一覧</a>`;
 
     try {
       const res = await ensureSystemAlert({
         message,
-        severity: 2,
         visible_roles: ['manager', 'staff'],
         // 利用者単位ではないので cs_id は特に紐付けない
         kaipoke_cs_id: null,

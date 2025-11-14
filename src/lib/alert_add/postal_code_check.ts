@@ -3,7 +3,7 @@
 // cron ハブからのみ呼ばれる想定。
 
 import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '@/app/api/alert_add/_shared';
+import { ensureSystemAlert } from '@/lib/alert/ensureSystemAlert';
 
 type CsRow = {
   id: string; // uuid
@@ -45,26 +45,30 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
 
   for (const cs of targets) {
     const csid = cs.kaipoke_cs_id;
-    const name = cs.name ?? '(名称未設定)';
+    const name = cs.name ?? "(名称未設定)";
 
-    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail?id=${cs.id}`;
+    // ★ URLクエリ id=... ではなく、パス /{uuid} 形式に変更
+    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${cs.id}`;
 
+    // ★ 利用者詳細部分を <a href> でリンク化
     const message =
-      `【要設定】利用者の郵便番号が未入力です：` +
+      `【要設定】利用者の郵便番号が未入力です。カイポケデータの修正を行ってください：` +
       `${name}（CS ID: ${csid}） ` +
-      `利用者詳細: ${detailUrl}`;
+      `<a href="${detailUrl}" target="_blank" rel="noreferrer">利用者詳細</a>`;
 
     try {
       const res = await ensureSystemAlert({
         message,
-        severity: 2,
-        visible_roles: ['manager', 'staff'],
+        visible_roles: ["manager", "staff"],
         kaipoke_cs_id: csid,
       });
       if (res.created) created++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error('[postal_code_check] ensureSystemAlert error', { csid, msg });
+      console.error("[postal_code_check] ensureSystemAlert error", {
+        csid,
+        msg,
+      });
       // 1件失敗しても他は続行
     }
   }
