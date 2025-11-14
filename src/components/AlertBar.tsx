@@ -1,9 +1,8 @@
-// components/AlertBar.tsx
 // src/components/AlertBar.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRoleContext } from "@/context/RoleContext";
+import { supabase } from "@/lib/supabaseClient";
 
 type AlertStatus = "open" | "in_progress" | "done" | "muted" | "cancelled";
 
@@ -41,32 +40,58 @@ type PatchBody = {
   result_comment?: string | null;
 };
 
-export default function AlertBar() {
-  // RoleContext 経由で system_role を取得
-  const { role: systemRole, loading: roleLoading } = useRoleContext();
+type SystemRole = "admin" | "manager" | "member";
 
-  // ローカル state
+export default function AlertBar() {
+  // ロール情報
+  const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
+  const [roleLoaded, setRoleLoaded] = useState(false);
+
+  // アラート一覧など
   const [rows, setRows] = useState<AlertRow[]>([]);
-  const [loading, setLoading] = useState(false); // ← fetch 中スピナー用
-  const [error, setError] = useState<string | null>(null); // ← 取得エラー表示用
+  const [loading, setLoading] = useState(false); // 一覧取得中
+  const [error, setError] = useState<string | null>(null);
 
   const [commentTarget, setCommentTarget] = useState<AlertRow | null>(null);
   const [commentText, setCommentText] = useState("");
 
-  // --- ロールによる表示制御 ---
-  if (roleLoading) {
-    // ロール取得中は何も出さない
-    return null;
-  }
-  if (systemRole !== "admin" && systemRole !== "manager") {
-    // admin / manager 以外（member 等）は非表示
-    return null;
-  }
+  // ---------- ログインユーザーの system_role 取得 ----------
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const authUser = auth.user;
+        if (!authUser) {
+          setRoleLoaded(true);
+          return;
+        }
 
-  // backend 側が「manager 用ロール」でフィルタする仕様想定
+        const { data: userRow, error: userError } = await supabase
+          .from("users")
+          .select("system_role")
+          .eq("auth_user_id", authUser.id)
+          .maybeSingle();
+
+        if (userError) {
+          console.error("[AlertBar] users/system_role fetch error", userError);
+          setRoleLoaded(true);
+          return;
+        }
+
+        const role = (userRow?.system_role ?? null) as SystemRole | null;
+        setSystemRole(role);
+      } finally {
+        setRoleLoaded(true);
+      }
+    };
+
+    void fetchRole();
+  }, []);
+
+  // admin / manager はどちらも「managerロール」として閲覧させる
   const viewRole = "manager";
 
-  // --- アラート一覧取得 ---
+  // ---------- アラート一覧取得 ----------
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -81,7 +106,7 @@ export default function AlertBar() {
 
       // open / in_progress のみ表示
       const active = (json.rows ?? []).filter(
-        (r) => r.status === "open" || r.status === "in_progress",
+        (r) => r.status === "open" || r.status === "in_progress"
       );
       setRows(active);
     } catch (e) {
@@ -94,11 +119,14 @@ export default function AlertBar() {
     }
   }, [viewRole]);
 
+  // ロールが確定してから一覧を取りにいく
   useEffect(() => {
+    if (!roleLoaded) return;
+    if (!systemRole || systemRole === "member") return; // member / 未設定はそもそも閲覧しない
     void fetchAlerts();
-  }, [fetchAlerts]);
+  }, [fetchAlerts, roleLoaded, systemRole]);
 
-  // --- ステータス更新 ---
+  // ---------- ステータス更新 ----------
   const updateStatus = async (id: string, status: AlertStatus) => {
     try {
       const body: PatchBody = {
@@ -119,25 +147,25 @@ export default function AlertBar() {
         throw new Error(json?.error ?? `HTTP ${res.status}`);
       }
 
-      // ローカルも更新（完了済は一覧から外す）
+      // ローカルも更新
       setRows((prev) =>
         prev
           .map((r) => (r.id === id ? { ...r, status } : r))
           .filter(
-            (r) => r.status === "open" || r.status === "in_progress",
-          ),
+            (r) => r.status === "open" || r.status === "in_progress"
+          )
       );
     } catch (e) {
       console.error("[AlertBar] updateStatus error", e);
       alert(
         e instanceof Error
           ? `更新に失敗しました: ${e.message}`
-          : "更新に失敗しました",
+          : "更新に失敗しました"
       );
     }
   };
 
-  // --- コメント保存 ---
+  // ---------- コメント保存 ----------
   const saveComment = async () => {
     if (!commentTarget) return;
     try {
@@ -162,8 +190,8 @@ export default function AlertBar() {
         prev.map((r) =>
           r.id === commentTarget.id
             ? { ...r, result_comment: commentText || null }
-            : r,
-        ),
+            : r
+        )
       );
       setCommentTarget(null);
       setCommentText("");
@@ -172,7 +200,7 @@ export default function AlertBar() {
       alert(
         e instanceof Error
           ? `コメント保存に失敗しました: ${e.message}`
-          : "コメント保存に失敗しました",
+          : "コメント保存に失敗しました"
       );
     }
   };
@@ -180,12 +208,26 @@ export default function AlertBar() {
   const openCount = useMemo(
     () =>
       rows.filter(
-        (r) => r.status === "open" || r.status === "in_progress",
+        (r) => r.status === "open" || r.status === "in_progress"
       ).length,
-    [rows],
+    [rows]
   );
 
-  // --- JSX ---
+  // ---------- 最後に「表示するかどうか」を判定（hooks のあと） ----------
+  if (!roleLoaded) {
+    // ロールロード中は何も出さない（チラつき防止）
+    return null;
+  }
+  if (!systemRole) {
+    // ロール取れない人には表示しない
+    return null;
+  }
+  if (systemRole === "member") {
+    // メンバーにはアラートバーを非表示
+    return null;
+  }
+
+  // ---------- JSX ----------
   return (
     <div className="flex-1">
       {/* ヘッダ＋テーブル部分 */}
@@ -200,11 +242,13 @@ export default function AlertBar() {
               <span className="text-xs text-gray-400">読込中...</span>
             )}
             {error && (
-              <span className="text-xs text-red-500">{error}</span>
+              <span className="text-xs text-red-500">
+                {error}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* TODO: 将来 手動登録モーダル */}
+            {/* いまはダミー。将来: 手動登録モーダル */}
             <button className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50">
               メッセージ追加
             </button>
@@ -284,7 +328,9 @@ export default function AlertBar() {
                             className="text-xs px-2 py-0.5 border rounded hover:bg-gray-50"
                             onClick={() => {
                               setCommentTarget(row);
-                              setCommentText(row.result_comment ?? "");
+                              setCommentText(
+                                row.result_comment ?? ""
+                              );
                             }}
                           >
                             コメント
@@ -310,7 +356,7 @@ export default function AlertBar() {
         </div>
       </div>
 
-      {/* コメント編集用モーダル */}
+      {/* コメント編集用の簡易モーダル（オーバーレイ） */}
       {commentTarget && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded-lg p-4 w-full max-w-md shadow-lg">
