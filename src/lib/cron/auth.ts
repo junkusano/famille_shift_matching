@@ -1,25 +1,51 @@
 // src/lib/cron/auth.ts
 import { NextRequest } from 'next/server';
 
-const SERVER_SECRET = process.env.CRON_SECRET ?? '';
+export type VisibleRole = 'admin' | 'manager' | 'staff';
 
-export function assertCronAuth(req: NextRequest): void {
-  const url = new URL(req.url);
-  const path = url.pathname;
+export function getServerCronSecret(): string | undefined {
+  return process.env.CRON_SECRET || undefined;
+}
 
-  const token = req.headers.get('x-server-secret') ?? '';
+export function getIncomingCronToken(
+  req: NextRequest,
+): { token: string | null; src: 'query' | 'header' | 'auth' | 'none' } {
+  const q = req.nextUrl.searchParams.get('token');
+  if (q) return { token: q, src: 'query' };
 
-  const ok = !!SERVER_SECRET && token === SERVER_SECRET;
+  const h = req.headers.get('x-cron-token');
+  if (h) return { token: h, src: 'header' };
 
-  console.info('[cron][auth]', {
-    path,
-    src: 'auth',
-    hasServerSecret: ok,
-    serverSecretLen: SERVER_SECRET.length,
-    tokenPreview: token ? `${token.slice(0, 2)}...(${token.length})` : '',
+  const auth = req.headers.get('authorization');
+  if (auth && auth.toLowerCase().startsWith('bearer ')) {
+    return { token: auth.slice(7).trim(), src: 'auth' };
+  }
+
+  return { token: null, src: 'none' };
+}
+
+export function assertCronAuth(req: NextRequest) {
+  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_ALERT_CRON_AUTH === '1') return;
+
+  const serverSecret = getServerCronSecret();
+  const { token, src } = getIncomingCronToken(req);
+
+  const mask = (s?: string | null) =>
+    s ? `${s.slice(0, 2)}...(${s.length})` : 'null';
+
+  console.log('[cron][auth]', {
+    path: req.nextUrl.pathname,
+    src,
+    hasServerSecret: !!serverSecret,
+    serverSecretLen: serverSecret?.length ?? 0,
+    tokenPreview: mask(token),
   });
 
-  if (!ok) {
-    throw new Error('unauthorized_cron');
+  if (!serverSecret || !token || token !== serverSecret) {
+    console.warn('[cron][auth] unauthorized', {
+      path: req.nextUrl.pathname,
+      reason: !serverSecret ? 'no_server_secret' : !token ? 'no_token' : 'mismatch',
+    });
+    throw new Error('Unauthorized');
   }
 }

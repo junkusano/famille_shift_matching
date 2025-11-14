@@ -11,9 +11,9 @@ import {
   isErr,
 } from "@/types/alert_log";
 
-function parseRole(s: string | null): "admin" | "manager" | "staff" {
-  if (s === "admin" || s === "manager" || s === "staff") return s;
-  return "staff";
+function parseRole(s: string | null): "admin" | "manager" | "member" {
+  if (s === "admin" || s === "manager" || s === "member") return s;
+  return "member";
 }
 function toBoolean(s: string | null, fallback = false): boolean {
   if (s === null) return fallback;
@@ -62,7 +62,7 @@ function sanitizeCreateBody(body: unknown): Result<CreateInput> {
   const severity = Math.min(3, Math.max(1, sev));
 
   const roles =
-    Array.isArray(b.visible_roles) ? b.visible_roles.filter((v) => typeof v === "string") : ["manager", "staff"];
+    Array.isArray(b.visible_roles) ? b.visible_roles.filter((v) => typeof v === "string") : ["manager", "member"];
 
   const status = ((): AlertStatus => {
     const s = typeof b.status === "string" ? b.status : "open";
