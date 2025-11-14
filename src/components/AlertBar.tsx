@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabaseAdmin } from '@/lib/supabase/service';
+import { supabase } from '@/lib/supabaseClient';
 import { useRoleContext } from '@/context/RoleContext';
 
 type AlertStatus = 'open' | 'in_progress' | 'done' | 'muted' | 'cancelled';
@@ -61,7 +61,7 @@ export default function AlertBar() {
     const fetchAlerts = async () => {
         setLoading(true);
         // RLSでroleフィルタされる前提（アプリ側フィルタも保険で実施）
-        const { data, error } = await supabaseAdmin
+        const { data, error } = await supabase
             .from('alert_log')
             .select('*')
             .order('severity', { ascending: false })
@@ -73,13 +73,11 @@ export default function AlertBar() {
             setLoading(false);
             return;
         }
-        // components/AlertBar.tsx 内 fetchAlerts の末尾フィルタだけ差し替え
-        const myRole = (role && typeof role === 'string' && role.trim() !== '') ? role : 'staff';
-
-        // 可視ロール未設定(=null/[])は可、設定されていれば myRole を含むものだけ
+        // fetchAlerts の最後を修正
         const filtered = (data as AlertRow[])
-            .filter((r) => !Array.isArray(r.visible_roles) || r.visible_roles.length === 0 || r.visible_roles.includes(myRole))
-            .filter((r) => r.status !== 'done');
+            .filter((r) => r.visible_roles?.includes(role ?? ''))
+            .filter((r) => r.status !== 'done'); // 完了は表示しない
+
         setRows(filtered);
         setLoading(false);
     };
@@ -87,11 +85,11 @@ export default function AlertBar() {
     useEffect(() => {
         fetchAlerts();
         // Realtime購読（任意）
-        const ch = supabaseAdmin
+        const ch = supabase
             .channel('alert_log_changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'alert_log' }, fetchAlerts)
             .subscribe();
-        return () => { supabaseAdmin.removeChannel(ch); };
+        return () => { supabase.removeChannel(ch); };
     }, [role]);
 
     const openCount = useMemo(
@@ -103,12 +101,12 @@ export default function AlertBar() {
         const message = prompt('メッセージを入力');
         if (!message) return;
 
-        const { data: userData } = await supabaseAdmin.auth.getUser();
+        const { data: userData } = await supabase.auth.getUser();
         const visible_roles = role === 'admin' ? ['admin', 'manager', 'staff'] :
             role === 'manager' ? ['manager', 'staff'] :
                 ['staff'];
 
-        const { error } = await supabaseAdmin.from('alert_log').insert({
+        const { error } = await supabase.from('alert_log').insert({
             message,
             visible_roles,
             severity: 2,
@@ -119,7 +117,7 @@ export default function AlertBar() {
     };
 
     const updateStatus = async (row: AlertRow, next: AlertStatus) => {
-        const { error } = await supabaseAdmin
+        const { error } = await supabase
             .from('alert_log')
             .update({
                 status: next,
@@ -137,8 +135,8 @@ export default function AlertBar() {
 
     const saveComment = async () => {
         if (!commentTarget) return;
-        const { data: auth } = await supabaseAdmin.auth.getUser();
-        const { error } = await supabaseAdmin
+        const { data: auth } = await supabase.auth.getUser();
+        const { error } = await supabase
             .from('alert_log')
             .update({
                 result_comment: commentText,
