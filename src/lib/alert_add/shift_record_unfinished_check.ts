@@ -73,11 +73,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
       });
       if (res.created) created++;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error('[shift_record_unfinished] ensureSystemAlert error', {
-        shift_id: r.shift_id,
-        msg,
-      });
+      // ...
     }
   }
 
