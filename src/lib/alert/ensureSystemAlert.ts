@@ -23,7 +23,7 @@ export async function ensureSystemAlert(
   const {
     message,
     severity = 2,
-    visible_roles = ['admin', 'manager', 'staff'],
+    visible_roles = ['admin', 'manager', 'member'],
     kaipoke_cs_id = null,
     user_id = null,
     shift_id = null,

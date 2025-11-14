@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextRequest, NextResponse } from 'next/server';
-import { assertCronAuth } from '../../alert_add/_shared';
+import { assertCronAuth } from '@/lib/cron/auth';
 import { runPostalCodeCheck } from '@/lib/alert_add/postal_code_check';
 import { runResignerShiftCheck } from '@/lib/alert_add/resigner_shift_check';
 import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfinished_check';

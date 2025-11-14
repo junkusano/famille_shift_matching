@@ -2,7 +2,7 @@
 // shift_shift_record_view から「実施記録が submitted になっていないシフト」を探して alert を出す。
 
 import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '@/app/api/alert_add/_shared';
+import { ensureSystemAlert } from '@/lib/alert/ensureSystemAlert';
 
 type ShiftRecordRow = {
   shift_id: number;
