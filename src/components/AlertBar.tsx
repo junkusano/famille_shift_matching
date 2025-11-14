@@ -133,7 +133,6 @@ export default function AlertBar() {
         }
     }, [viewRole]);
 
-
     useEffect(() => {
         void fetchAlerts();
     }, [fetchAlerts]);
