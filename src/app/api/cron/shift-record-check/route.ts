@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 // ★ alert-check-excuse と同じ import パスにすること！（ここ重要）
-import { assertCronAuth } from '../../alert_add/_shared';
+import { assertCronAuth } from '@/lib/cron/auth';
 import { runShiftRecordCheck } from '@/lib/shift/shift_record_check';
 
 export const runtime = 'nodejs';

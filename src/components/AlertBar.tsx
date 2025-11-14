@@ -27,29 +27,22 @@ type AlertRow = {
   updated_at: string;
 };
 
-type ListResponse = {
+type ListResponseWrapped = {
   ok: boolean;
   rows?: AlertRow[];
   error?: string;
 };
 
-type PatchBody = {
-  status?: AlertStatus;
-  status_source?: string;
-  assigned_to?: string | null;
-  result_comment?: string | null;
-};
-
 type SystemRole = "admin" | "manager" | "member";
 
 export default function AlertBar() {
-  // ロール情報
+  // ==== ロール情報 ====
   const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
   const [roleLoaded, setRoleLoaded] = useState(false);
 
-  // アラート一覧など
+  // ==== アラート一覧など ====
   const [rows, setRows] = useState<AlertRow[]>([]);
-  const [loading, setLoading] = useState(false); // 一覧取得中
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [commentTarget, setCommentTarget] = useState<AlertRow | null>(null);
@@ -88,48 +81,60 @@ export default function AlertBar() {
     void fetchRole();
   }, []);
 
-  // admin / manager はどちらも「managerロール」として閲覧させる
-  const viewRole = "manager";
-
   // ---------- アラート一覧取得 ----------
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/alert_log?role=${viewRole}`);
-      const json = (await res.json()) as ListResponse;
+      const res = await fetch(`/api/alert_log`);
+      const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        const msg = json.error ?? `HTTP ${res.status} ${res.statusText}`;
-        throw new Error(msg);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
       }
 
-      // open / in_progress のみ表示
-      const active = (json.rows ?? []).filter(
-        (r) => r.status === "open" || r.status === "in_progress"
+      let list: AlertRow[] = [];
+
+      // ① API が配列を返すパターン（今の実装）
+      if (Array.isArray(json)) {
+        list = json as AlertRow[];
+      } else {
+        // ② 将来 { ok, rows } 形式になっても対応できるように
+        const wrapped = json as ListResponseWrapped;
+        if (wrapped.error && wrapped.ok === false) {
+          throw new Error(wrapped.error);
+        }
+        list = (wrapped.rows ?? []) as AlertRow[];
+      }
+
+      // open / in_progress のみ表示（done 等は隠す）
+      const active = list.filter(
+        (r) => r.status === "open" || r.status === "in_progress",
       );
+
       setRows(active);
     } catch (e) {
       console.error("[AlertBar] fetchAlerts error", e);
       const msg =
         e instanceof Error ? e.message : "アラートの取得に失敗しました";
       setError(msg);
+      setRows([]); // 失敗時は空表示
     } finally {
       setLoading(false);
     }
-  }, [viewRole]);
+  }, []);
 
-  // ロールが確定してから一覧を取りにいく
+  // ロールが確定してから一覧取得
   useEffect(() => {
     if (!roleLoaded) return;
-    if (!systemRole || systemRole === "member") return; // member / 未設定はそもそも閲覧しない
+    if (!systemRole || systemRole === "member") return; // member / 未設定はそもそも見せない
     void fetchAlerts();
   }, [fetchAlerts, roleLoaded, systemRole]);
 
   // ---------- ステータス更新 ----------
   const updateStatus = async (id: string, status: AlertStatus) => {
     try {
-      const body: PatchBody = {
+      const body = {
         status,
         status_source: "manual",
       };
@@ -147,20 +152,19 @@ export default function AlertBar() {
         throw new Error(json?.error ?? `HTTP ${res.status}`);
       }
 
-      // ローカルも更新
       setRows((prev) =>
         prev
           .map((r) => (r.id === id ? { ...r, status } : r))
           .filter(
-            (r) => r.status === "open" || r.status === "in_progress"
-          )
+            (r) => r.status === "open" || r.status === "in_progress",
+          ),
       );
     } catch (e) {
       console.error("[AlertBar] updateStatus error", e);
       alert(
         e instanceof Error
           ? `更新に失敗しました: ${e.message}`
-          : "更新に失敗しました"
+          : "更新に失敗しました",
       );
     }
   };
@@ -169,7 +173,7 @@ export default function AlertBar() {
   const saveComment = async () => {
     if (!commentTarget) return;
     try {
-      const body: PatchBody = {
+      const body = {
         result_comment: commentText || null,
       };
 
@@ -190,8 +194,8 @@ export default function AlertBar() {
         prev.map((r) =>
           r.id === commentTarget.id
             ? { ...r, result_comment: commentText || null }
-            : r
-        )
+            : r,
+        ),
       );
       setCommentTarget(null);
       setCommentText("");
@@ -200,7 +204,7 @@ export default function AlertBar() {
       alert(
         e instanceof Error
           ? `コメント保存に失敗しました: ${e.message}`
-          : "コメント保存に失敗しました"
+          : "コメント保存に失敗しました",
       );
     }
   };
@@ -208,24 +212,15 @@ export default function AlertBar() {
   const openCount = useMemo(
     () =>
       rows.filter(
-        (r) => r.status === "open" || r.status === "in_progress"
+        (r) => r.status === "open" || r.status === "in_progress",
       ).length,
-    [rows]
+    [rows],
   );
 
-  // ---------- 最後に「表示するかどうか」を判定（hooks のあと） ----------
-  if (!roleLoaded) {
-    // ロールロード中は何も出さない（チラつき防止）
-    return null;
-  }
-  if (!systemRole) {
-    // ロール取れない人には表示しない
-    return null;
-  }
-  if (systemRole === "member") {
-    // メンバーにはアラートバーを非表示
-    return null;
-  }
+  // ---------- 最後に表示制御（hooks の後に置く） ----------
+  if (!roleLoaded) return null;
+  if (!systemRole) return null;
+  if (systemRole === "member") return null;
 
   // ---------- JSX ----------
   return (
@@ -242,13 +237,11 @@ export default function AlertBar() {
               <span className="text-xs text-gray-400">読込中...</span>
             )}
             {error && (
-              <span className="text-xs text-red-500">
-                {error}
-              </span>
+              <span className="text-xs text-red-500">{error}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* いまはダミー。将来: 手動登録モーダル */}
+            {/* TODO: 将来 手動登録モーダル */}
             <button className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50">
               メッセージ追加
             </button>
@@ -329,7 +322,7 @@ export default function AlertBar() {
                             onClick={() => {
                               setCommentTarget(row);
                               setCommentText(
-                                row.result_comment ?? ""
+                                row.result_comment ?? "",
                               );
                             }}
                           >
@@ -356,11 +349,11 @@ export default function AlertBar() {
         </div>
       </div>
 
-      {/* コメント編集用の簡易モーダル（オーバーレイ） */}
+      {/* コメント編集モーダル */}
       {commentTarget && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded-lg p-4 w-full max-w-md shadow-lg">
-            <div className="font-semibold mb-2 text-sm">
+            <div className="font-semibold mb-2 text	sm">
               結果コメント編集
             </div>
             <div className="text-xs mb-2 text-gray-500">
