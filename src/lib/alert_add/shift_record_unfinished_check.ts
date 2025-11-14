@@ -55,14 +55,9 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
   let created = 0;
 
   for (const r of rows) {
-    const csid = r.kaipoke_cs_id ?? '不明';
-    const date = r.shift_start_date;
-    const time = r.shift_start_time ?? '';
-    const status = r.record_status ?? '(未作成)';
-
     const message =
-      `【訪問記録3日以上エラー放置】早急に対処してください。` +
-      `CS ID: ${csid} / シフトID: ${r.shift_id} / 日時: ${date} ${time} / 状態: ${status}`;
+      '【訪問記録3日以上エラー放置】早急に対処してください。' +
+      '<a>利用者様名：日付</a>';
 
     try {
       const res = await ensureSystemAlert({
@@ -73,7 +68,11 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
       });
       if (res.created) created++;
     } catch (e) {
-      // ...
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[shift_record_unfinished] ensureSystemAlert error', {
+        shift_id: r.shift_id,
+        msg,
+      });
     }
   }
 

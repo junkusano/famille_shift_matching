@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { ensureSystemAlert } from '@/app/api/alert_add/_shared';
 
 type CsRow = {
+  id: string; // uuid
   kaipoke_cs_id: string;
   name: string | null;
   postal_code: string | null;
@@ -22,7 +23,7 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
   // cs_kaipoke_info 全件から必要なカラムだけ取得
   const { data, error } = await supabaseAdmin
     .from('cs_kaipoke_info')
-    .select('kaipoke_cs_id, name, postal_code, is_active, end_at');
+    .select('id, kaipoke_cs_id, name, postal_code, is_active, end_at');
 
   if (error) {
     console.error('[postal_code_check] select error', error);
@@ -46,7 +47,7 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
     const csid = cs.kaipoke_cs_id;
     const name = cs.name ?? '(名称未設定)';
 
-    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${csid}`;
+    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail?id=${cs.id}`;
 
     const message =
       `【要設定】利用者の郵便番号が未入力です：` +
