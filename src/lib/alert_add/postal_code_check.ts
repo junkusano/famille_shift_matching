@@ -46,7 +46,12 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
     const csid = cs.kaipoke_cs_id;
     const name = cs.name ?? '(名称未設定)';
 
-    const message = `【要設定】利用者の郵便番号が未入力です：${name}（CS ID: ${csid}）`;
+    const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${csid}`;
+
+    const message =
+      `【要設定】利用者の郵便番号が未入力です：` +
+      `${name}（CS ID: ${csid}） ` +
+      `利用者詳細: ${detailUrl}`;
 
     try {
       const res = await ensureSystemAlert({

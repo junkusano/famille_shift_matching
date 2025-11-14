@@ -1,7 +1,13 @@
 // src/components/AlertBar.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type AlertStatus = "open" | "in_progress" | "done" | "muted" | "cancelled";
@@ -27,13 +33,13 @@ type AlertRow = {
   updated_at: string;
 };
 
+type SystemRole = "admin" | "manager" | "member";
+
 type ListResponseWrapped = {
   ok: boolean;
   rows?: AlertRow[];
   error?: string;
 };
-
-type SystemRole = "admin" | "manager" | "member";
 
 export default function AlertBar() {
   // ==== ロール情報 ====
@@ -95,11 +101,11 @@ export default function AlertBar() {
 
       let list: AlertRow[] = [];
 
-      // ① API が配列を返すパターン（今の実装）
+      // API が配列を返しているパターン（現状）
       if (Array.isArray(json)) {
         list = json as AlertRow[];
       } else {
-        // ② 将来 { ok, rows } 形式になっても対応できるように
+        // 将来 { ok, rows } 形式にしても動くように
         const wrapped = json as ListResponseWrapped;
         if (wrapped.error && wrapped.ok === false) {
           throw new Error(wrapped.error);
@@ -107,7 +113,7 @@ export default function AlertBar() {
         list = (wrapped.rows ?? []) as AlertRow[];
       }
 
-      // open / in_progress のみ表示（done 等は隠す）
+      // open / in_progress のみ表示
       const active = list.filter(
         (r) => r.status === "open" || r.status === "in_progress",
       );
@@ -118,7 +124,7 @@ export default function AlertBar() {
       const msg =
         e instanceof Error ? e.message : "アラートの取得に失敗しました";
       setError(msg);
-      setRows([]); // 失敗時は空表示
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -217,6 +223,60 @@ export default function AlertBar() {
     [rows],
   );
 
+  // ---------- メッセージ内の URL を <a> に変換 ----------
+  const renderMessage = (msg: string): ReactNode => {
+    const urlRegex =
+      /https:\/\/myfamille\.shi-on\.net\/portal\/[^\s]+/g;
+
+    const parts: ReactNode[] = [];
+    let lastIndex = 0;
+
+    for (const match of msg.matchAll(urlRegex)) {
+      const url = match[0];
+      const start = match.index ?? 0;
+
+      // URL より前のテキスト
+      if (start > lastIndex) {
+        parts.push(msg.slice(lastIndex, start));
+      }
+
+      // URL に応じてラベルを決める
+      let label = url;
+      if (url.includes("/portal/kaipoke-info-detail/")) {
+        label = "利用者情報";
+      } else if (url.includes("/portal/shift-view")) {
+        if (url.includes("client=")) {
+          // 利用者＋日付指定 → 訪問記録
+          label = "訪問記録";
+        } else {
+          // user_id 等だけ → シフト一覧
+          label = "シフト一覧";
+        }
+      }
+
+      parts.push(
+        <a
+          key={`${url}-${start}`}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-600 underline"
+        >
+          {label}
+        </a>,
+      );
+
+      lastIndex = start + url.length;
+    }
+
+    // 最後の URL より後ろのテキスト
+    if (lastIndex < msg.length) {
+      parts.push(msg.slice(lastIndex));
+    }
+
+    return parts;
+  };
+
   // ---------- 最後に表示制御（hooks の後に置く） ----------
   if (!roleLoaded) return null;
   if (!systemRole) return null;
@@ -281,7 +341,7 @@ export default function AlertBar() {
                         </span>
                       </td>
                       <td className="py-1.5 pr-4 whitespace-pre-wrap">
-                        {row.message}
+                        {renderMessage(row.message)}
                       </td>
                       <td className="py-1.5 pr-4">
                         {row.visible_roles.join(", ")}
@@ -353,7 +413,7 @@ export default function AlertBar() {
       {commentTarget && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded-lg p-4 w-full max-w-md shadow-lg">
-            <div className="font-semibold mb-2 text	sm">
+            <div className="font-semibold mb-2 text-sm">
               結果コメント編集
             </div>
             <div className="text-xs mb-2 text-gray-500">

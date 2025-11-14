@@ -1,7 +1,7 @@
 // src/lib/cron/auth.ts
 import { NextRequest } from 'next/server';
 
-const SERVER_SECRET = process.env.CRON_SERVER_SECRET ?? '';
+const SERVER_SECRET = process.env.CRON_SECRET ?? '';
 
 export function assertCronAuth(req: NextRequest): void {
   const url = new URL(req.url);
