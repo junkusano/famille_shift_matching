@@ -232,3 +232,18 @@ input[type="file"] {
     @apply bg-background text-foreground;
   }
 }
+
+/* アラートメッセージ内の HTMLリンク用 */
+.alert-html a {
+  @apply underline;
+  color: #2563eb;       /* blue-600 相当 */
+}
+
+.alert-html a:visited {
+  color: #7c3aed;       /* purple-600 相当 */
+}
+
+.alert-html a:hover {
+  @apply underline;
+  opacity: 0.9;
+}

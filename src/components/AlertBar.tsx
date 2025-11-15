@@ -229,11 +229,11 @@ export default function AlertBar() {
         if (msg.includes("<a ")) {
             return (
                 <span
+                    className="alert-html"
                     dangerouslySetInnerHTML={{ __html: msg }}
                 />
             );
         }
-
         // ② それ以外（従来どおり「素の URL」だけが入ってるパターン）だけを regex で処理
         const urlRegex =
             /https:\/\/myfamille\.shi-on\.net\/portal\/[^\s]+/g;

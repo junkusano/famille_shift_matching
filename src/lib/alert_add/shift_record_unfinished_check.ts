@@ -1,8 +1,7 @@
-// /src/lib/alert_add/shift_record_unfinished_check.ts
-// shift_shift_record_view から「実施記録が submitted になっていないシフト」を探して alert を出す。
+// lib/alert_add/shift_record_unfinished_check.ts
 
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '@/lib/alert/ensureSystemAlert';
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 
 type ShiftRecordRow = {
   shift_id: number;
@@ -10,99 +9,120 @@ type ShiftRecordRow = {
   shift_start_date: string; // 'YYYY-MM-DD'
   shift_start_time: string | null;
   record_status: string | null;
-  client_name: string | null; // ★ 利用者名
+  client_name: string | null; // 実際のカラム名に合わせて変更
 };
 
-export type ShiftRecordUnfinishedResult = {
-  scanned: number; // 対象件数
-  created: number; // 新規アラート件数
+type RunResult = {
+  total: number;
+  created: number;
+  updated: number;
 };
 
-function ymd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function toYmd(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfinishedResult> {
-  // JST 現在日付 -3 日
+/**
+ * 未完了の訪問記録（3日以上放置）のアラートチェック
+ */
+export async function runShiftRecordUnfinishedCheck(): Promise<RunResult> {
   const now = new Date();
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const cutoff = new Date(jst.getTime() - 3 * 24 * 60 * 60 * 1000);
-  const cutoffYmd = ymd(cutoff);
 
-  const MIN_DATE = '2025-10-01';
+  // 3日前までを対象
+  const cutoff = new Date(now.getTime() - 3 * 86400000);
+  const cutoffYmd = toYmd(cutoff);
 
-  // shift_shift_record_view から条件に合うシフトを取得
-  // 取得時の select に client_name を追加
+  // 必要なら下限日を切る
+  const minDate = "2024-01-01";
+
   const { data, error } = await supabaseAdmin
-    .from('shift_shift_record_view')
+    .from("shift_shift_record_view")
     .select(
-      'shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, record_status, client_name',
+      "shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, record_status, client_name",
     )
-    .gte('shift_start_date', MIN_DATE)
-    .lte('shift_start_date', cutoffYmd)
-    // training 用などは除外
-    .not('kaipoke_cs_id', 'like', '99999999%')
-    // record_status is null または submitted 以外
-    .or('record_status.is.null,record_status.neq.submitted');
+    .gte("shift_start_date", minDate)
+    .lte("shift_start_date", cutoffYmd)
+    // record_status is null OR record_status <> 'submitted'
+    .or("record_status.is.null,record_status.neq.submitted");
 
   if (error) {
-    console.error('[shift_record_unfinished] select error', error);
-    throw new Error(`shift_shift_record_view select failed: ${error.message}`);
+    console.error("[shift_record_unfinished] select error", error);
+    throw new Error(
+      `shift_shift_record_view select failed: ${error.message}`,
+    );
   }
 
   const rows = (data ?? []) as ShiftRecordRow[];
-  let created = 0;
 
-  for (const r of rows) {
+  // ここでテスト用 CS など除外したければ filter を追加
+  const targets = rows.filter((r) => {
+    if (!r.kaipoke_cs_id) return false;
+    // 例: 9999 から始まるテスト CS を除外
+    if (r.kaipoke_cs_id.startsWith("9999")) return false;
+    return true;
+  });
+
+  if (targets.length === 0) {
+    console.info("[shift_record_unfinished] 対象 0 件");
+    return { total: 0, created: 0, updated: 0 };
+  }
+
+  let createdCount = 0;
+  let updatedCount = 0;
+
+  for (const r of targets) {
     const name = r.client_name ?? "利用者名不明";
     const date = r.shift_start_date;
+    const csid = r.kaipoke_cs_id!;
 
-    const base =
-      "【訪問記録3日以上エラー放置】早急に対処してください。";
+    const url =
+      `https://myfamille.shi-on.net/portal/shift-view` +
+      `?client=${encodeURIComponent(csid)}` +
+      `&date=${encodeURIComponent(date)}`;
 
-    let message: string;
-
-    if (r.kaipoke_cs_id) {
-      const url =
-        `https://myfamille.shi-on.net/portal/shift-view` +
-        `?client=${encodeURIComponent(r.kaipoke_cs_id)}` +
-        `&date=${encodeURIComponent(date)}`;
-
-      // ★（リンク付ける以下）利用者様名　2025-/-/（ここまで） をリンク化
-      message =
-        base +
-        `<a href="${url}" target="_blank" rel="noreferrer">` +
-        `${name}　${date}` +
-        `</a>`;
-    } else {
-      // CS ID が取れないイレギュラーケースは、リンク無しでテキストだけ
-      message = `${base}${name}　${date}`;
-    }
+    // メッセージは severity によらず固定
+    const message =
+      "【訪問記録3日以上エラー放置】早急に対処してください。" +
+      `<a href="${url}" target="_blank" rel="noreferrer">` +
+      `${name}　${date}` +
+      `</a>`;
 
     try {
       const res = await ensureSystemAlert({
         message,
         visible_roles: ["manager", "staff"],
-        kaipoke_cs_id: r.kaipoke_cs_id,
+        status: "open",
+        kaipoke_cs_id: csid,
+        shift_id: String(r.shift_id), 
       });
-      if (res.created) created++;
+
+      if (res.created) {
+        createdCount++;
+      } else {
+        updatedCount++;
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[shift_record_unfinished] ensureSystemAlert error", {
         shift_id: r.shift_id,
+        csid,
         msg,
       });
     }
   }
 
-
-  console.log('[shift_record_unfinished] done', {
-    scanned: rows.length,
-    created,
+  console.info("[shift_record_unfinished] アラート upsert:", {
+    total: targets.length,
+    created: createdCount,
+    updated: updatedCount,
   });
 
-  return { scanned: rows.length, created };
+  return {
+    total: targets.length,
+    created: createdCount,
+    updated: updatedCount,
+  };
 }
