@@ -1,4 +1,4 @@
-// lib/alert_add/shift_record_unfinished_check.ts
+// src/lib/alert_add/shift_record_unfinished_check.ts
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
@@ -13,9 +13,8 @@ type ShiftRecordRow = {
 };
 
 type RunResult = {
-  total: number;
+  scanned: number; // ← CheckResult が期待している形に合わせる
   created: number;
-  updated: number;
 };
 
 function toYmd(d: Date): string {
@@ -35,7 +34,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<RunResult> {
   const cutoff = new Date(now.getTime() - 3 * 86400000);
   const cutoffYmd = toYmd(cutoff);
 
-  // 必要なら下限日を切る
+  // 必要なら下限日
   const minDate = "2024-01-01";
 
   const { data, error } = await supabaseAdmin
@@ -57,17 +56,17 @@ export async function runShiftRecordUnfinishedCheck(): Promise<RunResult> {
 
   const rows = (data ?? []) as ShiftRecordRow[];
 
-  // ここでテスト用 CS など除外したければ filter を追加
+  // テスト用 CS などあればここで除外
   const targets = rows.filter((r) => {
     if (!r.kaipoke_cs_id) return false;
-    // 例: 9999 から始まるテスト CS を除外
+    // 例: 9999〜 をテスト扱いで除外
     if (r.kaipoke_cs_id.startsWith("9999")) return false;
     return true;
   });
 
   if (targets.length === 0) {
     console.info("[shift_record_unfinished] 対象 0 件");
-    return { total: 0, created: 0, updated: 0 };
+    return { scanned: 0, created: 0 };
   }
 
   let createdCount = 0;
@@ -96,7 +95,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<RunResult> {
         visible_roles: ["manager", "staff"],
         status: "open",
         kaipoke_cs_id: csid,
-        shift_id: String(r.shift_id), 
+        shift_id: String(r.shift_id), // ★ ensureSystemAlert 側が string 型なので変換
       });
 
       if (res.created) {
@@ -115,14 +114,13 @@ export async function runShiftRecordUnfinishedCheck(): Promise<RunResult> {
   }
 
   console.info("[shift_record_unfinished] アラート upsert:", {
-    total: targets.length,
+    scanned: targets.length,
     created: createdCount,
     updated: updatedCount,
   });
 
   return {
-    total: targets.length,
+    scanned: targets.length,
     created: createdCount,
-    updated: updatedCount,
   };
 }
