@@ -22,6 +22,7 @@ export type EnsureResult = {
  * アラート Upsert
  * ・message + status が唯一キー
  * ・severity は created_at からの経過日数（2日ごとに+1、Lv5上限）
+ * ・status_source は必ず 'system' でセット
  */
 export async function ensureSystemAlert(
   params: EnsureAlertParams
@@ -37,35 +38,54 @@ export async function ensureSystemAlert(
   } = params;
 
   const now = new Date();
+  const nowIso = now.toISOString();
 
   // 1. 既存レコード検索
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: selError } = await supabaseAdmin
     .from("alert_log")
     .select("*")
     .eq("message", message)
     .eq("status", status)
     .maybeSingle();
 
+  if (selError) {
+    console.error("[alert][ensure] select error", selError, {
+      message,
+      status,
+    });
+    throw selError;
+  }
+
   // ==========================
   // 2. 新規挿入（初回検出）
   // ==========================
   if (!existing) {
-    const { data: inserted } = await supabaseAdmin
+    const insertPayload = {
+      message,
+      visible_roles,
+      status,
+      status_source: "system",        // ★ ここを明示的にセット
+      severity: 1,
+      kaipoke_cs_id,
+      user_id,
+      shift_id,
+      rpa_request_id,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+
+    const { data: inserted, error: insError } = await supabaseAdmin
       .from("alert_log")
-      .insert({
-        message,
-        visible_roles,
-        status,
-        severity: 1,
-        kaipoke_cs_id,
-        user_id,
-        shift_id,
-        rpa_request_id,
-        created_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      })
+      .insert(insertPayload)
       .select()
       .maybeSingle();
+
+    if (insError) {
+      console.error("[alert][ensure] insert error", insError, {
+        payload: insertPayload,
+      });
+      throw insError;
+    }
 
     return {
       created: true,
@@ -84,19 +104,29 @@ export async function ensureSystemAlert(
   const autoLevel = 1 + Math.floor(diffDays / 2);
   const severity = Math.min(Math.max(existing.severity, autoLevel), 5);
 
-  // UPDATE
-  await supabaseAdmin
+  const updatePayload = {
+    severity,
+    updated_at: nowIso,
+    visible_roles,
+    kaipoke_cs_id,
+    user_id,
+    shift_id,
+    rpa_request_id,
+    status_source: existing.status_source ?? "system", // 念のため維持 or system
+  };
+
+  const { error: updError } = await supabaseAdmin
     .from("alert_log")
-    .update({
-      severity,
-      updated_at: now.toISOString(),
-      visible_roles,
-      kaipoke_cs_id,
-      user_id,
-      shift_id,
-      rpa_request_id,
-    })
+    .update(updatePayload)
     .eq("id", existing.id);
+
+  if (updError) {
+    console.error("[alert][ensure] update error", updError, {
+      id: existing.id,
+      payload: updatePayload,
+    });
+    throw updError;
+  }
 
   return {
     created: false,
