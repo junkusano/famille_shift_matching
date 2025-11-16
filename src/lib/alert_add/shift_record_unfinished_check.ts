@@ -86,8 +86,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
     const time = r.shift_start_time? r.shift_start_time.slice(0, 5) : ""; 
     //const status = r.record_status ?? "(未作成)";
 
-     const clientName =  r.client_name; 
-    "（利用者名未登録）";
+     const clientName =  r.client_name ?? "（利用者名非該当）";
 
     // 利用者別シフト画面へのリンク
     const url =
