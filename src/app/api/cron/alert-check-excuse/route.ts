@@ -14,7 +14,7 @@ import { runPostalCodeCheck } from '@/lib/alert_add/postal_code_check';
 import { runResignerShiftCheck } from '@/lib/alert_add/resigner_shift_check';
 import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfinished_check';
 import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check";
-
+import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_check";
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -25,6 +25,8 @@ type Body = {
   postal_code: CheckResult<{ scanned: number; created: number }>;
   resigner_shift: CheckResult<{ scanned: number; created: number }>;
   shift_record_unfinished: CheckResult<{ scanned: number; created: number }>;
+  kodoengo_plan_link_check: CheckResult<{ scanned: number; created: number }>;
+  lw_user_group_missing_check: CheckResult<{ scanned: number; created: number }>;
 };
 
 export async function GET(req: NextRequest) {
@@ -33,6 +35,8 @@ export async function GET(req: NextRequest) {
     postal_code: { ok: false, error: 'not executed' },
     resigner_shift: { ok: false, error: 'not executed' },
     shift_record_unfinished: { ok: false, error: 'not executed' },
+    kodoengo_plan_link_check: { ok: false, error: 'not executed' },
+    lw_user_group_missing_check: { ok: false, error: 'not executed' },
   };
 
   try {
@@ -75,11 +79,22 @@ export async function GET(req: NextRequest) {
     // 4) 行動援護リンク未登録
     try {
       const r = await kodoengoPlanLinkCheck();
-      result.shift_record_unfinished = { ok: true, ...r };
+      result.kodoengo_plan_link_check= { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[cron][kodoengo_plan_link_check] error', msg);
-      result.shift_record_unfinished = { ok: false, error: msg };
+      result.kodoengo_plan_link_check= { ok: false, error: msg };
+      result.ok = false;
+    }
+
+    // 5) LW利用者グループ未作成
+    try {
+      const r = await lwUserGroupMissingCheck();
+      result.lw_user_group_missing_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][kodoengo_plan_link_check] error', msg);
+      result.lw_user_group_missing_check = { ok: false, error: msg };
       result.ok = false;
     }
 
