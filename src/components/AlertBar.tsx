@@ -325,7 +325,7 @@ export default function AlertBar() {
               className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50"
               onClick={() => setCollapsed((v) => !v)}
             >
-              {collapsed ? "一覧を表示" : "一覧を畳む"}
+              {collapsed ? "一覧を表示▼" : "一覧を畳む▲"}
             </button>
           </div>
         </div>
