@@ -7,6 +7,7 @@ import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 type ShiftRecordRow = {
   shift_id: number;
   kaipoke_cs_id: string | null;
+  client_name: string | null;
   shift_start_date: string; // 'YYYY-MM-DD'
   shift_start_time: string | null;
   record_status: string | null;
@@ -50,7 +51,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
   const { data, error } = await supabaseAdmin
     .from("shift_shift_record_view")
     .select(
-      "shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, record_status",
+      "shift_id, kaipoke_cs_id, client_name, shift_start_date, shift_start_time, record_status",
     )
     .gte("shift_start_date", MIN_DATE)
     .lte("shift_start_date", cutoffYmd)
@@ -82,8 +83,11 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
   for (const r of rows) {
     const csid = r.kaipoke_cs_id ?? "不明";
     const date = r.shift_start_date;
-    const time = r.shift_start_time ?? "";
-    const status = r.record_status ?? "(未作成)";
+    const time = r.shift_start_time? r.shift_start_time.slice(0, 5) : ""; 
+    //const status = r.record_status ?? "(未作成)";
+
+     const clientName =  r.client_name; 
+    "（利用者名未登録）";
 
     // 利用者別シフト画面へのリンク
     const url =
@@ -98,8 +102,8 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
 
     // AlertBar 側で <a> をそのまま描画するので、ここでリンクまで組み立てる
     const message = url
-      ? `${baseText}<a href="${url}" target="_blank" rel="noreferrer">CS ID: ${csid} / 日時: ${date} ${time} / 状態: ${status}</a>`
-      : `${baseText}CS ID: ${csid} / 日時: ${date} ${time} / 状態: ${status}`;
+      ? `${baseText}<a href="${url}" target="_blank" rel="noreferrer">${clientName} / ${date} ${time} </a>`
+      : `${baseText}${clientName} / ${date} ${time}`;
 
     try {
       const res = await ensureSystemAlert({
