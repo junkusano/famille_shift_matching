@@ -54,7 +54,7 @@ export async function lwUserGroupMissingCheck(): Promise<LwUserGroupMissingCheck
   const { data: groupRows, error: groupError } = await supabaseAdmin
     .from("group_lw_channel_view")
     .select("group_account")
-    .eq("group_type", "利用者情報連携グループ")
+    .eq("group_type", "利用者様情報連携グループ")
     .in("group_account", csIds);
 
   if (groupError) {
@@ -96,7 +96,7 @@ export async function lwUserGroupMissingCheck(): Promise<LwUserGroupMissingCheck
     const name = cs.name ?? "（名称未設定）";
     const csId = cs.kaipoke_cs_id;
 
-    const msg = `【Lw利用者グループ生成エラー】 「${name} 様　情報連携＠ ${csId}」 というラインワークスグループが存在しない（名前が間違っている）、もしくは すまーとアイさん botが追加されていない　エラーです。対応後、何か一言（テスト　等を）コメントしてください。`;
+    const msg = `【Lw利用者グループ生成エラー】 「${name}様　情報連携＠${csId}」 というラインワークスグループが存在しない（名前が間違っている）、もしくは すまーとアイさん botが追加されていない　エラーです。対応後、何か一言（テスト　等を）コメントしてください。`;
 
     try {
       const result = await ensureSystemAlert({
