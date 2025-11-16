@@ -233,6 +233,8 @@ const datesForSelectedWeekdaysInMonth = (baseDateStr: string, selected: Set<numb
 
 // どこか上のヘルパ群の末尾あたりに追加
 //const hasValue = (v?: string | null) => typeof v === 'string' && v.trim().length > 0;
+const isDummyCsId = (csId?: string | null): boolean =>
+    typeof csId === 'string' && csId.startsWith('99999999');
 
 type CheckResult = { ok: boolean; confirmMessage?: string; errorMessage?: string };
 
@@ -520,6 +522,19 @@ export default function MonthlyRosterPage() {
     const handleAddClick = async () => {
         if (readOnly) return;
         if (!selectedKaipokeCS) return alert('利用者IDが未選択です');
+
+        // ★ 追加: ダミーCS以外は service_code & staff_01 必須
+        if (!isDummyCsId(selectedKaipokeCS)) {
+            if (!draft.service_code || draft.service_code.trim() === '') {
+                alert('サービスコードは必須です');
+                return;
+            }
+            if (!draft.staff_01_user_id) {
+                alert('スタッフ1は必須です');
+                return;
+            }
+        }
+
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.shift_start_date)) return alert('日付を入力してください');
         const startHM = normalizeTimeLoose(draft.shift_start_time);
         const endHM = normalizeTimeLoose(draft.shift_end_time);
@@ -739,6 +754,18 @@ export default function MonthlyRosterPage() {
 
         const two_person_work_flg = row.dup_role === '01';
 
+        // ★ 追加: ダミーCS以外は service_code & staff_01 必須
+        if (!isDummyCsId(row.kaipoke_cs_id)) {
+            if (!row.service_code || row.service_code.trim() === '') {
+                alert('サービスコードは必須です');
+                return;
+            }
+            if (!row.staff_01_user_id) {
+                alert('スタッフ1は必須です');
+                return;
+            }
+        }
+
         // バリデーション（保存前）
         const dateOk = isValidDateStr(row.shift_start_date);
         const stOk = isValidTimeStr(row.shift_start_time);
@@ -767,6 +794,8 @@ export default function MonthlyRosterPage() {
 
         const body = {
             shift_id: row.shift_id,
+            shift_start_date: row.shift_start_date,
+            shift_end_date: row.shift_start_date,
             service_code: row.service_code,
             required_staff_count,          // ★ 修正後の値を送る
             two_person_work_flg,           // ★ 修正後の値を送る
