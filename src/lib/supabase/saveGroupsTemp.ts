@@ -8,9 +8,32 @@ export async function saveGroupsMaster(groups: Group[]) {
 
     const formatted = groups.map((group) => {
         const rawName = group.groupName || "";
-        const atIndex = Math.max(rawName.lastIndexOf("@"), rawName.lastIndexOf("＠"));
-        const group_name = atIndex !== -1 ? rawName.slice(0, atIndex).trim() : rawName.trim();
-        const group_account = atIndex !== -1 ? rawName.slice(atIndex + 1).trim() : null;
+
+        // 全角＠を半角@に揃えて位置計算用に使う
+        const normalized = rawName.replace(/＠/g, "@");
+
+        const firstAt = normalized.indexOf("@");
+        const lastAt = normalized.lastIndexOf("@");
+        const hasAt = lastAt !== -1;
+
+        // ここは今までの仕様を維持：最後の @ より前を group_name、後ろを group_account
+        const group_name = hasAt ? rawName.slice(0, lastAt).trim() : rawName.trim();
+        const group_account = hasAt ? rawName.slice(lastAt + 1).trim() : null;
+
+        // 追加：二つ以上 @ があるとき、最初と最後の @ の間を group_account_secondary に入れる
+        let group_account_secondary: string | null = null;
+        if (firstAt !== -1 && lastAt !== -1 && firstAt !== lastAt) {
+            // firstAt と lastAt の「間」を抜き出す
+            group_account_secondary = rawName
+                .slice(firstAt + 1, lastAt)  // 最初の @ の次〜最後の @ の直前
+                .replace(/＠/g, "@")
+                .trim();
+
+            if (group_account_secondary === "") {
+                group_account_secondary = null;
+            }
+        }
+
 
         const client_code_match = group_name.match(/\[(\d+)\]/);
         const client_code = client_code_match ? client_code_match[1] : null;
@@ -21,6 +44,7 @@ export async function saveGroupsMaster(groups: Group[]) {
             group_id: group.groupId,
             group_name,
             group_account,
+            group_account_secondary,
             client_code,
             group_type,
             is_active: true,

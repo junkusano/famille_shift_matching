@@ -1,5 +1,6 @@
 //"C:\Users\USER\famille_shift_matching\src\app\api\webhook\route.ts"
 import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from 'next/server'
 import { getAccessToken } from '@/lib/getAccessToken'
 
@@ -11,6 +12,126 @@ const supabase = createClient(
 //const BOT_ID = process.env.LW_BOT_ID!
 //const BOT_ID = "6807147";
 const BOT_ID = "6807751";   //ヘルパーサービス管理者
+
+async function upsertGroupAndChannel(params: {
+    groupId: string;
+    channelId: string;
+}) {
+    const { groupId, channelId } = params;
+
+    // 1) groups_lw を upsert（ここは今まで通りの処理に合わせてください）
+    const { error: upsertGroupError } = await supabaseAdmin
+        .from("groups_lw")
+        .upsert(
+            {
+                group_id: groupId,
+                //group_name: groupName,
+                // group_name から group_account / group_account_secondary を
+                // saveGroupsTemp.ts 側で分解しているなら、そこに合わせてもOK。
+                // ここでは最低限 group_id / group_name だけでもよい想定。
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: "group_id" }
+        );
+
+    if (upsertGroupError) {
+        console.error("[lw webhook] groups_lw upsert error", upsertGroupError);
+        // ここは必要に応じて return するかどうか判断
+    }
+
+    // 2) この group_id の group_account を取得
+    const { data: thisGroup, error: thisGroupError } = await supabaseAdmin
+        .from("groups_lw")
+        .select("group_id, group_account")
+        .eq("group_id", groupId)
+        .maybeSingle();
+
+    if (thisGroupError) {
+        console.error("[lw webhook] groups_lw select error", thisGroupError);
+    }
+
+    // group_account が取れなければ、従来通りの処理
+    if (!thisGroup || !thisGroup.group_account) {
+        await supabaseAdmin
+            .from("group_lw_channel_info")
+            .upsert(
+                {
+                    group_id: groupId,
+                    channel_id: channelId,
+                    fetched_at: new Date().toISOString(),
+                },
+                { onConflict: "channel_id" }
+            );
+        return;
+    }
+
+    const myAccount: string = thisGroup.group_account;
+
+    // 3) 「自分の group_account を group_account_secondary として持つグループ」
+    //    → これを「メイングループ」とみなす
+    const { data: parentGroup, error: parentGroupError } = await supabaseAdmin
+        .from("groups_lw")
+        .select("group_id")
+        .eq("group_account_secondary", myAccount)
+        .maybeSingle();
+
+    if (parentGroupError) {
+        console.error("[lw webhook] groups_lw select parent error", parentGroupError);
+    }
+
+    if (parentGroup?.group_id) {
+        // === 隠し部屋パターン ===
+        // parentGroup.group_id が「同居メイン側の group_id」
+
+        const parentGroupId = parentGroup.group_id;
+
+        // parentGroupId のレコードに channel_id_secondary を設定する
+        const { error: upsertSecondaryError } = await supabaseAdmin
+            .from("group_lw_channel_info")
+            .upsert(
+                {
+                    group_id: parentGroupId,
+                    channel_id_secondary: channelId,
+                    fetched_at: new Date().toISOString(),
+                },
+                {
+                    // channel_id_secondary はユニーク制約をつけているので onConflict で指定可能
+                    onConflict: "channel_id_secondary",
+                }
+            );
+
+        if (upsertSecondaryError) {
+            console.error(
+                "[lw webhook] group_lw_channel_info upsert secondary error",
+                upsertSecondaryError
+            );
+        }
+
+        // 隠し部屋側の group_id には、あえて channel 情報を登録しない。
+        // （もし登録したい運用があるなら、ここで別途 upsert すればOK）
+        return;
+    }
+
+    // === 通常パターン ===
+    // 自分を secondary として見ているグループがなければ、今まで通り自分の group_id で登録
+    const { error: upsertPrimaryError } = await supabaseAdmin
+        .from("group_lw_channel_info")
+        .upsert(
+            {
+                group_id: groupId,
+                channel_id: channelId,
+                fetched_at: new Date().toISOString(),
+            },
+            { onConflict: "channel_id" }
+        );
+
+    if (upsertPrimaryError) {
+        console.error(
+            "[lw webhook] group_lw_channel_info upsert primary error",
+            upsertPrimaryError
+        );
+    }
+}
 
 // チャンネル情報をAPIから取得
 async function fetchChannelInfo(channelId: string): Promise<{
@@ -126,6 +247,12 @@ export async function POST(req: NextRequest) {
             }
         }
 
+
+        await upsertGroupAndChannel({
+            groupId: groupInfo?.groupId || '',
+            channelId,
+        })
+
         return NextResponse.json({ status: 'ok' }, { status: 200 })
     } catch (err) {
         console.error('❌ エラー:', err)
@@ -141,7 +268,7 @@ async function upsertGroupChannelInfo(groupId: string | null, channelId: string)
     }
 
     // すでに存在するか確認
-    const { data} = await supabase
+    const { data } = await supabase
         .from('group_lw_channel_info')
         .select('id')
         .eq('channel_id', channelId)
@@ -167,3 +294,4 @@ async function upsertGroupChannelInfo(groupId: string | null, channelId: string)
         console.log(`✅ group_lw_channel_info に登録完了: ${channelId}`)
     }
 }
+
