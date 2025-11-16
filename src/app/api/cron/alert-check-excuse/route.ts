@@ -13,6 +13,8 @@ import { assertCronAuth } from '@/lib/cron/auth';
 import { runPostalCodeCheck } from '@/lib/alert_add/postal_code_check';
 import { runResignerShiftCheck } from '@/lib/alert_add/resigner_shift_check';
 import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfinished_check';
+import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check";
+
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -66,6 +68,17 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[cron][shift_record_unfinished_check] error', msg);
+      result.shift_record_unfinished = { ok: false, error: msg };
+      result.ok = false;
+    }
+
+    // 4) 行動援護リンク未登録
+    try {
+      const r = await kodoengoPlanLinkCheck();
+      result.shift_record_unfinished = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][kodoengo_plan_link_check] error', msg);
       result.shift_record_unfinished = { ok: false, error: msg };
       result.ok = false;
     }
