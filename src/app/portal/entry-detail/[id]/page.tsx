@@ -67,6 +67,28 @@ interface StaffLog {
     created_at: string;
 }
 
+interface UserOjtRecord {
+    id: string;
+    user_id: string;
+    date: string;              // date 型だが string で受ける
+    trainer_user_id: string | null;
+    kaipoke_cs_id: string | null;
+    memo: string | null;
+    create_ad: string;
+    update_ad: string;
+}
+
+type UserOption = {
+    user_id: string;
+    display_name: string;
+};
+
+type KaipokeOption = {
+    kaipoke_cs_id: string;
+    name: string;
+};
+
+
 interface UserRecord {
     user_id: string;
     email: string;
@@ -2139,6 +2161,8 @@ export default function EntryDetailPage() {
             </div>
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
+            {/* User OJT 記録 */}
+            <UserOjtSection userId={userRecord?.user_id ?? ''} />
             {/* 顔写真エリアの直後に共通ボタン */}
             <ActionButtons />
         </div>
@@ -2370,6 +2394,292 @@ function FileThumbnail({
         </div>
     );
 }
+
+function UserOjtSection({ userId }: { userId: string }) {
+    const [records, setRecords] = useState<UserOjtRecord[]>([]);
+    const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+    const [kaipokeOptions, setKaipokeOptions] = useState<KaipokeOption[]>([]);
+
+    const [selectedUserId, setSelectedUserId] = useState<string>(userId);
+    const [trainerUserId, setTrainerUserId] = useState<string>('');
+    const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>('');
+    const [date, setDate] = useState<string>('');
+    const [memo, setMemo] = useState<string>('');
+
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // userId prop が変わったら、デフォルト選択も合わせる
+    useEffect(() => {
+        if (userId) {
+            setSelectedUserId(userId);
+        }
+    }, [userId]);
+
+    // マスタ取得（ユーザー & 事業所）
+    useEffect(() => {
+        const loadMasters = async () => {
+            try {
+                // ユーザー一覧（OJT対象 & 指導者候補）
+                const { data: users, error: userErr } = await supabase
+                    .from('user_entry_united_view_single')
+                    .select('user_id, last_name_kanji, first_name_kanji')
+                    .order('last_name_kanji', { ascending: true })
+                    .order('first_name_kanji', { ascending: true });
+
+                if (userErr) throw userErr;
+
+                const uOptions: UserOption[] =
+                    (users ?? []).map((u) => ({
+                        user_id: u.user_id,
+                        display_name: `${u.last_name_kanji ?? ''} ${u.first_name_kanji ?? ''}`.trim() || u.user_id,
+                    }));
+
+                setUserOptions(uOptions);
+
+                // カイポケ事業所一覧
+                const { data: csList, error: csErr } = await supabase
+                    .from('cs_kaipoke_info')
+                    .select('kaipoke_cs_id, name, is_active')
+                    .eq('is_active', true)
+                    .order('name', { ascending: true });
+
+                if (csErr) throw csErr;
+
+                const kOptions: KaipokeOption[] =
+                    (csList ?? []).map((c) => ({
+                        kaipoke_cs_id: c.kaipoke_cs_id,
+                        name: `${c.name}（${c.kaipoke_cs_id}）`,
+                    }));
+
+                setKaipokeOptions(kOptions);
+            } catch (e) {
+                console.error('OJT マスタ取得エラー:', e);
+                setError('マスタ情報の取得に失敗しました。');
+            }
+        };
+
+        loadMasters();
+    }, []);
+
+    // 表示用の名前辞書
+    const userNameById = useMemo(() => {
+        const m: Record<string, string> = {};
+        userOptions.forEach(u => { m[u.user_id] = u.display_name; });
+        return m;
+    }, [userOptions]);
+
+    const kaipokeNameById = useMemo(() => {
+        const m: Record<string, string> = {};
+        kaipokeOptions.forEach(k => { m[k.kaipoke_cs_id] = k.name; });
+        return m;
+    }, [kaipokeOptions]);
+
+    // OJT レコード取得（対象 userId で絞り込み）
+    const fetchRecords = useCallback(async () => {
+        if (!userId) {
+            setRecords([]);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        const { data, error } = await supabase
+            .from('user_ojt_record')
+            .select('*')
+            .eq('user_id', userId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('OJT 取得エラー:', error);
+            setError('OJT 記録の取得に失敗しました。');
+        } else {
+            setRecords((data ?? []) as UserOjtRecord[]);
+        }
+        setLoading(false);
+    }, [userId]);
+
+    useEffect(() => {
+        fetchRecords();
+    }, [fetchRecords]);
+
+    // 追加
+    const handleAddOjt = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+
+        if (!selectedUserId || !date) {
+            setError('ユーザーと日付は必須です。');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            const { error: insertErr } = await supabase
+                .from('user_ojt_record')
+                .insert({
+                    user_id: selectedUserId,
+                    date,
+                    trainer_user_id: trainerUserId || null,
+                    kaipoke_cs_id: selectedKaipokeCsId || null,
+                    memo: memo || null,
+                });
+
+            if (insertErr) throw insertErr;
+
+            setDate('');
+            setTrainerUserId('');
+            setSelectedKaipokeCsId('');
+            setMemo('');
+
+            await fetchRecords();
+        } catch (e) {
+            console.error('OJT 追加エラー:', e);
+            setError('OJT 記録の追加に失敗しました。');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!userId) {
+        return (
+            <div className="my-12 border rounded p-4 bg-gray-50">
+                <h2 className="text-lg font-semibold mb-2">User OJT 記録</h2>
+                <p className="text-sm text-gray-500">
+                    ユーザーIDが未登録のため、OJT 記録は表示・登録できません。
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="my-12">
+            <h2 className="text-lg font-semibold mb-2">User OJT 記録（最新順）</h2>
+
+            <form onSubmit={handleAddOjt} className="mb-4 space-y-2 p-4 border rounded bg-gray-50">
+                {/* OJT 対象ユーザー */}
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                    <label className="md:w-24">対象ユーザー</label>
+                    <select
+                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                        value={selectedUserId}
+                        onChange={e => setSelectedUserId(e.target.value)}
+                    >
+                        <option value="">選択してください</option>
+                        {userOptions.map(u => (
+                            <option key={u.user_id} value={u.user_id}>
+                                {u.display_name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* 指導者 */}
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                    <label className="md:w-24">指導者</label>
+                    <select
+                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                        value={trainerUserId}
+                        onChange={e => setTrainerUserId(e.target.value)}
+                    >
+                        <option value="">（任意）</option>
+                        {userOptions.map(u => (
+                            <option key={u.user_id} value={u.user_id}>
+                                {u.display_name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* 事業所（カイポケ CS） */}
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                    <label className="md:w-24">カイポケ事業所</label>
+                    <select
+                        className="border rounded px-2 py-1 flex-1 min-w-[200px]"
+                        value={selectedKaipokeCsId}
+                        onChange={e => setSelectedKaipokeCsId(e.target.value)}
+                    >
+                        <option value="">（任意）</option>
+                        {kaipokeOptions.map(k => (
+                            <option key={k.kaipoke_cs_id} value={k.kaipoke_cs_id}>
+                                {k.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* 日付 */}
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                    <label className="md:w-24">日付</label>
+                    <input
+                        type="date"
+                        className="border rounded px-2 py-1"
+                        value={date}
+                        onChange={e => setDate(e.target.value)}
+                        required
+                    />
+                </div>
+
+                {/* メモ */}
+                <div className="flex flex-col gap-2">
+                    <label>内容 / メモ</label>
+                    <textarea
+                        className="border rounded px-2 py-1 min-h-[80px]"
+                        value={memo}
+                        onChange={e => setMemo(e.target.value)}
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    className="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    disabled={saving}
+                >
+                    {saving ? '登録中...' : 'OJT 記録を追加'}
+                </button>
+
+                {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
+            </form>
+
+            {/* 一覧 */}
+            {loading ? (
+                <p>読み込み中...</p>
+            ) : records.length === 0 ? (
+                <p className="text-gray-500">OJT 記録はまだありません。</p>
+            ) : (
+                <table className="w-full text-sm border bg-white rounded">
+                    <thead>
+                        <tr>
+                            <th className="border px-2 py-1">日付</th>
+                            <th className="border px-2 py-1">指導者</th>
+                            <th className="border px-2 py-1">事業所</th>
+                            <th className="border px-2 py-1">メモ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {records.map(r => (
+                            <tr key={r.id}>
+                                <td className="border px-2 py-1">
+                                    {r.date}
+                                </td>
+                                <td className="border px-2 py-1">
+                                    {r.trainer_user_id ? (userNameById[r.trainer_user_id] ?? r.trainer_user_id) : '―'}
+                                </td>
+                                <td className="border px-2 py-1">
+                                    {r.kaipoke_cs_id ? (kaipokeNameById[r.kaipoke_cs_id] ?? r.kaipoke_cs_id) : '―'}
+                                </td>
+                                <td className="border px-2 py-1 whitespace-pre-wrap">
+                                    {r.memo ?? ''}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </div>
+    );
+}
+
 
 // 複数候補を返す関数
 function getUserIdSuggestions(
