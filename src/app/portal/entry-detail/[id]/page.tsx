@@ -2395,7 +2395,7 @@ function FileThumbnail({
     );
 }
 
-function UserOjtSection({ userId }: { userId: string }) {
+function UserOjtSection({ userId, userName }: { userId: string; userName?: string }) {
     const [records, setRecords] = useState<UserOjtRecord[]>([]);
     const [userOptions, setUserOptions] = useState<UserOption[]>([]);
     const [kaipokeOptions, setKaipokeOptions] = useState<KaipokeOption[]>([]);
@@ -2554,7 +2554,8 @@ function UserOjtSection({ userId }: { userId: string }) {
 
     return (
         <div className="my-12">
-            <h2 className="text-lg font-semibold mb-2">User OJT 記録（最新順）</h2>
+            <h2 className="text-lg font-semibold mb-2">{userName ? `${userName} さん OJT 記録` : 'User OJT 記録'}
+</h2>
 
             <form onSubmit={handleAddOjt} className="mb-4 space-y-2 p-4 border rounded bg-gray-50">
                 {/* OJT 対象ユーザー */}
@@ -2593,7 +2594,7 @@ function UserOjtSection({ userId }: { userId: string }) {
 
                 {/* 事業所（カイポケ CS） */}
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
-                    <label className="md:w-24">カイポケ事業所</label>
+                    <label className="md:w-24">利用者（カイポケCS）</label>
                     <select
                         className="border rounded px-2 py-1 flex-1 min-w-[200px]"
                         value={selectedKaipokeCsId}
