@@ -34,10 +34,15 @@ export type UserOjtJobResult = {
   errors?: { message: string }[];
 };
 
+// ★ form_entries 側は user_entry_id と create_at だけ使う
 type FormEntryRow = {
-  user_id: string | null;
-  kaipoke_cs_id: string | null;
+  user_entry_id: string | null;
   create_at: string;
+};
+
+type TraineeRow = {
+  user_id: string | null;
+  user_entry_id: string | null;
 };
 
 type TrainerRow = {
@@ -116,35 +121,47 @@ export async function runUserOjtJob(
   const baseDate = options.baseDate ?? new Date();
   const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
-  const fromDate = startOfMonth(subMonths(baseDate, 2));
+  // ★★ 期間を「1ヶ月前の1日以降」に修正 ★★
+  const fromDate = startOfMonth(subMonths(baseDate, 1));
   const fromDateStr = formatInTimeZone(fromDate, timeZone, "yyyy-MM-dd");
 
   const errors: { message: string }[] = [];
 
   try {
     console.log("[OJT] 開始 baseDate =", baseDate.toISOString());
-    console.log("[OJT] form_entries 対象 >= ", fromDateStr);
+    console.log("[OJT] home entry 対象 >= ", fromDateStr);
 
     // ------------------------------------------------------------
-    // ① OJTされる側: form_entries に基づき抽出 (trainee)
+    // ① home entry (form_entries) から user_entry_id を取得
+    //    ※ form_entries には user_id / kaipoke_cs_id は無い想定
     // ------------------------------------------------------------
     const { data: feRowsRaw, error: feErr } = await supabase
       .from("form_entries")
-      .select("user_id, kaipoke_cs_id, create_at")
+      .select("user_entry_id, create_at")
       .gte("create_at", fromDateStr);
 
-    if (feErr) throw feErr;
-
-    const feRows = (feRowsRaw ?? []) as FormEntryRow[];
-
-    const traineeUserSet = new Set<string>();
-
-    for (const r of feRows) {
-      if (r.user_id) traineeUserSet.add(r.user_id);
+    if (feErr) {
+      console.error("[OJT] form_entries 取得エラー:", feErr);
+      throw feErr;
     }
 
-    if (traineeUserSet.size === 0) {
-      console.log("[OJT] trainee が 0 名");
+    const feRows = (feRowsRaw ?? []) as FormEntryRow[];
+    console.log("[OJT] form_entries rows =", feRows.length);
+
+    const entryIdSet = new Set<string>();
+    for (const r of feRows) {
+      if (r.user_entry_id) entryIdSet.add(r.user_entry_id);
+    }
+
+    console.log(
+      "[OJT] home entry user_entry_id size =",
+      entryIdSet.size,
+      "sample =",
+      Array.from(entryIdSet).slice(0, 10)
+    );
+
+    if (entryIdSet.size === 0) {
+      console.log("[OJT] home entry 対象 0 のため終了");
       return {
         ok: true,
         checkedShifts: 0,
@@ -154,22 +171,59 @@ export async function runUserOjtJob(
       };
     }
 
+    // ------------------------------------------------------------
+    // ② OJTされる側（trainee）の user_id を user_entry_united_view から取得
+    //    - 条件①: 1ヶ月前の1日以降に home entry がある (= entryIdSet)
+    // ------------------------------------------------------------
+
+    const { data: traineeRowsRaw, error: traineeErr } = await supabase
+      .from("user_entry_united_view")
+      .select("user_id, user_entry_id")
+      .in("user_entry_id", Array.from(entryIdSet));
+
+    if (traineeErr) {
+      console.error("[OJT] trainee 取得エラー:", traineeErr);
+      throw traineeErr;
+    }
+
+    const traineeRows = (traineeRowsRaw ?? []) as TraineeRow[];
+
+    const traineeUserSet = new Set<string>();
+    for (const r of traineeRows) {
+      if (r.user_id) traineeUserSet.add(r.user_id);
+    }
+
     console.log(
-      "[OJT] trainee:",
+      "[OJT] traineeUserSet size =",
       traineeUserSet.size,
-      Array.from(traineeUserSet).slice(0, 5)
+      "sample =",
+      Array.from(traineeUserSet).slice(0, 10)
     );
 
+    if (traineeUserSet.size === 0) {
+      console.log("[OJT] trainee が 0 名のため終了");
+      return {
+        ok: true,
+        checkedShifts: 0,
+        candidateOjtCount: 0,
+        inserted: 0,
+        skippedExisting: 0,
+      };
+    }
+
     // ------------------------------------------------------------
-    // ② トレーナー: level_sort < 4,500,000 (trainer)
+    // ③ トレーナー: user_entry_united_view.level_sort < 4,500,000
     // ------------------------------------------------------------
 
     const { data: trainerRowsRaw, error: trainerErr } = await supabase
-      .from("user_entry_united_view_single")
+      .from("user_entry_united_view")
       .select("user_id, level_sort")
       .lt("level_sort", 4_500_000);
 
-    if (trainerErr) throw trainerErr;
+    if (trainerErr) {
+      console.error("[OJT] trainer 取得エラー:", trainerErr);
+      throw trainerErr;
+    }
 
     const trainerRows = (trainerRowsRaw ?? []) as TrainerRow[];
 
@@ -178,8 +232,15 @@ export async function runUserOjtJob(
       if (u.user_id) trainerUserSet.add(u.user_id);
     }
 
+    console.log(
+      "[OJT] trainerUserSet size =",
+      trainerUserSet.size,
+      "sample =",
+      Array.from(trainerUserSet).slice(0, 10)
+    );
+
     if (trainerUserSet.size === 0) {
-      console.log("[OJT] trainer が 0 名");
+      console.log("[OJT] trainer が 0 名のため終了");
       return {
         ok: true,
         checkedShifts: 0,
@@ -189,14 +250,8 @@ export async function runUserOjtJob(
       };
     }
 
-    console.log(
-      "[OJT] trainer:",
-      trainerUserSet.size,
-      Array.from(trainerUserSet).slice(0, 5)
-    );
-
     // ------------------------------------------------------------
-    // ③ シフト取得（cs_id では絞り込まない。日付のみ）
+    // ④ シフト取得（cs_id では絞り込まない。日付のみ）
     // ------------------------------------------------------------
 
     const { data: shiftRowsRaw, error: shiftErr } = await supabase
@@ -206,14 +261,22 @@ export async function runUserOjtJob(
       )
       .gte("shift_start_date", fromDateStr);
 
-    if (shiftErr) throw shiftErr;
+    if (shiftErr) {
+      console.error("[OJT] shift 取得エラー:", shiftErr);
+      throw shiftErr;
+    }
 
     const shiftRows = (shiftRowsRaw ?? []) as ShiftRow[];
 
     const checkedShifts = shiftRows.length;
     console.log("[OJT] shiftRows =", checkedShifts);
+    console.log(
+      "[OJT] shiftRows sample =",
+      shiftRows.slice(0, 5)
+    );
 
     if (checkedShifts === 0) {
+      console.log("[OJT] 対象期間内のシフトが 0 件のため終了");
       return {
         ok: true,
         checkedShifts,
@@ -224,10 +287,11 @@ export async function runUserOjtJob(
     }
 
     // ------------------------------------------------------------
-    // ④ shift_records 取得（submitted / approved のみ）
+    // ⑤ shift_records 取得（submitted / approved のみ）
     // ------------------------------------------------------------
 
     const shiftIds = Array.from(new Set(shiftRows.map((s) => s.shift_id)));
+    console.log("[OJT] shiftIds count =", shiftIds.length);
 
     const { data: recordRowsRaw, error: srErr } = await supabase
       .from("shift_records")
@@ -235,9 +299,14 @@ export async function runUserOjtJob(
       .in("shift_id", shiftIds)
       .in("status", ["submitted", "approved"]);
 
-    if (srErr) throw srErr;
+    if (srErr) {
+      console.error("[OJT] shift_records 取得エラー:", srErr);
+      throw srErr;
+    }
 
     const recordRows = (recordRowsRaw ?? []) as ShiftRecordRow[];
+
+    console.log("[OJT] shift_records rows =", recordRows.length);
 
     const recordByShiftId = new Map<number, ShiftRecordRow>();
     for (const r of recordRows) {
@@ -245,7 +314,7 @@ export async function runUserOjtJob(
     }
 
     // ------------------------------------------------------------
-    // ⑤ trainee と trainer が同じシフトにいるものだけ抽出
+    // ⑥ trainee と trainer が同じシフトにいるものだけ抽出
     // ------------------------------------------------------------
 
     const rawCandidates: {
@@ -286,8 +355,19 @@ export async function runUserOjtJob(
     }
 
     console.log("[OJT] rawCandidates =", rawCandidates.length);
+    console.log(
+      "[OJT] rawCandidates sample =",
+      rawCandidates.slice(0, 5).map((c) => ({
+        shiftId: c.shift.shift_id,
+        date: c.shift.shift_start_date,
+        start: c.shift.shift_start_time,
+        trainee: c.traineeUserId,
+        trainer: c.trainerUserId,
+      }))
+    );
 
     if (rawCandidates.length === 0) {
+      console.log("[OJT] trainee & trainer 同席シフト 0 件のため終了");
       return {
         ok: true,
         checkedShifts,
@@ -298,12 +378,13 @@ export async function runUserOjtJob(
     }
 
     // ------------------------------------------------------------
-    // ⑥ record_items をまとめて取得（def の配列/単体を正規化）
+    // ⑦ record_items をまとめて取得（def の配列/単体を正規化）
     // ------------------------------------------------------------
 
     const recordIds = Array.from(
       new Set(rawCandidates.map((c) => c.record.id))
     );
+    console.log("[OJT] recordIds count =", recordIds.length);
 
     const { data: itemRowsRaw, error: itemErr } = await supabase
       .from("shift_record_items")
@@ -312,9 +393,14 @@ export async function runUserOjtJob(
       )
       .in("record_id", recordIds);
 
-    if (itemErr) throw itemErr;
+    if (itemErr) {
+      console.error("[OJT] shift_record_items 取得エラー:", itemErr);
+      throw itemErr;
+    }
 
     const rawItems = (itemRowsRaw ?? []) as RawItemRow[];
+    console.log("[OJT] shift_record_items rows =", rawItems.length);
+
     const itemsByRecordId = new Map<string, ShiftRecordItemRow[]>();
 
     for (const it of rawItems) {
@@ -348,7 +434,7 @@ export async function runUserOjtJob(
     }
 
     // ------------------------------------------------------------
-    // ⑦ 重複チェック（user_id + date + start_time）
+    // ⑧ 重複チェック（user_id + date + start_time）
     // ------------------------------------------------------------
 
     const { data: existRowsRaw, error: existErr } = await supabase
@@ -356,9 +442,14 @@ export async function runUserOjtJob(
       .select("user_id, date, start_time")
       .gte("date", fromDateStr);
 
-    if (existErr) throw existErr;
+    if (existErr) {
+      console.error("[OJT] user_ojt_record 取得エラー:", existErr);
+      throw existErr;
+    }
 
     const existRows = (existRowsRaw ?? []) as ExistingOjtRow[];
+
+    console.log("[OJT] 既存 user_ojt_record rows =", existRows.length);
 
     const existingKey = new Set<string>();
     for (const r of existRows) {
@@ -395,9 +486,14 @@ export async function runUserOjtJob(
       });
     }
 
-    console.log("[OJT] 新規 OJT候補 =", deduped.length);
+    console.log("[OJT] deduped (新規 OJT候補) =", deduped.length);
+    console.log(
+      "[OJT] deduped sample =",
+      deduped.slice(0, 5)
+    );
 
     if (deduped.length === 0) {
+      console.log("[OJT] 新規 OJT 0 件のため終了");
       return {
         ok: true,
         checkedShifts,
@@ -408,7 +504,7 @@ export async function runUserOjtJob(
     }
 
     // ------------------------------------------------------------
-    // ⑧ ChatGPT で memo 生成 → INSERT
+    // ⑨ ChatGPT で memo 生成 → INSERT
     // ------------------------------------------------------------
 
     const insertRows: UserOjtInsertRow[] = [];
@@ -430,11 +526,14 @@ export async function runUserOjtJob(
         });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
+        console.error("[OJT] ChatGPT 生成失敗:", msg);
         errors.push({
           message: `ChatGPT 生成失敗: ${msg}`,
         });
       }
     }
+
+    console.log("[OJT] insertRows length =", insertRows.length);
 
     let inserted = 0;
 
@@ -442,8 +541,12 @@ export async function runUserOjtJob(
       const { error: insErr } = await supabase
         .from("user_ojt_record")
         .insert(insertRows);
-      if (insErr) throw insErr;
+      if (insErr) {
+        console.error("[OJT] user_ojt_record INSERT エラー:", insErr);
+        throw insErr;
+      }
       inserted = insertRows.length;
+      console.log("[OJT] INSERT 完了 rows =", inserted);
     } else if (dryRun) {
       console.log("[OJT] DRY RUN: 挿入予定行数 =", insertRows.length);
     }
@@ -458,6 +561,7 @@ export async function runUserOjtJob(
     };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
+    console.error("[OJT] 例外発生:", msg);
     return {
       ok: false,
       checkedShifts: 0,
