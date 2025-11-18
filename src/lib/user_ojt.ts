@@ -11,13 +11,29 @@ import OpenAI from "openai";
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
 
+// ==== あなたの DB に合わせて、ここだけ変更してください =====================
+
+// form_entries 側で「この home entry はどの利用者のものか」を表すキー
+// 例: "entry_id" / "user_entry_id" など、実際に存在するカラム名を指定
+const HOME_ENTRY_KEY_COLUMN = "entry_id";
+
+// form_entries 側で「home entry の作成日時」を表すカラム
+// 例: "create_at" / "created_at" など
+const HOME_ENTRY_DATE_COLUMN = "create_at";
+
+// user_entry_united_view 側で、上記 HOME_ENTRY_KEY_COLUMN と対応するカラム名
+// 例: HOME_ENTRY_KEY_COLUMN と同じ "entry_id" など
+const USER_VIEW_KEY_COLUMN = "entry_id";
+
+// ======================================================================
+
 // ChatGPT クライアント
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 // -----------------------------
-// 型定義
+// 型定義（TS エラー回避のためゆるく定義）
 // -----------------------------
 
 export type UserOjtJobOptions = {
@@ -34,21 +50,8 @@ export type UserOjtJobResult = {
   errors?: { message: string }[];
 };
 
-// ★ form_entries 側は user_entry_id と create_at だけ使う
-type FormEntryRow = {
-  user_entry_id: string | null;
-  create_at: string;
-};
-
-type TraineeRow = {
-  user_id: string | null;
-  user_entry_id: string | null;
-};
-
-type TrainerRow = {
-  user_id: string | null;
-  level_sort: number | null;
-};
+// form_entries / user_entry_united_view は柔らかく扱う
+type AnyRow = Record<string, any>;
 
 type ShiftRow = {
   shift_id: number;
@@ -121,7 +124,7 @@ export async function runUserOjtJob(
   const baseDate = options.baseDate ?? new Date();
   const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
-  // ★★ 期間を「1ヶ月前の1日以降」に修正 ★★
+  // ★★ 期間を「1ヶ月前の1日以降」にする ★★
   const fromDate = startOfMonth(subMonths(baseDate, 1));
   const fromDateStr = formatInTimeZone(fromDate, timeZone, "yyyy-MM-dd");
 
@@ -132,35 +135,42 @@ export async function runUserOjtJob(
     console.log("[OJT] home entry 対象 >= ", fromDateStr);
 
     // ------------------------------------------------------------
-    // ① home entry (form_entries) から user_entry_id を取得
-    //    ※ form_entries には user_id / kaipoke_cs_id は無い想定
+    // ① home entry (form_entries) から「最近エントリーのあるキー」を取得
+    //    - HOME_ENTRY_DATE_COLUMN で期間フィルタ
+    //    - HOME_ENTRY_KEY_COLUMN で対象者を特定
     // ------------------------------------------------------------
+
+    const selectColumns = `${HOME_ENTRY_KEY_COLUMN}, ${HOME_ENTRY_DATE_COLUMN}`;
+
     const { data: feRowsRaw, error: feErr } = await supabase
       .from("form_entries")
-      .select("user_entry_id, create_at")
-      .gte("create_at", fromDateStr);
+      .select(selectColumns)
+      .gte(HOME_ENTRY_DATE_COLUMN, fromDateStr);
 
     if (feErr) {
       console.error("[OJT] form_entries 取得エラー:", feErr);
       throw feErr;
     }
 
-    const feRows = (feRowsRaw ?? []) as FormEntryRow[];
+    const feRows = (feRowsRaw ?? []) as AnyRow[];
     console.log("[OJT] form_entries rows =", feRows.length);
 
-    const entryIdSet = new Set<string>();
+    const entryKeySet = new Set<string>();
     for (const r of feRows) {
-      if (r.user_entry_id) entryIdSet.add(r.user_entry_id);
+      const keyVal = r[HOME_ENTRY_KEY_COLUMN];
+      if (typeof keyVal === "string" && keyVal) {
+        entryKeySet.add(keyVal);
+      }
     }
 
     console.log(
-      "[OJT] home entry user_entry_id size =",
-      entryIdSet.size,
+      "[OJT] home entry key size =",
+      entryKeySet.size,
       "sample =",
-      Array.from(entryIdSet).slice(0, 10)
+      Array.from(entryKeySet).slice(0, 10)
     );
 
-    if (entryIdSet.size === 0) {
+    if (entryKeySet.size === 0) {
       console.log("[OJT] home entry 対象 0 のため終了");
       return {
         ok: true,
@@ -173,24 +183,29 @@ export async function runUserOjtJob(
 
     // ------------------------------------------------------------
     // ② OJTされる側（trainee）の user_id を user_entry_united_view から取得
-    //    - 条件①: 1ヶ月前の1日以降に home entry がある (= entryIdSet)
+    //    - 条件①: 1ヶ月前の1日以降に home entry がある (= entryKeySet)
     // ------------------------------------------------------------
+
+    const traineeSelect = `user_id, ${USER_VIEW_KEY_COLUMN}`;
 
     const { data: traineeRowsRaw, error: traineeErr } = await supabase
       .from("user_entry_united_view")
-      .select("user_id, user_entry_id")
-      .in("user_entry_id", Array.from(entryIdSet));
+      .select(traineeSelect)
+      .in(USER_VIEW_KEY_COLUMN, Array.from(entryKeySet));
 
     if (traineeErr) {
       console.error("[OJT] trainee 取得エラー:", traineeErr);
       throw traineeErr;
     }
 
-    const traineeRows = (traineeRowsRaw ?? []) as TraineeRow[];
+    const traineeRows = (traineeRowsRaw ?? []) as AnyRow[];
 
     const traineeUserSet = new Set<string>();
     for (const r of traineeRows) {
-      if (r.user_id) traineeUserSet.add(r.user_id);
+      const uid = r["user_id"];
+      if (typeof uid === "string" && uid) {
+        traineeUserSet.add(uid);
+      }
     }
 
     console.log(
@@ -225,11 +240,14 @@ export async function runUserOjtJob(
       throw trainerErr;
     }
 
-    const trainerRows = (trainerRowsRaw ?? []) as TrainerRow[];
+    const trainerRows = (trainerRowsRaw ?? []) as AnyRow[];
 
     const trainerUserSet = new Set<string>();
     for (const u of trainerRows) {
-      if (u.user_id) trainerUserSet.add(u.user_id);
+      const uid = u["user_id"];
+      if (typeof uid === "string" && uid) {
+        trainerUserSet.add(uid);
+      }
     }
 
     console.log(
@@ -270,10 +288,7 @@ export async function runUserOjtJob(
 
     const checkedShifts = shiftRows.length;
     console.log("[OJT] shiftRows =", checkedShifts);
-    console.log(
-      "[OJT] shiftRows sample =",
-      shiftRows.slice(0, 5)
-    );
+    console.log("[OJT] shiftRows sample =", shiftRows.slice(0, 5));
 
     if (checkedShifts === 0) {
       console.log("[OJT] 対象期間内のシフトが 0 件のため終了");
@@ -487,10 +502,7 @@ export async function runUserOjtJob(
     }
 
     console.log("[OJT] deduped (新規 OJT候補) =", deduped.length);
-    console.log(
-      "[OJT] deduped sample =",
-      deduped.slice(0, 5)
-    );
+    console.log("[OJT] deduped sample =", deduped.slice(0, 5));
 
     if (deduped.length === 0) {
       console.log("[OJT] 新規 OJT 0 件のため終了");
@@ -499,7 +511,7 @@ export async function runUserOjtJob(
         checkedShifts,
         candidateOjtCount: rawCandidates.length,
         inserted: 0,
-        skippedExisting: existingKey.size,
+        skippedExisting: 0,
       };
     }
 
