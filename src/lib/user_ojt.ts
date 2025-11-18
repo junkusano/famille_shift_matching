@@ -256,15 +256,49 @@ export async function runUserOjtJob(
         }
 
         // ------------------------------------------------------------
-        // ④ シフト取得（トレーナー/トレーニーが関わるシフトのみに絞る）
+        // ④ シフト取得（トレーナー＋トレーニーが同じシフトに入っているものだけ）
         // ------------------------------------------------------------
 
-        // 全対象ユーザー = トレーナー + トレーニー
-        const targetUsers = Array.from(
-            new Set([...traineeUserSet, ...trainerUserSet])
-        );
+        // すでに上で作っているはず：
+        // const traineeUserSet = new Set<string>();
+        // const trainerUserSet = new Set<string>();
 
-        console.log("[OJT] シフト絞り込み対象ユーザー数 =", targetUsers.length);
+        const traineeUsers = Array.from(traineeUserSet);
+        const trainerUsers = Array.from(trainerUserSet);
+
+        console.log("[OJT] traineeUsers =", traineeUsers);
+        console.log("[OJT] trainerUsers =", trainerUsers);
+
+        if (traineeUsers.length === 0 || trainerUsers.length === 0) {
+            console.log("[OJT] trainee or trainer が 0 のため終了");
+            return {
+                ok: true,
+                checkedShifts: 0,
+                candidateOjtCount: 0,
+                inserted: 0,
+                skippedExisting: 0,
+            };
+        }
+
+        // in(...) 用の文字列
+        const traineeList = traineeUsers.join(",");
+        const trainerList = trainerUsers.join(",");
+
+        // 条件イメージ：
+        //
+        // 1) staff_01 がトレーニー かつ (staff_02 or staff_03 がトレーナー)
+        // 2) staff_02 がトレーニー かつ staff_01 がトレーナー
+        // 3) staff_03 がトレーニー かつ staff_01 がトレーナー
+        //
+        // PostgREST の or / and で書くと：
+        const orFilter = [
+            // case 1
+            `and(staff_01_user_id.in.(${traineeList}),or(staff_02_user_id.in.(${trainerList}),staff_03_user_id.in.(${trainerList})))`,
+            // case 2
+            `and(staff_02_user_id.in.(${traineeList}),staff_01_user_id.in.(${trainerList}))`,
+            // case 3
+            `and(staff_03_user_id.in.(${traineeList}),staff_01_user_id.in.(${trainerList}))`,
+        ].join(",");
 
         const shiftRes = await supabase
             .from("shift")
@@ -272,13 +306,7 @@ export async function runUserOjtJob(
                 "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id"
             )
             .gte("shift_start_date", fromDateStr)
-            .or(
-                `staff_01_user_id.in.(${targetUsers.join(
-                    ","
-                )}),staff_02_user_id.in.(${targetUsers.join(
-                    ","
-                )}),staff_03_user_id.in.(${targetUsers.join(",")})`
-            );
+            .or(orFilter);
 
         if (shiftRes.error) {
             console.error("[OJT] shift 取得エラー:", shiftRes.error);
@@ -286,9 +314,11 @@ export async function runUserOjtJob(
         }
 
         const shiftRows = (shiftRes.data ?? []) as ShiftRow[];
+
         const checkedShifts = shiftRows.length;
-        console.log("[OJT] shiftRows（絞り込み後） =", shiftRows.length);
+        console.log("[OJT] shiftRows（トレーナー＋トレーニー同席のみ） =", checkedShifts);
         console.log("[OJT] shiftRows sample =", shiftRows.slice(0, 5));
+
 
         if (checkedShifts === 0) {
             console.log("[OJT] 対象期間内のシフトが 0 件のため終了");
