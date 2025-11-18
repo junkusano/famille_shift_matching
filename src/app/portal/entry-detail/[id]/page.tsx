@@ -2162,7 +2162,15 @@ export default function EntryDetailPage() {
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
             {/* User OJT 記録 */}
-            <UserOjtSection userId={userRecord?.user_id ?? ''} />
+            <UserOjtSection
+                userId={userRecord?.user_id ?? ''}
+                userName={
+                    entry
+                        ? `${entry.last_name_kanji ?? ''} ${entry.first_name_kanji ?? ''}`.trim()
+                        : ''
+                }
+            />
+
             {/* 顔写真エリアの直後に共通ボタン */}
             <ActionButtons />
         </div>
@@ -2554,8 +2562,7 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
 
     return (
         <div className="my-12">
-            <h2 className="text-lg font-semibold mb-2">{userName ? `${userName} さん OJT 記録` : 'User OJT 記録'}
-</h2>
+            <h2 className="text-lg font-semibold mb-2">{userName ? `${userName} さん OJT 記録` : 'User OJT 記録'}</h2>
 
             <form onSubmit={handleAddOjt} className="mb-4 space-y-2 p-4 border rounded bg-gray-50">
                 {/* OJT 対象ユーザー */}
