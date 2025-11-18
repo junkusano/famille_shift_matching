@@ -11,7 +11,7 @@ import OpenAI from "openai";
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
 
-// ChatGPT
+// ChatGPT クライアント
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -128,20 +128,19 @@ export async function runUserOjtJob(
     // ------------------------------------------------------------
     // ① OJTされる側: form_entries に基づき抽出 (trainee)
     // ------------------------------------------------------------
-    const { data: feRows, error: feErr } = await supabase
+    const { data: feRowsRaw, error: feErr } = await supabase
       .from("form_entries")
       .select("user_id, kaipoke_cs_id, create_at")
-      .gte("create_at", fromDateStr)
-      .returns<FormEntryRow[]>();
+      .gte("create_at", fromDateStr);
 
     if (feErr) throw feErr;
 
-    const traineeUserSet = new Set<string>();
-    const formCsIds = new Set<string>();
+    const feRows = (feRowsRaw ?? []) as FormEntryRow[];
 
-    for (const r of feRows ?? []) {
+    const traineeUserSet = new Set<string>();
+
+    for (const r of feRows) {
       if (r.user_id) traineeUserSet.add(r.user_id);
-      if (r.kaipoke_cs_id) formCsIds.add(r.kaipoke_cs_id);
     }
 
     if (traineeUserSet.size === 0) {
@@ -155,22 +154,27 @@ export async function runUserOjtJob(
       };
     }
 
-    console.log("[OJT] trainee:", traineeUserSet.size);
+    console.log(
+      "[OJT] trainee:",
+      traineeUserSet.size,
+      Array.from(traineeUserSet).slice(0, 5)
+    );
 
     // ------------------------------------------------------------
     // ② トレーナー: level_sort < 4,500,000 (trainer)
     // ------------------------------------------------------------
 
-    const { data: trainerRows, error: trainerErr } = await supabase
+    const { data: trainerRowsRaw, error: trainerErr } = await supabase
       .from("user_entry_united_view_single")
       .select("user_id, level_sort")
-      .lt("level_sort", 4_500_000)
-      .returns<TrainerRow[]>();
+      .lt("level_sort", 4_500_000);
 
     if (trainerErr) throw trainerErr;
 
+    const trainerRows = (trainerRowsRaw ?? []) as TrainerRow[];
+
     const trainerUserSet = new Set<string>();
-    for (const u of trainerRows ?? []) {
+    for (const u of trainerRows) {
       if (u.user_id) trainerUserSet.add(u.user_id);
     }
 
@@ -185,64 +189,58 @@ export async function runUserOjtJob(
       };
     }
 
-    console.log("[OJT] trainer:", trainerUserSet.size);
+    console.log(
+      "[OJT] trainer:",
+      trainerUserSet.size,
+      Array.from(trainerUserSet).slice(0, 5)
+    );
 
     // ------------------------------------------------------------
-    // ③ シフト取得
+    // ③ シフト取得（cs_id では絞り込まない。日付のみ）
     // ------------------------------------------------------------
 
-   // ③ シフト取得
+    const { data: shiftRowsRaw, error: shiftErr } = await supabase
+      .from("shift")
+      .select(
+        "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id"
+      )
+      .gte("shift_start_date", fromDateStr);
 
-let shiftQuery = supabase
-  .from("shift")
-  .select(
-    "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id"
-  )
-  .gte("shift_start_date", fromDateStr);   // ★ ここでは returns を付けない
+    if (shiftErr) throw shiftErr;
 
-if (formCsIds.size > 0) {
-  shiftQuery = shiftQuery.in("kaipoke_cs_id", Array.from(formCsIds));
-}
+    const shiftRows = (shiftRowsRaw ?? []) as ShiftRow[];
 
-const {
-  data: shiftRowsRaw,
-  error: shiftErr,
-} = await shiftQuery;                         // ★ 普通に実行して
-if (shiftErr) throw shiftErr;
+    const checkedShifts = shiftRows.length;
+    console.log("[OJT] shiftRows =", checkedShifts);
 
-const shiftRows = (shiftRowsRaw ?? []) as ShiftRow[];  // ★ ここで型を合わせる
-
-const checkedShifts = shiftRows.length;
-console.log("[OJT] shiftRows =", checkedShifts);
-
-if (checkedShifts === 0) {
-  return {
-    ok: true,
-    checkedShifts,
-    candidateOjtCount: 0,
-    inserted: 0,
-    skippedExisting: 0,
-  };
-}
-
+    if (checkedShifts === 0) {
+      return {
+        ok: true,
+        checkedShifts,
+        candidateOjtCount: 0,
+        inserted: 0,
+        skippedExisting: 0,
+      };
+    }
 
     // ------------------------------------------------------------
-    // ④ shift_records 取得
+    // ④ shift_records 取得（submitted / approved のみ）
     // ------------------------------------------------------------
 
     const shiftIds = Array.from(new Set(shiftRows.map((s) => s.shift_id)));
 
-    const { data: recordRows, error: srErr } = await supabase
+    const { data: recordRowsRaw, error: srErr } = await supabase
       .from("shift_records")
       .select("id, shift_id, status")
       .in("shift_id", shiftIds)
-      .in("status", ["submitted", "approved"])
-      .returns<ShiftRecordRow[]>();
+      .in("status", ["submitted", "approved"]);
 
     if (srErr) throw srErr;
 
+    const recordRows = (recordRowsRaw ?? []) as ShiftRecordRow[];
+
     const recordByShiftId = new Map<number, ShiftRecordRow>();
-    for (const r of recordRows ?? []) {
+    for (const r of recordRows) {
       recordByShiftId.set(r.shift_id, r);
     }
 
@@ -257,7 +255,7 @@ if (checkedShifts === 0) {
       trainerUserId: string;
     }[] = [];
 
-    for (const shift of shiftRows ?? []) {
+    for (const shift of shiftRows) {
       const rec = recordByShiftId.get(shift.shift_id);
       if (!rec) continue;
 
@@ -307,7 +305,7 @@ if (checkedShifts === 0) {
       new Set(rawCandidates.map((c) => c.record.id))
     );
 
-    const { data: itemRows, error: itemErr } = await supabase
+    const { data: itemRowsRaw, error: itemErr } = await supabase
       .from("shift_record_items")
       .select(
         "record_id, value_text, note, def:shift_record_item_defs(code, label)"
@@ -316,7 +314,7 @@ if (checkedShifts === 0) {
 
     if (itemErr) throw itemErr;
 
-    const rawItems = (itemRows ?? []) as RawItemRow[];
+    const rawItems = (itemRowsRaw ?? []) as RawItemRow[];
     const itemsByRecordId = new Map<string, ShiftRecordItemRow[]>();
 
     for (const it of rawItems) {
@@ -353,16 +351,17 @@ if (checkedShifts === 0) {
     // ⑦ 重複チェック（user_id + date + start_time）
     // ------------------------------------------------------------
 
-    const { data: existRows, error: existErr } = await supabase
+    const { data: existRowsRaw, error: existErr } = await supabase
       .from("user_ojt_record")
       .select("user_id, date, start_time")
-      .gte("date", fromDateStr)
-      .returns<ExistingOjtRow[]>();
+      .gte("date", fromDateStr);
 
     if (existErr) throw existErr;
 
+    const existRows = (existRowsRaw ?? []) as ExistingOjtRow[];
+
     const existingKey = new Set<string>();
-    for (const r of existRows ?? []) {
+    for (const r of existRows) {
       const k = `${r.user_id}__${r.date}__${r.start_time ?? ""}`;
       existingKey.add(k);
     }
@@ -380,10 +379,10 @@ if (checkedShifts === 0) {
 
       const key = `${c.traineeUserId}__${dateStr}__${start}`;
 
-      if (localKey.has(key)) continue;
+      if (localKey.has(key)) continue; // 同一キーの重複候補をまとめる
       localKey.add(key);
 
-      if (existingKey.has(key)) continue;
+      if (existingKey.has(key)) continue; // 既に user_ojt_record にあるものはスキップ
 
       deduped.push({
         shiftId: c.shift.shift_id,
@@ -430,8 +429,7 @@ if (checkedShifts === 0) {
           memo,
         });
       } catch (e: unknown) {
-        const msg =
-          e instanceof Error ? e.message : String(e);
+        const msg = e instanceof Error ? e.message : String(e);
         errors.push({
           message: `ChatGPT 生成失敗: ${msg}`,
         });
