@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
+    },
+    {
+      "path": "/api/cron/user_ojt",
+      "schedule": "4 11 * * *"
     }
 
   ]
