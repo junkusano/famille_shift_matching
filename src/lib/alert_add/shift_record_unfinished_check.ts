@@ -108,7 +108,7 @@ export async function runShiftRecordUnfinishedCheck(): Promise<ShiftRecordUnfini
       const res = await ensureSystemAlert({
         message,
         visible_roles: ["manager", "staff"],
-        status: "open",
+        //status: "open",
         kaipoke_cs_id: r.kaipoke_cs_id,
         shift_id: String(r.shift_id),
       });
