@@ -2660,7 +2660,7 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                         <tr>
                             <th className="border px-2 py-1">日付</th>
                             <th className="border px-2 py-1">指導者</th>
-                            <th className="border px-2 py-1">事業所</th>
+                            <th className="border px-2 py-1">利用者様</th>
                             <th className="border px-2 py-1">メモ</th>
                         </tr>
                     </thead>
