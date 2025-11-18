@@ -11,19 +11,20 @@ import OpenAI from "openai";
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
 
-// ==== あなたの DB に合わせて、ここだけ変更してください =====================
+// ==== ★★ あなたの DB に合わせる設定（この3つ） =====================
 
 // form_entries 側で「この home entry はどの利用者のものか」を表すキー
-// 例: "entry_id" / "user_entry_id" など、実際に存在するカラム名を指定
-const HOME_ENTRY_KEY_COLUMN = "entry_id";
+// → form_entries.auth_uid （auth.users.id へのFK）
+const HOME_ENTRY_KEY_COLUMN = "auth_uid";
 
 // form_entries 側で「home entry の作成日時」を表すカラム
-// 例: "create_at" / "created_at" など
-const HOME_ENTRY_DATE_COLUMN = "create_at";
+// → form_entries.created_at
+const HOME_ENTRY_DATE_COLUMN = "created_at";
 
 // user_entry_united_view 側で、上記 HOME_ENTRY_KEY_COLUMN と対応するカラム名
-// 例: HOME_ENTRY_KEY_COLUMN と同じ "entry_id" など
-const USER_VIEW_KEY_COLUMN = "entry_id";
+// → user_entry_united_view.auth_uid を想定
+// もし別名なら、ここだけ実際のカラム名に変えてください。
+const USER_VIEW_KEY_COLUMN = "auth_uid";
 
 // ======================================================================
 
