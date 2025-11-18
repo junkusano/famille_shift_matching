@@ -11,30 +11,13 @@ import OpenAI from "openai";
 const timeZone = "Asia/Tokyo";
 const DRY_RUN_DEFAULT = false;
 
-// ==== ★★ あなたの DB に合わせる設定（この3つ） =====================
-
-// form_entries 側で「この home entry はどの利用者のものか」を表すキー
-// → form_entries.auth_uid （auth.users.id へのFK）
-const HOME_ENTRY_KEY_COLUMN = "auth_uid";
-
-// form_entries 側で「home entry の作成日時」を表すカラム
-// → form_entries.created_at
-const HOME_ENTRY_DATE_COLUMN = "created_at";
-
-// user_entry_united_view 側で、上記 HOME_ENTRY_KEY_COLUMN と対応するカラム名
-// → user_entry_united_view.auth_uid を想定
-// もし別名なら、ここだけ実際のカラム名に変えてください。
-const USER_VIEW_KEY_COLUMN = "auth_uid";
-
-// ======================================================================
-
 // ChatGPT クライアント
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 // -----------------------------
-// 型定義（TS エラー回避のためゆるく定義）
+// 型定義（any なし）
 // -----------------------------
 
 export type UserOjtJobOptions = {
@@ -51,10 +34,18 @@ export type UserOjtJobResult = {
   errors?: { message: string }[];
 };
 
-// form_entries / user_entry_united_view は柔らかく扱う
-type AnyRow = Record<string, any>;
+interface FormEntryRow {
+  auth_uid: string | null;
+  created_at: string | null;
+}
 
-type ShiftRow = {
+interface UserEntryUnitedViewRow {
+  user_id: string | null;
+  auth_uid: string | null;
+  level_sort: number | null;
+}
+
+interface ShiftRow {
   shift_id: number;
   shift_start_date: string; // yyyy-mm-dd
   shift_start_time: string | null; // HH:mm:ss
@@ -62,25 +53,27 @@ type ShiftRow = {
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
-};
+}
 
-type ShiftRecordRow = {
+interface ShiftRecordRow {
   id: string;
   shift_id: number;
   status: string;
-};
+}
 
-type RawItemRow = {
+interface ItemDefRow {
+  code: string | null;
+  label: string | null;
+}
+
+interface RawItemRow {
   record_id: string;
   value_text: string | null;
   note: string | null;
-  def?:
-    | { code: string | null; label: string | null }
-    | { code: string | null; label: string | null }[]
-    | null;
-};
+  def?: ItemDefRow | ItemDefRow[] | null;
+}
 
-type ShiftRecordItemRow = {
+interface ShiftRecordItemRow {
   record_id: string;
   value_text: string | null;
   note: string | null;
@@ -88,15 +81,15 @@ type ShiftRecordItemRow = {
     code: string;
     label: string;
   } | null;
-};
+}
 
-type ExistingOjtRow = {
+interface ExistingOjtRow {
   user_id: string;
   date: string;
   start_time: string | null;
-};
+}
 
-type OjtCandidate = {
+interface OjtCandidate {
   shiftId: number;
   date: string;
   startTime: string;
@@ -104,16 +97,16 @@ type OjtCandidate = {
   traineeUserId: string;
   trainerUserId: string | null;
   recordId: string;
-};
+}
 
-type UserOjtInsertRow = {
+interface UserOjtInsertRow {
   user_id: string;
   date: string;
   start_time: string;
   trainer_user_id: string | null;
   kaipoke_cs_id: string | null;
   memo: string;
-};
+}
 
 // ===========================================
 // メイン処理
@@ -125,7 +118,7 @@ export async function runUserOjtJob(
   const baseDate = options.baseDate ?? new Date();
   const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
-  // ★★ 期間を「1ヶ月前の1日以降」にする ★★
+  // ★ 期間：1ヶ月前の1日以降
   const fromDate = startOfMonth(subMonths(baseDate, 1));
   const fromDateStr = formatInTimeZone(fromDate, timeZone, "yyyy-MM-dd");
 
@@ -136,42 +129,39 @@ export async function runUserOjtJob(
     console.log("[OJT] home entry 対象 >= ", fromDateStr);
 
     // ------------------------------------------------------------
-    // ① home entry (form_entries) から「最近エントリーのあるキー」を取得
-    //    - HOME_ENTRY_DATE_COLUMN で期間フィルタ
-    //    - HOME_ENTRY_KEY_COLUMN で対象者を特定
+    // ① home entry (form_entries) から「最近エントリーのある auth_uid」を取得
+    //    - created_at >= fromDateStr
+    //    - auth_uid が NULL でないもの
     // ------------------------------------------------------------
 
-    const selectColumns = `${HOME_ENTRY_KEY_COLUMN}, ${HOME_ENTRY_DATE_COLUMN}`;
-
-    const { data: feRowsRaw, error: feErr } = await supabase
+    const feRes = await supabase
       .from("form_entries")
-      .select(selectColumns)
-      .gte(HOME_ENTRY_DATE_COLUMN, fromDateStr);
+      .select("auth_uid, created_at")
+      .gte("created_at", fromDateStr);
 
-    if (feErr) {
-      console.error("[OJT] form_entries 取得エラー:", feErr);
-      throw feErr;
+    if (feRes.error) {
+      console.error("[OJT] form_entries 取得エラー:", feRes.error);
+      throw feRes.error;
     }
 
-    const feRows = (feRowsRaw ?? []) as AnyRow[];
+    const feRows = (feRes.data ?? []) as FormEntryRow[];
     console.log("[OJT] form_entries rows =", feRows.length);
 
-    const entryKeySet = new Set<string>();
+    const authUidSet = new Set<string>();
     for (const r of feRows) {
-      const keyVal = r[HOME_ENTRY_KEY_COLUMN];
-      if (typeof keyVal === "string" && keyVal) {
-        entryKeySet.add(keyVal);
+      if (typeof r.auth_uid === "string" && r.auth_uid) {
+        authUidSet.add(r.auth_uid);
       }
     }
 
     console.log(
-      "[OJT] home entry key size =",
-      entryKeySet.size,
+      "[OJT] home entry auth_uid size =",
+      authUidSet.size,
       "sample =",
-      Array.from(entryKeySet).slice(0, 10)
+      Array.from(authUidSet).slice(0, 10)
     );
 
-    if (entryKeySet.size === 0) {
+    if (authUidSet.size === 0) {
       console.log("[OJT] home entry 対象 0 のため終了");
       return {
         ok: true,
@@ -184,28 +174,25 @@ export async function runUserOjtJob(
 
     // ------------------------------------------------------------
     // ② OJTされる側（trainee）の user_id を user_entry_united_view から取得
-    //    - 条件①: 1ヶ月前の1日以降に home entry がある (= entryKeySet)
+    //    - user_entry_united_view.auth_uid IN authUidSet
     // ------------------------------------------------------------
 
-    const traineeSelect = `user_id, ${USER_VIEW_KEY_COLUMN}`;
-
-    const { data: traineeRowsRaw, error: traineeErr } = await supabase
+    const traineeRes = await supabase
       .from("user_entry_united_view")
-      .select(traineeSelect)
-      .in(USER_VIEW_KEY_COLUMN, Array.from(entryKeySet));
+      .select("user_id, auth_uid")
+      .in("auth_uid", Array.from(authUidSet));
 
-    if (traineeErr) {
-      console.error("[OJT] trainee 取得エラー:", traineeErr);
-      throw traineeErr;
+    if (traineeRes.error) {
+      console.error("[OJT] trainee 取得エラー:", traineeRes.error);
+      throw traineeRes.error;
     }
 
-    const traineeRows = (traineeRowsRaw ?? []) as AnyRow[];
+    const traineeRows = (traineeRes.data ?? []) as UserEntryUnitedViewRow[];
 
     const traineeUserSet = new Set<string>();
     for (const r of traineeRows) {
-      const uid = r["user_id"];
-      if (typeof uid === "string" && uid) {
-        traineeUserSet.add(uid);
+      if (typeof r.user_id === "string" && r.user_id) {
+        traineeUserSet.add(r.user_id);
       }
     }
 
@@ -231,23 +218,22 @@ export async function runUserOjtJob(
     // ③ トレーナー: user_entry_united_view.level_sort < 4,500,000
     // ------------------------------------------------------------
 
-    const { data: trainerRowsRaw, error: trainerErr } = await supabase
+    const trainerRes = await supabase
       .from("user_entry_united_view")
       .select("user_id, level_sort")
       .lt("level_sort", 4_500_000);
 
-    if (trainerErr) {
-      console.error("[OJT] trainer 取得エラー:", trainerErr);
-      throw trainerErr;
+    if (trainerRes.error) {
+      console.error("[OJT] trainer 取得エラー:", trainerRes.error);
+      throw trainerRes.error;
     }
 
-    const trainerRows = (trainerRowsRaw ?? []) as AnyRow[];
+    const trainerRows = (trainerRes.data ?? []) as UserEntryUnitedViewRow[];
 
     const trainerUserSet = new Set<string>();
     for (const u of trainerRows) {
-      const uid = u["user_id"];
-      if (typeof uid === "string" && uid) {
-        trainerUserSet.add(uid);
+      if (typeof u.user_id === "string" && u.user_id) {
+        trainerUserSet.add(u.user_id);
       }
     }
 
@@ -273,19 +259,19 @@ export async function runUserOjtJob(
     // ④ シフト取得（cs_id では絞り込まない。日付のみ）
     // ------------------------------------------------------------
 
-    const { data: shiftRowsRaw, error: shiftErr } = await supabase
+    const shiftRes = await supabase
       .from("shift")
       .select(
         "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id"
       )
       .gte("shift_start_date", fromDateStr);
 
-    if (shiftErr) {
-      console.error("[OJT] shift 取得エラー:", shiftErr);
-      throw shiftErr;
+    if (shiftRes.error) {
+      console.error("[OJT] shift 取得エラー:", shiftRes.error);
+      throw shiftRes.error;
     }
 
-    const shiftRows = (shiftRowsRaw ?? []) as ShiftRow[];
+    const shiftRows = (shiftRes.data ?? []) as ShiftRow[];
 
     const checkedShifts = shiftRows.length;
     console.log("[OJT] shiftRows =", checkedShifts);
@@ -309,18 +295,18 @@ export async function runUserOjtJob(
     const shiftIds = Array.from(new Set(shiftRows.map((s) => s.shift_id)));
     console.log("[OJT] shiftIds count =", shiftIds.length);
 
-    const { data: recordRowsRaw, error: srErr } = await supabase
+    const srRes = await supabase
       .from("shift_records")
       .select("id, shift_id, status")
       .in("shift_id", shiftIds)
       .in("status", ["submitted", "approved"]);
 
-    if (srErr) {
-      console.error("[OJT] shift_records 取得エラー:", srErr);
-      throw srErr;
+    if (srRes.error) {
+      console.error("[OJT] shift_records 取得エラー:", srRes.error);
+      throw srRes.error;
     }
 
-    const recordRows = (recordRowsRaw ?? []) as ShiftRecordRow[];
+    const recordRows = (srRes.data ?? []) as ShiftRecordRow[];
 
     console.log("[OJT] shift_records rows =", recordRows.length);
 
@@ -348,7 +334,7 @@ export async function runUserOjtJob(
         shift.staff_01_user_id,
         shift.staff_02_user_id,
         shift.staff_03_user_id,
-      ].filter((x): x is string => !!x);
+      ].filter((x): x is string => x !== null);
 
       if (staff.length < 2) continue;
 
@@ -402,38 +388,39 @@ export async function runUserOjtJob(
     );
     console.log("[OJT] recordIds count =", recordIds.length);
 
-    const { data: itemRowsRaw, error: itemErr } = await supabase
+    const itemRes = await supabase
       .from("shift_record_items")
       .select(
         "record_id, value_text, note, def:shift_record_item_defs(code, label)"
       )
       .in("record_id", recordIds);
 
-    if (itemErr) {
-      console.error("[OJT] shift_record_items 取得エラー:", itemErr);
-      throw itemErr;
+    if (itemRes.error) {
+      console.error("[OJT] shift_record_items 取得エラー:", itemRes.error);
+      throw itemRes.error;
     }
 
-    const rawItems = (itemRowsRaw ?? []) as RawItemRow[];
+    const rawItems = (itemRes.data ?? []) as RawItemRow[];
     console.log("[OJT] shift_record_items rows =", rawItems.length);
 
     const itemsByRecordId = new Map<string, ShiftRecordItemRow[]>();
 
     for (const it of rawItems) {
-      let def: ShiftRecordItemRow["def"] = null;
+      let def: ShiftRecordItemRow["def"] = undefined;
 
       const rawDef = it.def;
       if (Array.isArray(rawDef)) {
         if (rawDef.length > 0) {
+          const d0 = rawDef[0];
           def = {
-            code: String(rawDef[0]?.code ?? ""),
-            label: String(rawDef[0]?.label ?? ""),
+            code: (d0.code ?? "").toString(),
+            label: (d0.label ?? "").toString(),
           };
         }
       } else if (rawDef) {
         def = {
-          code: String(rawDef.code ?? ""),
-          label: String(rawDef.label ?? ""),
+          code: (rawDef.code ?? "").toString(),
+          label: (rawDef.label ?? "").toString(),
         };
       }
 
@@ -453,17 +440,17 @@ export async function runUserOjtJob(
     // ⑧ 重複チェック（user_id + date + start_time）
     // ------------------------------------------------------------
 
-    const { data: existRowsRaw, error: existErr } = await supabase
+    const existRes = await supabase
       .from("user_ojt_record")
       .select("user_id, date, start_time")
       .gte("date", fromDateStr);
 
-    if (existErr) {
-      console.error("[OJT] user_ojt_record 取得エラー:", existErr);
-      throw existErr;
+    if (existRes.error) {
+      console.error("[OJT] user_ojt_record 取得エラー:", existRes.error);
+      throw existRes.error;
     }
 
-    const existRows = (existRowsRaw ?? []) as ExistingOjtRow[];
+    const existRows = (existRes.data ?? []) as ExistingOjtRow[];
 
     console.log("[OJT] 既存 user_ojt_record rows =", existRows.length);
 
@@ -537,8 +524,9 @@ export async function runUserOjtJob(
           kaipoke_cs_id: c.kaipokeCsId,
           memo,
         });
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
         console.error("[OJT] ChatGPT 生成失敗:", msg);
         errors.push({
           message: `ChatGPT 生成失敗: ${msg}`,
@@ -551,12 +539,13 @@ export async function runUserOjtJob(
     let inserted = 0;
 
     if (!dryRun && insertRows.length > 0) {
-      const { error: insErr } = await supabase
+      const insRes = await supabase
         .from("user_ojt_record")
         .insert(insertRows);
-      if (insErr) {
-        console.error("[OJT] user_ojt_record INSERT エラー:", insErr);
-        throw insErr;
+
+      if (insRes.error) {
+        console.error("[OJT] user_ojt_record INSERT エラー:", insRes.error);
+        throw insRes.error;
       }
       inserted = insertRows.length;
       console.log("[OJT] INSERT 完了 rows =", inserted);
@@ -572,8 +561,9 @@ export async function runUserOjtJob(
       skippedExisting: existingKey.size,
       errors: errors.length ? errors : undefined,
     };
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+  } catch (e) {
+    const msg =
+      e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
     console.error("[OJT] 例外発生:", msg);
     return {
       ok: false,
@@ -597,13 +587,13 @@ async function generateOjtMemo(
   const lines = items
     .map((it) => {
       const label = it.def?.label ?? it.def?.code ?? "項目";
-      const val =
+      const value =
         (it.value_text ?? "").trim() ||
         (it.note ? `（備考）${it.note}` : "");
-      if (!val) return null;
-      return `・${label}: ${val}`;
+      if (!value) return null;
+      return `・${label}: ${value}`;
     })
-    .filter((v): v is string => !!v)
+    .filter((v): v is string => v !== null)
     .join("\n");
 
   const prompt = `
@@ -640,10 +630,9 @@ ${lines || "記録内容がほとんどありません。"}
     temperature: 0.4,
   });
 
-  return (
-    res.choices[0]?.message?.content?.trim() ??
-    "自動生成に失敗しましたが、当該シフトで育成を実施しました。"
-  );
+  const content = res.choices[0]?.message?.content;
+  return (content ?? "").trim() ||
+    "自動生成に失敗しましたが、当該シフトで育成を実施しました。";
 }
 
 // ------------------------------------------------------------
