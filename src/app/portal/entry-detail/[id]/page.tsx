@@ -71,6 +71,7 @@ interface UserOjtRecord {
     id: string;
     user_id: string;
     date: string;              // date 型だが string で受ける
+    start_time?: string | null;   // ★追加
     trainer_user_id: string | null;
     kaipoke_cs_id: string | null;
     memo: string | null;
@@ -2472,11 +2473,12 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
     const [records, setRecords] = useState<UserOjtRecord[]>([]);
     const [userOptions, setUserOptions] = useState<UserOption[]>([]);
     const [kaipokeOptions, setKaipokeOptions] = useState<KaipokeOption[]>([]);
-
     const [selectedUserId, setSelectedUserId] = useState<string>(userId);
     const [trainerUserId, setTrainerUserId] = useState<string>('');
     const [selectedKaipokeCsId, setSelectedKaipokeCsId] = useState<string>('');
     const [date, setDate] = useState<string>('');
+    // ★★★ 追加：開始時間（start_time） ★★★
+    const [startTime, setStartTime] = useState<string>('');
     const [memo, setMemo] = useState<string>('');
 
     const [loading, setLoading] = useState(false);
@@ -2593,6 +2595,7 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                 .insert({
                     user_id: selectedUserId,
                     date,
+                    start_time: startTime || null,   // ★ここ追加
                     trainer_user_id: trainerUserId || null,
                     kaipoke_cs_id: selectedKaipokeCsId || null,
                     memo: memo || null,
@@ -2681,15 +2684,25 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                     </select>
                 </div>
 
-                {/* 日付 */}
+                {/* 日付 + 開始時間 */}
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
-                    <label className="md:w-24">日付</label>
+                    <label className="md:w-24">日付 / 開始</label>
+
+                    {/* 日付 */}
                     <input
                         type="date"
                         className="border rounded px-2 py-1"
                         value={date}
-                        onChange={e => setDate(e.target.value)}
+                        onChange={(e) => setDate(e.target.value)}
                         required
+                    />
+
+                    {/* ★ start_time 追加 */}
+                    <input
+                        type="time"
+                        className="border rounded px-2 py-1"
+                        value={startTime}
+                        onChange={e => setStartTime(e.target.value)}
                     />
                 </div>
 
@@ -2724,6 +2737,8 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                     <thead>
                         <tr>
                             <th className="border px-2 py-1">日付</th>
+                            {/* ★ ここを追加（開始時間） ★ */}
+                            <th className="border px-2 py-1">開始</th>
                             <th className="border px-2 py-1">指導者</th>
                             <th className="border px-2 py-1">利用者様</th>
                             <th className="border px-2 py-1">メモ</th>
@@ -2734,6 +2749,10 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                             <tr key={r.id}>
                                 <td className="border px-2 py-1">
                                     {r.date}
+                                </td>
+                                {/* ★ ここを追加（開始時間） ★ */}
+                                <td className="border px-2 py-1">
+                                    {r.start_time ? r.start_time.slice(0, 5) : '―'}
                                 </td>
                                 <td className="border px-2 py-1">
                                     {r.trainer_user_id ? (userNameById[r.trainer_user_id] ?? r.trainer_user_id) : '―'}
