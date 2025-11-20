@@ -582,12 +582,12 @@ export async function runUserOjtJob(
 
         const insertRows: UserOjtInsertRow[] = [];
 
-        for (const c of deduped) {
+        for (const c of targets) {  // ★ dailyReduced → targets に変更
             const items = itemsByRecordId.get(c.recordId) ?? [];
 
             try {
                 const memoBody = await generateOjtMemo(c, items);
-                const memo = memoBody + buildFooter();
+                const memo = memoBody + "\n\n" + buildFooter();
 
                 insertRows.push({
                     user_id: c.traineeUserId,
@@ -601,11 +601,10 @@ export async function runUserOjtJob(
                 const msg =
                     e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
                 console.error("[OJT] ChatGPT 生成失敗:", msg);
-                errors.push({
-                    message: `ChatGPT 生成失敗: ${msg}`,
-                });
+                errors.push({ message: msg });
             }
         }
+
 
         console.log("[OJT] insertRows length =", insertRows.length);
 
