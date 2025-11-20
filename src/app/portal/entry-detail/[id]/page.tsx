@@ -1694,39 +1694,45 @@ export default function EntryDetailPage() {
                         </span>
                     )}
                 </div>
-                <div className="flex flex-col items-center gap-2">
-                    <Label>郵便番号：</Label>
-                    <Input
-                        id="postal_code"
-                        className="h-9 w-16 text-sm"
-                        value={entry?.postal_code || ""}
-                        onChange={(e) =>
-                            setEntry({
-                                ...entry!,
-                                postal_code: e.target.value.replace(/[^0-9\-]/g, ""),
-                            })
-                        }
-                        placeholder="000-0000"
-                        maxLength={8}
-                    />
-                    <Label>住所:</Label>
-                    <Input
-                        id="address"
-                        className="h-15 w-full text-sm "
-                        value={entry?.address || ""}
-                        onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
-                    />
-                    {entry.address && (
-                        <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-2 text-blue-600 underline"
-                        >
-                            地図
-                        </a>
-                    )}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <Label className="w-20">郵便番号：</Label>
+                        <Input
+                            id="postal_code"
+                            className="h-9 w-32 text-sm"
+                            value={entry?.postal_code || ""}
+                            onChange={(e) =>
+                                setEntry({
+                                    ...entry!,
+                                    postal_code: e.target.value.replace(/[^0-9\-]/g, ""),
+                                })
+                            }
+                            placeholder="000-0000"
+                            maxLength={8}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Label className="w-20">住所：</Label>
+                        <Input
+                            id="address"
+                            className="h-9 flex-1 text-sm"
+                            value={entry?.address || ""}
+                            onChange={(e) => setEntry({ ...entry!, address: e.target.value })}
+                        />
+                        {entry.address && (
+                            <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(entry.address)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                            >
+                                地図
+                            </a>
+                        )}
+                    </div>
                 </div>
+
                 <div className="flex items-center gap-2">
                     <Label>📞電話:</Label>
                     <Input
@@ -1787,58 +1793,58 @@ export default function EntryDetailPage() {
                     )}
                 </div>
                 {/* 入社日（最初の入社日 / entry_date_original） */}
-<div className="flex items-center gap-2">
-    <Label className="w-40">最初の入社日</Label>
-    <Input
-        type="date"
-        className="border rounded px-2 py-1 w-40"
-        value={userRecord?.entry_date_original ?? ""}
-        onChange={async (e) => {
-            const next = e.target.value || null;
-            await supabase
-                .from("users")
-                .update({ entry_date_original: next })
-                .eq("user_id", userRecord?.user_id);
-            setUserRecord(prev => prev ? { ...prev, entry_date_original: next } : prev);
-        }}
-    />
-</div>
+                <div className="flex items-center gap-2">
+                    <Label className="w-40">最初の入社日</Label>
+                    <Input
+                        type="date"
+                        className="border rounded px-2 py-1 w-40"
+                        value={userRecord?.entry_date_original ?? ""}
+                        onChange={async (e) => {
+                            const next = e.target.value || null;
+                            await supabase
+                                .from("users")
+                                .update({ entry_date_original: next })
+                                .eq("user_id", userRecord?.user_id);
+                            setUserRecord(prev => prev ? { ...prev, entry_date_original: next } : prev);
+                        }}
+                    />
+                </div>
 
-{/* 入社日（最新の入社日 / entry_date_latest） */}
-<div className="flex items-center gap-2">
-    <Label className="w-40">入社日</Label>
-    <Input
-        type="date"
-        className="border rounded px-2 py-1 w-40"
-        value={userRecord?.entry_date_latest ?? ""}
-        onChange={async (e) => {
-            const next = e.target.value || null;
-            await supabase
-                .from("users")
-                .update({ entry_date_latest: next })
-                .eq("user_id", userRecord?.user_id);
-            setUserRecord(prev => prev ? { ...prev, entry_date_latest: next } : prev);
-        }}
-    />
-</div>
+                {/* 入社日（最新の入社日 / entry_date_latest） */}
+                <div className="flex items-center gap-2">
+                    <Label className="w-40">入社日</Label>
+                    <Input
+                        type="date"
+                        className="border rounded px-2 py-1 w-40"
+                        value={userRecord?.entry_date_latest ?? ""}
+                        onChange={async (e) => {
+                            const next = e.target.value || null;
+                            await supabase
+                                .from("users")
+                                .update({ entry_date_latest: next })
+                                .eq("user_id", userRecord?.user_id);
+                            setUserRecord(prev => prev ? { ...prev, entry_date_latest: next } : prev);
+                        }}
+                    />
+                </div>
 
-{/* 退職日（resign_date_latest） */}
-<div className="flex items-center gap-2">
-    <Label className="w-40">退職日</Label>
-    <Input
-        type="date"
-        className="border rounded px-2 py-1 w-40"
-        value={userRecord?.resign_date_latest ?? ""}
-        onChange={async (e) => {
-            const next = e.target.value || null;
-            await supabase
-                .from("users")
-                .update({ resign_date_latest: next })
-                .eq("user_id", userRecord?.user_id);
-            setUserRecord(prev => prev ? { ...prev, resign_date_latest: next } : prev);
-        }}
-    />
-</div>
+                {/* 退職日（resign_date_latest） */}
+                <div className="flex items-center gap-2">
+                    <Label className="w-40">退職日</Label>
+                    <Input
+                        type="date"
+                        className="border rounded px-2 py-1 w-40"
+                        value={userRecord?.resign_date_latest ?? ""}
+                        onChange={async (e) => {
+                            const next = e.target.value || null;
+                            await supabase
+                                .from("users")
+                                .update({ resign_date_latest: next })
+                                .eq("user_id", userRecord?.user_id);
+                            setUserRecord(prev => prev ? { ...prev, resign_date_latest: next } : prev);
+                        }}
+                    />
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div>
