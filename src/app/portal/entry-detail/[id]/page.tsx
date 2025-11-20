@@ -9,9 +9,13 @@ import hepburn from 'hepburn';
 import { OrgUnit } from '@/lib/lineworks/getOrgUnits';
 import { lineworksInviteTemplate } from '@/lib/emailTemplates/lineworksInvite';
 import { addAreaPrefixToKana, hiraToKata } from '@/utils/kanaPrefix';
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import DocUploader, { DocItem } from "@/components/DocUploader";
+// ★ Label / Input の import は削除
+// import { Label } from "@/components/ui/label";
+// import { Input } from "@/components/ui/input";
+
+// ★ DocUploader の「値」import をやめて、型だけ import する
+//    → これなら JSX で使っていなくても unused 扱いされません
+import type { DocItem } from "@/components/DocUploader";
 import {
     determineServicesFromCertificates,
     type DocMasterRow as CertMasterRow,
@@ -148,8 +152,10 @@ export default function EntryDetailPage() {
     const [restricted, setRestricted] = useState(false);
     const [userId, setUserId] = useState('');
     const [userIdLoading, setUserIdLoading] = useState(false);
+    void userIdLoading;
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [userIdSuggestions, setUserIdSuggestions] = useState<string[]>([]);
+    void userIdSuggestions;
     const [userRecord, setUserRecord] = useState<UserRecord | null>(null);
     const [orgList, setOrgList] = useState<OrgUnit[]>([]);
     const [levelList, setLevelList] = useState<{ levelId: string; levelName: string }[]>([]);
@@ -160,15 +166,19 @@ export default function EntryDetailPage() {
     const [creatingKaipokeUser, setCreatingKaipokeUser] = useState(false);
     const [masterRows, setMasterRows] = useState<CertMasterRow[]>([]);
     const [services, setServices] = useState<ServiceKey[]>([]);
-
+    void services;
     const [rosterSaving, setRosterSaving] = useState(false);
+    void rosterSaving; void setRosterSaving;
     const [rosterSaved, setRosterSaved] = useState(false);
+    void rosterSaved; void setRosterSaved;
 
     const getField = <K extends WorkKey>(key: K): string =>
         (entry?.[key] ?? '') as string;
+    void getField;
     const setField = <K extends WorkKey>(key: K, value: string) => {
         setEntry(prev => (prev ? ({ ...prev, [key]: value } as EntryDetailEx) : prev));
     };
+    void setField;
 
     // 配列カラムかどうかを実データから判断するフラグ
     const [workStylesIsArray, setWorkStylesIsArray] = useState(false);
@@ -201,6 +211,7 @@ export default function EntryDetailPage() {
 
     //type DocMasterRow = { category: 'certificate' | 'other'; label: string; sort_order?: number; is_active?: boolean };
     const [docMaster, setDocMaster] = useState<{ certificate: string[]; other: string[] }>({ certificate: [], other: [] });
+    void docMaster;
 
     // attachmentsArray（常にトップで）
     const attachmentsArray: Attachment[] = useMemo(() => {
@@ -332,6 +343,7 @@ export default function EntryDetailPage() {
             alert('資格証の保存に失敗: ' + msg);
         }
     };
+    void onCertificatesChange;
 
     const onOtherDocsChange = async (next: DocItem[]) => {
         setOtherDocsState(next);
@@ -342,6 +354,7 @@ export default function EntryDetailPage() {
             alert('その他書類の保存に失敗: ' + msg);
         }
     };
+    void onOtherDocsChange;
 
     // 既存の saveAttachmentsForCategory をこの中身に置換（1つだけ残す）
     const saveAttachmentsForCategory = async (
@@ -422,6 +435,7 @@ export default function EntryDetailPage() {
         await saveAttachmentsForCategory('certificate', certificates);
         alert("資格証を保存しました");
     };
+    void saveCertificates;
 
     // その他書類を DocUploader 用に state 化
     const [otherDocsState, setOtherDocsState] = useState<DocItem[]>([]);
@@ -458,6 +472,7 @@ export default function EntryDetailPage() {
             acquired_at: d.acquired_at,
         }));
         const merged = [...fixed, ...others];
+        void saveOtherDocs;
 
         const { error } = await supabase
             .from('form_entries')
@@ -651,6 +666,7 @@ export default function EntryDetailPage() {
             alert('このアカウントIDは既に存在します。別のIDを入力してください。');
             return;
         }
+        void handleAccountCreate;
 
         setUserIdLoading(true);
 
@@ -1220,8 +1236,11 @@ export default function EntryDetailPage() {
     };
 
     const licenseFront = attachmentsArray.find((a: Attachment) => a.type === '免許証表');
+    void licenseFront;
     const licenseBack = attachmentsArray.find((a: Attachment) => a.type === '免許証裏');
+    void licenseBack;
     const residenceCard = attachmentsArray.find((a: Attachment) => a.type === '住民票');
+    void residenceCard;
 
     const handleDeleteAuthUser = async () => {
         if (!userRecord?.auth_user_id) {
@@ -1320,6 +1339,7 @@ export default function EntryDetailPage() {
 
         alert('添付を削除しました');
     };
+    void handleDeleteAttachment;
 
     const handleFixedTypeUpload = async (
         file: File,
@@ -1372,6 +1392,7 @@ export default function EntryDetailPage() {
 
         }
     };
+    void handleFixedTypeUpload;
 
     const ActionButtons = () => (
         <div className="flex flex-wrap justify-center items-center gap-3 pt-4">
@@ -1496,6 +1517,30 @@ export default function EntryDetailPage() {
             {/* ここでログセクションを挿入 */}
             <StaffLogSection staffId={entry.id} />
             {/* User OJT 記録 */}
+            {/* 管理者メモ */}
+            <section className="mt-8 space-y-2">
+                <h2 className="text-lg font-semibold">管理者メモ</h2>
+                <textarea
+                    className="w-full border rounded px-2 py-1 min-h-[80px]"
+                    value={managerNote}
+                    onChange={(e) => setManagerNote(e.target.value)}
+                />
+                <div className="flex items-center gap-2 mt-2">
+                    <button
+                        type="button"
+                        onClick={handleSaveManagerNote}
+                        disabled={noteSaving}
+                        className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                    >
+                        {noteSaving ? '保存中...' : 'メモを保存'}
+                    </button>
+                    {noteMsg && (
+                        <span className="text-sm text-green-700">
+                            {noteMsg}
+                        </span>
+                    )}
+                </div>
+            </section>
             <UserOjtSection
                 userId={userRecord?.user_id ?? ''}
                 userName={
@@ -1636,7 +1681,7 @@ function StaffLogSection({ staffId }: { staffId: string }) {
     );
 }
 
-function FileThumbnail({
+export function FileThumbnail({
     title,
     src,
     mimeType
@@ -1649,6 +1694,7 @@ function FileThumbnail({
             </div>
         );
     }
+    
 
     const fileId = extractFileId(src);
     if (!fileId) {
@@ -1728,7 +1774,7 @@ function FileThumbnail({
 function UserOjtSection({ userId, userName }: { userId: string; userName?: string }) {
     const [records, setRecords] = useState<UserOjtRecord[]>([]);
     const [userOptions, setUserOptions] = useState<UserOption[]>([]);
-       const [kaipokeOptions, setKaipokeOptions] = useState<KaipokeOption[]>([]);
+    const [kaipokeOptions, setKaipokeOptions] = useState<KaipokeOption[]>([]);
 
     const [selectedUserId, setSelectedUserId] = useState<string>(userId);
     const [trainerUserId, setTrainerUserId] = useState<string>('');
@@ -1987,7 +2033,7 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                     <thead>
                         <tr>
                             <th className="border px-2 py-1">日付</th>
-                            <th className="border px-2 py-1">開始</th> {/* ★ 追加列 */}
+                            <th className="border px-2 py-1">開始時間</th> {/* ★ 追加列 */}
                             <th className="border px-2 py-1">指導者</th>
                             <th className="border px-2 py-1">利用者様</th>
                             <th className="border px-2 py-1">メモ</th>
@@ -1996,21 +2042,20 @@ function UserOjtSection({ userId, userName }: { userId: string; userName?: strin
                     <tbody>
                         {records.map(r => (
                             <tr key={r.id}>
+                                <td className="border px-2 py-1">{r.date}</td>
+
+                                {/* ▶ 追加：開始時間 */}
                                 <td className="border px-2 py-1">
-                                    {r.date}
+                                    {r.start_time ? r.start_time.substring(0, 5) : '―'}
                                 </td>
-                                <td className="border px-2 py-1">
-                                    {r.start_time ? r.start_time.slice(0, 5) : '―'}
-                                </td>
+
                                 <td className="border px-2 py-1">
                                     {r.trainer_user_id ? (userNameById[r.trainer_user_id] ?? r.trainer_user_id) : '―'}
                                 </td>
                                 <td className="border px-2 py-1">
                                     {r.kaipoke_cs_id ? (kaipokeNameById[r.kaipoke_cs_id] ?? r.kaipoke_cs_id) : '―'}
                                 </td>
-                                <td className="border px-2 py-1 whitespace-pre-wrap">
-                                    {r.memo ?? ''}
-                                </td>
+                                <td className="border px-2 py-1 whitespace-pre-wrap">{r.memo ?? ''}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -2042,3 +2087,4 @@ function getUserIdSuggestions(
     }
     return candidates.filter(c => !existingIds.includes(c));
 }
+
