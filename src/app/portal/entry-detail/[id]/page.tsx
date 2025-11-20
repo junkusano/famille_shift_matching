@@ -98,6 +98,11 @@ interface UserRecord {
     position_id?: string | null;
     status?: string;
     roster_sort?: string | null;
+
+    // ここから追加
+    entry_date_original?: string | null;   // 最初の入社日
+    entry_date_latest?: string | null;     // 入社日（最新）
+    resign_date_latest?: string | null;    // 退職日（最新）
 }
 
 type NameInfo = {
@@ -1781,6 +1786,60 @@ export default function EntryDetailPage() {
                         </>
                     )}
                 </div>
+                {/* 入社日（最初の入社日 / entry_date_original） */}
+<div className="flex items-center gap-2">
+    <Label className="w-40">最初の入社日</Label>
+    <Input
+        type="date"
+        className="border rounded px-2 py-1 w-40"
+        value={userRecord?.entry_date_original ?? ""}
+        onChange={async (e) => {
+            const next = e.target.value || null;
+            await supabase
+                .from("users")
+                .update({ entry_date_original: next })
+                .eq("user_id", userRecord?.user_id);
+            setUserRecord(prev => prev ? { ...prev, entry_date_original: next } : prev);
+        }}
+    />
+</div>
+
+{/* 入社日（最新の入社日 / entry_date_latest） */}
+<div className="flex items-center gap-2">
+    <Label className="w-40">入社日</Label>
+    <Input
+        type="date"
+        className="border rounded px-2 py-1 w-40"
+        value={userRecord?.entry_date_latest ?? ""}
+        onChange={async (e) => {
+            const next = e.target.value || null;
+            await supabase
+                .from("users")
+                .update({ entry_date_latest: next })
+                .eq("user_id", userRecord?.user_id);
+            setUserRecord(prev => prev ? { ...prev, entry_date_latest: next } : prev);
+        }}
+    />
+</div>
+
+{/* 退職日（resign_date_latest） */}
+<div className="flex items-center gap-2">
+    <Label className="w-40">退職日</Label>
+    <Input
+        type="date"
+        className="border rounded px-2 py-1 w-40"
+        value={userRecord?.resign_date_latest ?? ""}
+        onChange={async (e) => {
+            const next = e.target.value || null;
+            await supabase
+                .from("users")
+                .update({ resign_date_latest: next })
+                .eq("user_id", userRecord?.user_id);
+            setUserRecord(prev => prev ? { ...prev, resign_date_latest: next } : prev);
+        }}
+    />
+</div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div>
                         <label className="block text-sm text-gray-600">所属組織</label>
