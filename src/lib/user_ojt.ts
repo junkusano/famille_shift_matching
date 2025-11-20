@@ -118,6 +118,10 @@ export async function runUserOjtJob(
     const baseDate = options.baseDate ?? new Date();
     const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
+    // ★ 入社判定：直近3ヶ月以内
+    const entryFromDate = subMonths(baseDate, 3);
+    const entryFromStr = formatInTimeZone(entryFromDate, timeZone, "yyyy-MM-dd");
+
     // ★ 期間：1ヶ月前の1日以降
     const fromDate = startOfMonth(subMonths(baseDate, 1));
     const fromDateStr = formatInTimeZone(fromDate, timeZone, "yyyy-MM-dd");
@@ -126,7 +130,7 @@ export async function runUserOjtJob(
 
     try {
         console.log("[OJT] 開始 baseDate =", baseDate.toISOString());
-        console.log("[OJT] home entry 対象 >= ", fromDateStr);
+        console.log("[OJT] home entry 対象 >= ", entryFromStr);
 
         // ------------------------------------------------------------
         // ① home entry (form_entries) から「最近エントリーのある auth_uid」を取得
@@ -137,7 +141,7 @@ export async function runUserOjtJob(
         const feRes = await supabase
             .from("form_entries")
             .select("auth_uid, created_at")
-            .gte("created_at", fromDateStr);
+            .gte("created_at", entryFromStr);
 
         if (feRes.error) {
             console.error("[OJT] form_entries 取得エラー:", feRes.error);
