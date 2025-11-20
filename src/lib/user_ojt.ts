@@ -16,9 +16,9 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// ===========================================
-// 型定義
-// ===========================================
+// -----------------------------
+// 型定義（any なし）
+// -----------------------------
 
 export type UserOjtJobOptions = {
     baseDate?: Date;
@@ -78,9 +78,15 @@ interface ShiftRecordItemRow {
     value_text: string | null;
     note: string | null;
     def?: {
-        code: string | null;
-        label: string | null;
+        code: string;
+        label: string;
     } | null;
+}
+
+interface ExistingOjtRow {
+    user_id: string;
+    date: string;
+    start_time: string | null;
 }
 
 interface OjtCandidate {
@@ -112,8 +118,8 @@ export async function runUserOjtJob(
     const baseDate = options.baseDate ?? new Date();
     const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
-    // ★ 期間：2ヶ月前の1日以降
-    const fromDate = startOfMonth(subMonths(baseDate, 2));
+    // ★ 期間：1ヶ月前の1日以降
+    const fromDate = startOfMonth(subMonths(baseDate, 1));
     const fromDateStr = formatInTimeZone(fromDate, timeZone, "yyyy-MM-dd");
 
     const errors: { message: string }[] = [];
@@ -125,6 +131,7 @@ export async function runUserOjtJob(
         // ------------------------------------------------------------
         // ① home entry (form_entries) から「最近エントリーのある auth_uid」を取得
         //    - created_at >= fromDateStr
+        //    - auth_uid が NULL でないもの
         // ------------------------------------------------------------
 
         const feRes = await supabase
@@ -155,7 +162,7 @@ export async function runUserOjtJob(
         );
 
         if (authUidSet.size === 0) {
-            console.log("[OJT] home entry 対象 0 件のため終了");
+            console.log("[OJT] home entry 対象 0 のため終了");
             return {
                 ok: true,
                 checkedShifts: 0,
@@ -166,13 +173,12 @@ export async function runUserOjtJob(
         }
 
         // ------------------------------------------------------------
-        // ② OJTされる側（トレーニー）
+        // ② OJTされる側（trainee）の user_id を user_entry_united_view から取得
         //    - user_entry_united_view.auth_uid IN authUidSet
-        //    - ★ level_sort の条件はかけない（指定どおり）
         // ------------------------------------------------------------
 
         const traineeRes = await supabase
-            .from("user_entry_united_view")
+            .from("user_entry_united_view_single")
             .select("user_id, auth_uid")
             .in("auth_uid", Array.from(authUidSet));
 
@@ -210,7 +216,6 @@ export async function runUserOjtJob(
 
         // ------------------------------------------------------------
         // ③ トレーナー: user_entry_united_view.level_sort < 4,500,000
-        //    - 付き添う人だけ level_sort で絞る
         // ------------------------------------------------------------
 
         const trainerRes = await supabase
@@ -251,15 +256,57 @@ export async function runUserOjtJob(
         }
 
         // ------------------------------------------------------------
-        // ④ シフト取得（期間内のシフト → メモリ上で trainer / trainee 判定）
+        // ④ シフト取得（トレーナー＋トレーニーが同じシフトに入っているものだけ）
         // ------------------------------------------------------------
+
+        // すでに上で作っているはず：
+        // const traineeUserSet = new Set<string>();
+        // const trainerUserSet = new Set<string>();
+
+        const traineeUsers = Array.from(traineeUserSet);
+        const trainerUsers = Array.from(trainerUserSet);
+
+        console.log("[OJT] traineeUsers =", traineeUsers);
+        console.log("[OJT] trainerUsers =", trainerUsers);
+
+        if (traineeUsers.length === 0 || trainerUsers.length === 0) {
+            console.log("[OJT] trainee or trainer が 0 のため終了");
+            return {
+                ok: true,
+                checkedShifts: 0,
+                candidateOjtCount: 0,
+                inserted: 0,
+                skippedExisting: 0,
+            };
+        }
+
+        // in(...) 用の文字列
+        const traineeList = traineeUsers.join(",");
+        const trainerList = trainerUsers.join(",");
+
+        // 条件イメージ：
+        //
+        // 1) staff_01 がトレーニー かつ (staff_02 or staff_03 がトレーナー)
+        // 2) staff_02 がトレーニー かつ staff_01 がトレーナー
+        // 3) staff_03 がトレーニー かつ staff_01 がトレーナー
+        //
+        // PostgREST の or / and で書くと：
+        const orFilter = [
+            // case 1
+            `and(staff_01_user_id.in.(${traineeList}),or(staff_02_user_id.in.(${trainerList}),staff_03_user_id.in.(${trainerList})))`,
+            // case 2
+            `and(staff_02_user_id.in.(${traineeList}),staff_01_user_id.in.(${trainerList}))`,
+            // case 3
+            `and(staff_03_user_id.in.(${traineeList}),staff_01_user_id.in.(${trainerList}))`,
+        ].join(",");
 
         const shiftRes = await supabase
             .from("shift")
             .select(
                 "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id"
             )
-            .gte("shift_start_date", fromDateStr);
+            .gte("shift_start_date", fromDateStr)
+            .or(orFilter);
 
         if (shiftRes.error) {
             console.error("[OJT] shift 取得エラー:", shiftRes.error);
@@ -268,13 +315,16 @@ export async function runUserOjtJob(
 
         const shiftRows = (shiftRes.data ?? []) as ShiftRow[];
 
-        console.log("[OJT] 期間内 shift rows =", shiftRows.length);
+        const checkedShifts = shiftRows.length;
+        console.log("[OJT] shiftRows（トレーナー＋トレーニー同席のみ） =", checkedShifts);
+        console.log("[OJT] shiftRows sample =", shiftRows.slice(0, 5));
 
-        if (shiftRows.length === 0) {
-            console.log("[OJT] 期間内 shift 0 件のため終了");
+
+        if (checkedShifts === 0) {
+            console.log("[OJT] 対象期間内のシフトが 0 件のため終了");
             return {
                 ok: true,
-                checkedShifts: 0,
+                checkedShifts,
                 candidateOjtCount: 0,
                 inserted: 0,
                 skippedExisting: 0,
@@ -299,73 +349,73 @@ export async function runUserOjtJob(
             throw srRes.error;
         }
 
-        const srRows = (srRes.data ?? []) as ShiftRecordRow[];
-        console.log("[OJT] shift_records rows =", srRows.length);
+        const recordRows = (srRes.data ?? []) as ShiftRecordRow[];
+
+        console.log("[OJT] shift_records rows =", recordRows.length);
 
         const recordByShiftId = new Map<number, ShiftRecordRow>();
-        for (const r of srRows) {
-            recordByShiftId.set(r.shift_id, r); // shift_id は unique 制約あり
+        for (const r of recordRows) {
+            recordByShiftId.set(r.shift_id, r);
         }
 
         // ------------------------------------------------------------
-        // ⑥ OJT 候補（rawCandidates）作成
-        //    - 同じ shift に traineeUserSet ∧ trainerUserSet が両方存在するもの
+        // ⑥ trainee と trainer が同じシフトにいるものだけ抽出
         // ------------------------------------------------------------
 
         const rawCandidates: {
             shift: ShiftRow;
             record: ShiftRecordRow;
             traineeUserId: string;
-            trainerUserId: string | null;
+            trainerUserId: string;
         }[] = [];
 
-        for (const shiftRow of shiftRows) {
-            const record = recordByShiftId.get(shiftRow.shift_id);
-            if (!record) continue; // 記録が無いシフトは対象外
+        for (const shift of shiftRows) {
+            const rec = recordByShiftId.get(shift.shift_id);
+            if (!rec) continue;
 
-            const staffIds = [
-                shiftRow.staff_01_user_id,
-                shiftRow.staff_02_user_id,
-                shiftRow.staff_03_user_id,
-            ].filter((id): id is string => typeof id === "string" && !!id);
+            const staff = [
+                shift.staff_01_user_id,
+                shift.staff_02_user_id,
+                shift.staff_03_user_id,
+            ].filter((x): x is string => x !== null);
 
-            if (staffIds.length < 2) continue; // 一人勤務はOJT対象外
+            if (staff.length < 2) continue;
 
-            const traineesInShift = staffIds.filter((id) =>
-                traineeUserSet.has(id)
-            );
-            const trainersInShift = staffIds.filter((id) =>
-                trainerUserSet.has(id)
-            );
+            const trainees = staff.filter((u) => traineeUserSet.has(u));
+            const trainers = staff.filter((u) => trainerUserSet.has(u));
 
-            if (traineesInShift.length === 0) continue; // OJT対象者がいない
-            if (trainersInShift.length === 0) continue; // 付き添う人がいない
+            if (trainees.length === 0 || trainers.length === 0) continue;
 
-            for (const traineeUserId of traineesInShift) {
-                // trainee 以外の trainer を優先
-                const trainerUserId =
-                    trainersInShift.find((id) => id !== traineeUserId) ??
-                    trainersInShift[0] ??
-                    null;
-
-                if (!trainerUserId) continue;
+            for (const t of trainees) {
+                const trainer = trainers.find((u) => u !== t);
+                if (!trainer) continue;
 
                 rawCandidates.push({
-                    shift: shiftRow,
-                    record,
-                    traineeUserId,
-                    trainerUserId,
+                    shift,
+                    record: rec,
+                    traineeUserId: t,
+                    trainerUserId: trainer,
                 });
             }
         }
 
         console.log("[OJT] rawCandidates =", rawCandidates.length);
+        console.log(
+            "[OJT] rawCandidates sample =",
+            rawCandidates.slice(0, 5).map((c) => ({
+                shiftId: c.shift.shift_id,
+                date: c.shift.shift_start_date,
+                start: c.shift.shift_start_time,
+                trainee: c.traineeUserId,
+                trainer: c.trainerUserId,
+            }))
+        );
 
         if (rawCandidates.length === 0) {
-            console.log("[OJT] trainer+trainee が同席するシフトが無いため終了");
+            console.log("[OJT] trainee & trainer 同席シフト 0 件のため終了");
             return {
                 ok: true,
-                checkedShifts: shiftRows.length,
+                checkedShifts,
                 candidateOjtCount: 0,
                 inserted: 0,
                 skippedExisting: 0,
@@ -373,46 +423,47 @@ export async function runUserOjtJob(
         }
 
         // ------------------------------------------------------------
-        // ⑦ shift_record_items をまとめて取得
+        // ⑦ record_items をまとめて取得（def の配列/単体を正規化）
         // ------------------------------------------------------------
 
         const recordIds = Array.from(
             new Set(rawCandidates.map((c) => c.record.id))
         );
-        console.log("[OJT] recordIds =", recordIds.length);
+        console.log("[OJT] recordIds count =", recordIds.length);
 
-        const itemsRes = await supabase
+        const itemRes = await supabase
             .from("shift_record_items")
             .select(
                 "record_id, value_text, note, def:shift_record_item_defs(code, label)"
             )
             .in("record_id", recordIds);
 
-        if (itemsRes.error) {
-            console.error("[OJT] shift_record_items 取得エラー:", itemsRes.error);
-            throw itemsRes.error;
+        if (itemRes.error) {
+            console.error("[OJT] shift_record_items 取得エラー:", itemRes.error);
+            throw itemRes.error;
         }
 
-        const rawItems = (itemsRes.data ?? []) as RawItemRow[];
+        const rawItems = (itemRes.data ?? []) as RawItemRow[];
+        console.log("[OJT] shift_record_items rows =", rawItems.length);
 
         const itemsByRecordId = new Map<string, ShiftRecordItemRow[]>();
 
         for (const it of rawItems) {
-            const defValue = it.def;
-            let def: { code: string | null; label: string | null } | null = null;
+            let def: ShiftRecordItemRow["def"] = undefined;
 
-            if (Array.isArray(defValue)) {
-                const v = defValue[0];
-                def = v
-                    ? {
-                          code: v.code ?? null,
-                          label: v.label ?? null,
-                      }
-                    : null;
-            } else if (defValue) {
+            const rawDef = it.def;
+            if (Array.isArray(rawDef)) {
+                if (rawDef.length > 0) {
+                    const d0 = rawDef[0];
+                    def = {
+                        code: (d0.code ?? "").toString(),
+                        label: (d0.label ?? "").toString(),
+                    };
+                }
+            } else if (rawDef) {
                 def = {
-                    code: defValue.code ?? null,
-                    label: defValue.label ?? null,
+                    code: (rawDef.code ?? "").toString(),
+                    label: (rawDef.label ?? "").toString(),
                 };
             }
 
@@ -438,15 +489,11 @@ export async function runUserOjtJob(
             .gte("date", fromDateStr);
 
         if (existRes.error) {
-            console.error("[OJT] user_ojt_record 既存取得エラー:", existRes.error);
+            console.error("[OJT] user_ojt_record 取得エラー:", existRes.error);
             throw existRes.error;
         }
 
-        const existRows = (existRes.data ?? []) as {
-            user_id: string;
-            date: string;
-            start_time: string | null;
-        }[];
+        const existRows = (existRes.data ?? []) as ExistingOjtRow[];
 
         console.log("[OJT] 既存 user_ojt_record rows =", existRows.length);
 
@@ -492,15 +539,15 @@ export async function runUserOjtJob(
             console.log("[OJT] 新規 OJT 0 件のため終了");
             return {
                 ok: true,
-                checkedShifts: shiftRows.length,
+                checkedShifts,
                 candidateOjtCount: rawCandidates.length,
                 inserted: 0,
-                skippedExisting: existingKey.size,
+                skippedExisting: 0,
             };
         }
 
         // ------------------------------------------------------------
-        // ⑨ ChatGPT で memo を生成 & INSERT 行を作成
+        // ⑨ ChatGPT で memo 生成 → INSERT
         // ------------------------------------------------------------
 
         const insertRows: UserOjtInsertRow[] = [];
@@ -510,7 +557,7 @@ export async function runUserOjtJob(
 
             try {
                 const memoBody = await generateOjtMemo(c, items);
-                const memo = memoBody + "\n\n" + buildFooter();
+                const memo = memoBody + buildFooter();
 
                 insertRows.push({
                     user_id: c.traineeUserId,
@@ -522,15 +569,15 @@ export async function runUserOjtJob(
                 });
             } catch (e) {
                 const msg =
-                    e instanceof Error
-                        ? e.message
-                        : typeof e === "string"
-                        ? e
-                        : String(e);
+                    e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
                 console.error("[OJT] ChatGPT 生成失敗:", msg);
-                errors.push({ message: msg });
+                errors.push({
+                    message: `ChatGPT 生成失敗: ${msg}`,
+                });
             }
         }
+
+        console.log("[OJT] insertRows length =", insertRows.length);
 
         let inserted = 0;
 
@@ -551,7 +598,7 @@ export async function runUserOjtJob(
 
         return {
             ok: true,
-            checkedShifts: shiftRows.length,
+            checkedShifts,
             candidateOjtCount: rawCandidates.length,
             inserted,
             skippedExisting: existingKey.size,
@@ -560,23 +607,21 @@ export async function runUserOjtJob(
     } catch (e) {
         const msg =
             e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
-        console.error("[OJT] 予期せぬエラー:", msg);
-        errors.push({ message: msg });
-
+        console.error("[OJT] 例外発生:", msg);
         return {
             ok: false,
             checkedShifts: 0,
             candidateOjtCount: 0,
             inserted: 0,
             skippedExisting: 0,
-            errors,
+            errors: [{ message: msg }],
         };
     }
 }
 
-// ===========================================
+// ------------------------------------------------------------
 // ChatGPT でメモ生成
-// ===========================================
+// ------------------------------------------------------------
 
 async function generateOjtMemo(
     c: OjtCandidate,
@@ -595,12 +640,12 @@ async function generateOjtMemo(
         .join("\n");
 
     const prompt = `
-以下は、ある訪問サービスのシフト実績記録です。
+以下は訪問サービスのシフト記録です。
 
-- 実施日: ${c.date}
-- 開始時間: ${c.startTime}
-- OJT対象職員（育成される側）: ${c.traineeUserId}
-- トレーナー（付き添う側）: ${c.trainerUserId ?? "（同席者）"}
+- 日付: ${c.date}
+- 開始: ${c.startTime}
+- OJT対象: ${c.traineeUserId}
+- トレーナー: ${c.trainerUserId ?? "（同席者）"}
 
 【訪問記録内容】
 ${lines || "記録内容がほとんどありません。"}
@@ -629,12 +674,13 @@ ${lines || "記録内容がほとんどありません。"}
     });
 
     const content = res.choices[0]?.message?.content;
-    return (content ?? "").trim() || "OJT内容の自動生成に失敗しました。";
+    return (content ?? "").trim() ||
+        "自動生成に失敗しましたが、当該シフトで育成を実施しました。";
 }
 
-// ===========================================
+// ------------------------------------------------------------
 // BCP・虐待防止などの定型文
-// ===========================================
+// ------------------------------------------------------------
 
 function buildFooter(): string {
     return `
