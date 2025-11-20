@@ -539,7 +539,33 @@ export async function runUserOjtJob(
         console.log("[OJT] deduped (新規 OJT候補) =", deduped.length);
         console.log("[OJT] deduped sample =", deduped.slice(0, 5));
 
-        if (deduped.length === 0) {
+        // ★ 同じ user_id + date は 1件だけ残す
+        // その日に一番早いシフトを優先したいので、先にソート
+        deduped.sort((a, b) => {
+            if (a.date === b.date) {
+                return a.startTime.localeCompare(b.startTime);
+            }
+            return a.date.localeCompare(b.date);
+        });
+
+        const byTraineeDay = new Map<string, OjtCandidate>();
+
+        for (const c of deduped) {
+            const key = `${c.traineeUserId}__${c.date}`;
+            if (!byTraineeDay.has(key)) {
+                byTraineeDay.set(key, c);
+            }
+        }
+
+        const dailyReduced = Array.from(byTraineeDay.values());
+
+        console.log(
+            "[OJT] user/day 単位に絞り込んだ OJT候補 =",
+            dailyReduced.length
+        );
+        console.log("[OJT] dailyReduced sample =", dailyReduced.slice(0, 5));
+
+        if (dailyReduced.length === 0) {
             console.log("[OJT] 新規 OJT 0 件のため終了");
             return {
                 ok: true,
