@@ -44,6 +44,19 @@ function formatAcquired(iso: string) {
     return day === '01' ? `${y}/${m}` : `${y}/${m}/${day}`;
 }
 
+function toDateInputValueFromIso(iso: string) {
+    try {
+        const d = new Date(iso);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`; // yyyy-MM-dd
+    } catch {
+        return '';
+    }
+}
+
+
 /** -----------------------------
  *  型定義
  *  ----------------------------- */
@@ -117,6 +130,26 @@ export default function KaipokeInfoDetailPage() {
     const [newDocLabel, setNewDocLabel] = useState('');
 
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
+
+    // 書類の編集用（id ごとに一時値を保持）
+    const [docEditState, setDocEditState] = useState<
+        Record<string, { label: string; useCustom: boolean; acquiredDate: string }>
+    >({});
+
+    const getDocEdit = (doc: Attachment) => {
+        const existing = docEditState[doc.id];
+        if (existing) return existing;
+
+        const baseLabel = doc.label ?? '';
+        const inMaster = baseLabel && docMaster.other.includes(baseLabel);
+
+        return {
+            label: baseLabel,
+            useCustom: baseLabel ? !inMaster : false,
+            acquiredDate: toDateInputValueFromIso(doc.acquired_at),
+        };
+    };
+
 
     useEffect(() => {
         if (!id) return;
@@ -504,11 +537,99 @@ export default function KaipokeInfoDetailPage() {
                 {documentsArray.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {documentsArray.map((doc, idx) => {
-                            const label = doc.label ?? doc.type ?? `doc_${idx + 1}`;
+                            const fallbackLabel = doc.label ?? doc.type ?? `doc_${idx + 1}`;
+                            const edit = getDocEdit(doc);
+                            const selectValue = edit.useCustom ? '__custom__' : (edit.label || '');
+
                             return (
-                                <div key={doc.id}>
-                                    <FileThumbnail title={`${label}（取得: ${formatAcquired(doc.acquired_at)}）`} src={doc.url ?? undefined} mimeType={doc.mimeType ?? undefined} />
-                                    <div className="mt-2 flex items-center gap-2">
+                                <div key={doc.id} className="border rounded p-2 bg-white">
+                                    {/* サムネイル */}
+                                    <FileThumbnail
+                                        title={`${fallbackLabel}（取得: ${formatAcquired(doc.acquired_at)}）`}
+                                        src={doc.url ?? undefined}
+                                        mimeType={doc.mimeType ?? undefined}
+                                    />
+
+                                    {/* 取得日（カレンダー入力） */}
+                                    <div className="mt-2 flex items-center gap-2 text-sm">
+                                        <span className="text-gray-600 shrink-0">取得日</span>
+                                        <input
+                                            type="date"
+                                            className="border rounded px-2 py-1"
+                                            value={edit.acquiredDate}
+                                            onChange={(e) =>
+                                                setDocEditState((prev) => ({
+                                                    ...prev,
+                                                    [doc.id]: {
+                                                        ...getDocEdit(doc),
+                                                        acquiredDate: e.target.value,
+                                                    },
+                                                }))
+                                            }
+                                        />
+                                    </div>
+
+                                    {/* 書類名（セレクト＋自由入力） */}
+                                    <div className="mt-2 flex flex-col gap-1 text-sm">
+                                        <span className="text-gray-600">書類名 / 種別</span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <select
+                                                className="border rounded px-2 py-1"
+                                                value={selectValue}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    if (v === '__custom__') {
+                                                        setDocEditState((prev) => ({
+                                                            ...prev,
+                                                            [doc.id]: {
+                                                                ...getDocEdit(doc),
+                                                                useCustom: true,
+                                                            },
+                                                        }));
+                                                    } else {
+                                                        setDocEditState((prev) => ({
+                                                            ...prev,
+                                                            [doc.id]: {
+                                                                ...getDocEdit(doc),
+                                                                useCustom: false,
+                                                                label: v,
+                                                            },
+                                                        }));
+                                                    }
+                                                }}
+                                            >
+                                                <option value="">（書類名を選択）</option>
+                                                {docMaster.other.map((l) => (
+                                                    <option key={l} value={l}>
+                                                        {l}
+                                                    </option>
+                                                ))}
+                                                <option value="__custom__">（自由入力）</option>
+                                            </select>
+
+                                            {edit.useCustom && (
+                                                <input
+                                                    className="border rounded px-2 py-1 flex-1 min-w-[8rem]"
+                                                    placeholder="書類名を入力"
+                                                    value={edit.label}
+                                                    onChange={(e) =>
+                                                        setDocEditState((prev) => ({
+                                                            ...prev,
+                                                            [doc.id]: {
+                                                                ...getDocEdit(doc),
+                                                                useCustom: true,
+                                                                label: e.target.value,
+                                                            },
+                                                        }))
+                                                    }
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* 差し替え・削除・更新 ボタン列 */}
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        {/* 既存の差し替えボタン */}
                                         <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer">
                                             差し替え
                                             <input
@@ -520,11 +641,13 @@ export default function KaipokeInfoDetailPage() {
                                                     if (!f) return;
                                                     try {
                                                         const { url, mimeType } = await uploadFileViaApi(f);
-                                                        const next = documentsArray.map(d =>
-                                                            d.id === doc.id ? { ...d, url, mimeType, uploaded_at: new Date().toISOString() } : d
+                                                        const next = documentsArray.map((d) =>
+                                                            d.id === doc.id
+                                                                ? { ...d, url, mimeType, uploaded_at: new Date().toISOString() }
+                                                                : d
                                                         );
                                                         await saveDocuments(next);
-                                                        alert(`${label} を差し替えました`);
+                                                        alert(`${fallbackLabel} を差し替えました`);
                                                     } catch (err) {
                                                         const msg = err instanceof Error ? err.message : String(err);
                                                         alert(`差し替えに失敗: ${msg}`);
@@ -534,8 +657,47 @@ export default function KaipokeInfoDetailPage() {
                                                 }}
                                             />
                                         </label>
-                                        <button className="px-2 py-1 border rounded" onClick={() => handleDeleteById(doc.id)}>
+
+                                        {/* 既存の削除ボタン */}
+                                        <button
+                                            className="px-2 py-1 border rounded"
+                                            onClick={() => handleDeleteById(doc.id)}
+                                        >
                                             削除
+                                        </button>
+
+                                        {/* 新規: メタ情報 更新ボタン */}
+                                        <button
+                                            className="px-3 py-1 border rounded bg-green-50 hover:bg-green-100"
+                                            onClick={async () => {
+                                                const current = getDocEdit(doc);
+                                                const label = current.label.trim();
+                                                if (!label) {
+                                                    alert('書類名を選択または入力してください');
+                                                    return;
+                                                }
+                                                if (!current.acquiredDate) {
+                                                    alert('取得日を選択してください');
+                                                    return;
+                                                }
+                                                try {
+                                                    const iso = new Date(
+                                                        `${current.acquiredDate}T00:00:00+09:00`
+                                                    ).toISOString();
+                                                    const next = documentsArray.map((d) =>
+                                                        d.id === doc.id
+                                                            ? { ...d, label, acquired_at: iso }
+                                                            : d
+                                                    );
+                                                    await saveDocuments(next);
+                                                    alert('書類情報を更新しました');
+                                                } catch (err) {
+                                                    const msg = err instanceof Error ? err.message : String(err);
+                                                    alert(`更新に失敗: ${msg}`);
+                                                }
+                                            }}
+                                        >
+                                            書類情報を更新
                                         </button>
                                     </div>
                                 </div>
