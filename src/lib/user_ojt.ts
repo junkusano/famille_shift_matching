@@ -572,7 +572,28 @@ export async function runUserOjtJob(
                 checkedShifts,
                 candidateOjtCount: rawCandidates.length,
                 inserted: 0,
-                skippedExisting: 0,
+                skippedExisting: existingKey.size,
+            };
+        }
+
+        // ★ 1回の実行で ChatGPT に投げる最大件数
+        const MAX_PER_RUN = 40; // ここは 20〜50くらいで調整
+        const targets = dailyReduced.slice(0, MAX_PER_RUN);
+
+        console.log(
+            "[OJT] 今回 ChatGPT で処理する OJT件数 =",
+            targets.length,
+            "(全候補:", dailyReduced.length, ")"
+        );
+
+        if (targets.length === 0) {
+            console.log("[OJT] 今回処理対象 0 件のため終了");
+            return {
+                ok: true,
+                checkedShifts,
+                candidateOjtCount: rawCandidates.length,
+                inserted: 0,
+                skippedExisting: existingKey.size,
             };
         }
 
