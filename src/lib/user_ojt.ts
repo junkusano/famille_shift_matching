@@ -119,7 +119,7 @@ export async function runUserOjtJob(
     const dryRun = options.dryRun ?? DRY_RUN_DEFAULT;
 
     // ★ 入社判定：直近3ヶ月以内
-    const entryFromDate = subMonths(baseDate, 3);
+    const entryFromDate = subMonths(baseDate, 6);
     const entryFromStr = formatInTimeZone(entryFromDate, timeZone, "yyyy-MM-dd");
 
     // ★ 期間：1ヶ月前の1日以降
