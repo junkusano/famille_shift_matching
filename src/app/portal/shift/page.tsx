@@ -1,10 +1,14 @@
 // /portal/shift
+// /portal/shift
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import type { ShiftData } from "@/types/shift";
+// ▼ 追加
+import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
+
 import {
     format,
     addDays,
@@ -712,20 +716,17 @@ export default function ShiftPage() {
                 console.warn('チャネルIDが取得できませんでした');
             }
 
-            // 5) 既存どおり：時間調整のアラートも作成（/portal/shift 既存の文面を踏襲）
-            const message =
-                `●●様 ${shift.shift_start_date} ${toHM(shift.shift_start_time)}～ のサービス時間調整の依頼が来ています。` +
-                `マネジャーは利用者様調整とシフト変更をお願いします。` +
-                (timeAdjustNote ? `\n希望の時間調整: ${timeAdjustNote}` : '');
-            await supabase.from('alert_log').insert({
-                message,
-                visible_roles: ['manager', 'staff'],
-                severity: 2,
-                status: 'open',
-                status_source: 'system',
-                kaipoke_cs_id: shift.kaipoke_cs_id,
-                shift_id: shift.shift_id,
-            });
+            // 5) 時間調整のアラートを作成（cs_kaipoke_info.name を優先して利用者名を解決）
+            await createTimeAdjustAlertFromShift(
+                {
+                    shift_id: shift.shift_id,
+                    kaipoke_cs_id: shift.kaipoke_cs_id,
+                    shift_start_date: shift.shift_start_date,
+                    shift_start_time: shift.shift_start_time,
+                    client_name: shift.client_name,
+                },
+                timeAdjustNote
+            );
 
             // 完了
             alert('希望リクエストを登録し、シフト反映・通知まで実施しました！');

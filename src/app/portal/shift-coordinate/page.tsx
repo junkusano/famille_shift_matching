@@ -10,6 +10,7 @@ import { format, parseISO } from "date-fns";
 import { ja } from 'date-fns/locale';
 import ShiftCard from "@/components/shift/ShiftCard";
 import GroupAddButton from "@/components/shift/GroupAddButton";
+import { createTimeAdjustAlertFromShift } from "@/lib/shift/shift_card_alert";
 
 
 const PAGE_SIZE = 100;
@@ -180,7 +181,11 @@ export default function ShiftPage() {
         setCurrentPage(1);
     };
 
-    const handleShiftRequest = async (shift: ShiftData, attendRequest: boolean) => {
+    const handleShiftRequest = async (
+        shift: ShiftData,
+        attendRequest: boolean,
+        timeAdjustNote?: string
+    ) => {
         setCreatingShiftRequest(true);
         try {
             const session = await supabase.auth.getSession();
@@ -212,6 +217,8 @@ export default function ShiftPage() {
                     requested_by: accountId,            // ← users.user_id（社内ID）
                     requested_kaipoke_user_id: kaipokeUserId,
                     attend_request: attendRequest,
+                    // 任意メモ
+                    time_adjust_note: timeAdjustNote ?? null,
                 },
             });
 
@@ -228,10 +235,9 @@ export default function ShiftPage() {
                     .maybeSingle();
 
                 const { data: userData } = await supabase
-                    .from("user_entry_united_view")
+                    .from("user_entry_united_view_single")
                     .select("lw_userid, last_name_kanji, first_name_kanji")
                     .eq("auth_user_id", userId)
-                    .eq("group_type", "人事労務サポートルーム")
                     .limit(1)
                     .single();
 
@@ -323,6 +329,18 @@ export default function ShiftPage() {
                 }
 
                 // --- ★追加ここまで ---
+
+                // 5) 時間調整のアラートも作成（cs_kaipoke_info.name を優先）
+                await createTimeAdjustAlertFromShift(
+                    {
+                        shift_id: shift.shift_id,
+                        kaipoke_cs_id: shift.kaipoke_cs_id,
+                        shift_start_date: shift.shift_start_date,
+                        shift_start_time: shift.shift_start_time,
+                        client_name: shift.client_name,
+                    },
+                    timeAdjustNote
+                );
             }
         } catch (e) {
             alert("処理中にエラーが発生しました");
@@ -435,7 +453,7 @@ export default function ShiftPage() {
                         shift={shift}
                         mode="request"
                         creatingRequest={creatingShiftRequest}
-                        onRequest={(attend) => handleShiftRequest(shift, attend)}
+                        onRequest={(attend, note) => handleShiftRequest(shift, attend, note)}
                         extraActions={<GroupAddButton shift={shift} />}
                     />
                 ))}
