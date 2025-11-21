@@ -12,13 +12,6 @@ export type ShiftLikeForAlert = {
     client_name?: string | null;
 };
 
-/**
- * cs_kaipoke_info テーブルで利用する行型
-type CsKaipokeInfoRow = {
-    name: string | null;
-};
-*/
-
 /** 'HH:MM:SS' -> 'HH:MM' */
 const toHM = (t?: string | null): string => (t ? t.slice(0, 5) : "");
 
@@ -55,18 +48,23 @@ async function resolveClientName(shift: ShiftLikeForAlert): Promise<string> {
  * シフト希望（時間調整含む）に紐づく alert_log を1件追加する。
  * - メッセージ先頭の「●●様」を cs_kaipoke_info.name ベースに統一
  * - timeAdjustNote の中には資格疑義の警告なども含まれていて OK（そのまま追記）
+ * - requesterId があれば「リクエスト者: xxx」を末尾に追記
  */
 export async function createTimeAdjustAlertFromShift(
     shift: ShiftLikeForAlert,
-    timeAdjustNote?: string | null
+    timeAdjustNote?: string | null,
+    requesterId?: string | null
 ): Promise<void> {
     const clientName = await resolveClientName(shift);
     const note = (timeAdjustNote ?? "").trim() || undefined;
+    const requester = (requesterId ?? "").trim();
+    const requesterLine = requester ? `\nリクエスト者: ${requester}` : "";
 
     const message =
         `${clientName} 様 ${shift.shift_start_date} ${toHM(shift.shift_start_time)}～ のサービス時間調整の依頼が来ています。` +
         `マネジャーは利用者様調整とシフト変更をお願いします。` +
-        (note ? `\n希望の時間調整: ${note}` : "");
+        (note ? `\n希望の時間調整: ${note}` : "") +
+        requesterLine;
 
     await supabase.from("alert_log").insert({
         message,
