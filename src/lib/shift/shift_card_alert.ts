@@ -14,10 +14,10 @@ export type ShiftLikeForAlert = {
 
 /**
  * cs_kaipoke_info テーブルで利用する行型
- */
 type CsKaipokeInfoRow = {
     name: string | null;
 };
+*/
 
 /** 'HH:MM:SS' -> 'HH:MM' */
 const toHM = (t?: string | null): string => (t ? t.slice(0, 5) : "");
