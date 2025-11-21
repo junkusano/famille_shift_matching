@@ -13,17 +13,20 @@ export type ShiftLikeForAlert = {
 };
 
 /**
- * 'HH:MM:SS' -> 'HH:MM'
+ * cs_kaipoke_info テーブルで利用する行型
  */
+type CsKaipokeInfoRow = {
+    name: string | null;
+};
+
+/** 'HH:MM:SS' -> 'HH:MM' */
 const toHM = (t?: string | null): string => (t ? t.slice(0, 5) : "");
 
 /**
  * cs_kaipoke_info.name を優先して利用者名を解決する。
  * 取得できない場合は shift.client_name、最後の最後は「（利用者名非該当）」。
  */
-async function resolveClientName(
-    shift: ShiftLikeForAlert
-): Promise<string> {
+async function resolveClientName(shift: ShiftLikeForAlert): Promise<string> {
     const csId = shift.kaipoke_cs_id ?? undefined;
 
     // 1) cs_kaipoke_info から取得トライ
@@ -34,8 +37,8 @@ async function resolveClientName(
             .eq("kaipoke_cs_id", csId)
             .maybeSingle();
 
-        if (!error && data && typeof (data as any).name === "string") {
-            const name = String((data as any).name).trim();
+        if (!error && data && typeof data.name === "string") {
+            const name = data.name.trim();
             if (name) return name;
         }
     }
