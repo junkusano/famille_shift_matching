@@ -15,6 +15,8 @@ import { runResignerShiftCheck } from '@/lib/alert_add/resigner_shift_check';
 import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfinished_check';
 import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check";
 import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_check";
+import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
+
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -27,6 +29,7 @@ type Body = {
   shift_record_unfinished: CheckResult<{ scanned: number; created: number }>;
   kodoengo_plan_link_check: CheckResult<{ scanned: number; created: number }>;
   lw_user_group_missing_check: CheckResult<{ scanned: number; created: number }>;
+  shift_cert_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>;
 };
 
 export async function GET(req: NextRequest) {
@@ -37,6 +40,7 @@ export async function GET(req: NextRequest) {
     shift_record_unfinished: { ok: false, error: 'not executed' },
     kodoengo_plan_link_check: { ok: false, error: 'not executed' },
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
+    shift_cert_check: { ok: false, error: "not executed" },
   };
 
   try {
@@ -79,11 +83,11 @@ export async function GET(req: NextRequest) {
     // 4) 行動援護リンク未登録
     try {
       const r = await kodoengoPlanLinkCheck();
-      result.kodoengo_plan_link_check= { ok: true, ...r };
+      result.kodoengo_plan_link_check = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[cron][kodoengo_plan_link_check] error', msg);
-      result.kodoengo_plan_link_check= { ok: false, error: msg };
+      result.kodoengo_plan_link_check = { ok: false, error: msg };
       result.ok = false;
     }
 
@@ -97,6 +101,18 @@ export async function GET(req: NextRequest) {
       result.lw_user_group_missing_check = { ok: false, error: msg };
       result.ok = false;
     }
+
+    // 6) シフト資格チェック
+    try {
+      const r = await runShiftCertCheck();
+      result.shift_cert_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][shift_cert_check] error', msg);
+      result.shift_cert_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
 
     return NextResponse.json(result, { status: 200 });
   } catch (e: unknown) {
