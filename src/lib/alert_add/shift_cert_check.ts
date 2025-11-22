@@ -10,10 +10,10 @@ import {
 import {
   type DocItemLite,
   type DocMasterRow,
-  type ServiceKey,
+  //type ServiceKey,
   requiredServiceKeysForService,
   judgeUserCertificatesForService,
-  determineServicesFromCertificates,
+  //determineServicesFromCertificates,
 } from "@/lib/certificateJudge";
 
 // Attachments 型（ShiftCard と統一）
