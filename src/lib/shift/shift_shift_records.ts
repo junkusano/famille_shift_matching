@@ -1,4 +1,4 @@
-// /lib/shift/shift_shift_record.ts
+// /src/lib/shift/shift_shift_records.ts
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -51,7 +51,7 @@ export type ShiftShiftRecordRow = {
   record_status: string | null;
   record_created_by: string | null;
   record_created_at: string | null;
-  // record_updated_at を view に追加するならここにも足す
+  // record_updated_at を view に追加したらここにも追加
 };
 
 // =============================================
@@ -67,14 +67,6 @@ export type FetchShiftShiftRecordParams = {
   kaipokeCsId?: string;
   /** record_status 絞り込み（null 含むパターンは呼び出し側で調整） */
   recordStatusIn?: string[];
-  /** カスタム where を追加したいとき用（オプション） */
-  extraFilter?(
-    q: ReturnType<
-      SupabaseClient<any, any, any>["from"]
-    > extends infer T
-      ? T
-      : never,
-  ): typeof q;
 };
 
 // =============================================
@@ -129,16 +121,14 @@ export type ShiftWithCert = ShiftShiftRecordRow & {
 // =============================================
 
 /**
- * shift_shift_record_view からシンプルに Row を取得する関数
+ * shift_shift_record_view から Row を取得する関数
  * - SupabaseClient は呼び出し側から渡す（supabaseAdmin でも browser client でも OK）
  */
-export async function fetchShiftShiftRecords<
-  TClient extends SupabaseClient<any, any, any>,
->(
-  supabase: TClient,
+export async function fetchShiftShiftRecords(
+  supabase: SupabaseClient,
   params: FetchShiftShiftRecordParams = {},
 ): Promise<ShiftShiftRecordRow[]> {
-  const { fromDate, toDate, kaipokeCsId, recordStatusIn, extraFilter } = params;
+  const { fromDate, toDate, kaipokeCsId, recordStatusIn } = params;
 
   let query = supabase
     .from("shift_shift_record_view")
@@ -159,32 +149,29 @@ export async function fetchShiftShiftRecords<
     query = query.in("record_status", recordStatusIn);
   }
 
-  if (extraFilter) {
-    // 型の都合で any キャスト（利用側で無理なことはしない前提）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query = extraFilter(query as any) as any;
-  }
-
   const { data, error } = await query;
 
   if (error) {
-    console.error("[shift_shift_record] select error", error);
+    // eslint-disable-next-line no-console
+    console.error("[shift_shift_records] select error", error);
     throw new Error(
       `Failed to fetch shift_shift_record_view: ${error.message}`,
     );
   }
 
-  return (data ?? []) as ShiftShiftRecordRow[];
+  if (!data) {
+    return [];
+  }
+
+  return data as ShiftShiftRecordRow[];
 }
 
 // =============================================
 // F) 資格判定付きで取得するラッパ
 // =============================================
 
-export async function fetchShiftShiftRecordsWithCert<
-  TClient extends SupabaseClient<any, any, any>,
->(
-  supabase: TClient,
+export async function fetchShiftShiftRecordsWithCert(
+  supabase: SupabaseClient,
   params: FetchShiftShiftRecordParams,
   certCtx: ShiftCertContext,
 ): Promise<ShiftWithCert[]> {
@@ -196,24 +183,29 @@ export async function fetchShiftShiftRecordsWithCert<
 
   // 2) 対象となる全 user_id をユニーク抽出
   const userIds = new Set<string>();
-  for (const r of rows) {
+  rows.forEach((r) => {
     if (r.staff_01_user_id) userIds.add(r.staff_01_user_id);
     if (r.staff_02_user_id) userIds.add(r.staff_02_user_id);
     if (r.staff_03_user_id) userIds.add(r.staff_03_user_id);
-  }
+  });
 
   // 3) user_id → ServiceKey[] のマップを事前に構築
   const userServiceKeyMap = new Map<string, ServiceKey[]>();
 
+  const userIdList = Array.from(userIds);
+  // 並列取得
   await Promise.all(
-    Array.from(userIds).map(async (userId) => {
+    userIdList.map(async (userId) => {
       try {
         const docs = await certCtx.getCertDocsForUser(userId);
         const keys = determineServicesFromCertificates(docs, masterRows);
         userServiceKeyMap.set(userId, keys);
       } catch (e) {
-        console.error("[shift_shift_record] cert calc error", { userId, e });
-        // 失敗時は map に登録しない（＝判定不能扱い）
+        // eslint-disable-next-line no-console
+        console.error("[shift_shift_records] cert calc error", {
+          userId,
+          error: e,
+        });
       }
     }),
   );
@@ -221,6 +213,7 @@ export async function fetchShiftShiftRecordsWithCert<
   // 4) 各シフトごとに requiredServiceKeys を取得し、スタッフごとの判定を行う
   const result: ShiftWithCert[] = [];
 
+  // requiredKeys がシフトごとに変わる前提で、ループ内で取得
   for (const row of rows) {
     const requiredKeys = await certCtx.getRequiredServiceKeysForShift(row);
 
@@ -277,7 +270,7 @@ function judgeStaffForShift(
 
   const staffKeys = userServiceKeyMap.get(userId);
 
-  if (!requiredKeys || requiredKeys.length === 0) {
+  if (requiredKeys.length === 0) {
     return {
       user_id: userId,
       ok: null,
@@ -295,13 +288,12 @@ function judgeStaffForShift(
     };
   }
 
-  const hasAny =
-    requiredKeys.filter((k) => staffKeys.includes(k)).length > 0;
+  const matched = requiredKeys.some((k) => staffKeys.includes(k));
 
   return {
     user_id: userId,
-    ok: hasAny,
-    reasons: hasAny
+    ok: matched,
+    reasons: matched
       ? []
       : [
           `スタッフ${staffLabel}（${userId}）は必要な資格キーを保有していません`,
@@ -314,24 +306,23 @@ function summarizeShiftJudge(
   row: ShiftShiftRecordRow,
   staffJudges: StaffCertJudge[],
 ): ShiftCertJudgeSummary {
-  const requiredStaffCountByTwoPerson = row.two_person_work_flg ? 2 : 1;
+  const baseByTwoPerson = row.two_person_work_flg ? 2 : 1;
+  const countFromColumn =
+    row.required_staff_count && row.required_staff_count > 0
+      ? row.required_staff_count
+      : 1;
 
-  // two_person_work_flg を優先して threshold 決定
-  // 必要に応じて required_staff_count を組み込むならここで調整
-  const requiredStaffCount = Math.max(
-    requiredStaffCountByTwoPerson,
-    row.required_staff_count ?? 1,
-  );
+  const requiredStaffCount = Math.max(baseByTwoPerson, countFromColumn);
 
   const okStaffCount = staffJudges.filter((j) => j.ok === true).length;
 
   const reasons: string[] = [];
 
-  for (const j of staffJudges) {
+  staffJudges.forEach((j) => {
     if (j.ok === false) {
       reasons.push(...j.reasons);
     }
-  }
+  });
 
   if (okStaffCount < requiredStaffCount) {
     reasons.push(
@@ -339,12 +330,10 @@ function summarizeShiftJudge(
     );
   }
 
-  const overallOk =
-    okStaffCount >= requiredStaffCount
-      ? true
-      : okStaffCount === 0 && requiredStaffCount === 0
-        ? true
-        : false;
+  let overallOk: boolean | null = true;
+  if (okStaffCount < requiredStaffCount) {
+    overallOk = false;
+  }
 
   return {
     overallOk,
