@@ -94,3 +94,103 @@ export function _debugLabelMap(masterRows: DocMasterRow[]) {
     keys: extractKeysFromRow(r),
   }));
 }
+
+// ==== ここから追加（既存の export の下あたりに追記） =====================
+
+export type EligibilityResult = {
+  /** true: 条件を満たす / false: 満たさない / null: 判定不能（要件未定義など） */
+  ok: boolean | null;
+  reasons: string[];
+  /** このサービスで要求される ServiceKey 一覧 */
+  requiredKeys: ServiceKey[];
+  /** ユーザーが保有している ServiceKey 一覧 */
+  userKeys: ServiceKey[];
+};
+
+/**
+ * サービスコード／require_doc_group から必要な ServiceKey を返す
+ *
+ * - requireDocGroup があればそれを最優先で 1:1 対応させる
+ * - serviceCode のみの場合は、コードごとの対応表で決定
+ * - 対応表に無いコードは空配列（＝現在は資格チェック対象外）
+ */
+export function requiredServiceKeysForService(
+  serviceCode: string | null,
+  requireDocGroup?: string | null,
+): ServiceKey[] {
+  // require_doc_group 優先（ShiftCard の考え方と揃える）
+  if (requireDocGroup && requireDocGroup.trim().length > 0) {
+    return [requireDocGroup.trim() as ServiceKey];
+  }
+
+  const code = (serviceCode ?? "").trim();
+  if (!code) return [];
+
+  // サービスコード → ServiceKey 対応表
+  // 必要に応じて随時拡張してください
+  switch (code) {
+    case "行動援護":
+      // 行動援護 ＝ 移動支援系の資格が必要、という想定
+      return ["mobility"];
+    case "移動支援":
+      return ["mobility"];
+
+    // 例: 身体介護を home_help で扱いたい場合
+    // case "身体１・Ⅱ":
+    //   return ["home_help"];
+
+    default:
+      // 未定義のサービスコードは、いまのところ「資格チェック対象外」
+      return [];
+  }
+}
+
+/**
+ * 「ユーザー（保有資格Doc） + サービス情報」で入れるかどうかを判定する
+ *
+ * - certDocs: ユーザーの資格証明書（DocItemLite[]）
+ * - masterRows: user_doc_master 由来のマスタ（DocMasterRow[]）
+ * - serviceCode: shift.service_code 等
+ * - requireDocGroup: サービス定義側で持っている require_doc_group（あればこちら優先）
+ */
+export function judgeUserCertificatesForService(
+  certDocs: DocItemLite[],
+  masterRows: DocMasterRow[],
+  serviceCode: string | null,
+  requireDocGroup?: string | null,
+): EligibilityResult {
+  const userKeys = determineServicesFromCertificates(certDocs, masterRows);
+  const requiredKeys = requiredServiceKeysForService(serviceCode, requireDocGroup);
+
+  // 必要資格が定義されていない場合 → 判定不能（アラート対象外にしたいケース）
+  if (requiredKeys.length === 0) {
+    return {
+      ok: null,
+      reasons: ["このサービスに対する必要資格キーが未定義です"],
+      requiredKeys,
+      userKeys,
+    };
+  }
+
+  // ユーザー側に有効な資格が 1 つも無い場合
+  if (userKeys.length === 0) {
+    return {
+      ok: false,
+      reasons: ["ユーザーに有効な資格が登録されていません"],
+      requiredKeys,
+      userKeys,
+    };
+  }
+
+  const hasRequired = requiredKeys.some((rk) => userKeys.includes(rk));
+
+  return {
+    ok: hasRequired,
+    reasons: hasRequired
+      ? []
+      : ["必要な資格キーを1つも保有していません"],
+    requiredKeys,
+    userKeys,
+  };
+}
+// ==== 追加ここまで =========================================================

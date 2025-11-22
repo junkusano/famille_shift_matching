@@ -1,201 +1,240 @@
 // /src/lib/alert_add/shift_cert_check.ts
-// 2025-07-01 以降のシフトで、資格条件的に NG なものに alert_log を出す
 
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { ensureSystemAlert } from '@/lib/alert/ensureSystemAlert';
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 import {
-    fetchShiftShiftRecordsWithCert,
-    type ShiftCertContext,
-    type ShiftWithCert,
-} from '@/lib/shift/shift_shift_records';
-import type { DocMasterRow, DocItemLite, ServiceKey } from '@/lib/certificateJudge';
+  fetchShiftShiftRecords,
+  type ShiftShiftRecordRow,
+} from "@/lib/shift/shift_shift_records";
+
+import {
+  type DocItemLite,
+  type DocMasterRow,
+  type ServiceKey,
+  requiredServiceKeysForService,
+  judgeUserCertificatesForService,
+  determineServicesFromCertificates,
+} from "@/lib/certificateJudge";
+
+// Attachments 型（ShiftCard と統一）
+export type Attachment = {
+  id: string;
+  url: string | null;
+  type: string | null;
+  label: string | null;
+  mimeType?: string | null;
+  acquired_at?: string | null;
+  uploaded_at?: string | null;
+};
 
 export type ShiftCertCheckResult = {
-    scanned: number;
-    alertsCreated: number;
-    alertsUpdated: number;
+  scanned: number;
+  alertsCreated: number;
+  alertsUpdated: number;
 };
 
 export type ShiftCertCheckOptions = {
-    /** 対象期間の開始日（デフォルト: 2025-07-01） */
-    fromDate?: string; // 'YYYY-MM-DD'
+  fromDate?: string;
 };
 
-const DEFAULT_FROM_DATE = '2025-07-01';
+const DEFAULT_FROM_DATE = "2025-07-01";
 
-/**
- * 資格 NG シフトに対して alert_log を追加／更新する処理
- *
- * - ShiftCertContext はこのファイル内で構築する
- */
+// =========================================================
+//  メイン
+// =========================================================
+
 export async function runShiftCertCheck(
-    options?: ShiftCertCheckOptions,
+  options?: ShiftCertCheckOptions,
 ): Promise<ShiftCertCheckResult> {
-    const fromDate = options?.fromDate ?? DEFAULT_FROM_DATE;
+  const fromDate = options?.fromDate ?? DEFAULT_FROM_DATE;
 
-    const certCtx: ShiftCertContext = {
-        async getDocMaster(): Promise<DocMasterRow[]> {
-            const { data, error } = await supabaseAdmin
-                .from("user_doc_master")
-                // DocMasterRow に合わせて必要な列＋ alias
-                .select("category, label, service_key:doc_group, is_active, sort_order")
-                .eq("category", "certificate")
-                .eq("is_active", true);
+  // ① shift_shift_record_view を取得（資格判定なし）
+  const shifts = await fetchShiftShiftRecords(supabaseAdmin, { fromDate });
 
-            if (error || !data) {
-                const msg = error?.message ?? "no data";
-                // テーブルが空 or まだ設定されていない場合は警告だけ出してスキップ
-                // eslint-disable-next-line no-console
-                console.warn(
-                    "[shift_cert_check] user_doc_master(certificate) not available, skip cert judge:",
-                    msg,
-                );
-                return [];
-            }
+  if (shifts.length === 0) {
+    console.info("[shift_cert_check] no shifts found", { fromDate });
+    return { scanned: 0, alertsCreated: 0, alertsUpdated: 0 };
+  }
 
-            return data as DocMasterRow[];
-        },
+  // ② マスタ（certificate のみ）
+  const masterRows = await loadCertificateMaster();
 
-        async getCertDocsForUser(userId: string): Promise<DocItemLite[]> {
-            // ★ ここは「ユーザーごとの保有書類テーブル」に合わせて後で実装
-            // まだテーブル定義が無い前提なので、今は空配列を返して「資格なし扱い」もしないようにする。
-            // （fetchShiftShiftRecordsWithCert 側で masterRows.length === 0 の場合は判定をスキップするようにしてある）
+  let alertsCreated = 0;
+  let alertsUpdated = 0;
 
-            // eslint-disable-next-line no-console
-            console.warn(
-                "[shift_cert_check] getCertDocsForUser is not implemented; returning empty docs",
-                { userId },
-            );
-            return [];
-        },
+  // ③ 各シフトについて判定
+  for (const shift of shifts) {
+    const shouldAlert = await shouldAlertForShift(shift, masterRows);
 
-        async getRequiredServiceKeysForShift(row): Promise<ServiceKey[]> {
-            return mapServiceCodeToServiceKeys(row.service_code);
-        },
-    };
-    // 1) 対象シフトの取得（資格判定付き）
-    const rowsWithCert = await fetchShiftShiftRecordsWithCert(
-        supabaseAdmin,
-        { fromDate },
-        certCtx,
-    );
+    if (!shouldAlert.shouldAlert) continue;
 
-    if (rowsWithCert.length === 0) {
-        console.info('[shift_cert_check] no shifts found', { fromDate });
-        return {
-            scanned: 0,
-            alertsCreated: 0,
-            alertsUpdated: 0,
-        };
-    }
-
-    let alertsCreated = 0;
-    let alertsUpdated = 0;
-
-    // 2) 各シフトについて資格 NG のものだけアラート
-    for (const row of rowsWithCert) {
-        if (!needsAlertForRow(row)) {
-            // 資格 OK or 判定不能 の場合はアラート不要
-            // eslint-disable-next-line no-continue
-            continue;
-        }
-
-        const message = buildAlertMessage(row);
-
-        const result = await ensureSystemAlert({
-            message,
-            kaipoke_cs_id: row.kaipoke_cs_id ?? null,
-            shift_id: String(row.shift_id),
-            user_id: null,
-            rpa_request_id: null,
-        });
-
-        if (result.created) {
-            alertsCreated += 1;
-        } else {
-            alertsUpdated += 1;
-        }
-    }
-
-    console.info('[shift_cert_check] done', {
-        scanned: rowsWithCert.length,
-        alertsCreated,
-        alertsUpdated,
-        fromDate,
+    const result = await ensureSystemAlert({
+      message: shouldAlert.message,
+      kaipoke_cs_id: shift.kaipoke_cs_id,
+      shift_id: String(shift.shift_id),
+      user_id: null,
+      rpa_request_id: null,
     });
 
+    if (result.created) alertsCreated++;
+    else alertsUpdated++;
+  }
+
+  console.info("[shift_cert_check] done", {
+    scanned: shifts.length,
+    alertsCreated,
+    alertsUpdated,
+  });
+
+  return {
+    scanned: shifts.length,
+    alertsCreated,
+    alertsUpdated,
+  };
+}
+
+// =========================================================
+//  判定ロジック
+// =========================================================
+
+async function shouldAlertForShift(
+  shift: ShiftShiftRecordRow,
+  masterRows: DocMasterRow[],
+): Promise<{ shouldAlert: boolean; message: string }> {
+  const staffUserIds = [
+    shift.staff_01_user_id,
+    shift.staff_02_user_id,
+    shift.staff_03_user_id,
+  ].filter((id): id is string => !!id);
+
+  if (staffUserIds.length === 0) {
     return {
-        scanned: rowsWithCert.length,
-        alertsCreated,
-        alertsUpdated,
+      shouldAlert: true,
+      message: buildAlertMessage(shift, "スタッフが1名も設定されていません"),
     };
-}
+  }
 
-// ==============================
-// 内部ヘルパ
-// ==============================
+  // サービスの必要資格
+  const requiredKeys = requiredServiceKeysForService(shift.service_code);
 
-/**
- * このシフトに対してアラートが必要か？
- * - certSummary.overallOk === false の場合のみ true
- * - overallOk が null（判定不能）の場合はアラートを出さない
- */
-function needsAlertForRow(row: ShiftWithCert): boolean {
-    if (!row.certSummary) return false;
-    if (row.certSummary.overallOk === false) return true;
-    return false;
-}
+  // 資格が定義されていないサービス → 判定不能 → アラートしない
+  if (requiredKeys.length === 0) {
+    return { shouldAlert: false, message: "" };
+  }
 
-function buildAlertMessage(row: ShiftWithCert): string {
-    const clientName =
-        row.client_name && row.client_name.trim().length > 0
-            ? row.client_name
-            : '（利用者名なし）';
+  let okCount = 0;
+  const reasons: string[] = [];
 
-    const timePart = buildTimePart(row.shift_start_time);
-    const service = row.service_code ?? 'サービス不明';
-
-    const reasons = row.certSummary?.reasons ?? [];
-    const uniqueReasons = Array.from(new Set<string>(reasons)).filter(
-        (r) => r.trim().length > 0,
+  // 各スタッフを判定
+  for (const uid of staffUserIds) {
+    const certDocs = await loadUserCertDocs(uid);
+    const result = judgeUserCertificatesForService(
+      certDocs,
+      masterRows,
+      shift.service_code,
     );
 
-    const reasonText =
-        uniqueReasons.length > 0 ? `理由：${uniqueReasons.join(' / ')}` : '';
-
-    const base = `【要確認】シフト資格未整備：${clientName}（CS ID: ${row.kaipoke_cs_id ?? '不明'
-        }） ${row.shift_start_date}${timePart} サービス: ${service}`;
-
-    if (!reasonText) {
-        return base;
+    if (result.ok === true) okCount++;
+    if (result.ok === false) {
+      reasons.push(`スタッフ ${uid}: ${result.reasons.join(" / ")}`);
     }
+  }
 
-    return `${base} / ${reasonText}`;
+  const requiredCount = shift.two_person_work_flg ? 2 : 1;
+
+  if (okCount < requiredCount) {
+    const msg = `必要人数 ${requiredCount} 名に対し、資格 OK のスタッフは ${okCount} 名です${
+      reasons.length > 0 ? " / " + reasons.join(" / ") : ""
+    }`;
+
+    return {
+      shouldAlert: true,
+      message: buildAlertMessage(shift, msg),
+    };
+  }
+
+  return { shouldAlert: false, message: "" };
 }
 
-function buildTimePart(shiftStartTime: string | null): string {
-    if (!shiftStartTime) return '';
-    // 'HH:MM:SS' → ' HH:MM' までにする
-    const parts = shiftStartTime.split(':');
-    if (parts.length < 2) return '';
-    const hhmm = `${parts[0]}:${parts[1]}`;
-    return ` ${hhmm}`;
+// =========================================================
+//  各種ロード（Supabase）
+// =========================================================
+
+async function loadCertificateMaster(): Promise<DocMasterRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from("user_doc_master")
+    .select("category,label,service_key:doc_group,is_active,sort_order")
+    .eq("category", "certificate")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (error || !data) {
+    console.warn("[shift_cert_check] user_doc_master not available:", error);
+    return [];
+  }
+
+  return data as DocMasterRow[];
 }
 
-/**
- * service_code → ServiceKey[] の簡易マッピング
- * 必要に応じてプロジェクト側で拡張してください。
- */
-function mapServiceCodeToServiceKeys(code: string | null): ServiceKey[] {
-    if (!code) return [];
+async function loadUserCertDocs(userId: string): Promise<DocItemLite[]> {
+  // user_id → auth_user_id
+  const { data: userRow } = await supabaseAdmin
+    .from("users")
+    .select("auth_user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-    switch (code) {
-        case '行動援護':
-            return ['mobility'];
-        case '移動支援':
-            return ['mobility'];
-        default:
-            // 未定義のサービスコードは「判定不能」とする
-            return [];
-    }
+  if (!userRow?.auth_user_id) return [];
+
+  const authUid = userRow.auth_user_id as string;
+
+  // form_entries.attachments
+  const { data: fe } = await supabaseAdmin
+    .from("form_entries")
+    .select("attachments")
+    .eq("auth_uid", authUid)
+    .maybeSingle();
+
+  if (!fe) return [];
+
+  const raw = fe.attachments;
+  const atts: Attachment[] = Array.isArray(raw) ? raw : [];
+
+  const pick = atts.filter((a) => {
+    const t = (a.type ?? "").toLowerCase();
+    const l = (a.label ?? "").toLowerCase();
+    return ["資格", "certificate", "certification"].some(
+      (k) => t.includes(k) || l.includes(k),
+    );
+  });
+
+  return pick.map((a) => ({
+    label: a.label ?? null,
+    type: a.type ?? null,
+  })) satisfies DocItemLite[];
+}
+
+// =========================================================
+//  表示用
+// =========================================================
+
+function buildAlertMessage(shift: ShiftShiftRecordRow, reason: string): string {
+  const client =
+    shift.client_name && shift.client_name.trim().length > 0
+      ? shift.client_name
+      : "（利用者名なし）";
+
+  const time = extractHHMM(shift.shift_start_time);
+  const svc = shift.service_code ?? "サービス不明";
+
+  return `【要確認】シフト資格未整備：${client}（CS ID: ${
+    shift.kaipoke_cs_id ?? "不明"
+  }） ${shift.shift_start_date}${time} サービス: ${svc} / ${reason}`;
+}
+
+function extractHHMM(t: string | null): string {
+  if (!t) return "";
+  const parts = t.split(":");
+  if (parts.length < 2) return "";
+  return ` ${parts[0]}:${parts[1]}`;
 }
