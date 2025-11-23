@@ -49,6 +49,19 @@ export async function GET(req: NextRequest) {
     // ★ ここでだけ cron 認証（CRON_SECRET 等）をチェック
     assertCronAuth(req);
 
+
+    // 7) 契約書・計画書不足チェック
+    try {
+      const r = await runCsContractPlanCheck();
+      result.cs_contract_plan_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][cs_contract_plan_check] error', msg);
+      result.cs_contract_plan_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
+
     // 1) 郵便番号チェック
     try {
       const r = await runPostalCodeCheck();
@@ -104,17 +117,6 @@ export async function GET(req: NextRequest) {
       result.ok = false;
     }
     
-    // 7) 契約書・計画書不足チェック
-    try {
-      const r = await runCsContractPlanCheck();
-      result.cs_contract_plan_check = { ok: true, ...r };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error('[cron][cs_contract_plan_check] error', msg);
-      result.cs_contract_plan_check = { ok: false, error: msg };
-      result.ok = false;
-    }
-
     // 4) 行動援護リンク未登録
     try {
       const r = await kodoengoPlanLinkCheck();
