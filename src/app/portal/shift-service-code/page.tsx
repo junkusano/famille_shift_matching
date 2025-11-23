@@ -66,23 +66,17 @@ export default function ShiftServiceCodePage() {
 
   // ★ ここがポイント：cs_doc の id / label を value / label にマッピング
   const fetchCsDocOptions = async () => {
-    const res = await fetch('/api/user-doc-master?category=cs_doc')
-    if (!res.ok) return
+  const res = await fetch('/api/user-doc-master?category=cs_doc')
+  if (!res.ok) return
+  const data = (await res.json()) as DocOption[]
+  setCsDocOptions(data)
+}
 
-    // API が { id, label, ... } を返している前提
-    const data = (await res.json()) as { id: string; label: string }[]
-    const options: DocOption[] = data.map((d) => ({
-      value: d.id,
-      label: d.label,
-    }))
-    setCsDocOptions(options)
-  }
-
-  useEffect(() => {
-    fetchDocOptions()
-    fetchCsDocOptions() // ★ 追加
-    fetchRows()
-  }, [])
+useEffect(() => {
+  fetchDocOptions()
+  fetchCsDocOptions()
+  fetchRows()
+}, [])
 
   // ===== アラート判定（require_doc_group が空欄あり） =====
   const hasEmptyRequire = useMemo(
