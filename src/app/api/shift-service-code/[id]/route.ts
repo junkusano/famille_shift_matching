@@ -42,11 +42,11 @@ export async function PUT(req: Request) {
   if ('kaipoke_servicecode' in b && (typeof b.kaipoke_servicecode === 'string' || b.kaipoke_servicecode === null)) {
     payload.kaipoke_servicecode = b.kaipoke_servicecode as string | null
   }
-  if ('contract_requrired' in b && (typeof (b as any).contract_requrired === 'string' || (b as any).contract_requrired === null)) {
-    payload.contract_requrired = (b as any).contract_requrired as string | null
+  if ('contract_requrired' in b && (typeof (b).contract_requrired === 'string' || (b).contract_requrired === null)) {
+    payload.contract_requrired = (b).contract_requrired as string | null
   }
-  if ('plan_required' in b && (typeof (b as any).plan_required === 'string' || (b as any).plan_required === null)) {
-    payload.plan_required = (b as any).plan_required as string | null
+  if ('plan_required' in b && (typeof (b).plan_required === 'string' || (b).plan_required === null)) {
+    payload.plan_required = (b).plan_required as string | null
   }
 
   if (Object.keys(payload).length === 0) {
