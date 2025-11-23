@@ -18,9 +18,6 @@ import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_c
 import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
 import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check"; // ★追加
 
-
-
-
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
 type CheckResult<T> = CheckResultOk<T> | CheckResultErr;
@@ -85,17 +82,6 @@ export async function GET(req: NextRequest) {
       result.ok = false;
     }
 
-    // 4) 行動援護リンク未登録
-    try {
-      const r = await kodoengoPlanLinkCheck();
-      result.kodoengo_plan_link_check = { ok: true, ...r };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error('[cron][kodoengo_plan_link_check] error', msg);
-      result.kodoengo_plan_link_check = { ok: false, error: msg };
-      result.ok = false;
-    }
-
     // 5) LW利用者グループ未作成
     try {
       const r = await lwUserGroupMissingCheck();
@@ -129,8 +115,19 @@ export async function GET(req: NextRequest) {
       result.ok = false;
     }
 
+    // 4) 行動援護リンク未登録
+    try {
+      const r = await kodoengoPlanLinkCheck();
+      result.kodoengo_plan_link_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][kodoengo_plan_link_check] error', msg);
+      result.kodoengo_plan_link_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
     return NextResponse.json(result, { status: 200 });
-    
+
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[cron][alert-check-excuse] fatal', msg);
