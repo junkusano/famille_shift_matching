@@ -1,56 +1,69 @@
-// src/app/api/shift-service-code/[id]/route.ts 
+// src/app/api/shift-service-code/[id]/route.ts
 export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic' // （キャッシュ最適化を避ける）
-import { NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
+
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
-// URL から [id] を安全に取得
-function extractId(urlStr: string): string | null {
-  const parts = new URL(urlStr).pathname.split('/').filter(Boolean)
-  // .../api/shift-service-code/{id}
-  return parts.length > 0 ? decodeURIComponent(parts[parts.length - 1]) : null
+function extractId(req: NextRequest): string | null {
+  const { pathname } = new URL(req.url)
+  const parts = pathname.split('/').filter(Boolean)
+  return parts.at(-1) ?? null
+}
+
+type Body = {
+  service_code?: string
+  require_doc_group?: string | null
+  kaipoke_servicek?: string | null
+  kaipoke_servicecode?: string | null
+  contract_requrired?: string | null
+  plan_required?: string | null
 }
 
 // ── PUT /api/shift-service-code/[id]
-export async function PUT(req: Request) {
-  const id = extractId(req.url)
-  if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
-
-  const body = await req.json().catch(() => null) as unknown
-  if (!body || typeof body !== 'object') {
-    return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 })
+export async function PUT(req: NextRequest) {
+  const id = extractId(req)
+  if (!id) {
+    return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
   }
 
-  // 受け付けるカラムのみ反映
-  const b = body as Record<string, unknown>
-  const payload: {
-    service_code?: string
-    require_doc_group?: string | null
-    kaipoke_servicek?: string | null
-    kaipoke_servicecode?: string | null
-    contract_requrired?: string | null
-    plan_required?: string | null
-  } = {}
+  let b: Body
+  try {
+    b = (await req.json()) as Body
+  } catch {
+    return NextResponse.json({ error: 'JSON が不正です' }, { status: 400 })
+  }
 
-  if (typeof b.service_code === 'string') payload.service_code = b.service_code.trim()
-  if ('require_doc_group' in b && (typeof b.require_doc_group === 'string' || b.require_doc_group === null)) {
-    payload.require_doc_group = b.require_doc_group as string | null
+  const payload: Body = {}
+
+  if (typeof b.service_code === 'string') {
+    payload.service_code = b.service_code.trim()
   }
-  if ('kaipoke_servicek' in b && (typeof b.kaipoke_servicek === 'string' || b.kaipoke_servicek === null)) {
-    payload.kaipoke_servicek = b.kaipoke_servicek as string | null
+  if ('require_doc_group' in b) {
+    payload.require_doc_group = b.require_doc_group ?? null
   }
-  if ('kaipoke_servicecode' in b && (typeof b.kaipoke_servicecode === 'string' || b.kaipoke_servicecode === null)) {
-    payload.kaipoke_servicecode = b.kaipoke_servicecode as string | null
+  if ('kaipoke_servicek' in b) {
+    payload.kaipoke_servicek = b.kaipoke_servicek ?? null
   }
-  if ('contract_requrired' in b && (typeof (b).contract_requrired === 'string' || (b).contract_requrired === null)) {
-    payload.contract_requrired = (b).contract_requrired as string | null
+  if ('kaipoke_servicecode' in b) {
+    payload.kaipoke_servicecode = b.kaipoke_servicecode ?? null
   }
-  if ('plan_required' in b && (typeof (b).plan_required === 'string' || (b).plan_required === null)) {
-    payload.plan_required = (b).plan_required as string | null
+
+  // ★ uuid カラムは "" を null にしてから渡す
+  if ('contract_requrired' in b) {
+    const v = b.contract_requrired
+    payload.contract_requrired = v && v !== '' ? v : null
+  }
+  if ('plan_required' in b) {
+    const v = b.plan_required
+    payload.plan_required = v && v !== '' ? v : null
   }
 
   if (Object.keys(payload).length === 0) {
-    return NextResponse.json({ error: '更新対象の項目がありません' }, { status: 400 })
+    return NextResponse.json(
+      { error: '更新対象の項目がありません' },
+      { status: 400 },
+    )
   }
 
   const { data, error } = await supabaseAdmin
@@ -60,16 +73,30 @@ export async function PUT(req: Request) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[shift-service-code PUT] error', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
   return NextResponse.json(data)
 }
 
 // ── DELETE /api/shift-service-code/[id]
-export async function DELETE(req: Request) {
-  const id = extractId(req.url)
-  if (!id) return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
+export async function DELETE(req: NextRequest) {
+  const id = extractId(req)
+  if (!id) {
+    return NextResponse.json({ error: 'id が必要です' }, { status: 400 })
+  }
 
-  const { error } = await supabaseAdmin.from('shift_service_code').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const { error } = await supabaseAdmin
+    .from('shift_service_code')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('[shift-service-code DELETE] error', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
   return NextResponse.json({ ok: true })
 }

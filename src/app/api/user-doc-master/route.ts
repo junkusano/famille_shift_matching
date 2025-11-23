@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
       .from('user_doc_master')
       .select('id, label')
       .eq('category', 'cs_doc')
+      .order('sort_order', { ascending: true })  // ★ 並び順
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
