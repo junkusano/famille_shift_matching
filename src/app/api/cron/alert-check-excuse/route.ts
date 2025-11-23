@@ -49,10 +49,11 @@ export async function GET(req: NextRequest) {
     // ★ ここでだけ cron 認証（CRON_SECRET 等）をチェック
     assertCronAuth(req);
 
-
     // 7) 契約書・計画書不足チェック
     try {
+      console.info('[cron][cs_contract_plan_check] start');
       const r = await runCsContractPlanCheck();
+      console.info('[cron][cs_contract_plan_check] end', r);
       result.cs_contract_plan_check = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -61,10 +62,11 @@ export async function GET(req: NextRequest) {
       result.ok = false;
     }
 
-
     // 1) 郵便番号チェック
     try {
+      console.info('[cron][postal_code_check] start');
       const r = await runPostalCodeCheck();
+      console.info('[cron][postal_code_check] end', r);
       result.postal_code = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -75,7 +77,9 @@ export async function GET(req: NextRequest) {
 
     // 2) 退職者シフト残り
     try {
+      console.info('[cron][resigner_shift_check] start');
       const r = await runResignerShiftCheck();
+      console.info('[cron][resigner_shift_check] end', r);
       result.resigner_shift = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -86,7 +90,9 @@ export async function GET(req: NextRequest) {
 
     // 3) 実施記録 未提出
     try {
+      console.info('[cron][shift_record_unfinished_check] start');
       const r = await runShiftRecordUnfinishedCheck();
+      console.info('[cron][shift_record_unfinished_check] end', r);
       result.shift_record_unfinished = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -97,18 +103,22 @@ export async function GET(req: NextRequest) {
 
     // 5) LW利用者グループ未作成
     try {
+      console.info('[cron][lw_user_group_missing_check] start');
       const r = await lwUserGroupMissingCheck();
+      console.info('[cron][lw_user_group_missing_check] end', r);
       result.lw_user_group_missing_check = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error('[cron][kodoengo_plan_link_check] error', msg);
+      console.error('[cron][lw_user_group_missing_check] error', msg);
       result.lw_user_group_missing_check = { ok: false, error: msg };
       result.ok = false;
     }
 
     // 6) シフト資格チェック
     try {
+      console.info('[cron][shift_cert_check] start');
       const r = await runShiftCertCheck();
+      console.info('[cron][shift_cert_check] end', r);
       result.shift_cert_check = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -119,7 +129,9 @@ export async function GET(req: NextRequest) {
     
     // 4) 行動援護リンク未登録
     try {
+      console.info('[cron][kodoengo_plan_link_check] start');
       const r = await kodoengoPlanLinkCheck();
+      console.info('[cron][kodoengo_plan_link_check] end', r);
       result.kodoengo_plan_link_check = { ok: true, ...r };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

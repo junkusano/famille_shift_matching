@@ -86,6 +86,7 @@ function formatYmd(d: Date): string {
 
 // cs_kaipoke_info.documents から「書類マスタID」を抜き出す
 // ※ 実際の JSON 構造に合わせて key 名は調整してください。
+/*
 function extractDocMasterIdsFromDocuments(documents: unknown): Set<string> {
     const result = new Set<string>();
     if (!documents) return result;
@@ -120,6 +121,36 @@ function extractDocMasterIdsFromDocuments(documents: unknown): Set<string> {
         }
 
         if (id) result.add(id);
+    }
+
+    return result;
+}
+*/
+
+// cs_kaipoke_info.documents から label の集合を取り出す
+function extractDocLabelsFromDocuments(documents: unknown): Set<string> {
+    const result = new Set<string>();
+    if (!documents) return result;
+
+    let arr: unknown[] = [];
+    if (Array.isArray(documents)) {
+        arr = documents as unknown[];
+    } else if (typeof documents === "string") {
+        try {
+            const parsed: unknown = JSON.parse(documents);
+            if (Array.isArray(parsed)) arr = parsed as unknown[];
+        } catch {
+            // パース失敗は無視
+        }
+    }
+
+    for (const item of arr) {
+        if (!item || typeof item !== "object") continue;
+        const record = item as Record<string, unknown>;
+        const label = record["label"];
+        if (typeof label === "string" && label.trim() !== "") {
+            result.add(label.trim());
+        }
     }
 
     return result;
@@ -374,25 +405,33 @@ export async function findClientsMissingContractAndPlanDocs(
         const client = clientByCsId.get(csId);
         if (!client) continue;
 
-        const presentDocIds = extractDocMasterIdsFromDocuments(client.documents);
+        // ★ 利用者に登録済みの書類ラベル一覧
+        const presentDocLabels = extractDocLabelsFromDocuments(client.documents);
 
         const missingDocs: MissingDoc[] = [];
 
         for (const [docId, meta] of acc.requiredDocs.entries()) {
-            if (presentDocIds.has(docId)) continue;
-
             const types = Array.from(meta.requirementTypes);
             const svcCodes = Array.from(meta.requiredByServices).sort();
 
-            let label = docNameById[docId];
-            if (!label) {
-                if (types.length === 1) {
-                    label = types[0] === "contract" ? "契約書" : "計画書";
-                } else if (types.length > 1) {
-                    label = "契約書／計画書";
-                } else {
-                    label = `書類(${docId})`;
-                }
+            const masterLabel = docNameById[docId]; // user_doc_master.label（あれば）
+
+            // まず「マスタが持っているラベル」で存在チェック
+            if (masterLabel && presentDocLabels.has(masterLabel)) {
+                // このラベルの書類はすでにあるので不足ではない
+                continue;
+            }
+
+            // 表示用ラベルを決定
+            let label: string;
+            if (masterLabel) {
+                label = masterLabel;
+            } else if (types.length === 1) {
+                label = types[0] === "contract" ? "契約書" : "計画書";
+            } else if (types.length > 1) {
+                label = "契約書／計画書";
+            } else {
+                label = `書類(${docId})`;
             }
 
             missingDocs.push({

@@ -33,7 +33,7 @@ export async function runCsContractPlanCheck(
 
   console.info("[cs_contract_plan_check] scan result", {
     scannedShifts,
-    clientCount: clients.length,
+    clientCount: clients.length,  
   });
 
   if (clients.length === 0) {
@@ -51,12 +51,13 @@ export async function runCsContractPlanCheck(
   let alertsCreated = 0;
   let alertsUpdated = 0;
 
+  
   for (const client of clients) {
-    console.debug("[cs_contract_plan_check] ensuring alert for client", {
+    /*console.debug("[cs_contract_plan_check] ensuring alert for client", {
       kaipoke_cs_id: client.kaipoke_cs_id,
       name: client.name,
       missingDocCount: client.missingDocs.length,
-    });
+    });*/
 
     const message = buildAlertMessage(client);
 
@@ -72,13 +73,13 @@ export async function runCsContractPlanCheck(
     else alertsUpdated += 1;
   }
 
-  const durationMs = Date.now() - startTs;
-  console.info("[cs_contract_plan_check] end", {
+  //const durationMs = Date.now() - startTs;
+  /*console.info("[cs_contract_plan_check] end", {
     scanned: scannedShifts,
     alertsCreated,
     alertsUpdated,
     durationMs,
-  });
+  });*/
 
   return {
     scanned: scannedShifts,
