@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const bucket = new Map<string, number | null>()
   for (const r of rows ?? []) {
     const group = r.doc_group as string | null
-    const s = (r as any).sort_order as number | null
+    const s = (r).sort_order as number | null
     if (!group) continue
     const cur = bucket.get(group)
     if (cur == null) {
