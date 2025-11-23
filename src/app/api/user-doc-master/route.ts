@@ -1,10 +1,33 @@
-import { NextResponse } from 'next/server'
+// api/user-doc-master/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
 type Option = { value: string; label: string }
 
-export async function GET() {
-  // category 固定で certificate のみ
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const category = searchParams.get('category') ?? 'certificate'
+
+  // ① 契約書・プラン用：cs_doc → id / label をそのまま返す
+  if (category === 'cs_doc') {
+    const { data, error } = await supabaseAdmin
+      .from('user_doc_master')
+      .select('id, label')
+      .eq('category', 'cs_doc')
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    const options: Option[] = (data ?? []).map((r) => ({
+      value: r.id,     // ★ uuid
+      label: r.label,  // 表示名
+    }))
+
+    return NextResponse.json(options)
+  }
+
+  // ② 証明書グループ用：既存の certificate の doc_group 集約
   const { data: rows, error } = await supabaseAdmin
     .from('user_doc_master')
     .select('doc_group, sort_order')
@@ -15,18 +38,17 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  type Row = { doc_group: string | null; sort_order: number | null }
-
-  // doc_group ごとに最小 sort_order を採用
+  // doc_group ごとに sort_order の最小値を持つ
   const bucket = new Map<string, number | null>()
-  for (const r of (rows ?? []) as Row[]) {
-    if (!r.doc_group) continue
-    const cur = bucket.get(r.doc_group)
-    const s = r.sort_order
-    if (cur === undefined) {
-      bucket.set(r.doc_group, s ?? null)
+  for (const r of rows ?? []) {
+    const group = r.doc_group as string | null
+    const s = (r as any).sort_order as number | null
+    if (!group) continue
+    const cur = bucket.get(group)
+    if (cur == null) {
+      bucket.set(group, s ?? null)
     } else if (s != null && (cur == null || s < cur)) {
-      bucket.set(r.doc_group, s)
+      bucket.set(group, s)
     }
   }
 

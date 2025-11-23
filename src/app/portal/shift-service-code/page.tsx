@@ -35,8 +35,8 @@ const PAGE_SIZE = 100
 
 export default function ShiftServiceCodePage() {
   const [rows, setRows] = useState<Row[]>([])
-  const [docOptions, setDocOptions] = useState<DocOption[]>([])
   const [page, setPage] = useState(1)
+  const [docOptions, setDocOptions] = useState<DocOption[]>([]) 
   const [csDocOptions, setCsDocOptions] = useState<DocOption[]>([])
 
   // 追加行（型を明示）
@@ -64,24 +64,23 @@ export default function ShiftServiceCodePage() {
     setDocOptions(data)
   }
 
-  // 追加: 利用者書類（契約書 / プラン）用の選択肢
+  // ★ ここがポイント：cs_doc の id / label を value / label にマッピング
   const fetchCsDocOptions = async () => {
     const res = await fetch('/api/user-doc-master?category=cs_doc')
     if (!res.ok) return
-    const data = (await res.json()) as DocOption[]
-    setCsDocOptions(data)
+
+    // API が { id, label, ... } を返している前提
+    const data = (await res.json()) as { id: string; label: string }[]
+    const options: DocOption[] = data.map((d) => ({
+      value: d.id,
+      label: d.label,
+    }))
+    setCsDocOptions(options)
   }
 
   useEffect(() => {
     fetchDocOptions()
-    fetchCsDocOptions()   // ★ 追加
-    fetchRows()
-  }, [])
-
-
-
-  useEffect(() => {
-    fetchDocOptions()
+    fetchCsDocOptions() // ★ 追加
     fetchRows()
   }, [])
 
@@ -174,6 +173,7 @@ export default function ShiftServiceCodePage() {
     }
   }
 
+  /*
   const formatDT = (s?: string | null) => {
     if (!s) return '-'
     const d = new Date(s)
@@ -183,6 +183,7 @@ export default function ShiftServiceCodePage() {
       timeStyle: 'short',
     }).format(d)
   }
+    */
 
   return (
     <div className="w-full overflow-x-hidden px-2 md:px-4 py-2 space-y-3 md:space-y-4 text-sm">
@@ -209,7 +210,6 @@ export default function ShiftServiceCodePage() {
             <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
             <col style={{ width: '17%' }} /> {/* contract_requrired */}
             <col style={{ width: '17%' }} /> {/* plan_required */}
-            <col style={{ width: '20%' }} /> {/* created/updated */}
             <col style={{ width: '10%' }} /> {/* 操作 */}
           </colgroup>
 
@@ -221,7 +221,6 @@ export default function ShiftServiceCodePage() {
               <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
               <TableHead className="px-1 py-1">必要契約書</TableHead>
               <TableHead className="px-1 py-1">必要プラン</TableHead>
-              <TableHead className="px-1 py-1">作成 / 更新</TableHead>
               <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -274,14 +273,11 @@ export default function ShiftServiceCodePage() {
                     onChange={(e) => handleEdit(i, 'kaipoke_servicecode', e.target.value || null)}
                   />
                 </TableCell>
-
-                {/* ★ 契約書（contract_requrired） */}
+                {/* 契約書（contract_requrired） */}
                 <TableCell className="px-1 py-1">
                   <Select
                     value={r.contract_requrired ?? ''}
-                    onValueChange={(v: string) =>
-                      handleEdit(i, 'contract_requrired', v || null)
-                    }
+                    onValueChange={(v: string) => handleEdit(i, 'contract_requrired', v || null)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="未設定" />
@@ -297,13 +293,11 @@ export default function ShiftServiceCodePage() {
                   </Select>
                 </TableCell>
 
-                {/* ★ プラン（plan_required） */}
+                {/* プラン（plan_required） */}
                 <TableCell className="px-1 py-1">
                   <Select
                     value={r.plan_required ?? ''}
-                    onValueChange={(v: string) =>
-                      handleEdit(i, 'plan_required', v || null)
-                    }
+                    onValueChange={(v: string) => handleEdit(i, 'plan_required', v || null)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="未設定" />
@@ -318,14 +312,6 @@ export default function ShiftServiceCodePage() {
                     </SelectContent>
                   </Select>
                 </TableCell>
-
-                <TableCell className="px-1 py-1 whitespace-nowrap">
-                  <div className="leading-tight">
-                    <div className="text-xs text-muted-foreground">作成: {formatDT(r.created_at)}</div>
-                    <div className="text-xs text-muted-foreground">更新: {formatDT(r.updated_at)}</div>
-                  </div>
-                </TableCell>
-
                 <TableCell className="px-1 py-1">
                   <div className="flex gap-1">
                     <Button size="sm" onClick={() => handleSave(r)}>保存</Button>
@@ -429,11 +415,6 @@ export default function ShiftServiceCodePage() {
                   </SelectContent>
                 </Select>
               </TableCell>
-
-              <TableCell className="px-1 py-1 text-xs text-muted-foreground">
-                追加後に自動採番・更新
-              </TableCell>
-
               <TableCell className="px-1 py-1">
                 <Button size="sm" onClick={handleAdd}>追加</Button>
               </TableCell>
