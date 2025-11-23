@@ -16,6 +16,8 @@ import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfi
 import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check";
 import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_check";
 import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
+import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check"; // ★追加
+
 
 
 
@@ -31,6 +33,7 @@ type Body = {
   kodoengo_plan_link_check: CheckResult<{ scanned: number; created: number }>;
   lw_user_group_missing_check: CheckResult<{ scanned: number; created: number }>;
   shift_cert_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>;
+  cs_contract_plan_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>; // ★追加
 };
 
 export async function GET(req: NextRequest) {
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
     kodoengo_plan_link_check: { ok: false, error: 'not executed' },
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
     shift_cert_check: { ok: false, error: "not executed" },
+    cs_contract_plan_check: { ok: false, error: "not executed" }, 
   };
 
   try {
@@ -113,9 +117,20 @@ export async function GET(req: NextRequest) {
       result.shift_cert_check = { ok: false, error: msg };
       result.ok = false;
     }
-
+    
+    // 7) 契約書・計画書不足チェック
+    try {
+      const r = await runCsContractPlanCheck();
+      result.cs_contract_plan_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][cs_contract_plan_check] error', msg);
+      result.cs_contract_plan_check = { ok: false, error: msg };
+      result.ok = false;
+    }
 
     return NextResponse.json(result, { status: 200 });
+    
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[cron][alert-check-excuse] fatal', msg);
