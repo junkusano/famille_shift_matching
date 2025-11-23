@@ -23,14 +23,27 @@ export type CsContractPlanCheckResult = {
 export async function runCsContractPlanCheck(
   options?: CsContractPlanCheckOptions,
 ): Promise<CsContractPlanCheckResult> {
+  const startTs = Date.now();
+  console.info("[cs_contract_plan_check] start", { options });
+
   const scan: ContractPlanScanResult =
     await findClientsMissingContractAndPlanDocs(options);
 
   const { scannedShifts, clients } = scan;
 
+  console.info("[cs_contract_plan_check] scan result", {
+    scannedShifts,
+    clientCount: clients.length,
+  });
+
   if (clients.length === 0) {
-    console.info("[cs_contract_plan_check] no missing docs found", {
-      scannedShifts,
+    console.info("[cs_contract_plan_check] no missing docs found");
+    const durationMs = Date.now() - startTs;
+    console.info("[cs_contract_plan_check] end", {
+      scanned: scannedShifts,
+      alertsCreated: 0,
+      alertsUpdated: 0,
+      durationMs,
     });
     return { scanned: scannedShifts, alertsCreated: 0, alertsUpdated: 0 };
   }
@@ -39,6 +52,12 @@ export async function runCsContractPlanCheck(
   let alertsUpdated = 0;
 
   for (const client of clients) {
+    console.debug("[cs_contract_plan_check] ensuring alert for client", {
+      kaipoke_cs_id: client.kaipoke_cs_id,
+      name: client.name,
+      missingDocCount: client.missingDocs.length,
+    });
+
     const message = buildAlertMessage(client);
 
     const result = await ensureSystemAlert({
@@ -53,10 +72,12 @@ export async function runCsContractPlanCheck(
     else alertsUpdated += 1;
   }
 
-  console.info("[cs_contract_plan_check] done", {
-    scannedShifts,
+  const durationMs = Date.now() - startTs;
+  console.info("[cs_contract_plan_check] end", {
+    scanned: scannedShifts,
     alertsCreated,
     alertsUpdated,
+    durationMs,
   });
 
   return {
@@ -75,9 +96,6 @@ function buildAlertMessage(client: ClientMissingDocs): string {
   const servicePart = buildServicePart(client.relatedServiceCodes);
   const docPart = buildDocPart(client.missingDocs);
 
-  // ex
-  // <a href=".../利用者uuid">●●様</a>には 訪問介護サービス等を実施していますが、
-  // 必要な書類（居宅介護契約書 と 個別支援計画）が利用者情報へ格納されていません。...
   return `${link}には ${servicePart}等を実施していますが、必要な書類（${docPart}）が利用者情報へ格納されていません。書類の作成＆サイン受領を実施してください。`;
 }
 
@@ -98,7 +116,6 @@ function buildDocPart(missingDocs: MissingDoc[]): string {
 
   const labels = missingDocs.map((d) => d.docLabel || `書類(${d.docId})`);
 
-  // 「A」「A・B」「A・B・C」… のように連結
   if (labels.length === 1) return labels[0];
   if (labels.length === 2) return `${labels[0]}・${labels[1]}`;
 

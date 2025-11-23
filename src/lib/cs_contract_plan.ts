@@ -90,29 +90,29 @@ function extractDocMasterIdsFromDocuments(documents: unknown): Set<string> {
     const result = new Set<string>();
     if (!documents) return result;
 
-    let arr: unknown[] = []
+    let arr: unknown[] = [];
     if (Array.isArray(documents)) {
-        arr = documents;
+        arr = documents as unknown[];
     } else if (typeof documents === "string") {
         try {
-            const parsed = JSON.parse(documents);
-            if (Array.isArray(parsed)) arr = parsed;
+            const parsed: unknown = JSON.parse(documents);
+            if (Array.isArray(parsed)) arr = parsed as unknown[];
         } catch {
-            // 何もしない
+            // パース失敗は無視
         }
     }
 
     for (const item of arr) {
         if (!item || typeof item !== "object") continue;
 
-        // ★ここ重要★
+        const record = item as Record<string, unknown>;
+
         // documents の 1要素に「どの user_doc_master を使ったか」の ID が入っているはず。
-        // 代表的なキー候補を列挙してあるので、実際の JSON に合わせて1つに絞ってもOK。
         const candidates = ["doc_master_id", "type_id", "doc_type_id", "document_type_id"];
         let id: string | null = null;
 
         for (const key of candidates) {
-            const record = item as Record<string, unknown>; const v = record[key];
+            const v = record[key];
             if (typeof v === "string" && v) {
                 id = v;
                 break;
@@ -129,11 +129,16 @@ function extractDocMasterIdsFromDocuments(documents: unknown): Set<string> {
 export async function findClientsMissingContractAndPlanDocs(
     options?: ContractPlanScanOptions,
 ): Promise<ContractPlanScanResult> {
+    const startTs = Date.now();
+    console.info("[cs_contract_plan] start scan", { options });
+
     const now = new Date();
     const baseTo = new Date(now.getTime() + 10 * 86400000); // 今日 + 10日
 
     const fromDate = options?.fromDate ?? DEFAULT_FROM_DATE;
     const toDate = options?.toDate ?? formatYmd(baseTo);
+
+    console.info("[cs_contract_plan] date range", { fromDate, toDate });
 
     // 1. 期間内のシフト取得（ダミー利用者を除外）
     const { data: shifts, error: shiftError } = await supabaseAdmin
@@ -153,10 +158,18 @@ export async function findClientsMissingContractAndPlanDocs(
         return { scannedShifts: 0, clients: [] };
     }
 
+    console.info("[cs_contract_plan] fetched shifts", {
+        rawCount: shifts?.length ?? 0,
+    });
+
     const validShifts: ShiftRow[] = (shifts ?? []).filter(
         (s): s is ShiftRow =>
             !!s.kaipoke_cs_id && !!s.service_code && !!s.shift_start_date,
     );
+
+    console.info("[cs_contract_plan] valid shifts after filter", {
+        validCount: validShifts.length,
+    });
 
     if (validShifts.length === 0) {
         console.info("[cs_contract_plan] no shifts in range", { fromDate, toDate });
@@ -167,6 +180,10 @@ export async function findClientsMissingContractAndPlanDocs(
     const serviceCodes = Array.from(
         new Set(validShifts.map((s) => s.service_code as string)),
     );
+
+    console.info("[cs_contract_plan] unique service_codes", {
+        serviceCodeCount: serviceCodes.length,
+    });
 
     if (serviceCodes.length === 0) {
         return { scannedShifts: validShifts.length, clients: [] };
@@ -186,6 +203,10 @@ export async function findClientsMissingContractAndPlanDocs(
     }
 
     const svcList: ShiftServiceCodeRow[] = (svcRows ?? []) as ShiftServiceCodeRow[];
+
+    console.info("[cs_contract_plan] loaded shift_service_code rows", {
+        count: svcList.length,
+    });
 
     // service_code -> 必要書類リスト
     const svcDocMap = new Map<string, ServiceDocRequirement[]>();
@@ -219,6 +240,10 @@ export async function findClientsMissingContractAndPlanDocs(
             svcDocMap.set(code, list);
         }
     }
+
+    console.info("[cs_contract_plan] built service doc map", {
+        serviceWithRequirements: svcDocMap.size,
+    });
 
     if (svcDocMap.size === 0) {
         console.info(
@@ -267,11 +292,19 @@ export async function findClientsMissingContractAndPlanDocs(
         }
     }
 
+    console.info("[cs_contract_plan] built clientMap (requirements)", {
+        clientCount: clientMap.size,
+    });
+
     if (clientMap.size === 0) {
         return { scannedShifts: validShifts.length, clients: [] };
     }
 
     const targetCsIds = Array.from(clientMap.keys());
+
+    console.info("[cs_contract_plan] target cs_ids for client fetch", {
+        count: targetCsIds.length,
+    });
 
     // 5. 利用者情報取得（is_active, end_at はあえて見ない：過去分も整備対象）
     const { data: clientRows, error: clientError } = await supabaseAdmin
@@ -285,6 +318,10 @@ export async function findClientsMissingContractAndPlanDocs(
         });
         return { scannedShifts: validShifts.length, clients: [] };
     }
+
+    console.info("[cs_contract_plan] loaded cs_kaipoke_info rows", {
+        count: clientRows?.length ?? 0,
+    });
 
     const clientByCsId = new Map<string, ClientRow>();
     for (const row of clientRows ?? []) {
@@ -300,6 +337,10 @@ export async function findClientsMissingContractAndPlanDocs(
         }
     }
 
+    console.info("[cs_contract_plan] all required doc ids", {
+        docIdCount: allDocIds.size,
+    });
+
     const docNameById: Record<string, string> = {};
     if (allDocIds.size > 0) {
         const { data: docRows, error: docError } = await supabaseAdmin
@@ -313,6 +354,10 @@ export async function findClientsMissingContractAndPlanDocs(
                 { error: docError },
             );
         } else {
+            console.info("[cs_contract_plan] loaded user_doc_master rows", {
+                count: docRows?.length ?? 0,
+            });
+
             for (const row of docRows ?? []) {
                 const { id, label } = row as { id: string; label: string | null };
                 if (id && label) {
@@ -321,7 +366,6 @@ export async function findClientsMissingContractAndPlanDocs(
             }
         }
     }
-
 
     // 7. 利用者ごとに不足書類を判定
     const resultClients: ClientMissingDocs[] = [];
@@ -369,6 +413,28 @@ export async function findClientsMissingContractAndPlanDocs(
             missingDocs,
         });
     }
+
+    console.info("[cs_contract_plan] result clients with missing docs", {
+        clientCount: resultClients.length,
+    });
+
+    if (resultClients.length > 0) {
+        console.debug(
+            "[cs_contract_plan] first few result clients",
+            resultClients.slice(0, 5).map((c) => ({
+                kaipoke_cs_id: c.kaipoke_cs_id,
+                name: c.name,
+                missingDocCount: c.missingDocs.length,
+            })),
+        );
+    }
+
+    const endTs = Date.now();
+    console.info("[cs_contract_plan] end scan", {
+        scannedShifts: validShifts.length,
+        resultClients: resultClients.length,
+        durationMs: endTs - startTs,
+    });
 
     return {
         scannedShifts: validShifts.length,
