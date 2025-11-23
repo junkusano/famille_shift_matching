@@ -23,7 +23,12 @@ export async function POST() {
   const existingSet = new Set((existing ?? []).map((r) => r.service_code))
   const toInsert = distinctShiftCodes
     .filter((c) => !existingSet.has(c))
-    .map((c) => ({ service_code: c, require_doc_group: null }))
+    .map((c) => ({
+      service_code: c,
+      require_doc_group: null,
+      contract_requrired: null,
+      plan_required: null,
+    }))
 
   if (toInsert.length > 0) {
     const { error: errInsert } = await supabaseAdmin.from('shift_service_code').insert(toInsert)

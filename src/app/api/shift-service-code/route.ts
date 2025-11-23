@@ -22,6 +22,8 @@ export async function POST(req: Request) {
     require_doc_group: body.require_doc_group ?? null,
     kaipoke_servicek: body.kaipoke_servicek ?? null,
     kaipoke_servicecode: body.kaipoke_servicecode ?? null,
+    contract_requrired: body.contract_requrired ?? null,
+    plan_required: body.plan_required ?? null,
   }
   if (!payload.service_code?.trim()) {
     return NextResponse.json({ error: 'service_code は必須です' }, { status: 400 })

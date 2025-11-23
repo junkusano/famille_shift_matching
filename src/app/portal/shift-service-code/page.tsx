@@ -12,10 +12,10 @@ type Row = {
   id: string
   service_code: string
   require_doc_group: string | null
-  // 追加: 管理項目
+  contract_requrired: string | null
+  plan_required: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
-  // 既存/表示用
   created_at?: string | null
   updated_at?: string | null
 }
@@ -23,7 +23,8 @@ type Row = {
 type NewRow = {
   service_code: string
   require_doc_group: string | null
-  // 追加: 管理項目
+  contract_requrired: string | null
+  plan_required: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
 }
@@ -36,11 +37,14 @@ export default function ShiftServiceCodePage() {
   const [rows, setRows] = useState<Row[]>([])
   const [docOptions, setDocOptions] = useState<DocOption[]>([])
   const [page, setPage] = useState(1)
+  const [csDocOptions, setCsDocOptions] = useState<DocOption[]>([])
 
   // 追加行（型を明示）
   const [newRow, setNewRow] = useState<NewRow>({
     service_code: '',
     require_doc_group: null,
+    contract_requrired: null,
+    plan_required: null,
     kaipoke_servicek: '',
     kaipoke_servicecode: '',
   })
@@ -59,6 +63,22 @@ export default function ShiftServiceCodePage() {
     const data = (await res.json()) as DocOption[]
     setDocOptions(data)
   }
+
+  // 追加: 利用者書類（契約書 / プラン）用の選択肢
+  const fetchCsDocOptions = async () => {
+    const res = await fetch('/api/user-doc-master?category=cs_doc')
+    if (!res.ok) return
+    const data = (await res.json()) as DocOption[]
+    setCsDocOptions(data)
+  }
+
+  useEffect(() => {
+    fetchDocOptions()
+    fetchCsDocOptions()   // ★ 追加
+    fetchRows()
+  }, [])
+
+
 
   useEffect(() => {
     fetchDocOptions()
@@ -128,6 +148,8 @@ export default function ShiftServiceCodePage() {
       setNewRow({
         service_code: '',
         require_doc_group: null,
+        contract_requrired: null,
+        plan_required: null,
         kaipoke_servicek: '',
         kaipoke_servicecode: '',
       })
@@ -185,6 +207,8 @@ export default function ShiftServiceCodePage() {
             <col style={{ width: '22%' }} /> {/* require_doc_group */}
             <col style={{ width: '15%' }} /> {/* kaipoke_servicek */}
             <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
+            <col style={{ width: '17%' }} /> {/* contract_requrired */}
+            <col style={{ width: '17%' }} /> {/* plan_required */}
             <col style={{ width: '20%' }} /> {/* created/updated */}
             <col style={{ width: '10%' }} /> {/* 操作 */}
           </colgroup>
@@ -195,6 +219,8 @@ export default function ShiftServiceCodePage() {
               <TableHead className="px-1 py-1">require_doc_group（証明書グループ）</TableHead>
               <TableHead className="px-1 py-1">Kaipoke区分（kaipoke_servicek）</TableHead>
               <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
+              <TableHead className="px-1 py-1">必要契約書</TableHead>
+              <TableHead className="px-1 py-1">必要プラン</TableHead>
               <TableHead className="px-1 py-1">作成 / 更新</TableHead>
               <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
@@ -247,6 +273,50 @@ export default function ShiftServiceCodePage() {
                     value={r.kaipoke_servicecode ?? ''}
                     onChange={(e) => handleEdit(i, 'kaipoke_servicecode', e.target.value || null)}
                   />
+                </TableCell>
+
+                {/* ★ 契約書（contract_requrired） */}
+                <TableCell className="px-1 py-1">
+                  <Select
+                    value={r.contract_requrired ?? ''}
+                    onValueChange={(v: string) =>
+                      handleEdit(i, 'contract_requrired', v || null)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="未設定" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">未設定</SelectItem>
+                      {csDocOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+
+                {/* ★ プラン（plan_required） */}
+                <TableCell className="px-1 py-1">
+                  <Select
+                    value={r.plan_required ?? ''}
+                    onValueChange={(v: string) =>
+                      handleEdit(i, 'plan_required', v || null)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="未設定" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">未設定</SelectItem>
+                      {csDocOptions.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TableCell>
 
                 <TableCell className="px-1 py-1 whitespace-nowrap">
@@ -314,6 +384,50 @@ export default function ShiftServiceCodePage() {
                   value={newRow.kaipoke_servicecode ?? ''}
                   onChange={(e) => setNewRow({ ...newRow, kaipoke_servicecode: e.target.value || null })}
                 />
+              </TableCell>
+
+              {/* ★ 契約書（contract_requrired） */}
+              <TableCell className="px-1 py-1">
+                <Select
+                  value={newRow.contract_requrired ?? ''}
+                  onValueChange={(v: string) =>
+                    setNewRow({ ...newRow, contract_requrired: v || null })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="未設定" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">未設定</SelectItem>
+                    {csDocOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
+
+              {/* ★ プラン（plan_required） */}
+              <TableCell className="px-1 py-1">
+                <Select
+                  value={newRow.plan_required ?? ''}
+                  onValueChange={(v: string) =>
+                    setNewRow({ ...newRow, plan_required: v || null })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="未設定" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">未設定</SelectItem>
+                    {csDocOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </TableCell>
 
               <TableCell className="px-1 py-1 text-xs text-muted-foreground">
