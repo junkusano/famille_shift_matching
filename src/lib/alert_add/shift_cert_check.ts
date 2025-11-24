@@ -14,16 +14,9 @@ import {
   determineServicesFromCertificates,
 } from "@/lib/certificateJudge";
 
-// Attachments 型（ShiftCard と同じ構造を想定）
-export type Attachment = {
-  id: string;
-  url: string | null;
-  type: string | null;
-  label: string | null;
-  mimeType?: string | null;
-  acquired_at?: string | null;
-  uploaded_at?: string | null;
-};
+// =========================================================
+// 型定義
+// =========================================================
 
 export type ShiftCertCheckResult = {
   scanned: number;
@@ -36,6 +29,10 @@ export type ShiftCertCheckOptions = {
 };
 
 const DEFAULT_FROM_DATE = "2025-07-01";
+
+// ユーザーごとのキャッシュ
+const userCertCache = new Map<string, DocItemLite[]>();
+const userServiceKeyCache = new Map<string, ServiceKey[]>();
 
 // =========================================================
 // メイン
@@ -116,17 +113,19 @@ async function judgeShiftCertificates(
 
   const serviceCode = shift.service_code ?? "";
 
-  // ★ 行動援護だけは「行動援護（実務経験証明書）」必須で特別扱い
-  if (serviceCode === "行動援護") {
-    return judgeKodoengoShift(shift, staffUserIds);
+  // 行動援護は専用ロジック
+  if (serviceCode.includes("行動援護")) {
+    return judgeKodoengoShiftCertificates(shift, staffUserIds);
   }
 
-  // それ以外のサービスコードは、マスタの doc_group ベースで汎用判定
+  // それ以外は certificateJudge による資格キー判定
   const requiredKeys = getRequiredKeysFromMaster(serviceCode, masterRows);
-
-  // 必要資格キーが未定義なサービスはチェック対象外（アラートしない）
   if (requiredKeys.length === 0) {
-    return { shouldAlert: false, message: "" };
+    // 必要資格がマスタに定義されていない => このサービスはチェック対象外
+    return {
+      shouldAlert: false,
+      message: "",
+    };
   }
 
   const baseByTwoPerson = shift.two_person_work_flg ? 2 : 1;
@@ -140,31 +139,36 @@ async function judgeShiftCertificates(
   const reasons: string[] = [];
 
   for (const userId of staffUserIds) {
+    // ★ ユーザーごとに資格書類をキャッシュ
     const userDocs = await loadUserCertDocs(userId);
-    const userKeys = determineServicesFromCertificates(
-      userDocs,
-      masterRows,
-    ) as ServiceKey[];
 
-    if (!userKeys || userKeys.length === 0) {
-      reasons.push(`スタッフ ${userId}: 資格証明書が登録されていません`);
-      continue;
+    // ★ ユーザーごとに ServiceKey もキャッシュ
+    let userKeys = userServiceKeyCache.get(userId);
+    if (!userKeys) {
+      userKeys = determineServicesFromCertificates(
+        userDocs,
+        masterRows,
+      ) as ServiceKey[];
+      userServiceKeyCache.set(userId, userKeys);
     }
 
-    const hasRequired = requiredKeys.some((rk) => userKeys.includes(rk));
-    if (hasRequired) {
+    const hasAll = requiredKeys.every((req) => userKeys!.includes(req));
+    if (hasAll) {
       okCount += 1;
     } else {
       reasons.push(
-        `スタッフ ${userId}: 必要な資格キー(${requiredKeys.join(
-          ", ",
-        )})を保有していません`,
+        `スタッフ ${userId}: 必要資格キー ${requiredKeys.join(
+          ",",
+        )} を満たしていません (保持: ${userKeys.join(",") || "なし"})`,
       );
     }
   }
 
   if (okCount >= requiredStaffCount) {
-    return { shouldAlert: false, message: "" };
+    return {
+      shouldAlert: false,
+      message: "",
+    };
   }
 
   const reasonText = [
@@ -178,8 +182,11 @@ async function judgeShiftCertificates(
   };
 }
 
-// ★ 行動援護専用ロジック
-async function judgeKodoengoShift(
+// =========================================================
+// 行動援護シフトの専用判定
+// =========================================================
+
+async function judgeKodoengoShiftCertificates(
   shift: ShiftShiftRecordRow,
   staffUserIds: string[],
 ): Promise<{ shouldAlert: boolean; message: string }> {
@@ -194,6 +201,7 @@ async function judgeKodoengoShift(
   const reasons: string[] = [];
 
   for (const userId of staffUserIds) {
+    // ★ ここも loadUserCertDocs 経由なので、ユーザーごとにキャッシュされる
     const userDocs = await loadUserCertDocs(userId);
 
     // ラベルに「行動援護（実務経験証明書）」を含む資格があるかどうかだけを見る
@@ -212,7 +220,10 @@ async function judgeKodoengoShift(
   }
 
   if (okCount >= requiredStaffCount) {
-    return { shouldAlert: false, message: "" };
+    return {
+      shouldAlert: false,
+      message: "",
+    };
   }
 
   const reasonText = [
@@ -225,28 +236,49 @@ async function judgeKodoengoShift(
     message: buildAlertMessage(shift, reasonText),
   };
 }
-
 // =========================================================
-// Supabase アクセス
+// 資格マスタ取得
 // =========================================================
 
 async function loadCertificateMaster(): Promise<DocMasterRow[]> {
   const { data, error } = await supabaseAdmin
     .from("user_doc_master")
-    .select("category,label,is_active,sort_order,service_key:doc_group")
-    .eq("category", "certificate")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+    .select(
+      `
+      id,
+      label,
+      service_key,
+      category
+    `,
+    )
+    .eq("is_cert", true);
 
   if (error || !data) {
-    console.warn("[shift_cert_check] user_doc_master load failed:", error);
+    console.error("[shift_cert_check] certificate master load failed:", error);
     return [];
   }
 
-  return data as DocMasterRow[];
+  // Supabase の戻り値 → DocMasterRow[] にキャスト
+  return data as unknown as DocMasterRow[];
 }
 
+
+// =========================================================
+// ユーザーの資格書類取得（キャッシュ付き）
+// =========================================================
+
+type Attachment = {
+  label?: string | null;
+  type?: string | null;
+};
+
 async function loadUserCertDocs(userId: string): Promise<DocItemLite[]> {
+  // ① キャッシュヒットならそのまま返す
+  const cached = userCertCache.get(userId);
+  if (cached) {
+    return cached;
+  }
+
   const { data: userRow, error: userError } = await supabaseAdmin
     .from("users")
     .select("auth_user_id")
@@ -258,6 +290,7 @@ async function loadUserCertDocs(userId: string): Promise<DocItemLite[]> {
       userId,
       error: userError?.message,
     });
+    userCertCache.set(userId, []);
     return [];
   }
 
@@ -275,6 +308,7 @@ async function loadUserCertDocs(userId: string): Promise<DocItemLite[]> {
       authUid,
       error: feError?.message,
     });
+    userCertCache.set(userId, []);
     return [];
   }
 
@@ -296,6 +330,9 @@ async function loadUserCertDocs(userId: string): Promise<DocItemLite[]> {
     label: a.label ?? null,
     type: a.type ?? "資格証明書",
   }));
+
+  // ② 取得した結果をキャッシュ
+  userCertCache.set(userId, docs);
 
   return docs;
 }
@@ -325,8 +362,8 @@ function getRequiredKeysFromMaster(
     if (typeof sk === "string") {
       for (const v of splitKeys(sk)) keys.add(v as ServiceKey);
     } else if (Array.isArray(sk)) {
-      for (const s of sk) {
-        for (const v of splitKeys(s)) keys.add(v as ServiceKey);
+      for (const v of sk) {
+        if (typeof v === "string") keys.add(v as ServiceKey);
       }
     }
   }
@@ -335,33 +372,26 @@ function getRequiredKeysFromMaster(
 }
 
 function splitKeys(raw: string): string[] {
-  const s = raw.trim();
-  if (!s) return [];
-  return s
-    .split(/[\/,、・\s　]+/)
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
+  return raw
+    .split(/[,\u3001、]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 // =========================================================
-// 表示用
+// メッセージ組立
 // =========================================================
 
 function buildAlertMessage(
   shift: ShiftShiftRecordRow,
   reason: string,
 ): string {
-  const client =
-    shift.client_name && shift.client_name.trim().length > 0
-      ? shift.client_name
-      : "（利用者名なし）";
-
+  const client = shift.client_name ?? "利用者名不明";
   const time = extractHHMM(shift.shift_start_time);
   const svc = shift.service_code ?? "サービス不明";
 
-  return `【要確認】シフト資格未整備：${client}（CS ID: ${
-    shift.kaipoke_cs_id ?? "不明"
-  }） ${shift.shift_start_date}${time} サービス: ${svc} / ${reason}`;
+  return `【要確認】シフト資格未整備：${client}（CS ID: ${shift.kaipoke_cs_id ?? "不明"
+    }） ${shift.shift_start_date}${time} サービス: ${svc} / ${reason}`;
 }
 
 function extractHHMM(t: string | null): string {
