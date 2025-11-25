@@ -10,7 +10,8 @@ import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
 import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 // ========= Types =========
 type KaipokeCs = {
@@ -748,6 +749,11 @@ export default function MonthlyRosterPage() {
         );
     }, [kaipokeCs, clientSearchKeyword]);
 
+    // ★ 特定コメント用ダイアログの状態
+    const [tokuteiDialogOpen, setTokuteiDialogOpen] = useState(false);
+    const [tokuteiEditingShiftId, setTokuteiEditingShiftId] = useState<string | null>(null);
+    const [tokuteiEditingText, setTokuteiEditingText] = useState('');
+
     // 保存
     const handleSave = async (row: ShiftRow) => {
         if (readOnly) return;
@@ -829,20 +835,35 @@ export default function MonthlyRosterPage() {
         alert('保存しました');
     };
 
-    // 特定コメント編集ダイアログ（prompt 利用）
-    const handleEditTokuteiComment = async (row: ShiftRow) => {
+    // 特定コメント編集ダイアログ（カスタムダイアログ + Textarea）
+    const handleEditTokuteiComment = (row: ShiftRow) => {
         const current = row.tokutei_comment ?? '';
 
-        // 読み取り専用のときは閲覧のみ
+        // 読み取り専用のときは閲覧のみ（従来どおりアラート表示）
         if (readOnly) {
             alert(current.trim() ? current : '特定コメントは登録されていません。');
             return;
         }
 
-        const updated = window.prompt('特定コメントを入力してください', current);
-        if (updated === null) return; // キャンセル
+        setTokuteiEditingShiftId(row.shift_id);
+        setTokuteiEditingText(current);
+        setTokuteiDialogOpen(true);
+    };
 
-        const trimmed = updated.trim();
+    // ダイアログ内［保存］ボタン
+    const handleTokuteiDialogSave = async () => {
+        if (!tokuteiEditingShiftId) {
+            setTokuteiDialogOpen(false);
+            return;
+        }
+        const row = shifts.find(r => r.shift_id === tokuteiEditingShiftId);
+        if (!row) {
+            alert('対象のシフトが見つかりません。');
+            setTokuteiDialogOpen(false);
+            return;
+        }
+
+        const trimmed = tokuteiEditingText.trim();
         const nextComment: string | null = trimmed === '' ? null : trimmed;
 
         // ローカル state 更新
@@ -851,7 +872,10 @@ export default function MonthlyRosterPage() {
         // サーバ保存（tokutei_comment を含めて PUT）
         const newRow: ShiftRow = { ...row, tokutei_comment: nextComment };
         await handleSave(newRow);
+
+        setTokuteiDialogOpen(false);
     };
+
 
 
     // ローカル更新
@@ -1566,7 +1590,7 @@ export default function MonthlyRosterPage() {
                                                                 <ShiftRecordLinkButton
                                                                     shiftId={String(row.shift_id)}
                                                                     clientName={getString(row, "name") ?? getString(row, "client_name") ?? ""}
-                                                                    tokuteiComment={getString(row, "biko") ?? ""} 
+                                                                    tokuteiComment={getString(row, "biko") ?? ""}
                                                                     standardRoute={sr}
                                                                     standardTransWays={stw}
                                                                     standardPurpose={sp}
@@ -1625,10 +1649,47 @@ export default function MonthlyRosterPage() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* ★ 特定コメント編集ダイアログ */}
+            <Dialog
+                open={tokuteiDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setTokuteiDialogOpen(false);
+                    }
+                }}
+            >
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>特定コメント</DialogTitle>
+                    </DialogHeader>
+
+                    <Textarea
+                        value={tokuteiEditingText}
+                        onChange={(e) => setTokuteiEditingText(e.target.value)}
+                        rows={10}                         // ← ★ 縦10行
+                        className="w-full min-w-[600px]"  // ← ★ 横幅も広めに
+                        placeholder="特定コメントを入力してください"
+                    />
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setTokuteiDialogOpen(false)}
+                        >
+                            キャンセル
+                        </Button>
+                        <Button onClick={handleTokuteiDialogSave}>
+                            保存
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
 
     )
 }
+
 
 type Option = { value: string; label: string };
 
