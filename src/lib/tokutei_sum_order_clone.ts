@@ -1,10 +1,4 @@
-// ===========================================
-//  src/lib/tokutei_sum_order_clone.ts
-//  特定コメントのクローン生成
-//  - tokutei_comment が未設定のシフトに対して
-//    /api/tokutei/sum-order をまとめて叩く
-// ===========================================
-
+// src/lib/tokutei_sum_order_clone.ts
 import "server-only";
 import { NextRequest } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
@@ -29,6 +23,15 @@ export type TokuteiCloneResult = {
     length?: number;
     error?: string;
   }[];
+};
+
+// /api/tokutei/sum-order のレスポンス想定型
+type SumOrderResponse = {
+  ok?: boolean;
+  error?: string;
+  wrote_to?: string;
+  target_shift_id?: number;
+  length?: number;
 };
 
 /**
@@ -93,18 +96,23 @@ export async function runTokuteiSumOrderClone(options?: {
         r.kaipoke_cs_id
       );
 
-      const req = new NextRequest(
-        "http://localhost/api/tokutei/sum-order",
-        {
-          method: "POST",
-          body: JSON.stringify({ shift_id: r.shift_id }),
-        }
+      const url = new URL(
+        "/api/tokutei/sum-order",
+        "http://localhost" // ベースはダミーでOK
       );
 
-      const res = await sumOrderPost(req);
-      const json = (await res.json()) as any;
+      const req = new NextRequest(url.toString(), {
+        method: "POST",
+        body: JSON.stringify({ shift_id: r.shift_id }),
+        headers: {
+          "content-type": "application/json",
+        },
+      });
 
-      if (json?.error) {
+      const res = await sumOrderPost(req);
+      const json = (await res.json()) as SumOrderResponse;
+
+      if (json.error) {
         console.warn(
           "[tokutei/clone] sum-order error",
           r.shift_id,
@@ -120,16 +128,16 @@ export async function runTokuteiSumOrderClone(options?: {
           "[tokutei/clone] done",
           r.shift_id,
           "->",
-          json?.target_shift_id,
+          json.target_shift_id,
           "len=",
-          json?.length
+          json.length
         );
         results.push({
           shift_id: r.shift_id,
-          ok: !!json?.ok,
-          wrote_to: json?.wrote_to,
-          target_shift_id: json?.target_shift_id,
-          length: json?.length,
+          ok: Boolean(json.ok),
+          wrote_to: json.wrote_to,
+          target_shift_id: json.target_shift_id,
+          length: json.length,
         });
       }
     } catch (e) {
