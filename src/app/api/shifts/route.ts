@@ -101,6 +101,8 @@ export async function GET(req: Request) {
         required_staff_count: String(requiredCount),
         // twoPerson (boolean) を String(twoPerson) に変換 ("true" or "false" になる)
         two_person_work_flg: String(twoPerson),
+        // ★ 追加：特定コメント（無ければ null）
+        tokutei_comment: row['tokutei_comment'] != null ? String(row['tokutei_comment']) : null,
         judo_ido: String(row['judo_ido'] ?? ''), // 無ければ空文字
       }
     })
@@ -172,6 +174,8 @@ export async function POST(req: Request) {
       staff_02_role_code: (raw['staff_02_role_code'] ?? null) as string | null,
       staff_03_role_code: (raw['staff_03_role_code'] ?? null) as string | null,
       judo_ido: (raw['judo_ido'] ?? null) as string | null,
+      // ★ 追加：特定コメント
+      tokutei_comment: (raw['tokutei_comment'] ?? null) as string | null,
     };
 
     const SHIFT_TABLE = 'shift' as const;
@@ -233,8 +237,10 @@ export async function PUT(req: Request) {
 
     ([
       'service_code', 'staff_01_user_id', 'staff_02_user_id', 'staff_03_user_id',
-      'staff_01_role_code', 'staff_02_role_code', 'staff_03_role_code', 'judo_ido'
+      'staff_01_role_code', 'staff_02_role_code', 'staff_03_role_code', 'judo_ido',
+      'tokutei_comment',
     ] as const).forEach(k => setIf(k, (raw[k] ?? null) as string | null));
+
 
     if (raw['staff_02_attend_flg'] !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg']);
     if (raw['staff_03_attend_flg'] !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg']);

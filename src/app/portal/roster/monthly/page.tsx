@@ -55,6 +55,9 @@ type ShiftRow = {
     staff_02_attend_flg: boolean | null
     staff_03_attend_flg: boolean | null
 
+    // ★ 特定コメント（shift.tokutei_comment）
+    tokutei_comment: string | null
+
     // ★★★ 修正箇所 (1): dup_role に '02' を追加 ★★★
     dup_role: '-' | '01'; // 2人同時作業なら '01'
 
@@ -506,6 +509,8 @@ export default function MonthlyRosterPage() {
                 staff_03_user_id: draft.staff_03_user_id,
                 staff_02_attend_flg: !!draft.staff_02_attend_flg,
                 staff_03_attend_flg: !!draft.staff_03_attend_flg,
+                // 新規行は特定コメントなしで初期化
+                tokutei_comment: null,
                 dispatch_size: draft.dispatch_size,
                 dup_role: draft.dup_role,
             }];
@@ -805,6 +810,8 @@ export default function MonthlyRosterPage() {
             staff_03_user_id: row.staff_03_user_id,
             staff_02_attend_flg: asBool(row.staff_02_attend_flg),
             staff_03_attend_flg: asBool(row.staff_03_attend_flg),
+            // ★ 追加：特定コメント
+            tokutei_comment: row.tokutei_comment ?? null,
             shift_start_time: hmToHMS(toHM(row.shift_start_time)),
             shift_end_time: hmToHMS(toHM(row.shift_end_time)),
         };
@@ -821,6 +828,31 @@ export default function MonthlyRosterPage() {
         }
         alert('保存しました');
     };
+
+    // 特定コメント編集ダイアログ（prompt 利用）
+    const handleEditTokuteiComment = async (row: ShiftRow) => {
+        const current = row.tokutei_comment ?? '';
+
+        // 読み取り専用のときは閲覧のみ
+        if (readOnly) {
+            alert(current.trim() ? current : '特定コメントは登録されていません。');
+            return;
+        }
+
+        const updated = window.prompt('特定コメントを入力してください', current);
+        if (updated === null) return; // キャンセル
+
+        const trimmed = updated.trim();
+        const nextComment: string | null = trimmed === '' ? null : trimmed;
+
+        // ローカル state 更新
+        updateRow(row.shift_id, 'tokutei_comment', nextComment);
+
+        // サーバ保存（tokutei_comment を含めて PUT）
+        const newRow: ShiftRow = { ...row, tokutei_comment: nextComment };
+        await handleSave(newRow);
+    };
+
 
     // ローカル更新
     const updateRow = <K extends keyof ShiftRow>(shiftId: string, field: K, value: ShiftRow[K]) => {
@@ -1485,7 +1517,7 @@ export default function MonthlyRosterPage() {
                                                     />
                                                 </div>
 
-                                                {/* 操作（右寄せ）：訪問記録・保存・× */}
+                                                {/* 操作（右寄せ）：特定コメント・訪問記録・保存・× */}
                                                 <div className="ml-auto flex gap-2">
                                                     {(() => {
                                                         const s = recordStatus[row.shift_id] as RecordStatus | undefined;
@@ -1496,7 +1528,7 @@ export default function MonthlyRosterPage() {
                                                         const now = new Date();
                                                         const isPastStart = shiftStart.getTime() < now.getTime();
 
-                                                        // === ボタン色 ===
+                                                        // === 訪問記録ボタンの色 ===
                                                         const isSubmitted = s === 'submitted';
                                                         const isGreen = isSubmitted || s === 'approved' || s === 'archived';
                                                         const isRed = !isSubmitted && isPastStart;
@@ -1515,35 +1547,61 @@ export default function MonthlyRosterPage() {
                                                         const stw = pickNonEmpty(getString(row, "standard_trans_ways"), k.standard_trans_ways);
                                                         const sp = pickNonEmpty(getString(row, "standard_purpose"), k.standard_purpose);
 
+                                                        // ② コメントあり/なしで見た目を変えるためのフラグ
+                                                        const hasTokutei = !!(row.tokutei_comment && row.tokutei_comment.trim() !== "");
+
                                                         return (
-                                                            <ShiftRecordLinkButton
-                                                                shiftId={String(row.shift_id)}
-                                                                clientName={getString(row, "name") ?? getString(row, "client_name") ?? ""}
-                                                                tokuteiComment={getString(row, "biko") ?? ""}
-                                                                standardRoute={sr}
-                                                                standardTransWays={stw}
-                                                                standardPurpose={sp}
-                                                                staff01UserId={row.staff_01_user_id ?? ""}
-                                                                staff02UserId={row.staff_02_user_id ?? ""}
-                                                                staff03UserId={row.staff_03_user_id ?? ""}
-                                                                staff02AttendFlg={String(asBool(row.staff_02_attend_flg))}
-                                                                staff03AttendFlg={String(asBool(row.staff_03_attend_flg))}
-                                                                judoIdo={row.judo_ido != null ? String(row.judo_ido) : ""}
-                                                                className={`w-full ${colorCls}`}
-                                                                variant="secondary"
-                                                            />
+                                                            <div className="flex gap-2">
+                                                                {/* ① 特定コメント（訪問記録の左側） */}
+                                                                <Button
+                                                                    type="button"
+                                                                    variant={hasTokutei ? "default" : "outline"}
+                                                                    className={hasTokutei ? "border-amber-500" : "opacity-60"}
+                                                                    onClick={() => void handleEditTokuteiComment(row)}
+                                                                >
+                                                                    特定コメント{hasTokutei ? "" : "（未）"}
+                                                                </Button>
+
+                                                                {/* 訪問記録リンク（既存） */}
+                                                                <ShiftRecordLinkButton
+                                                                    shiftId={String(row.shift_id)}
+                                                                    clientName={getString(row, "name") ?? getString(row, "client_name") ?? ""}
+                                                                    tokuteiComment={getString(row, "biko") ?? ""} 
+                                                                    standardRoute={sr}
+                                                                    standardTransWays={stw}
+                                                                    standardPurpose={sp}
+                                                                    staff01UserId={row.staff_01_user_id ?? ""}
+                                                                    staff02UserId={row.staff_02_user_id ?? ""}
+                                                                    staff03UserId={row.staff_03_user_id ?? ""}
+                                                                    staff02AttendFlg={String(asBool(row.staff_02_attend_flg))}
+                                                                    staff03AttendFlg={String(asBool(row.staff_03_attend_flg))}
+                                                                    judoIdo={row.judo_ido != null ? String(row.judo_ido) : ""}
+                                                                    className={`w-full ${colorCls}`}
+                                                                    variant="secondary"
+                                                                />
+                                                            </div>
                                                         );
                                                     })()}
 
                                                     <LockIf locked={readOnly}>
-                                                        <Button variant="default" onClick={() => handleSave(row)} disabled={saveDisabled}
-                                                            title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}>
+                                                        <Button
+                                                            variant="default"
+                                                            onClick={() => handleSave(row)}
+                                                            disabled={saveDisabled}
+                                                            title={saveDisabled ? '開始日/開始時間/終了時間/重度移動 の入力を確認してください' : ''}
+                                                        >
                                                             保存
                                                         </Button>
-                                                        <Button variant="destructive" onClick={() => handleDeleteOne(row.shift_id)}>×</Button>
+                                                        <Button
+                                                            variant="destructive"
+                                                            onClick={() => handleDeleteOne(row.shift_id)}
+                                                        >
+                                                            ×
+                                                        </Button>
                                                     </LockIf>
                                                 </div>
                                             </div>
+
 
                                         </TableCell>
                                     </TableRow>
