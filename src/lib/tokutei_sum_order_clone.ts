@@ -51,7 +51,7 @@ export async function runTokuteiSumOrderClone(options?: {
     const fromDate = options?.fromDate ?? null;
 
     // ★テスト対象の利用者ID
-    const TARGET_CS_ID = "8753079" as const;
+    const TARGET_CS_ID = "12369990" as const;
 
     // 1) 対象シフトを取得
 
@@ -92,7 +92,7 @@ export async function runTokuteiSumOrderClone(options?: {
 
     /* 
     ② この方だけに絞る（テスト用）
-    const TARGET_CS_ID = "7310167"; // ← 今回テストしたい利用者
+    const TARGET_CS_ID = "7310167"; // ← 今回テストしたい利用者8753079
     const rows: ShiftLite[] = allRows.filter(
       (r) => r.kaipoke_cs_id === TARGET_CS_ID
     );
