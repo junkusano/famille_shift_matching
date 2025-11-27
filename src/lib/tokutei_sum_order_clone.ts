@@ -15,8 +15,8 @@ type ShiftLite = {
 };
 
 export type TokuteiCloneResult = {
-    totalTargets: number; // 最終的に「処理対象」となった件数（チェーン除外後）
-    processed: number;    // 実際にループを回して結果を積んだ件数（＝results.length）
+    totalTargets: number; // 「チェーン途中除外後」のターゲット総数
+    processed: number;    // この1回の実行で実際にループを回した件数（＝結果件数）
     results: {
         shift_id: number;
         ok: boolean;
@@ -42,7 +42,7 @@ type SumOrderResponse = {
  * - tokutei_comment が空の shift を拾って
  *   既存の /api/tokutei/sum-order に投げる
  *
- * @param options.limit    一度に処理する件数（デフォルト 200）
+ * @param options.limit    一度に処理する最大件数（デフォルト 200）
  * @param options.fromDate 何日以降のシフトだけを対象にする（YYYY-MM-DD）
  */
 export async function runTokuteiSumOrderClone(options?: {
@@ -52,29 +52,27 @@ export async function runTokuteiSumOrderClone(options?: {
     const limit = options?.limit ?? 200;
     const fromDate = options?.fromDate ?? null;
 
-    // 1) 対象シフトを取得
-
     // 今日の日付（YYYY-MM-DD）
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    let query = supabase
+    // 1) tokutei_comment が null のシフトをまず全部とる（この段階では limit なし）
+    let baseQuery = supabase
         .from("shift")
         .select(
             "shift_id, shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, tokutei_comment"
         )
         .is("tokutei_comment", null)
         .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true })
-        //.limit(limit);  //ここではlimitかけない　単にtokutei_comment is null だけでは連続シフトだけで満杯になることもあるから
+        .order("shift_start_time", { ascending: true });
 
     if (fromDate) {
-        query = query.gte("shift_start_date", fromDate);
+        baseQuery = baseQuery.gte("shift_start_date", fromDate);
     }
 
     // 今日までのシフトだけを対象にする
-    query = query.lte("shift_start_date", todayStr);
+    baseQuery = baseQuery.lte("shift_start_date", todayStr);
 
-    const { data, error } = await query;
+    const { data, error } = await baseQuery;
 
     if (error) {
         console.error("[tokutei/clone] shift select error", error);
@@ -83,7 +81,6 @@ export async function runTokuteiSumOrderClone(options?: {
 
     const rows = (data ?? []) as ShiftLite[];
 
-    // まず「tokutei_comment が空」かつ「fromDate～today」の範囲に該当するシフトが 0 件
     if (rows.length === 0) {
         console.info("[tokutei/clone] no target rows (before chain filter)");
         return {
@@ -92,6 +89,15 @@ export async function runTokuteiSumOrderClone(options?: {
             results: [],
         };
     }
+
+    console.info(
+        "[tokutei/clone] raw rows (tokutei_comment=null) =",
+        rows.length,
+        "fromDate=",
+        fromDate,
+        "today=",
+        todayStr
+    );
 
     // 2) チェーン途中のシフト（134920→134921 の「134921」みたいなやつ）を除外する
 
@@ -116,14 +122,20 @@ export async function runTokuteiSumOrderClone(options?: {
     let neighbors: NeighborShift[] = [];
 
     if (csIds.length > 0) {
-        // ここで、その利用者さんたちのシフトを「前後判定用」に取得
-        const { data: neighborData, error: neighborError } = await supabase
+        // ---- ここを少し修正：fromDate もちゃんと効かせる ----
+        let neighborQuery = supabase
             .from("shift")
             .select(
                 "shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_date, shift_end_time"
             )
             .in("kaipoke_cs_id", csIds)
-            .lte("shift_start_date", todayStr); // fromDate があれば gte で絞ってもOK
+            .lte("shift_start_date", todayStr);
+
+        if (fromDate) {
+            neighborQuery = neighborQuery.gte("shift_start_date", fromDate);
+        }
+
+        const { data: neighborData, error: neighborError } = await neighborQuery;
 
         if (neighborError) {
             console.error(
@@ -152,6 +164,8 @@ export async function runTokuteiSumOrderClone(options?: {
         prevIndex.add(key);
     }
 
+    let middleCount = 0;
+
     // rows から「チェーン途中」のレコードを除外したものが最終的な targets
     const targets = rows.filter((r) => {
         const csId = r.kaipoke_cs_id;
@@ -163,6 +177,7 @@ export async function runTokuteiSumOrderClone(options?: {
         const isMiddleOfChain = prevIndex.has(key);
 
         if (isMiddleOfChain) {
+            middleCount++;
             console.info(
                 "[tokutei/clone] skip middle-of-chain shift",
                 r.shift_id,
@@ -176,14 +191,14 @@ export async function runTokuteiSumOrderClone(options?: {
     });
 
     console.info(
-        "[tokutei/clone] target rows (after chain filter) =",
-        targets.length,
-        "of",
-        rows.length
+        "[tokutei/clone] chain filter:",
+        "raw rows =", rows.length,
+        "middle-of-chain skipped =", middleCount,
+        "final targets =", targets.length
     );
 
     if (targets.length === 0) {
-        // このバッチ内に「処理すべきシフト」は無かった
+        // 「tokutei_comment=null のレコードはあったが、全部チェーン途中だった」ケース
         return {
             totalTargets: 0,
             processed: 0,
@@ -191,11 +206,13 @@ export async function runTokuteiSumOrderClone(options?: {
         };
     }
 
-    // ★ ここで「このバッチで実際に処理する件数」を制限する
+    // ★ このバッチで実際に処理する分だけに制限
     const batchTargets = targets.slice(0, limit);
 
     console.log(
-        "[tokutei/clone] target rows =",
+        "[tokutei/clone] batch targets =",
+        batchTargets.length,
+        "all targets =",
         targets.length,
         "limit =",
         limit,
@@ -218,7 +235,7 @@ export async function runTokuteiSumOrderClone(options?: {
                 .eq("shift_start_date", r.shift_start_date)
                 .lt("shift_start_time", r.shift_start_time)
                 .order("shift_start_time", { ascending: false })
-                .limit(1); // ★ ここは 1 件で良い
+                .limit(1); // ここは 1 件で十分
 
             if (sameDayPrevError) {
                 console.error(
@@ -384,6 +401,8 @@ export async function runTokuteiSumOrderClone(options?: {
         }
     }
 
+    // totalTargets は「チェーン途中除外後」の総数
+    // processed は「この1回で実際に回した件数」（= batchTargets.length = results.length）
     return {
         totalTargets: targets.length,
         processed: results.length,
