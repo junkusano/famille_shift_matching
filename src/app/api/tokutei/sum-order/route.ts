@@ -72,12 +72,23 @@ export async function POST(req: NextRequest) {
        - end == next.start を連結し切った先（chainEnd）より“後”に開始する最初を nextShift
        - 次回が無ければ書き込みは行わない
     */
-    if (!cur.kaipoke_cs_id || !cur.shift_end_date || !cur.shift_end_time) {
-      return NextResponse.json({ ok: true, reason: "skip: insufficient end fields to compute next" });
-    }
+    // cur = 今回のシフト
 
-    let chainEndDate = cur.shift_end_date;
-    let chainEndTime = cur.shift_end_time;
+     // ★ 終了日・終了時刻が null の場合は「開始日時」とみなす
+    const effectiveEndDate = cur.shift_end_date ?? cur.shift_start_date;
+    const effectiveEndTime = cur.shift_end_time ?? cur.shift_start_time;
+
+  // ★ 日付も時刻も両方そろっていないときだけスキップ
+if (!effectiveEndDate || !effectiveEndTime) {
+  return NextResponse.json({
+    ok: true,
+    reason: "skip: insufficient end fields to compute next",
+  });
+}
+
+// ★ チェーンの起点も effectiveEnd* を使う
+let chainEndDate = effectiveEndDate;
+let chainEndTime = effectiveEndTime;
 
     for (let i = 0; i < 20; i++) {
       const { data: conts, error: eCont } = await supabase
