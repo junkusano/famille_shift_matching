@@ -30,7 +30,7 @@
     },
     {
       "path": "/api/cron/tokutei-sum-order-clone",
-      "schedule": "7 11 * * *"
+      "schedule": "12 * * * *"
     }
 
   ]
