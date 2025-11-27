@@ -65,7 +65,7 @@ export async function runTokuteiSumOrderClone(options?: {
         .is("tokutei_comment", null)
         .order("shift_start_date", { ascending: true })
         .order("shift_start_time", { ascending: true })
-        .limit(limit);
+        //.limit(limit);  //ここではlimitかけない　単にtokutei_comment is null だけでは連続シフトだけで満杯になることもあるから
 
     if (fromDate) {
         query = query.gte("shift_start_date", fromDate);
@@ -191,6 +191,9 @@ export async function runTokuteiSumOrderClone(options?: {
         };
     }
 
+    // ★ ここで「このバッチで実際に処理する件数」を制限する
+    const batchTargets = targets.slice(0, limit);
+
     console.log(
         "[tokutei/clone] target rows =",
         targets.length,
@@ -203,7 +206,7 @@ export async function runTokuteiSumOrderClone(options?: {
     const results: TokuteiCloneResult["results"] = [];
 
     // 3) 1件ずつ、既存の sum-order を呼び出す
-    for (const r of targets) {
+    for (const r of batchTargets) {
         try {
             // ---- 前回シフト(prev) の検索ロジック ----
 
