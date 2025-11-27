@@ -109,13 +109,83 @@ export async function runTokuteiSumOrderClone(options?: {
     fromDate
   );
 
-  const results: TokuteiCloneResult["results"] = [];
+    const results: TokuteiCloneResult["results"] = [];
 
   // 2) 1件ずつ、既存の sum-order を呼び出す
   for (const r of rows) {
     try {
+      // ★ここを追加：「r（コメントを入れたいシフト）」の一つ前(prev)を探す
+
+      // 同じ日で、開始時刻が r より前のシフト（あればそっちを優先）
+      const { data: sameDayPrevData, error: sameDayPrevError } = await supabase
+        .from("shift")
+        .select("shift_id, shift_start_date, shift_start_time")
+        .eq("kaipoke_cs_id", r.kaipoke_cs_id)
+        .eq("shift_start_date", r.shift_start_date)
+        .lt("shift_start_time", r.shift_start_time)
+        .order("shift_start_time", { ascending: false })
+        .limit(1);
+
+      if (sameDayPrevError) {
+        console.error(
+          "[tokutei/clone] same-day prev shift error",
+          r.shift_id,
+          sameDayPrevError
+        );
+      }
+
+      const sameDayPrev = (sameDayPrevData ?? [])[0] as
+        | { shift_id: number; shift_start_date: string | null; shift_start_time: string | null }
+        | undefined;
+
+      // 前日以前のシフト（同じ利用者で、日付が r より前のもの）
+      let prevDayPrev: typeof sameDayPrev = undefined;
+
+      if (!sameDayPrev) {
+        const { data: prevDayData, error: prevDayError } = await supabase
+          .from("shift")
+          .select("shift_id, shift_start_date, shift_start_time")
+          .eq("kaipoke_cs_id", r.kaipoke_cs_id)
+          .lt("shift_start_date", r.shift_start_date)
+          .order("shift_start_date", { ascending: false })
+          .order("shift_start_time", { ascending: false })
+          .limit(1);
+
+        if (prevDayError) {
+          console.error(
+            "[tokutei/clone] prev-day prev shift error",
+            r.shift_id,
+            prevDayError
+          );
+        }
+
+        prevDayPrev = (prevDayData ?? [])[0] as typeof sameDayPrev;
+      }
+
+      const prev = sameDayPrev ?? prevDayPrev;
+
+      if (!prev) {
+        // 前回シフトが無ければ、この r にはコメントを付けられないのでスキップ
+        console.warn(
+          "[tokutei/clone] no previous shift found for",
+          r.shift_id,
+          r.shift_start_date,
+          r.shift_start_time,
+          r.kaipoke_cs_id
+        );
+        results.push({
+          shift_id: r.shift_id,
+          ok: false,
+          error: "previous shift not found",
+        });
+        continue;
+      }
+
+      // ★ここから先で /sum-order に渡す shift_id を「prev.shift_id」に変更
       console.log(
-        "[tokutei/clone] start",
+        "[tokutei/clone] start (prev -> target)",
+        prev.shift_id,
+        "->",
         r.shift_id,
         r.shift_start_date,
         r.shift_start_time,
@@ -129,7 +199,8 @@ export async function runTokuteiSumOrderClone(options?: {
 
       const req = new NextRequest(url.toString(), {
         method: "POST",
-        body: JSON.stringify({ shift_id: r.shift_id }),
+        // ★ここ：current として「前回シフト prev.shift_id」を投げる
+        body: JSON.stringify({ shift_id: prev.shift_id }),
         headers: {
           "content-type": "application/json",
         },
@@ -152,7 +223,7 @@ export async function runTokuteiSumOrderClone(options?: {
       } else {
         console.log(
           "[tokutei/clone] done",
-          r.shift_id,
+          prev.shift_id,
           "->",
           json.target_shift_id,
           "len=",
