@@ -65,14 +65,30 @@ export async function runTokuteiSumOrderClone(options?: {
     query = query.gte("shift_start_date", fromDate);
   }
 
-  const { data, error } = await query;
+   const { data, error } = await query;
 
   if (error) {
     console.error("[tokutei/clone] shift select error", error);
     throw error;
   }
 
-  const rows = (data ?? []) as ShiftLite[];
+  // ① Supabase からの結果を ShiftLite[] にキャスト
+  const allRows = (data ?? []) as ShiftLite[];
+
+  // ② この方だけに絞る（テスト用）
+  const TARGET_CS_ID = "7310167"; // ← 今回テストしたい利用者
+  const rows: ShiftLite[] = allRows.filter(
+    (r) => r.kaipoke_cs_id === TARGET_CS_ID
+  );
+
+  // ③ 対象が無ければ何もせず終了
+  if (rows.length === 0) {
+    return {
+      totalTargets: 0,
+      processed: 0,
+      results: [],
+    };
+  }
 
   console.log(
     "[tokutei/clone] target rows =",
