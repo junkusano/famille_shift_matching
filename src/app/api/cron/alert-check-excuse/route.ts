@@ -17,6 +17,7 @@ import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check"
 import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_check";
 import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
 import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check"; // ★追加
+import { supabaseAdmin } from "@/lib/supabase/service";
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -42,12 +43,24 @@ export async function GET(req: NextRequest) {
     kodoengo_plan_link_check: { ok: false, error: 'not executed' },
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
     shift_cert_check: { ok: false, error: "not executed" },
-    cs_contract_plan_check: { ok: false, error: "not executed" }, 
+    cs_contract_plan_check: { ok: false, error: "not executed" },
   };
 
   try {
     // ★ ここでだけ cron 認証（CRON_SECRET 等）をチェック
     assertCronAuth(req);
+
+    // 0) まず open のアラートを一括クローズしてしまう
+    const nowIso = new Date().toISOString();
+    await supabaseAdmin
+      .from('alert_log')
+      .update({
+        status: 'done',
+        status_source: 'auto_done',  // 「cron で一括クローズした」印
+        updated_at: nowIso,
+      })
+      .eq('status', 'open')
+      .in('status_source', ['auto', 'auto_done', 'auto_reopen']);
 
     // 7) 契約書・計画書不足チェック
     try {
@@ -126,7 +139,7 @@ export async function GET(req: NextRequest) {
       result.shift_cert_check = { ok: false, error: msg };
       result.ok = false;
     }
-    
+
     // 4) 行動援護リンク未登録
     try {
       console.info('[cron][kodoengo_plan_link_check] start');
