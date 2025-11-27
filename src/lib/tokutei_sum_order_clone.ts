@@ -47,11 +47,11 @@ export async function runTokuteiSumOrderClone(options?: {
     limit?: number;
     fromDate?: string;
 }): Promise<TokuteiCloneResult> {
-    const limit = options?.limit ?? 20;
+    const limit = options?.limit ?? 200;
     const fromDate = options?.fromDate ?? null;
 
     // ★テスト対象の利用者ID
-    const TARGET_CS_ID = "12369990" as const;
+    //const TARGET_CS_ID = "12369990" as const;
 
     // 1) 対象シフトを取得
 
@@ -64,7 +64,7 @@ export async function runTokuteiSumOrderClone(options?: {
             "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, tokutei_comment"
         )
         // ★ここで利用者を絞るように変更
-        .eq("kaipoke_cs_id", TARGET_CS_ID)
+        //.eq("kaipoke_cs_id", TARGET_CS_ID)
         .is("tokutei_comment", null)
         .order("shift_start_date", { ascending: true })
         .order("shift_start_time", { ascending: true })
@@ -131,7 +131,7 @@ export async function runTokuteiSumOrderClone(options?: {
                 .eq("shift_start_date", r.shift_start_date)
                 .lt("shift_start_time", r.shift_start_time)
                 .order("shift_start_time", { ascending: false })
-                .limit(1);
+                .limit(limit)
 
             if (sameDayPrevError) {
                 console.error(
