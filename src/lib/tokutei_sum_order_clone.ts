@@ -256,6 +256,13 @@ export async function runTokuteiSumOrderClone(options?: {
             const res = await sumOrderPost(req);
             const json = (await res.json()) as SumOrderResponse;
 
+            // ★ ここを追加：sum-order からのレスポンスをそのまま出す
+            console.log("[tokutei/clone] sum-order response", {
+                prev_shift_id: prev.shift_id,
+                target_shift_id: r.shift_id,
+                json,
+            });
+
             if (json.error) {
                 console.warn(
                     "[tokutei/clone] sum-order error",
