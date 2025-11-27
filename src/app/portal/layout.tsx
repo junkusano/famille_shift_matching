@@ -3,7 +3,7 @@
 
 import React, { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRoleContext } from "@/context/RoleContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import "@/styles/portal.css";
 import "@/styles/globals.css";
@@ -79,7 +79,7 @@ function NavLinks({ role }: { role: string | null }) {
       <li><Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link></li>
       {isManagerOrAdmin && (
         <>
-        　
+
           <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
           <li><Link href="/portal/taimee-emp" className="text-blue-300 hover:underline">タイミーリスト</Link></li>
@@ -154,6 +154,10 @@ export default function PortalLayout({ children }: Props) {
   const router = useRouter();
   const { role, loading } = useRoleContext();
   const [userData, setUserData] = useState<UserData | null>(null);
+
+  const pathname = usePathname();
+  const hideAlertBar =
+    pathname?.startsWith("/portal/roster/monthly/print-view") ?? false;
 
   // PC向け：左メニュー折りたたみ
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -257,7 +261,7 @@ export default function PortalLayout({ children }: Props) {
       {/* ===== メイン ===== */}
       <main className="flex-1 flex flex-col min-h-screen min-w-0">
         <div className="flex-1">
-          <AlertBar />
+          {!hideAlertBar && <AlertBar />}
           {children}
         </div>
         <Footer />

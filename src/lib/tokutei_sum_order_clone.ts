@@ -51,7 +51,7 @@ export async function runTokuteiSumOrderClone(options?: {
     const fromDate = options?.fromDate ?? null;
 
     // ★テスト対象の利用者ID
-    const TARGET_CS_ID = "7310167" as const;
+    const TARGET_CS_ID = "8753079" as const;
 
     // 1) 対象シフトを取得
 
