@@ -50,12 +50,17 @@ export async function runTokuteiSumOrderClone(options?: {
   const limit = options?.limit ?? 20;
   const fromDate = options?.fromDate ?? null;
 
+   // ★テスト対象の利用者ID
+  const TARGET_CS_ID = "7310167" as const;
+
   // 1) 対象シフトを取得
   let query = supabase
     .from("shift")
     .select(
       "shift_id, shift_start_date, shift_start_time, kaipoke_cs_id, tokutei_comment"
     )
+      // ★ここで利用者を絞るように変更
+    .eq("kaipoke_cs_id", TARGET_CS_ID)
     .is("tokutei_comment", null)
     .order("shift_start_date", { ascending: true })
     .order("shift_start_time", { ascending: true })
@@ -72,14 +77,19 @@ export async function runTokuteiSumOrderClone(options?: {
     throw error;
   }
 
+  // ここはそのまま配列にキャスト（テストのためこれを消して下の２行を有効にする）
+  const rows = (data ?? []) as ShiftLite[];
+  
   // ① Supabase からの結果を ShiftLite[] にキャスト
-  const allRows = (data ?? []) as ShiftLite[];
+  //const allRows = (data ?? []) as ShiftLite[];
 
-  // ② この方だけに絞る（テスト用）
+  /* 
+  ② この方だけに絞る（テスト用）
   const TARGET_CS_ID = "7310167"; // ← 今回テストしたい利用者
   const rows: ShiftLite[] = allRows.filter(
     (r) => r.kaipoke_cs_id === TARGET_CS_ID
   );
+  */
 
   // ③ 対象が無ければ何もせず終了
   if (rows.length === 0) {
