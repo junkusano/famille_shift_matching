@@ -169,32 +169,36 @@ export async function runTokuteiSumOrderClone(options?: {
     // rows から「チェーン途中」のレコードを除外したものが最終的な targets
     const targets = rows.filter((r) => {
         const csId = r.kaipoke_cs_id;
-        if (!csId) return true; // 利用者IDないものは一旦対象のまま（ほぼ無い想定）
+        if (!csId) return true;
 
         const key = `${csId}__${r.shift_start_date}__${r.shift_start_time}`;
-
-        // prevIndex に存在する ⇒ 直前に連結シフトがある ⇒ チェーン途中 ⇒ 処理対象外
         const isMiddleOfChain = prevIndex.has(key);
 
         if (isMiddleOfChain) {
             middleCount++;
-            console.info(
-                "[tokutei/clone] skip middle-of-chain shift",
-                r.shift_id,
-                r.kaipoke_cs_id,
-                r.shift_start_date,
-                r.shift_start_time
-            );
+            // ★ 最初の 5 件だけ詳細ログ、それ以降は黙る
+            if (middleCount <= 5) {
+                console.info(
+                    "[tokutei/clone] skip middle-of-chain shift",
+                    r.shift_id,
+                    r.kaipoke_cs_id,
+                    r.shift_start_date,
+                    r.shift_start_time
+                );
+            }
+            return false;
         }
 
-        return !isMiddleOfChain;
+        return true;
     });
 
     console.info(
-        "[tokutei/clone] chain filter:",
-        "raw rows =", rows.length,
-        "middle-of-chain skipped =", middleCount,
-        "final targets =", targets.length
+        "[tokutei/clone] chain filter: raw rows =",
+        rows.length,
+        "middle-of-chain skipped =",
+        middleCount,
+        "final targets =",
+        targets.length
     );
 
     if (targets.length === 0) {
