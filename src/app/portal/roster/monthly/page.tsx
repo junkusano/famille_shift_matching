@@ -437,21 +437,22 @@ export default function MonthlyRosterPage() {
 
 
 
-    // 1日分を追加（同日・同時刻があればスキップ）
+    // 1日分を追加（同日・同時刻、同required_staff_countがあればスキップ）
     const handleAddOne = useCallback(async (dateStr: string) => {
         const startHM = normalizeTimeLoose(draft.shift_start_time);
         const endHM = normalizeTimeLoose(draft.shift_end_time);
-        // ▼ ここを正しいマッピングに
+
         const required_staff_count =
             draft.dispatch_size === '01' ? 1 :
                 draft.dispatch_size === '02' ? 2 : 0;
         const two_person_work_flg = draft.dup_role === '01';
 
-        // 重複チェック（同利用者・同日・同開始）
+        // 🔧 修正後：4項目で重複チェック
         const exists = shifts.some(r =>
             r.kaipoke_cs_id === selectedKaipokeCS &&
             r.shift_start_date === dateStr &&
-            normalizeTimeLoose(r.shift_start_time ?? '') === startHM
+            normalizeTimeLoose(r.shift_start_time ?? '') === startHM &&
+            (r.required_staff_count ?? 0) === required_staff_count
         );
         if (exists) return { skipped: true };
 
