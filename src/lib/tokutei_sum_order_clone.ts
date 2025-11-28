@@ -122,7 +122,7 @@ export async function runTokuteiSumOrderClone(options?: {
     let neighbors: NeighborShift[] = [];
 
     if (csIds.length > 0) {
-        // ---- ここを少し修正：fromDate もちゃんと効かせる ----
+        // fromDate / today をそろえて neighbor も取得
         let neighborQuery = supabase
             .from("shift")
             .select(
@@ -176,7 +176,7 @@ export async function runTokuteiSumOrderClone(options?: {
 
         if (isMiddleOfChain) {
             middleCount++;
-            // ★ 最初の 5 件だけ詳細ログ、それ以降は黙る
+            // 最初の 5 件だけ詳細ログ、それ以降は黙る
             if (middleCount <= 5) {
                 console.info(
                     "[tokutei/clone] skip middle-of-chain shift",
@@ -225,6 +225,13 @@ export async function runTokuteiSumOrderClone(options?: {
     );
 
     const results: TokuteiCloneResult["results"] = [];
+
+    // ログカウンタ（スパム防止）
+    let noPrevCount = 0;
+    let noExecCount = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let startedCount = 0;
 
     // 3) 1件ずつ、既存の sum-order を呼び出す
     for (const r of batchTargets) {
@@ -281,13 +288,16 @@ export async function runTokuteiSumOrderClone(options?: {
 
             if (!prev) {
                 // 前回シフトが無ければ、この r にはコメントを付けられないのでスキップ
-                console.warn(
-                    "[tokutei/clone] no previous shift found for",
-                    r.shift_id,
-                    r.shift_start_date,
-                    r.shift_start_time,
-                    r.kaipoke_cs_id
-                );
+                noPrevCount++;
+                if (noPrevCount <= 3) {
+                    console.warn(
+                        "[tokutei/clone] no previous shift found for",
+                        r.shift_id,
+                        r.shift_start_date,
+                        r.shift_start_time,
+                        r.kaipoke_cs_id
+                    );
+                }
                 results.push({
                     shift_id: r.shift_id,
                     ok: false,
@@ -320,15 +330,18 @@ export async function runTokuteiSumOrderClone(options?: {
 
             if (!recRows || recRows.length === 0) {
                 // 訪問記録が無い（＝まだ実施されていない）ので、このターゲットはスキップ
-                console.log(
-                    "[tokutei/clone] skip (no executed record)",
-                    "prev_shift_id=",
-                    prev.shift_id,
-                    "-> target_shift_id=",
-                    r.shift_id,
-                    r.shift_start_date,
-                    r.shift_start_time
-                );
+                noExecCount++;
+                if (noExecCount <= 3) {
+                    console.log(
+                        "[tokutei/clone] skip (no executed record)",
+                        "prev_shift_id=",
+                        prev.shift_id,
+                        "-> target_shift_id=",
+                        r.shift_id,
+                        r.shift_start_date,
+                        r.shift_start_time
+                    );
+                }
                 results.push({
                     shift_id: r.shift_id,
                     ok: false,
@@ -338,15 +351,18 @@ export async function runTokuteiSumOrderClone(options?: {
             }
 
             // ---- /sum-order に渡す shift_id を「prev.shift_id」にする ----
-            console.log(
-                "[tokutei/clone] start (prev -> target)",
-                prev.shift_id,
-                "->",
-                r.shift_id,
-                r.shift_start_date,
-                r.shift_start_time,
-                r.kaipoke_cs_id
-            );
+            startedCount++;
+            if (startedCount <= 3) {
+                console.log(
+                    "[tokutei/clone] start (prev -> target)",
+                    prev.shift_id,
+                    "->",
+                    r.shift_id,
+                    r.shift_start_date,
+                    r.shift_start_time,
+                    r.kaipoke_cs_id
+                );
+            }
 
             const url = new URL(
                 "/api/tokutei/sum-order",
@@ -364,32 +380,40 @@ export async function runTokuteiSumOrderClone(options?: {
             const res = await sumOrderPost(req);
             const json = (await res.json()) as SumOrderResponse;
 
-            console.log("[tokutei/clone] sum-order response", {
-                prev_shift_id: prev.shift_id,
-                target_shift_id: r.shift_id,
-                json,
-            });
+            if (startedCount <= 3) {
+                console.log("[tokutei/clone] sum-order response (sample)", {
+                    prev_shift_id: prev.shift_id,
+                    target_shift_id: r.shift_id,
+                    json,
+                });
+            }
 
             if (json.error) {
-                console.warn(
-                    "[tokutei/clone] sum-order error",
-                    r.shift_id,
-                    json.error
-                );
+                errorCount++;
+                if (errorCount <= 3) {
+                    console.warn(
+                        "[tokutei/clone] sum-order error",
+                        r.shift_id,
+                        json.error
+                    );
+                }
                 results.push({
                     shift_id: r.shift_id,
                     ok: false,
                     error: json.error,
                 });
             } else {
-                console.log(
-                    "[tokutei/clone] done",
-                    prev.shift_id,
-                    "->",
-                    json.target_shift_id,
-                    "len=",
-                    json.length
-                );
+                successCount++;
+                if (successCount <= 3) {
+                    console.log(
+                        "[tokutei/clone] done",
+                        prev.shift_id,
+                        "->",
+                        json.target_shift_id,
+                        "len=",
+                        json.length
+                    );
+                }
                 results.push({
                     shift_id: r.shift_id,
                     ok: Boolean(json.ok),
@@ -400,10 +424,26 @@ export async function runTokuteiSumOrderClone(options?: {
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            console.error("[tokutei/clone] error per shift", r.shift_id, msg);
+            errorCount++;
+            if (errorCount <= 3) {
+                console.error(
+                    "[tokutei/clone] error per shift",
+                    r.shift_id,
+                    msg
+                );
+            }
             results.push({ shift_id: r.shift_id, ok: false, error: msg });
         }
     }
+
+    console.info(
+        "[tokutei/clone] summary:",
+        "batchTargets =", batchTargets.length,
+        "success =", successCount,
+        "noPrev =", noPrevCount,
+        "noExec =", noExecCount,
+        "error =", errorCount
+    );
 
     // totalTargets は「チェーン途中除外後」の総数
     // processed は「この1回で実際に回した件数」（= batchTargets.length = results.length）
