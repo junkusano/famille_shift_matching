@@ -246,22 +246,25 @@ async function loadCertificateMaster(): Promise<DocMasterRow[]> {
     .select(
       `
       id,
+      category,
       label,
-      service_key,
-      category
+      service_key:doc_group,
+      doc_group,
+      is_active,
+      sort_order
     `,
     )
-    .eq("is_cert", true);
+    // is_cert カラムは存在しないので、category で絞る
+    .eq("category", "certificate");
 
   if (error || !data) {
     console.error("[shift_cert_check] certificate master load failed:", error);
     return [];
   }
 
-  // Supabase の戻り値 → DocMasterRow[] にキャスト
-  return data as unknown as DocMasterRow[];
+  // certificateJudge.DocMasterRow に合わせて返す
+  return data as DocMasterRow[];
 }
-
 
 // =========================================================
 // ユーザーの資格書類取得（キャッシュ付き）
