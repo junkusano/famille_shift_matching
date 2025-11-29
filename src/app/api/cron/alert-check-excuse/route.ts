@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         updated_at: nowIso,
       })
       .eq('status', 'open')
-      .in('status_source', ['auto', 'auto_done', 'auto_reopen']);
+      .in('status_source', ['system']);
 
     // 7) 契約書・計画書不足チェック
     try {
