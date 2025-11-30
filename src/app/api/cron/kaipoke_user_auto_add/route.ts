@@ -22,9 +22,9 @@ export const dynamic = "force-dynamic";
 // entry_detail と同じテンプレート ID（必要なら .env 経由にしても OK）
 const KAIPOKE_TEMPLATE_ID = "a3ce7551-90f0-4e03-90bb-6fa8534fd31b";
 
-// cron 実行時の requester / approver 用ユーザー ID（Supabase auth.users.id）
-// 必ず環境変数で設定しておく
-const CRON_REQUESTER_ID = process.env.KAIPOKE_RPA_CRON_USER_ID ?? "";
+// cron 実行時の requester / approver 用ユーザー ID
+// ★ ここには「users.user_id（例: junkusano）」を入れておく前提
+const CRON_REQUESTER_LOGIN_ID = process.env.KAIPOKE_RPA_CRON_USER_ID ?? "";
 
 type EntryUnitedRow = {
   user_id: string | null;
@@ -59,8 +59,8 @@ async function runJob(params: {
 }): Promise<JobResult> {
   const { dryRun, limit } = params;
 
-  if (!CRON_REQUESTER_ID) {
-    const msg = "KAIPOKE_RPA_CRON_USER_ID が未設定です";
+  if (!CRON_REQUESTER_LOGIN_ID) {
+    const msg = "KAIPOKE_RPA_CRON_USER_ID が未設定です（users.user_id が空）";
     console.error("[kaipoke_user_auto_add]", msg);
     return {
       ok: false,
@@ -69,6 +69,52 @@ async function runJob(params: {
       created: 0,
       skipped: 0,
       errors: [{ user_id: "-", message: msg }],
+    };
+  }
+
+  // ★ まず、cron 用の user_id（例: junkusano）から auth_user_id(uuid) を引く
+  const { data: requesterRows, error: requesterError } = await supabase
+    .from("users")
+    .select("auth_user_id")
+    .eq("user_id", CRON_REQUESTER_LOGIN_ID)
+    .limit(1);
+
+  if (requesterError) {
+    console.error(
+      "[kaipoke_user_auto_add] requester lookup error",
+      CRON_REQUESTER_LOGIN_ID,
+      requesterError,
+    );
+    return {
+      ok: false,
+      dryRun,
+      scanned: 0,
+      created: 0,
+      skipped: 0,
+      errors: [
+        {
+          user_id: CRON_REQUESTER_LOGIN_ID,
+          message: requesterError.message,
+        },
+      ],
+    };
+  }
+
+  const requesterAuthUserId =
+    requesterRows && requesterRows.length > 0
+      ? (requesterRows[0].auth_user_id as string | null)
+      : null;
+
+  if (!requesterAuthUserId) {
+    const msg = `cron 用ユーザーの auth_user_id が見つかりません: user_id=${CRON_REQUESTER_LOGIN_ID}`;
+    console.error("[kaipoke_user_auto_add]", msg);
+    return {
+      ok: false,
+      dryRun,
+      scanned: 0,
+      created: 0,
+      skipped: 0,
+      errors: [{ user_id: CRON_REQUESTER_LOGIN_ID, message: msg }],
     };
   }
 
@@ -177,7 +223,6 @@ async function runJob(params: {
     // orgunitname をそのまま事業所名として利用
     const orgUnitName = row.orgunitname ?? "";
 
-    // prefix 付きかなは使わず、そのまま last_name_kana を渡す
     const lastNameKanaForRequest = lastNameKanaRaw;
 
     const requestDetails = buildKaipokeUserRequestDetails({
@@ -202,7 +247,8 @@ async function runJob(params: {
       await insertKaipokeUserRpaRequest({
         supabase,
         templateId: KAIPOKE_TEMPLATE_ID,
-        requesterId: CRON_REQUESTER_ID,
+        // ★ ここで uuid の auth_user_id を使う
+        requesterId: requesterAuthUserId,
         requestDetails,
       });
 
