@@ -1,6 +1,7 @@
 // src/app/api/cron/kaipoke_user_auto_add/route.ts
 //
-// users.user_id が NOT NULL
+// user_entry_united_view_single を使って、
+//   user_id が NOT NULL
 //   かつ status が NULL / 'removed_from_lineworks_kaipoke' 以外
 //   かつ kaipoke_user_id が NULL
 // のレコードに対して、カイポケユーザー追加の RPA リクエストを自動発行する cron 用 API
@@ -25,21 +26,20 @@ const KAIPOKE_TEMPLATE_ID = "a3ce7551-90f0-4e03-90bb-6fa8534fd31b";
 // 必ず環境変数で設定しておく
 const CRON_REQUESTER_ID = process.env.KAIPOKE_RPA_CRON_USER_ID ?? "";
 
-type UsersRow = {
+type EntryUnitedRow = {
   user_id: string | null;
   kaipoke_user_id: string | null;
   status: string | null;
 
-  // ★ users テーブルに実際にある想定のカラムだけに絞る
-  last_name?: string | null;
-  first_name?: string | null;
+  // form_entries 側から来るカラム
+  last_name_kanji?: string | null;
+  first_name_kanji?: string | null;
   last_name_kana?: string | null;
   first_name_kana?: string | null;
   gender?: string | null;
 
-  employment_type_name?: string | null;
-  org_unit_name?: string | null;
-  area_name?: string | null;
+  // orgs からの名称
+  orgunitname?: string | null;
 
   [key: string]: unknown;
 };
@@ -72,23 +72,20 @@ async function runJob(params: {
     };
   }
 
-  // 対象 users を取得
+  // 対象を user_entry_united_view_single から取得
   const { data, error } = await supabase
-    .from("users")
+    .from("user_entry_united_view_single")
     .select(
       [
         "user_id",
         "kaipoke_user_id",
         "status",
-        // ★ 実際にあるカラムだけ
-        "last_name",
-        "first_name",
+        "last_name_kanji",
+        "first_name_kanji",
         "last_name_kana",
         "first_name_kana",
         "gender",
-        "employment_type_name",
-        "org_unit_name",
-        "area_name",
+        "orgunitname",
       ].join(","),
     )
     .is("kaipoke_user_id", null)
@@ -110,7 +107,7 @@ async function runJob(params: {
   }
 
   // supabase の型都合で一度 unknown を挟んでキャスト
-  const rows = ((data ?? []) as unknown) as UsersRow[];
+  const rows = ((data ?? []) as unknown) as EntryUnitedRow[];
 
   const result: JobResult = {
     ok: true,
@@ -166,27 +163,27 @@ async function runJob(params: {
       }
     }
 
-    // --- 氏名などフィールド組み立て ---
-    const lastNameKanji = row.last_name ?? "";
-    const firstNameKanji = row.first_name ?? "";
+    // --- 氏名などフィールド組み立て（View 由来のカラム名に合わせる） ---
+    const lastNameKanji = row.last_name_kanji ?? "";
+    const firstNameKanji = row.first_name_kanji ?? "";
 
     const lastNameKanaRaw = row.last_name_kana ?? "";
     const firstNameKanaRaw = row.first_name_kana ?? "";
     const gender = row.gender ?? null;
-    const employmentTypeName = row.employment_type_name ?? "";
-    const orgUnitName = row.org_unit_name ?? "";
-    const areaName = row.area_name ?? "";
 
-    // entry_detail の addAreaPrefixToKana 相当（必要に応じて本家と合わせてください）
-    const lastNameKanaWithPrefix =
-      areaName && lastNameKanaRaw
-        ? `${areaName}${lastNameKanaRaw}`
-        : lastNameKanaRaw;
+    // employment_type_name は View に無いので空文字（必要なら拡張）
+    const employmentTypeName = "";
+
+    // orgunitname をそのまま事業所名として利用
+    const orgUnitName = row.orgunitname ?? "";
+
+    // prefix 付きかなは使わず、そのまま last_name_kana を渡す
+    const lastNameKanaForRequest = lastNameKanaRaw;
 
     const requestDetails = buildKaipokeUserRequestDetails({
       userId: userIdStr,
       lastNameKanji,
-      lastNameKana: lastNameKanaWithPrefix,
+      lastNameKana: lastNameKanaForRequest,
       firstNameKanji,
       firstNameKana: firstNameKanaRaw,
       gender,
