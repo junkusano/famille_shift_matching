@@ -31,7 +31,10 @@
     {
       "path": "/api/cron/tokutei-sum-order-clone",
       "schedule": "12 * * * *"
+    },
+    {
+      "path": "/api/cron/kaipoke_user_auto_add?token=@CRON_SECRET",
+      "schedule": "7 * * * *"
     }
-
   ]
 }
