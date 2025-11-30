@@ -33,8 +33,11 @@
       "schedule": "12 * * * *"
     },
     {
-      "path": "/api/cron/kaipoke_user_auto_add?token=@CRON_SECRET",
-      "schedule": "7 * * * *"
+      "path": "/api/cron/kaipoke_user_auto_add",
+      "schedule": "7 * * * *",
+      "headers": {
+        "Authorization": "Bearer ${CRON_SECRET}"
+      }
     }
   ]
 }
