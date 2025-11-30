@@ -18,6 +18,7 @@ type Row = {
   kaipoke_servicecode: string | null
   created_at?: string | null
   updated_at?: string | null
+  idou_f?: boolean | null
 }
 
 type NewRow = {
@@ -27,6 +28,7 @@ type NewRow = {
   plan_required: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
+  idou_f: boolean
 }
 
 type DocOption = { value: string; label: string }
@@ -36,7 +38,7 @@ const PAGE_SIZE = 100
 export default function ShiftServiceCodePage() {
   const [rows, setRows] = useState<Row[]>([])
   const [page, setPage] = useState(1)
-  const [docOptions, setDocOptions] = useState<DocOption[]>([]) 
+  const [docOptions, setDocOptions] = useState<DocOption[]>([])
   const [csDocOptions, setCsDocOptions] = useState<DocOption[]>([])
 
   // 追加行（型を明示）
@@ -47,6 +49,7 @@ export default function ShiftServiceCodePage() {
     plan_required: null,
     kaipoke_servicek: '',
     kaipoke_servicecode: '',
+    idou_f: false,
   })
 
   // ===== fetchers =====
@@ -66,17 +69,17 @@ export default function ShiftServiceCodePage() {
 
   // ★ ここがポイント：cs_doc の id / label を value / label にマッピング
   const fetchCsDocOptions = async () => {
-  const res = await fetch('/api/user-doc-master?category=cs_doc')
-  if (!res.ok) return
-  const data = (await res.json()) as DocOption[]
-  setCsDocOptions(data)
-}
+    const res = await fetch('/api/user-doc-master?category=cs_doc')
+    if (!res.ok) return
+    const data = (await res.json()) as DocOption[]
+    setCsDocOptions(data)
+  }
 
-useEffect(() => {
-  fetchDocOptions()
-  fetchCsDocOptions()
-  fetchRows()
-}, [])
+  useEffect(() => {
+    fetchDocOptions()
+    fetchCsDocOptions()
+    fetchRows()
+  }, [])
 
   // ===== アラート判定（require_doc_group が空欄あり） =====
   const hasEmptyRequire = useMemo(
@@ -204,7 +207,8 @@ useEffect(() => {
             <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
             <col style={{ width: '17%' }} /> {/* contract_requrired */}
             <col style={{ width: '17%' }} /> {/* plan_required */}
-            <col style={{ width: '10%' }} /> {/* 操作 */}
+            <col style={{ width: '8%' }} />  {/* idou_f ★ */}
+            <col style={{ width: '8%' }} />  {/* 操作 */}
           </colgroup>
 
           <TableHeader>
@@ -215,6 +219,7 @@ useEffect(() => {
               <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
               <TableHead className="px-1 py-1">必要契約書</TableHead>
               <TableHead className="px-1 py-1">必要プラン</TableHead>
+              <TableHead className="px-1 py-1 text-center">移動系(idou_f)</TableHead> {/* ★ */}
               <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -305,6 +310,15 @@ useEffect(() => {
                       ))}
                     </SelectContent>
                   </Select>
+                </TableCell>
+                {/* ★ idou_f */}
+                <TableCell className="px-1 py-1 text-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={!!r.idou_f}
+                    onChange={(e) => handleEdit(i, 'idou_f', e.target.checked as any)}
+                  />
                 </TableCell>
                 <TableCell className="px-1 py-1">
                   <div className="flex gap-1">
@@ -408,6 +422,15 @@ useEffect(() => {
                     ))}
                   </SelectContent>
                 </Select>
+              </TableCell>
+              {/* ★ idou_f（追加行） */}
+              <TableCell className="px-1 py-1 text-center">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={newRow.idou_f}
+                  onChange={(e) => setNewRow({ ...newRow, idou_f: e.target.checked })}
+                />
               </TableCell>
               <TableCell className="px-1 py-1">
                 <Button size="sm" onClick={handleAdd}>追加</Button>

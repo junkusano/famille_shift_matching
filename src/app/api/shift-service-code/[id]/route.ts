@@ -18,6 +18,7 @@ type Body = {
   kaipoke_servicecode?: string | null
   contract_requrired?: string | null
   plan_required?: string | null
+  idou_f?: boolean | null
 }
 
 // ── PUT /api/shift-service-code/[id]
@@ -47,6 +48,11 @@ export async function PUT(req: NextRequest) {
   }
   if ('kaipoke_servicecode' in b) {
     payload.kaipoke_servicecode = b.kaipoke_servicecode ?? null
+  }
+
+  // ★ ここを追加（真偽値そのまま渡す）
+  if ('idou_f' in b) {
+    payload.idou_f = b.idou_f ?? null
   }
 
   // ★ uuid カラムは "" を null にしてから渡す

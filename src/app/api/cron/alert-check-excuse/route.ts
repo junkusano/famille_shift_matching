@@ -18,6 +18,7 @@ import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_c
 import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
 import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check"; // ★追加
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { runShiftTransInfoCheck } from "@/lib/alert_add/shift_trans_info_check";
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
       .eq('status', 'open')
       .in('status_source', ['system']);
 
-    // 7) 契約書・計画書不足チェック
+    // -1) 契約書・計画書不足チェック
     try {
       console.info('[cron][cs_contract_plan_check] start');
       const r = await runCsContractPlanCheck();
@@ -72,6 +73,19 @@ export async function GET(req: NextRequest) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[cron][cs_contract_plan_check] error', msg);
       result.cs_contract_plan_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
+    // 0) 移動系サービス標準移動情報チェック
+    try {
+      console.info("[cron][shift_trans_info_check] start");
+      const r = await runShiftTransInfoCheck();
+      console.info("[cron][shift_trans_info_check] end", r);
+      result.shift_trans_info = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[cron][shift_trans_info_check] error", msg);
+      result.shift_trans_info = { ok: false, error: msg };
       result.ok = false;
     }
 
