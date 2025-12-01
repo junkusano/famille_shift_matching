@@ -11,6 +11,7 @@ type ShiftRow = {
 };
 
 type ClientRow = {
+  id: string;                          // ★ cs_kaipoke_info.id（UUID）
   kaipoke_cs_id: string;
   name: string | null;
   standard_trans_ways: string | null;
@@ -128,7 +129,7 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
     const { data, error } = await supabaseAdmin
       .from("cs_kaipoke_info")
       .select(
-        "kaipoke_cs_id, name, standard_trans_ways, standard_purpose, is_active",
+        "id, kaipoke_cs_id, name, standard_trans_ways, standard_purpose, is_active",// ★ id を追加
       )
       .in("kaipoke_cs_id", ids);
 
@@ -140,6 +141,7 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
     for (const row of data ?? []) {
       if (row.is_active === false) continue;
       clients.push({
+        id: row.id,                                   // ★ 追加
         kaipoke_cs_id: row.kaipoke_cs_id,
         name: row.name ?? null,
         standard_trans_ways: row.standard_trans_ways ?? null,
@@ -218,6 +220,12 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
 function buildAlertMessage(c: ClientRow): string {
   const name = c.name ?? "利用者名不明";
   const csId = c.kaipoke_cs_id;
+    // ★ cs_kaipoke_info.id を使った詳細ページ URL
+  const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${c.id}`;
 
-  return `【移動系サービス情報未設定】移動系サービスを利用しているのに標準の移動手段／目的が設定されていません：${name} 様（CS ID: ${csId}） cs_kaipoke_info.standard_trans_ways / standard_purpose を登録してください。`;
+  return [
+    `【移動系サービス情報未設定】移動系サービスを利用しているのに標準の移動手段／目的が設定されていません：${name} 様（CS ID: ${csId}）`,
+    `標準ルート・標準移動手段・目的を登録してください。`,
+    `利用者情報ページ: ${detailUrl}`,
+  ].join(' ');
 }
