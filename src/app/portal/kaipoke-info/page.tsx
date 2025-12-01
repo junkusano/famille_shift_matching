@@ -25,6 +25,12 @@ type KaipokeInfo = {
   standard_purpose: string
   time_adjustability_id?: string | null
   is_active: boolean
+
+  // ★ 追加：cs_kaipoke_info の新カラム
+  address?: string | null
+  kana?: string | null
+  gender?: string | null
+
 }
 
 type TimeAdjustRow = { id: string; label: string }
@@ -150,6 +156,11 @@ export default function KaipokeInfoPage() {
         standard_purpose: item.standard_purpose,
         time_adjustability_id: item.time_adjustability_id || null,
         is_active: item.is_active,
+
+          // ★ 新しい3項目を保存
+        address: item.address || null,
+        kana: item.kana || null,
+        gender: item.gender || null,
       })
       .eq("id", item.id) // ★ ID基準で更新
 
@@ -330,7 +341,7 @@ export default function KaipokeInfoPage() {
               </option>
             ))}
           </select>
-          <select
+          ｛/*<select
             value={filters.commuting_flg}
             onChange={e =>
               setFilters({ ...filters, commuting_flg: e.target.value as Filters["commuting_flg"] })
@@ -340,7 +351,7 @@ export default function KaipokeInfoPage() {
             <option value="all">通所・通学（すべて）</option>
             <option value="true">あり</option>
             <option value="false">なし</option>
-          </select>
+          </select>*/｝
         </div>
         <div className="mt-2 flex flex-col gap-2">
           <div className="flex gap-2">
@@ -373,7 +384,7 @@ export default function KaipokeInfoPage() {
             <col className="w-[14rem] md:w-[16rem]" />
             <col className="w-[9rem]" />
             <col className="w-[12rem]" />
-            <col className="w-[8rem]" />
+            ｛/* <col className="w-[8rem]" />*/｝
             <col className="w-[7.5rem] md:w-[8.5rem]" />
           </colgroup>
 
@@ -386,14 +397,14 @@ export default function KaipokeInfoPage() {
               <th className="border p-2">ケアマネ/相談支援</th>
               <th className="border p-2">性別希望</th>
               <th className="border p-2">時間変更可否</th>
-              <th className="border p-2">通所・通学</th>
+              ｛/*<th className="border p-2">通所・通学</th>*/｝
               <th className="border p-2">操作</th>
             </tr>
             <tr className="bg-gray-50 text-left text-sm">
               <th className="border p-1" colSpan={2}>備考</th>
-              <th className="border p-1" colSpan={2}>ルート</th>
-              <th className="border p-1" colSpan={2}>手段</th>
-              <th className="border p-1" colSpan={2}>目的</th>
+              <th className="border p-1" colSpan={2}>住所</th>
+              <th className="border p-1" colSpan={2}>カナ</th>
+              <th className="border p-1" colSpan={2}>性別</th>
               <th className="border p-1">&nbsp;</th>
             </tr>
           </thead>
@@ -409,7 +420,7 @@ export default function KaipokeInfoPage() {
                   }
                 >
                   <td className="border p-2">
-                    <div className="text-[11px] text-gray-500 mb-1">ID: {item.id}</div>
+                    ｛/*<div className="text-[11px] text-gray-500 mb-1">ID: {item.id}</div>*/｝
                     <label className="text-sm">利用者様名：</label>
                     <input
                       type="text"
@@ -491,14 +502,14 @@ export default function KaipokeInfoPage() {
                     </select>
                   </td>
 
-                  <td className="border p-2 text-center">
+                  ｛/*<td className="border p-2 text-center">
                     <label className="text-sm">通所・通学：</label>
                     <input
                       type="checkbox"
                       checked={!!item.commuting_flg}
                       onChange={e => handleChange(item.id, "commuting_flg", e.target.checked)}
                     />
-                  </td>
+                  </td>*/｝
 
                   {/* 操作列 */}
                   <td className="border p-2 text-center align-top" rowSpan={2}>
@@ -537,36 +548,46 @@ export default function KaipokeInfoPage() {
                 <tr className="bg-gray-50">
                   <td colSpan={8} className="border p-2">
                     <div className="grid grid-cols-4 gap-3 md:gap-4">
+                      {/* 備考（高さを小さく） */}
                       <div>
                         <label className="text-sm">備考：</label>
                         <textarea
                           value={item.biko || ""}
                           onChange={e => handleChange(item.id, "biko", e.target.value)}
-                          className="w-full border px-2 py-1 h-16"
+                          className="w-full border px-2 py-1 h-10"
                         />
                       </div>
+                      {/* ★ 住所 */}
                       <div>
-                        <label className="text-sm">ルート（初期値）：</label>
-                        <textarea
-                          value={item.standard_route || ""}
-                          onChange={e => handleChange(item.id, "standard_route", e.target.value)}
-                          className="w-full border px-2 py-1 h-16"
+                        <label className="text-sm">住所：</label>
+                        <input
+                          type="text"
+                          value={item.address || ""}
+                          onChange={e => handleChange(item.id, "address", e.target.value)}
+                          className="w-full border px-2 py-1"
                         />
                       </div>
+
+                      {/* ★ カナ */}
                       <div>
-                        <label className="text-sm">手段（初期値）：</label>
-                        <textarea
-                          value={item.standard_trans_ways || ""}
-                          onChange={e => handleChange(item.id, "standard_trans_ways", e.target.value)}
-                          className="w-full border px-2 py-1 h-16"
+                        <label className="text-sm">カナ：</label>
+                        <input
+                          type="text"
+                          value={item.kana || ""}
+                          onChange={e => handleChange(item.id, "kana", e.target.value)}
+                          className="w-full border px-2 py-1"
                         />
                       </div>
+
+                      {/* ★ 性別 */}
                       <div>
-                        <label className="text-sm">目的（初期値）：</label>
-                        <textarea
-                          value={item.standard_purpose || ""}
-                          onChange={e => handleChange(item.id, "standard_purpose", e.target.value)}
-                          className="w-full border px-2 py-1 h-16"
+                        <label className="text-sm">性別：</label>
+                        <input
+                          type="text"
+                          value={item.gender || ""}
+                          onChange={e => handleChange(item.id, "gender", e.target.value)}
+                          className="w-full border px-2 py-1"
+                          placeholder="例）男性 / 女性 など"
                         />
                       </div>
                     </div>
