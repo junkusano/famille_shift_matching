@@ -33,6 +33,15 @@ type Body = {
   lw_user_group_missing_check: CheckResult<{ scanned: number; created: number }>;
   shift_cert_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>;
   cs_contract_plan_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>; // ★追加
+
+   // ★ここを追加：移動系サービス標準移動情報チェックの結果
+  shift_trans_info: CheckResult<{
+    scannedShiftCount: number;
+    scannedClientCount: number;
+    targetClientCount: number;
+    alertsCreated: number;
+    alertsUpdated: number;
+  }>;
 };
 
 export async function GET(req: NextRequest) {
@@ -45,6 +54,8 @@ export async function GET(req: NextRequest) {
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
     shift_cert_check: { ok: false, error: "not executed" },
     cs_contract_plan_check: { ok: false, error: "not executed" },
+      // ★追加：最初は「まだ実行していない」扱い
+    shift_trans_info: { ok: false, error: "not executed" },
   };
 
   try {

@@ -148,6 +148,7 @@ export default function ShiftServiceCodePage() {
         plan_required: null,
         kaipoke_servicek: '',
         kaipoke_servicecode: '',
+        idou_f: false, // ★ 追加
       })
       await fetchRows()
       alert('追加しました')
@@ -317,7 +318,7 @@ export default function ShiftServiceCodePage() {
                     type="checkbox"
                     className="h-4 w-4"
                     checked={!!r.idou_f}
-                    onChange={(e) => handleEdit(i, 'idou_f', e.target.checked as any)}
+                    onChange={(e) => handleEdit(i, 'idou_f', e.target.checked)}
                   />
                 </TableCell>
                 <TableCell className="px-1 py-1">
