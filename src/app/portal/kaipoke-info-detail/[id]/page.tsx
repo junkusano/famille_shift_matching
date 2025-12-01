@@ -89,6 +89,9 @@ type KaipokeInfo = {
     documents: Attachment[] | null; // JSONB
     time_adjustability_id: string | null; // マスタ参照
 
+    // ★ チーム（orgs.orgunitid を保持）
+    team_orgunitid: string | null;
+
     kodoengo_plan_link: string | null;
 };
 
@@ -100,6 +103,12 @@ type DocMasterRow = {
 };
 
 type TimeAdjustRow = { id: string; label: string };
+
+// ★ 追加：チームマスタ用
+type OrgTeam = {
+    orgunitid: string;
+    orgunitname: string;
+};
 
 const GENDER_OPTIONS = [
     { id: '', label: '未設定' },
@@ -130,6 +139,9 @@ export default function KaipokeInfoDetailPage() {
     const [newDocLabel, setNewDocLabel] = useState('');
 
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
+
+    // ★ 追加：チーム一覧を保持
+    const [teams, setTeams] = useState<OrgTeam[]>([]);
 
     // 書類の編集用（id ごとに一時値を保持）
     const [docEditState, setDocEditState] = useState<
@@ -198,10 +210,31 @@ export default function KaipokeInfoDetailPage() {
             setTimeAdjustOptions(rows);
         };
 
+        // ★ 追加：チーム一覧読込（displaylevel=3 のみ）
+        const loadTeams = async () => {
+            const { data, error } = await supabase
+                .from('orgs')
+                .select('orgunitid, orgunitname, displaylevel')
+                .eq('displaylevel', 3)
+                .order('orgunitname', { ascending: true });
+
+            if (!error && data) {
+                setTeams(data as OrgTeam[]);
+            }
+        };
+
         fetchRow();
         loadDocMaster();
         loadTimeAdjust();
+        loadTeams(); // ★ 追加呼び出し
     }, [id]);
+
+    // ★ 追加：選択中CSのチーム名
+    const teamName = useMemo(() => {
+        if (!row?.team_orgunitid) return '';
+        const t = teams.find(t => t.orgunitid === row.team_orgunitid);
+        return t?.orgunitname ?? '';
+    }, [row?.team_orgunitid, teams]);
 
     const documentsArray = useMemo<Attachment[]>(() => {
         const arr: unknown[] = Array.isArray(row?.documents) ? (row?.documents as unknown[]) : [];
@@ -349,10 +382,6 @@ export default function KaipokeInfoDetailPage() {
 
             {/* 基本情報 */}
             <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">ID（読み取り専用）</label>
-                    <input className="w-full border rounded px-2 py-1 bg-gray-100" value={row.id} readOnly />
-                </div>
 
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">利用者様名</label>
@@ -360,6 +389,16 @@ export default function KaipokeInfoDetailPage() {
                         className="w-full border rounded px-2 py-1"
                         value={row.name ?? ''}
                         onChange={(e) => setRow({ ...row, name: e.target.value })}
+                    />
+                </div>
+
+                {/* ★ 追加：チーム名（読み取り専用） */}
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">チーム</label>
+                    <input
+                        className="w-full border rounded px-2 py-1 bg-gray-100"
+                        value={teamName}
+                        readOnly
                     />
                 </div>
 
@@ -418,7 +457,7 @@ export default function KaipokeInfoDetailPage() {
                 <label className="block text-sm text-gray-600">備考</label>
                 <textarea
                     className="w-full border rounded p-2"
-                    rows={3}
+                    rows={1}
                     value={row.biko ?? ''}
                     onChange={(e) => setRow({ ...row, biko: e.target.value })}
                 />
