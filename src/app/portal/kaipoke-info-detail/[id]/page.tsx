@@ -386,6 +386,15 @@ export default function KaipokeInfoDetailPage() {
                 </div>
 
                 <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">カナ</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.kana ?? ''}
+                        onChange={(e) => setRow({ ...row, kana: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
                     <label className="block text-sm text-gray-600">カイポケCS ID</label>
                     <input
                         className="w-full border rounded px-2 py-1"
@@ -441,15 +450,6 @@ export default function KaipokeInfoDetailPage() {
                         className="w-full border rounded px-2 py-1"
                         value={row.address ?? ''}
                         onChange={(e) => setRow({ ...row, address: e.target.value })}
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">カナ</label>
-                    <input
-                        className="w-full border rounded px-2 py-1"
-                        value={row.kana ?? ''}
-                        onChange={(e) => setRow({ ...row, kana: e.target.value })}
                     />
                 </div>
 
