@@ -111,6 +111,12 @@ type DocMasterRow = {
 
 type TimeAdjustRow = { id: string; label: string };
 
+type Staff = {
+    user_id: string;
+    last_name_kanji: string;
+    first_name_kanji: string;
+};
+
 const GENDER_OPTIONS = [
     { id: '', label: '未設定' },
     { id: '9b32a1f0-f711-4ab4-92fb-0331f0c86d42', label: '男性希望' },
@@ -127,6 +133,8 @@ export default function KaipokeInfoDetailPage() {
 
     const [row, setRow] = useState<KaipokeInfo | null>(null);
     const [saving, setSaving] = useState(false);
+    const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);
+
 
     // 取得日の簡易入力(YYYYMM or YYYYMMDD)
     const [acquiredRaw, setAcquiredRaw] = useState<string>('');
@@ -140,8 +148,7 @@ export default function KaipokeInfoDetailPage() {
     const [newDocLabel, setNewDocLabel] = useState('');
 
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
-    const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);  // ★ 追加
-    const [orgTeams, setOrgTeams] = useState<{ orgunitid: string; orgunitname: string }[]>([]);  // ★ 追加
+
 
     // 書類の編集用（id ごとに一時値を保持）
     const [docEditState, setDocEditState] = useState<
@@ -210,34 +217,29 @@ export default function KaipokeInfoDetailPage() {
             setTimeAdjustOptions(rows);
         };
 
-        // ★ 追加：チーム情報をロードする関数
-        const loadTeams = async () => {
+        const loadStaffList = async () => {
             const { data, error } = await supabase
-                .from('orgs')
-                .select('orgunitid, orgunitname')
-                .eq('displaylevel', 3)
-                .order('displayorder', { ascending: true });
+                .from("user_entry_united_view_single")
+                .select("user_id, last_name_kanji, first_name_kanji")
+                .order("last_name_kanji", { ascending: true });
 
             if (error) {
-                console.error('org teams load error', error);
+                console.error("staff load error", error);
             } else {
-                setOrgTeams(data || []);
+                // 氏名を連結して表示
+                const staffData = data?.map((staff: Staff) => ({
+                    user_id: staff.user_id,
+                    name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
+                }));
+                setStaffList(staffData || []);
             }
-        };
-
-        // スタッフ情報を取得
-        const loadStaffList = async () => {
-            const r = await fetch("/api/masters/staffs", { cache: "no-store" });
-            if (!r.ok) return;
-            const staffData = await r.json();
-            setStaffList(staffData);
         };
 
         fetchRow();
         loadDocMaster();
         loadTimeAdjust();
-        loadTeams(); // ★ チーム情報のロードも追加
-        loadStaffList();  // スタッフ情報の取得
+        loadStaffList();
+        loadStaffList();
     }, [id]);
 
     const documentsArray = useMemo<Attachment[]>(() => {
@@ -354,9 +356,9 @@ export default function KaipokeInfoDetailPage() {
                     phone_01: (row.phone_01 ?? '').trim() || null,
                     phone_02: (row.phone_02 ?? '').trim() || null,
 
-                    // 代わりにこのコードを追加します
-                    asigned_org: row.asigned_org || null,  // チームID
-                    asigned_jisseki_staff: row.asigned_jisseki_staff || null,  // 実績担当者
+                    // ★ 追加：assigned_org / assigned_jisseki_staff
+                    asigned_org: (row.asigned_org ?? '').trim() || null,
+                    asigned_jisseki_staff: (row.asigned_jisseki_staff ?? '').trim() || null,
 
                     standard_route: (row.standard_route ?? '').trim() || null,
                     commuting_flg: row.commuting_flg ?? null,
@@ -508,41 +510,31 @@ export default function KaipokeInfoDetailPage() {
                 </div>
 
                 {/* ★ 追加：assigned_org / assigned_jisseki_staff */}
-                {/* チーム（assigned_org） */}
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">チーム</label>
-                    <select
+                    <label className="block text-sm text-gray-600">assigned_org（チームID）</label>
+                    <input
                         className="w-full border rounded px-2 py-1"
-                        value={row.asigned_org ?? ""}
+                        value={row.asigned_org ?? ''}
                         onChange={(e) => setRow({ ...row, asigned_org: e.target.value })}
-                    >
-                        <option value="">選択してください</option>
-                        {orgTeams.map((org) => (
-                            <option key={org.orgunitid} value={org.orgunitid}>
-                                {org.orgunitname}
-                            </option>
-                        ))}
-                    </select>
+                    />
                 </div>
-
 
                 {/* 実績担当者（assigned_jisseki_staff） */}
                 <div className="space-y-2">
                     <label className="block text-sm text-gray-600">実績担当者</label>
                     <select
                         className="w-full border rounded px-2 py-1"
-                        value={row.asigned_jisseki_staff ?? ""}
+                        value={row?.asigned_jisseki_staff ?? ""}
                         onChange={(e) => setRow({ ...row, asigned_jisseki_staff: e.target.value })}
                     >
                         <option value="">選択してください</option>
                         {staffList.map((staff) => (
                             <option key={staff.user_id} value={staff.user_id}>
-                                {staff.name}
+                                {staff.name} {/* 姓と名を結合して表示 */}
                             </option>
                         ))}
                     </select>
                 </div>
-
             </div>
 
             {/* 備考 */}
