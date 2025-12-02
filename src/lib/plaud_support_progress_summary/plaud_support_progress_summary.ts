@@ -654,13 +654,18 @@ async function processPlaudSum(
     process_type: processType,
     kaipoke_edit_id: processType === "update" ? existing?.kaipoke_edit_id : null,
     target_date: plaudSum.plaud_created_at,
+    user_id: plaudSum.user_id,  // 実際の申請者（メールアドレス）
   };
+
+  // requester_id は junkusano で固定
+  // users.user_id = "junkusano" → users.auth_user_id = "31de1d65-b999-4e17-bf28-86fb52ce1300"
+  const FIXED_REQUESTER_ID = "31de1d65-b999-4e17-bf28-86fb52ce1300";
 
   const { data: rpaRequest, error: rpaError } = await supabase
     .from("rpa_command_requests")
     .insert({
       template_id: RPA_TEMPLATE_ID,
-      requester_id: plaudSum.user_id,
+      requester_id: FIXED_REQUESTER_ID,
       status: "approved",
       request_details: rpaRequestDetails,
       requested_at: new Date().toISOString(),

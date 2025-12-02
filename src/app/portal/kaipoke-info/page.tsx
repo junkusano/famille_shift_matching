@@ -123,10 +123,21 @@ export default function KaipokeInfoPage() {
     };
 
     const loadStaffList = async () => {
-      const r = await fetch("/api/masters/staffs", { cache: "no-store" });
-      if (!r.ok) return;
-      const staffData = await r.json();
-      setStaffList(staffData);
+      const { data, error } = await supabase
+        .from("user_entry_united_view_single")
+        .select("user_id, last_name_kanji, first_name_kanji")
+        .order("last_name_kanji", { ascending: true });
+
+      if (error) {
+        console.error("staff load error", error);
+      } else {
+        // 氏名を連結して表示
+        const staffData = data?.map((staff: any) => ({
+          user_id: staff.user_id,
+          name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
+        }));
+        setStaffList(staffData || []);
+      }
     };
 
     fetchData()
@@ -621,11 +632,12 @@ export default function KaipokeInfoPage() {
                           <option value="">選択してください</option>
                           {staffList.map((staff) => (
                             <option key={staff.user_id} value={staff.user_id}>
-                              {staff.name}
+                              {staff.name} {/* 氏名（姓＋名） */}
                             </option>
                           ))}
                         </select>
                       </div>
+
 
 
                       {/* ★ 性別 */}
