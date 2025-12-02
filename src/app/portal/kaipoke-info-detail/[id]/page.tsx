@@ -85,6 +85,16 @@ type KaipokeInfo = {
     standard_trans_ways: string | null;
     standard_purpose: string | null;
 
+    // ★ 追加：cs_kaipoke_info から表示したい情報
+    address: string | null;
+    kana: string | null;
+    gender: string | null;
+    phone_01: string | null;
+    phone_02: string | null;
+
+    asigned_org: string | null;
+    asigned_jisseki_staff: string | null;
+
     // 追加分
     documents: Attachment[] | null; // JSONB
     time_adjustability_id: string | null; // マスタ参照
@@ -309,6 +319,18 @@ export default function KaipokeInfoDetailPage() {
                     biko: (row.biko ?? '').trim() || null,
                     gender_request: row.gender_request || null,
                     postal_code: (row.postal_code ?? '').trim() || null,
+
+                    // ★ 追加：住所 / カナ / 性別 / 電話番号
+                    address: (row.address ?? '').trim() || null,
+                    kana: (row.kana ?? '').trim() || null,
+                    gender: (row.gender ?? '').trim() || null,
+                    phone_01: (row.phone_01 ?? '').trim() || null,
+                    phone_02: (row.phone_02 ?? '').trim() || null,
+
+                    // ★ 追加：assigned_org / assigned_jisseki_staff
+                    asigned_org: (row.asigned_org ?? '').trim() || null,
+                    asigned_jisseki_staff: (row.asigned_jisseki_staff ?? '').trim() || null,
+
                     standard_route: (row.standard_route ?? '').trim() || null,
                     commuting_flg: row.commuting_flg ?? null,
                     standard_trans_ways: (row.standard_trans_ways ?? '').trim() || null,
@@ -411,10 +433,75 @@ export default function KaipokeInfoDetailPage() {
                         onChange={(e) => setRow({ ...row, email: e.target.value })}
                     />
                 </div>
+
+                {/* ★ 追加：住所 / カナ / 性別 / 電話番号1・2 */}
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">住所</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.address ?? ''}
+                        onChange={(e) => setRow({ ...row, address: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">カナ</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.kana ?? ''}
+                        onChange={(e) => setRow({ ...row, kana: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">性別</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.gender ?? ''}
+                        onChange={(e) => setRow({ ...row, gender: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">電話番号１</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.phone_01 ?? ''}
+                        onChange={(e) => setRow({ ...row, phone_01: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">電話番号２</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.phone_02 ?? ''}
+                        onChange={(e) => setRow({ ...row, phone_02: e.target.value })}
+                    />
+                </div>
+
+                {/* ★ 追加：assigned_org / assigned_jisseki_staff */}
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">assigned_org（チームID）</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.asigned_org ?? ''}
+                        onChange={(e) => setRow({ ...row, asigned_org: e.target.value })}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm text-gray-600">実績担当者</label>
+                    <input
+                        className="w-full border rounded px-2 py-1"
+                        value={row.asigned_jisseki_staff ?? ''}
+                        onChange={(e) => setRow({ ...row, asigned_jisseki_staff: e.target.value })}
+                    />
+                </div>
             </div>
 
             {/* 備考 */}
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-2xl">
                 <label className="block text-sm text-gray-600">備考</label>
                 <textarea
                     className="w-full border rounded p-2"
@@ -425,10 +512,10 @@ export default function KaipokeInfoDetailPage() {
             </div>
 
             {/* 希望性別 */}
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-xs">
                 <label className="block text-sm text-gray-600">希望性別</label>
                 <select
-                    className="border rounded px-2 py-1"
+                    className="border rounded px-2 py-1 w-full"
                     value={row.gender_request ?? ''}
                     onChange={(e) => setRow({ ...row, gender_request: e.target.value || null })}
                 >
@@ -440,10 +527,10 @@ export default function KaipokeInfoDetailPage() {
 
 
             {/* 時間調整マスタ */}
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-xs">
                 <label className="block text-sm text-gray-600">時間調整（候補）</label>
                 <select
-                    className="border rounded px-2 py-1"
+                    className="border rounded px-2 py-1 w-full"
                     value={row.time_adjustability_id ?? ''}   // string を想定
                     onChange={(e) => setRow({ ...row, time_adjustability_id: e.target.value || null })}
                 >
@@ -785,7 +872,7 @@ export default function KaipokeInfoDetailPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 
