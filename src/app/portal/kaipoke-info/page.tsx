@@ -53,6 +53,13 @@ type Filters = {
   commuting_flg: "all" | "true" | "false"
 }
 
+type Staff = {
+  user_id: string;
+  last_name_kanji: string;
+  first_name_kanji: string;
+};
+
+
 const defaultFilters: Filters = {
   id: "",
   name: "",
@@ -132,7 +139,7 @@ export default function KaipokeInfoPage() {
         console.error("staff load error", error);
       } else {
         // 氏名を連結して表示
-        const staffData = data?.map((staff: any) => ({
+        const staffData = data?.map((staff: Staff) => ({
           user_id: staff.user_id,
           name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
         }));
