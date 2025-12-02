@@ -52,7 +52,8 @@ const openai = new OpenAI({
 // -------------------------------------------------------------
 
 // RPAテンプレートID（カイポケ支援経過登録用）
-const RPA_TEMPLATE_ID = process.env.PLAUD_SUM_RPA_TEMPLATE_ID || "";
+// rpa_command_templates.name = "Plaudから経過記録"
+const RPA_TEMPLATE_ID = "1f790784-dce2-4aa8-ba0d-36f8fcc27bfa";
 
 // プロンプトテンプレートのキー
 const PROMPT_TEMPLATE_KEY = "cm_plaud_support_progress_summary";
@@ -588,25 +589,6 @@ async function processPlaudSum(
   // ─────────────────────────────────────────────────────────────
   // RPAリクエスト作成
   // ─────────────────────────────────────────────────────────────
-  if (!RPA_TEMPLATE_ID) {
-    const errorMsg = "PLAUD_SUM_RPA_TEMPLATE_ID is not configured";
-    
-    await sendSystemErrorNotification({
-      errorType: 'CONFIG_ERROR',
-      errorMessage: errorMsg,
-      plaud_sum_id,
-      plaud_id: plaudSum.plaud_id,
-      user_id: plaudSum.user_id,
-    });
-
-    return {
-      plaud_sum_id,
-      success: false,
-      error: errorMsg,
-      errorType: 'CONFIG_ERROR',
-    };
-  }
-
   const rpaRequestDetails = {
     plaud_sum_id: plaudSum.id,
     processing_id: processingId,
