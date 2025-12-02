@@ -176,7 +176,7 @@ export function getRetryPromptAddition(
  * @param errorType - エラー種別
  * @returns リトライ可能: true
  */
-export function isRetryableValidationError(errorType: SummaryValidationErrorType): boolean {
+export function isRetryableValidationError(_errorType: SummaryValidationErrorType): boolean {
   // 全ての検証エラーはプロンプト強化でリトライ可能
   return true;
 }

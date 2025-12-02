@@ -245,7 +245,7 @@ async function getProcessingTargets(options: {
   }
 
   const plaudSumIds = (plaudSumList || []).map((p: PlaudSum) => p.id);
-  let existingProcessingMap: Map<string, PlaudSumProcessing> = new Map();
+  const existingProcessingMap: Map<string, PlaudSumProcessing> = new Map();
 
   if (plaudSumIds.length > 0) {
     const { data: existingList } = await supabase
@@ -494,7 +494,7 @@ async function processPlaudSum(
   try {
     if (existing) {
       // 既存レコード更新
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, string | number | null> = {
         original_contents: plaudSum.contents,
         kaipoke_cs_id: plaudSum.kaipoke_cs_id,
         status: "summarized",
