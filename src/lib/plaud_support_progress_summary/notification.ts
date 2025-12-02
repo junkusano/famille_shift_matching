@@ -5,35 +5,45 @@
 //
 // 【概要】
 // LINE WORKSへの通知を管理する
-// - 業務通知: 手動削除依頼など
-// - システムエラー通知: OpenAIエラー、DBエラーなど
+// チャンネルIDはlw_channelsテーブルから取得
 //
 // 【チャンネル使い分け】
-// - 業務通知チャンネル: LINEWORKS_NOTIFY_CHANNEL_ID（環境変数）
-// - システムエラーチャンネル: LINEWORKS_SYSTEM_ERROR_CHANNEL_ID（固定値）
+// - staff_plaud_support_progress: 担当者向け（手動削除依頼など）
+// - system_error_plaud_support_progress: システムエラー（OpenAIエラー、DBエラー等）
 //
 // =============================================================
 
+import { createClient } from "@supabase/supabase-js";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 import { getAccessToken } from "@/lib/getAccessToken";
 
 // =============================================================
-// 定数
+// Supabase Client
+// =============================================================
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
+
+// =============================================================
+// 定数: チャンネルコード
 // =============================================================
 
 /**
- * 業務通知チャンネルID（環境変数から取得）
- * - kaipoke_cs_id変更時の手動削除依頼
+ * 担当者向け通知チャンネルコード
+ * - 手動削除依頼
  */
-const BUSINESS_NOTIFY_CHANNEL_ID = process.env.LINEWORKS_NOTIFY_CHANNEL_ID || "";
+const CHANNEL_CODE_STAFF = "staff_plaud_support_progress";
 
 /**
- * システムエラー通知チャンネルID（固定値）
+ * システムエラー通知チャンネルコード
  * - OpenAIエラー
  * - DBエラー
  * - 検証エラー（リトライ上限超過時）
  */
-const SYSTEM_ERROR_CHANNEL_ID = "df3165aa-c990-e7f5-07a5-e0fa4c055797";
+const CHANNEL_CODE_SYSTEM_ERROR = "system_error_plaud_support_progress";
 
 // =============================================================
 // 型定義
@@ -43,10 +53,10 @@ const SYSTEM_ERROR_CHANNEL_ID = "df3165aa-c990-e7f5-07a5-e0fa4c055797";
  * 通知種別
  */
 export type NotificationType =
-  | 'DELETE_REQUEST'        // 手動削除依頼（業務）
-  | 'SYSTEM_ERROR'          // システムエラー
-  | 'VALIDATION_ERROR'      // 検証エラー（リトライ上限超過）
-  | 'RETRY_LIMIT_EXCEEDED'; // リトライ上限超過
+  | "DELETE_REQUEST"
+  | "SYSTEM_ERROR"
+  | "VALIDATION_ERROR"
+  | "RETRY_LIMIT_EXCEEDED";
 
 /**
  * 通知パラメータの基本型
@@ -78,17 +88,48 @@ export type SystemErrorParams = BaseNotificationParams & {
 };
 
 // =============================================================
+// チャンネルID取得
+// =============================================================
+
+/**
+ * lw_channelsテーブルからチャンネルIDを取得する
+ *
+ * @param channelCode - チャンネルコード
+ * @returns チャンネルID（取得失敗時はnull）
+ */
+async function getLwChannelId(channelCode: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("lw_channels")
+    .select("channel_id")
+    .eq("channel_code", channelCode)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !data) {
+    console.error(`[notification] チャンネル取得エラー: ${channelCode}`, error);
+    return null;
+  }
+
+  return data.channel_id;
+}
+
+// =============================================================
 // メイン関数
 // =============================================================
 
 /**
- * 手動削除依頼を送信する（業務通知チャンネル）
- * 
+ * 手動削除依頼を送信する（担当者向けチャンネル）
+ *
  * @param params - 通知パラメータ
  */
-export async function sendDeleteRequestNotification(params: DeleteRequestParams): Promise<void> {
-  if (!BUSINESS_NOTIFY_CHANNEL_ID) {
-    console.warn("[notification] LINEWORKS_NOTIFY_CHANNEL_ID が未設定です");
+export async function sendDeleteRequestNotification(
+  params: DeleteRequestParams
+): Promise<void> {
+  const channelId = await getLwChannelId(CHANNEL_CODE_STAFF);
+  if (!channelId) {
+    console.warn(
+      `[notification] チャンネルが見つかりません: ${CHANNEL_CODE_STAFF}`
+    );
     return;
   }
 
@@ -101,18 +142,29 @@ export async function sendDeleteRequestNotification(params: DeleteRequestParams)
 
 依頼内容: カイポケの支援経過画面から該当データを手動で削除してください。`;
 
-  await sendNotification(BUSINESS_NOTIFY_CHANNEL_ID, message, 'DELETE_REQUEST');
+  await sendNotification(channelId, message, "DELETE_REQUEST");
 }
 
 /**
  * システムエラー通知を送信する（システムエラーチャンネル）
- * 
+ *
  * @param params - 通知パラメータ
  */
-export async function sendSystemErrorNotification(params: SystemErrorParams): Promise<void> {
-  const retryInfo = params.retryCount !== undefined && params.maxRetries !== undefined
-    ? `\nリトライ: ${params.retryCount}/${params.maxRetries}`
-    : '';
+export async function sendSystemErrorNotification(
+  params: SystemErrorParams
+): Promise<void> {
+  const channelId = await getLwChannelId(CHANNEL_CODE_SYSTEM_ERROR);
+  if (!channelId) {
+    console.warn(
+      `[notification] チャンネルが見つかりません: ${CHANNEL_CODE_SYSTEM_ERROR}`
+    );
+    return;
+  }
+
+  const retryInfo =
+    params.retryCount !== undefined && params.maxRetries !== undefined
+      ? `\nリトライ: ${params.retryCount}/${params.maxRetries}`
+      : "";
 
   const message = `【カイポケ支援経過登録 エラー】
 
@@ -124,15 +176,25 @@ plaud_id: ${params.plaud_id || "不明"}
 user_id: ${params.user_id || "不明"}
 発生日時: ${new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}`;
 
-  await sendNotification(SYSTEM_ERROR_CHANNEL_ID, message, 'SYSTEM_ERROR');
+  await sendNotification(channelId, message, "SYSTEM_ERROR");
 }
 
 /**
  * リトライ上限超過の通知を送信する（システムエラーチャンネル）
- * 
+ *
  * @param params - 通知パラメータ
  */
-export async function sendRetryLimitExceededNotification(params: SystemErrorParams): Promise<void> {
+export async function sendRetryLimitExceededNotification(
+  params: SystemErrorParams
+): Promise<void> {
+  const channelId = await getLwChannelId(CHANNEL_CODE_SYSTEM_ERROR);
+  if (!channelId) {
+    console.warn(
+      `[notification] チャンネルが見つかりません: ${CHANNEL_CODE_SYSTEM_ERROR}`
+    );
+    return;
+  }
+
   const message = `【カイポケ支援経過登録 リトライ上限超過】
 
 最終エラー: ${params.errorMessage}
@@ -143,25 +205,35 @@ plaud_id: ${params.plaud_id || "不明"}
 user_id: ${params.user_id || "不明"}
 
 対応: 手動でステータスをリセットしてください。
-1. plaud_sum_processingのレコードを確認
+1. cm_plaud_sum_processingのレコードを確認
 2. error_messageを確認し原因を特定
 3. 原因を解決後、retry_countを0にリセット
 4. statusをpendingに変更`;
 
-  await sendNotification(SYSTEM_ERROR_CHANNEL_ID, message, 'RETRY_LIMIT_EXCEEDED');
+  await sendNotification(channelId, message, "RETRY_LIMIT_EXCEEDED");
 }
 
 /**
  * 検証エラー（リトライ上限超過後）の通知を送信する
- * 
+ *
  * @param params - 通知パラメータ
  */
-export async function sendValidationErrorNotification(params: SystemErrorParams & {
-  summary?: string;
-}): Promise<void> {
-  const summaryPreview = params.summary 
+export async function sendValidationErrorNotification(
+  params: SystemErrorParams & {
+    summary?: string;
+  }
+): Promise<void> {
+  const channelId = await getLwChannelId(CHANNEL_CODE_SYSTEM_ERROR);
+  if (!channelId) {
+    console.warn(
+      `[notification] チャンネルが見つかりません: ${CHANNEL_CODE_SYSTEM_ERROR}`
+    );
+    return;
+  }
+
+  const summaryPreview = params.summary
     ? `\n要約プレビュー: ${params.summary.substring(0, 100)}...`
-    : '';
+    : "";
 
   const message = `【カイポケ支援経過登録 検証エラー】
 
@@ -176,7 +248,7 @@ user_id: ${params.user_id || "不明"}
 
 対応: プロンプトの調整が必要な可能性があります。`;
 
-  await sendNotification(SYSTEM_ERROR_CHANNEL_ID, message, 'VALIDATION_ERROR');
+  await sendNotification(channelId, message, "VALIDATION_ERROR");
 }
 
 // =============================================================
@@ -185,7 +257,7 @@ user_id: ${params.user_id || "不明"}
 
 /**
  * LINE WORKSに通知を送信する（共通処理）
- * 
+ *
  * @param channelId - 送信先チャンネルID
  * @param message - メッセージ本文
  * @param type - 通知種別（ログ用）

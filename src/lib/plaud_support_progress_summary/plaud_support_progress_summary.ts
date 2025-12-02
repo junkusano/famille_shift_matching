@@ -412,7 +412,7 @@ async function processPlaudSum(
   // ─────────────────────────────────────────────────────────────
   // OpenAI API で要約生成
   // ─────────────────────────────────────────────────────────────
-  let summary: string;
+  let summary: string | undefined;
   let validationErrorType: SummaryValidationErrorType | undefined;
 
   try {

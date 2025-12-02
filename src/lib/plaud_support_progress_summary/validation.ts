@@ -169,14 +169,3 @@ export function getRetryPromptAddition(
 
   return '';
 }
-
-/**
- * エラー種別がリトライ可能かどうかを判定する
- * 
- * @param errorType - エラー種別
- * @returns リトライ可能: true
- */
-export function isRetryableValidationError(_errorType: SummaryValidationErrorType): boolean {
-  // 全ての検証エラーはプロンプト強化でリトライ可能
-  return true;
-}
