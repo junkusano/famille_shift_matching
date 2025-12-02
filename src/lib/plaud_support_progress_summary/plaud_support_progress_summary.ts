@@ -273,7 +273,7 @@ async function getProcessingTargets(options: {
     }
   }
 
-  // 2. リトライ対象を取得
+  // 2. リトライ対象を取得（error状態）
   const { data: retryList } = await supabase
     .from("cm_plaud_sum_processing")
     .select("*")
@@ -302,6 +302,43 @@ async function getProcessingTargets(options: {
 
         for (const proc of retryTargets) {
           const plaudSum = retryPlaudSumMap.get(proc.plaud_sum_id);
+          if (plaudSum) {
+            targets.push({
+              plaudSum,
+              existingProcessing: proc,
+              isNew: false,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 3. 要約済みだがRPA未作成のものを取得（summarized状態でrpa_request_idがnull）
+  const { data: summarizedList } = await supabase
+    .from("cm_plaud_sum_processing")
+    .select("*")
+    .eq("status", "summarized")
+    .is("rpa_request_id", null)
+    .order("created_at", { ascending: true });
+
+  if (summarizedList) {
+    const summarizedPlaudSumIds = (summarizedList as PlaudSumProcessing[]).map(proc => proc.plaud_sum_id);
+
+    if (summarizedPlaudSumIds.length > 0) {
+      const { data: summarizedPlaudSums } = await supabase
+        .from("cm_plaud_sum")
+        .select("*")
+        .in("id", summarizedPlaudSumIds);
+
+      if (summarizedPlaudSums) {
+        const summarizedPlaudSumMap = new Map<string, PlaudSum>();
+        for (const ps of summarizedPlaudSums as PlaudSum[]) {
+          summarizedPlaudSumMap.set(ps.id, ps);
+        }
+
+        for (const proc of summarizedList as PlaudSumProcessing[]) {
+          const plaudSum = summarizedPlaudSumMap.get(proc.plaud_sum_id);
           if (plaudSum) {
             targets.push({
               plaudSum,
@@ -411,70 +448,85 @@ async function processPlaudSum(
   }
 
   // ─────────────────────────────────────────────────────────────
-  // OpenAI API で要約生成
+  // 要約済みでRPA未作成の場合は、要約をスキップしてRPA作成へ
   // ─────────────────────────────────────────────────────────────
+  const isSummarizedButRpaNotCreated = existing 
+    && existing.status === "summarized" 
+    && !existing.rpa_request_id
+    && existing.summary;
+
   let summary: string | undefined;
-  let validationErrorType: SummaryValidationErrorType | undefined;
 
-  try {
-    // リトライ時は前回のエラー種別を取得
-    const previousErrorType = existing?.error_type as SummaryValidationErrorType | undefined;
-    
-    summary = await generateSummary(
-      plaudSum.contents,
-      isRetry ? currentRetryCount + 1 : 0,
-      previousErrorType
-    );
+  if (isSummarizedButRpaNotCreated) {
+    // 既存の要約を使用
+    summary = existing.summary!;
+    console.log(`[plaud_support_progress_summary] 要約済み、RPA作成へ plaud_sum_id=${plaud_sum_id}`);
+  } else {
+    // ─────────────────────────────────────────────────────────────
+    // OpenAI API で要約生成
+    // ─────────────────────────────────────────────────────────────
+    let validationErrorType: SummaryValidationErrorType | undefined;
 
-    // 要約の検証
-    const validationResult = validateSummary(summary);
-    if (!validationResult.valid) {
-      validationErrorType = validationResult.errorType;
-      throw new Error(validationResult.error);
-    }
+    try {
+      // リトライ時は前回のエラー種別を取得
+      const previousErrorType = existing?.error_type as SummaryValidationErrorType | undefined;
+      
+      summary = await generateSummary(
+        plaudSum.contents,
+        isRetry ? currentRetryCount + 1 : 0,
+        previousErrorType
+      );
 
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    const errorType = validationErrorType || 'OPENAI_API_ERROR';
-
-    // エラー状態を保存
-    if (!dryRun) {
-      await saveErrorState(plaudSum, existing, errorMsg, errorType, isRetry);
-    }
-
-    // リトライ上限に達した場合は通知
-    const newRetryCount = isRetry ? currentRetryCount + 1 : 0;
-    if (newRetryCount >= maxRetries) {
-      if (validationErrorType) {
-        await sendValidationErrorNotification({
-          errorType,
-          errorMessage: errorMsg,
-          retryCount: newRetryCount,
-          maxRetries,
-          plaud_sum_id,
-          plaud_id: plaudSum.plaud_id,
-          user_id: plaudSum.user_id,
-          summary: typeof summary === 'string' ? summary : undefined,
-        });
-      } else {
-        await sendSystemErrorNotification({
-          errorType,
-          errorMessage: errorMsg,
-          retryCount: newRetryCount,
-          maxRetries,
-          plaud_sum_id,
-          plaud_id: plaudSum.plaud_id,
-          user_id: plaudSum.user_id,
-        });
+      // 要約の検証
+      const validationResult = validateSummary(summary);
+      if (!validationResult.valid) {
+        validationErrorType = validationResult.errorType;
+        throw new Error(validationResult.error);
       }
-    }
 
-    return {
-      plaud_sum_id,
-      success: false,
-      error: errorMsg,
-      errorType,
-    };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      const errorType = validationErrorType || 'OPENAI_API_ERROR';
+
+      // エラー状態を保存
+      if (!dryRun) {
+        await saveErrorState(plaudSum, existing, errorMsg, errorType, isRetry);
+      }
+
+      // リトライ上限に達した場合は通知
+      const newRetryCount = isRetry ? currentRetryCount + 1 : 0;
+      if (newRetryCount >= maxRetries) {
+        if (validationErrorType) {
+          await sendValidationErrorNotification({
+            errorType,
+            errorMessage: errorMsg,
+            retryCount: newRetryCount,
+            maxRetries,
+            plaud_sum_id,
+            plaud_id: plaudSum.plaud_id,
+            user_id: plaudSum.user_id,
+            summary: typeof summary === 'string' ? summary : undefined,
+          });
+        } else {
+          await sendSystemErrorNotification({
+            errorType,
+            errorMessage: errorMsg,
+            retryCount: newRetryCount,
+            maxRetries,
+            plaud_sum_id,
+            plaud_id: plaudSum.plaud_id,
+            user_id: plaudSum.user_id,
+          });
+        }
+      }
+
+      return {
+        plaud_sum_id,
+        success: false,
+        error: errorMsg,
+        errorType,
+      };
+    }
   }
 
   // dryRun の場合はここで終了
@@ -493,13 +545,17 @@ async function processPlaudSum(
   let processingId: string;
 
   try {
-    if (existing) {
-      // 既存レコード更新
+    if (isSummarizedButRpaNotCreated && existing) {
+      // 要約済みでRPA未作成の場合は、既存のprocessingIdを使用
+      processingId = existing.id;
+      console.log(`[plaud_support_progress_summary] 既存レコード使用 processing_id=${processingId}`);
+    } else if (existing) {
+      // 既存レコード更新（リトライなど）
       const updateData: Record<string, string | number | null> = {
         original_contents: plaudSum.contents,
         kaipoke_cs_id: plaudSum.kaipoke_cs_id,
         status: "summarized",
-        summary,
+        summary: summary!,
         process_type: processType,
         error_message: null,
         error_type: null,
@@ -606,7 +662,6 @@ async function processPlaudSum(
       template_id: RPA_TEMPLATE_ID,
       requester_id: plaudSum.user_id,
       status: "approved",
-      status_label: "approved",
       request_details: rpaRequestDetails,
       requested_at: new Date().toISOString(),
     })
