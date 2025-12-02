@@ -73,6 +73,9 @@ export default function KaipokeInfoPage() {
   const [faxOptions, setFaxOptions] = useState<FaxOption[]>([])
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [page, setPage] = useState(1)
+  const [orgTeams, setOrgTeams] = useState<{ orgunitid: string; orgunitname: string }[]>([]);
+  const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);
+
   const listTopRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -105,9 +108,32 @@ export default function KaipokeInfoPage() {
       if (!error && data) setFaxOptions(data as FaxOption[])
     }
 
+    const loadTeams = async () => {
+      const { data, error } = await supabase
+        .from('orgs')
+        .select('orgunitid, orgunitname')
+        .eq('displaylevel', 3)
+        .order('displayorder', { ascending: true });
+
+      if (error) {
+        console.error('org teams load error', error);
+      } else {
+        setOrgTeams(data || []);
+      }
+    };
+
+    const loadStaffList = async () => {
+      const r = await fetch("/api/masters/staffs", { cache: "no-store" });
+      if (!r.ok) return;
+      const staffData = await r.json();
+      setStaffList(staffData);
+    };
+
     fetchData()
     loadTimeAdjust()
     loadFaxOptions()
+    loadTeams();
+    loadStaffList();
   }, [])
 
   const handleChange = (
@@ -566,28 +592,41 @@ export default function KaipokeInfoPage() {
                           className="w-full border px-2 py-1 h-10"
                         />
                       </div>
-                      {/* ★  チーム（asigned_org の中身） */}
-                      <div>
-                        <label className="text-sm">チーム（asigned_org）：</label>
-                        <input
-                          type="text"
-                          value={item.asigned_org || ""}
-                          onChange={e => handleChange(item.id, "asigned_org", e.target.value)}
-                          className="w-full border px-2 py-1"
-                          placeholder="orgunitid（UUID）など"
-                        />
+                      {/* チーム（asigned_org） */}
+                      <div className="space-y-2">
+                        <label className="block text-sm text-gray-600">チーム</label>
+                        <select
+                          className="w-full border rounded px-2 py-1"
+                          value={item.asigned_org ?? ""}
+                          onChange={(e) => handleChange(item.id, "asigned_org", e.target.value)}
+                        >
+                          <option value="">選択してください</option>
+                          {orgTeams.map((org) => (
+                            <option key={org.orgunitid} value={org.orgunitid}>
+                              {org.orgunitname}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
-                      {/* ★ 実績担当者（テキスト） */}
-                      <div>
-                        <label className="text-sm">実績担当者：</label>
-                        <input
-                          type="text"
-                          value={item.asigned_jisseki_staff || ""}
-                          onChange={e => handleChange(item.id, "asigned_jisseki_staff", e.target.value)}
-                          className="w-full border px-2 py-1"
-                        />
+
+                      {/* 実績担当者（assigned_jisseki_staff） */}
+                      <div className="space-y-2">
+                        <label className="block text-sm text-gray-600">実績担当者</label>
+                        <select
+                          className="w-full border rounded px-2 py-1"
+                          value={item.asigned_jisseki_staff ?? ""}
+                          onChange={(e) => handleChange(item.id, "asigned_jisseki_staff", e.target.value)}
+                        >
+                          <option value="">選択してください</option>
+                          {staffList.map((staff) => (
+                            <option key={staff.user_id} value={staff.user_id}>
+                              {staff.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
+
 
                       {/* ★ 性別 */}
                       <div>
