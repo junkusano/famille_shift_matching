@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/plaud-support-progress-summary",
       "schedule": "18 * * * *"
+    },
+    {
+      "path": "/api/cron/plaud-support-progress-summary",
+      "schedule": "21 * * * *"
     }
   ]
 }
