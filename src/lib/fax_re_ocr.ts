@@ -523,11 +523,20 @@ async function ocrWithAbbyyFirstPage(
     "Basic " +
     Buffer.from(`${ABBYY_APPLICATION_ID}:${ABBYY_API_KEY}`).toString("base64");
 
+  // ★ ここでページ数をざっくり推定
+  const pageCount = estimatePdfPageCount(pdfArrayBuffer);
+  const usePageRange = pageCount >= 10 ? "1-1" : null;
+
   const form = new FormData();
   const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
   form.set("language", "japanese");
   form.set("exportFormat", "txt");
-  form.set("pageRange", "1-1");
+
+  // ★ 10ページ以上なら 1 ページ目だけ、それ未満は全ページ
+  if (usePageRange) {
+    form.set("pageRange", usePageRange); // "1-1"
+  }
+
   form.set("file", blob, "input.pdf");
 
   const res = await fetch(PROCESS_URL, {
@@ -690,6 +699,26 @@ async function summarizeAndExtractDate(ocrText: string): Promise<{
     typeof parsed.confidence === "number" ? parsed.confidence : null;
 
   return { summary, applicableDate, confidence };
+}
+
+
+/**
+ * PDF のページ数をざっくり推定する
+ * - /Type /Page の出現回数を数える簡易版
+ * - 失敗したら 1 ページ扱い
+ */
+function estimatePdfPageCount(pdfArrayBuffer: ArrayBuffer): number {
+  try {
+    // バイナリを壊さないように latin1 で文字列化
+    const text = Buffer.from(pdfArrayBuffer).toString("latin1");
+    const matches = text.match(/\/Type\s*\/Page\b/g);
+    if (matches && matches.length > 0) {
+      return matches.length;
+    }
+  } catch (e) {
+    console.warn("[fax_re_ocr] estimatePdfPageCount failed:", e);
+  }
+  return 1;
 }
 
 /**
