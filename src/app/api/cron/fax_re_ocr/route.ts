@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 async function handler(req: NextRequest) {
   // ---- 認証 ----
   const serverSecret = getServerCronSecret();
-  const incoming = getIncomingCronToken(req); // { token: string; src: "query" | "header" | "auth" | "none" }
+  const incoming = getIncomingCronToken(req); // { token, src }
 
   const incomingToken = incoming?.token ?? "";
 
@@ -26,10 +26,7 @@ async function handler(req: NextRequest) {
   if (!serverSecret) {
     console.warn("[fax_re_ocr][auth] CRON_SECRET が未設定です");
     return NextResponse.json(
-      {
-        ok: false,
-        error: "CRON_SECRET is not set on server",
-      },
+      { ok: false, error: "CRON_SECRET is not set on server" },
       { status: 500 },
     );
   }
@@ -39,10 +36,7 @@ async function handler(req: NextRequest) {
       src: incoming?.src ?? "none",
     });
     return NextResponse.json(
-      {
-        ok: false,
-        error: "Unauthorized",
-      },
+      { ok: false, error: "Unauthorized" },
       { status: 401 },
     );
   }
@@ -86,6 +80,17 @@ async function handler(req: NextRequest) {
   });
 
   const status = result.ok ? 200 : 500;
+
+  // ★ ここでエラーの先頭数件をログに出す
+  if (!result.ok && result.errors.length > 0) {
+    console.error("[fax_re_ocr][errors][summary]", {
+      errorCount: result.errors.length,
+    });
+    for (const err of result.errors.slice(0, 5)) {
+      console.error("[fax_re_ocr][error]", err);
+    }
+  }
+
   console.info("[fax_re_ocr][done]", {
     status,
     scannedDocs: result.scannedDocs,
