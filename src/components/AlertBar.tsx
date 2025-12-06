@@ -6,40 +6,23 @@ import {
   useEffect,
   useMemo,
   useState,
-  ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type AlertStatus = "open" | "in_progress" | "done" | "muted" | "cancelled";
+// ✅ 追加
+import {
+  AlertRow,
+  AlertStatus,
+  fetchActiveAlerts,
+  renderAlertMessage,
+  updateAlertStatus,
+  updateAlertComment,
+} from "@/lib/alert_log/client";
 
-type AlertRow = {
-  id: string;
-  message: string;
-  visible_roles: string[];
-  status: AlertStatus;
-  status_source: string;
-  severity: number;
-  result_comment: string | null;
-  result_comment_by: string | null;
-  result_comment_at: string | null;
-  kaipoke_cs_id: string | null;
-  user_id: string | null;
-  shift_id: string | null;
-  rpa_request_id: string | null;
-  created_by: string | null;
-  assigned_to: string | null;
-  completed_by: string | null;
-  created_at: string;
-  updated_at: string;
-};
+
 
 type SystemRole = "admin" | "manager" | "member";
 
-type ListResponseWrapped = {
-  ok: boolean;
-  rows?: AlertRow[];
-  error?: string;
-};
 
 export default function AlertBar() {
   // ==== ロール情報 ====
@@ -95,32 +78,7 @@ export default function AlertBar() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/alert_log`);
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      }
-
-      let list: AlertRow[] = [];
-
-      // API が配列を返しているパターン（現状）
-      if (Array.isArray(json)) {
-        list = json as AlertRow[];
-      } else {
-        // 将来 { ok, rows } 形式にしても動くように
-        const wrapped = json as ListResponseWrapped;
-        if (wrapped.error && wrapped.ok === false) {
-          throw new Error(wrapped.error);
-        }
-        list = (wrapped.rows ?? []) as AlertRow[];
-      }
-
-      // open / in_progress のみ表示
-      const active = list.filter(
-        (r) => r.status === "open" || r.status === "in_progress",
-      );
-
+      const active = await fetchActiveAlerts();
       setRows(active);
     } catch (e) {
       console.error("[AlertBar] fetchAlerts error", e);
@@ -143,23 +101,7 @@ export default function AlertBar() {
   // ---------- ステータス更新 ----------
   const updateStatus = async (id: string, status: AlertStatus) => {
     try {
-      const body = {
-        status,
-        status_source: "manual",
-      };
-
-      const res = await fetch(`/api/alert_log/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const json = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(json?.error ?? `HTTP ${res.status}`);
-      }
+      await updateAlertStatus(id, status);
 
       setRows((prev) =>
         prev
@@ -178,26 +120,15 @@ export default function AlertBar() {
     }
   };
 
+
   // ---------- コメント保存 ----------
   const saveComment = async () => {
     if (!commentTarget) return;
     try {
-      const body = {
-        result_comment: commentText || null,
-      };
-
-      const res = await fetch(`/api/alert_log/${commentTarget.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const json = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(json?.error ?? `HTTP ${res.status}`);
-      }
+      await updateAlertComment(
+        commentTarget.id,
+        commentText || null,
+      );
 
       setRows((prev) =>
         prev.map((r) =>
@@ -218,6 +149,8 @@ export default function AlertBar() {
     }
   };
 
+
+
   const openCount = useMemo(
     () =>
       rows.filter(
@@ -225,65 +158,6 @@ export default function AlertBar() {
       ).length,
     [rows],
   );
-
-  // ---------- メッセージ内の URL / <a> を表示 ----------
-  const renderMessage = (msg: string): ReactNode => {
-    // ① lib 側で <a href="...">... </a> を組んできた場合 → そのまま信頼して描画
-    if (msg.includes("<a ")) {
-      return (
-        <span
-          className="alert-html"
-          dangerouslySetInnerHTML={{ __html: msg }}
-        />
-      );
-    }
-    // ② それ以外（従来どおり「素の URL」だけが入ってるパターン）だけを regex で処理
-    const urlRegex =
-      /https:\/\/myfamille\.shi-on\.net\/portal\/[^\s]+/g;
-
-    const parts: ReactNode[] = [];
-    let lastIndex = 0;
-
-    for (const match of msg.matchAll(urlRegex)) {
-      const url = match[0];
-      const start = match.index ?? 0;
-
-      if (start > lastIndex) {
-        parts.push(msg.slice(lastIndex, start));
-      }
-
-      let label = url;
-      if (url.includes("/portal/kaipoke-info-detail/")) {
-        label = "利用者情報";
-      } else if (url.includes("/portal/shift-view")) {
-        if (url.includes("client=")) {
-          label = "訪問記録";
-        } else {
-          label = "シフト一覧";
-        }
-      }
-
-      parts.push(
-        <a
-          key={`${url}-${start}`}
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-blue-600 underline"
-        >
-          {label}
-        </a>,
-      );
-
-      lastIndex = start + url.length;
-    }
-
-    if (lastIndex < msg.length) {
-      parts.push(msg.slice(lastIndex));
-    }
-
-    return parts;
-  };
 
   // ---------- 最後に表示制御（hooks の後に置く） ----------
   if (!roleLoaded) return null;
@@ -394,7 +268,7 @@ export default function AlertBar() {
                           })()}
                         </td>
                         <td className="py-1.5 pr-4 whitespace-pre-wrap">
-                          {renderMessage(row.message)}
+                          {renderAlertMessage(row.message)}
                         </td>
                         <td className="py-1.5 pr-4">
                           {row.status === "open" && "未対応"}
