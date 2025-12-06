@@ -39,10 +39,6 @@
     {
       "path": "/api/cron/plaud-support-progress-summary",
       "schedule": "18 * * * *"
-    },
-    {
-      "path": "/api/cron/fax_re_ocr",
-      "schedule": "21 0 * * *"
     }
   ]
 }
