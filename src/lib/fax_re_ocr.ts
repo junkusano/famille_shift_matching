@@ -576,7 +576,9 @@ async function ocrWithAbbyyFirstPage(
 
   const res = await fetch(PROCESS_URL, {
     method: "POST",
-    headers: { Authorization: authHeader },
+    headers: {
+      Authorization: authHeader,
+    },
     body: form,
   });
 
@@ -602,16 +604,15 @@ async function ocrWithAbbyyFirstPage(
 
     const stRes = await fetch(statusUrl, {
       method: "GET",
-      headers: { Authorization: authHeader },
+      headers: {
+        Authorization: authHeader,
+      },
     });
     const stBody = await stRes.text();
 
     if (!stRes.ok) {
       throw new Error(
-        `ABBYY getTaskStatus error ${stRes.status}: ${stBody.slice(
-          0,
-          200,
-        )}`,
+        `ABBYY getTaskStatus error ${stRes.status}: ${stBody.slice(0, 200)}`,
       );
     }
 
@@ -630,6 +631,7 @@ async function ocrWithAbbyyFirstPage(
       throw new Error("ABBYY OCR ProcessingFailed");
     }
   }
+
 
   if (!resultUrl) {
     throw new Error(`ABBYY OCR timeout; last status = ${lastStatus}`);

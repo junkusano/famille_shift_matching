@@ -42,7 +42,7 @@
     },
     {
       "path": "/api/cron/fax_re_ocr",
-      "schedule": "21 * * * *"
+      "schedule": "21 0 * * *"
     }
   ]
 }
