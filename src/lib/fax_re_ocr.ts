@@ -484,6 +484,18 @@ async function reanalyzeDocument(candidate: CandidateDoc): Promise<{
       `fetch PDF failed: ${pdfRes.status} ${pdfRes.statusText}`,
     );
   }
+
+  const contentType = pdfRes.headers.get("content-type") ?? "";
+  const lowerType = contentType.toLowerCase();
+
+  if (!lowerType.includes("pdf")) {
+    // HTML ログインページなどの場合は ABBYY に投げずここで止める
+    const head = (await pdfRes.text()).slice(0, 200);
+    throw new Error(
+      `fetched content is not PDF (content-type=${contentType}): ${head}`,
+    );
+  }
+
   const pdfArrayBuffer = await pdfRes.arrayBuffer();
 
   // 2) ABBYY で先頭1ページを OCR
@@ -515,35 +527,51 @@ async function reanalyzeDocument(candidate: CandidateDoc): Promise<{
 async function ocrWithAbbyyFirstPage(
   pdfArrayBuffer: ArrayBuffer,
 ): Promise<string> {
-  const ENDPOINT_BASE = ABBYY_END_POINT!.replace(/\/$/, "");
-  const PROCESS_URL = `${ENDPOINT_BASE}/processImage`;
-  const STATUS_URL = `${ENDPOINT_BASE}/getTaskStatus`;
+  if (!ABBYY_END_POINT || !ABBYY_APPLICATION_ID || !ABBYY_API_KEY) {
+    throw new Error("ABBYY env vars are not set");
+  }
+
+  // ABBYY_END_POINT は
+  //  - https://cloud-westus.ocrsdk.com
+  //  - または https://cloud-westus.ocrsdk.com/processImage
+  // のどちらでも動くようにする
+  const rawBase = ABBYY_END_POINT.replace(/\/$/, "");
+  let PROCESS_URL: string;
+  let STATUS_URL: string;
+
+  if (/\/processImage$/i.test(rawBase)) {
+    // すでに processImage まで含まれているパターン（GAS と同じ）
+    PROCESS_URL = rawBase;
+    STATUS_URL = rawBase.replace(/\/processImage$/i, "/getTaskStatus");
+  } else {
+    // ベース URL パターン
+    PROCESS_URL = `${rawBase}/processImage`;
+    STATUS_URL = `${rawBase}/getTaskStatus`;
+  }
 
   const authHeader =
     "Basic " +
     Buffer.from(`${ABBYY_APPLICATION_ID}:${ABBYY_API_KEY}`).toString("base64");
 
-  // ★ ここでページ数をざっくり推定
+  // （ここから下は既存ロジックを使い回し）
+  // もし前に追加した「ページ数判定 → pageRange」ロジックがあればここに置く
+  // 例:
+  //
   const pageCount = estimatePdfPageCount(pdfArrayBuffer);
   const usePageRange = pageCount >= 10 ? "1-1" : null;
-
+  //
   const form = new FormData();
   const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
   form.set("language", "japanese");
   form.set("exportFormat", "txt");
-
-  // ★ 10ページ以上なら 1 ページ目だけ、それ未満は全ページ
   if (usePageRange) {
-    form.set("pageRange", usePageRange); // "1-1"
+    form.set("pageRange", usePageRange);
   }
-
   form.set("file", blob, "input.pdf");
 
   const res = await fetch(PROCESS_URL, {
     method: "POST",
-    headers: {
-      Authorization: authHeader,
-    },
+    headers: { Authorization: authHeader },
     body: form,
   });
 
@@ -559,7 +587,6 @@ async function ocrWithAbbyyFirstPage(
     throw new Error("ABBYY response has no task id");
   }
   const taskId = taskIdMatch[1];
-
   const statusUrl = `${STATUS_URL}?taskId=${encodeURIComponent(taskId)}`;
 
   let lastStatus = "Unknown";
@@ -570,11 +597,10 @@ async function ocrWithAbbyyFirstPage(
 
     const stRes = await fetch(statusUrl, {
       method: "GET",
-      headers: {
-        Authorization: authHeader,
-      },
+      headers: { Authorization: authHeader },
     });
     const stBody = await stRes.text();
+
     if (!stRes.ok) {
       throw new Error(
         `ABBYY getTaskStatus error ${stRes.status}: ${stBody.slice(
@@ -585,9 +611,7 @@ async function ocrWithAbbyyFirstPage(
     }
 
     const statusMatch = stBody.match(/status="([^"]+)"/);
-    if (statusMatch) {
-      lastStatus = statusMatch[1];
-    }
+    lastStatus = statusMatch ? statusMatch[1] : "Unknown";
 
     if (lastStatus === "Completed") {
       const resultMatch = stBody.match(/resultUrl="([^"]+)"/);
@@ -596,15 +620,14 @@ async function ocrWithAbbyyFirstPage(
       }
       resultUrl = resultMatch[1];
       break;
-    } else if (lastStatus === "ProcessingFailed") {
+    }
+    if (lastStatus === "ProcessingFailed") {
       throw new Error("ABBYY OCR ProcessingFailed");
     }
   }
 
   if (!resultUrl) {
-    throw new Error(
-      `ABBYY OCR timeout; last status = ${lastStatus}`,
-    );
+    throw new Error(`ABBYY OCR timeout; last status = ${lastStatus}`);
   }
 
   const txtRes = await fetch(resultUrl);
@@ -709,7 +732,6 @@ async function summarizeAndExtractDate(ocrText: string): Promise<{
  */
 function estimatePdfPageCount(pdfArrayBuffer: ArrayBuffer): number {
   try {
-    // バイナリを壊さないように latin1 で文字列化
     const text = Buffer.from(pdfArrayBuffer).toString("latin1");
     const matches = text.match(/\/Type\s*\/Page\b/g);
     if (matches && matches.length > 0) {
@@ -720,6 +742,7 @@ function estimatePdfPageCount(pdfArrayBuffer: ArrayBuffer): number {
   }
   return 1;
 }
+
 
 /**
  * OpenAI の返答から JSON 部分だけを取り出す簡易ヘルパー
