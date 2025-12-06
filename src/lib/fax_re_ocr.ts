@@ -451,6 +451,7 @@ export async function runFaxReOcr(
  * - JSON 側に既に入っている場合はそちら優先
  * - ここでは「再分類までは行わない」方針（⑤で強化予定）
  */
+// もともとのシグネチャはそのまま利用
 async function reanalyzeDocument(candidate: CandidateDoc): Promise<{
   ocrText: string | null;
   summary: string | null;
@@ -477,52 +478,57 @@ async function reanalyzeDocument(candidate: CandidateDoc): Promise<{
     return null;
   }
 
-  // 1) PDF データを取得（Content-Type は信用しない）
-  const pdfRes = await fetch(fileUrl);
-  if (!pdfRes.ok) {
-    throw new Error(`fetch PDF failed: ${pdfRes.status} ${pdfRes.statusText}`);
+  try {
+    // 1) PDF を取得
+    const pdfRes = await fetch(fileUrl);
+    if (!pdfRes.ok) {
+      throw new Error(
+        `fetch PDF failed: ${pdfRes.status} ${pdfRes.statusText}`,
+      );
+    }
+    const pdfArrayBuffer = await pdfRes.arrayBuffer();
+
+    // 2) ABBYY で先頭1ページを OCR
+    const ocrText = await ocrWithAbbyyFirstPage(pdfArrayBuffer);
+    if (!ocrText || !ocrText.trim()) {
+      throw new Error("OCR text is empty");
+    }
+
+    // 3) OpenAI で要約 + applicable_date 抽出
+    const { summary, applicableDate, confidence } =
+      await summarizeAndExtractDate(ocrText);
+
+    return {
+      ocrText,
+      summary,
+      applicableDate,
+      // ④では再分類はしない（既存の doc_type_id / label を優先）
+      docTypeId: candidate.docTypeId ?? null,
+      docName: candidate.label ?? null,
+      model: "gpt-4.1-mini",
+      confidence,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+
+    console.error("[fax_re_ocr] reanalyzeDocument failed:", {
+      url: fileUrl,
+      error: msg,
+    });
+
+    // ★ここが B 案：
+    // ABBYY / OpenAI の失敗時でも cs_docs に 1 行は作る。
+    // ocr_result は null、sum_result に「OCR_FAILED: ...」を入れておく。
+    return {
+      ocrText: null,
+      summary: `OCR_FAILED: ${msg}`.slice(0, 2000), // 長すぎ防止
+      applicableDate: null,
+      docTypeId: candidate.docTypeId ?? null,
+      docName: candidate.label ?? null,
+      model: null,
+      confidence: null,
+    };
   }
-
-  // まず全部 ArrayBuffer として読む
-  const pdfArrayBuffer = await pdfRes.arrayBuffer();
-
-  // 先頭4バイトで PDF 判定（Content-Type 無視）
-  const header = Buffer.from(pdfArrayBuffer).subarray(0, 4).toString("ascii");
-
-  if (!header.startsWith("%PDF")) {
-    const contentType = pdfRes.headers.get("content-type") ?? "";
-    const headPreview = Buffer.from(pdfArrayBuffer)
-      .subarray(0, 200)
-      .toString("latin1");
-
-    throw new Error(
-      `fetched content is not PDF (content-type=${contentType}, header=${JSON.stringify(
-        header,
-      )}): ${headPreview}`,
-    );
-  }
-
-  // 2) ABBYY OCR → ページ数に応じて 1ページ目 or 全ページ
-  const ocrText = await ocrWithAbbyyFirstPage(pdfArrayBuffer);
-  if (!ocrText || !ocrText.trim()) {
-    throw new Error("OCR text is empty");
-  }
-
-
-  // 3) OpenAI で要約 + applicable_date 抽出
-  const { summary, applicableDate, confidence } =
-    await summarizeAndExtractDate(ocrText);
-
-  return {
-    ocrText,
-    summary,
-    applicableDate,
-    // ④では再分類はしない（既存の doc_type_id / label を優先）
-    docTypeId: candidate.docTypeId ?? null,
-    docName: candidate.label ?? null,
-    model: "gpt-4.1-mini",
-    confidence,
-  };
 }
 
 /**
@@ -762,3 +768,5 @@ function extractJsonFromText(text: string): string {
   }
   return text.slice(first, last + 1);
 }
+
+
