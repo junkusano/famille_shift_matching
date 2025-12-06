@@ -84,7 +84,7 @@ interface OcrSummaryJson {
   [key: string]: unknown;
 }
 
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 5;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -597,7 +597,7 @@ async function ocrWithAbbyyFirstPage(
   let lastStatus = "Unknown";
   let resultUrl: string | null = null;
 
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 10; i++) {
     await sleep(2000);
 
     const stRes = await fetch(statusUrl, {
