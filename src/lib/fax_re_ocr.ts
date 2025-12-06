@@ -477,32 +477,37 @@ async function reanalyzeDocument(candidate: CandidateDoc): Promise<{
     return null;
   }
 
-  // 1) PDF を取得
+  // 1) PDF データを取得（Content-Type は信用しない）
   const pdfRes = await fetch(fileUrl);
   if (!pdfRes.ok) {
-    throw new Error(
-      `fetch PDF failed: ${pdfRes.status} ${pdfRes.statusText}`,
-    );
+    throw new Error(`fetch PDF failed: ${pdfRes.status} ${pdfRes.statusText}`);
   }
 
-  const contentType = pdfRes.headers.get("content-type") ?? "";
-  const lowerType = contentType.toLowerCase();
-
-  if (!lowerType.includes("pdf")) {
-    // HTML ログインページなどの場合は ABBYY に投げずここで止める
-    const head = (await pdfRes.text()).slice(0, 200);
-    throw new Error(
-      `fetched content is not PDF (content-type=${contentType}): ${head}`,
-    );
-  }
-
+  // まず全部 ArrayBuffer として読む
   const pdfArrayBuffer = await pdfRes.arrayBuffer();
 
-  // 2) ABBYY で先頭1ページを OCR
+  // 先頭4バイトで PDF 判定（Content-Type 無視）
+  const header = Buffer.from(pdfArrayBuffer).subarray(0, 4).toString("ascii");
+
+  if (!header.startsWith("%PDF")) {
+    const contentType = pdfRes.headers.get("content-type") ?? "";
+    const headPreview = Buffer.from(pdfArrayBuffer)
+      .subarray(0, 200)
+      .toString("latin1");
+
+    throw new Error(
+      `fetched content is not PDF (content-type=${contentType}, header=${JSON.stringify(
+        header,
+      )}): ${headPreview}`,
+    );
+  }
+
+  // 2) ABBYY OCR → ページ数に応じて 1ページ目 or 全ページ
   const ocrText = await ocrWithAbbyyFirstPage(pdfArrayBuffer);
   if (!ocrText || !ocrText.trim()) {
     throw new Error("OCR text is empty");
   }
+
 
   // 3) OpenAI で要約 + applicable_date 抽出
   const { summary, applicableDate, confidence } =
