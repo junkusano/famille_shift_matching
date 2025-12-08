@@ -11,7 +11,7 @@ export type CsDocRow = {
   doc_name: string | null;
   ocr_text: string | null;
   summary: string | null;
-  doc_date_raw: string | null; // date 型だが、文字列として扱う
+  doc_date_raw: string | null; // date を文字列として扱う
   created_at: string | null;
 };
 
@@ -33,22 +33,24 @@ export async function getCsDocsInitialData(): Promise<CsDocsInitialData> {
     .from("cs_docs")
     .select(
       `
-      id,
-      url,
-      kaipoke_cs_id,
-      source,
-      doc_name,
-      ocr_text,
-      summary,
-      doc_date_raw,
-      created_at
-    `
+        id,
+        url,
+        kaipoke_cs_id,
+        source,
+        doc_name,
+        ocr_text,
+        summary,
+        doc_date_raw,
+        created_at
+      `
     )
     .order("created_at", { ascending: false });
 
-  if (docsErr) throw new Error(`cs_docs 取得エラー: ${docsErr.message}`);
+  if (docsErr) {
+    throw new Error(`cs_docs 取得エラー: ${docsErr.message}`);
+  }
 
-  // 利用者一覧（必要な列だけ：kaipoke_cs_id, name）
+  // 利用者一覧（kaipoke_cs_id, name だけ）
   const { data: kaipokeList, error: kaipokeErr } = await supabase
     .from("cs_kaipoke_info")
     .select("kaipoke_cs_id, name")
@@ -78,19 +80,41 @@ export type UpdateCsDocInput = {
 };
 
 export async function updateCsDocById(input: UpdateCsDocInput): Promise<void> {
-  const { id, ...fields } = input;
+  const {
+    id,
+    url,
+    kaipoke_cs_id,
+    source,
+    doc_name,
+    ocr_text,
+    summary,
+    doc_date_raw,
+  } = input;
 
+  // ★ すべてのフィールドを明示的に update 対象にする
   const { error } = await supabase
     .from("cs_docs")
-    .update(fields)
+    .update({
+      url,
+      kaipoke_cs_id,
+      source,
+      doc_name,
+      ocr_text,
+      summary,
+      doc_date_raw,
+    })
     .eq("id", id);
 
-  if (error) throw new Error(`cs_docs 更新エラー: ${error.message}`);
+  if (error) {
+    throw new Error(`cs_docs 更新エラー: ${error.message}`);
+  }
 }
 
 /* ========== 削除 ========== */
 
 export async function deleteCsDocById(id: string): Promise<void> {
   const { error } = await supabase.from("cs_docs").delete().eq("id", id);
-  if (error) throw new Error(`cs_docs 削除エラー: ${error.message}`);
+  if (error) {
+    throw new Error(`cs_docs 削除エラー: ${error.message}`);
+  }
 }
