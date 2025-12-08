@@ -82,6 +82,13 @@ export default function AssignMatomePage() {
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
+    // ★ 検索フィルタ
+    const [filterName, setFilterName] = useState("");
+    const [filterServiceKind, setFilterServiceKind] = useState("");
+    const [filterPostalArea, setFilterPostalArea] = useState("");
+    const [filterStaff, setFilterStaff] = useState("");
+    const [filterOrg, setFilterOrg] = useState("");
+
     // -----------------------
     // 初期データ取得
     // -----------------------
@@ -217,6 +224,55 @@ export default function AssignMatomePage() {
             count: result.get(org.orgunitid) ?? 0,
         }));
     }, [rows, orgOptions]);
+
+    // ★ サービス種別の選択肢（テーブルに存在するものだけ）
+    const serviceKindOptions = useMemo(() => {
+        const set = new Set<string>();
+        rows.forEach((r) => {
+            if (r.service_kind) set.add(r.service_kind);
+        });
+        return Array.from(set).sort();
+    }, [rows]);
+
+    // ★ フィルタ後の行
+    const filteredRows = useMemo(() => {
+        return rows.filter((r) => {
+            if (
+                filterName &&
+                !r.name.toLowerCase().includes(filterName.toLowerCase())
+            ) {
+                return false;
+            }
+
+            if (filterServiceKind && r.service_kind !== filterServiceKind) {
+                return false;
+            }
+
+            if (
+                filterPostalArea &&
+                !r.postal_area.startsWith(filterPostalArea)
+            ) {
+                return false;
+            }
+
+            if (filterStaff && r.asigned_jisseki_staff !== filterStaff) {
+                return false;
+            }
+
+            if (filterOrg && r.asigned_org !== filterOrg) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [
+        rows,
+        filterName,
+        filterServiceKind,
+        filterPostalArea,
+        filterStaff,
+        filterOrg,
+    ]);
 
     // -----------------------
     // 更新ハンドラ（チーム）
@@ -399,19 +455,92 @@ export default function AssignMatomePage() {
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                     <table className="min-w-full text-xs border-collapse">
                         <thead className="sticky top-0 bg-gray-100 z-10">
+                            {/* 見出し行 */}
                             <tr className="border-b">
                                 <th className="text-left py-1 px-2">名前</th>
                                 <th className="text-left py-1 px-2">サービス種別</th>
                                 <th className="text-left py-1 px-2">エリア（郵便上3桁）</th>
                                 <th className="text-left py-1 px-2">実績記録担当者</th>
                                 <th className="text-left py-1 px-2">チーム</th>
-                                <th className="text-left py-1 px-2 w-24">状態</th>
+                            </tr>
+
+                            {/* ★ 検索行 */}
+                            <tr className="border-b bg-gray-50">
+                                {/* 名前フィルタ */}
+                                <th className="py-1 px-2">
+                                    <input
+                                        type="text"
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        placeholder="名前で検索"
+                                        value={filterName}
+                                        onChange={(e) => setFilterName(e.target.value)}
+                                    />
+                                </th>
+
+                                {/* サービス種別フィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterServiceKind}
+                                        onChange={(e) => setFilterServiceKind(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {serviceKindOptions.map((sk) => (
+                                            <option key={sk} value={sk}>
+                                                {sk}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
+
+                                {/* エリア（上3桁）フィルタ */}
+                                <th className="py-1 px-2">
+                                    <input
+                                        type="text"
+                                        maxLength={3}
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        placeholder="例: 460"
+                                        value={filterPostalArea}
+                                        onChange={(e) => setFilterPostalArea(e.target.value)}
+                                    />
+                                </th>
+
+                                {/* 実績記録担当者フィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterStaff}
+                                        onChange={(e) => setFilterStaff(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {staffOptions.map((s) => (
+                                            <option key={s.user_id} value={s.user_id}>
+                                                {s.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
+
+                                {/* チームフィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterOrg}
+                                        onChange={(e) => setFilterOrg(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {orgOptions.map((org) => (
+                                            <option key={org.orgunitid} value={org.orgunitid}>
+                                                {org.orgunitname}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
                             </tr>
                         </thead>
+
                         <tbody>
-                            {rows.map((row) => {
-                                const staffSaving = row.isSavingStaff;
-                                const orgSaving = row.isSavingOrg;
+                            {filteredRows.map((row) => {
                                 return (
                                     <tr key={row.id} className="border-b last:border-b-0">
                                         {/* 名前（クリックで利用者情報ページへ） */}
@@ -481,20 +610,11 @@ export default function AssignMatomePage() {
                                                 </p>
                                             )}
                                         </td>
-
-                                        {/* 状態：保存中など */}
-                                        <td className="py-1 px-2 text-[10px]">
-                                            {staffSaving || orgSaving ? (
-                                                <span className="text-gray-500">保存中…</span>
-                                            ) : (
-                                                <span className="text-gray-400">-</span>
-                                            )}
-                                        </td>
                                     </tr>
                                 );
                             })}
 
-                            {rows.length === 0 && !loading && (
+                            {filteredRows.length === 0 && !loading && (
                                 <tr>
                                     <td colSpan={6} className="py-4 text-center text-gray-500">
                                         データがありません
