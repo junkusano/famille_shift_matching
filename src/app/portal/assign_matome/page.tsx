@@ -246,8 +246,8 @@ export default function AssignMatomePage() {
     // ★ フィルタ後の行
     const filteredRows = useMemo(() => {
         return rows.filter((r) => {
-            // ★ 99999999（9が8個）の利用者は一覧に表示しない
-            if (r.kaipoke_cs_id === "99999999") {
+            /// ★ 99999999 で始まる利用者（お休み）は一覧に表示しない
+            if (r.kaipoke_cs_id.startsWith("99999999")) {
                 return false;
             }
             if (

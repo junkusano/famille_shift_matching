@@ -98,7 +98,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
         </>
       )}
-      <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">チーム一覧管理</Link></li>
+      <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
       <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
