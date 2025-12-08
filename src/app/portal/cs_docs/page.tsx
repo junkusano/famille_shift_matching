@@ -34,7 +34,7 @@ export default async function CsDocsPage() {
 
   // ② user_doc_master は添付の API から取得（category=cs_doc）
   //    Server Component なので絶対URLにする
-  const h = headers();
+  const h = await headers(); // ★ ここを await に修正
   const host =
     h.get("x-forwarded-host") ??
     h.get("host") ??
