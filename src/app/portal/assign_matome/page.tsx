@@ -38,6 +38,13 @@ type RowState = KaipokeUser & {
     errorStaff?: string | null;
 };
 
+// ★ チーム集計から除外する orgunitid
+const EXCLUDED_ORG_IDS = [
+    "9baa7a8e-a1a5-4795-2165-05d708a9d2d7",
+    "7a159f5c-50ec-4281-282d-05bbebfd46f0",
+    "50cb5b67-0edd-42a3-20aa-058654da5df6",
+];
+
 // =======================
 // Supabase クライアント
 // =======================
@@ -217,12 +224,14 @@ export default function AssignMatomePage() {
             result.set(r.asigned_org, (result.get(r.asigned_org) ?? 0) + 1);
         });
 
-        // チーム名も付けて配列に
-        return orgOptions.map((org) => ({
-            orgunitid: org.orgunitid,
-            orgunitname: org.orgunitname,
-            count: result.get(org.orgunitid) ?? 0,
-        }));
+        // チーム名も付けて配列に（特定 orgunitid は除外）
+        return orgOptions
+            .filter((org) => !EXCLUDED_ORG_IDS.includes(org.orgunitid))
+            .map((org) => ({
+                orgunitid: org.orgunitid,
+                orgunitname: org.orgunitname,
+                count: result.get(org.orgunitid) ?? 0,
+            }));
     }, [rows, orgOptions]);
 
     // ★ サービス種別の選択肢（テーブルに存在するものだけ）
@@ -237,6 +246,10 @@ export default function AssignMatomePage() {
     // ★ フィルタ後の行
     const filteredRows = useMemo(() => {
         return rows.filter((r) => {
+            // ★ 99999999（9が8個）の利用者は一覧に表示しない
+            if (r.kaipoke_cs_id === "99999999") {
+                return false;
+            }
             if (
                 filterName &&
                 !r.name.toLowerCase().includes(filterName.toLowerCase())
@@ -426,9 +439,9 @@ export default function AssignMatomePage() {
                     </table>
                 </div>
 
-                {/* チームごとの人数 */}
+                {/* チームごとの利用者数 */}
                 <div className="border rounded-md p-3 bg-white shadow-sm">
-                    <h2 className="font-semibold mb-2 text-sm">チームごとのメンバー数</h2>
+                    <h2 className="font-semibold mb-2 text-sm">チームごとの利用者数</h2>
                     <table className="w-full text-sm border-collapse">
                         <thead>
                             <tr className="border-b">
