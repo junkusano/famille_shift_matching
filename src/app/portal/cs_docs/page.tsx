@@ -1,4 +1,5 @@
 // src/app/portal/cs_docs/page.tsx
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import {
   getCsDocsInitialData,
@@ -32,7 +33,19 @@ export default async function CsDocsPage() {
   const { docs, kaipokeList }: CsDocsInitialData = await getCsDocsInitialData();
 
   // ② user_doc_master は添付の API から取得（category=cs_doc）
-  const res = await fetch("/api/user-doc-master?category=cs_doc", {
+  //    Server Component なので絶対URLにする
+  const h = headers();
+  const host =
+    h.get("x-forwarded-host") ??
+    h.get("host") ??
+    "localhost:3000";
+  const forwardedProto = h.get("x-forwarded-proto");
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+  const protocol = forwardedProto ?? "https";
+  const baseUrl = envSiteUrl ?? `${protocol}://${host}`;
+
+  const res = await fetch(`${baseUrl}/api/user-doc-master?category=cs_doc`, {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -152,13 +165,15 @@ export default async function CsDocsPage() {
                         defaultValue={row.kaipoke_cs_id ?? ""}
                         className="border rounded px-1 py-0.5 text-[11px] w-full"
                       >
-                        <option value="">(未設定)</option>
-                        {kaipokeList.map((k) => (
-                          <option
-                            key={k.kaipoke_cs_id}
-                            value={k.kaipoke_cs_id}
-                          >
-                            {k.name} ({k.kaipoke_cs_id})
+                        {[
+                          { value: "", label: "(未設定)" },
+                          ...kaipokeList.map((k) => ({
+                            value: k.kaipoke_cs_id,
+                            label: `${k.name} (${k.kaipoke_cs_id})`,
+                          })),
+                        ].map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
                           </option>
                         ))}
                       </select>
@@ -171,10 +186,15 @@ export default async function CsDocsPage() {
                         defaultValue={row.source ?? ""}
                         className="border rounded px-1 py-0.5 text-[11px] w-full"
                       >
-                        <option value="">(未設定)</option>
-                        {SOURCE_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
+                        {[
+                          { value: "", label: "(未設定)" },
+                          ...SOURCE_OPTIONS.map((s) => ({
+                            value: s,
+                            label: s,
+                          })),
+                        ].map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
                           </option>
                         ))}
                       </select>
@@ -187,10 +207,15 @@ export default async function CsDocsPage() {
                         defaultValue={row.doc_name ?? ""}
                         className="border rounded px-1 py-0.5 text-[11px] w-full"
                       >
-                        <option value="">(未設定)</option>
-                        {docMasterList.map((d) => (
-                          <option key={d.value} value={d.label}>
-                            {d.label}
+                        {[
+                          { value: "", label: "(未設定)" },
+                          ...docMasterList.map((d) => ({
+                            value: d.label,
+                            label: d.label,
+                          })),
+                        ].map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
                           </option>
                         ))}
                       </select>
@@ -268,7 +293,8 @@ export default async function CsDocsPage() {
       <div className="text-[10px] text-gray-400">
         ・cs_docs / cs_kaipoke_info は <code>@/lib/cs_docs</code> から直接 Supabase
         を叩いています。<br />
-        ・user_doc_master は <code>/api/user-doc-master?category=cs_doc</code>{" "}
+        ・user_doc_master は{" "}
+        <code>{baseUrl}/api/user-doc-master?category=cs_doc</code>{" "}
         の結果（value, label）を使っています。
       </div>
     </div>
