@@ -34,7 +34,7 @@ export default async function CsDocsPage() {
 
   // ② user_doc_master は添付の API から取得（category=cs_doc）
   //    Server Component なので絶対URLにする
-  const h = await headers(); // ★ ここを await に修正
+  const h = await headers();
   const host =
     h.get("x-forwarded-host") ??
     h.get("host") ??
@@ -258,15 +258,10 @@ export default async function CsDocsPage() {
                         保存
                       </button>
 
-                      {/* 同じ form から deleteAction を叩く */}
+                      {/* 同じ form から deleteAction を叩く（確認ダイアログなし） */}
                       <button
                         formAction={deleteAction}
                         className="border rounded px-2 py-1 text-[11px] bg-red-600 text-white"
-                        onClick={(e) => {
-                          if (!confirm("このレコードを削除しますか？")) {
-                            e.preventDefault();
-                          }
-                        }}
                       >
                         削除
                       </button>
