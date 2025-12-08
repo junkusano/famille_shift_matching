@@ -134,7 +134,7 @@ export default function KaipokeInfoDetailPage() {
     const [row, setRow] = useState<KaipokeInfo | null>(null);
     const [saving, setSaving] = useState(false);
     const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);
-
+    const [orgTeams, setOrgTeams] = useState<{ orgunitid: string; orgunitname: string }[]>([]);
 
     // 取得日の簡易入力(YYYYMM or YYYYMMDD)
     const [acquiredRaw, setAcquiredRaw] = useState<string>('');
@@ -235,11 +235,27 @@ export default function KaipokeInfoDetailPage() {
             }
         };
 
+        // ★ 追加：チーム情報をロードする関数
+        const loadTeams = async () => {
+            const { data, error } = await supabase
+                .from('orgs')
+                .select('orgunitid, orgunitname')
+                .eq('displaylevel', 3)
+                .order('displayorder', { ascending: true });
+
+            if (error) {
+                console.error('org teams load error', error);
+            } else {
+                setOrgTeams(data || []);
+            }
+        };
+
         fetchRow();
         loadDocMaster();
         loadTimeAdjust();
         loadStaffList();
         loadStaffList();
+        loadTeams();
     }, [id]);
 
     const documentsArray = useMemo<Attachment[]>(() => {
@@ -357,8 +373,8 @@ export default function KaipokeInfoDetailPage() {
                     phone_02: (row.phone_02 ?? '').trim() || null,
 
                     // ★ 追加：assigned_org / assigned_jisseki_staff
-                    asigned_org: (row.asigned_org ?? '').trim() || null,
-                    asigned_jisseki_staff: (row.asigned_jisseki_staff ?? '').trim() || null,
+                    asigned_org: row.asigned_org || null,  // チームID
+                    asigned_jisseki_staff: row.asigned_jisseki_staff || null,  // 実績担当者
 
                     standard_route: (row.standard_route ?? '').trim() || null,
                     commuting_flg: row.commuting_flg ?? null,
@@ -509,14 +525,21 @@ export default function KaipokeInfoDetailPage() {
                     />
                 </div>
 
-                {/* ★ 追加：assigned_org / assigned_jisseki_staff */}
+                {/* チーム（assigned_org） */}
                 <div className="space-y-2">
-                    <label className="block text-sm text-gray-600">assigned_org（チームID）</label>
-                    <input
+                    <label className="block text-sm text-gray-600">チーム</label>
+                    <select
                         className="w-full border rounded px-2 py-1"
-                        value={row.asigned_org ?? ''}
+                        value={row.asigned_org ?? ""}
                         onChange={(e) => setRow({ ...row, asigned_org: e.target.value })}
-                    />
+                    >
+                        <option value="">選択してください</option>
+                        {orgTeams.map((org) => (
+                            <option key={org.orgunitid} value={org.orgunitid}>
+                                {org.orgunitname}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* 実績担当者（assigned_jisseki_staff） */}
