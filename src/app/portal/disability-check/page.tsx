@@ -16,8 +16,8 @@ interface Row {
   asigned_jisseki_staff_id: string | null;   // user_id 等
   asigned_jisseki_staff_name: string | null; // 氏名
 
-  // ③ 提出フラグ
-  is_submitted: boolean | null;
+  // ③ 提出フラグ ← DB の application_check と対応させる
+  application_check: boolean | null;
 }
 
 interface DistrictRow {
@@ -204,7 +204,7 @@ const DisabilityCheckPage: React.FC = () => {
         r.kaipoke_cs_id === row.kaipoke_cs_id &&
           r.year_month === row.year_month &&
           r.kaipoke_servicek === row.kaipoke_servicek
-          ? { ...r, is_submitted: submitted }
+          ? { ...r, application_check: submitted }
           : r
       )
     );
@@ -213,7 +213,7 @@ const DisabilityCheckPage: React.FC = () => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          submitted,
+          application_check: submitted,
           year_month: row.year_month,
           kaipoke_servicek: row.kaipoke_servicek,
           kaipoke_cs_id: row.kaipoke_cs_id,
@@ -226,7 +226,7 @@ const DisabilityCheckPage: React.FC = () => {
           r.kaipoke_cs_id === row.kaipoke_cs_id &&
             r.year_month === row.year_month &&
             r.kaipoke_servicek === row.kaipoke_servicek
-            ? { ...r, is_submitted: !submitted }
+            ? { ...r, application_check: !submitted }
             : r
         )
       );
@@ -295,6 +295,7 @@ const DisabilityCheckPage: React.FC = () => {
             onChange={(e) => setKaipokeServicek(e.target.value)}
             style={{ width: 180 }}
           >
+            <option value="">（全て）</option>
             <option value="障害">障害</option>
             <option value="移動支援">移動支援</option>
           </select>
@@ -325,7 +326,7 @@ const DisabilityCheckPage: React.FC = () => {
         </label>
       </div>
 
-            {/* ② 追加の検索欄 */}
+      {/* ② 追加の検索欄 */}
       <div
         style={{
           display: "flex",
@@ -429,7 +430,7 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ textAlign: "center" }}>
                   <input
                     type="checkbox"
-                    checked={!!r.is_submitted}
+                    checked={!!r.application_check}
                     onChange={(e) => handleSubmitChange(r, e.target.checked)}
                     style={{ display: "inline-block" }}
                   />
