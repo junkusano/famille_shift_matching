@@ -401,7 +401,10 @@ export default function AssignMatomePage() {
 
     return (
         <div className="p-4 space-y-6">
-            <h1 className="text-xl font-bold mb-2">チーム一覧管理</h1>
+            <h1 className="text-xl font-bold mb-2">利用者担当管理</h1>
+            <p className="text-sm text-gray-600 mb-4">
+                実績担当者は、シフトに１番入っている人を割り当てて毎日13時に自動更新されています。
+            </p>
 
             {loading && <p>読み込み中です…</p>}
             {loadError && (

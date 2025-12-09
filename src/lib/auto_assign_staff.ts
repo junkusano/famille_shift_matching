@@ -6,7 +6,7 @@ import { supabaseAdmin as supabase } from "@/lib/supabase/service";
  * cs_kaipoke_info.asigned_jisseki_staff に自動設定する処理
  */
 export async function autoAssignJissekiStaff() {
-  const sql = `
+    const sql = `
 WITH recent_shifts AS (
   SELECT
     s.kaipoke_cs_id,
@@ -46,20 +46,38 @@ best_staff AS (
     staff_user_id
   FROM staff_counts
   WHERE rn = 1
+), 
+
+staff_with_org AS (
+  SELECT
+    b.kaipoke_cs_id,
+    b.staff_user_id,
+    u.org_unit_id
+  FROM best_staff b
+  LEFT JOIN users u
+    ON u.user_id = b.staff_user_id
 )
 
+
 UPDATE cs_kaipoke_info c
-SET asigned_jisseki_staff = b.staff_user_id
-FROM best_staff b
-WHERE c.kaipoke_cs_id = b.kaipoke_cs_id;
+SET
+  asigned_jisseki_staff = s.staff_user_id,
+  asigned_org = CASE
+                  WHEN s.org_unit_id IS NOT NULL
+                    THEN s.org_unit_id::uuid
+                  ELSE c.asigned_org
+                END
+FROM staff_with_org s
+WHERE c.kaipoke_cs_id = s.kaipoke_cs_id;
+
   `;
 
-  const { error } = await supabase.rpc("exec_sql", { sql_text: sql });
+    const { error } = await supabase.rpc("exec_sql", { sql_text: sql });
 
-  if (error) {
-    console.error("[autoAssignJissekiStaff] ERROR:", error);
-    throw error;
-  }
+    if (error) {
+        console.error("[autoAssignJissekiStaff] ERROR:", error);
+        throw error;
+    }
 
-  return { ok: true };
+    return { ok: true };
 }
