@@ -28,6 +28,7 @@ type OrgOption = {
 type StaffOption = {
     user_id: string;
     name: string;
+    org_unit_id: string | null;
 };
 
 type RowState = KaipokeUser & {
@@ -158,8 +159,8 @@ export default function AssignMatomePage() {
                 // TODO: ここは既存のスタッフ一覧テーブル/ビュー名・カラム名に合わせて変更してください
                 // 例）user_id, last_name_kanji, first_name_kanji を持つ view: staff_list_view
                 const { data: staffRaw, error: staffError } = await supabase
-                    .from("user_entry_united_view_single")  // ← これに変更
-                    .select("user_id, last_name_kanji, first_name_kanji")
+                    .from("user_entry_united_view_single")
+                    .select("user_id, last_name_kanji, first_name_kanji, org_unit_id") // ★ 追加
                     .order("last_name_kanji", { ascending: true });
 
                 if (staffError) {
@@ -172,6 +173,7 @@ export default function AssignMatomePage() {
                         user_id: string;
                         last_name_kanji: string | null;
                         first_name_kanji: string | null;
+                        org_unit_id: string | null;
                     };
 
                     const staffData = staffRaw as StaffRow[];
@@ -179,6 +181,7 @@ export default function AssignMatomePage() {
                     const staffOpts: StaffOption[] = staffData.map((s) => ({
                         user_id: s.user_id,
                         name: `${s.last_name_kanji ?? ""} ${s.first_name_kanji ?? ""}`.trim(),
+                        org_unit_id: s.org_unit_id,
                     }));
                     setStaffOptions(staffOpts);
                 }
@@ -348,12 +351,17 @@ export default function AssignMatomePage() {
         oldStaffId: string | null,
         newStaffId: string
     ) => {
+        // ★ 選択された担当者の所属チーム（org_unit_id）を取得
+        const selectedStaff = staffOptions.find((s) => s.user_id === newStaffId);
+        const newOrgIdFromStaff = selectedStaff?.org_unit_id ?? null;
         setRows((prev) =>
             prev.map((r) =>
                 r.id === id
                     ? {
                         ...r,
                         asigned_jisseki_staff: newStaffId || null,
+                        // ★ 担当者にチームがあればそれを採用、なければ今の値のまま
+                        asigned_org: newOrgIdFromStaff ?? r.asigned_org,
                         isSavingStaff: true,
                         errorStaff: null,
                     }
@@ -361,19 +369,35 @@ export default function AssignMatomePage() {
             )
         );
 
+        // DB 更新内容を組み立て
+        const updatePayload: {
+            asigned_jisseki_staff: string | null;
+            asigned_org?: string | null;
+        } = {
+            asigned_jisseki_staff: newStaffId || null,
+        };
+
+        if (newOrgIdFromStaff) {
+            // ★ 担当者の org_unit_id をそのまま asigned_org に入れる
+            updatePayload.asigned_org = newOrgIdFromStaff;
+        }
+
         const { error } = await supabase
             .from("cs_kaipoke_info")
-            .update({ asigned_jisseki_staff: newStaffId || null })
+            .update(updatePayload)
             .eq("id", id);
 
         if (error) {
             console.error(error);
+            // 失敗したら元に戻す
             setRows((prev) =>
                 prev.map((r) =>
                     r.id === id
                         ? {
                             ...r,
                             asigned_jisseki_staff: oldStaffId,
+                            // チームも元に戻す（oldStaffId ベースで変えていなかったので、r.asigned_org を信じる）
+                            // ここは「直前の state に戻す」形なので、必要に応じて oldOrgId を引数にしてもOK
                             isSavingStaff: false,
                             errorStaff: "保存に失敗しました",
                         }
