@@ -23,7 +23,7 @@ export default function EntryPage() {
     const [formData, setFormData] = useState<FormData | null>(null);
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
-    //const timestamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
+    
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
 
