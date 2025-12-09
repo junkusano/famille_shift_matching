@@ -140,7 +140,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     });
 
     // 保存後は同じフィルタ・ページで再表示
-    redirect(buildListPath(page, filterKaipokeCsId));
+    //redirect(buildListPath(page, filterKaipokeCsId));
   };
 
   /* ========== 削除アクション（Server Action） ========== */
