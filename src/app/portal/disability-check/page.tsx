@@ -12,11 +12,11 @@ interface Row {
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
-  // ① 実績担当者（API / View 側で JOIN して返してもらう想定）
-  asigned_jisseki_staff_id: string | null;   // user_id 等
-  asigned_jisseki_staff_name: string | null; // 氏名
+  // ① 実績担当者
+  asigned_jisseki_staff_id: string | null;
+  asigned_jisseki_staff_name: string | null;
 
-  // ③ 提出フラグ ← DB の application_check と対応させる
+  // ③ 提出フラグ（DB の application_check に対応）
   application_check: boolean | null;
 }
 
@@ -172,11 +172,11 @@ const DisabilityCheckPage: React.FC = () => {
       )
     );
     try {
-      await fetch("/api/disability-check/update", {
+      await fetch("/api/disability-check", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          check: checked,
+          is_checked: checked,
           year_month: row.year_month,
           kaipoke_servicek: row.kaipoke_servicek,
           kaipoke_cs_id: row.kaipoke_cs_id,
@@ -197,26 +197,27 @@ const DisabilityCheckPage: React.FC = () => {
   };
 
   /** ③ 提出フラグ 更新 */
-  const handleSubmitChange = async (row: Row, submitted: boolean) => {
+  const handleSubmitChange = async (row: Row, nextValue: boolean) => {
     // 楽観的更新
     setRecords((prev) =>
       prev.map((r) =>
         r.kaipoke_cs_id === row.kaipoke_cs_id &&
           r.year_month === row.year_month &&
           r.kaipoke_servicek === row.kaipoke_servicek
-          ? { ...r, application_check: submitted }
+          ? { ...r, application_check: nextValue }
           : r
       )
     );
+
     try {
-      await fetch("/api/disability-check/update-submitted", {
+      await fetch("/api/disability-check", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          application_check: submitted,
+          kaipoke_cs_id: row.kaipoke_cs_id,
           year_month: row.year_month,
           kaipoke_servicek: row.kaipoke_servicek,
-          kaipoke_cs_id: row.kaipoke_cs_id,
+          application_check: nextValue,
         }),
       });
     } catch {
@@ -226,12 +227,13 @@ const DisabilityCheckPage: React.FC = () => {
           r.kaipoke_cs_id === row.kaipoke_cs_id &&
             r.year_month === row.year_month &&
             r.kaipoke_servicek === row.kaipoke_servicek
-            ? { ...r, application_check: !submitted }
+            ? { ...r, application_check: !nextValue }
             : r
         )
       );
     }
   };
+
 
   /** 受給者証番号 更新 */
   const handleIdoChange = async (row: Row, value: string) => {

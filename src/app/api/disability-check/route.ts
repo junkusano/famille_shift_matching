@@ -19,10 +19,11 @@ export async function POST(req: NextRequest) {
   try {
     const { yearMonth, kaipokeServicek, districts = [] } = (await req.json()) as Body;
 
+    // 変更後
     let query = supabaseAdmin
       .from("disability_check_view")
       .select(
-        "kaipoke_cs_id,year_month,kaipoke_servicek,client_name,ido_jukyusyasho,is_checked,district"
+        "kaipoke_cs_id,year_month,kaipoke_servicek,client_name,ido_jukyusyasho,is_checked,application_check,district"
       )
       .eq("year_month", yearMonth)
       .eq("kaipoke_servicek", kaipokeServicek)
@@ -60,12 +61,22 @@ export async function PUT(req: NextRequest) {
 
     const { error } = await supabaseAdmin
       .from("disability_check")
-      .update({ application_check })
-      .match({
-        kaipoke_cs_id,
-        year_month,
-        kaipoke_servicek,
-      });
+      .upsert(
+        [
+          {
+            kaipoke_cs_id,
+            year_month,
+            kaipoke_servicek,
+            application_check,
+            // is_checked は NOT NULL + default false なので
+            // ここで指定しなくても insert 時は false が入る
+          },
+        ],
+        {
+          // uq_disability_check_unique (kaipoke_cs_id, year_month, kaipoke_servicek)
+          onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek",
+        }
+      );
 
     if (error) {
       console.error(
