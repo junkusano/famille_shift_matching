@@ -1,0 +1,670 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
+
+// =======================
+// 型定義
+// =======================
+
+type ServiceKindGenre = "介護" | "要支援" | "障害";
+
+type KaipokeUser = {
+    id: string;
+    kaipoke_cs_id: string;
+    name: string;
+    service_kind: string | null;
+    postal_code: string | null;
+    asigned_org: string | null;
+    asigned_jisseki_staff: string | null;
+};
+
+type OrgOption = {
+    orgunitid: string;
+    orgunitname: string;
+};
+
+type StaffOption = {
+    user_id: string;
+    name: string;
+    org_unit_id: string | null;
+};
+
+type RowState = KaipokeUser & {
+    postal_area: string;
+    isSavingOrg?: boolean;
+    isSavingStaff?: boolean;
+    errorOrg?: string | null;
+    errorStaff?: string | null;
+};
+
+// ★ チーム集計から除外する orgunitid
+const EXCLUDED_ORG_IDS = [
+    "9baa7a8e-a1a5-4795-2165-05d708a9d2d7",
+    "7a159f5c-50ec-4281-282d-05bbebfd46f0",
+    "50cb5b67-0edd-42a3-20aa-058654da5df6",
+];
+
+// =======================
+// Supabase クライアント
+// =======================
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+// `@supabase/supabase-js` の標準クライアント
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// =======================
+// ユーティリティ
+// =======================
+
+/**
+ * service_kind を 介護・要支援・障害 の 3ジャンルに丸める
+ */
+function toGenre(serviceKind: string | null): ServiceKindGenre {
+    if (!serviceKind) return "障害";
+    if (serviceKind.includes("要介護") || serviceKind.includes("介護")) return "介護";
+    if (serviceKind.includes("要支援")) return "要支援";
+    // それ以外はとりあえず「障害」にまとめる
+    return "障害";
+}
+
+/**
+ * 郵便番号の上3桁
+ */
+function extractPostalArea(postalCode: string | null): string {
+    if (!postalCode) return "";
+    return postalCode.replace(/-/g, "").slice(0, 3);
+}
+
+// =======================
+// メインコンポーネント
+// =======================
+
+export default function AssignMatomePage() {
+    const [rows, setRows] = useState<RowState[]>([]);
+    const [orgOptions, setOrgOptions] = useState<OrgOption[]>([]);
+    const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    // ★ 検索フィルタ
+    const [filterName, setFilterName] = useState("");
+    const [filterServiceKind, setFilterServiceKind] = useState("");
+    const [filterPostalArea, setFilterPostalArea] = useState("");
+    const [filterStaff, setFilterStaff] = useState("");
+    const [filterOrg, setFilterOrg] = useState("");
+
+    // -----------------------
+    // 初期データ取得
+    // -----------------------
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setLoadError(null);
+            try {
+                // 利用者一覧
+                const { data: usersData, error: usersError } = await supabase
+                    .from("cs_kaipoke_info")
+                    .select(
+                        `
+            id,
+            kaipoke_cs_id,
+            name,
+            service_kind,
+            postal_code,
+            asigned_org,
+            asigned_jisseki_staff
+          `
+                    )
+                    .eq("is_active", true)
+                    .order("name", { ascending: true });
+
+                if (usersError) throw usersError;
+
+                const baseRows: RowState[] =
+                    (usersData as KaipokeUser[] | null)?.map((u) => ({
+                        ...u,
+                        postal_area: extractPostalArea(u.postal_code),
+                    })) ?? [];
+
+                setRows(baseRows);
+
+                // チーム一覧（orgs）
+                const { data: orgsRaw, error: orgsError } = await supabase
+                    .from("orgs")
+                    .select("orgunitid, orgunitname, displaylevel, displayorder")
+                    .eq("displaylevel", 3)
+                    .order("displayorder", { ascending: true });
+
+                if (orgsError) throw orgsError;
+
+                type OrgRow = {
+                    orgunitid: string;
+                    orgunitname: string;
+                };
+
+                const orgsData = (orgsRaw ?? []) as OrgRow[];
+
+                setOrgOptions(
+                    orgsData.map((o) => ({
+                        orgunitid: o.orgunitid,
+                        orgunitname: o.orgunitname,
+                    }))
+                );
+
+                // スタッフ一覧
+                // TODO: ここは既存のスタッフ一覧テーブル/ビュー名・カラム名に合わせて変更してください
+                // 例）user_id, last_name_kanji, first_name_kanji を持つ view: staff_list_view
+                const { data: staffRaw, error: staffError } = await supabase
+                    .from("user_entry_united_view_single")
+                    .select("user_id, last_name_kanji, first_name_kanji, org_unit_id") // ★ 追加
+                    .order("last_name_kanji", { ascending: true });
+
+                if (staffError) {
+                    // スタッフ一覧が取れない場合は致命的ではないのでログだけ残す
+                    console.warn("staff list load error", staffError.message);
+                }
+
+                if (staffRaw) {
+                    type StaffRow = {
+                        user_id: string;
+                        last_name_kanji: string | null;
+                        first_name_kanji: string | null;
+                        org_unit_id: string | null;
+                    };
+
+                    const staffData = staffRaw as StaffRow[];
+
+                    const staffOpts: StaffOption[] = staffData.map((s) => ({
+                        user_id: s.user_id,
+                        name: `${s.last_name_kanji ?? ""} ${s.first_name_kanji ?? ""}`.trim(),
+                        org_unit_id: s.org_unit_id,
+                    }));
+                    setStaffOptions(staffOpts);
+                }
+            } catch (e: unknown) {
+                console.error(e);
+                const message =
+                    e instanceof Error ? e.message : "データ取得に失敗しました";
+                setLoadError(message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    // -----------------------
+    // 上部：集計（サービス種別ごとの人数）
+    // -----------------------
+    const summaryByGenre = useMemo(() => {
+        const result: Record<ServiceKindGenre, number> = {
+            介護: 0,
+            要支援: 0,
+            障害: 0,
+        };
+
+        rows.forEach((r) => {
+            const g = toGenre(r.service_kind);
+            result[g] += 1;
+        });
+
+        return result;
+    }, [rows]);
+
+    // -----------------------
+    // 上部：集計（チームごとの人数）
+    // -----------------------
+    const summaryByOrg = useMemo(() => {
+        const result = new Map<string, number>(); // orgunitid → count
+
+        rows.forEach((r) => {
+            if (!r.asigned_org) return;
+            result.set(r.asigned_org, (result.get(r.asigned_org) ?? 0) + 1);
+        });
+
+        // チーム名も付けて配列に（特定 orgunitid は除外）
+        return orgOptions
+            .filter((org) => !EXCLUDED_ORG_IDS.includes(org.orgunitid))
+            .map((org) => ({
+                orgunitid: org.orgunitid,
+                orgunitname: org.orgunitname,
+                count: result.get(org.orgunitid) ?? 0,
+            }));
+    }, [rows, orgOptions]);
+
+    // ★ サービス種別の選択肢（テーブルに存在するものだけ）
+    const serviceKindOptions = useMemo(() => {
+        const set = new Set<string>();
+        rows.forEach((r) => {
+            if (r.service_kind) set.add(r.service_kind);
+        });
+        return Array.from(set).sort();
+    }, [rows]);
+
+    // ★ フィルタ後の行
+    const filteredRows = useMemo(() => {
+        return rows.filter((r) => {
+            /// ★ 99999999 で始まる利用者（お休み）は一覧に表示しない
+            if (r.kaipoke_cs_id.startsWith("99999999")) {
+                return false;
+            }
+            if (
+                filterName &&
+                !r.name.toLowerCase().includes(filterName.toLowerCase())
+            ) {
+                return false;
+            }
+
+            if (filterServiceKind && r.service_kind !== filterServiceKind) {
+                return false;
+            }
+
+            if (
+                filterPostalArea &&
+                !r.postal_area.startsWith(filterPostalArea)
+            ) {
+                return false;
+            }
+
+            if (filterStaff && r.asigned_jisseki_staff !== filterStaff) {
+                return false;
+            }
+
+            if (filterOrg && r.asigned_org !== filterOrg) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [
+        rows,
+        filterName,
+        filterServiceKind,
+        filterPostalArea,
+        filterStaff,
+        filterOrg,
+    ]);
+
+    // -----------------------
+    // 更新ハンドラ（チーム）
+    // -----------------------
+    const handleOrgChange = async (id: string, oldOrgId: string | null, newOrgId: string) => {
+        // 楽観的更新：先に画面だけ変える
+        setRows((prev) =>
+            prev.map((r) =>
+                r.id === id
+                    ? {
+                        ...r,
+                        asigned_org: newOrgId || null,
+                        isSavingOrg: true,
+                        errorOrg: null,
+                    }
+                    : r
+            )
+        );
+
+        const { error } = await supabase
+            .from("cs_kaipoke_info")
+            .update({ asigned_org: newOrgId || null })
+            .eq("id", id);
+
+        if (error) {
+            // 失敗したら元に戻す
+            console.error(error);
+            setRows((prev) =>
+                prev.map((r) =>
+                    r.id === id
+                        ? {
+                            ...r,
+                            asigned_org: oldOrgId,
+                            isSavingOrg: false,
+                            errorOrg: "保存に失敗しました",
+                        }
+                        : r
+                )
+            );
+        } else {
+            setRows((prev) =>
+                prev.map((r) =>
+                    r.id === id
+                        ? {
+                            ...r,
+                            isSavingOrg: false,
+                            errorOrg: null,
+                        }
+                        : r
+                )
+            );
+        }
+    };
+
+    // -----------------------
+    // 更新ハンドラ（実績記録担当者）
+    // -----------------------
+    const handleStaffChange = async (
+        id: string,
+        oldStaffId: string | null,
+        newStaffId: string
+    ) => {
+        // ★ 選択された担当者の所属チーム（org_unit_id）を取得
+        const selectedStaff = staffOptions.find((s) => s.user_id === newStaffId);
+        const newOrgIdFromStaff = selectedStaff?.org_unit_id ?? null;
+        setRows((prev) =>
+            prev.map((r) =>
+                r.id === id
+                    ? {
+                        ...r,
+                        asigned_jisseki_staff: newStaffId || null,
+                        // ★ 担当者にチームがあればそれを採用、なければ今の値のまま
+                        asigned_org: newOrgIdFromStaff ?? r.asigned_org,
+                        isSavingStaff: true,
+                        errorStaff: null,
+                    }
+                    : r
+            )
+        );
+
+        // DB 更新内容を組み立て
+        const updatePayload: {
+            asigned_jisseki_staff: string | null;
+            asigned_org?: string | null;
+        } = {
+            asigned_jisseki_staff: newStaffId || null,
+        };
+
+        if (newOrgIdFromStaff) {
+            // ★ 担当者の org_unit_id をそのまま asigned_org に入れる
+            updatePayload.asigned_org = newOrgIdFromStaff;
+        }
+
+        const { error } = await supabase
+            .from("cs_kaipoke_info")
+            .update(updatePayload)
+            .eq("id", id);
+
+        if (error) {
+            console.error(error);
+            // 失敗したら元に戻す
+            setRows((prev) =>
+                prev.map((r) =>
+                    r.id === id
+                        ? {
+                            ...r,
+                            asigned_jisseki_staff: oldStaffId,
+                            // チームも元に戻す（oldStaffId ベースで変えていなかったので、r.asigned_org を信じる）
+                            // ここは「直前の state に戻す」形なので、必要に応じて oldOrgId を引数にしてもOK
+                            isSavingStaff: false,
+                            errorStaff: "保存に失敗しました",
+                        }
+                        : r
+                )
+            );
+        } else {
+            setRows((prev) =>
+                prev.map((r) =>
+                    r.id === id
+                        ? {
+                            ...r,
+                            isSavingStaff: false,
+                            errorStaff: null,
+                        }
+                        : r
+                )
+            );
+        }
+    };
+
+    // =======================
+    // レンダリング
+    // =======================
+
+    return (
+        <div className="p-4 space-y-6">
+            <h1 className="text-xl font-bold mb-2">利用者担当管理</h1>
+            <p className="text-sm text-gray-600 mb-4">
+                実績担当者は、シフトに１番入っている人を割り当てて毎日13時に自動更新されています。
+            </p>
+
+            {loading && <p>読み込み中です…</p>}
+            {loadError && (
+                <p className="text-red-600 text-sm">
+                    初期データ取得に失敗しました：{loadError}
+                </p>
+            )}
+
+            {/* 上部：集計エリア */}
+            <div className="grid gap-4 md:grid-cols-2">
+                {/* サービス種別ごとの人数 */}
+                <div className="border rounded-md p-3 bg-white shadow-sm">
+                    <h2 className="font-semibold mb-2 text-sm">サービス種別ごとの利用者数</h2>
+                    <table className="w-full text-sm border-collapse">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="text-left py-1 px-2">種別</th>
+                                <th className="text-right py-1 px-2">人数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr className="border-b">
+                                <td className="py-1 px-2">介護</td>
+                                <td className="py-1 px-2 text-right">{summaryByGenre["介護"]}</td>
+                            </tr>
+                            <tr className="border-b">
+                                <td className="py-1 px-2">要支援</td>
+                                <td className="py-1 px-2 text-right">{summaryByGenre["要支援"]}</td>
+                            </tr>
+                            <tr>
+                                <td className="py-1 px-2">障害</td>
+                                <td className="py-1 px-2 text-right">{summaryByGenre["障害"]}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* チームごとの利用者数 */}
+                <div className="border rounded-md p-3 bg-white shadow-sm">
+                    <h2 className="font-semibold mb-2 text-sm">チームごとの利用者数</h2>
+                    <table className="w-full text-sm border-collapse">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="text-left py-1 px-2">チーム</th>
+                                <th className="text-right py-1 px-2">人数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summaryByOrg.map((org) => (
+                                <tr key={org.orgunitid} className="border-b last:border-b-0">
+                                    <td className="py-1 px-2">{org.orgunitname}</td>
+                                    <td className="py-1 px-2 text-right">{org.count}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* 下部：利用者一覧 */}
+            <div className="border rounded-md p-3 bg-white shadow-sm">
+                <h2 className="font-semibold mb-2 text-sm">利用者一覧</h2>
+
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <table className="min-w-full text-xs border-collapse">
+                        <thead className="sticky top-0 bg-gray-100 z-10">
+                            {/* 見出し行 */}
+                            <tr className="border-b">
+                                <th className="text-left py-1 px-2">名前</th>
+                                <th className="text-left py-1 px-2">サービス種別</th>
+                                <th className="text-left py-1 px-2">エリア（郵便上3桁）</th>
+                                <th className="text-left py-1 px-2">実績記録担当者</th>
+                                <th className="text-left py-1 px-2">チーム</th>
+                            </tr>
+
+                            {/* ★ 検索行 */}
+                            <tr className="border-b bg-gray-50">
+                                {/* 名前フィルタ */}
+                                <th className="py-1 px-2">
+                                    <input
+                                        type="text"
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        placeholder="名前で検索"
+                                        value={filterName}
+                                        onChange={(e) => setFilterName(e.target.value)}
+                                    />
+                                </th>
+
+                                {/* サービス種別フィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterServiceKind}
+                                        onChange={(e) => setFilterServiceKind(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {serviceKindOptions.map((sk) => (
+                                            <option key={sk} value={sk}>
+                                                {sk}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
+
+                                {/* エリア（上3桁）フィルタ */}
+                                <th className="py-1 px-2">
+                                    <input
+                                        type="text"
+                                        maxLength={3}
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        placeholder="例: 460"
+                                        value={filterPostalArea}
+                                        onChange={(e) => setFilterPostalArea(e.target.value)}
+                                    />
+                                </th>
+
+                                {/* 実績記録担当者フィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterStaff}
+                                        onChange={(e) => setFilterStaff(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {staffOptions.map((s) => (
+                                            <option key={s.user_id} value={s.user_id}>
+                                                {s.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
+
+                                {/* チームフィルタ */}
+                                <th className="py-1 px-2">
+                                    <select
+                                        className="w-full border rounded px-1 py-0.5 text-xs"
+                                        value={filterOrg}
+                                        onChange={(e) => setFilterOrg(e.target.value)}
+                                    >
+                                        <option value="">(全て)</option>
+                                        {orgOptions.map((org) => (
+                                            <option key={org.orgunitid} value={org.orgunitid}>
+                                                {org.orgunitname}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {filteredRows.map((row) => {
+                                return (
+                                    <tr key={row.id} className="border-b last:border-b-0">
+                                        {/* 名前（クリックで利用者情報ページへ） */}
+                                        <td className="py-1 px-2">
+                                            <Link
+                                                href={`/portal/kaipoke-info-detail/${row.id}`}
+                                                className="text-blue-600 hover:underline"
+                                            >
+                                                {row.name}
+                                            </Link>
+                                        </td>
+
+                                        {/* サービス種別 */}
+                                        <td className="py-1 px-2">
+                                            {row.service_kind ?? ""}
+                                        </td>
+
+                                        {/* エリア（郵便上3桁） */}
+                                        <td className="py-1 px-2">{row.postal_area}</td>
+
+                                        {/* 実績記録担当者：Select */}
+                                        <td className="py-1 px-2">
+                                            <select
+                                                className="w-full border rounded px-1 py-0.5 text-xs"
+                                                value={row.asigned_jisseki_staff ?? ""}
+                                                onChange={(e) =>
+                                                    handleStaffChange(
+                                                        row.id,
+                                                        row.asigned_jisseki_staff,
+                                                        e.target.value
+                                                    )
+                                                }
+                                            >
+                                                <option value="">(未設定)</option>
+                                                {staffOptions.map((s) => (
+                                                    <option key={s.user_id} value={s.user_id}>
+                                                        {s.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {row.errorStaff && (
+                                                <p className="text-[10px] text-red-600">
+                                                    {row.errorStaff}
+                                                </p>
+                                            )}
+                                        </td>
+
+                                        {/* チーム：Select */}
+                                        <td className="py-1 px-2">
+                                            <select
+                                                className="w-full border rounded px-1 py-0.5 text-xs"
+                                                value={row.asigned_org ?? ""}
+                                                onChange={(e) =>
+                                                    handleOrgChange(row.id, row.asigned_org, e.target.value)
+                                                }
+                                            >
+                                                <option value="">(未設定)</option>
+                                                {orgOptions.map((org) => (
+                                                    <option key={org.orgunitid} value={org.orgunitid}>
+                                                        {org.orgunitname}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {row.errorOrg && (
+                                                <p className="text-[10px] text-red-600">
+                                                    {row.errorOrg}
+                                                </p>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+
+                            {filteredRows.length === 0 && !loading && (
+                                <tr>
+                                    <td colSpan={6} className="py-4 text-center text-gray-500">
+                                        データがありません
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/plaud-support-progress-summary",
       "schedule": "18 * * * *"
+    },
+    {
+      "path": "/api/cron/auto_assign_jisseki_staff",
+      "schedule": "0 4 * * *"
     }
   ]
 }
