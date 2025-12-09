@@ -158,7 +158,7 @@ export default function AssignMatomePage() {
                 // TODO: ここは既存のスタッフ一覧テーブル/ビュー名・カラム名に合わせて変更してください
                 // 例）user_id, last_name_kanji, first_name_kanji を持つ view: staff_list_view
                 const { data: staffRaw, error: staffError } = await supabase
-                    .from("staff_list_view") // ← プロジェクトに合わせて変更
+                    .from("user_entry_united_view_single")  // ← これに変更
                     .select("user_id, last_name_kanji, first_name_kanji")
                     .order("last_name_kanji", { ascending: true });
 
