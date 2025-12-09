@@ -295,6 +295,7 @@ const DisabilityCheckPage: React.FC = () => {
             onChange={(e) => setKaipokeServicek(e.target.value)}
             style={{ width: 180 }}
           >
+            <option value="">（全て）</option>
             <option value="障害">障害</option>
             <option value="移動支援">移動支援</option>
           </select>
@@ -325,7 +326,7 @@ const DisabilityCheckPage: React.FC = () => {
         </label>
       </div>
 
-            {/* ② 追加の検索欄 */}
+      {/* ② 追加の検索欄 */}
       <div
         style={{
           display: "flex",
