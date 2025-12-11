@@ -6,7 +6,7 @@
   },
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -40,7 +40,7 @@
     "papaparse": "^5.5.3",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-hot-toast": "^2.5.2",
+    "react-hot-toast": "^2.6.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "twilio": "^5.9.0"

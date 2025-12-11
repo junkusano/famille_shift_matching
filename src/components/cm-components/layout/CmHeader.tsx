@@ -1,0 +1,114 @@
+// src/components/cm-components/layout/CmHeader.tsx
+'use client';
+
+import React from 'react';
+import { usePathname } from 'next/navigation';
+import { Menu, Bell, Search, ChevronRight } from 'lucide-react';
+import styles from '@/styles/cm-styles/components/header.module.css';
+
+interface CmHeaderProps {
+  onMenuToggle?: () => void;
+}
+
+// パスからパンくずリストを生成
+const getBreadcrumbs = (pathname: string): { label: string; path: string }[] => {
+  const pathMap: Record<string, string> = {
+    '/cm-portal': 'ホーム',
+    '/cm-portal/clients': '利用者一覧',
+    '/cm-portal/clients/insurance': '被保険者証',
+    '/cm-portal/clients/subsidy': '公費・減額',
+    '/cm-portal/care-plan': '計画書作成',
+    '/cm-portal/care-plan/weekly': '週間計画',
+    '/cm-portal/care-plan/monitoring': 'モニタリング',
+    '/cm-portal/care-plan/conference': '担当者会議',
+    '/cm-portal/care-plan/progress': '支援経過',
+    '/cm-portal/schedule': 'スケジュール',
+    '/cm-portal/schedule/tickets': '利用票・提供票',
+    '/cm-portal/schedule/sync': '連携状況',
+    '/cm-portal/billing/benefit': '給付費設定',
+    '/cm-portal/billing/closing': '月締め処理',
+    '/cm-portal/billing/transmission': '伝送・出力',
+    '/cm-portal/notifications/alerts': '期限アラート',
+    '/cm-portal/notifications/reminders': '業務リマインド',
+    '/cm-portal/notifications/history': '通知履歴',
+    '/cm-portal/rpa/status': '実行状況',
+    '/cm-portal/rpa/queue': '実行キュー',
+    '/cm-portal/rpa/history': '実行履歴',
+    '/cm-portal/master/offices': '事業所',
+    '/cm-portal/master/care-managers': 'ケアマネ',
+    '/cm-portal/master/services': '独自サービス',
+    '/cm-portal/settings/forms': '帳票設定',
+    '/cm-portal/settings/notifications': '通知設定',
+    '/cm-portal/settings/account': 'アカウント',
+  };
+
+  const breadcrumbs: { label: string; path: string }[] = [
+    { label: '居宅介護支援ポータル', path: '/cm-portal' },
+  ];
+
+  if (pathname !== '/cm-portal' && pathMap[pathname]) {
+    breadcrumbs.push({ label: pathMap[pathname], path: pathname });
+  }
+
+  return breadcrumbs;
+};
+
+export function CmHeader({ onMenuToggle }: CmHeaderProps) {
+  const pathname = usePathname();
+  const breadcrumbs = getBreadcrumbs(pathname || '/cm-portal');
+
+  return (
+    <header className={styles.cmHeader}>
+      <div className={styles.cmHeaderLeft}>
+        {/* モバイル用メニューボタン */}
+        <button
+          className={styles.cmMenuButton}
+          onClick={onMenuToggle}
+          aria-label="メニューを開く"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* パンくずリスト */}
+        <nav className={styles.cmBreadcrumb} aria-label="パンくずリスト">
+          {breadcrumbs.map((crumb, index) => (
+            <React.Fragment key={crumb.path}>
+              {index > 0 && (
+                <ChevronRight className="w-4 h-4 text-gray-400 mx-1" />
+              )}
+              <span
+                className={
+                  index === breadcrumbs.length - 1
+                    ? styles.cmBreadcrumbCurrent
+                    : styles.cmBreadcrumbLink
+                }
+              >
+                {crumb.label}
+              </span>
+            </React.Fragment>
+          ))}
+        </nav>
+      </div>
+
+      <div className={styles.cmHeaderRight}>
+        {/* 検索 */}
+        <div className={styles.cmSearchBox}>
+          <Search className="w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="検索..."
+            className={styles.cmSearchInput}
+          />
+        </div>
+
+        {/* 通知 */}
+        <button className={styles.cmNotificationButton} aria-label="通知">
+          <Bell className="w-5 h-5" />
+          <span className={styles.cmNotificationBadge}>3</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+
+export default CmHeader;
