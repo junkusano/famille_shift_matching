@@ -202,6 +202,22 @@ export default function AssignMatomePage() {
                     org_unit_id: exceptionMap.get(s.user_id) ?? s.org_unit_id,
                 }));
 
+                // ★ 担当者のチーム情報から asigned_org を再計算して rows に反映
+                const rowsWithOrg = baseRows.map((row) => {
+                    // この利用者の実績担当者
+                    const staff = staffOpts.find(
+                        (s) => s.user_id === row.asigned_jisseki_staff
+                    );
+
+                    return {
+                        ...row,
+                        // 担当者にチーム設定があればそれを採用
+                        // なければ元の asigned_org をそのまま使う
+                        asigned_org: staff?.org_unit_id ?? row.asigned_org,
+                    };
+                });
+
+                setRows(rowsWithOrg);
                 setStaffOptions(staffOpts);
 
             } catch (e: unknown) {
