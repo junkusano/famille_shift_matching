@@ -155,12 +155,10 @@ export default function AssignMatomePage() {
                     }))
                 );
 
-                // スタッフ一覧
-                // TODO: ここは既存のスタッフ一覧テーブル/ビュー名・カラム名に合わせて変更してください
-                // 例）user_id, last_name_kanji, first_name_kanji を持つ view: staff_list_view
+                // スタッフ一覧（user_org_exception を優先して org_unit_id を付与）
                 const { data: staffRaw, error: staffError } = await supabase
                     .from("user_entry_united_view_single")
-                    .select("user_id, last_name_kanji, first_name_kanji, org_unit_id") // ★ 追加
+                    .select("user_id, last_name_kanji, first_name_kanji, org_unit_id")
                     .order("last_name_kanji", { ascending: true });
 
                 if (staffError) {
@@ -168,23 +166,44 @@ export default function AssignMatomePage() {
                     console.warn("staff list load error", staffError.message);
                 }
 
-                if (staffRaw) {
-                    type StaffRow = {
-                        user_id: string;
-                        last_name_kanji: string | null;
-                        first_name_kanji: string | null;
-                        org_unit_id: string | null;
-                    };
+                type StaffRow = {
+                    user_id: string;
+                    last_name_kanji: string | null;
+                    first_name_kanji: string | null;
+                    org_unit_id: string | null;
+                };
 
-                    const staffData = staffRaw as StaffRow[];
+                const staffData = (staffRaw ?? []) as StaffRow[];
 
-                    const staffOpts: StaffOption[] = staffData.map((s) => ({
-                        user_id: s.user_id,
-                        name: `${s.last_name_kanji ?? ""} ${s.first_name_kanji ?? ""}`.trim(),
-                        org_unit_id: s.org_unit_id,
-                    }));
-                    setStaffOptions(staffOpts);
+                // 例外テーブル（user_org_exception）を取得
+                const { data: exceptionRaw, error: exceptionError } = await supabase
+                    .from("user_org_exception")
+                    .select("user_id, orgunitid");
+
+                if (exceptionError) {
+                    console.warn("user_org_exception load error", exceptionError.message);
                 }
+
+                type ExceptionRow = {
+                    user_id: string;
+                    orgunitid: string;
+                };
+
+                // user_id → orgunitid のマップを作成
+                const exceptionMap = new Map<string, string>();
+                (exceptionRaw as ExceptionRow[] | null)?.forEach((e) => {
+                    exceptionMap.set(e.user_id, e.orgunitid);
+                });
+
+                // org_unit_id は「例外があればそちらを優先」
+                const staffOpts: StaffOption[] = staffData.map((s) => ({
+                    user_id: s.user_id,
+                    name: `${s.last_name_kanji ?? ""} ${s.first_name_kanji ?? ""}`.trim(),
+                    org_unit_id: exceptionMap.get(s.user_id) ?? s.org_unit_id,
+                }));
+
+                setStaffOptions(staffOpts);
+
             } catch (e: unknown) {
                 console.error(e);
                 const message =
