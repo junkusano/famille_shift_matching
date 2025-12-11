@@ -8,6 +8,23 @@ type Body = {
   districts?: string[];
 };
 
+type DisabilityCheckRow = {
+  kaipoke_cs_id: string;
+  year_month: string;
+  kaipoke_servicek: string;
+  application_check: boolean | null;
+};
+
+type ViewRow = {
+  kaipoke_cs_id: string;
+  year_month: string;
+  kaipoke_servicek: string;
+  client_name: string | null;
+  ido_jukyusyasho: string | null;
+  is_checked: boolean | null;
+  district: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { yearMonth, kaipokeServicek, districts = [] } = (await req.json()) as Body;
@@ -29,7 +46,36 @@ export async function POST(req: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json(data ?? []);
+    const rows: ViewRow[] = (data ?? []) as ViewRow[];
+
+    // ② disability_check テーブル側から application_check を取得
+    const { data: dcRows, error: dcError } = await supabaseAdmin
+      .from("disability_check")
+      .select("kaipoke_cs_id,year_month,kaipoke_servicek,application_check")
+      .eq("year_month", yearMonth)
+      .eq("kaipoke_servicek", kaipokeServicek);
+
+    if (dcError) throw dcError;
+
+    // ③ (cs_id,年月,サービス種別) → application_check のマップを作成
+    const submittedMap = new Map<string, boolean | null>();
+    (dcRows ?? []).forEach((r) => {
+      const row = r as DisabilityCheckRow;
+      const key = `${row.kaipoke_cs_id}__${row.year_month}__${row.kaipoke_servicek}`;
+      submittedMap.set(key, row.application_check);
+    });
+
+    const merged = rows.map((r: ViewRow) => {
+      const key = `${r.kaipoke_cs_id}__${r.year_month}__${r.kaipoke_servicek}`;
+      const submitted = submittedMap.get(key) ?? null;
+
+      return {
+        ...r,
+        is_submitted: submitted,
+      };
+    });
+
+    return NextResponse.json(merged);
   } catch (e) {
     console.error("[disability-check] fetch error", e);
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
