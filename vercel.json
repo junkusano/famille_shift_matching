@@ -43,6 +43,10 @@
     {
       "path": "/api/cron/auto_assign_jisseki_staff",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/disability-check-jisseki",
+      "schedule": "0 0 20 * *"
     }
   ]
 }
