@@ -115,6 +115,7 @@ type Staff = {
     user_id: string;
     last_name_kanji: string;
     first_name_kanji: string;
+    org_unit_id: string | null;
 };
 
 const GENDER_OPTIONS = [
@@ -133,7 +134,9 @@ export default function KaipokeInfoDetailPage() {
 
     const [row, setRow] = useState<KaipokeInfo | null>(null);
     const [saving, setSaving] = useState(false);
-    const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);
+    const [staffList, setStaffList] = useState<
+        { user_id: string; name: string; org_unit_id: string | null }[]
+    >([]);
     const [orgTeams, setOrgTeams] = useState<{ orgunitid: string; orgunitname: string }[]>([]);
 
     // 取得日の簡易入力(YYYYMM or YYYYMMDD)
@@ -218,21 +221,43 @@ export default function KaipokeInfoDetailPage() {
         };
 
         const loadStaffList = async () => {
+            // 1) 基本の org_unit_id 付きスタッフ一覧
             const { data, error } = await supabase
                 .from("user_entry_united_view_single")
-                .select("user_id, last_name_kanji, first_name_kanji")
+                .select("user_id, last_name_kanji, first_name_kanji, org_unit_id")
                 .order("last_name_kanji", { ascending: true });
 
             if (error) {
                 console.error("staff load error", error);
-            } else {
-                // 氏名を連結して表示
-                const staffData = data?.map((staff: Staff) => ({
-                    user_id: staff.user_id,
-                    name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
-                }));
-                setStaffList(staffData || []);
+                setStaffList([]);
+                return;
             }
+
+            const staffData = (data ?? []) as Staff[];
+
+            // 2) 例外テーブル user_org_exception を取得
+            const { data: exceptionRaw, error: exceptionError } = await supabase
+                .from("user_org_exception")
+                .select("user_id, orgunitid");
+
+            if (exceptionError) {
+                console.error("user_org_exception load error", exceptionError);
+            }
+
+            // user_id → orgunitid のマップ
+            const exceptionMap = new Map<string, string>();
+            (exceptionRaw ?? []).forEach((e: { user_id: string; orgunitid: string }) => {
+                exceptionMap.set(e.user_id, e.orgunitid);
+            });
+
+            // 3) 表示用リスト：org_unit_id は「例外があればそちらを優先」
+            const staffListWithOrg = staffData.map((staff) => ({
+                user_id: staff.user_id,
+                name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
+                org_unit_id: exceptionMap.get(staff.user_id) ?? staff.org_unit_id ?? null,
+            }));
+
+            setStaffList(staffListWithOrg);
         };
 
         // ★ 追加：チーム情報をロードする関数
@@ -396,6 +421,13 @@ export default function KaipokeInfoDetailPage() {
 
     if (!row) return <div className="p-4">読み込み中...</div>;
 
+    // ★ この利用者の実績担当者が所属するチーム（例外込み）
+    const staff = staffList.find(
+        (s) => s.user_id === row.asigned_jisseki_staff
+    );
+    // 実効的なチームID：担当者の org_unit_id があればそれ、なければ DB の asigned_org
+    const effectiveOrgId = staff?.org_unit_id ?? row.asigned_org ?? "";
+
     return (
         <div className="p-4 space-y-6">
             <div className="flex items-center justify-between">
@@ -530,7 +562,7 @@ export default function KaipokeInfoDetailPage() {
                     <label className="block text-sm text-gray-600">チーム</label>
                     <select
                         className="w-full border rounded px-2 py-1"
-                        value={row.asigned_org ?? ""}
+                        value={effectiveOrgId}
                         onChange={(e) => setRow({ ...row, asigned_org: e.target.value })}
                     >
                         <option value="">選択してください</option>
@@ -548,7 +580,20 @@ export default function KaipokeInfoDetailPage() {
                     <select
                         className="w-full border rounded px-2 py-1"
                         value={row?.asigned_jisseki_staff ?? ""}
-                        onChange={(e) => setRow({ ...row, asigned_jisseki_staff: e.target.value })}
+                        onChange={(e) => {
+                            const newStaffId = e.target.value;
+
+                            // 1) 実績担当者IDを更新
+                            // 2) その担当者のチーム（org_unit_id：例外込み）を asigned_org に反映
+                            const selectedStaff = staffList.find((s) => s.user_id === newStaffId);
+                            const newOrgId = selectedStaff?.org_unit_id ?? null;
+
+                            setRow({
+                                ...row,
+                                asigned_jisseki_staff: newStaffId || null,
+                                asigned_org: newOrgId, // ← 担当者の org を保存
+                            });
+                        }}
                     >
                         <option value="">選択してください</option>
                         {staffList.map((staff) => (
