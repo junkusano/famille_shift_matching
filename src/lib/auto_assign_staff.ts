@@ -65,7 +65,7 @@ SET
   asigned_jisseki_staff = s.staff_user_id,
   asigned_org = CASE
                   WHEN s.org_unit_id IS NOT NULL
-                    THEN s.org_unit_id::uuid
+                    THEN s.org_unit_id
                   ELSE c.asigned_org
                 END
 FROM staff_with_org s
