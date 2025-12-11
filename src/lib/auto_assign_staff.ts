@@ -52,12 +52,13 @@ staff_with_org AS (
   SELECT
     b.kaipoke_cs_id,
     b.staff_user_id,
-    u.org_unit_id
+    COALESCE(e.orgunitid, u.org_unit_id::uuid) AS org_unit_id
   FROM best_staff b
   LEFT JOIN users u
     ON u.user_id = b.staff_user_id
+  LEFT JOIN user_org_exception e
+    ON e.user_id = b.staff_user_id
 )
-
 
 UPDATE cs_kaipoke_info c
 SET
