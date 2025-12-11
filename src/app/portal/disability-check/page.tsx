@@ -209,7 +209,7 @@ const DisabilityCheckPage: React.FC = () => {
       )
     );
     try {
-      await fetch("/api/disability-check/update-submitted", {
+      await fetch("/api/disability-check/update", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
