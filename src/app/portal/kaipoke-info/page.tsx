@@ -57,6 +57,7 @@ type Staff = {
   user_id: string;
   last_name_kanji: string;
   first_name_kanji: string;
+  org_unit_id: string | null;
 };
 
 
@@ -81,7 +82,9 @@ export default function KaipokeInfoPage() {
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [page, setPage] = useState(1)
   const [orgTeams, setOrgTeams] = useState<{ orgunitid: string; orgunitname: string }[]>([]);
-  const [staffList, setStaffList] = useState<{ user_id: string; name: string }[]>([]);
+  const [staffList, setStaffList] = useState<
+    { user_id: string; name: string; org_unit_id: string | null }[]
+  >([]);
 
   const listTopRef = useRef<HTMLDivElement>(null)
 
@@ -130,22 +133,46 @@ export default function KaipokeInfoPage() {
     };
 
     const loadStaffList = async () => {
+      // スタッフ（基本の org_unit_id 付き）
       const { data, error } = await supabase
         .from("user_entry_united_view_single")
-        .select("user_id, last_name_kanji, first_name_kanji")
+        .select("user_id, last_name_kanji, first_name_kanji, org_unit_id")
         .order("last_name_kanji", { ascending: true });
 
       if (error) {
         console.error("staff load error", error);
-      } else {
-        // 氏名を連結して表示
-        const staffData = data?.map((staff: Staff) => ({
-          user_id: staff.user_id,
-          name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
-        }));
-        setStaffList(staffData || []);
+        setStaffList([]);
+        return;
       }
+
+      const staffData = (data ?? []) as Staff[];
+
+      // 例外テーブル（user_org_exception）を取得
+      const { data: exceptionRaw, error: exceptionError } = await supabase
+        .from("user_org_exception")
+        .select("user_id, orgunitid");
+
+      if (exceptionError) {
+        console.error("user_org_exception load error", exceptionError);
+      }
+
+      // user_id → 例外 orgunitid のマップ
+      const exceptionMap = new Map<string, string>();
+      (exceptionRaw ?? []).forEach((e: { user_id: string; orgunitid: string }) => {
+        exceptionMap.set(e.user_id, e.orgunitid);
+      });
+
+      // 画面で使うスタッフ一覧：
+      // org_unit_id は「例外テーブルがあればそちらを優先」
+      const staffListWithOrg = staffData.map((staff) => ({
+        user_id: staff.user_id,
+        name: `${staff.last_name_kanji}${staff.first_name_kanji}`,
+        org_unit_id: exceptionMap.get(staff.user_id) ?? staff.org_unit_id ?? null,
+      }));
+
+      setStaffList(staffListWithOrg);
     };
+
 
     fetchData()
     loadTimeAdjust()
@@ -463,99 +490,106 @@ export default function KaipokeInfoPage() {
           </thead>
 
           <tbody className="border-separate border-spacing-y-4">
-            {pageItems.map(item => (
-              <Fragment key={item.id}>
-                <tr
-                  id={`row-${item.id}`}
-                  className={
-                    "bg-white shadow-md border border-gray-400 rounded-md align-top " +
-                    (!item.is_active ? "opacity-60 grayscale" : "")
-                  }
-                >
-                  <td className="border p-2">
-                    {/*<div className="text-[11px] text-gray-500 mb-1">ID: {item.id}</div>*/}
-                    <label className="text-sm">利用者様名：</label>
-                    <input
-                      type="text"
-                      value={item.name || ""}
-                      onChange={e => handleChange(item.id, "name", e.target.value)}
-                      className="w-full border px-2 py-1"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <label className="text-sm">カイポケ内部ID：</label>
-                    <input
-                      type="text"
-                      value={item.kaipoke_cs_id || ""}
-                      onChange={e => handleChange(item.id, "kaipoke_cs_id", e.target.value)}
-                      className="w-full border px-2 py-1"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <label className="text-sm">サービス種別：</label>
-                    <input
-                      type="text"
-                      value={item.service_kind || ""}
-                      onChange={e => handleChange(item.id, "service_kind", e.target.value)}
-                      className="w-full border px-2 py-1"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <label className="text-sm">郵便番号：</label>
-                    <input
-                      type="text"
-                      value={item.postal_code || ""}
-                      onChange={e => handleChange(item.id, "postal_code", e.target.value)}
-                      className="w-full border px-2 py-1"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <label className="text-sm">ケアマネ（相談支援）：</label>
-                    <select
-                      value={item.care_consultant || ""}
-                      onChange={e => handleChange(item.id, "care_consultant", e.target.value || null)}
-                      className="w-full border px-2 py-1"
-                    >
-                      <option value="">（未選択）</option>
-                      {faxOptions.map(opt => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.office_name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="border p-2">
-                    <label className="text-sm">性別希望：</label>
-                    <select
-                      value={item.gender_request || ""}
-                      onChange={e => handleChange(item.id, "gender_request", e.target.value)}
-                      className="w-full border px-2 py-1"
-                    >
-                      <option value="">未設定</option>
-                      <option value="9b32a1f0-f711-4ab4-92fb-0331f0c86d42">男性希望</option>
-                      <option value="42224870-c644-48a5-87e2-7df9c24bca5b">女性希望</option>
-                      <option value="554d705b-85ec-4437-9352-4b026e2e904f">男女問わず</option>
-                    </select>
-                  </td>
+            {pageItems.map(item => {
+              // ★ この利用者の実績担当者が所属するチーム（例外込み）
+              const staff = staffList.find(
+                (s) => s.user_id === item.asigned_jisseki_staff
+              );
+              const effectiveOrgId = staff?.org_unit_id ?? item.asigned_org ?? "";
 
-                  {/* 時間変更可否（マスタ） */}
-                  <td className="border p-2">
-                    <label className="text-sm">時間変更可否：</label>
-                    <select
-                      value={item.time_adjustability_id || ""}
-                      onChange={e => handleChange(item.id, "time_adjustability_id", e.target.value || null)}
-                      className="w-full border px-2 py-1"
-                    >
-                      <option value="">（選択）</option>
-                      {timeAdjustOptions.map(opt => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
+              return (
+                <Fragment key={item.id}>
+                  <tr
+                    id={`row-${item.id}`}
+                    className={
+                      "bg-white shadow-md border border-gray-400 rounded-md align-top " +
+                      (!item.is_active ? "opacity-60 grayscale" : "")
+                    }
+                  >
+                    <td className="border p-2">
+                      {/*<div className="text-[11px] text-gray-500 mb-1">ID: {item.id}</div>*/}
+                      <label className="text-sm">利用者様名：</label>
+                      <input
+                        type="text"
+                        value={item.name || ""}
+                        onChange={e => handleChange(item.id, "name", e.target.value)}
+                        className="w-full border px-2 py-1"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <label className="text-sm">カイポケ内部ID：</label>
+                      <input
+                        type="text"
+                        value={item.kaipoke_cs_id || ""}
+                        onChange={e => handleChange(item.id, "kaipoke_cs_id", e.target.value)}
+                        className="w-full border px-2 py-1"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <label className="text-sm">サービス種別：</label>
+                      <input
+                        type="text"
+                        value={item.service_kind || ""}
+                        onChange={e => handleChange(item.id, "service_kind", e.target.value)}
+                        className="w-full border px-2 py-1"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <label className="text-sm">郵便番号：</label>
+                      <input
+                        type="text"
+                        value={item.postal_code || ""}
+                        onChange={e => handleChange(item.id, "postal_code", e.target.value)}
+                        className="w-full border px-2 py-1"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <label className="text-sm">ケアマネ（相談支援）：</label>
+                      <select
+                        value={item.care_consultant || ""}
+                        onChange={e => handleChange(item.id, "care_consultant", e.target.value || null)}
+                        className="w-full border px-2 py-1"
+                      >
+                        <option value="">（未選択）</option>
+                        {faxOptions.map(opt => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.office_name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="border p-2">
+                      <label className="text-sm">性別希望：</label>
+                      <select
+                        value={item.gender_request || ""}
+                        onChange={e => handleChange(item.id, "gender_request", e.target.value)}
+                        className="w-full border px-2 py-1"
+                      >
+                        <option value="">未設定</option>
+                        <option value="9b32a1f0-f711-4ab4-92fb-0331f0c86d42">男性希望</option>
+                        <option value="42224870-c644-48a5-87e2-7df9c24bca5b">女性希望</option>
+                        <option value="554d705b-85ec-4437-9352-4b026e2e904f">男女問わず</option>
+                      </select>
+                    </td>
 
-                  {/*<td className="border p-2 text-center">
+                    {/* 時間変更可否（マスタ） */}
+                    <td className="border p-2">
+                      <label className="text-sm">時間変更可否：</label>
+                      <select
+                        value={item.time_adjustability_id || ""}
+                        onChange={e => handleChange(item.id, "time_adjustability_id", e.target.value || null)}
+                        className="w-full border px-2 py-1"
+                      >
+                        <option value="">（選択）</option>
+                        {timeAdjustOptions.map(opt => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    {/*<td className="border p-2 text-center">
                     <label className="text-sm">通所・通学：</label>
                     <input
                       type="checkbox"
@@ -564,92 +598,101 @@ export default function KaipokeInfoPage() {
                     />
                   </td>*/}
 
-                  {/* 操作列 */}
-                  <td className="border p-2 text-center align-top" rowSpan={2}>
-                    <div className="flex flex-col items-stretch gap-2">
-                      <button
-                        onClick={() => handleSave(item)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded"
-                      >
-                        保存
-                      </button>
-                      <Link
-                        href={`/portal/kaipoke-info-detail/${item.id}`}
-                        className="bg-green-600 text-white px-3 py-1 rounded text-center"
-                      >
-                        詳細
-                      </Link>
-                      <a
-                        href={`#row-${item.id}`}
-                        className="text-xs text-blue-600 underline"
-                      >
-                        このIDへリンク
-                      </a>
-                      {/* ★ 追加：切り替え時に即保存 */}
-                      <label className="text-xs flex items-center gap-2 justify-center">
-                        <input
-                          type="checkbox"
-                          checked={item.is_active ?? true}
-                          onChange={e => saveIsActive(item.id, e.target.checked)}  // ←即保存
-                        />
-                        有効
-                      </label>
-                    </div>
-                  </td>
-                </tr>
-
-                <tr className="bg-gray-50">
-                  <td colSpan={8} className="border p-2">
-                    <div className="grid grid-cols-4 gap-3 md:gap-4">
-                      {/* 備考（高さを小さく） */}
-                      <div>
-                        <label className="text-sm">備考：</label>
-                        <textarea
-                          value={item.biko || ""}
-                          onChange={e => handleChange(item.id, "biko", e.target.value)}
-                          className="w-full border px-2 py-1 h-10"
-                        />
-                      </div>
-                      {/* チーム（asigned_org） */}
-                      <div className="space-y-2">
-                        <label className="block text-sm text-gray-600">チーム</label>
-                        <select
-                          className="w-full border rounded px-2 py-1"
-                          value={item.asigned_org ?? ""}
-                          onChange={(e) => handleChange(item.id, "asigned_org", e.target.value)}
+                    {/* 操作列 */}
+                    <td className="border p-2 text-center align-top" rowSpan={2}>
+                      <div className="flex flex-col items-stretch gap-2">
+                        <button
+                          onClick={() => handleSave(item)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded"
                         >
-                          <option value="">選択してください</option>
-                          {orgTeams.map((org) => (
-                            <option key={org.orgunitid} value={org.orgunitid}>
-                              {org.orgunitname}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-
-                      {/* 実績担当者（assigned_jisseki_staff） */}
-                      <div className="space-y-2">
-                        <label className="block text-sm text-gray-600">実績担当者</label>
-                        <select
-                          className="w-full border rounded px-2 py-1"
-                          value={item.asigned_jisseki_staff ?? ""}
-                          onChange={(e) => handleChange(item.id, "asigned_jisseki_staff", e.target.value)}
+                          保存
+                        </button>
+                        <Link
+                          href={`/portal/kaipoke-info-detail/${item.id}`}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-center"
                         >
-                          <option value="">選択してください</option>
-                          {staffList.map((staff) => (
-                            <option key={staff.user_id} value={staff.user_id}>
-                              {staff.name} {/* 氏名（姓＋名） */}
-                            </option>
-                          ))}
-                        </select>
+                          詳細
+                        </Link>
+                        <a
+                          href={`#row-${item.id}`}
+                          className="text-xs text-blue-600 underline"
+                        >
+                          このIDへリンク
+                        </a>
+                        {/* ★ 追加：切り替え時に即保存 */}
+                        <label className="text-xs flex items-center gap-2 justify-center">
+                          <input
+                            type="checkbox"
+                            checked={item.is_active ?? true}
+                            onChange={e => saveIsActive(item.id, e.target.checked)}  // ←即保存
+                          />
+                          有効
+                        </label>
                       </div>
+                    </td>
+                  </tr>
+
+                  <tr className="bg-gray-50">
+                    <td colSpan={8} className="border p-2">
+                      <div className="grid grid-cols-4 gap-3 md:gap-4">
+                        {/* 備考（高さを小さく） */}
+                        <div>
+                          <label className="text-sm">備考：</label>
+                          <textarea
+                            value={item.biko || ""}
+                            onChange={e => handleChange(item.id, "biko", e.target.value)}
+                            className="w-full border px-2 py-1 h-10"
+                          />
+                        </div>
+                        {/* チーム（asigned_org） */}
+                        <div className="space-y-2">
+                          <label className="block text-sm text-gray-600">チーム</label>
+                          <select
+                            className="w-full border rounded px-2 py-1"
+                            value={effectiveOrgId}
+                            onChange={(e) => handleChange(item.id, "asigned_org", e.target.value)}
+                          >
+                            <option value="">選択してください</option>
+                            {orgTeams.map((org) => (
+                              <option key={org.orgunitid} value={org.orgunitid}>
+                                {org.orgunitname}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+
+                        {/* 実績担当者（assigned_jisseki_staff） */}
+                        <div className="space-y-2">
+                          <label className="block text-sm text-gray-600">実績担当者</label>
+                          <select
+                            className="w-full border rounded px-2 py-1"
+                            value={item.asigned_jisseki_staff ?? ""}
+                            onChange={(e) => {
+                              const newStaffId = e.target.value;
+                              // 実績担当者IDを更新
+                              handleChange(item.id, "asigned_jisseki_staff", newStaffId || null);
+
+                              // 対応するスタッフのチーム（例外込み）を取得して asigned_org に反映
+                              const selectedStaff = staffList.find((s) => s.user_id === newStaffId);
+                              const newOrgId = selectedStaff?.org_unit_id ?? null;
+                              handleChange(item.id, "asigned_org", newOrgId);
+                            }}
+                          >
+                            <option value="">選択してください</option>
+                            {staffList.map((staff) => (
+                              <option key={staff.user_id} value={staff.user_id}>
+                                {staff.name} {/* 氏名（姓＋名） */}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
 
 
-                      {/* ★ 性別 */}
-                      <div>
-                        {/* <label className="text-sm">性別：</label>
+                        {/* ★ 性別 */}
+                        <div>
+                          {/* <label className="text-sm">性別：</label>
                         <input
                           type="text"
                           value={item.gender || ""}
@@ -657,12 +700,13 @@ export default function KaipokeInfoPage() {
                           className="w-full border px-2 py-1"
                           placeholder="例）男性 / 女性 など"
                         /> */}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              </Fragment>
-            ))}
+                    </td>
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
 
