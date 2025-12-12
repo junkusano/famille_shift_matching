@@ -984,7 +984,15 @@ export default function KaipokeInfoDetailPage() {
 /**
  * 簡易サムネイル
  */
-function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; mimeType?: string | null }) {
+function FileThumbnail({
+    title,
+    src,
+    mimeType,
+}: {
+    title: string;
+    src?: string;
+    mimeType?: string | null;
+}) {
     if (!src) {
         return (
             <div className="text-sm text-center text-gray-500">
@@ -995,10 +1003,14 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         );
     }
 
-    // Google Drive の fileId を URL から抽出
+    const isDriveUrl = src.includes("drive.google.com");
+
+    // Google Drive の fileId を URL から抽出（/file/d/... や ?id=... どちらでも拾う）
     const fileIdMatch = src.match(/[-\w]{25,}/);
     const fileId = fileIdMatch ? fileIdMatch[0] : null;
-    if (!fileId) {
+
+    // Drive 以外で fileId が取れない場合は、そのままリンク/画像扱い
+    if (isDriveUrl && !fileId) {
         return (
             <div className="text-sm text-center text-gray-500">
                 {title}
@@ -1008,19 +1020,29 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         );
     }
 
-    const isPdf = (mimeType ?? '').includes('pdf');
+    const isPdfLike =
+        (mimeType ?? "").includes("pdf") ||
+        // mimeType が無いけど Drive の URL → ほぼ PDF とみなしてプレビュー
+        (isDriveUrl && !mimeType);
+
+    const previewUrl = isDriveUrl && fileId
+        ? `https://drive.google.com/file/d/${fileId}/preview`
+        : src;
 
     return (
         <div className="border rounded p-2 bg-white">
             <div className="text-xs text-gray-600 mb-1">{title}</div>
-            {isPdf ? (
+
+            {isPdfLike ? (
+                // PDF / Drive 系は iframe でプレビュー
                 <iframe
-                    src={`https://drive.google.com/file/d/${fileId}/preview`}
+                    src={previewUrl}
                     className="w-full h-40 border"
                 />
             ) : (
+                // 画像などはそのまま <Image> で
                 <Image
-                    src={`https://drive.google.com/uc?export=view&id=${fileId}`}
+                    src={src}
                     alt={title}
                     width={400}
                     height={300}
@@ -1030,3 +1052,4 @@ function FileThumbnail({ title, src, mimeType }: { title: string; src?: string; 
         </div>
     );
 }
+
