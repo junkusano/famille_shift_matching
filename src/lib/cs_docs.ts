@@ -166,163 +166,147 @@ type SyncCsDocToKaipokeInput = {
 export async function syncCsDocToKaipokeDocuments(
   input: SyncCsDocToKaipokeInput
 ): Promise<void> {
-  const { url, kaipoke_cs_id, doc_name, doc_date_raw } = input;
+  try {
+    const { url, kaipoke_cs_id, doc_name, doc_date_raw } = input;
+    if (!url) return;
 
-  if (!url) return;
+    type DocumentItem = {
+      url?: string;
+      label?: string;
+      acquired_at?: string | null;
+      [key: string]: unknown;
+    };
 
-  type DocumentItem = {
-    url?: string;
-    label?: string;
-    acquired_at?: string | null;
-    [key: string]: unknown;
-  };
+    const isoAcquiredAt = normalizeDocDateRawForJson(doc_date_raw);
 
-  const isoAcquiredAt = normalizeDocDateRawForJson(doc_date_raw);
+    const updateDocumentsRow = async (
+      row: { id: string; documents: unknown },
+      updater: (docs: DocumentItem[]) => DocumentItem[]
+    ) => {
+      const docsJson: DocumentItem[] = Array.isArray(row.documents)
+        ? (row.documents as DocumentItem[])
+        : [];
 
-  // --- ヘルパー: documents を持つ行を更新する関数 ---
-  const updateDocumentsRow = async (
-    row: { id: string; documents: unknown },
-    updater: (docs: DocumentItem[]) => DocumentItem[]
-  ) => {
-    const docsJson: DocumentItem[] = Array.isArray(row.documents)
-      ? (row.documents as DocumentItem[])
-      : [];
+      const updatedDocs = updater(docsJson);
 
-    const updatedDocs = updater(docsJson);
-    const { error: updateErr } = await supabase
-      .from("cs_kaipoke_info")
-      .update({ documents: updatedDocs })
-      .eq("id", row.id);
-
-    if (updateErr) {
-      // eslint-disable-next-line no-console
-      console.error(
-        "[syncCsDocToKaipokeDocuments] update error",
-        updateErr
-      );
-    }
-  };
-
-  // 1) まず URL を含んでいる cs_kaipoke_info を探す
-  const { data: foundByUrl, error: findErr } = await supabase
-    .from("cs_kaipoke_info")
-    .select("id, kaipoke_cs_id, documents")
-    .contains("documents", [{ url }])
-    .maybeSingle();
-
-  if (findErr) {
-    // eslint-disable-next-line no-console
-    console.error(
-      "[syncCsDocToKaipokeDocuments] find by url error",
-      findErr
-    );
-  }
-
-  const foundRow = foundByUrl as
-    | { id: string; kaipoke_cs_id: string | null; documents: unknown }
-    | null;
-
-  // 2) URL を含む行が見つかった場合
-  if (foundRow) {
-    // (a) まずその行の documents の該当要素を更新
-    await updateDocumentsRow(foundRow, (docs) =>
-      docs.map((doc) => {
-        if (!doc || doc.url !== url) return doc;
-        const next: DocumentItem = { ...doc };
-        if (doc_name != null) next.label = doc_name;
-        if (isoAcquiredAt) next.acquired_at = isoAcquiredAt;
-        return next;
-      })
-    );
-
-    // (b) kaipoke_cs_id が変わった場合は、「引っ越し」も行う
-    if (
-      kaipoke_cs_id &&
-      foundRow.kaipoke_cs_id &&
-      foundRow.kaipoke_cs_id !== kaipoke_cs_id
-    ) {
-      // 旧利用者からは documents からこの URL を削除
-      await updateDocumentsRow(foundRow, (docs) =>
-        docs.filter((doc) => doc.url !== url)
-      );
-
-      // 新利用者側の documents に追加 or 更新
-      const { data: newOwner, error: newOwnerErr } = await supabase
+      const { error: updateErr } = await supabase
         .from("cs_kaipoke_info")
-        .select("id, documents")
-        .eq("kaipoke_cs_id", kaipoke_cs_id)
+        .update({ documents: updatedDocs })
+        .eq("id", row.id);
+
+      if (updateErr) {
+        console.error("[syncCsDocToKaipokeDocuments] update error", updateErr);
+      }
+    };
+
+    // --- 1) URL で所有者検索（失敗したらフォールバック） ---
+    let foundRow:
+      | { id: string; kaipoke_cs_id: string | null; documents: unknown }
+      | null = null;
+
+    try {
+      const { data: foundByUrl } = await supabase
+        .from("cs_kaipoke_info")
+        .select("id, kaipoke_cs_id, documents")
+        .contains("documents", [{ url }]) // ← ここが落ちる環境があるので try で囲う
         .maybeSingle();
 
-      if (newOwner && !newOwnerErr) {
-        await updateDocumentsRow(
-          newOwner as { id: string; documents: unknown },
-          (docs) => {
-            const existingIdx = docs.findIndex((d) => d.url === url);
-            const base: DocumentItem = {
-              url,
-              label: doc_name ?? undefined,
-              acquired_at: isoAcquiredAt ?? null,
-            };
+      foundRow = (foundByUrl as typeof foundRow) ?? null;
+    } catch (e) {
+      console.error("[syncCsDocToKaipokeDocuments] contains() failed:", e);
+      foundRow = null;
+    }
 
-            if (existingIdx >= 0) {
-              const next = [...docs];
-              next[existingIdx] = {
-                ...next[existingIdx],
-                ...base,
-              };
-              return next;
-            }
+    // --- 2) URL を含む行が見つかった場合：その行の該当要素を更新 ---
+    if (foundRow) {
+      await updateDocumentsRow(foundRow, (docs) =>
+        docs.map((doc) => {
+          if (!doc || doc.url !== url) return doc;
+          const next: DocumentItem = { ...doc };
+          if (doc_name != null) next.label = doc_name;
+          if (isoAcquiredAt) next.acquired_at = isoAcquiredAt;
+          return next;
+        })
+      );
 
-            return [...docs, base];
-          }
+      // kaipoke_cs_id が変更されているなら “引っ越し”
+      if (
+        kaipoke_cs_id &&
+        foundRow.kaipoke_cs_id &&
+        foundRow.kaipoke_cs_id !== kaipoke_cs_id
+      ) {
+        // 旧所有者から削除
+        await updateDocumentsRow(foundRow, (docs) =>
+          docs.filter((d) => d.url !== url)
         );
+
+        // 新所有者へ追加/更新
+        const { data: newOwner } = await supabase
+          .from("cs_kaipoke_info")
+          .select("id, documents")
+          .eq("kaipoke_cs_id", kaipoke_cs_id)
+          .maybeSingle();
+
+        if (newOwner) {
+          await updateDocumentsRow(
+            newOwner as { id: string; documents: unknown },
+            (docs) => {
+              const idx = docs.findIndex((d) => d.url === url);
+              const base: DocumentItem = {
+                url,
+                label: doc_name ?? undefined,
+                acquired_at: isoAcquiredAt ?? null,
+              };
+
+              if (idx >= 0) {
+                const next = [...docs];
+                next[idx] = { ...next[idx], ...base };
+                return next;
+              }
+              return [...docs, base];
+            }
+          );
+        }
       }
+      return;
     }
 
-    return;
-  }
+    // --- 3) URL 所有者が見つからない場合：kaipoke_cs_id で決め打ち同期（追加/更新） ---
+    if (!kaipoke_cs_id) return;
 
-  // 3) URL を含む行が無い場合：kaipoke_cs_id で対象を決める
-  if (!kaipoke_cs_id) return;
+    const { data: owner } = await supabase
+      .from("cs_kaipoke_info")
+      .select("id, documents")
+      .eq("kaipoke_cs_id", kaipoke_cs_id)
+      .maybeSingle();
 
-  const { data: owner, error: ownerErr } = await supabase
-    .from("cs_kaipoke_info")
-    .select("id, documents")
-    .eq("kaipoke_cs_id", kaipoke_cs_id)
-    .maybeSingle();
+    if (!owner) return;
 
-  if (ownerErr || !owner) {
-    // eslint-disable-next-line no-console
-    console.error(
-      "[syncCsDocToKaipokeDocuments] owner by kaipoke_cs_id not found",
-      ownerErr
-    );
-    return;
-  }
-
-  await updateDocumentsRow(
-    owner as { id: string; documents: unknown },
-    (docs) => {
-      const existingIdx = docs.findIndex((d) => d.url === url);
-      const base: DocumentItem = {
-        url,
-        label: doc_name ?? undefined,
-        acquired_at: isoAcquiredAt ?? null,
-      };
-
-      if (existingIdx >= 0) {
-        const next = [...docs];
-        next[existingIdx] = {
-          ...next[existingIdx],
-          ...base,
+    await updateDocumentsRow(
+      owner as { id: string; documents: unknown },
+      (docs) => {
+        const idx = docs.findIndex((d) => d.url === url);
+        const base: DocumentItem = {
+          url,
+          label: doc_name ?? undefined,
+          acquired_at: isoAcquiredAt ?? null,
         };
-        return next;
-      }
 
-      return [...docs, base];
-    }
-  );
+        if (idx >= 0) {
+          const next = [...docs];
+          next[idx] = { ...next[idx], ...base };
+          return next;
+        }
+        return [...docs, base];
+      }
+    );
+  } catch (e) {
+    // ★ この関数は絶対に throw しない（更新処理を止めない）
+    console.error("[syncCsDocToKaipokeDocuments] unexpected error:", e);
+    return;
+  }
 }
+
 /* ========== 削除 ========== */
 
 export async function deleteCsDocById(id: string): Promise<void> {

@@ -96,12 +96,12 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
   // 利用者絞り込み用の select だけ、名前 or cs_id によるテキストフィルターをかける（③）
   const filteredKaipokeListForFilter = kaipokeQuery
     ? kaipokeList.filter((k) => {
-        const q = kaipokeQuery.trim();
-        return (
-          k.name.includes(q) ||
-          k.kaipoke_cs_id.includes(q)
-        );
-      })
+      const q = kaipokeQuery.trim();
+      return (
+        k.name.includes(q) ||
+        k.kaipoke_cs_id.includes(q)
+      );
+    })
     : kaipokeList;
 
   // ② user_doc_master は添付の API から取得（category=cs_doc）
@@ -162,14 +162,17 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     });
 
     // cs_kaipoke_info.documents との同期（URL / kaipoke_cs_id の両方を見て更新） ※詳細は lib 側で
-    await syncCsDocToKaipokeDocuments({
-      url,
-      kaipoke_cs_id,
-      doc_name,
-      doc_date_raw,
-    });
+    try {
+      await syncCsDocToKaipokeDocuments({
+        url,
+        kaipoke_cs_id,
+        doc_name,
+        doc_date_raw,
+      });
+    } catch (e) {
+      console.error("[cs_docs] syncCsDocToKaipokeDocuments failed:", e);
+    }
 
-    // ページ全体はリダイレクトしないが、データだけ取り直す
     revalidatePath("/portal/cs_docs");
   };
 
@@ -317,9 +320,8 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
                         <select
                           name="kaipoke_cs_id"
                           defaultValue={row.kaipoke_cs_id ?? ""}
-                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${
-                            isEmptyKaipoke ? "bg-red-100" : ""
-                          }`}
+                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${isEmptyKaipoke ? "bg-red-100" : ""
+                            }`}
                         >
                           {[
                             { value: "", label: "(未設定)" },
@@ -350,9 +352,8 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
                         <select
                           name="source"
                           defaultValue={row.source ?? ""}
-                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${
-                            isEmptySource ? "bg-red-100" : ""
-                          }`}
+                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${isEmptySource ? "bg-red-100" : ""
+                            }`}
                         >
                           {[
                             { value: "", label: "(未設定)" },
@@ -373,9 +374,8 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
                         <select
                           name="doc_name"
                           defaultValue={row.doc_name ?? ""}
-                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${
-                            isEmptyDocName ? "bg-red-100" : ""
-                          }`}
+                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${isEmptyDocName ? "bg-red-100" : ""
+                            }`}
                         >
                           {[
                             { value: "", label: "(未設定)" },
@@ -397,9 +397,8 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
                           type="date"
                           name="doc_date_raw"
                           defaultValue={formatDate(row.doc_date_raw)}
-                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${
-                            isEmptyDocDate ? "bg-red-100" : ""
-                          }`}
+                          className={`border rounded px-1 py-0.5 text-[11px] w-full ${isEmptyDocDate ? "bg-red-100" : ""
+                            }`}
                         />
                       </div>
 
