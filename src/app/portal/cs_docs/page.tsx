@@ -1,6 +1,7 @@
 // src/app/portal/cs_docs/page.tsx
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import {
   getCsDocsInitialData,
   updateCsDocById,
@@ -31,7 +32,15 @@ function formatDate(value: string | null): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-const SOURCE_OPTIONS = ["FAX", "MAIL", "UPLOAD", "DIGISIGN", "SCAN", "OTHER", "Backfill"];
+const SOURCE_OPTIONS = [
+  "FAX",
+  "MAIL",
+  "UPLOAD",
+  "DIGISIGN",
+  "SCAN",
+  "OTHER",
+  "Backfill",
+];
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +49,14 @@ type PageProps = {
 };
 
 /** 一覧ページの URL をクエリ付きで生成 */
-function buildListPath(page: number, kaipokeCsId: string): string {
+function buildListPath(
+  page: number,
+  kaipokeCsId: string,
+  kaipokeQuery: string
+): string {
   const params = new URLSearchParams();
   if (kaipokeCsId) params.set("kaipoke_cs_id", kaipokeCsId);
+  if (kaipokeQuery) params.set("kaipoke_query", kaipokeQuery);
   if (page > 1) params.set("page", String(page));
   const qs = params.toString();
   return `/portal/cs_docs${qs ? `?${qs}` : ""}`;
@@ -61,6 +75,11 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
       ? (searchParams.kaipoke_cs_id as string)
       : "";
 
+  const kaipokeQuery =
+    typeof searchParams?.kaipoke_query === "string"
+      ? (searchParams.kaipoke_query as string)
+      : "";
+
   // ① cs_docs + kaipoke_cs_id/name は lib から取得（doc_date_raw 降順 + ページ分だけ）
   const { docs, kaipokeList, totalCount, perPage }: CsDocsInitialData =
     await getCsDocsInitialData({
@@ -73,6 +92,17 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     perPage > 0 ? Math.max(1, Math.ceil(totalCount / perPage)) : 1;
   const fromIndex = (page - 1) * perPage + 1;
   const toIndex = Math.min(page * perPage, totalCount);
+
+  // 利用者絞り込み用の select だけ、名前 or cs_id によるテキストフィルターをかける（③）
+  const filteredKaipokeListForFilter = kaipokeQuery
+    ? kaipokeList.filter((k) => {
+        const q = kaipokeQuery.trim();
+        return (
+          k.name.includes(q) ||
+          k.kaipoke_cs_id.includes(q)
+        );
+      })
+    : kaipokeList;
 
   // ② user_doc_master は添付の API から取得（category=cs_doc）
   //    Server Component なので絶対URLにする
@@ -131,7 +161,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
       doc_date_raw,
     });
 
-    // cs_kaipoke_info.documents との同期（URL が一致するものだけ best-effort で更新）
+    // cs_kaipoke_info.documents との同期（URL / kaipoke_cs_id の両方を見て更新） ※詳細は lib 側で
     await syncCsDocToKaipokeDocuments({
       url,
       kaipoke_cs_id,
@@ -139,8 +169,8 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
       doc_date_raw,
     });
 
-    // 保存後は同じフィルタ・ページで再表示
-    //redirect(buildListPath(page, filterKaipokeCsId));
+    // ページ全体はリダイレクトしないが、データだけ取り直す
+    revalidatePath("/portal/cs_docs");
   };
 
   /* ========== 削除アクション（Server Action） ========== */
@@ -155,7 +185,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     // 削除後も同じフィルタ・ページに戻る（念のため存在しないページにはしない）
     const nextPage =
       docs.length === 1 && page > 1 ? page - 1 : page;
-    redirect(buildListPath(nextPage, filterKaipokeCsId));
+    redirect(buildListPath(nextPage, filterKaipokeCsId, kaipokeQuery));
   };
 
   return (
@@ -172,8 +202,19 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
       <form
         method="GET"
         action="/portal/cs_docs"
-        className="flex flex-wrap items-end gap-2 text-xs"
+        className="flex flex-wrap items-end gap-4 text-xs"
       >
+        <div>
+          <label className="block text-[11px] text-gray-600">
+            利用者検索（名前 or CS-ID 部分一致）
+          </label>
+          <input
+            name="kaipoke_query"
+            defaultValue={kaipokeQuery}
+            className="border rounded px-1 py-0.5 text-[11px] min-w-[16rem]"
+            placeholder="例）戸城 / 8180 など"
+          />
+        </div>
         <div>
           <label className="block text-[11px] text-gray-600">
             利用者で絞り込み
@@ -184,7 +225,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
             className="border rounded px-1 py-0.5 text-[11px] min-w-[16rem]"
           >
             <option value="">(すべて)</option>
-            {kaipokeList.map((k) => (
+            {filteredKaipokeListForFilter.map((k) => (
               <option key={k.kaipoke_cs_id} value={k.kaipoke_cs_id}>
                 {k.name} ({k.kaipoke_cs_id})
               </option>
@@ -198,7 +239,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
         >
           絞り込み
         </button>
-        {filterKaipokeCsId && (
+        {(filterKaipokeCsId || kaipokeQuery) && (
           <a
             href="/portal/cs_docs"
             className="border rounded px-3 py-1 text-[11px] bg-white hover:bg-gray-100"
@@ -432,7 +473,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
           <div className="flex items-center gap-2">
             {page > 1 ? (
               <a
-                href={buildListPath(page - 1, filterKaipokeCsId)}
+                href={buildListPath(page - 1, filterKaipokeCsId, kaipokeQuery)}
                 className="border rounded px-2 py-1 bg-white hover:bg-gray-100"
               >
                 前へ
@@ -447,7 +488,7 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
             </span>
             {page < totalPages ? (
               <a
-                href={buildListPath(page + 1, filterKaipokeCsId)}
+                href={buildListPath(page + 1, filterKaipokeCsId, kaipokeQuery)}
                 className="border rounded px-2 py-1 bg-white hover:bg-gray-100"
               >
                 次へ
