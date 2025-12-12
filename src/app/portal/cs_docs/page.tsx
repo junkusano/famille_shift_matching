@@ -134,17 +134,15 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     "use server";
 
     const id = String(formData.get("id") ?? "");
-    if (!id) return;
+    if (!id) {
+      return; // 何も返さない = Promise<void>
+    }
 
     const url = (formData.get("url") as string) || null;
     const kaipoke_cs_id = (formData.get("kaipoke_cs_id") as string) || null;
     const rawSource = String(formData.get("source") ?? "").trim();
-// source は NOT NULL なので必ず値を入れる（未設定なら manual）
-    // source は NOT NULL なので必ず値を入れる（未設定なら manual）
     const source = rawSource !== "" ? rawSource : "manual";
 
-    // user-doc-master API は { value, label } を返すので、
-    // doc_name には label を保存する想定
     const doc_name = (formData.get("doc_name") as string) || null;
 
     const ocr_text =
@@ -166,7 +164,6 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
       doc_date_raw,
     });
 
-    // cs_kaipoke_info.documents との同期（URL / kaipoke_cs_id の両方を見て更新） ※詳細は lib 側で
     try {
       await syncCsDocToKaipokeDocuments({
         url,
@@ -179,7 +176,9 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
     }
 
     revalidatePath("/portal/cs_docs");
+    // ここで何も return しない → Promise<void> になる
   };
+
 
   /* ========== 削除アクション（Server Action） ========== */
   const deleteAction = async (formData: FormData) => {
