@@ -40,7 +40,9 @@ const SOURCE_OPTIONS = [
   "SCAN",
   "OTHER",
   "Backfill",
+  "manual",
 ];
+
 
 export const dynamic = "force-dynamic";
 
@@ -136,7 +138,10 @@ export default async function CsDocsPage({ searchParams }: PageProps) {
 
     const url = (formData.get("url") as string) || null;
     const kaipoke_cs_id = (formData.get("kaipoke_cs_id") as string) || null;
-    const source = (formData.get("source") as string) || null;
+    const rawSource = String(formData.get("source") ?? "").trim();
+// source は NOT NULL なので必ず値を入れる（未設定なら manual）
+    // source は NOT NULL なので必ず値を入れる（未設定なら manual）
+    const source = rawSource !== "" ? rawSource : "manual";
 
     // user-doc-master API は { value, label } を返すので、
     // doc_name には label を保存する想定
