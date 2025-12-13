@@ -12,6 +12,17 @@ export async function middleware(req: NextRequest) {
   // ★ Cron/内部バッチは素通り
   if (pathname.startsWith('/api/cron/')) return NextResponse.next();
 
+  // ★ それ以外の /api はログイン必須（cron以外）
+  // ※ fetch で扱いやすいように 401 を返す（リダイレクトにしない）
+  if (pathname.startsWith('/api/')) {
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+  }
+
   // ==============================
   // 🔸 /portal（訪問介護用）
   // ==============================
@@ -75,5 +86,5 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return res;
 }
