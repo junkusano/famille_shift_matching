@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     await deleteCsDocById(id);
 
     return NextResponse.json({ success: true });
-  } catch (e: any) {
+  } catch (e) {
     console.error("cs_docs delete error:", e);
     return NextResponse.json(
       { error: e.message ?? "delete failed" },

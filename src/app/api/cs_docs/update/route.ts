@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (e: any) {
+  } catch (e) {
     console.error("cs_docs update error:", e);
     return NextResponse.json(
       { error: e?.message ?? "update failed" },
