@@ -6,6 +6,10 @@ import Link from "next/link";
 
 type DocOption = { value: string; label: string };
 
+type CsDocRowWithInfo = CsDocRow & {
+  cs_kaipoke_info_id?: string | null;
+};
+
 const SOURCE_OPTIONS = [
   "manual",
   "FAX",
@@ -232,7 +236,7 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
               const previewUrl =
                 row.url && row.url.trim() !== "" ? toDrivePreviewUrl(row.url) : null;
 
-              const csInfoId = (row as any).cs_kaipoke_info_id as string | null; // 既存Rowに入っている前提（なければnull）
+              const csInfoId = (row as CsDocRowWithInfo).cs_kaipoke_info_id ?? null;
               const detailHref =
                 csInfoId && csInfoId.trim() !== ""
                   ? `/portal/kaipoke-info-detail/${csInfoId}`
