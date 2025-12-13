@@ -1,5 +1,7 @@
 // src/lib/cs_docs.ts
 import { supabaseAdmin as supabase } from "@/lib/supabase/service";
+import { supabaseAdmin } from "@/lib/supabase/service";
+
 
 /* ========== 型定義 ========== */
 
@@ -34,6 +36,126 @@ export type CsDocsQuery = {
   perPage?: number;
   kaipokeCsId?: string | null;
 };
+
+type SyncSmartArgs = {
+  url: string | null;
+  prevKaipokeCsId: string | null;
+  nextKaipokeCsId: string | null;
+  source: string;
+  doc_name: string | null;
+  doc_date_raw: string | null;
+};
+
+type DocumentItem = {
+  url?: string;
+  source?: string;
+  doc_name?: string;
+  doc_date_raw?: string;
+};
+
+function upsertDocItem(list: DocumentItem[], item: DocumentItem): DocumentItem[] {
+  const url = item.url ?? "";
+  if (!url) return list;
+
+  const idx = list.findIndex((x) => (x?.url ?? "") === url);
+  if (idx >= 0) {
+    const next = [...list];
+    next[idx] = { ...next[idx], ...item };
+    return next;
+  }
+  return [{ ...item }, ...list];
+}
+
+function removeDocItem(list: DocumentItem[], url: string): DocumentItem[] {
+  return list.filter((x) => (x?.url ?? "") !== url);
+}
+
+export async function syncCsDocToKaipokeDocumentsSmart(args: SyncSmartArgs) {
+  const { url, prevKaipokeCsId, nextKaipokeCsId, source, doc_name, doc_date_raw } = args;
+  if (!url) return;
+
+  // 1) documents 内に URL が存在する cs_kaipoke_info をまず探す（URLが真実）
+  // ※ documents が JSONB 配列想定
+  const { data: hitRows, error: hitErr } = await supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("id, kaipoke_cs_id, documents")
+    .contains("documents", [{ url }]);
+
+  if (hitErr) throw hitErr;
+
+  const item: DocumentItem = {
+    url,
+    source,
+    doc_name: doc_name ?? undefined,
+    doc_date_raw: doc_date_raw ?? undefined,
+  };
+
+  const updateRowById = async (id: string, documents: unknown) => {
+    const list = Array.isArray(documents) ? (documents as DocumentItem[]) : [];
+    const nextDocs = upsertDocItem(list, item);
+
+    const { error } = await supabaseAdmin
+      .from("cs_kaipoke_info")
+      .update({ documents: nextDocs })
+      .eq("id", id);
+
+    if (error) throw error;
+  };
+
+  const removeFromKaipokeCsId = async (kaipokeCsId: string) => {
+    const { data, error } = await supabaseAdmin
+      .from("cs_kaipoke_info")
+      .select("id, documents")
+      .eq("kaipoke_cs_id", kaipokeCsId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return;
+
+    const list = Array.isArray(data.documents) ? (data.documents as DocumentItem[]) : [];
+    const nextDocs = removeDocItem(list, url);
+
+    const { error: uErr } = await supabaseAdmin
+      .from("cs_kaipoke_info")
+      .update({ documents: nextDocs })
+      .eq("id", data.id);
+
+    if (uErr) throw uErr;
+  };
+
+  // 2) URLヒットがあるなら、その row を更新
+  if (hitRows && hitRows.length > 0) {
+    // 複数ヒットしたら全部更新（事故防止）
+    for (const r of hitRows) {
+      await updateRowById(r.id, (r as any).documents);
+    }
+
+    // もし “移動” が発生していて、旧kaipokeCsIdが違うなら旧側から除去
+    if (prevKaipokeCsId && nextKaipokeCsId && prevKaipokeCsId !== nextKaipokeCsId) {
+      await removeFromKaipokeCsId(prevKaipokeCsId);
+    }
+    return;
+  }
+
+  // 3) URLがどこにも無いなら、nextKaipokeCsId を頼りに upsert
+  if (!nextKaipokeCsId) return;
+
+  const { data: target, error: tErr } = await supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("id, documents")
+    .eq("kaipoke_cs_id", nextKaipokeCsId)
+    .maybeSingle();
+
+  if (tErr) throw tErr;
+  if (!target) return;
+
+  await updateRowById(target.id, (target as any).documents);
+
+  // 4) move の場合、旧から除去
+  if (prevKaipokeCsId && prevKaipokeCsId !== nextKaipokeCsId) {
+    await removeFromKaipokeCsId(prevKaipokeCsId);
+  }
+}
 
 /* ========== 内部ヘルパー：doc_date_raw を JSON 用 ISO に正規化 ========== */
 
