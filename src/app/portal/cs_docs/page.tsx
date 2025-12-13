@@ -37,7 +37,7 @@ export default async function Page({
   const perPage = Number(searchParams?.perPage ?? "50");
   const kaipokeCsId =
     typeof searchParams?.kaipoke_cs_id === "string" &&
-    searchParams?.kaipoke_cs_id.trim() !== ""
+      searchParams?.kaipoke_cs_id.trim() !== ""
       ? searchParams?.kaipoke_cs_id.trim()
       : null;
 
