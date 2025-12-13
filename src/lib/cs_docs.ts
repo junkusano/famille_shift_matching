@@ -15,6 +15,7 @@ export type CsDocRow = {
   summary: string | null;
   doc_date_raw: string | null; // date / timestamp を文字列として扱う
   created_at: string | null;
+  cs_kaipoke_info_id: string | null;
 };
 
 export type CsKaipokeInfo = {
@@ -127,7 +128,7 @@ export async function syncCsDocToKaipokeDocumentsSmart(args: SyncSmartArgs) {
   if (hitRows && hitRows.length > 0) {
     // 複数ヒットしたら全部更新（事故防止）
     for (const r of hitRows) {
-      await updateRowById(r.id, (r as any).documents);
+      await updateRowById(r.id, (r).documents);
     }
 
     // もし “移動” が発生していて、旧kaipokeCsIdが違うなら旧側から除去
@@ -149,7 +150,7 @@ export async function syncCsDocToKaipokeDocumentsSmart(args: SyncSmartArgs) {
   if (tErr) throw tErr;
   if (!target) return;
 
-  await updateRowById(target.id, (target as any).documents);
+  await updateRowById(target.id, (target).documents);
 
   // 4) move の場合、旧から除去
   if (prevKaipokeCsId && prevKaipokeCsId !== nextKaipokeCsId) {
@@ -203,7 +204,9 @@ export async function getCsDocsInitialData(
       ocr_text,
       summary,
       doc_date_raw,
-      created_at
+      created_at,
+      cs_kaipoke_info_id
+
     `,
       { count: "exact" }
     );
