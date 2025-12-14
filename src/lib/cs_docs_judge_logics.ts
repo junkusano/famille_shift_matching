@@ -141,12 +141,19 @@ function sinceIsoFromHours(windowHours: number): string {
  * - 返り値として「JSON文字列」だけ返す（余計な文が混ざらないように）
  */
 async function callLLM({ system, user }: { system: string; user: string }): Promise<string> {
-    // eslint 対策（ダミー実装中でも unused 扱いにしない）
-    void system;
-    void user;
+  // eslint 対策（未使用警告回避）
+  void system;
+  void user;
 
-    return "{}";
+  // ✅ v2 が通る “最低限の形”
+  return JSON.stringify({
+    keywords: { positive: [], negative: [] },
+    regex: { positive: [], negative: [] },
+    section_headers: { positive: [], negative: [] },
+    source_hints: [],
+  });
 }
+
 
 
 /* =========================================================
