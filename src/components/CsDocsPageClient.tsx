@@ -114,6 +114,17 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
         });
     };
 
+    const hasKaipokeOption = (value: string): boolean => {
+        const v = value.trim();
+        if (v === "") return false;
+        return initialData.kaipokeList.some((k) => k.kaipoke_cs_id === v);
+    };
+
+    const needsPinkKaipoke = (value: string): boolean => {
+        // 空欄 または 候補に無い値
+        return value.trim() === "" || !hasKaipokeOption(value);
+    };
+
     const isMissing = (v: string) => v.trim() === "";
 
     const handleSave = async (row: CsDocRow) => {
@@ -304,8 +315,9 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
                                                 }
                                                 className={[
                                                     "border w-full",
-                                                    isMissing(d.kaipoke_cs_id) ? "bg-pink-100" : "",
+                                                    needsPinkKaipoke(d.kaipoke_cs_id) ? "bg-pink-100" : "",
                                                 ].join(" ")}
+
                                             >
                                                 <option value="">(未設定)</option>
                                                 {filteredKaipokeList.map((k) => (
