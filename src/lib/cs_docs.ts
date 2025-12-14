@@ -10,13 +10,11 @@ export type CsDocRow = {
   // 利用者
   kaipoke_cs_id: string | null; // 業務キー（テキスト）
   cs_kaipoke_info_id: string | null; // cs_kaipoke_info.id（uuid）
-
+  applicable_date: string | null;
   source: string | null;
   doc_name: string | null;
-
   ocr_text: string | null;
   summary: string | null;
-
   doc_date_raw: string | null; // timestamp with tz を文字列で受ける
   created_at: string | null;
 };
@@ -63,6 +61,7 @@ export async function getCsDocsInitialData(
       doc_name,
       ocr_text,
       summary,
+      applicable_date, 
       doc_date_raw,
       created_at
     `,
@@ -74,8 +73,8 @@ export async function getCsDocsInitialData(
   }
 
   const { data: docs, error: docsErr, count } = await q
-    .order("doc_date_raw", { ascending: false })
     .order("created_at", { ascending: false })
+    .order("doc_date_raw", { ascending: false })
     .range(from, to);
 
   if (docsErr) throw new Error(`cs_docs 取得エラー: ${docsErr.message}`);
@@ -103,7 +102,6 @@ export type UpdateCsDocInput = {
   id: string;
   // 変更前の利用者（documents同期のため）
   prev_kaipoke_cs_id: string | null;
-
   url: string | null;
   kaipoke_cs_id: string | null;
   source: string; // NOT NULL
@@ -150,6 +148,7 @@ export async function updateCsDocAndSync(input: UpdateCsDocInput): Promise<CsDoc
       doc_name,
       ocr_text,
       summary,
+      applicable_date,
       doc_date_raw,
       created_at
     `
@@ -165,13 +164,15 @@ export async function updateCsDocAndSync(input: UpdateCsDocInput): Promise<CsDoc
   if (input.prev_kaipoke_cs_id) targets.add(input.prev_kaipoke_cs_id);
   if (input.kaipoke_cs_id) targets.add(input.kaipoke_cs_id);
 
+  const preferredDate =  updated.applicable_date ?? updated.doc_date_raw ?? input.doc_date_raw ?? null;
+
   await Promise.all(
     [...targets].map((kaipokeId) =>
       syncCsDocToKaipokeDocuments({
         kaipoke_cs_id: kaipokeId,
         url: input.url,
         doc_name: input.doc_name,
-        doc_date_raw: input.doc_date_raw,
+        doc_date_raw: preferredDate,
       }).catch(() => {
         // 同期失敗しても cs_docs 更新は成功扱い（ログはAPI側で出す）
       })

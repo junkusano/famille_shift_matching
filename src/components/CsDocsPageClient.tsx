@@ -49,6 +49,19 @@ function toDrivePreviewUrl(url: string): string {
     return `https://drive.google.com/file/d/${id}/preview`;
 }
 
+function formatDateTime(value: string | null): string {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+
 type Props = {
     initialData: CsDocsInitialData;
     docMasterList: DocOption[];
@@ -170,6 +183,8 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
                 summary: updated.summary ?? "",
             },
         }));
+
+        alert("保存しました");
     };
 
     const handleDelete = async (id: string) => {
@@ -253,6 +268,10 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
                             return (
                                 <tr key={row.id} className="border-t align-top">
                                     <td className="p-2 whitespace-nowrap">
+                                        <div className="text-[10px] text-gray-500 mb-1">
+                                            {formatDateTime(row.created_at)}
+                                        </div>
+
                                         {previewUrl ? (
                                             <a
                                                 href={previewUrl}
@@ -266,7 +285,6 @@ export default function CsDocsPageClient({ initialData, docMasterList }: Props) 
                                             <span className="text-gray-400">-</span>
                                         )}
                                     </td>
-
                                     <td className="p-2">
                                         <div className="space-y-1">
                                             {detailHref ? (
