@@ -2,6 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rebuildJudgeLogicsForDocTypes } from "@/lib/cs_docs_judge_logics";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+
 type Params = {
     mode: "full" | "incremental";
     windowHours: number;
@@ -54,20 +59,37 @@ async function run(req: NextRequest, body?: unknown) {
 
     const ms = Date.now() - t0;
 
-    return NextResponse.json({
-        ok: true,
-        mode,
-        windowHours,
-        limitDocTypes,
-        updated: result.updated,
-        targetDocTypeCount: result.targetDocTypeIds.length,
-        sampleDocTypeIds: result.targetDocTypeIds.slice(0, 20),
-        ms,
-        serverTime: new Date().toISOString(),
-    });
+    return NextResponse.json(
+        {
+            ok: true,
+            mode,
+            windowHours,
+            limitDocTypes,
+            updated: result.updated,
+            targetDocTypeCount: result.targetDocTypeIds.length,
+            sampleDocTypeIds: result.targetDocTypeIds.slice(0, 20),
+            ms,
+            serverTime: new Date().toISOString(),
+            traceId: crypto.randomUUID(),          // ✅毎回変わる＝実行された証拠
+        },
+        {
+            headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+            },
+        }
+    );
+
 }
 
 export async function GET(req: NextRequest) {
+    console.log("[cs-docs-judge-logics] start", {
+        method: req.method,
+        url: req.nextUrl.toString(),
+        at: new Date().toISOString(),
+    });
+
     try {
         return await run(req);
     } catch (e) {
@@ -77,6 +99,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+
+    console.log("[cs-docs-judge-logics] start", {
+        method: req.method,
+        url: req.nextUrl.toString(),
+        at: new Date().toISOString(),
+    });
+
     try {
         const body = await req.json().catch(() => ({}));
         return await run(req, body);
