@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CsDocRow, CsDocsInitialData } from "@/lib/cs_docs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation"; // 追加
@@ -107,6 +107,13 @@ export default function CsDocsPageClient({ initialData, docMasterList, page, per
     }, [initialData.kaipokeList, kaipokeFilter]);
 
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+
+    // ✅ ページ/検索条件が変わったら Server から来た docs を state に反映
+    // （useState初期値は初回マウント時しか使われないため）
+    useEffect(() => {
+        setDocs(initialData.docs);
+        setDrafts({}); // ページを跨いだ下書き混在を防ぐ（必要なら消してOK）
+    }, [initialData.docs]);
 
     const getDraft = (row: CsDocRow): Draft => {
         const d = drafts[row.id];

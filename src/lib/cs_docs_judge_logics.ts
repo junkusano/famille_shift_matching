@@ -140,7 +140,11 @@ function sinceIsoFromHours(windowHours: number): string {
  * - system / user を投げて
  * - 返り値として「JSON文字列」だけ返す（余計な文が混ざらないように）
  */
-async function callLLM(_params: { system: string; user: string }): Promise<string> {
+async function callLLM({ system, user }: { system: string; user: string }): Promise<string> {
+    // eslint 対策（ダミー実装中でも unused 扱いにしない）
+    void system;
+    void user;
+
     return "{}";
 }
 
