@@ -50,6 +50,11 @@ export default async function Page({
   const docMasterList = await getUserDocMasterOptions("cs_doc");
 
   return (
-    <CsDocsPageClient initialData={initialData} docMasterList={docMasterList} />
+    <CsDocsPageClient
+      initialData={initialData}
+      docMasterList={docMasterList}
+      page={Number.isFinite(page) && page > 0 ? page : 1}
+      perPage={Number.isFinite(perPage) && perPage > 0 ? perPage : 50}
+    />
   );
 }
