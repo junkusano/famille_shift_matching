@@ -332,13 +332,34 @@ export default function KaipokeInfoDetailPage() {
 
     const saveDocuments = async (next: Attachment[]) => {
         if (!row) return;
+
         const { error } = await supabase
-            .from('cs_kaipoke_info')
+            .from("cs_kaipoke_info")
             .update({ documents: next })
-            .eq('id', row.id);
+            .eq("id", row.id);
+
         if (error) throw new Error(error.message);
+
+        // ✅ cs_docs へ同期（失敗しても documents 更新自体は成立しているので、警告だけ）
+        try {
+            const res = await fetch("/api/cs-docs/sync-from-documents", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ csKaipokeInfoId: row.id, documents: next }),
+            });
+
+            if (!res.ok) {
+                const txt = await res.text().catch(() => "");
+                alert(`cs_docs 同期に失敗しました（documentsは保存済み）\n${txt}`);
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`cs_docs 同期に失敗しました（通信エラー / documentsは保存済み）\n${msg}`);
+        }
+
         setRow({ ...row, documents: next });
     };
+
 
     const addAttachment = (list: Attachment[], item: Attachment) => {
         return [...list, item];
@@ -724,7 +745,22 @@ export default function KaipokeInfoDetailPage() {
 
             {/* 書類（documents: JSONB） */}
             <div className="space-y-2">
-                <h2 className="text-lg font-semibold">書類（JSONB: documents）</h2>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-base font-bold">書類</h2>
+
+                    {row?.kaipoke_cs_id ? (
+                        <Link
+                            href={`/portal/cs_docs?kaipoke_cs_id=${encodeURIComponent(row.kaipoke_cs_id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs underline text-blue-600 hover:opacity-80"
+                        >
+                            cs_docs でこの利用者の書類を見る →
+                        </Link>
+                    ) : (
+                        <span className="text-xs text-gray-500">kaipoke_cs_id 未設定</span>
+                    )}
+                </div>
 
                 {documentsArray.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
