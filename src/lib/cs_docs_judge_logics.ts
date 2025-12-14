@@ -52,8 +52,9 @@ function uniqKeepOrder(values: string[], limit: number): string[] {
 export async function rebuildJudgeLogicsForDocTypes(params: {
   mode: "full" | "incremental";
   windowHours: number;
+  limitDocTypes: number; // 追加（0=無制限）
 }): Promise<{ updated: number; targetDocTypeIds: string[] }> {
-  const { mode, windowHours } = params;
+  const { mode, windowHours, limitDocTypes } = params;
 
   // 対象 doc_type_id を決める
   const base = supabaseAdmin
@@ -75,9 +76,10 @@ export async function rebuildJudgeLogicsForDocTypes(params: {
     5000
   );
 
-  let updated = 0;
+const limitedIds = limitDocTypes > 0 ? targetDocTypeIds.slice(0, limitDocTypes) : targetDocTypeIds;
 
-  for (const docTypeId of targetDocTypeIds) {
+  let updated = 0;
+  for (const docTypeId of limitedIds) {
     // total count
     const { count: totalCount, error: cntErr } = await supabaseAdmin
       .from("cs_docs")
@@ -147,5 +149,5 @@ export async function rebuildJudgeLogicsForDocTypes(params: {
     updated += 1;
   }
 
-  return { updated, targetDocTypeIds };
+  return { updated, targetDocTypeIds: limitedIds };
 }
