@@ -79,7 +79,7 @@ type Draft = {
     summary: string;
 };
 
-export default function CsDocsPageClient({ initialData, docMasterList,page, perPage }: Props) {
+export default function CsDocsPageClient({ initialData, docMasterList, page, perPage }: Props) {
     const [docs, setDocs] = useState<CsDocRow[]>(initialData.docs);
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -239,8 +239,6 @@ export default function CsDocsPageClient({ initialData, docMasterList,page, perP
         <div className="p-4 space-y-3">
             <div className="space-y-2">
                 <h1 className="text-lg font-bold">cs_docs 管理</h1>
-
-
                 {/* ✅ ページャー */}
                 <div className="flex items-center gap-3 text-xs">
                     <div className="text-gray-600">Page: {page}</div>
@@ -488,6 +486,51 @@ export default function CsDocsPageClient({ initialData, docMasterList,page, perP
                         )}
                     </tbody>
                 </table>
+                {/* ✅ ページャー */}
+                <div className="flex items-center gap-3 text-xs">
+                    <div className="text-gray-600">Page: {page}</div>
+
+                    <Link
+                        href={hasPrev ? buildHref(page - 1, perPage) : "#"}
+                        aria-disabled={!hasPrev}
+                        className={[
+                            "px-2 py-1 border rounded",
+                            hasPrev ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
+                        ].join(" ")}
+                    >
+                        ← 前へ
+                    </Link>
+
+                    <Link
+                        href={hasNext ? buildHref(page + 1, perPage) : "#"}
+                        aria-disabled={!hasNext}
+                        className={[
+                            "px-2 py-1 border rounded",
+                            hasNext ? "hover:bg-gray-50" : "opacity-40 pointer-events-none",
+                        ].join(" ")}
+                    >
+                        次へ →
+                    </Link>
+
+                    <div className="ml-3 flex items-center gap-2">
+                        <span className="text-gray-600">表示件数</span>
+                        <select
+                            value={perPage}
+                            onChange={(e) => {
+                                const next = Number(e.target.value);
+                                // perPage 変更時は 1ページ目に戻す
+                                router.push(buildHref(1, Number.isFinite(next) && next > 0 ? next : perPage));
+                            }}
+                            className="border px-2 py-1 rounded"
+                        >
+                            {[20, 50, 100, 200].map((n) => (
+                                <option key={n} value={n}>
+                                    {n}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     );
