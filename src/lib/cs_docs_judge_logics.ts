@@ -45,7 +45,6 @@ export type JudgeLogicsV1 = {
     notes: string[];
 };
 
-/** v2: “判定に使う特徴” を含む */
 export type FeaturesJson = {
     keywords: {
         positive: Array<{ term: string; score: number; evidence?: string }>;
@@ -80,7 +79,7 @@ export type JudgeLogicsV2 = {
 };
 
 /* =========================================================
- * Small helpers (no any)
+ * Helpers
  * ========================================================= */
 
 function clamp(n: number, min: number, max: number): number {
@@ -115,7 +114,6 @@ function topCounts(values: string[], topN: number): Array<{ source: string; coun
 }
 
 function normalizeLoose(s: string): string {
-    // “表記ゆれ吸収”は最小限（今後拡張可）
     return s.replace(/\s+/g, " ").trim();
 }
 
@@ -132,29 +130,28 @@ function sinceIsoFromHours(windowHours: number): string {
 }
 
 /* =========================================================
- * LLM Call (REPLACE THIS)
+ * LLM Call (TEMP: returns minimal valid JSON)
  * ========================================================= */
 
 /**
- * ★ここだけあなたの既存 LLM 呼び出しに置換してください。
- * - system / user を投げて
- * - 返り値として「JSON文字列」だけ返す（余計な文が混ざらないように）
+ * ★まず「更新される」ことを確認するための暫定実装。
+ * - ESLint no-unused-vars 回避済み
+ * - v2 の isFeaturesJson を必ず通過する
+ * - judge_logics が確実に更新される（featuresは空）
+ *
+ * 本番でLLMを繋ぐなら、ここをあなたの既存実装に置換してください。
  */
 async function callLLM({ system, user }: { system: string; user: string }): Promise<string> {
-  // eslint 対策（未使用警告回避）
-  void system;
-  void user;
+    void system;
+    void user;
 
-  // ✅ v2 が通る “最低限の形”
-  return JSON.stringify({
-    keywords: { positive: [], negative: [] },
-    regex: { positive: [], negative: [] },
-    section_headers: { positive: [], negative: [] },
-    source_hints: [],
-  });
+    return JSON.stringify({
+        keywords: { positive: [], negative: [] },
+        regex: { positive: [], negative: [] },
+        section_headers: { positive: [], negative: [] },
+        source_hints: [],
+    });
 }
-
-
 
 /* =========================================================
  * Prompt builder (v2 features)
@@ -220,7 +217,7 @@ export async function backfillDocTypeIdByDocName(params: {
 
     let q = supabaseAdmin
         .from("cs_docs")
-        .select("id,doc_name")
+        .select("id,doc_name,updated_at")
         .is("doc_type_id", null)
         .not("doc_name", "is", null);
 
@@ -228,10 +225,9 @@ export async function backfillDocTypeIdByDocName(params: {
         q = q.gte("updated_at", sinceIsoFromHours(windowHours));
     }
 
-    // 安全上限
     const max = limitDocs > 0 ? Math.min(limitDocs, 5000) : 5000;
 
-    const { data: docs, error: dErr } = await q.limit(max);
+    const { data: docs, error: dErr } = await q.order("updated_at", { ascending: false }).limit(max);
     if (dErr) throw dErr;
 
     const rows = (docs ?? []) as Array<{ id: string; doc_name: string | null }>;
@@ -257,6 +253,14 @@ export async function backfillDocTypeIdByDocName(params: {
         if (upd) filled += upd.length;
     }
 
+    console.log("[cs-docs-judge-logics][backfill] result", {
+        mode,
+        windowHours,
+        inspected: rows.length,
+        filled,
+        unmatchedSamples: unmatched.slice(0, 10),
+    });
+
     return { inspected: rows.length, filled, unmatchedSamples: unmatched };
 }
 
@@ -271,7 +275,6 @@ export async function rebuildJudgeLogicsV1ForDocTypes(params: {
 }): Promise<{ updated: number; targetDocTypeIds: string[]; skipped: Array<{ docTypeId: string; reason: string }> }> {
     const { mode, windowHours, limitDocTypes } = params;
 
-    // 対象 doc_type_id
     let q = supabaseAdmin.from("cs_docs").select("doc_type_id").not("doc_type_id", "is", null);
     if (mode === "incremental") q = q.gte("updated_at", sinceIsoFromHours(windowHours));
 
@@ -291,14 +294,12 @@ export async function rebuildJudgeLogicsV1ForDocTypes(params: {
     const skipped: Array<{ docTypeId: string; reason: string }> = [];
 
     for (const docTypeId of target) {
-        // total count
         const { count: totalCount, error: cntErr } = await supabaseAdmin
             .from("cs_docs")
             .select("id", { count: "exact", head: true })
             .eq("doc_type_id", docTypeId);
         if (cntErr) throw cntErr;
 
-        // recent count
         const sinceIso = sinceIsoFromHours(windowHours);
         const { count: recentCount, error: rcErr } = await supabaseAdmin
             .from("cs_docs")
@@ -307,7 +308,6 @@ export async function rebuildJudgeLogicsV1ForDocTypes(params: {
             .gte("updated_at", sinceIso);
         if (rcErr) throw rcErr;
 
-        // sample
         const { data: sampleDocs, error: smpErr } = await supabaseAdmin
             .from("cs_docs")
             .select("id,url,source,doc_name,applicable_date,updated_at")
@@ -366,12 +366,15 @@ export async function rebuildJudgeLogicsV1ForDocTypes(params: {
 
         if (updErr) throw updErr;
 
-        if (!updRows || updRows.length === 0) {
+        const updatedRows = updRows?.length ?? 0;
+        console.log("[cs-docs-judge-logics][v1] update", { docTypeId, updatedRows });
+
+        if (updatedRows === 0) {
             skipped.push({ docTypeId, reason: "user_doc_master_update_0" });
             continue;
         }
 
-        updated += updRows.length;
+        updated += updatedRows;
     }
 
     return { updated, targetDocTypeIds: target, skipped };
@@ -436,7 +439,6 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
 }): Promise<{ updated: number; targetDocTypeIds: string[]; skipped: Array<{ docTypeId: string; reason: string }> }> {
     const { mode, windowHours, limitDocTypes, samplePerDocType } = params;
 
-    // 対象 doc_type_id
     let q = supabaseAdmin.from("cs_docs").select("doc_type_id").not("doc_type_id", "is", null);
     if (mode === "incremental") q = q.gte("updated_at", sinceIsoFromHours(windowHours));
 
@@ -455,6 +457,8 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
     let updated = 0;
     const skipped: Array<{ docTypeId: string; reason: string }> = [];
 
+    console.log("[cs-docs-judge-logics][v2] targets", { targetCount: target.length, mode, windowHours });
+
     for (const docTypeId of target) {
         const { data: docs, error: dErr } = await supabaseAdmin
             .from("cs_docs")
@@ -471,7 +475,6 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
             continue;
         }
 
-        // stats
         const sources = rows.map((r) => r.source);
         const topSources = topCounts(sources, 10);
 
@@ -485,7 +488,6 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
         );
         const urlSamples = uniqKeepOrder(rows.map((r) => r.url), 10);
 
-        // prompt samples（長さ制御）
         const promptSamples = rows.map((r) => ({
             source: r.source,
             doc_name: r.doc_name,
@@ -495,7 +497,6 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
 
         const { system, user } = buildFeaturePrompt(promptSamples);
 
-        // LLM
         const raw = await callLLM({ system, user });
 
         let parsed: unknown;
@@ -519,7 +520,6 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
             window_hours: windowHours,
             mode,
             stats: {
-                // v2は「サンプル集計」をstatsに入れる（厳密countが欲しければ別途count exactに変更可）
                 total_docs: rows.length,
                 recent_docs: mode === "incremental" ? rows.length : 0,
                 top_sources: topSources,
@@ -542,28 +542,42 @@ export async function rebuildJudgeLogicsV2ForDocTypes(params: {
 
         if (updErr) throw updErr;
 
-        if (!updRows || updRows.length === 0) {
+        const updatedRows = updRows?.length ?? 0;
+
+        // ✅ docTypeごとに結果ログ（更新されない原因を潰す）
+        console.log("[cs-docs-judge-logics][v2] update", {
+            docTypeId,
+            sampleCount: rows.length,
+            updatedRows,
+        });
+
+        if (updatedRows === 0) {
             skipped.push({ docTypeId, reason: "user_doc_master_update_0" });
             continue;
         }
 
-        updated += updRows.length;
+        updated += updatedRows;
     }
+
+    console.log("[cs-docs-judge-logics][v2] finished", {
+        updated,
+        skippedCount: skipped.length,
+        skippedTop: skipped.slice(0, 10),
+    });
 
     return { updated, targetDocTypeIds: target, skipped };
 }
 
 /* =========================================================
- * 4) Convenience: one-shot runner for cron
- *    (backfill -> v2 build)  ※必要なら route 側から呼ぶ
+ * 4) Runner for cron (backfill -> v2)
  * ========================================================= */
 
 export async function runCsDocsJudgeLogicsCron(params: {
     mode: Mode;
     windowHours: number;
-    backfillLimitDocs: number; // 例: 5000
+    backfillLimitDocs: number;
     limitDocTypes: number; // 0=無制限
-    samplePerDocType: number; // 例: 30
+    samplePerDocType: number;
 }): Promise<{
     backfill: { inspected: number; filled: number; unmatchedSamples: string[] };
     rebuildV2: { updated: number; targetDocTypeIds: string[]; skipped: Array<{ docTypeId: string; reason: string }> };
