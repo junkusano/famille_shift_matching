@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/disability-check-jisseki",
       "schedule": "0 0 20 * *"
+    },
+    {
+      "path": "/api/cron/cs-docs-judge-logics",
+      "schedule": "38 * * * *"
     }
   ]
 }
