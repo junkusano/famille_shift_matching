@@ -1,15 +1,18 @@
 // src/lib/cm/types.ts
 
 /**
- * ユーザーデータソースの種類
- */
-export type UserSource = 'supabase' | 'mock' | 'kaipoke';
-
-/**
  * ユーザー権限
  * DBの値をそのまま使用するためstring型
  */
 export type CmRole = string | null;
+
+/**
+ * サービス種別
+ * - kyotaku: 居宅介護支援のみ
+ * - houmon_kaigo: 訪問介護のみ
+ * - both: 両方
+ */
+export type CmServiceType = 'kyotaku' | 'houmon_kaigo' | 'both' | null;
 
 /**
  * cm-portal用ユーザーデータ
@@ -33,6 +36,8 @@ export interface CmUserData {
   role: CmRole;
   /** メールアドレス */
   email?: string;
+  /** サービス種別（訪問介護/居宅/両方） */
+  serviceType: CmServiceType;
 }
 
 /**
@@ -45,20 +50,8 @@ export interface CmUserContextValue {
   loading: boolean;
   /** エラー */
   error: Error | null;
-  /** データソース */
-  source: UserSource;
   /** 画像を更新 */
   updatePhoto: (url: string | null) => Promise<void>;
   /** データを再取得 */
   refresh: () => Promise<void>;
-}
-
-/**
- * アダプターの共通インターフェース
- */
-export interface UserAdapter {
-  /** ユーザーデータを取得 */
-  fetchUser: () => Promise<CmUserData | null>;
-  /** 画像URLを更新 */
-  updatePhotoUrl?: (userId: string, url: string | null) => Promise<void>;
 }

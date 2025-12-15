@@ -9,8 +9,11 @@ import React, {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { CmUserData, CmUserContextValue, UserSource } from '@/lib/cm/types';
-import { fetchCmUser, updateCmUserPhoto, getDefaultSource } from '@/lib/cm/userAdapter';
+import type { CmUserData, CmUserContextValue } from '@/lib/cm/types';
+import { fetchCmUser, updateCmUserPhoto } from '@/lib/cm/userAdapter';
+import { createLogger } from '@/lib/common/logger';
+
+const logger = createLogger('context/cm/CmUserContext');
 
 /**
  * Context
@@ -22,15 +25,12 @@ const CmUserContext = createContext<CmUserContextValue | undefined>(undefined);
  */
 interface CmUserProviderProps {
   children: ReactNode;
-  source?: UserSource;
 }
 
 /**
  * cm-portal用ユーザーProvider
  */
-export function CmUserProvider({ children, source }: CmUserProviderProps) {
-  const resolvedSource = source || getDefaultSource();
-  
+export function CmUserProvider({ children }: CmUserProviderProps) {
   const [user, setUser] = useState<CmUserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -40,16 +40,16 @@ export function CmUserProvider({ children, source }: CmUserProviderProps) {
     setError(null);
 
     try {
-      const userData = await fetchCmUser(resolvedSource);
+      const userData = await fetchCmUser();
       setUser(userData);
     } catch (err) {
-      console.error('CmUserProvider: Failed to load user', err);
+      logger.error('ユーザー情報の取得に失敗', err);
       setError(err instanceof Error ? err : new Error('ユーザー情報の取得に失敗しました'));
       setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [resolvedSource]);
+  }, []);
 
   const updatePhoto = useCallback(async (url: string | null) => {
     if (!user) {
@@ -57,13 +57,13 @@ export function CmUserProvider({ children, source }: CmUserProviderProps) {
     }
 
     try {
-      await updateCmUserPhoto(resolvedSource, user.userId, url);
+      await updateCmUserPhoto(user.userId, url);
       setUser((prev) => (prev ? { ...prev, photoUrl: url } : null));
     } catch (err) {
-      console.error('CmUserProvider: Failed to update photo', err);
+      logger.error('プロフィール画像の更新に失敗', err);
       throw err;
     }
-  }, [user, resolvedSource]);
+  }, [user]);
 
   const refresh = useCallback(async () => {
     await loadUser();
@@ -77,7 +77,6 @@ export function CmUserProvider({ children, source }: CmUserProviderProps) {
     user,
     loading,
     error,
-    source: resolvedSource,
     updatePhoto,
     refresh,
   };
