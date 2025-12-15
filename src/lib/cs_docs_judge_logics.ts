@@ -404,7 +404,7 @@ async function fetchDocTypeMaster(docTypeIds: string[]) {
 
   const map = new Map<string, { id: string; label: string }>();
   for (const r of data || []) {
-    map.set((r as any).id, { id: (r as any).id, label: (r as any).label || "" });
+    map.set((r).id, { id: (r).id, label: (r).label || "" });
   }
   return map;
 }
