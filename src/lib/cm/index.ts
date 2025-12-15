@@ -1,21 +1,21 @@
 // src/lib/cm/index.ts
 
 export type {
-  UserSource,
+  //UserSource,
   CmRole,
   CmUserData,
   CmUserContextValue,
-  UserAdapter,
+  //UserAdapter,
 } from './types';
 
 export {
-  getAdapter,
+  //getAdapter,
   fetchCmUser,
   updateCmUserPhoto,
-  getDefaultSource,
-  supabaseAdapter,
-  mockAdapter,
-  kaipokeAdapter,
+  //getDefaultSource,
+  //supabaseAdapter,
+  //mockAdapter,
+  //kaipokeAdapter,
 } from './userAdapter';
 
-export { setMockRole, setMockUser, resetMock } from './adapters/mockAdapter';
+//export { setMockRole, setMockUser, resetMock } from './adapters/mockAdapter';
