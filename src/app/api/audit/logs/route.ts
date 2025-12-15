@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const level = searchParams.get("level");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    const module = searchParams.get("module");
+    //const module = searchParams.get("module");
     const message = searchParams.get("message");
     const traceId = searchParams.get("traceId");
     const page = parseInt(searchParams.get("page") || "1", 10);
