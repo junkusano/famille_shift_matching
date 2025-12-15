@@ -1,538 +1,643 @@
-// src/lib/cs_docs_judge_logics.ts
-import { supabaseAdmin } from "@/lib/supabase/service";
+import { createClient } from "@supabase/supabase-js";
 
-/* =========================================================
- * Types
- * ========================================================= */
+export type CronMode = "incremental" | "full";
 
-export type Mode = "full" | "incremental";
-
-type MasterRow = {
-  id: string;
-  label: string;
-  category: string;
-  is_active: boolean;
+export type CronParams = {
+  mode: CronMode;
+  windowHours: number;
+  limitDocTypes: number; // 0 = all
+  samplePerDocType: number;
+  backfillLimitDocs: number;
 };
 
-type CsDocRowLite = {
+type CsDocRow = {
+  id: string;
   doc_type_id: string | null;
-};
-
-type CsDocSample = {
-  id: string;
-  url: string;
-  source: string;
-  doc_name: string | null;
   ocr_text: string | null;
   summary: string | null;
-  applicable_date: string | null; // date
-  updated_at: string; // timestamptz
+  source: string | null;
+  url: string | null;
+  doc_name: string | null;
+  applicable_date: string | null;
+  doc_date_raw: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
-export type FeaturesJson = {
-  keywords: {
-    positive: Array<{ term: string; score: number; evidence?: string }>;
-    negative: Array<{ term: string; score: number; evidence?: string }>;
-  };
-  regex: {
-    positive: Array<{ pattern: string; score: number; evidence?: string }>;
-    negative: Array<{ pattern: string; score: number; evidence?: string }>;
-  };
-  section_headers: {
-    positive: Array<{ term: string; score: number; evidence?: string }>;
-    negative: Array<{ term: string; score: number; evidence?: string }>;
-  };
-  source_hints: Array<{ source: string; weight: number }>;
+type DocTypeAgg = {
+  doc_type_id: string;
+  cnt: number;
 };
 
+type BackfillResult = {
+  mode: CronMode;
+  windowHours: number;
+  inspected: number;
+  filled: number;
+  unmatchedSamples: Array<{ cs_docs_id: string; reason: string }>;
+};
+
+type RebuildV2Result = {
+  updated: number;
+  targetDocTypeCount: number;
+  skippedCount: number;
+  skippedTop: Array<{ docTypeId: string; reason: string }>;
+};
+
+export type CronResult = {
+  mode: CronMode;
+  windowHours: number;
+  limitDocTypes: number;
+  samplePerDocType: number;
+  backfillLimitDocs: number;
+  backfill: BackfillResult;
+  rebuildV2: RebuildV2Result;
+  ms: number;
+};
+
+const LOG_PREFIX = "[cs-docs-judge-logics]";
+
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!url || !key) throw new Error("Supabase env missing (URL or SERVICE_ROLE_KEY)");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function clip(s: string, max = 2000): string {
+  const t = (s || "").replace(/\r/g, "").trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max) + "\n…(truncated)";
+}
+
+function safeJsonStringify(v: unknown) {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return "{}";
+  }
+}
+
+/**
+ * judge_logics の JSON（user_doc_master.judge_logics）を格納する型
+ */
 export type JudgeLogicsV2 = {
   version: 2;
-  generated_at: string;
+  mode: CronMode;
   window_hours: number;
-  mode: Mode;
+  notes: string[];
+  generated_at: string;
   stats: {
     total_docs: number;
     recent_docs: number;
     top_sources: Array<{ source: string; count: number }>;
-    applicable_date_range: { min: string | null; max: string | null };
-    doc_name_samples: string[];
     url_samples: string[];
+    doc_name_samples: string[];
+    applicable_date_range: { min: string | null; max: string | null };
   };
-  features: FeaturesJson;
-  notes: string[];
+  features: {
+    keywords: { positive: string[]; negative: string[] };
+    regex: { positive: string[]; negative: string[] };
+    section_headers: { positive: string[]; negative: string[] };
+    source_hints: string[];
+  };
 };
 
-type Skipped = Array<{ docTypeId: string; reason: string }>;
+/**
+ * LLM（OpenAI）で特徴抽出（V2）
+ * - judge_logics.features を「空ではない」状態にする
+ * - URLは一切参照しない。cs_docs.ocr_text（必要ならsummary）だけを材料にする
+ *
+ * 期待する戻り値：
+ * {
+ *   version: 2,
+ *   features: {
+ *     keywords: { positive: string[], negative: string[] },
+ *     regex: { positive: string[], negative: string[] },
+ *     section_headers: { positive: string[], negative: string[] },
+ *     source_hints: string[]
+ *   }
+ * }
+ */
+async function callLLM(params: {
+  label: string;
+  docTypeId: string;
+  sampleOcrTexts: string[]; // すでに長さ調整済み（各要素 0〜数千文字）
+}): Promise<Pick<JudgeLogicsV2, "features">> {
+  const { label, docTypeId, sampleOcrTexts } = params;
 
-/* =========================================================
- * Helpers
- * ========================================================= */
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
-
-function safeNumber(x: unknown, fallback: number): number {
-  return typeof x === "number" && Number.isFinite(x) ? x : fallback;
-}
-
-function uniqKeepOrder(values: string[], limit: number): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const v of values) {
-    const t = v.trim();
-    if (!t) continue;
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= limit) break;
+  // OpenAIキーが無ければフォールバック（最低限“空じゃない features”）
+  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
+  if (!apiKey) {
+    return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
   }
+
+  const model =
+    process.env.OPENAI_MODEL_JUDGE_LOGICS ||
+    process.env.OPENAI_MODEL ||
+    "gpt-4o-mini";
+
+  const system = [
+    "あなたは日本語の介護・福祉書類をOCRテキストとして受け取り、",
+    "『その書類種別を判定するために使える特徴（キーワード/見出し/正規表現ヒント）』を抽出する専門家です。",
+    "重要：URLやファイル名は参照できない前提。OCR本文だけで考えてください。",
+    "重要：features は必ず空配列にしないこと（各positive配列に最低3件以上）。",
+    "重要：出力はJSONのみ。余計な説明文は禁止。",
+  ].join("\n");
+
+  const user = buildJudgeLogicsPromptV2({
+    label,
+    docTypeId,
+    sampleOcrTexts,
+  });
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    console.warn("[cs-docs-judge-logics][llm] http error", resp.status, body.slice(0, 500));
+    return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
+  }
+
+  const json = (await resp.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) {
+    return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
+  }
+
+  try {
+    const parsed = JSON.parse(content) as { features?: JudgeLogicsV2["features"] };
+    const f = parsed.features;
+    if (!f) return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
+
+    const normalized = normalizeFeaturesV2(f, label);
+    return { features: normalized };
+  } catch (e) {
+    console.warn("[cs-docs-judge-logics][llm] json parse failed", e);
+    return { features: buildFallbackFeatures({ label, sampleOcrTexts }) };
+  }
+}
+
+function normalizeFeaturesV2(
+  f: JudgeLogicsV2["features"],
+  label: string
+): JudgeLogicsV2["features"] {
+  const uniq = (arr: unknown): string[] => {
+    if (!Array.isArray(arr)) return [];
+    const cleaned = arr
+      .map((x) => String(x ?? "").trim())
+      .filter(Boolean)
+      .map((s) => s.replace(/\s+/g, " "));
+    return Array.from(new Set(cleaned));
+  };
+
+  const out: JudgeLogicsV2["features"] = {
+    keywords: {
+      positive: uniq(f.keywords?.positive),
+      negative: uniq(f.keywords?.negative),
+    },
+    regex: {
+      positive: uniq(f.regex?.positive),
+      negative: uniq(f.regex?.negative),
+    },
+    section_headers: {
+      positive: uniq(f.section_headers?.positive),
+      negative: uniq(f.section_headers?.negative),
+    },
+    source_hints: uniq(f.source_hints),
+  };
+
+  // ✅ 空配列は許さない（最低3件）
+  const ensureMin = (arr: string[], seeds: string[]) => {
+    const merged = Array.from(new Set([...arr, ...seeds].filter(Boolean)));
+    return merged.slice(0, Math.max(3, arr.length));
+  };
+
+  // label由来のシード（表記ゆれのない“中核語”）
+  const labelSeeds = buildLabelSeeds(label);
+
+  out.keywords.positive = ensureMin(out.keywords.positive, labelSeeds);
+  out.section_headers.positive = ensureMin(out.section_headers.positive, labelSeeds);
+  out.regex.positive = ensureMin(out.regex.positive, labelSeeds.map(escapeForRegex));
+
   return out;
 }
 
-function topCounts(values: string[], topN: number): Array<{ source: string; count: number }> {
-  const m = new Map<string, number>();
-  for (const v of values) m.set(v, (m.get(v) ?? 0) + 1);
-  return [...m.entries()]
+function buildLabelSeeds(label: string): string[] {
+  const s = String(label || "").trim();
+  if (!s) return ["書類", "計画", "日付"];
+
+  // 例： "障害サービス計画書(障害プラン）" → ["障害サービス計画書", "障害プラン", ...]
+  const seeds: string[] = [];
+
+  // 括弧内も拾う
+  const m = s.match(/^(.*?)[(（]([^()（）]+)[)）]\s*$/);
+  if (m) {
+    const left = m[1].trim();
+    const inside = m[2].trim();
+    if (left) seeds.push(left);
+    if (inside) seeds.push(inside);
+  } else {
+    seeds.push(s);
+  }
+
+  // 汎用語も少し足す（全書類共通を避けつつ、最低保証）
+  seeds.push("計画書", "証", "提供", "有効", "期限");
+
+  return Array.from(new Set(seeds)).filter(Boolean).slice(0, 8);
+}
+
+function escapeForRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildFallbackFeatures(args: { label: string; sampleOcrTexts: string[] }): JudgeLogicsV2["features"] {
+  const { label, sampleOcrTexts } = args;
+  const joined = sampleOcrTexts.join("\n");
+  const seeds = buildLabelSeeds(label);
+
+  // 簡易：OCRに頻出する“それっぽい”単語を拾う（漢字/カタカナを含む連続文字）
+  const cand = Array.from(joined.matchAll(/[一-龠々]+|[ァ-ヶー]{3,}/g)).map((m) => m[0]);
+  const freq = new Map<string, number>();
+  for (const w of cand) {
+    if (w.length < 2) continue;
+    freq.set(w, (freq.get(w) ?? 0) + 1);
+  }
+  const top = Array.from(freq.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, topN)
-    .map(([source, count]) => ({ source, count }));
-}
+    .slice(0, 30)
+    .map(([w]) => w);
 
-function normalizeLoose(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
+  const pos = Array.from(new Set([...seeds, ...top])).slice(0, 12);
 
-function isFeaturesJson(x: unknown): x is FeaturesJson {
-  if (!x || typeof x !== "object") return false;
-  const o = x as Record<string, unknown>;
-  if (!o.keywords || !o.regex || !o.section_headers || !o.source_hints) return false;
-  return true;
-}
-
-function sinceIsoFromHours(windowHours: number): string {
-  const ms = windowHours * 3600 * 1000;
-  return new Date(Date.now() - ms).toISOString();
-}
-
-/* =========================================================
- * Debug: window stats (DB違い/時刻ズレの切り分け)
- * ========================================================= */
-
-type WindowStats = {
-  windowHours: number;
-  sinceIso: string;
-  maxUpdatedAt: string | null;
-  rowsFetched: number;
-  distinctDocTypes: number;
-  sampleDocTypeIds: string[];
-};
-
-async function getWindowStats(windowHours: number): Promise<WindowStats> {
-  const sinceIso = sinceIsoFromHours(windowHours);
-
-  // 最新1件の updated_at（DB側の値を見るため）
-  const { data: latest, error: latestErr } = await supabaseAdmin
-    .from("cs_docs")
-    .select("updated_at")
-    .order("updated_at", { ascending: false })
-    .limit(1);
-
-  if (latestErr) {
-    console.log("[cs-docs-judge-logics][debug] latestErr", { msg: latestErr.message });
-  }
-
-  // 直近windowHoursの doc_type_id を最大5000件取得して distinct を数える
-  const { data: rows, error: rowsErr } = await supabaseAdmin
-    .from("cs_docs")
-    .select("doc_type_id,updated_at")
-    .not("doc_type_id", "is", null)
-    .gte("updated_at", sinceIso)
-    .order("updated_at", { ascending: false })
-    .limit(5000);
-
-  if (rowsErr) {
-    console.log("[cs-docs-judge-logics][debug] rowsErr", { msg: rowsErr.message, sinceIso });
-    return {
-      windowHours,
-      sinceIso,
-      maxUpdatedAt: (latest?.[0] as { updated_at?: string } | undefined)?.updated_at ?? null,
-      rowsFetched: 0,
-      distinctDocTypes: 0,
-      sampleDocTypeIds: [],
-    };
-  }
-
-  const ids = (rows ?? [])
-    .map((r) => (r as { doc_type_id: string | null }).doc_type_id)
-    .filter((v): v is string => !!v);
-
-  const distinct = new Set(ids);
-
-  const stats: WindowStats = {
-    windowHours,
-    sinceIso,
-    maxUpdatedAt: (latest?.[0] as { updated_at?: string } | undefined)?.updated_at ?? null,
-    rowsFetched: ids.length,
-    distinctDocTypes: distinct.size,
-    sampleDocTypeIds: [...distinct].slice(0, 10),
-  };
-
-  console.log("[cs-docs-judge-logics][debug] windowStats", stats);
-  return stats;
-}
-
-/* =========================================================
- * LLM Call (TEMP: returns minimal valid JSON)
- * ========================================================= */
-
-async function callLLM({ system, user }: { system: string; user: string }): Promise<string> {
-  // eslint/no-unused-vars 対策
-  void system;
-  void user;
-
-  // ✅ v2が必ず通る「最低限の形」
-  return JSON.stringify({
-    keywords: { positive: [], negative: [] },
-    regex: { positive: [], negative: [] },
-    section_headers: { positive: [], negative: [] },
+  return {
+    keywords: { positive: pos.slice(0, 10), negative: [] },
+    regex: { positive: pos.slice(0, 10).map(escapeForRegex), negative: [] },
+    section_headers: { positive: pos.slice(0, 6), negative: [] },
     source_hints: [],
-  });
+  };
 }
 
-/* =========================================================
- * Prompt builder (v2 features)
- * ========================================================= */
+function buildJudgeLogicsPromptV2(params: {
+  label: string;
+  docTypeId: string;
+  sampleOcrTexts: string[];
+}): string {
+  const { label, docTypeId, sampleOcrTexts } = params;
 
-function buildFeaturePrompt(docSamples: Array<Pick<CsDocSample, "source" | "doc_name" | "ocr_text" | "summary">>) {
-  const system =
-    "You are a strict JSON generator. Output MUST be a single valid JSON object and nothing else. No markdown. No code fences. No comments. No trailing commas.";
+  // OCRは個票ごとに “抜粋” で十分（長すぎると精度・コストが落ちる）
+  const samples = sampleOcrTexts
+    .filter(Boolean)
+    .slice(0, 30)
+    .map((t, i) => {
+      const s = t.replace(/\r/g, "").trim();
+      const clipText = s.length > 1200 ? s.slice(0, 1200) + "\n…(truncated)" : s;
+      return `--- SAMPLE ${i + 1} ---\n${clipText}`;
+    })
+    .join("\n\n");
 
-  const user = `あなたは訪問介護/障害福祉の書類分類ロジック担当です。
-次の「正解ラベル付き（doc_type_idが付いた）」文書群から、この書類タイプを判定するための特徴を抽出してください。
-
-目的：
-- 書類名(doc_name)が欠けていても判定できる特徴を作る
-- OCR/summaryに出る“固有語・見出し・数値ラベル”を中心にする
-- 似た書類との誤判定を減らすため negative 特徴も作る
-
-出力は JSON のみ。スキーマ：
-{
-  "keywords": { "positive":[{"term":string,"score":number,"evidence":string?}], "negative":[...] },
-  "regex": { "positive":[{"pattern":string,"score":number,"evidence":string?}], "negative":[...] },
-  "section_headers": { "positive":[{"term":string,"score":number,"evidence":string?}], "negative":[...] },
-  "source_hints": [{"source":string,"weight":number}]
+  return [
+    `対象書類種別: ${label}`,
+    `doc_type_id: ${docTypeId}`,
+    "",
+    "以下のSAMPLE群（OCR本文）だけを比較分析して、この書類を識別しやすい特徴を抽出してください。",
+    "",
+    "出力JSONスキーマ（厳守）:",
+    "{",
+    '  "features": {',
+    '    "keywords": { "positive": string[], "negative": string[] },',
+    '    "regex": { "positive": string[], "negative": string[] },',
+    '    "section_headers": { "positive": string[], "negative": string[] },',
+    '    "source_hints": string[]',
+    "  }",
+    "}",
+    "",
+    "抽出ルール:",
+    "- keywords.positive: この書類でよく出るが、他書類では出にくい“識別語”を10〜20件。",
+    "- keywords.negative: あるとこの書類“ではない”可能性が上がる語を0〜10件。",
+    "- section_headers.positive: 見出しとして出やすい短い語を3〜10件（例: 『被保険者番号』『有効期間』など）。",
+    "- regex.positive: OCRゆれに強いパターンを3〜10件。例：'被保険者\\s*番号' のように空白ゆれ許容。文字列は正規表現文字列として返す。",
+    "- それぞれのpositive配列は必ず3件以上（空禁止）。",
+    "- 個人名・住所・電話番号など個人情報に寄りすぎる特徴は入れない。",
+    "",
+    "SAMPLES:",
+    samples || "(no samples)",
+  ].join("\n");
 }
 
-制約：
-- positive keywords は 10〜25個、negative keywords は 5〜15個
-- regex は positive 3〜10個（あれば）、section_headersは positive 3〜12個（あれば）
-- scoreは0.1〜3.0
-- evidence は短い引用（20文字程度まで）でよい。なければ省略可
-- source_hints の weight は 0.2〜1.2
+/**
+ * 直近 windowHours で doc_type_id が付いた cs_docs をdocType毎に集計
+ */
+async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
+  const supabase = getSupabaseAdmin();
 
-入力データ（最大N件のサンプル）：
-${JSON.stringify(docSamples)}
-`;
+  const windowHours = Math.max(1, params.windowHours || 1);
+  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
-  return { system, user };
+  // doc_type_id がある、かつ updated_at がwindow内
+  // ※SQLの方が簡単だが、ここはREST/JSで寄せる
+  const { data, error } = await supabase
+    .from("cs_docs")
+    .select("doc_type_id")
+    .not("doc_type_id", "is", null)
+    .gte("updated_at", since);
+
+  if (error) throw error;
+  const arr = (data || []) as Array<{ doc_type_id: string }>;
+
+  const map = new Map<string, number>();
+  for (const r of arr) {
+    const id = r.doc_type_id;
+    if (!id) continue;
+    map.set(id, (map.get(id) || 0) + 1);
+  }
+
+  const list: DocTypeAgg[] = Array.from(map.entries()).map(([doc_type_id, cnt]) => ({
+    doc_type_id,
+    cnt,
+  }));
+
+  list.sort((a, b) => b.cnt - a.cnt);
+
+  if (params.limitDocTypes > 0) return list.slice(0, params.limitDocTypes);
+  return list;
 }
 
-/* =========================================================
- * 1) Backfill: cs_docs.doc_type_id by doc_name (= master.label)
- * ========================================================= */
+/**
+ * doc_type_id の master（user_doc_master）から label などを取得
+ */
+async function fetchDocTypeMaster(docTypeIds: string[]) {
+  const supabase = getSupabaseAdmin();
 
-export async function backfillDocTypeIdByDocName(params: {
-  mode: Mode;
-  windowHours: number;
-  limitDocs: number; // 0=無制限（ただし最大5000に抑える）
-}): Promise<{ inspected: number; filled: number; unmatchedSamples: string[] }> {
-  const { mode, windowHours, limitDocs } = params;
+  if (!docTypeIds.length) return new Map<string, { id: string; label: string }>();
 
-  const { data: masters, error: mErr } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("user_doc_master")
     .select("id,label,category,is_active")
+    .in("id", docTypeIds)
     .eq("category", "cs_doc")
     .eq("is_active", true);
 
-  if (mErr) throw mErr;
+  if (error) throw error;
 
-  const dict = new Map<string, string>();
-  for (const m of (masters ?? []) as MasterRow[]) {
-    dict.set(normalizeLoose(m.label), m.id);
+  const map = new Map<string, { id: string; label: string }>();
+  for (const r of data || []) {
+    map.set((r as any).id, { id: (r as any).id, label: (r as any).label || "" });
   }
+  return map;
+}
 
-  let q = supabaseAdmin
+/**
+ * doc_type_id ごとのサンプルcs_docsを取る（OCR本文メイン）
+ */
+async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string): Promise<CsDocRow[]> {
+  const supabase = getSupabaseAdmin();
+
+  const windowHours = Math.max(1, params.windowHours || 1);
+  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+
+  const base = supabase
     .from("cs_docs")
-    .select("id,doc_name,updated_at")
-    .is("doc_type_id", null)
-    .not("doc_name", "is", null);
+    .select(
+      "id,doc_type_id,ocr_text,summary,source,url,doc_name,applicable_date,doc_date_raw,created_at,updated_at"
+    )
+    .eq("doc_type_id", docTypeId)
+    .not("ocr_text", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, params.samplePerDocType || 30));
 
-  if (mode === "incremental") {
-    q = q.gte("updated_at", sinceIsoFromHours(windowHours));
-  }
+  const q = params.mode === "incremental" ? base.gte("updated_at", since) : base;
 
-  const max = limitDocs > 0 ? Math.min(limitDocs, 5000) : 5000;
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []) as CsDocRow[];
+}
 
-  const { data: docs, error: dErr } = await q.order("updated_at", { ascending: false }).limit(max);
-  if (dErr) throw dErr;
+function summarizeStats(rows: CsDocRow[], recentSinceIso: string) {
+  const total_docs = rows.length;
 
-  const rows = (docs ?? []) as Array<{ id: string; doc_name: string | null }>;
-  let filled = 0;
-  const unmatched: string[] = [];
+  const recent_docs = rows.filter((r) => r.updated_at >= recentSinceIso).length;
 
+  const top_sources_map = new Map<string, number>();
   for (const r of rows) {
-    const name = normalizeLoose(r.doc_name ?? "");
-    const docTypeId = dict.get(name);
-    if (!docTypeId) {
-      if (name && unmatched.length < 20) unmatched.push(name);
-      continue;
-    }
-
-    const { data: upd, error: uErr } = await supabaseAdmin
-      .from("cs_docs")
-      .update({ doc_type_id: docTypeId })
-      .eq("id", r.id)
-      .is("doc_type_id", null)
-      .select("id");
-
-    if (uErr) throw uErr;
-    if (upd) filled += upd.length;
+    const s = (r.source || "unknown").trim() || "unknown";
+    top_sources_map.set(s, (top_sources_map.get(s) || 0) + 1);
   }
+  const top_sources = Array.from(top_sources_map.entries())
+    .map(([source, count]) => ({ source, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 
-  console.log("[cs-docs-judge-logics][backfill] result", {
-    mode,
+  const url_samples = rows
+    .map((r) => r.url || "")
+    .filter(Boolean)
+    .slice(0, 10);
+
+  const doc_name_samples = rows
+    .map((r) => r.doc_name || "")
+    .filter(Boolean)
+    .slice(0, 10);
+
+  const dates = rows
+    .map((r) => r.applicable_date || "")
+    .filter(Boolean)
+    .sort();
+
+  const applicable_date_range =
+    dates.length > 0
+      ? { min: dates[0] || null, max: dates[dates.length - 1] || null }
+      : { min: null, max: null };
+
+  return { total_docs, recent_docs, top_sources, url_samples, doc_name_samples, applicable_date_range };
+}
+
+/**
+ * V2 judge_logics を docType 単位で作って user_doc_master に保存
+ */
+async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<RebuildV2Result> {
+  const supabase = getSupabaseAdmin();
+
+  const windowHours = Math.max(1, params.windowHours || 1);
+  const sinceIso = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+
+  const targets = await listTargetDocTypes(params);
+  console.info(`${LOG_PREFIX}[v2] targets`, {
+    targetCount: targets.length,
+    mode: params.mode,
     windowHours,
-    inspected: rows.length,
-    filled,
-    unmatchedSamples: unmatched.slice(0, 10),
   });
 
-  return { inspected: rows.length, filled, unmatchedSamples: unmatched };
-}
-
-/* =========================================================
- * 2) Judge logics v2 (features by LLM)
- * ========================================================= */
-
-function sanitizeFeatures(features: FeaturesJson): FeaturesJson {
-  const sanitizeTerms = (arr: Array<{ term: string; score: number; evidence?: string }>) =>
-    arr
-      .map((x) => ({
-        term: normalizeLoose(String(x.term ?? "")),
-        score: clamp(safeNumber(x.score, 0.5), 0.1, 3.0),
-        evidence: x.evidence ? String(x.evidence).slice(0, 40) : undefined,
-      }))
-      .filter((x) => x.term.length > 0)
-      .slice(0, 60);
-
-  const sanitizePatterns = (arr: Array<{ pattern: string; score: number; evidence?: string }>) =>
-    arr
-      .map((x) => ({
-        pattern: normalizeLoose(String(x.pattern ?? "")),
-        score: clamp(safeNumber(x.score, 0.5), 0.1, 3.0),
-        evidence: x.evidence ? String(x.evidence).slice(0, 40) : undefined,
-      }))
-      .filter((x) => x.pattern.length > 0)
-      .slice(0, 60);
-
-  const sanitizeSources = (arr: Array<{ source: string; weight: number }>) =>
-    arr
-      .map((x) => ({
-        source: normalizeLoose(String(x.source ?? "")),
-        weight: clamp(safeNumber(x.weight, 0.7), 0.2, 1.2),
-      }))
-      .filter((x) => x.source.length > 0)
-      .slice(0, 30);
-
-  return {
-    keywords: {
-      positive: sanitizeTerms(features.keywords?.positive ?? []),
-      negative: sanitizeTerms(features.keywords?.negative ?? []),
-    },
-    regex: {
-      positive: sanitizePatterns(features.regex?.positive ?? []),
-      negative: sanitizePatterns(features.regex?.negative ?? []),
-    },
-    section_headers: {
-      positive: sanitizeTerms(features.section_headers?.positive ?? []),
-      negative: sanitizeTerms(features.section_headers?.negative ?? []),
-    },
-    source_hints: sanitizeSources(features.source_hints ?? []),
-  };
-}
-
-export async function rebuildJudgeLogicsV2ForDocTypes(params: {
-  mode: Mode;
-  windowHours: number;
-  limitDocTypes: number; // 0=無制限
-  samplePerDocType: number; // 例: 30
-}): Promise<{ updated: number; targetDocTypeIds: string[]; skipped: Skipped }> {
-  const { mode, windowHours, limitDocTypes, samplePerDocType } = params;
-
-  let q = supabaseAdmin.from("cs_docs").select("doc_type_id").not("doc_type_id", "is", null);
-
-  // ✅ incremental だけ windowで絞る
-  if (mode === "incremental") q = q.gte("updated_at", sinceIsoFromHours(windowHours));
-
-  const { data: dtRows, error: dtErr } = await q;
-  if (dtErr) throw dtErr;
-
-  const allIds = uniqKeepOrder(
-    (dtRows ?? [])
-      .map((r) => (r as CsDocRowLite).doc_type_id)
-      .filter((v): v is string => typeof v === "string" && v.length > 0),
-    5000
-  );
-
-  const target = limitDocTypes > 0 ? allIds.slice(0, limitDocTypes) : allIds;
+  const docTypeIds = targets.map((t) => t.doc_type_id);
+  const masterMap = await fetchDocTypeMaster(docTypeIds);
 
   let updated = 0;
-  const skipped: Skipped = [];
+  const skippedTop: Array<{ docTypeId: string; reason: string }> = [];
+  let skippedCount = 0;
 
-  console.log("[cs-docs-judge-logics][v2] targets", { targetCount: target.length, mode, windowHours });
+  for (const t of targets) {
+    const docTypeId = t.doc_type_id;
+    const master = masterMap.get(docTypeId);
+    const label = master?.label || "(no label)";
 
-  for (const docTypeId of target) {
-    const { data: docs, error: dErr } = await supabaseAdmin
-      .from("cs_docs")
-      .select("id,url,source,doc_name,ocr_text,summary,applicable_date,updated_at")
-      .eq("doc_type_id", docTypeId)
-      .order("updated_at", { ascending: false })
-      .limit(samplePerDocType);
-
-    if (dErr) throw dErr;
-
-    const rows = (docs ?? []) as CsDocSample[];
-    if (rows.length === 0) {
-      skipped.push({ docTypeId, reason: "no_samples" });
+    // サンプルOCRを取得
+    const sampleDocs = await fetchSampleDocsByDocType(params, docTypeId);
+    if (!sampleDocs.length) {
+      skippedCount++;
+      if (skippedTop.length < 20) skippedTop.push({ docTypeId, reason: "no sample docs (ocr_text missing or empty)" });
       continue;
     }
 
-    const sources = rows.map((r) => r.source);
-    const topSources = topCounts(sources, 10);
+    const stats = summarizeStats(sampleDocs, sinceIso);
 
-    const applicableDates = rows.map((r) => r.applicable_date).filter((v): v is string => !!v);
-    const minDate = applicableDates.length ? applicableDates.slice().sort()[0] : null;
-    const maxDate = applicableDates.length ? applicableDates.slice().sort().reverse()[0] : null;
+    // OCR本文は“URL参照なし”でそのまま材料にする
+    const sampleOcrTexts = sampleDocs
+      .map((r) => clip(r.ocr_text || "", 2500))
+      .filter(Boolean);
 
-    const docNameSamples = uniqKeepOrder(
-      rows.map((r) => r.doc_name ?? "").filter((v) => v.trim().length > 0),
-      20
-    );
-    const urlSamples = uniqKeepOrder(rows.map((r) => r.url), 10);
+    // ✅ LLMで features を生成（空禁止）
+    const llm = await callLLM({ label, docTypeId, sampleOcrTexts });
 
-    const promptSamples = rows.map((r) => ({
-      source: r.source,
-      doc_name: r.doc_name,
-      ocr_text: (r.ocr_text ?? "").slice(0, 5000),
-      summary: (r.summary ?? "").slice(0, 3000),
-    }));
-
-    const { system, user } = buildFeaturePrompt(promptSamples);
-
-    const raw = await callLLM({ system, user });
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      skipped.push({ docTypeId, reason: "llm_json_parse_failed" });
-      continue;
-    }
-
-    if (!isFeaturesJson(parsed)) {
-      skipped.push({ docTypeId, reason: "llm_json_shape_invalid" });
-      continue;
-    }
-
-    const features = sanitizeFeatures(parsed as FeaturesJson);
-
-    const judgeLogics: JudgeLogicsV2 = {
+    const judge: JudgeLogicsV2 = {
       version: 2,
-      generated_at: new Date().toISOString(),
+      mode: params.mode,
       window_hours: windowHours,
-      mode,
-      stats: {
-        total_docs: rows.length,
-        recent_docs: mode === "incremental" ? rows.length : 0,
-        top_sources: topSources,
-        applicable_date_range: { min: minDate, max: maxDate },
-        doc_name_samples: docNameSamples,
-        url_samples: urlSamples,
-      },
-      features,
       notes: [
         "このサマリーは cs_docs の正解ラベル(doc_type_id)付きデータから自動生成されています。",
         "keywords/regex/section_headers は判定器（スコアリング）で利用する想定です。",
       ],
+      stats,
+      features: llm.features,
+      generated_at: nowIso(),
     };
 
-    // ✅ updated_at も必ず動かす（「更新が無い」に見える問題を潰す）
-    const nowIso = new Date().toISOString();
-
-    const { data: updRows, error: updErr } = await supabaseAdmin
+    // user_doc_master に保存
+    const { error } = await supabase
       .from("user_doc_master")
-      .update({ judge_logics: judgeLogics, updated_at: nowIso })
-      .eq("id", docTypeId)
-      .select("id");
+      .update({
+        judge_logics: safeJsonStringify(judge),
+        updated_at: nowIso(),
+      })
+      .eq("id", docTypeId);
 
-    if (updErr) throw updErr;
-
-    const updatedRows = updRows?.length ?? 0;
-
-    console.log("[cs-docs-judge-logics][v2] update", {
-      docTypeId,
-      sampleCount: rows.length,
-      updatedRows,
-    });
-
-    if (updatedRows === 0) {
-      skipped.push({ docTypeId, reason: "user_doc_master_update_0" });
+    if (error) {
+      skippedCount++;
+      if (skippedTop.length < 20) skippedTop.push({ docTypeId, reason: `update error: ${error.message}` });
       continue;
     }
 
-    updated += updatedRows;
+    updated++;
+    console.info(`${LOG_PREFIX}[v2] update`, {
+      docTypeId,
+      sampleCount: sampleDocs.length,
+      updatedRows: 1,
+    });
   }
 
-  console.log("[cs-docs-judge-logics][v2] finished", {
+  console.info(`${LOG_PREFIX}[v2] finished`, { updated, skippedCount, skippedTop });
+  return {
     updated,
-    skippedCount: skipped.length,
-    skippedTop: skipped.slice(0, 10),
-  });
-
-  return { updated, targetDocTypeIds: target, skipped };
+    targetDocTypeCount: targets.length,
+    skippedCount,
+    skippedTop,
+  };
 }
 
-/* =========================================================
- * 3) Runner for cron (debug -> backfill -> v2)
- * ========================================================= */
+/**
+ * backfill: cs_docs の doc_type_id 欠損を “既存情報から” 埋める（最小限）
+ * - 今回の主眼ではないので、ここは既存ロジック温存（必要なら後で強化）
+ */
+async function backfillDocTypeId(params: CronParams): Promise<BackfillResult> {
+  const supabase = getSupabaseAdmin();
 
-export async function runCsDocsJudgeLogicsCron(params: {
-  mode: Mode;
-  windowHours: number;
-  backfillLimitDocs: number;
-  limitDocTypes: number; // 0=無制限
-  samplePerDocType: number;
-}): Promise<{
-  debug: { windowStats: WindowStats };
-  backfill: { inspected: number; filled: number; unmatchedSamples: string[] };
-  rebuildV2: { updated: number; targetDocTypeIds: string[]; skipped: Skipped };
-}> {
-  // ✅ ここで「この関数が見てるDBの直近windowHours統計」を確定させる
-  const windowStats = await getWindowStats(params.windowHours);
+  const windowHours = Math.max(1, params.windowHours || 1);
+  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
-  const backfill = await backfillDocTypeIdByDocName({
+  // doc_type_idがnullで、ocr_textがある、更新がwindow内
+  const { data, error } = await supabase
+    .from("cs_docs")
+    .select("id,doc_type_id,ocr_text,summary,updated_at")
+    .is("doc_type_id", null)
+    .not("ocr_text", "is", null)
+    .gte("updated_at", since)
+    .order("updated_at", { ascending: false })
+    .limit(Math.max(1, params.backfillLimitDocs || 5000));
+
+  if (error) throw error;
+
+  const rows = (data || []) as Array<Pick<CsDocRow, "id" | "doc_type_id" | "ocr_text" | "summary" | "updated_at">>;
+  let inspected = 0;
+  let filled = 0;
+  const unmatchedSamples: Array<{ cs_docs_id: string; reason: string }> = [];
+
+  for (const r of rows) {
+    inspected++;
+
+    // NOTE:
+    // ここは今までの「何かしらのヒントでdoc_type_id推定」を入れる場所。
+    // 現状は無理に埋めず、unmatched扱い（後で“judge_logics判定器”を実装して埋める）。
+    unmatchedSamples.push({ cs_docs_id: r.id, reason: "doc_type_id backfill not implemented (v2 scorer pending)" });
+  }
+
+  return {
     mode: params.mode,
-    windowHours: params.windowHours,
-    limitDocs: params.backfillLimitDocs,
+    windowHours,
+    inspected,
+    filled,
+    unmatchedSamples: unmatchedSamples.slice(0, 20),
+  };
+}
+
+/**
+ * 外部公開：Cron本体
+ */
+export async function runCsDocsJudgeLogicsCron(params: CronParams): Promise<CronResult> {
+  const started = Date.now();
+
+  console.info(LOG_PREFIX, "start", {
+    method: "GET",
+    url: "(internal)",
+    at: nowIso(),
   });
 
-  const rebuildV2 = await rebuildJudgeLogicsV2ForDocTypes({
+  const backfill = await backfillDocTypeId(params);
+  console.info(`${LOG_PREFIX}[backfill] result`, backfill);
+
+  const rebuildV2 = await rebuildJudgeLogicsV2ForDocTypes(params);
+
+  const ms = Date.now() - started;
+  const res: CronResult = {
     mode: params.mode,
     windowHours: params.windowHours,
     limitDocTypes: params.limitDocTypes,
     samplePerDocType: params.samplePerDocType,
-  });
+    backfillLimitDocs: params.backfillLimitDocs,
+    backfill,
+    rebuildV2,
+    ms,
+  };
 
-  return { debug: { windowStats }, backfill, rebuildV2 };
+  console.info(LOG_PREFIX, "done", res);
+  return res;
 }

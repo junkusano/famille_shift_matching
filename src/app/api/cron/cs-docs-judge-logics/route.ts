@@ -1,185 +1,43 @@
-// src/app/api/cron/cs-docs-judge-logics/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { runCsDocsJudgeLogicsCron } from "@/lib/cs_docs_judge_logics";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-type Params = {
-  mode: "full" | "incremental";
-  windowHours: number;
-  limitDocTypes: number; // 0=無制限
-  samplePerDocType: number;
-  backfillLimitDocs: number;
-};
-
-function parseParamsFromUrl(req: NextRequest): Params {
-  const sp = req.nextUrl.searchParams;
-
-  const modeRaw = sp.get("mode");
-  const mode: "full" | "incremental" = modeRaw === "full" ? "full" : "incremental";
-
-  const whRaw = sp.get("windowHours");
-  const windowHoursNum = whRaw ? Number(whRaw) : 1;
-  const windowHours = Number.isFinite(windowHoursNum) && windowHoursNum > 0 ? windowHoursNum : 1;
-
-  const limRaw = sp.get("limitDocTypes");
-  const limNum = limRaw ? Number(limRaw) : 0;
-  const limitDocTypes = Number.isFinite(limNum) && limNum > 0 ? Math.floor(limNum) : 0;
-
-  const spdRaw = sp.get("samplePerDocType");
-  const spdNum = spdRaw ? Number(spdRaw) : 30;
-  const samplePerDocType = Number.isFinite(spdNum) && spdNum > 0 ? Math.floor(spdNum) : 30;
-
-  const bldRaw = sp.get("backfillLimitDocs");
-  const bldNum = bldRaw ? Number(bldRaw) : 5000;
-  const backfillLimitDocs = Number.isFinite(bldNum) && bldNum > 0 ? Math.floor(bldNum) : 5000;
-
-  return { mode, windowHours, limitDocTypes, samplePerDocType, backfillLimitDocs };
-}
-
-function projectRefFromUrl(url: string | undefined): string {
-  if (!url) return "(missing)";
-  // 例: https://rfvnmmvuessiqcswwbnf.supabase.co -> rfvnmmvuessiqcswwbnf
-  try {
-    return url.replace("https://", "").split(".")[0] ?? "(unknown)";
-  } catch {
-    return "(unknown)";
-  }
-}
-
-function logStart(req: NextRequest) {
-  const supabaseUrl =
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  console.log("[cs-docs-judge-logics] start", {
-    method: req.method,
-    url: req.nextUrl.toString(),
-    at: new Date().toISOString(),
-    // ✅ DB違いの切り分け（URL全部は出さない、projectRefだけ）
-    supabaseProjectRef: projectRefFromUrl(supabaseUrl),
-  });
-}
-
-async function run(req: NextRequest, body?: unknown) {
-  const t0 = Date.now();
-
-  // GETはクエリ、POSTはbody優先（bodyがあればそれを使う）
-  const urlParams = parseParamsFromUrl(req);
-
-  let mode = urlParams.mode;
-  let windowHours = urlParams.windowHours;
-  let limitDocTypes = urlParams.limitDocTypes;
-  let samplePerDocType = urlParams.samplePerDocType;
-  let backfillLimitDocs = urlParams.backfillLimitDocs;
-
-  if (body && typeof body === "object") {
-    const b = body as Partial<{
-      mode: "full" | "incremental";
-      windowHours: number;
-      limitDocTypes: number;
-      samplePerDocType: number;
-      backfillLimitDocs: number;
-    }>;
-
-    if (b.mode === "full" || b.mode === "incremental") mode = b.mode;
-
-    if (typeof b.windowHours === "number" && Number.isFinite(b.windowHours) && b.windowHours > 0) {
-      windowHours = b.windowHours;
-    }
-
-    if (typeof b.limitDocTypes === "number" && Number.isFinite(b.limitDocTypes) && b.limitDocTypes > 0) {
-      limitDocTypes = Math.floor(b.limitDocTypes);
-    }
-
-    if (typeof b.samplePerDocType === "number" && Number.isFinite(b.samplePerDocType) && b.samplePerDocType > 0) {
-      samplePerDocType = Math.floor(b.samplePerDocType);
-    }
-
-    if (typeof b.backfillLimitDocs === "number" && Number.isFinite(b.backfillLimitDocs) && b.backfillLimitDocs > 0) {
-      backfillLimitDocs = Math.floor(b.backfillLimitDocs);
-    }
-  }
-
-  const result = await runCsDocsJudgeLogicsCron({
-    mode,
-    windowHours,
-    backfillLimitDocs,
-    limitDocTypes,
-    samplePerDocType,
-  });
-
-  const ms = Date.now() - t0;
-
-  console.log("[cs-docs-judge-logics] done", {
-    mode,
-    windowHours,
-    limitDocTypes,
-    samplePerDocType,
-    backfillLimitDocs,
-    backfill: result.backfill,
-    rebuildV2: {
-      updated: result.rebuildV2.updated,
-      targetDocTypeCount: result.rebuildV2.targetDocTypeIds.length,
-      skippedCount: result.rebuildV2.skipped.length,
-      skippedTop: result.rebuildV2.skipped.slice(0, 10),
-    },
-    ms,
-  });
-
-  return NextResponse.json(
-    {
-      ok: true,
-      mode,
-      windowHours,
-      limitDocTypes,
-      samplePerDocType,
-      backfillLimitDocs,
-
-      debug: result.debug, // ✅ windowStatsなど
-
-      backfill: result.backfill,
-      rebuildV2: {
-        updated: result.rebuildV2.updated,
-        targetDocTypeCount: result.rebuildV2.targetDocTypeIds.length,
-        sampleDocTypeIds: result.rebuildV2.targetDocTypeIds.slice(0, 20),
-        skipped: result.rebuildV2.skipped.slice(0, 200),
-      },
-
-      ms,
-      serverTime: new Date().toISOString(),
-      traceId: crypto.randomUUID(),
-    },
-    {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
-      },
-    }
-  );
-}
-
+/**
+ * GET /api/cron/cs-docs-judge-logics
+ *
+ * Query:
+ * - mode: "incremental" | "full" (default: incremental)
+ * - windowHours: number (default: 1)
+ * - limitDocTypes: number (default: 0 = all)
+ * - samplePerDocType: number (default: 30)
+ * - backfillLimitDocs: number (default: 5000)
+ */
 export async function GET(req: NextRequest) {
-  logStart(req);
   try {
-    return await run(req);
-  } catch (e) {
-    console.error("[cs-docs-judge-logics] error", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
-}
+    const url = new URL(req.url);
 
-export async function POST(req: NextRequest) {
-  logStart(req);
-  try {
-    const body = await req.json().catch(() => ({}));
-    return await run(req, body);
+    const mode = (url.searchParams.get("mode") || "incremental") as
+      | "incremental"
+      | "full";
+
+    const windowHours = Number(url.searchParams.get("windowHours") || "1");
+    const limitDocTypes = Number(url.searchParams.get("limitDocTypes") || "0");
+    const samplePerDocType = Number(url.searchParams.get("samplePerDocType") || "30");
+    const backfillLimitDocs = Number(url.searchParams.get("backfillLimitDocs") || "5000");
+
+    const result = await runCsDocsJudgeLogicsCron({
+      mode,
+      windowHours: Number.isFinite(windowHours) ? windowHours : 1,
+      limitDocTypes: Number.isFinite(limitDocTypes) ? limitDocTypes : 0,
+      samplePerDocType: Number.isFinite(samplePerDocType) ? samplePerDocType : 30,
+      backfillLimitDocs: Number.isFinite(backfillLimitDocs) ? backfillLimitDocs : 5000,
+    });
+
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    console.error("[cs-docs-judge-logics] error", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    console.error("[cs-docs-judge-logics][route] error", e);
+    return NextResponse.json(
+      { ok: false, error: String(e) },
+      { status: 500 }
+    );
   }
 }
