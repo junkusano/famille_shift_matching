@@ -588,7 +588,7 @@ async function backfillDocTypeId(params: CronParams): Promise<BackfillResult> {
 
   const rows = (data || []) as Array<Pick<CsDocRow, "id" | "doc_type_id" | "ocr_text" | "summary" | "updated_at">>;
   let inspected = 0;
-  let filled = 0;
+  const filled = 0;
   const unmatchedSamples: Array<{ cs_docs_id: string; reason: string }> = [];
 
   for (const r of rows) {
