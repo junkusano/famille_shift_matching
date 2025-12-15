@@ -18,16 +18,18 @@ import {
   ChevronLeft,
   ChevronRight,
   HeartHandshake,
+  Shield,
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
-import { useCmHasRole } from '@/hooks/cm/useCmUser';
+import { useCmHasRole, useCmIsBoth } from '@/hooks/cm/useCmUser';
 
 type MenuItem = {
   id: string;
   label: string;
   path: string;
   badge?: string;
+  requireBoth?: boolean;
 };
 
 type MenuGroup = {
@@ -45,7 +47,12 @@ const menuStructure: MenuGroup[] = [
     icon: Home,
     items: [
       { id: 'myfamille-home', label: 'MyFamilleHome', path: '/' },
-      { id: 'portal-home', label: '訪問介護ポータルHome', path: '/portal' },
+      { 
+        id: 'portal-home', 
+        label: '訪問介護ポータルHome', 
+        path: '/portal',
+        requireBoth: true,
+      },
       { id: 'kyotaku-home', label: '居宅介護支援ポータルHome', path: '/cm-portal' },
     ],
   },
@@ -124,6 +131,15 @@ const menuStructure: MenuGroup[] = [
     ],
   },
   {
+    id: 'audit',
+    label: '監査',
+    icon: Shield,
+    roles: ['admin'],
+    items: [
+      { id: 'audit-logs', label: 'ログ管理', path: '/cm-portal/audit/logs' },
+    ],
+  },
+  {
     id: 'settings',
     label: '設定',
     icon: Settings,
@@ -145,6 +161,8 @@ export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'clients']);
   
   const isManagerOrAdmin = useCmHasRole(['admin', 'manager']);
+  const isAdmin = useCmHasRole(['admin']);
+  const isBoth = useCmIsBoth();
 
   const toggleMenu = (menuId: string) => {
     setExpandedMenus((prev) =>
@@ -158,10 +176,18 @@ export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
 
   const filteredMenuStructure = menuStructure.filter((menu) => {
     if (!menu.roles) return true;
+    if (menu.roles.includes('admin') && menu.roles.length === 1) return isAdmin;
     if (menu.roles.includes('admin') && isManagerOrAdmin) return true;
     if (menu.roles.includes('manager') && isManagerOrAdmin) return true;
     return false;
   });
+
+  const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
+    return items.filter((item) => {
+      if (item.requireBoth && !isBoth) return false;
+      return true;
+    });
+  };
 
   return (
     <aside
@@ -184,47 +210,53 @@ export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
       <CmUserSection isExpanded={isOpen} />
 
       <nav className={styles.cmNav}>
-        {filteredMenuStructure.map((menu) => (
-          <div key={menu.id} className={styles.cmMenuGroup}>
-            <button
-              onClick={() => toggleMenu(menu.id)}
-              className={`${styles.cmMenuItem} ${
-                expandedMenus.includes(menu.id) ? styles.cmMenuItemActive : ''
-              }`}
-            >
-              <menu.icon className={styles.cmMenuIcon} />
-              {isOpen && (
-                <>
-                  <span className={styles.cmMenuLabel}>{menu.label}</span>
-                  <ChevronDown
-                    className={`${styles.cmMenuArrow} ${
-                      expandedMenus.includes(menu.id) ? styles.cmMenuArrowOpen : ''
-                    }`}
-                  />
-                </>
-              )}
-            </button>
+        {filteredMenuStructure.map((menu) => {
+          const filteredItems = filterMenuItems(menu.items);
+          
+          if (filteredItems.length === 0) return null;
 
-            {isOpen && expandedMenus.includes(menu.id) && (
-              <div className={styles.cmSubMenu}>
-                {menu.items.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={item.path}
-                    className={`${styles.cmSubMenuItem} ${
-                      isActive(item.path) ? styles.cmSubMenuItemActive : ''
-                    }`}
-                  >
-                    <span style={{ flex: 1 }}>{item.label}</span>
-                    {item.badge && (
-                      <span className={styles.cmBadge}>{item.badge}</span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          return (
+            <div key={menu.id} className={styles.cmMenuGroup}>
+              <button
+                onClick={() => toggleMenu(menu.id)}
+                className={`${styles.cmMenuItem} ${
+                  expandedMenus.includes(menu.id) ? styles.cmMenuItemActive : ''
+                }`}
+              >
+                <menu.icon className={styles.cmMenuIcon} />
+                {isOpen && (
+                  <>
+                    <span className={styles.cmMenuLabel}>{menu.label}</span>
+                    <ChevronDown
+                      className={`${styles.cmMenuArrow} ${
+                        expandedMenus.includes(menu.id) ? styles.cmMenuArrowOpen : ''
+                      }`}
+                    />
+                  </>
+                )}
+              </button>
+
+              {isOpen && expandedMenus.includes(menu.id) && (
+                <div className={styles.cmSubMenu}>
+                  {filteredItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={item.path}
+                      className={`${styles.cmSubMenuItem} ${
+                        isActive(item.path) ? styles.cmSubMenuItemActive : ''
+                      }`}
+                    >
+                      <span style={{ flex: 1 }}>{item.label}</span>
+                      {item.badge && (
+                        <span className={styles.cmBadge}>{item.badge}</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       <div className={styles.cmSidebarFooter}>
