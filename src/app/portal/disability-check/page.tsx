@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 /** ビュー行の型（disability_check_view の列名に一致） */
 interface Row {
@@ -597,7 +598,18 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
-                  {r.asigned_jisseki_staff_name ?? "-"}
+                  {r.asigned_jisseki_staff_id ? (
+                    <Link
+                      href={`/portal/shift-view?user_id=${encodeURIComponent(
+                        r.asigned_jisseki_staff_id
+                      )}&ym=${encodeURIComponent(yearMonth)}`}
+                      className="text-blue-600 underline"
+                    >
+                      {r.asigned_jisseki_staff_name ?? r.asigned_jisseki_staff_id}
+                    </Link>
+                  ) : (
+                    <span>-</span>
+                  )}
                 </td>
 
                 {/* ★追加：チーム名 */}
