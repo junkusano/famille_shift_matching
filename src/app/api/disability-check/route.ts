@@ -53,11 +53,10 @@ export async function POST(req: NextRequest) {
         ].join(",")
       )
       .eq("year_month", yearMonth)
-      .eq("kaipoke_servicek", kaipokeServicek)
       .order("district", { ascending: true })
       .order("client_name", { ascending: true });
 
-    if (kaipokeServicek) {
+     if (kaipokeServicek) {
       query = query.eq("kaipoke_servicek", kaipokeServicek);
     }
 

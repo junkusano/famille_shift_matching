@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { ShiftData } from "@/types/shift";
 import ShiftCard from "@/components/shift/ShiftCard";
 import { Button } from "@/components/ui/button";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, addMonths } from "date-fns";
 import Link from "next/link";
 
 /**
@@ -45,9 +45,24 @@ export default function ShiftViewPage() {
   // URLクエリ値は searchStr の変化だけをトリガーに読む（=確実に更新される）
   const qUserId = useMemo(() => (getSearch().get("user_id") ?? "").trim(), [searchStr]);
   const qDate = useMemo(() => (getSearch().get("date") ?? "").trim(), [searchStr]);
+  const qYm = useMemo(() => (getSearch().get("ym") ?? "").trim(), [searchStr]); // ★追加
   // client は「名前」ではなく kaipoke_cs_id を持つ
   const qClient = useMemo(() => (getSearch().get("client") ?? "").trim(), [searchStr]);
-  const qMonth = useMemo(() => (qDate ? qDate.slice(0, 7) : ""), [qDate]);
+
+  // ★表示用の月（印刷ビュー等で使っている qMonth）も ym を優先
+  const qMonth = useMemo(() => (qYm ? qYm : (qDate ? qDate.slice(0, 7) : "")), [qYm, qDate]);
+
+  // ★追加：ym があれば「月初～翌月月初未満」で絞り込むための境界
+  const monthStart = useMemo(() => {
+    if (qYm) return `${qYm}-01`;
+    return qDate; // 従来互換（date指定がある場合）
+  }, [qYm, qDate]);
+
+  const monthEnd = useMemo(() => {
+    if (!qYm) return "";
+    const d = new Date(`${qYm}-01T00:00:00`);
+    return format(addMonths(startOfMonth(d), 1), "yyyy-MM-dd");
+  }, [qYm]);
 
   // 既存の qUserId, qDate, qClient の下に追加
   const qPage = useMemo(() => {
@@ -135,7 +150,7 @@ export default function ShiftViewPage() {
 
     const current = getSearch();
     const hasUserId = !!current.get("user_id");
-    const hasDate = !!current.get("date");
+    const hasDate = !!current.get("date") || !!current.get("ym");
 
     if (!hasUserId && !hasDate) {
       const jstNow = new Date(Date.now() + 9 * 3600 * 1000);
@@ -168,14 +183,20 @@ export default function ShiftViewPage() {
             .from("shift_csinfo_postalname_view")
             .select("*", { count: "exact", head: false });
 
-          if (qDate) {
-            q = q.gte("shift_start_date", qDate);
+          // ★ym がある場合は月範囲、無い場合は date で下限
+          if (monthStart) {
+            q = q.gte("shift_start_date", monthStart);
           }
+          if (monthEnd) {
+            q = q.lt("shift_start_date", monthEnd);
+          }
+
           if (qUserId) {
             q = q.or(
               `staff_01_user_id.eq.${qUserId},staff_02_user_id.eq.${qUserId},staff_03_user_id.eq.${qUserId}`
             );
           }
+
           if (qClient) {
             q = q.eq("kaipoke_cs_id", qClient);
           }
@@ -223,16 +244,16 @@ export default function ShiftViewPage() {
 
         /*
         const all = (data ?? []) as ShiftRow[];
-
+ 
         for (let from = 0; ; from += PAGE) {
           const to = from + PAGE - 1;
           const { data, error } = await buildQuery().range(from, to);
           if (ac.signal.aborted) return;
           if (error) throw error;
-
+ 
           const chunk = (data ?? []) as ShiftRow[];
           all.push(...chunk);
-
+ 
           if (chunk.length < PAGE) break;
         }
         */

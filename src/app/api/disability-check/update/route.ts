@@ -1,6 +1,8 @@
 //api/disability-check/update/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 type Body = {
   check: boolean;
@@ -14,6 +16,37 @@ export async function PUT(req: NextRequest) {
   try {
     const { check, submitted, year_month, kaipoke_servicek, kaipoke_cs_id } =
       (await req.json()) as Body;
+
+    // ★追加：ログインユーザーを取得（Cookieベース）
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: auth } = await supabase.auth.getUser();
+
+    const authUserId = auth.user?.id;
+    if (!authUserId) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    // ★追加：system_role を確認
+    const { data: me, error: meErr } = await supabaseAdmin
+      .from("user_entry_united_view")
+      .select("system_role")
+      .eq("auth_user_id", authUserId)
+      .maybeSingle();
+
+    if (meErr) {
+      console.error("[disability-check] role fetch error", meErr);
+      return NextResponse.json({ error: "role_fetch_failed" }, { status: 500 });
+    }
+
+    const role = String(me?.system_role ?? "").toLowerCase();
+    const isManager = role === "manager" || role === "admin";
+
+    // ★回収✅の更新（check）だけ、マネージャー以外は拒否
+    // ※ handleCheckChange は { check: boolean, ... } を送る前提
+    const isCheckUpdate = typeof check === "boolean";
+    if (isCheckUpdate && !isManager) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
 
     // どの項目を更新するかを組み立てる
     const row: {
