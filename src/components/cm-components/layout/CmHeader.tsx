@@ -10,8 +10,13 @@ interface CmHeaderProps {
   onMenuToggle?: () => void;
 }
 
+type CmBreadcrumb = {
+  label: string;
+  path: string;
+};
+
 // パスからパンくずリストを生成
-const getBreadcrumbs = (pathname: string): { label: string; path: string }[] => {
+const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   const pathMap: Record<string, string> = {
     '/cm-portal': 'ホーム',
     '/cm-portal/clients': '利用者一覧',
@@ -42,7 +47,7 @@ const getBreadcrumbs = (pathname: string): { label: string; path: string }[] => 
     '/cm-portal/settings/account': 'アカウント',
   };
 
-  const breadcrumbs: { label: string; path: string }[] = [
+  const breadcrumbs: CmBreadcrumb[] = [
     { label: '居宅介護支援ポータル', path: '/cm-portal' },
   ];
 
@@ -55,7 +60,7 @@ const getBreadcrumbs = (pathname: string): { label: string; path: string }[] => 
 
 export function CmHeader({ onMenuToggle }: CmHeaderProps) {
   const pathname = usePathname();
-  const breadcrumbs = getBreadcrumbs(pathname || '/cm-portal');
+  const breadcrumbs = cmGetBreadcrumbs(pathname || '/cm-portal');
 
   return (
     <header className={styles.cmHeader}>

@@ -24,7 +24,7 @@ import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
 import { useCmHasRole, useCmIsBoth } from '@/hooks/cm/useCmUser';
 
-type MenuItem = {
+type CmMenuItem = {
   id: string;
   label: string;
   path: string;
@@ -32,15 +32,15 @@ type MenuItem = {
   requireBoth?: boolean;
 };
 
-type MenuGroup = {
+type CmMenuGroup = {
   id: string;
   label: string;
   icon: React.ElementType;
-  items: MenuItem[];
+  items: CmMenuItem[];
   roles?: string[];
 };
 
-const menuStructure: MenuGroup[] = [
+const CmMenuStructure: CmMenuGroup[] = [
   {
     id: 'home',
     label: 'Home',
@@ -174,7 +174,7 @@ export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
 
   const isActive = (path: string) => pathname === path;
 
-  const filteredMenuStructure = menuStructure.filter((menu) => {
+  const filteredMenuStructure = CmMenuStructure.filter((menu) => {
     if (!menu.roles) return true;
     if (menu.roles.includes('admin') && menu.roles.length === 1) return isAdmin;
     if (menu.roles.includes('admin') && isManagerOrAdmin) return true;
@@ -182,7 +182,7 @@ export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
     return false;
   });
 
-  const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
+  const filterMenuItems = (items: CmMenuItem[]): CmMenuItem[] => {
     return items.filter((item) => {
       if (item.requireBoth && !isBoth) return false;
       return true;

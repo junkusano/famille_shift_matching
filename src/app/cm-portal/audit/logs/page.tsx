@@ -12,7 +12,7 @@ import { Search, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, AlertCircl
 // 型定義
 // =============================================================
 
-type LogEntry = {
+type CmLogEntry = {
   id: string;
   timestamp: string;
   level: 'warn' | 'error';
@@ -23,7 +23,7 @@ type LogEntry = {
   env: string;
 };
 
-type Pagination = {
+type CmPagination = {
   page: number;
   limit: number;
   total: number;
@@ -32,10 +32,10 @@ type Pagination = {
   hasPrev: boolean;
 };
 
-type ApiResponse = {
+type CmApiResponse = {
   ok: boolean;
-  logs?: LogEntry[];
-  pagination?: Pagination;
+  logs?: CmLogEntry[];
+  pagination?: CmPagination;
   error?: string;
 };
 
@@ -43,12 +43,12 @@ type ApiResponse = {
 // コンポーネント
 // =============================================================
 
-export default function AuditLogsPage() {
+export default function CmAuditLogsPage() {
   // ---------------------------------------------------------
   // State
   // ---------------------------------------------------------
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [logs, setLogs] = useState<CmLogEntry[]>([]);
+  const [pagination, setPagination] = useState<CmPagination | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,11 +84,11 @@ export default function AuditLogsPage() {
       if (filters.from) params.set('from', filters.from);
       if (filters.to) params.set('to', filters.to);
 
-      const res = await fetch(`/api/audit/logs?${params.toString()}`, {
+      const res = await fetch(`/api/cm/audit/logs?${params.toString()}`, {
         credentials: 'include',
       });
 
-      const data: ApiResponse = await res.json();
+      const data: CmApiResponse = await res.json();
 
       if (!data.ok) {
         setError(data.error || 'エラーが発生しました');
@@ -203,7 +203,7 @@ export default function AuditLogsPage() {
               type="text"
               value={filters.module}
               onChange={(e) => handleFilterChange('module', e.target.value)}
-              placeholder="例: api/clients"
+              placeholder="例: cm/api/clients"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

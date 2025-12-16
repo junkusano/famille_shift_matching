@@ -1,5 +1,5 @@
 // =============================================================
-// src/app/api/audit/logs/route.ts
+// src/app/api/cm/audit/logs/route.ts
 // ログ取得API（管理画面用）
 // =============================================================
 
@@ -11,7 +11,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 // Logger
 // =============================================================
 
-const logger = createLogger("api/audit/logs");
+const logger = createLogger("cm/api/audit/logs");
 
 // =============================================================
 // GET: ログ検索
@@ -28,14 +28,14 @@ export async function GET(req: NextRequest) {
     const level = searchParams.get("level");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    //const module = searchParams.get("module");
+    const moduleFilter = searchParams.get("module");
     const message = searchParams.get("message");
     const traceId = searchParams.get("traceId");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = 50;
     const offset = (page - 1) * limit;
 
-    logger.info("ログ検索開始", { env, level, from, to, module, message, traceId, page });
+    logger.info("ログ検索開始", { env, level, from, to, module: moduleFilter, message, traceId, page });
 
     // ---------------------------------------------------------
     // クエリ構築（audit スキーマを直接参照）
@@ -61,8 +61,8 @@ export async function GET(req: NextRequest) {
       query = query.lte("timestamp", to);
     }
 
-    if (module) {
-      query = query.ilike("module", `%${module}%`);
+    if (moduleFilter) {
+      query = query.ilike("module", `%${moduleFilter}%`);
     }
 
     if (message) {

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { CmUserData, CmServiceType } from './types';
 import { createLogger } from '@/lib/common/logger';
 
-const logger = createLogger('lib/cm/userAdapter');
+const logger = createLogger('cm/lib/userAdapter');
 
 /**
  * 認証済みユーザーのデータを取得

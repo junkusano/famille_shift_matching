@@ -13,7 +13,7 @@ import type { CmUserData, CmUserContextValue } from '@/lib/cm/types';
 import { fetchCmUser, updateCmUserPhoto } from '@/lib/cm/userAdapter';
 import { createLogger } from '@/lib/common/logger';
 
-const logger = createLogger('context/cm/CmUserContext');
+const logger = createLogger('cm/context/CmUserContext');
 
 /**
  * Context
