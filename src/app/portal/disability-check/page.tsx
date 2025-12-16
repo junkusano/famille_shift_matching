@@ -65,8 +65,8 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 検索用ステート
   const [filterClientName, setFilterClientName] = useState<string>("");    // 利用者名（Select）
   const [filterStaffId, setFilterStaffId] = useState<string>("");          // 実績担当者（Select）
-  const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
-  const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
+  //const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
+  //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
   const [filterTeamId, setFilterTeamId] = useState<string>("");
 
 
@@ -113,13 +113,13 @@ const DisabilityCheckPage: React.FC = () => {
       // ★追加：チームで絞り込み
       if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
 
-      if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
+      // if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
 
-      if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
+      // if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
 
       return true;
     });
-  }, [records, filterClientName, filterStaffId, filterTeamId, filterKaipokeId, filterIdo]);
+  }, [records, filterClientName, filterStaffId, filterTeamId]);
 
   // 件数はフィルタ後を表示
   const totalCount = filteredRecords.length;
@@ -276,6 +276,9 @@ const DisabilityCheckPage: React.FC = () => {
   return (
     <div>
       <h1>実績記録チェック</h1>
+      <p style={{ color: "red", marginTop: 4, marginBottom: 12 }}>
+        実績担当者は、直近で１番シフトに入っている人を割り当てて、毎月20日に自動更新されています。
+      </p>
 
       {/* 件数表示 */}
       <div style={{ marginBottom: 8 }}>
@@ -396,25 +399,28 @@ const DisabilityCheckPage: React.FC = () => {
           </select>
         </label>
 
-        <label style={{ width: 180 }}>
-          カイポケID
-          <input
-            type="text"
-            value={filterKaipokeId}
-            onChange={(e) => setFilterKaipokeId(e.target.value)}
-            style={{ width: 180 }}
-          />
-        </label>
+        {/*
+<label style={{ width: 180 }}>
+  カイポケID
+  <input
+    type="text"
+    value={filterKaipokeId}
+    onChange={(e) => setFilterKaipokeId(e.target.value)}
+    style={{ width: 180 }}
+  />
+</label>
 
-        <label style={{ width: 180 }}>
-          受給者証番号
-          <input
-            type="text"
-            value={filterIdo}
-            onChange={(e) => setFilterIdo(e.target.value)}
-            style={{ width: 180 }}
-          />
-        </label>
+<label style={{ width: 180 }}>
+  受給者証番号
+  <input
+    type="text"
+    value={filterIdo}
+    onChange={(e) => setFilterIdo(e.target.value)}
+    style={{ width: 180 }}
+  />
+</label>
+*/}
+
       </div>
 
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
