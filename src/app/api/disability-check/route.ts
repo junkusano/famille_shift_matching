@@ -23,6 +23,8 @@ type ViewRow = {
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
+  asigned_jisseki_staff_id: string | null;
+  asigned_jisseki_staff_name: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -32,7 +34,19 @@ export async function POST(req: NextRequest) {
     let query = supabaseAdmin
       .from("disability_check_view")
       .select(
-        "kaipoke_cs_id,year_month,kaipoke_servicek,client_name,ido_jukyusyasho,is_checked,district"
+        [
+          "kaipoke_cs_id",
+          "year_month",
+          "kaipoke_servicek",
+          "client_name",
+          "ido_jukyusyasho",
+          "is_checked",
+          "district",
+
+          // ★ 追加（実績担当者）
+          "asigned_jisseki_staff_id",
+          "asigned_jisseki_staff_name",
+        ].join(",")
       )
       .eq("year_month", yearMonth)
       .eq("kaipoke_servicek", kaipokeServicek)
@@ -46,7 +60,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const rows: ViewRow[] = (data ?? []) as ViewRow[];
+    const rows: ViewRow[] = (data ?? []) as unknown as ViewRow[];
 
     // ② disability_check テーブル側から application_check を取得
     const { data: dcRows, error: dcError } = await supabaseAdmin

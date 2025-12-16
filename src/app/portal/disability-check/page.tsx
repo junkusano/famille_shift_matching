@@ -401,7 +401,7 @@ const DisabilityCheckPage: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {records.map((r) => {
+          {filteredRecords.map((r) => {
             const key = `${r.kaipoke_cs_id}-${r.year_month}-${r.kaipoke_servicek}`;
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
