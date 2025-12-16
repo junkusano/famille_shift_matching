@@ -80,11 +80,11 @@ function NavLinks({ role }: { role: string | null }) {
       {isManagerOrAdmin && (
         <>
 
-          <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
           <li><Link href="/portal/taimee-emp" className="text-blue-300 hover:underline">タイミーリスト</Link></li>
           <li><Link href="/portal/orgIcons" className="text-blue-300 hover:underline">組織アイコン設定</Link></li>
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者情報</Link></li>
+          <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
           <li><Link href="/portal/cs_docs" className="text-blue-300 hover:underline">利用者書類一覧</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>
           <li><Link href="/portal/fax-sending" className="text-blue-300 hover:underline">fax送付</Link></li>
@@ -99,7 +99,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
         </>
       )}
-      <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
+      <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
       <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
