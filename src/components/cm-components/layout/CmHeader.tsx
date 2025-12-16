@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Menu, Bell, Search, ChevronRight } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/header.module.css';
 
@@ -13,6 +14,7 @@ interface CmHeaderProps {
 type CmBreadcrumb = {
   label: string;
   path: string;
+  isLink?: boolean;
 };
 
 // パスからパンくずリストを生成
@@ -45,15 +47,30 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/settings/forms': '帳票設定',
     '/cm-portal/settings/notifications': '通知設定',
     '/cm-portal/settings/account': 'アカウント',
+    '/cm-portal/audit/logs': '操作ログ',
   };
 
   const breadcrumbs: CmBreadcrumb[] = [
-    { label: '居宅介護支援ポータル', path: '/cm-portal' },
+    { label: '居宅介護支援ポータル', path: '/cm-portal', isLink: true },
   ];
 
+  // 完全一致チェック
   if (pathname !== '/cm-portal' && pathMap[pathname]) {
-    breadcrumbs.push({ label: pathMap[pathname], path: pathname });
+    breadcrumbs.push({ label: pathMap[pathname], path: pathname, isLink: false });
+    return breadcrumbs;
   }
+
+  // 動的ルート対応（/cm-portal/clients/[id] など）
+  // 利用者詳細ページ
+  const clientDetailMatch = pathname.match(/^\/cm-portal\/clients\/([^/]+)$/);
+  if (clientDetailMatch) {
+    breadcrumbs.push({ label: '利用者情報一覧', path: '/cm-portal/clients', isLink: true });
+    breadcrumbs.push({ label: '利用者詳細', path: pathname, isLink: false });
+    return breadcrumbs;
+  }
+
+  // その他の動的ルートパターンをここに追加可能
+  // 例: /cm-portal/care-plan/[id] など
 
   return breadcrumbs;
 };
@@ -81,15 +98,18 @@ export function CmHeader({ onMenuToggle }: CmHeaderProps) {
               {index > 0 && (
                 <ChevronRight className="w-4 h-4 text-gray-400 mx-1" />
               )}
-              <span
-                className={
-                  index === breadcrumbs.length - 1
-                    ? styles.cmBreadcrumbCurrent
-                    : styles.cmBreadcrumbLink
-                }
-              >
-                {crumb.label}
-              </span>
+              {crumb.isLink ? (
+                <Link
+                  href={crumb.path}
+                  className={styles.cmBreadcrumbLink}
+                >
+                  {crumb.label}
+                </Link>
+              ) : (
+                <span className={styles.cmBreadcrumbCurrent}>
+                  {crumb.label}
+                </span>
+              )}
             </React.Fragment>
           ))}
         </nav>

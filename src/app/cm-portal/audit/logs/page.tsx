@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { CmCard } from '@/components/cm-components';
 import { Search, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, AlertCircle } from 'lucide-react';
 
 // =============================================================
@@ -56,7 +57,7 @@ export default function CmAuditLogsPage() {
   const [filters, setFilters] = useState({
     env: '',
     level: '',
-    module: '',
+    moduleFilter: '',
     message: '',
     traceId: '',
     from: '',
@@ -78,7 +79,7 @@ export default function CmAuditLogsPage() {
 
       if (filters.env) params.set('env', filters.env);
       if (filters.level) params.set('level', filters.level);
-      if (filters.module) params.set('module', filters.module);
+      if (filters.moduleFilter) params.set('module', filters.moduleFilter);
       if (filters.message) params.set('message', filters.message);
       if (filters.traceId) params.set('traceId', filters.traceId);
       if (filters.from) params.set('from', filters.from);
@@ -132,7 +133,7 @@ export default function CmAuditLogsPage() {
     setFilters({
       env: '',
       level: '',
-      module: '',
+      moduleFilter: '',
       message: '',
       traceId: '',
       from: '',
@@ -165,7 +166,7 @@ export default function CmAuditLogsPage() {
       </div>
 
       {/* フィルター */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <CmCard title="検索条件">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {/* 環境 */}
           <div>
@@ -201,8 +202,8 @@ export default function CmAuditLogsPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">モジュール</label>
             <input
               type="text"
-              value={filters.module}
-              onChange={(e) => handleFilterChange('module', e.target.value)}
+              value={filters.moduleFilter}
+              onChange={(e) => handleFilterChange('moduleFilter', e.target.value)}
               placeholder="例: cm/api/clients"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -271,17 +272,18 @@ export default function CmAuditLogsPage() {
             </button>
           </div>
         </div>
-      </div>
+      </CmCard>
 
       {/* エラー表示 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
           {error}
         </div>
       )}
 
       {/* ログ一覧 */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <CmCard noPadding>
         {loading ? (
           <div className="p-8 text-center text-slate-500">読み込み中...</div>
         ) : logs.length === 0 ? (
@@ -364,7 +366,7 @@ export default function CmAuditLogsPage() {
             </div>
           </div>
         )}
-      </div>
+      </CmCard>
     </div>
   );
 }
