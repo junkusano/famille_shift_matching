@@ -25,6 +25,8 @@ type ViewRow = {
   district: string | null;
   asigned_jisseki_staff_id: string | null;
   asigned_jisseki_staff_name: string | null;
+  asigned_org_id: string | null;   // orgunitid
+  asigned_org_name: string | null; // orgunitname
 };
 
 export async function POST(req: NextRequest) {
@@ -46,6 +48,8 @@ export async function POST(req: NextRequest) {
           // ★ 追加（実績担当者）
           "asigned_jisseki_staff_id",
           "asigned_jisseki_staff_name",
+          "asigned_org_id",
+          "asigned_org_name",
         ].join(",")
       )
       .eq("year_month", yearMonth)

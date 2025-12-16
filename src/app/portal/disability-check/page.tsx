@@ -15,6 +15,9 @@ interface Row {
   // ① 実績担当者（API / View 側で JOIN して返してもらう想定）
   asigned_jisseki_staff_id: string | null;   // user_id 等
   asigned_jisseki_staff_name: string | null; // 氏名
+  // チーム（asigned_org）
+  asigned_org_id: string | null;     // orgunitid
+  asigned_org_name: string | null;   // orgunitname
 
   // ③ 提出フラグ
   is_submitted: boolean | null;
@@ -64,6 +67,8 @@ const DisabilityCheckPage: React.FC = () => {
   const [filterStaffId, setFilterStaffId] = useState<string>("");          // 実績担当者（Select）
   const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
   const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
+  const [filterTeamId, setFilterTeamId] = useState<string>("");
+
 
   // ② Selectbox 用の選択肢
   const clientNameOptions = useMemo(() => {
@@ -86,28 +91,35 @@ const DisabilityCheckPage: React.FC = () => {
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
   }, [records]);
 
+  const teamOptions = useMemo(() => {
+    const map = new Map<string, string>(); // id -> name
+    records.forEach((r) => {
+      if (r.asigned_org_id && r.asigned_org_name) {
+        map.set(r.asigned_org_id, r.asigned_org_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  }, [records]);
+
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       if (filterClientName && r.client_name !== filterClientName) return false;
-      if (
-        filterStaffId &&
-        r.asigned_jisseki_staff_id !== filterStaffId
-      )
-        return false;
-      if (
-        filterKaipokeId &&
-        !r.kaipoke_cs_id.includes(filterKaipokeId)
-      )
-        return false;
-      if (
-        filterIdo &&
-        !(r.ido_jukyusyasho ?? "").includes(filterIdo)
-      )
-        return false;
+
+      if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
+
+      // ★追加：チームで絞り込み
+      if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
+
+      if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
+
+      if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
+
       return true;
     });
-  }, [records, filterClientName, filterStaffId, filterKaipokeId, filterIdo]);
+  }, [records, filterClientName, filterStaffId, filterTeamId, filterKaipokeId, filterIdo]);
 
   // 件数はフィルタ後を表示
   const totalCount = filteredRecords.length;
@@ -367,6 +379,23 @@ const DisabilityCheckPage: React.FC = () => {
           </select>
         </label>
 
+        {/* ★追加：チーム名検索 */}
+        <label style={{ width: 220 }}>
+          チーム名
+          <select
+            value={filterTeamId}
+            onChange={(e) => setFilterTeamId(e.target.value)}
+            style={{ width: 220 }}
+          >
+            <option value="">（全て）</option>
+            {teamOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label style={{ width: 180 }}>
           カイポケID
           <input
@@ -396,6 +425,7 @@ const DisabilityCheckPage: React.FC = () => {
             <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
             <th style={{ textAlign: "left", padding: 8 }}>受給者証番号</th>
             <th style={{ textAlign: "left", padding: 8 }}>実績担当者</th>
+            <th style={{ textAlign: "left", padding: 8 }}>チーム名</th> {/* ★追加 */}
             <th style={{ textAlign: "center", padding: 8, width: 80 }}>提出✅</th>
             <th style={{ textAlign: "center", padding: 8, width: 80 }}>回収✅</th>
           </tr>
@@ -426,6 +456,12 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ padding: 8 }}>
                   {r.asigned_jisseki_staff_name ?? "-"}
                 </td>
+
+                {/* ★追加：チーム名 */}
+                <td style={{ padding: 8 }}>
+                  {r.asigned_org_name ?? "-"}
+                </td>
+
                 {/* ③ 提出チェックボックス */}
                 <td style={{ textAlign: "center" }}>
                   <input
@@ -449,7 +485,7 @@ const DisabilityCheckPage: React.FC = () => {
           })}
           {records.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ textAlign: "center", padding: 12 }}>
+              <td colSpan={7} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
               </td>
             </tr>
