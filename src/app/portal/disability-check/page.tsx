@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 /** ビュー行の型（disability_check_view の列名に一致） */
 interface Row {
@@ -54,7 +55,7 @@ const buildYearMonthOptions = (): string[] => {
 const DisabilityCheckPage: React.FC = () => {
   // ① 初期フィルタ：前月 × 障害
   const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
-  const [kaipokeServicek, setKaipokeServicek] = useState<string>("障害");
+  const [kaipokeServicek, setKaipokeServicek] = useState<string>(""); // （全て）
   // ③ Districtは未選択（全件）
   const [districts, setDistricts] = useState<string[]>([]);
 
@@ -68,7 +69,7 @@ const DisabilityCheckPage: React.FC = () => {
   //const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
   //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
   const [filterTeamId, setFilterTeamId] = useState<string>("");
-
+  const [isManager, setIsManager] = useState<boolean>(false);
 
   // ② Selectbox 用の選択肢
   const clientNameOptions = useMemo(() => {
@@ -262,6 +263,44 @@ const DisabilityCheckPage: React.FC = () => {
       console.error("Failed to update ido_jukyusyasho");
     }
   };
+
+  // ★追加：ログインユーザーの system_role を取得してマネージャー判定
+  useEffect(() => {
+    const loadRole = async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const authUserId = sess.session?.user?.id;
+
+        if (!authUserId) {
+          setIsManager(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("user_entry_united_view")
+          .select("system_role")
+          .eq("auth_user_id", authUserId)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Failed to load system_role", error);
+          setIsManager(false);
+          return;
+        }
+
+        const role = String(data?.system_role ?? "").toLowerCase();
+
+        // ★ここは環境の role 値に合わせて調整してください
+        // 例: "manager" / "admin" / "member" など
+        setIsManager(role === "manager" || role === "admin");
+      } catch (e) {
+        console.error("Failed to determine role", e);
+        setIsManager(false);
+      }
+    };
+
+    loadRole();
+  }, []);
 
   /** 初回：District候補だけロード */
   useEffect(() => {
@@ -482,7 +521,11 @@ const DisabilityCheckPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={!!r.is_checked}
-                    onChange={(e) => handleCheckChange(r, e.target.checked)}
+                    disabled={!isManager}
+                    onChange={(e) => {
+                      if (!isManager) return;
+                      handleCheckChange(r, e.target.checked);
+                    }}
                     style={{ display: "inline-block" }}
                   />
                 </td>

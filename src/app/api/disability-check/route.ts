@@ -57,6 +57,11 @@ export async function POST(req: NextRequest) {
       .order("district", { ascending: true })
       .order("client_name", { ascending: true });
 
+    if (kaipokeServicek) {
+      query = query.eq("kaipoke_servicek", kaipokeServicek);
+    }
+
+    // ★ 地域指定があるときだけ（← これで警告が消える）
     if (districts.length > 0) {
       query = query.in("district", districts);
     }
@@ -66,14 +71,19 @@ export async function POST(req: NextRequest) {
 
     const rows: ViewRow[] = (data ?? []) as unknown as ViewRow[];
 
-    // ② disability_check テーブル側から application_check を取得
-    const { data: dcRows, error: dcError } = await supabaseAdmin
+    let dcQuery = supabaseAdmin
       .from("disability_check")
       .select("kaipoke_cs_id,year_month,kaipoke_servicek,application_check")
-      .eq("year_month", yearMonth)
-      .eq("kaipoke_servicek", kaipokeServicek);
+      .eq("year_month", yearMonth);
 
+    // ★追加：サービスが指定されているときだけ絞り込み
+    if (kaipokeServicek) {
+      dcQuery = dcQuery.eq("kaipoke_servicek", kaipokeServicek);
+    }
+
+    const { data: dcRows, error: dcError } = await dcQuery;
     if (dcError) throw dcError;
+
 
     // ③ (cs_id,年月,サービス種別) → application_check のマップを作成
     const submittedMap = new Map<string, boolean | null>();
