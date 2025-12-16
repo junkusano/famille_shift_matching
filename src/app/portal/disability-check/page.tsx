@@ -123,10 +123,19 @@ const DisabilityCheckPage: React.FC = () => {
   }, [records, filterClientName, filterStaffId, filterTeamId]);
 
   // 件数はフィルタ後を表示
-  const totalCount = records.length;              // 全件（APIから来た件数）
-  const filteredCount = filteredRecords.length;   // 表示中（絞り込み後）
-  const checkedCount = filteredRecords.filter((r) => !!r.is_checked).length; // 回収済（表示中の中で）
+  // ★サービス別に件数を数える
+  const countShogai = records.filter((r) => r.kaipoke_servicek === "障害").length;
+  const countIdo = records.filter((r) => r.kaipoke_servicek === "移動支援").length;
 
+  // ★「全て」の件数は単純に足す
+  const totalCount =
+    kaipokeServicek === ""
+      ? countShogai + countIdo
+      : records.length;
+
+  // 表示中・回収済は今まで通り
+  const filteredCount = filteredRecords.length;
+  const checkedCount = filteredRecords.filter((r) => !!r.is_checked).length;
 
   /** District 選択肢取得 */
   const fetchDistricts = async () => {
@@ -357,6 +366,7 @@ const DisabilityCheckPage: React.FC = () => {
               setFilterClientName("");
               setFilterStaffId("");
               setFilterTeamId("");
+              setDistricts([]);
             }}
             style={{ width: 180 }}
           >
