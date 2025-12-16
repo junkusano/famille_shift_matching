@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /** ビュー行の型（disability_check_view の列名に一致） */
 interface Row {
@@ -70,6 +71,17 @@ const DisabilityCheckPage: React.FC = () => {
   //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
   const [filterTeamId, setFilterTeamId] = useState<string>("");
   const [isManager, setIsManager] = useState<boolean>(false);
+
+  // ★追加：ログインユーザー自身の user_id（＝ asigned_jisseki_staff_id と同じ系統のID）
+  const [myUserId, setMyUserId] = useState<string>("");
+
+  // ★追加：URL（searchParams）からの初期反映が終わったか（無限ループ防止）
+  const [didInitFromUrl, setDidInitFromUrl] = useState<boolean>(false);
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
 
   // ② Selectbox 用の選択肢
   const clientNameOptions = useMemo(() => {
@@ -289,7 +301,7 @@ const DisabilityCheckPage: React.FC = () => {
 
         const { data, error } = await supabase
           .from("user_entry_united_view")
-          .select("system_role")
+          .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
 
@@ -304,6 +316,7 @@ const DisabilityCheckPage: React.FC = () => {
         // ★ここは環境の role 値に合わせて調整してください
         // 例: "manager" / "admin" / "member" など
         setIsManager(role === "manager" || role === "admin");
+        setMyUserId(String(data?.user_id ?? ""));
       } catch (e) {
         console.error("Failed to determine role", e);
         setIsManager(false);
@@ -312,6 +325,66 @@ const DisabilityCheckPage: React.FC = () => {
 
     loadRole();
   }, []);
+
+  // ★追加⑤：URL（クエリ）→ state 初期反映
+  useEffect(() => {
+    if (didInitFromUrl) return;
+
+    // メンバーは myUserId が必要（role取得完了待ち）
+    if (!isManager && !myUserId) return;
+
+    const ym = searchParams.get("ym") ?? "";
+    const svc = searchParams.get("svc") ?? "";
+    const team = searchParams.get("team") ?? "";
+    const dist = searchParams.get("dist") ?? "";
+
+    if (ym) setYearMonth(ym);
+    setKaipokeServicek(svc); // ""なら全て
+    setFilterTeamId(team);
+    setDistricts(dist ? [dist] : []);
+
+    // メンバーは自分固定、マネージャーは固定しない
+    if (!isManager) {
+      setFilterStaffId(myUserId);
+    } else {
+      setFilterStaffId("");
+    }
+
+    setDidInitFromUrl(true);
+  }, [didInitFromUrl, searchParams, isManager, myUserId]);
+
+  // ★追加⑥：state → URL（クエリ）同期
+  useEffect(() => {
+    if (!didInitFromUrl) return;
+
+    const qp = new URLSearchParams();
+
+    // 共通：年月・サービス・チーム・地域
+    if (yearMonth) qp.set("ym", yearMonth);
+    if (kaipokeServicek) qp.set("svc", kaipokeServicek); // ""(全て)は省略
+    if (filterTeamId) qp.set("team", filterTeamId);
+    if (districts[0]) qp.set("dist", districts[0]);
+
+    // メンバーは staffId を自分に固定してURLへ
+    if (!isManager && myUserId) {
+      qp.set("staffId", myUserId);
+    }
+
+    const next = qp.toString();
+    const nextUrl = next ? `${pathname}?${next}` : pathname;
+
+    router.replace(nextUrl, { scroll: false });
+  }, [
+    didInitFromUrl,
+    yearMonth,
+    kaipokeServicek,
+    filterTeamId,
+    districts,
+    isManager,
+    myUserId,
+    pathname,
+    router,
+  ]);
 
   /** 初回：District候補だけロード */
   useEffect(() => {
@@ -430,7 +503,11 @@ const DisabilityCheckPage: React.FC = () => {
           実績担当者
           <select
             value={filterStaffId}
-            onChange={(e) => setFilterStaffId(e.target.value)}
+            disabled={!isManager}
+            onChange={(e) => {
+              if (!isManager) return;
+              setFilterStaffId(e.target.value);
+            }}
             style={{ width: 220 }}
           >
             <option value="">（全て）</option>
