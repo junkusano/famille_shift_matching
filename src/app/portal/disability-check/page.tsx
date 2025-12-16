@@ -123,8 +123,10 @@ const DisabilityCheckPage: React.FC = () => {
   }, [records, filterClientName, filterStaffId, filterTeamId]);
 
   // 件数はフィルタ後を表示
-  const totalCount = filteredRecords.length;
-  const checkedCount = filteredRecords.filter((r) => !!r.is_checked).length;
+  const totalCount = records.length;              // 全件（APIから来た件数）
+  const filteredCount = filteredRecords.length;   // 表示中（絞り込み後）
+  const checkedCount = filteredRecords.filter((r) => !!r.is_checked).length; // 回収済（表示中の中で）
+
 
   /** District 選択肢取得 */
   const fetchDistricts = async () => {
@@ -322,6 +324,7 @@ const DisabilityCheckPage: React.FC = () => {
       {/* 件数表示 */}
       <div style={{ marginBottom: 8 }}>
         <span style={{ marginRight: 16 }}>件数：{totalCount}</span>
+        <span style={{ marginRight: 16 }}>表示中：{filteredCount}</span>
         <span>回収済：{checkedCount}</span>
       </div>
 
@@ -346,7 +349,15 @@ const DisabilityCheckPage: React.FC = () => {
           サービス
           <select
             value={kaipokeServicek}
-            onChange={(e) => setKaipokeServicek(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setKaipokeServicek(v);
+
+              // ★追加：サービス切替時に検索条件をリセット（これが効きます）
+              setFilterClientName("");
+              setFilterStaffId("");
+              setFilterTeamId("");
+            }}
             style={{ width: 180 }}
           >
             <option value="">（全て）</option>
