@@ -485,7 +485,7 @@ const DisabilityCheckPage: React.FC = () => {
           })}
           {records.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ textAlign: "center", padding: 12 }}>
+              <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
               </td>
             </tr>
