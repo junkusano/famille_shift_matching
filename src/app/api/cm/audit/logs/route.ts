@@ -1,6 +1,6 @@
 // =============================================================
 // src/app/api/cm/audit/logs/route.ts
-// ログ取得API（管理画面用）
+// ログ取得API（CM管理画面用）
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +11,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 // Logger
 // =============================================================
 
-const logger = createLogger("cm/api/audit/logs");
+const logger = createLogger("api/audit/logs");
 
 // =============================================================
 // GET: ログ検索
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const limit = 50;
     const offset = (page - 1) * limit;
 
-    logger.info("ログ検索開始", { env, level, from, to, module: moduleFilter, message, traceId, page });
+    logger.info("ログ検索開始", { env, level, from, to, moduleFilter, message, traceId, page });
 
     // ---------------------------------------------------------
     // クエリ構築（audit スキーマを直接参照）
