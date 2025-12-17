@@ -19,24 +19,23 @@ async function upsertGroupAndChannel(params: {
 }) {
     const { groupId, channelId } = params;
 
-    // 1) groups_lw を upsert（ここは今まで通りの処理に合わせてください）
-    const { error: upsertGroupError } = await supabaseAdmin
-        .from("groups_lw")
-        .upsert(
-            {
-                group_id: groupId,
-                //group_name: groupName,
-                // group_name から group_account / group_account_secondary を
-                // saveGroupsTemp.ts 側で分解しているなら、そこに合わせてもOK。
-                // ここでは最低限 group_id / group_name だけでもよい想定。
-                updated_at: new Date().toISOString(),
-            },
-            { onConflict: "group_id" }
-        );
+    // 安全対策：空の groupId は登録しない
+    if (!groupId) {
+        console.warn(`[lw webhook] ⚠️ groupId が空のため upsertGroupAndChannel をスキップ: channelId=${channelId}`);
+        return;
+    }
 
-    if (upsertGroupError) {
-        console.error("[lw webhook] groups_lw upsert error", upsertGroupError);
-        // ここは必要に応じて return するかどうか判断
+    // NOTE:
+    // groups_lw は Cron で整備されている前提なので、webhook 側で upsert しない。
+    // （DDL上 group_name が NOT NULL のため、ここで group_name を持たずに upsert すると失敗しやすい）
+    // ただし「見たことがある group」更新の痕跡として updated_at だけ update しておく。
+    const { error: updateGroupError } = await supabaseAdmin
+        .from("groups_lw")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("group_id", groupId);
+
+    if (updateGroupError) {
+        console.error("[lw webhook] groups_lw update error", updateGroupError);
     }
 
     // 2) この group_id の group_account を取得
@@ -107,8 +106,25 @@ async function upsertGroupAndChannel(params: {
             );
         }
 
-        // 隠し部屋側の group_id には、あえて channel 情報を登録しない。
-        // （もし登録したい運用があるなら、ここで別途 upsert すればOK）
+        // ★重要：隠し部屋（自分）にも primary を保存
+        const { error: upsertHiddenPrimaryError } = await supabaseAdmin
+            .from("group_lw_channel_info")
+            .upsert(
+                {
+                    group_id: groupId,
+                    channel_id: channelId,
+                    fetched_at: new Date().toISOString(),
+                },
+                { onConflict: "channel_id" }
+            );
+
+        if (upsertHiddenPrimaryError) {
+            console.error(
+                "[lw webhook] group_lw_channel_info upsert hidden primary error",
+                upsertHiddenPrimaryError
+            );
+        }
+
         return;
     }
 
@@ -166,13 +182,13 @@ async function fetchChannelInfo(channelId: string): Promise<{
     }
 }
 
-// Supabaseからグループ情報取得
+// Supabaseからグループ情報取得（primary / secondary 両対応）
 async function getGroupInfoFromChannelId(channelId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('group_lw_channel_info')
-        .select('group_id, channel_id')
-        .eq('channel_id', channelId)
-        .single()
+        .select('group_id, channel_id, channel_id_secondary')
+        .or(`channel_id.eq.${channelId},channel_id_secondary.eq.${channelId}`)
+        .maybeSingle()
 
     if (error || !data) {
         console.warn(`⚠️ DBにグループ情報なし: ${channelId}`)
@@ -219,10 +235,15 @@ export async function POST(req: NextRequest) {
 
         const groupInfo = await getGroupInfoFromChannelId(channelId)
 
-        // グループ情報がなければAPIから取得
-        if (!groupInfo) {
+        // groupId を確定させる（DBが無ければAPIで補完）
+        let resolvedGroupId: string | null = groupInfo?.groupId ?? null
+
+        if (!resolvedGroupId) {
             const apiInfo = await fetchChannelInfo(channelId)
             if (apiInfo) {
+                resolvedGroupId = apiInfo.groupId
+
+                // 取得した情報は一旦 temp にも残す（監査/デバッグ用）
                 await supabase.from('group_lw_temp').upsert(
                     [
                         {
@@ -234,24 +255,24 @@ export async function POST(req: NextRequest) {
                     { onConflict: 'channel_id' }
                 )
 
-                // group_lw_channel_infoにも登録（存在しない場合のみ）
+                // group_lw_channel_info を作る（groupId が取れた場合のみ）
                 await upsertGroupChannelInfo(apiInfo.groupId, apiInfo.channelId)
 
-                console.log(`✅ groups_lw_channel_info に upsert 完了: ${apiInfo.channelId}`)
-
-
-
-
+                console.log(`✅ group_lw_channel_info に upsert 完了: ${apiInfo.channelId}`)
             } else {
-                console.warn(`⚠️ グループ情報取得できず: ${channelId}`)
+                console.warn(`⚠️ APIでもグループ情報取得できず: ${channelId}`)
             }
         }
 
-
-        await upsertGroupAndChannel({
-            groupId: groupInfo?.groupId || '',
-            channelId,
-        })
+        // ★ここが重要：resolvedGroupId を使って登録する
+        if (resolvedGroupId) {
+            await upsertGroupAndChannel({
+                groupId: resolvedGroupId,
+                channelId,
+            })
+        } else {
+            console.warn(`⚠️ resolvedGroupId が null のため upsertGroupAndChannel をスキップ: channelId=${channelId}`)
+        }
 
         return NextResponse.json({ status: 'ok' }, { status: 200 })
     } catch (err) {
@@ -267,31 +288,36 @@ async function upsertGroupChannelInfo(groupId: string | null, channelId: string)
         return
     }
 
-    // すでに存在するか確認
-    const { data } = await supabase
+    // すでに存在するか確認（primary / secondary 両対応）
+    const { data: existing, error: existingError } = await supabaseAdmin
         .from('group_lw_channel_info')
         .select('id')
-        .eq('channel_id', channelId)
-        .single()
+        .or(`channel_id.eq.${channelId},channel_id_secondary.eq.${channelId}`)
+        .maybeSingle()
 
-    if (data) {
+    if (existingError) {
+        console.error(`❌ group_lw_channel_info 既存確認失敗: ${channelId}`, existingError)
+        // 既存確認に失敗しても、重複制約に任せて upsert を試みる
+    } else if (existing?.id) {
         console.log(`ℹ️ 既に登録済み: ${channelId}`)
         return
     }
 
-    // 未登録なら追加
-    const { error: insertError } = await supabase.from('group_lw_channel_info').insert([
-        {
-            group_id: groupId,
-            channel_id: channelId,
-            fetched_at: new Date().toISOString(),
-        },
-    ])
+    // 未登録なら upsert
+    const { error: upsertError } = await supabaseAdmin
+        .from('group_lw_channel_info')
+        .upsert(
+            {
+                group_id: groupId,
+                channel_id: channelId,
+                fetched_at: new Date().toISOString(),
+            },
+            { onConflict: 'channel_id' }
+        )
 
-    if (insertError) {
-        console.error(`❌ group_lw_channel_info への登録失敗: ${channelId}`, insertError)
+    if (upsertError) {
+        console.error(`❌ group_lw_channel_info への upsert 失敗: ${channelId}`, upsertError)
     } else {
-        console.log(`✅ group_lw_channel_info に登録完了: ${channelId}`)
+        console.log(`✅ group_lw_channel_info に upsert 完了: ${channelId}`)
     }
 }
-
