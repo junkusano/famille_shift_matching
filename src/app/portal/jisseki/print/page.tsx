@@ -540,14 +540,16 @@ function IdoShienForm({ data, form }: FormProps) {
                             <td>&nbsp;</td>
                             <td>&nbsp;</td>
                             <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                        </tr>
+                        {/* ★ここに追加：フッタ（合計）も table の中に統合 */}
+                        <tr>
+                            <td className="small" colSpan={18} style={{ padding: "6px 4px" }}>
+                                合計（後で自動計算）
+                            </td>
                         </tr>
                     </tbody>
                 </table>
-            </div>
-
-            {/* フッタ（PDFの“合計／控除”などの枠） */}
-            <div className="mt-2 grid grid-cols-12 gap-0">
-                <div className="box col-span-6 p-2 small">合計（後で自動計算）</div>
             </div>
 
             <div className="mt-1 small right">1 / 1</div>
