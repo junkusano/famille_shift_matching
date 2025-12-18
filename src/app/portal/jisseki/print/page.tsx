@@ -109,19 +109,59 @@ function TakinokyoForm({ data, form }: FormProps) {
         </div>
     );
 }
-function KodoEngoForm(_props: FormProps) {
-    return <div className="font-bold">行動援護（様式2）</div>;
+function KodoEngoForm({ data, form }: FormProps) {
+  return (
+    <div>
+      <div className="text-center font-bold">行動援護（様式2）</div>
+      <div className="mt-2 text-sm">
+        <div>対象：{data.client.client_name}</div>
+        <div>年月：{data.month}</div>
+        <div>サービス：{form.service_codes.join(" / ")}</div>
+        <div>件数：{form.rows.length}</div>
+      </div>
+    </div>
+  );
 }
 
-function DokoEngoForm(_props: FormProps) {
-    return <div className="font-bold">同行援護（様式19）</div>;
+function DokoEngoForm({ data, form }: FormProps) {
+  return (
+    <div>
+      <div className="text-center font-bold">同行援護（様式19）</div>
+      <div className="mt-2 text-sm">
+        <div>対象：{data.client.client_name}</div>
+        <div>年月：{data.month}</div>
+        <div>サービス：{form.service_codes.join(" / ")}</div>
+        <div>件数：{form.rows.length}</div>
+      </div>
+    </div>
+  );
 }
 
-function JudoHommonForm(_props: FormProps) {
-    return <div className="font-bold">重度訪問（様式3-1）</div>;
+function JudoHommonForm({ data, form }: FormProps) {
+  return (
+    <div>
+      <div className="text-center font-bold">重度訪問（様式3-1）</div>
+      <div className="mt-2 text-sm">
+        <div>対象：{data.client.client_name}</div>
+        <div>年月：{data.month}</div>
+        <div>サービス：{form.service_codes.join(" / ")}</div>
+        <div>件数：{form.rows.length}</div>
+      </div>
+    </div>
+  );
 }
 
-function IdoShienForm(_props: FormProps) {
-    return <div className="font-bold">移動支援（様式3）</div>;
+function IdoShienForm({ data, form }: FormProps) {
+  return (
+    <div>
+      <div className="text-center font-bold">移動支援（様式3）</div>
+      <div className="mt-2 text-sm">
+        <div>対象：{data.client.client_name}</div>
+        <div>年月：{data.month}</div>
+        <div>サービス：{form.service_codes.join(" / ")}</div>
+        <div>件数：{form.rows.length}</div>
+      </div>
+    </div>
+  );
 }
 
