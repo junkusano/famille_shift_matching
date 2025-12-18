@@ -19,6 +19,8 @@ type Row = {
   created_at?: string | null
   updated_at?: string | null
   idou_f?: boolean | null
+  jisseki_form?: string | null
+  jisseki_form_name?: string | null
 }
 
 type NewRow = {
@@ -29,6 +31,8 @@ type NewRow = {
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
   idou_f: boolean
+  jisseki_form: string | null
+  jisseki_form_name: string | null
 }
 
 type DocOption = { value: string; label: string }
@@ -50,6 +54,8 @@ export default function ShiftServiceCodePage() {
     kaipoke_servicek: '',
     kaipoke_servicecode: '',
     idou_f: false,
+    jisseki_form: null,
+    jisseki_form_name: null,
   })
 
   // ===== fetchers =====
@@ -146,6 +152,8 @@ export default function ShiftServiceCodePage() {
         require_doc_group: null,
         contract_requrired: null,
         plan_required: null,
+        jisseki_form: null,
+        jisseki_form_name: null,
         kaipoke_servicek: '',
         kaipoke_servicecode: '',
         idou_f: false, // ★ 追加
@@ -208,6 +216,7 @@ export default function ShiftServiceCodePage() {
             <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
             <col style={{ width: '17%' }} /> {/* contract_requrired */}
             <col style={{ width: '17%' }} /> {/* plan_required */}
+            <col style={{ width: '17%' }} /> {/* ★ jisseki_form_name */}
             <col style={{ width: '8%' }} />  {/* idou_f ★ */}
             <col style={{ width: '8%' }} />  {/* 操作 */}
           </colgroup>
@@ -220,6 +229,7 @@ export default function ShiftServiceCodePage() {
               <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
               <TableHead className="px-1 py-1">必要契約書</TableHead>
               <TableHead className="px-1 py-1">必要プラン</TableHead>
+              <TableHead className="px-1 py-1">実績様式（jisseki_form）</TableHead>
               <TableHead className="px-1 py-1 text-center">移動系(idou_f)</TableHead> {/* ★ */}
               <TableHead className="px-1 py-1">操作</TableHead>
             </TableRow>
@@ -311,6 +321,10 @@ export default function ShiftServiceCodePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </TableCell>
+                {/* ★ 実績様式（表示専用） */}
+                <TableCell className="px-1 py-1">
+                  <Input className="h-8 px-2" value={r.jisseki_form_name ?? ''} readOnly />
                 </TableCell>
                 {/* ★ idou_f */}
                 <TableCell className="px-1 py-1 text-center">
@@ -423,6 +437,15 @@ export default function ShiftServiceCodePage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </TableCell>
+              {/* ★ 実績様式（新規） */}
+              <TableCell className="px-1 py-1">
+                <Input
+                  className="h-8 px-2"
+                  placeholder="例：障害：実績記録票A"
+                  value={newRow.jisseki_form_name ?? ''}
+                  onChange={(e) => setNewRow({ ...newRow, jisseki_form_name: e.target.value || null })}
+                />
               </TableCell>
               {/* ★ idou_f（追加行） */}
               <TableCell className="px-1 py-1 text-center">
