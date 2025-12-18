@@ -148,8 +148,8 @@ function TakinokyoForm({ data, form }: FormProps) {
                 <table className="grid">
                     <thead>
                         <tr>
-                            <th className="center" style={{ width: "6%" }}>日</th>
-                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "6%" }}>日付</th>
+                            <th className="center" style={{ width: "6%" }}>曜日</th>
                             <th className="center" style={{ width: "14%" }}>サービス内容</th>
                             <th className="center" style={{ width: "10%" }}>開始</th>
                             <th className="center" style={{ width: "10%" }}>終了</th>
@@ -207,8 +207,8 @@ function KodoEngoForm({ data, form }: FormProps) {
                 <table className="grid">
                     <thead>
                         <tr>
-                            <th className="center" style={{ width: "6%" }}>日</th>
-                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "6%" }}>日付</th>
+                            <th className="center" style={{ width: "6%" }}>曜日</th>
                             <th className="center" style={{ width: "10%" }}>計画開始</th>
                             <th className="center" style={{ width: "10%" }}>計画終了</th>
                             <th className="center" style={{ width: "8%" }}>計画</th>
@@ -256,8 +256,8 @@ function DokoEngoForm({ data, form }: FormProps) {
                 <table className="grid">
                     <thead>
                         <tr>
-                            <th className="center" style={{ width: "6%" }}>日</th>
-                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "6%" }}>日付</th>
+                            <th className="center" style={{ width: "6%" }}>曜日</th>
                             <th className="center" style={{ width: "16%" }}>サービス内容</th>
                             <th className="center" style={{ width: "10%" }}>計画開始</th>
                             <th className="center" style={{ width: "10%" }}>計画終了</th>
@@ -305,8 +305,8 @@ function JudoHommonForm({ data, form }: FormProps) {
                 <table className="grid">
                     <thead>
                         <tr>
-                            <th className="center" style={{ width: "6%" }}>日</th>
-                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "6%" }}>日付</th>
+                            <th className="center" style={{ width: "6%" }}>曜日</th>
                             <th className="center" style={{ width: "14%" }}>提供状況</th>
                             <th className="center" style={{ width: "10%" }}>計画開始</th>
                             <th className="center" style={{ width: "10%" }}>計画終了</th>
@@ -340,96 +340,178 @@ function IdoShienForm({ data }: FormProps) {
             <div className="title">移動支援　サービス提供実績記録票（様式３）</div>
 
             {/* ヘッダ（PDFの項目を網羅） */}
-            <div className="mt-2 grid grid-cols-12 gap-0">
-                <div className="box col-span-4 p-1 small">受給者証番号</div>
-                <div className="box col-span-4 p-1 small">事業所番号</div>
-                <div className="box col-span-4 p-1 small">月額上限負担額</div>
+            {/* ヘッダ（PDFの3行構造：⑥・⑤対応） */}
+            <div className="mt-2">
+                <table className="grid">
+                    <colgroup>
+                        <col style={{ width: "32%" }} />
+                        <col style={{ width: "36%" }} />
+                        <col style={{ width: "32%" }} />
+                    </colgroup>
+                    <tbody>
+                        {/* 1行目：受給者証番号｜支給決定者(保護者)氏名（児童氏名）｜事業所番号 */}
+                        <tr>
+                            <td className="small">
+                                受給者証番号
+                                <div className="mt-1">&nbsp;</div>
+                            </td>
 
-                <div className="box col-span-4 p-1">&nbsp;</div>
-                <div className="box col-span-4 p-1">&nbsp;</div>
-                <div className="box col-span-4 p-1 right">0円</div>
+                            {/* 中央セル：上下2段（上：保護者氏名、下：児童氏名） */}
+                            <td className="small" style={{ padding: 0 }}>
+                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                    支給決定者(保護者)氏名
+                                    <div className="mt-1">{data.client.client_name}</div>
+                                </div>
+                                <div style={{ padding: "2px 4px" }}>
+                                    （児童氏名）
+                                    <div className="mt-1">&nbsp;</div>
+                                </div>
+                            </td>
 
-                <div className="box col-span-4 p-1 small">支給決定者(保護者)氏名</div>
-                <div className="box col-span-4 p-1 small">（児童氏名）</div>
-                <div className="box col-span-4 p-1 small center">{data.month}</div>
+                            <td className="small">
+                                事業所番号
+                                <div className="mt-1">&nbsp;</div>
+                            </td>
+                        </tr>
 
-                <div className="box col-span-4 p-1">{data.client.client_name}</div>
-                <div className="box col-span-4 p-1">&nbsp;</div>
-                <div className="box col-span-4 p-1">&nbsp;</div>
+                        {/* 2〜4行：左に 総決定支給量(不可欠/その他) と 契約支給量(不可欠/その他)
+                           右に 事業者事業所の名称（3行分の高さ）
+                           最下段左側は 月額上限負担額
+                        */}
+                        <tr>
+                            {/* 総決定支給量（2行分：上 不可欠 / 下 その他） */}
+                            <td className="small" rowSpan={2} style={{ padding: 0 }}>
+                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                    総決定支給量（不可欠）
+                                    <div className="mt-1">&nbsp;</div>
+                                </div>
+                                <div style={{ padding: "2px 4px" }}>
+                                    総決定支給量（その他）
+                                    <div className="mt-1">&nbsp;</div>
+                                </div>
+                            </td>
 
-                <div className="box col-span-6 p-1 small">事業者／事業所の名称</div>
-                <div className="box col-span-6 p-1">&nbsp;</div>
+                            {/* 契約支給量（2行分：上 不可欠 / 下 その他） */}
+                            <td className="small" rowSpan={2} style={{ padding: 0 }}>
+                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                    契約支給量（不可欠）
+                                    <div className="mt-1">&nbsp;</div>
+                                </div>
+                                <div style={{ padding: "2px 4px" }}>
+                                    契約支給量（その他）
+                                    <div className="mt-1">&nbsp;</div>
+                                </div>
+                            </td>
 
-                <div className="box col-span-6 p-1 small">総決定支給量（不可欠／その他）</div>
-                <div className="box col-span-6 p-1 small">契約支給量（不可欠／その他）</div>
+                            {/* 事業者事業所の名称（3行分の枠） */}
+                            <td className="small" rowSpan={3}>
+                                事業者事業所の名称
+                                <div className="mt-1">&nbsp;</div>
+                                <div className="mt-1">&nbsp;</div>
+                                <div className="mt-1">&nbsp;</div>
+                            </td>
+                        </tr>
 
-                <div className="box col-span-3 p-1 small center">不可欠</div>
-                <div className="box col-span-3 p-1 small center">その他</div>
-                <div className="box col-span-3 p-1 small center">不可欠</div>
-                <div className="box col-span-3 p-1 small center">その他</div>
+                        {/* rowSpanで埋まる行（実体は空でOK） */}
+                        <tr />
 
-                <div className="box col-span-3 p-1 center">&nbsp;</div>
-                <div className="box col-span-3 p-1 center">&nbsp;</div>
-                <div className="box col-span-3 p-1 center">&nbsp;</div>
-                <div className="box col-span-3 p-1 center">&nbsp;</div>
+                        {/* 4行目：月額上限負担額（左2列を横結合） */}
+                        <tr>
+                            <td className="small" colSpan={2}>
+                                月額上限負担額
+                                <div className="mt-1 right">0円</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             {/* 明細（PDFの列を再現：計画/提供/内訳/片道/提供者/利用形態/負担額/確認欄） */}
             <div className="mt-2">
                 <table className="grid">
                     <thead>
+                        {/* 1段目 */}
                         <tr>
-                            <th className="center" rowSpan={2} style={{ width: "5%" }}>日付</th>
-                            <th className="center" rowSpan={2} style={{ width: "5%" }}>曜</th>
+                            <th className="center" rowSpan={4} style={{ width: "5%" }}>日付</th>
+                            <th className="center" rowSpan={4} style={{ width: "5%" }}>曜</th>
 
-                            <th className="center" colSpan={3} style={{ width: "24%" }}>移動支援計画</th>
-                            <th className="center" colSpan={3} style={{ width: "24%" }}>サービス提供</th>
+                            {/* ①：移動支援計画の中に 4項目 */}
+                            <th className="center" colSpan={9}>移動支援計画</th>
 
-                            <th className="center" rowSpan={2} style={{ width: "7%" }}>計画時間(分)</th>
-                            <th className="center" colSpan={2} style={{ width: "12%" }}>内訳(分)</th>
-                            <th className="center" rowSpan={2} style={{ width: "7%" }}>算定時間(時間)</th>
-                            <th className="center" rowSpan={2} style={{ width: "9%" }}>サービス提供者名</th>
-                            <th className="center" rowSpan={2} style={{ width: "6%" }}>利用者負担額</th>
-                            <th className="center" rowSpan={2} style={{ width: "6%" }}>利用形態</th>
-                            <th className="center" rowSpan={2} style={{ width: "8%" }}>利用者確認欄</th>
-                            <th className="center" rowSpan={2}>合計／控除</th>
+                            {/* ②：算定時間の隣は 利用形態を削除し、片道→負担額の順に */}
+                            <th className="center" rowSpan={4} style={{ width: "7%" }}>算定時間(時間)</th>
+                            <th className="center" rowSpan={4} style={{ width: "7%" }}>片道支援加算</th>
+                            <th className="center" rowSpan={4} style={{ width: "7%" }}>利用者負担額</th>
+
+                            {/* ③：負担額の隣に サービス提供時間（その下にサービス提供→開始/終了） */}
+                            <th className="center" colSpan={2} style={{ width: "12%" }}>サービス提供時間</th>
                         </tr>
+
+                        {/* 2段目 */}
                         <tr>
-                            <th className="center">開始</th>
-                            <th className="center">終了</th>
-                            <th className="center">分</th>
+                            <th className="center" colSpan={3}>サービス提供</th>
+                            <th className="center" colSpan={3}>控除</th>
+                            <th className="center" rowSpan={3}>計画時間(分)</th>
+                            <th className="center" colSpan={2}>内訳(分)</th>
 
-                            <th className="center">開始</th>
-                            <th className="center">終了</th>
-                            <th className="center">分</th>
-
-                            <th className="center">不可欠</th>
-                            <th className="center">その他</th>
+                            <th className="center" colSpan={2}>サービス提供</th>
                         </tr>
+
+                        {/* 3段目 */}
+                        <tr>
+                            <th className="center" rowSpan={2}>開始時刻</th>
+                            <th className="center" rowSpan={2}>終了時刻</th>
+                            <th className="center" rowSpan={2}>分</th>
+
+                            <th className="center" rowSpan={2}>開始時刻</th>
+                            <th className="center" rowSpan={2}>終了時刻</th>
+                            <th className="center" rowSpan={2}>分</th>
+
+                            <th className="center" rowSpan={2}>不可欠</th>
+                            <th className="center" rowSpan={2}>その他</th>
+
+                            <th className="center" rowSpan={2}>開始時刻</th>
+                            <th className="center" rowSpan={2}>終了時刻</th>
+                        </tr>
+
+                        {/* 4段目（rowSpanで埋まるので空でOK） */}
+                        <tr />
                     </thead>
 
                     <tbody>
                         {Array.from({ length: 20 }).map((_, i) => (
                             <tr key={i}>
+                                {/* 日付 / 曜 */}
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
 
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-
+                                {/* 移動支援計画：サービス提供（開始/終了/分） */}
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
 
+                                {/* 移動支援計画：控除（開始/終了/分） */}
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
 
+                                {/* 計画時間(分) */}
+                                <td>&nbsp;</td>
+
+                                {/* 内訳(分)：不可欠/その他 */}
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
+
+                                {/* 算定時間(時間) */}
                                 <td>&nbsp;</td>
+
+                                {/* 片道支援加算 */}
                                 <td>&nbsp;</td>
+
+                                {/* 利用者負担額 */}
+                                <td>&nbsp;</td>
+
+                                {/* サービス提供時間（開始/終了） */}
                                 <td>&nbsp;</td>
                                 <td>&nbsp;</td>
                             </tr>
@@ -441,7 +523,6 @@ function IdoShienForm({ data }: FormProps) {
             {/* フッタ（PDFの“合計／控除”などの枠） */}
             <div className="mt-2 grid grid-cols-12 gap-0">
                 <div className="box col-span-6 p-2 small">合計（後で自動計算）</div>
-                <div className="box col-span-6 p-2 small">控除（後で）</div>
             </div>
 
             <div className="mt-1 small right">1 / 1</div>
