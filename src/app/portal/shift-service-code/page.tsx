@@ -210,15 +210,14 @@ export default function ShiftServiceCodePage() {
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '18%' }} /> {/* service_code */}
-            <col style={{ width: '22%' }} /> {/* require_doc_group */}
-            <col style={{ width: '15%' }} /> {/* kaipoke_servicek */}
-            <col style={{ width: '15%' }} /> {/* kaipoke_servicecode */}
+            <col style={{ width: '12%' }} /> {/* service_code */}
+            <col style={{ width: '8%' }} />  {/* require_doc_group ★ -4% */}
+            <col style={{ width: '9%' }} />  {/* kaipoke_servicek ★ -3% */}
+            <col style={{ width: '9%' }} />  {/* kaipoke_servicecode ★ -3% */}
             <col style={{ width: '17%' }} /> {/* contract_requrired */}
             <col style={{ width: '17%' }} /> {/* plan_required */}
-            <col style={{ width: '17%' }} /> {/* ★ jisseki_form_name */}
-            <col style={{ width: '8%' }} />  {/* idou_f ★ */}
-            <col style={{ width: '8%' }} />  {/* 操作 */}
+            <col style={{ width: '27%' }} /> {/* jisseki_form ★ +10% */}
+            <col style={{ width: '8%' }} />  {/* idou_f */}
           </colgroup>
 
           <TableHeader>
