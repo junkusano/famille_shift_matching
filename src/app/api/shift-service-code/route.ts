@@ -7,11 +7,21 @@ import { supabaseAdmin } from '@/lib/supabase/service'
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('shift_service_code')
-    .select('*')
+    .select(`
+      *,
+      jisseki_forms: jisseki_form ( form_name )
+    `)
     .order('service_code', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data ?? [])
+
+  const rows = (data ?? []).map((r: any) => ({
+    ...r,
+    // フロント表示用にフラット化
+    jisseki_form_name: r.jisseki_forms?.form_name ?? null,
+  }))
+
+  return NextResponse.json(rows)
 }
 
 export async function POST(req: Request) {
@@ -24,6 +34,8 @@ export async function POST(req: Request) {
     kaipoke_servicecode: body.kaipoke_servicecode ?? null,
     contract_requrired: body.contract_requrired ?? null,
     plan_required: body.plan_required ?? null,
+    idou_f: body.idou_f ?? false,
+    jisseki_form: body.jisseki_form ?? null,
   }
   if (!payload.service_code?.trim()) {
     return NextResponse.json({ error: 'service_code は必須です' }, { status: 400 })
