@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   HeartHandshake,
-  Shield,
+  Terminal,
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
@@ -131,12 +131,13 @@ const CmMenuStructure: CmMenuGroup[] = [
     ],
   },
   {
-    id: 'audit',
-    label: '監査',
-    icon: Shield,
+    id: 'dev-tools',
+    label: '開発者ツール',
+    icon: Terminal,
     roles: ['admin'],
     items: [
-      { id: 'audit-logs', label: 'ログ管理', path: '/cm-portal/audit/logs' },
+      { id: 'alert-batch', label: 'アラートバッチ', path: '/cm-portal/admin/alert-batch' },
+      { id: 'system-logs', label: 'システムログ', path: '/cm-portal/audit/logs' },
     ],
   },
   {

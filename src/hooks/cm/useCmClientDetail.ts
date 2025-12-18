@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type {
   CmClientDetail,
   CmClientDetailApiResponse,
@@ -13,14 +14,32 @@ import type {
 } from '@/types/cm/clientDetail';
 import { cmSortInsurances, cmIsInsuranceValid } from '@/lib/cm/utils';
 
+/** 有効なタブID */
+const VALID_TABS: CmTabId[] = ['basic', 'insurance', 'documents', 'public', 'address', 'calculation', 'reduction', 'life'];
+
 export function useCmClientDetail(kaipokeCsId: string) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // ---------------------------------------------------------
+  // URLからタブを取得
+  // ---------------------------------------------------------
+  const getInitialTab = (): CmTabId => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as CmTabId)) {
+      return tabParam as CmTabId;
+    }
+    return 'basic';
+  };
+
   // ---------------------------------------------------------
   // State
   // ---------------------------------------------------------
   const [client, setClient] = useState<CmClientDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<CmTabId>('basic');
+  const [activeTab, setActiveTab] = useState<CmTabId>(getInitialTab);
   const [expandedInsurances, setExpandedInsurances] = useState<Set<string>>(new Set());
 
   // ---------------------------------------------------------
@@ -70,11 +89,31 @@ export function useCmClientDetail(kaipokeCsId: string) {
   }, [fetchClient]);
 
   // ---------------------------------------------------------
+  // URLパラメータ変更時にタブを同期
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as CmTabId)) {
+      setActiveTab(tabParam as CmTabId);
+    }
+  }, [searchParams]);
+
+  // ---------------------------------------------------------
   // ハンドラー
   // ---------------------------------------------------------
   const handleTabChange = useCallback((tabId: CmTabId) => {
     setActiveTab(tabId);
-  }, []);
+
+    // URLを更新（履歴に追加しない）
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === 'basic') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tabId);
+    }
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(newUrl);
+  }, [router, pathname, searchParams]);
 
   const toggleInsurance = useCallback((insuranceId: string) => {
     setExpandedInsurances((prev) => {

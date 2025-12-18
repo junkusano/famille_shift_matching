@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/cs-docs-judge-logics",
       "schedule": "38 * * * *"
+    },
+    {
+      "path": "/api/cron/cm/alert-batch",
+      "schedule": "0 21 * * *"
     }
   ]
 }
