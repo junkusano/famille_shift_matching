@@ -76,6 +76,8 @@ export default function JissekiPrintPage() {
     @media screen {
       .print-only { display: block; }
       .screen-only { display: block; }
+       /* ★追加：この文言を含む要素を印刷に出さない（暫定対策） */
+  *:has(> :is(span,div,p):contains("優先対応が必要なもの（放置したら不備計上）")) { display: none !important; }
     }
 
     /* ★帳票用 罫線・レイアウト */
@@ -390,7 +392,7 @@ function IdoShienForm({ data, form }: FormProps) {
                                     {/* 右側：記入欄（2行分の太さ＝1枠で縦に貫く） */}
                                     <div style={{ borderLeft: "1px solid #000" }}>
                                         <div style={{ padding: "2px 4px", height: "100%" }}>
-                                            &nbsp;
+                                            {data.client.client_name}
                                         </div>
                                     </div>
                                 </div>
@@ -480,6 +482,7 @@ function IdoShienForm({ data, form }: FormProps) {
 
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
+                        <col style={{ width: "8%" }} />  {/* サービス提供者名 */}
                         <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
                     </colgroup>
 
@@ -495,6 +498,7 @@ function IdoShienForm({ data, form }: FormProps) {
                             <th className="center" rowSpan={3}>利用者負担額</th>
 
                             <th className="center" colSpan={2}>サービス提供時間</th>
+                            <th className="center" rowSpan={3}>サービス提供者名</th>
                             <th className="center" rowSpan={3}>利用者確認欄</th>
                         </tr>
 
@@ -548,6 +552,7 @@ function IdoShienForm({ data, form }: FormProps) {
 
                                 <td>&nbsp;</td> {/* サービス提供時間 開始 */}
                                 <td>&nbsp;</td> {/* サービス提供時間 終了 */}
+                                <td>&nbsp;</td> {/* サービス提供者名 */}
                                 <td>&nbsp;</td> {/* 利用者確認欄 */}
                             </tr>
                         ))}
