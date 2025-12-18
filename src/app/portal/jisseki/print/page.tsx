@@ -77,7 +77,6 @@ export default function JissekiPrintPage() {
       .print-only { display: block; }
       .screen-only { display: block; }
        /* ★追加：この文言を含む要素を印刷に出さない（暫定対策） */
-  *:has(> :is(span,div,p):contains("優先対応が必要なもの（放置したら不備計上）")) { display: none !important; }
     }
 
     /* ★帳票用 罫線・レイアウト */
@@ -362,11 +361,9 @@ function IdoShienForm({ data, form }: FormProps) {
             {/* ヘッダ（PDFの3行構造：⑥・⑤対応） */}
             <div className="mt-2">
                 <table className="grid ido-grid">
-                    <colgroup>
                         <col style={{ width: "30%" }} />
                         <col style={{ width: "40%" }} />
                         <col style={{ width: "30%" }} />
-                    </colgroup>
                     <tbody>
                         {/* 1行目：受給者証番号｜支給決定者(保護者)氏名（児童氏名）｜事業所番号 */}
                         <tr>
@@ -487,30 +484,40 @@ function IdoShienForm({ data, form }: FormProps) {
                     </colgroup>
 
                     <thead>
+                        {/* 1段目 */}
                         <tr>
                             <th className="center" rowSpan={3}>日付</th>
                             <th className="center" rowSpan={3}>曜日</th>
 
-                            <th className="center" colSpan={11}>移動支援計画</th>
+                            {/* ★修正：11 → 9 */}
+                            <th className="center" colSpan={9}>移動支援計画</th>
 
                             <th className="center" rowSpan={3}>算定時間(時間)</th>
                             <th className="center" rowSpan={3}>片道支援加算</th>
                             <th className="center" rowSpan={3}>利用者負担額</th>
 
+                            {/* ①：負担額の隣に サービス提供時間 →（下）サービス提供 →（下）開始/終了 */}
                             <th className="center" colSpan={2}>サービス提供時間</th>
+
+                            {/* ②：サービス提供時間の隣 */}
                             <th className="center" rowSpan={3}>サービス提供者名</th>
+
                             <th className="center" rowSpan={3}>利用者確認欄</th>
                         </tr>
 
+                        {/* 2段目 */}
                         <tr>
+                            {/* 移動支援計画（9列の内訳） */}
                             <th className="center" colSpan={3}>サービス提供</th>
                             <th className="center" colSpan={3}>控除</th>
                             <th className="center" rowSpan={2}>計画時間(分)</th>
                             <th className="center" colSpan={2}>内訳(分)</th>
 
+                            {/* サービス提供時間（2列） */}
                             <th className="center" colSpan={2}>サービス提供</th>
                         </tr>
 
+                        {/* 3段目 */}
                         <tr>
                             <th className="center">開始時刻</th>
                             <th className="center">終了時刻</th>
