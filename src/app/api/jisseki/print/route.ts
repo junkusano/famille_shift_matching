@@ -1,0 +1,108 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+
+const toFormType = (serviceCode: string) => {
+  // 移動支援
+  if (
+    serviceCode === "移：必要不可欠な外出" ||
+    serviceCode === "移：必要不可欠な外出（片道支援）" ||
+    serviceCode === "移：その他の外出" ||
+    serviceCode === "移：その他の外出（片道支援）"
+  ) return "IDOU" as const;
+
+  // 重訪
+  if (serviceCode === "重訪Ⅱ" || serviceCode === "重訪Ⅲ") return "JYUHO" as const;
+
+  // 行動援護
+  if (serviceCode === "行動援護") return "KODO" as const;
+
+  // 同行援護
+  if (serviceCode === "同行(初任者等)") return "DOKO" as const;
+
+  // 居宅介護（身体・家事・通院）
+  if (
+    serviceCode === "身体" ||
+    serviceCode === "家事" ||
+    serviceCode === "通院(伴う)" ||
+    serviceCode === "通院(伴ず)"
+  ) return "TAKINO" as const;
+
+  // 未対応は居宅に寄せる/または Unknown で返す（運用に合わせて）
+  return "TAKINO" as const;
+};
+
+const ymToRange = (ym: string) => {
+  // ym: "2025-12"
+  const [y, m] = ym.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2, "0")}-01`;
+  const endDate = new Date(y, m, 0).getDate(); // 月末日
+  const end = `${y}-${String(m).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`;
+  return { start, end };
+};
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const kaipoke_cs_id = searchParams.get("kaipoke_cs_id") ?? "";
+  const month = searchParams.get("month") ?? ""; // YYYY-MM
+
+  if (!kaipoke_cs_id || !month) {
+    return NextResponse.json({ error: "kaipoke_cs_id, month は必須です" }, { status: 400 });
+  }
+
+  const { start, end } = ymToRange(month);
+
+  // 利用者名（取得元はプロジェクトの実テーブルに合わせて調整）
+  // 例：kaipoke_cs テーブルがある想定。無ければ disability_check_view などから拾う。
+  const { data: cs } = await supabaseAdmin
+    .from("kaipoke_cs")
+    .select("kaipoke_cs_id,name")
+    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .maybeSingle();
+
+  const client_name = cs?.name ?? kaipoke_cs_id;
+
+  // シフト取得（テーブル名が shift / shifts どちらかはプロジェクトに合わせて調整）
+  const { data: shifts, error } = await supabaseAdmin
+    .from("shift")
+    .select("shift_start_date,shift_start_time,shift_end_time,service_code")
+    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .gte("shift_start_date", start)
+    .lte("shift_start_date", end)
+    .order("shift_start_date", { ascending: true })
+    .order("shift_start_time", { ascending: true });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const rows = (shifts ?? []).map((s) => ({
+    date: String(s.shift_start_date),
+    start: String(s.shift_start_time).slice(0, 5),
+    end: String(s.shift_end_time).slice(0, 5),
+    service_code: String(s.service_code ?? ""),
+  }));
+
+  // formType別にまとめる
+  const map = new Map<string, { formType: string; service_codes: Set<string>; rows: any[] }>();
+  for (const r of rows) {
+    const formType = toFormType(r.service_code);
+    if (!map.has(formType)) {
+      map.set(formType, { formType, service_codes: new Set<string>(), rows: [] });
+    }
+    const bucket = map.get(formType)!;
+    bucket.service_codes.add(r.service_code);
+    bucket.rows.push({ date: r.date, start: r.start, end: r.end });
+  }
+
+  const forms = Array.from(map.values()).map((b) => ({
+    formType: b.formType as any,
+    service_codes: Array.from(b.service_codes),
+    rows: b.rows,
+  }));
+
+  return NextResponse.json({
+    client: { kaipoke_cs_id, client_name },
+    month,
+    forms,
+  });
+}

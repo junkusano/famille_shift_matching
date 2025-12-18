@@ -581,7 +581,21 @@ const DisabilityCheckPage: React.FC = () => {
               <tr key={key} style={{ verticalAlign: "middle" }}>
                 <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
                 <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
-                <td style={{ padding: 8 }}>{r.client_name}</td>
+
+                {/* ★追加：利用者名を印刷ページへのリンクにする */}
+                <td style={{ padding: 8 }}>
+                  <Link
+                    href={`/portal/jisseki/print?kaipoke_cs_id=${encodeURIComponent(
+                      r.kaipoke_cs_id
+                    )}&month=${encodeURIComponent(r.year_month)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    {r.client_name}
+                  </Link>
+                </td>
+
                 <td style={{ padding: 8 }}>
                   <input
                     type="text"
