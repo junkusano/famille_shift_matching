@@ -66,7 +66,16 @@ export default function JissekiPrintPage() {
           .no-print { display: none !important; }
           .page-break { page-break-before: always; }
         }
-      `}</style>
+
+         .formBox { border: 2px solid #000; }
+    .box { border: 1px solid #000; }
+    .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .small { font-size: 10px; }
+    .title { font-size: 14px; font-weight: 700; text-align: center; }
+  `}</style>
 
             <div className="no-print p-4 flex items-center gap-3 border-b">
                 <h1 className="text-lg font-semibold">{title}</h1>
@@ -95,73 +104,273 @@ export default function JissekiPrintPage() {
     );
 }
 
-/** 以下は雛形（最初は“それっぽい枠”でOK。帳票の罫線を詰めるのは後で） */
 function TakinokyoForm({ data, form }: FormProps) {
     return (
-        <div>
-            <div className="text-center font-bold">居宅介護サービス提供実績記録票（様式1）</div>
-            <div className="mt-2 text-sm">
-                <div>対象：{data.client.client_name}</div>
-                <div>年月：{data.month}</div>
-                <div>サービス：{form.service_codes.join(" / ")}</div>
+        <div className="formBox p-2">
+            <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
+
+            {/* ヘッダ枠 */}
+            <div className="mt-2">
+                <div className="grid grid-cols-12 gap-0">
+                    <div className="box col-span-3 p-1 small">受給者証番号</div>
+                    <div className="box col-span-5 p-1 small">支給決定障害者等氏名（障害児氏名）</div>
+                    <div className="box col-span-2 p-1 small">事業所番号</div>
+                    <div className="box col-span-2 p-1 small center">&nbsp;</div>
+
+                    <div className="box col-span-3 p-1 small">年月</div>
+                    <div className="box col-span-3 p-1 small center">{data.month}</div>
+                    <div className="box col-span-6 p-1 small">事業者及びその事業所</div>
+
+                    <div className="box col-span-6 p-1 small">利用者氏名</div>
+                    <div className="box col-span-6 p-1 small">{data.client.client_name}</div>
+
+                    <div className="box col-span-6 p-1 small">サービス</div>
+                    <div className="box col-span-6 p-1 small">{form.service_codes.join(" / ")}</div>
+                </div>
             </div>
-            {/* TODO: 添付PDFの罫線に合わせてテーブル配置 */}
+
+            {/* 明細テーブル（空行） */}
+            <div className="mt-2">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th className="center" style={{ width: "6%" }}>日</th>
+                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "14%" }}>サービス内容</th>
+                            <th className="center" style={{ width: "10%" }}>開始</th>
+                            <th className="center" style={{ width: "10%" }}>終了</th>
+                            <th className="center" style={{ width: "8%" }}>時間</th>
+                            <th className="center" style={{ width: "8%" }}>派遣</th>
+                            <th className="center" style={{ width: "12%" }}>利用者確認</th>
+                            <th className="center">備考</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: 25 }).map((_, i) => (
+                            <tr key={i}>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* フッタ枠（後で計算値を入れる） */}
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-6 p-2 small">合計（計画時間／算定時間など：後で）</div>
+                <div className="box col-span-6 p-2 small">内訳（加算・単価区分：後で）</div>
+            </div>
         </div>
     );
 }
+
 function KodoEngoForm({ data, form }: FormProps) {
-  return (
-    <div>
-      <div className="text-center font-bold">行動援護（様式2）</div>
-      <div className="mt-2 text-sm">
-        <div>対象：{data.client.client_name}</div>
-        <div>年月：{data.month}</div>
-        <div>サービス：{form.service_codes.join(" / ")}</div>
-        <div>件数：{form.rows.length}</div>
-      </div>
-    </div>
-  );
+    return (
+        <div className="formBox p-2">
+            <div className="title">行動援護サービス提供実績記録票（様式２）</div>
+
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-3 p-1 small">受給者証番号</div>
+                <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
+                <div className="box col-span-2 p-1 small">事業所番号</div>
+                <div className="box col-span-2 p-1 small center">&nbsp;</div>
+
+                <div className="box col-span-3 p-1 small">年月</div>
+                <div className="box col-span-3 p-1 small center">{data.month}</div>
+                <div className="box col-span-6 p-1 small">サービス</div>
+                <div className="box col-span-12 p-1 small">{form.service_codes.join(" / ")}</div>
+            </div>
+
+            <div className="mt-2">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th className="center" style={{ width: "6%" }}>日</th>
+                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "10%" }}>計画開始</th>
+                            <th className="center" style={{ width: "10%" }}>計画終了</th>
+                            <th className="center" style={{ width: "8%" }}>計画</th>
+                            <th className="center" style={{ width: "10%" }}>提供開始</th>
+                            <th className="center" style={{ width: "10%" }}>提供終了</th>
+                            <th className="center" style={{ width: "8%" }}>算定</th>
+                            <th className="center" style={{ width: "8%" }}>派遣</th>
+                            <th className="center" style={{ width: "12%" }}>利用者確認</th>
+                            <th className="center">備考</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: 25 }).map((_, i) => (
+                            <tr key={i}>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-2 box p-2 small">合計（計画／算定：後で）</div>
+        </div>
+    );
 }
 
 function DokoEngoForm({ data, form }: FormProps) {
-  return (
-    <div>
-      <div className="text-center font-bold">同行援護（様式19）</div>
-      <div className="mt-2 text-sm">
-        <div>対象：{data.client.client_name}</div>
-        <div>年月：{data.month}</div>
-        <div>サービス：{form.service_codes.join(" / ")}</div>
-        <div>件数：{form.rows.length}</div>
-      </div>
-    </div>
-  );
+    return (
+        <div className="formBox p-2">
+            <div className="title">同行援護サービス提供実績記録票（様式１９）</div>
+
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-3 p-1 small">受給者証番号</div>
+                <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
+                <div className="box col-span-4 p-1 small">事業者及びその事業所</div>
+
+                <div className="box col-span-3 p-1 small">年月</div>
+                <div className="box col-span-3 p-1 small center">{data.month}</div>
+                <div className="box col-span-6 p-1 small">サービス</div>
+                <div className="box col-span-12 p-1 small">{form.service_codes.join(" / ")}</div>
+            </div>
+
+            <div className="mt-2">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th className="center" style={{ width: "6%" }}>日</th>
+                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "16%" }}>サービス内容</th>
+                            <th className="center" style={{ width: "10%" }}>計画開始</th>
+                            <th className="center" style={{ width: "10%" }}>計画終了</th>
+                            <th className="center" style={{ width: "8%" }}>計画</th>
+                            <th className="center" style={{ width: "10%" }}>提供開始</th>
+                            <th className="center" style={{ width: "10%" }}>提供終了</th>
+                            <th className="center" style={{ width: "8%" }}>算定</th>
+                            <th className="center" style={{ width: "8%" }}>派遣</th>
+                            <th className="center">備考</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: 25 }).map((_, i) => (
+                            <tr key={i}>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-2 box p-2 small">合計・内訳（後で）</div>
+        </div>
+    );
 }
 
 function JudoHommonForm({ data, form }: FormProps) {
-  return (
-    <div>
-      <div className="text-center font-bold">重度訪問（様式3-1）</div>
-      <div className="mt-2 text-sm">
-        <div>対象：{data.client.client_name}</div>
-        <div>年月：{data.month}</div>
-        <div>サービス：{form.service_codes.join(" / ")}</div>
-        <div>件数：{form.rows.length}</div>
-      </div>
-    </div>
-  );
+    return (
+        <div className="formBox p-2">
+            <div className="title">重度訪問介護サービス提供実績記録票（様式３－１）</div>
+
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-3 p-1 small">受給者証番号</div>
+                <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
+                <div className="box col-span-4 p-1 small">事業所番号／事業所名</div>
+
+                <div className="box col-span-3 p-1 small">年月</div>
+                <div className="box col-span-3 p-1 small center">{data.month}</div>
+                <div className="box col-span-6 p-1 small">サービス</div>
+                <div className="box col-span-12 p-1 small">{form.service_codes.join(" / ")}</div>
+            </div>
+
+            <div className="mt-2">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th className="center" style={{ width: "6%" }}>日</th>
+                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "14%" }}>提供状況</th>
+                            <th className="center" style={{ width: "10%" }}>計画開始</th>
+                            <th className="center" style={{ width: "10%" }}>計画終了</th>
+                            <th className="center" style={{ width: "8%" }}>計画</th>
+                            <th className="center" style={{ width: "10%" }}>提供開始</th>
+                            <th className="center" style={{ width: "10%" }}>提供終了</th>
+                            <th className="center" style={{ width: "8%" }}>算定</th>
+                            <th className="center" style={{ width: "8%" }}>派遣</th>
+                            <th className="center">備考</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: 25 }).map((_, i) => (
+                            <tr key={i}>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-2 box p-2 small">下部：合計・加算欄（後で）</div>
+        </div>
+    );
 }
 
 function IdoShienForm({ data, form }: FormProps) {
-  return (
-    <div>
-      <div className="text-center font-bold">移動支援（様式3）</div>
-      <div className="mt-2 text-sm">
-        <div>対象：{data.client.client_name}</div>
-        <div>年月：{data.month}</div>
-        <div>サービス：{form.service_codes.join(" / ")}</div>
-        <div>件数：{form.rows.length}</div>
-      </div>
-    </div>
-  );
+    return (
+        <div className="formBox p-2">
+            <div className="title">移動支援　サービス提供実績記録票（様式３）</div>
+
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-4 p-1 small">受給者証番号</div>
+                <div className="box col-span-4 p-1 small">事業所番号</div>
+                <div className="box col-span-4 p-1 small">{data.client.client_name}</div>
+
+                <div className="box col-span-4 p-1 small">年月</div>
+                <div className="box col-span-8 p-1 small center">{data.month}</div>
+
+                <div className="box col-span-12 p-1 small">サービス：{form.service_codes.join(" / ")}</div>
+            </div>
+
+            <div className="mt-2">
+                <table className="grid">
+                    <thead>
+                        <tr>
+                            <th className="center" style={{ width: "6%" }}>日</th>
+                            <th className="center" style={{ width: "6%" }}>曜</th>
+                            <th className="center" style={{ width: "10%" }}>計画開始</th>
+                            <th className="center" style={{ width: "10%" }}>計画終了</th>
+                            <th className="center" style={{ width: "8%" }}>計画(分)</th>
+                            <th className="center" style={{ width: "10%" }}>提供開始</th>
+                            <th className="center" style={{ width: "10%" }}>提供終了</th>
+                            <th className="center" style={{ width: "8%" }}>提供(分)</th>
+                            <th className="center" style={{ width: "8%" }}>不可欠</th>
+                            <th className="center" style={{ width: "8%" }}>その他</th>
+                            <th className="center" style={{ width: "6%" }}>片道</th>
+                            <th className="center">提供者名</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: 20 }).map((_, i) => (
+                            <tr key={i}>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="mt-2 grid grid-cols-12 gap-0">
+                <div className="box col-span-6 p-2 small">合計（分／時間）・上限額など（後で）</div>
+                <div className="box col-span-6 p-2 small">事業所名・確認欄（後で）</div>
+            </div>
+        </div>
+    );
 }
 
