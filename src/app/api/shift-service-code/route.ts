@@ -4,6 +4,23 @@ export const dynamic = 'force-dynamic' // （キャッシュ最適化を避け�
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/service'
 
+type ShiftServiceCodeRow = {
+  id: string
+  service_code: string | null
+  require_doc_group: string | null
+  created_at: string | null
+  updated_at: string | null
+  kaipoke_servicek: string | null
+  kaipoke_servicecode: string | null
+  summary_flg: string | null
+  contract_requrired: string | null
+  plan_required: string | null
+  idou_f: boolean | null
+  jisseki_form: string | null
+  // JOIN結果（外部キー jisseki_form → jisseki_forms）
+  jisseki_forms?: { form_name: string } | null
+}
+
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('shift_service_code')
@@ -15,7 +32,7 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const rows = (data ?? []).map((r: any) => ({
+  const rows = (data ?? []).map((r: ShiftServiceCodeRow) => ({
     ...r,
     // フロント表示用にフラット化
     jisseki_form_name: r.jisseki_forms?.form_name ?? null,
