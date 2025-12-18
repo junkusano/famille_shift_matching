@@ -27,6 +27,8 @@ type FormProps = {
     data: PrintPayload;
     form: FormData;
 };
+const OFFICE_NAME = "合同会社施恩 ファミーユヘルパーサービス 名北";
+const OFFICE_NO = "2360181545";
 
 export default function JissekiPrintPage() {
     const sp = useSearchParams();
@@ -61,7 +63,7 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 6mm; }
     @media print {
       .no-print { display: none !important; }
       .page-break { page-break-before: always; }
@@ -334,19 +336,31 @@ function JudoHommonForm({ data, form }: FormProps) {
     );
 }
 
-function IdoShienForm({ data }: FormProps) {
+function IdoShienForm({ data, form }: FormProps) {
+    // ⑤ 合計計算（未入力項目は 0 扱い。後でAPI項目追加したら差し替え）
+    const sumPlanMin = (form.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0);
+
+    // 内訳（不可欠/その他）・算定時間(時間)・片道支援加算・利用者負担額は
+    // 今の rows 定義に無いので 0 で置く（後で追加する想定）
+    const sumUphitMin = 0;   // 不可欠(分)
+    const sumOtherMin = 0;   // その他(分)
+    const sumSanteiHour = 0; // 算定時間(時間)
+    const sumKatamichi = 0;  // 片道支援加算（回数等）
+    const sumFutan = 0;      // 利用者負担額（円）
+
     return (
         <div className="formBox p-2">
             <div className="title">移動支援　サービス提供実績記録票（様式３）</div>
+            <div style={{ display: "none" }}>{data.client.client_name}</div>
 
             {/* ヘッダ（PDFの項目を網羅） */}
             {/* ヘッダ（PDFの3行構造：⑥・⑤対応） */}
             <div className="mt-2">
                 <table className="grid">
                     <colgroup>
-                        <col style={{ width: "32%" }} />
-                        <col style={{ width: "36%" }} />
-                        <col style={{ width: "32%" }} />
+                        <col style={{ width: "30%" }} />
+                        <col style={{ width: "40%" }} />
+                        <col style={{ width: "30%" }} />
                     </colgroup>
                     <tbody>
                         {/* 1行目：受給者証番号｜支給決定者(保護者)氏名（児童氏名）｜事業所番号 */}
@@ -356,21 +370,32 @@ function IdoShienForm({ data }: FormProps) {
                                 <div className="mt-1">&nbsp;</div>
                             </td>
 
-                            {/* 中央セル：上下2段（上：保護者氏名、下：児童氏名） */}
+                            {/* 中央セル：左＝ラベル(2段)／右＝記入欄(2段分の太枠) */}
                             <td className="small" style={{ padding: 0 }}>
-                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
-                                    支給決定者(保護者)氏名
-                                    <div className="mt-1">{data.client.client_name}</div>
-                                </div>
-                                <div style={{ padding: "2px 4px" }}>
-                                    （児童氏名）
-                                    <div className="mt-1">&nbsp;</div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                                    {/* 左側：ラベル（上下） */}
+                                    <div>
+                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                            支給決定者(保護者)氏名
+                                            {/* ②：ここにID等は入れない */}
+                                        </div>
+                                        <div style={{ padding: "2px 4px" }}>
+                                            （児童氏名）
+                                        </div>
+                                    </div>
+
+                                    {/* 右側：記入欄（2行分の太さ＝1枠で縦に貫く） */}
+                                    <div style={{ borderLeft: "1px solid #000" }}>
+                                        <div style={{ padding: "2px 4px", height: "100%" }}>
+                                            &nbsp;
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
 
                             <td className="small">
                                 事業所番号
-                                <div className="mt-1">&nbsp;</div>
+                                <div className="mt-1">{OFFICE_NO}</div>
                             </td>
                         </tr>
 
@@ -406,7 +431,7 @@ function IdoShienForm({ data }: FormProps) {
                             {/* 事業者事業所の名称（3行分の枠） */}
                             <td className="small" rowSpan={3}>
                                 事業者事業所の名称
-                                <div className="mt-1">&nbsp;</div>
+                                <div className="mt-1">{OFFICE_NAME}</div>
                                 <div className="mt-1">&nbsp;</div>
                                 <div className="mt-1">&nbsp;</div>
                             </td>
@@ -516,6 +541,30 @@ function IdoShienForm({ data }: FormProps) {
                                 <td>&nbsp;</td>
                             </tr>
                         ))}
+                        {/* ⑤ 合計行（列ごとに合計欄を配置） */}
+                        <tr>
+                            <td className="center" colSpan={8}><b>合計</b></td>
+
+                            {/* 計画時間(分) */}
+                            <td className="right"><b>{sumPlanMin}</b></td>
+
+                            {/* 内訳(分)：不可欠/その他 */}
+                            <td className="right"><b>{sumUphitMin}</b></td>
+                            <td className="right"><b>{sumOtherMin}</b></td>
+
+                            {/* 算定時間(時間) */}
+                            <td className="right"><b>{sumSanteiHour}</b></td>
+
+                            {/* 片道支援加算 */}
+                            <td className="right"><b>{sumKatamichi}</b></td>
+
+                            {/* 利用者負担額 */}
+                            <td className="right"><b>{sumFutan}</b></td>
+
+                            {/* サービス提供時間（開始/終了）は合計不要：空欄 */}
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
