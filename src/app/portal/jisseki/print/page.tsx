@@ -89,6 +89,8 @@ export default function JissekiPrintPage() {
     .small { font-size: 10px; }
     .title { font-size: 14px; font-weight: 700; text-align: center; }
     .ido-grid { width: 100% !important; }
+    .ido-grid { max-width: 100% !important; }
+.print-only { width: 100%; }
   `}</style>
 
 
@@ -359,11 +361,8 @@ function IdoShienForm({ data, form }: FormProps) {
 
             {/* ヘッダ（PDFの項目を網羅） */}
             {/* ヘッダ（PDFの3行構造：⑥・⑤対応） */}
-            <div className="mt-2">
+            <div className="mt-2 w-full">
                 <table className="grid ido-grid">
-                        <col style={{ width: "30%" }} />
-                        <col style={{ width: "40%" }} />
-                        <col style={{ width: "30%" }} />
                     <tbody>
                         {/* 1行目：受給者証番号｜支給決定者(保護者)氏名（児童氏名）｜事業所番号 */}
                         <tr>
