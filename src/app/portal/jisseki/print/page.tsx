@@ -87,6 +87,7 @@ export default function JissekiPrintPage() {
     .right { text-align: right; }
     .small { font-size: 10px; }
     .title { font-size: 14px; font-weight: 700; text-align: center; }
+    .ido-grid { width: 100% !important; }
   `}</style>
 
 
@@ -131,7 +132,7 @@ function TakinokyoForm({ data, form }: FormProps) {
                     <div className="box col-span-3 p-1 small">受給者証番号</div>
                     <div className="box col-span-5 p-1 small">支給決定障害者等氏名（障害児氏名）</div>
                     <div className="box col-span-2 p-1 small">事業所番号</div>
-                    <div className="box col-span-2 p-1 small center">&nbsp;</div>
+                    <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
 
                     <div className="box col-span-3 p-1 small">年月</div>
                     <div className="box col-span-3 p-1 small center">{data.month}</div>
@@ -147,7 +148,7 @@ function TakinokyoForm({ data, form }: FormProps) {
 
             {/* 明細テーブル（空行） */}
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
                     <thead>
                         <tr>
                             <th className="center" style={{ width: "6%" }}>日付</th>
@@ -197,7 +198,7 @@ function KodoEngoForm({ data, form }: FormProps) {
                 <div className="box col-span-3 p-1 small">受給者証番号</div>
                 <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
                 <div className="box col-span-2 p-1 small">事業所番号</div>
-                <div className="box col-span-2 p-1 small center">&nbsp;</div>
+                <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
 
                 <div className="box col-span-3 p-1 small">年月</div>
                 <div className="box col-span-3 p-1 small center">{data.month}</div>
@@ -206,7 +207,7 @@ function KodoEngoForm({ data, form }: FormProps) {
             </div>
 
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
                     <thead>
                         <tr>
                             <th className="center" style={{ width: "6%" }}>日付</th>
@@ -247,6 +248,7 @@ function DokoEngoForm({ data, form }: FormProps) {
                 <div className="box col-span-3 p-1 small">受給者証番号</div>
                 <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
                 <div className="box col-span-4 p-1 small">事業者及びその事業所</div>
+                <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
 
                 <div className="box col-span-3 p-1 small">年月</div>
                 <div className="box col-span-3 p-1 small center">{data.month}</div>
@@ -255,7 +257,7 @@ function DokoEngoForm({ data, form }: FormProps) {
             </div>
 
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
                     <thead>
                         <tr>
                             <th className="center" style={{ width: "6%" }}>日付</th>
@@ -296,6 +298,7 @@ function JudoHommonForm({ data, form }: FormProps) {
                 <div className="box col-span-3 p-1 small">受給者証番号</div>
                 <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
                 <div className="box col-span-4 p-1 small">事業所番号／事業所名</div>
+                <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
 
                 <div className="box col-span-3 p-1 small">年月</div>
                 <div className="box col-span-3 p-1 small center">{data.month}</div>
@@ -304,7 +307,7 @@ function JudoHommonForm({ data, form }: FormProps) {
             </div>
 
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
                     <thead>
                         <tr>
                             <th className="center" style={{ width: "6%" }}>日付</th>
@@ -356,7 +359,7 @@ function IdoShienForm({ data, form }: FormProps) {
             {/* ヘッダ（PDFの項目を網羅） */}
             {/* ヘッダ（PDFの3行構造：⑥・⑤対応） */}
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
                     <colgroup>
                         <col style={{ width: "30%" }} />
                         <col style={{ width: "40%" }} />
@@ -452,116 +455,113 @@ function IdoShienForm({ data, form }: FormProps) {
             </div>
 
             {/* 明細（PDFの列を再現：計画/提供/内訳/片道/提供者/利用形態/負担額/確認欄） */}
+            {/* 明細（②：1項目=1列、31行。④：利用者確認欄を追加） */}
             <div className="mt-2">
-                <table className="grid">
+                <table className="grid ido-grid">
+                    <colgroup>
+                        <col style={{ width: "5%" }} />  {/* 日付 */}
+                        <col style={{ width: "6%" }} />  {/* 曜日 */}
+
+                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 開始 */}
+                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 終了 */}
+                        <col style={{ width: "4%" }} />  {/* 計画 サービス提供 分 */}
+
+                        <col style={{ width: "6%" }} />  {/* 計画 控除 開始 */}
+                        <col style={{ width: "6%" }} />  {/* 計画 控除 終了 */}
+                        <col style={{ width: "4%" }} />  {/* 計画 控除 分 */}
+
+                        <col style={{ width: "5%" }} />  {/* 計画時間(分) */}
+                        <col style={{ width: "5%" }} />  {/* 内訳 不可欠 */}
+                        <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
+
+                        <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
+                        <col style={{ width: "6%" }} />  {/* 片道支援加算 */}
+                        <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
+
+                        <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
+                        <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
+                        <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
+                    </colgroup>
+
                     <thead>
-                        {/* 1段目 */}
                         <tr>
-                            <th className="center" rowSpan={4} style={{ width: "5%" }}>日付</th>
-                            <th className="center" rowSpan={4} style={{ width: "5%" }}>曜</th>
+                            <th className="center" rowSpan={3}>日付</th>
+                            <th className="center" rowSpan={3}>曜日</th>
 
-                            {/* ①：移動支援計画の中に 4項目 */}
-                            <th className="center" colSpan={9}>移動支援計画</th>
+                            <th className="center" colSpan={11}>移動支援計画</th>
 
-                            {/* ②：算定時間の隣は 利用形態を削除し、片道→負担額の順に */}
-                            <th className="center" rowSpan={4} style={{ width: "7%" }}>算定時間(時間)</th>
-                            <th className="center" rowSpan={4} style={{ width: "7%" }}>片道支援加算</th>
-                            <th className="center" rowSpan={4} style={{ width: "7%" }}>利用者負担額</th>
+                            <th className="center" rowSpan={3}>算定時間(時間)</th>
+                            <th className="center" rowSpan={3}>片道支援加算</th>
+                            <th className="center" rowSpan={3}>利用者負担額</th>
 
-                            {/* ③：負担額の隣に サービス提供時間（その下にサービス提供→開始/終了） */}
-                            <th className="center" colSpan={2} style={{ width: "12%" }}>サービス提供時間</th>
+                            <th className="center" colSpan={2}>サービス提供時間</th>
+                            <th className="center" rowSpan={3}>利用者確認欄</th>
                         </tr>
 
-                        {/* 2段目 */}
                         <tr>
                             <th className="center" colSpan={3}>サービス提供</th>
                             <th className="center" colSpan={3}>控除</th>
-                            <th className="center" rowSpan={3}>計画時間(分)</th>
+                            <th className="center" rowSpan={2}>計画時間(分)</th>
                             <th className="center" colSpan={2}>内訳(分)</th>
 
                             <th className="center" colSpan={2}>サービス提供</th>
                         </tr>
 
-                        {/* 3段目 */}
                         <tr>
-                            <th className="center" rowSpan={2}>開始時刻</th>
-                            <th className="center" rowSpan={2}>終了時刻</th>
-                            <th className="center" rowSpan={2}>分</th>
+                            <th className="center">開始時刻</th>
+                            <th className="center">終了時刻</th>
+                            <th className="center">分</th>
 
-                            <th className="center" rowSpan={2}>開始時刻</th>
-                            <th className="center" rowSpan={2}>終了時刻</th>
-                            <th className="center" rowSpan={2}>分</th>
+                            <th className="center">開始時刻</th>
+                            <th className="center">終了時刻</th>
+                            <th className="center">分</th>
 
-                            <th className="center" rowSpan={2}>不可欠</th>
-                            <th className="center" rowSpan={2}>その他</th>
+                            <th className="center">不可欠</th>
+                            <th className="center">その他</th>
 
-                            <th className="center" rowSpan={2}>開始時刻</th>
-                            <th className="center" rowSpan={2}>終了時刻</th>
+                            <th className="center">開始時刻</th>
+                            <th className="center">終了時刻</th>
                         </tr>
-
-                        {/* 4段目（rowSpanで埋まるので空でOK） */}
-                        <tr />
                     </thead>
 
                     <tbody>
-                        {Array.from({ length: 20 }).map((_, i) => (
+                        {Array.from({ length: 31 }).map((_, i) => (
                             <tr key={i}>
-                                {/* 日付 / 曜 */}
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* 日付 */}
+                                <td>&nbsp;</td> {/* 曜日 */}
 
-                                {/* 移動支援計画：サービス提供（開始/終了/分） */}
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* 計画 サービス提供 開始 */}
+                                <td>&nbsp;</td> {/* 計画 サービス提供 終了 */}
+                                <td>&nbsp;</td> {/* 計画 サービス提供 分 */}
 
-                                {/* 移動支援計画：控除（開始/終了/分） */}
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* 計画 控除 開始 */}
+                                <td>&nbsp;</td> {/* 計画 控除 終了 */}
+                                <td>&nbsp;</td> {/* 計画 控除 分 */}
 
-                                {/* 計画時間(分) */}
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* 計画時間(分) */}
+                                <td>&nbsp;</td> {/* 内訳 不可欠 */}
+                                <td>&nbsp;</td> {/* 内訳 その他 */}
 
-                                {/* 内訳(分)：不可欠/その他 */}
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* 算定時間(時間) */}
+                                <td>&nbsp;</td> {/* 片道支援加算 */}
+                                <td>&nbsp;</td> {/* 利用者負担額 */}
 
-                                {/* 算定時間(時間) */}
-                                <td>&nbsp;</td>
-
-                                {/* 片道支援加算 */}
-                                <td>&nbsp;</td>
-
-                                {/* 利用者負担額 */}
-                                <td>&nbsp;</td>
-
-                                {/* サービス提供時間（開始/終了） */}
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                <td>&nbsp;</td> {/* サービス提供時間 開始 */}
+                                <td>&nbsp;</td> {/* サービス提供時間 終了 */}
+                                <td>&nbsp;</td> {/* 利用者確認欄 */}
                             </tr>
                         ))}
-                        {/* ⑤ 合計行（列ごとに合計欄を配置） */}
+
+                        {/* 合計行（既に入れている場合は、列数を17に合わせてください） */}
                         <tr>
                             <td className="center" colSpan={8}><b>合計</b></td>
-
-                            {/* 計画時間(分) */}
                             <td className="right"><b>{sumPlanMin}</b></td>
-
-                            {/* 内訳(分)：不可欠/その他 */}
                             <td className="right"><b>{sumUphitMin}</b></td>
                             <td className="right"><b>{sumOtherMin}</b></td>
-
-                            {/* 算定時間(時間) */}
                             <td className="right"><b>{sumSanteiHour}</b></td>
-
-                            {/* 片道支援加算 */}
                             <td className="right"><b>{sumKatamichi}</b></td>
-
-                            {/* 利用者負担額 */}
                             <td className="right"><b>{sumFutan}</b></td>
-
-                            {/* サービス提供時間（開始/終了）は合計不要：空欄 */}
+                            <td>&nbsp;</td>
                             <td>&nbsp;</td>
                             <td>&nbsp;</td>
                         </tr>

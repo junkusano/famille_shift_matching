@@ -68,12 +68,12 @@ export async function GET(req: NextRequest) {
     // 利用者名（取得元はプロジェクトの実テーブルに合わせて調整）
     // 例：kaipoke_cs テーブルがある想定。無ければ disability_check_view などから拾う。
     const { data: cs } = await supabaseAdmin
-        .from("kaipoke_cs")
+        .from("cs_kaipoke_info")
         .select("kaipoke_cs_id,name")
         .eq("kaipoke_cs_id", kaipoke_cs_id)
         .maybeSingle();
 
-    const client_name = cs?.name ?? kaipoke_cs_id;
+    const client_name = cs?.name ?? ""; // 見つからなければ空でOK（IDはどこにも入れない）
 
     // シフト取得（テーブル名が shift / shifts どちらかはプロジェクトに合わせて調整）
     const { data: shifts, error } = await supabaseAdmin
