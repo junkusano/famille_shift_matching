@@ -428,9 +428,8 @@ async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string): 
     .order("updated_at", { ascending: false })
     .limit(Math.max(1, params.samplePerDocType || 30));
 
-  const q = params.mode === "incremental" ? base.gte("updated_at", since) : base;
-
-  const { data, error } = await q;
+  // ルール生成の材料は「直近N件」を常に使う（windowに縛らない）
+  const { data, error } = await base;
   if (error) throw error;
   return (data || []) as CsDocRow[];
 }
@@ -536,7 +535,7 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
     const { error } = await supabase
       .from("user_doc_master")
       .update({
-        judge_logics: safeJsonStringify(judge),
+        judge_logics: judge,
         updated_at: nowIso(),
       })
       .eq("id", docTypeId);
