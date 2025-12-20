@@ -161,7 +161,7 @@ async function callLLM(params: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
+    body: safeJsonStringify({
       model,
       temperature: 0.2,
       response_format: { type: "json_object" },
@@ -415,8 +415,8 @@ async function fetchDocTypeMaster(docTypeIds: string[]) {
 async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string): Promise<CsDocRow[]> {
   const supabase = getSupabaseAdmin();
 
-  const windowHours = Math.max(1, params.windowHours || 1);
-  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+  //const windowHours = Math.max(1, params.windowHours || 1);
+  //const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
   const base = supabase
     .from("cs_docs")
