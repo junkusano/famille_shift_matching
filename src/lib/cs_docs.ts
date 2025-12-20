@@ -164,20 +164,21 @@ export async function updateCsDocAndSync(input: UpdateCsDocInput): Promise<CsDoc
   if (input.prev_kaipoke_cs_id) targets.add(input.prev_kaipoke_cs_id);
   if (input.kaipoke_cs_id) targets.add(input.kaipoke_cs_id);
 
-  const preferredDate =  updated.applicable_date ?? updated.doc_date_raw ?? input.doc_date_raw ?? null;
+  const preferredDate = updated.applicable_date ?? updated.doc_date_raw ?? input.doc_date_raw ?? null;
+
+  const syncUrl = updated.url ?? input.url ?? null;
 
   await Promise.all(
     [...targets].map((kaipokeId) =>
       syncCsDocToKaipokeDocuments({
         kaipoke_cs_id: kaipokeId,
-        url: input.url,
+        url: syncUrl,
         doc_name: input.doc_name,
         doc_date_raw: preferredDate,
-      }).catch(() => {
-        // 同期失敗しても cs_docs 更新は成功扱い（ログはAPI側で出す）
-      })
+      }).catch(() => { })
     )
   );
+
 
   return updated as CsDocRow;
 }
