@@ -24,6 +24,7 @@ const NOTE_S_ID = 'a451ae95-da09-4323-8a58-7416bb373b5d'
 ========================= */
 type ItemDefRow = {
   id: string
+  l_id: string | null
   s_id: string | null
   code: string
   label: string
@@ -36,8 +37,25 @@ type ItemDefRow = {
 }
 
 /* =========================
+   category 型（必要分だけ）
+========================= */
+type CategoryLRow = {
+  id: string
+  name: string
+  sort_order: number
+  active: boolean
+}
+
+type CategorySRow = {
+  id: string
+  l_id: string
+  name: string
+  sort_order: number
+  active: boolean
+}
+
+/* =========================
    users API 型（必要分だけ）
-   /api/users は user_entry_united_view_single を返す
 ========================= */
 type UserUnitedRow = {
   user_id: string
@@ -112,19 +130,16 @@ function safeObj(u: unknown): Record<string, unknown> | null {
 function mapValueToLabel(def: ItemDefRow, raw: string): string {
   const rawStr = raw.trim()
 
-  // meta_json 優先で value_map / map
   const meta = safeObj(def.meta_json)
   const metaMap =
     (meta?.value_map as Record<string, unknown> | undefined) ??
     (meta?.map as Record<string, unknown> | undefined)
-
   if (metaMap && typeof metaMap === 'object') {
     const hit = metaMap[rawStr]
     if (typeof hit === 'string') return hit
     if (hit != null) return String(hit)
   }
 
-  // options.map
   const opt = safeObj(def.options)
   const optMap = opt?.map as Record<string, unknown> | undefined
   if (optMap && typeof optMap === 'object') {
@@ -133,12 +148,10 @@ function mapValueToLabel(def: ItemDefRow, raw: string): string {
     if (hit != null) return String(hit)
   }
 
-  // options.items / choices / options
   const arr =
     (opt?.items as unknown[] | undefined) ??
     (opt?.choices as unknown[] | undefined) ??
     (opt?.options as unknown[] | undefined)
-
   if (Array.isArray(arr)) {
     for (const it of arr) {
       const o = safeObj(it)
@@ -151,7 +164,12 @@ function mapValueToLabel(def: ItemDefRow, raw: string): string {
   return rawStr
 }
 
-function formatItem(def: ItemDefRow, valueText: string | null): string | null {
+/**
+ * item の本文（カテゴリ名は付けない）
+ * - checkbox: チェックされていれば「項目名だけ」
+ * - select/number/text: 「項目名: 値」
+ */
+function formatItemBody(def: ItemDefRow, valueText: string | null): string | null {
   const v = (valueText ?? '').trim()
 
   if (def.input_type === 'checkbox') {
@@ -168,40 +186,100 @@ function formatItem(def: ItemDefRow, valueText: string | null): string | null {
     return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ''}`
   }
 
-  // text / textarea / display など
   return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ''}`
-}
-
-function buildContentAndNote(
-  items: ItemRow[],
-  defMap: Map<string, ItemDefRow>,
-): { content: string; note: string } {
-  const contentParts: Array<{ sort: number; text: string }> = []
-  const noteParts: Array<{ sort: number; text: string }> = []
-
-  for (const it of items) {
-    const def = defMap.get(it.item_def_id)
-    if (!def) continue
-
-    const text = formatItem(def, it.value_text)
-    if (!text) continue
-
-    const bucket = def.s_id === NOTE_S_ID ? noteParts : contentParts
-    bucket.push({ sort: def.sort_order ?? 1000, text })
-  }
-
-  contentParts.sort((a, b) => a.sort - b.sort || a.text.localeCompare(b.text))
-  noteParts.sort((a, b) => a.sort - b.sort || a.text.localeCompare(b.text))
-
-  return {
-    content: contentParts.map((x) => x.text).join(' / '),
-    note: noteParts.map((x) => x.text).join('\n'),
-  }
 }
 
 function buildUserName(u: UserUnitedRow): string {
   const name = `${u.last_name_kanji ?? ''}${u.first_name_kanji ?? ''}`.trim()
   return name || u.user_id
+}
+
+/**
+ * 大項目・小項目名を付けて出力
+ * 例）生活・清掃: 居室 / トイレ / 台所
+ * 例）身体: 見守り / 体温: 36.3 ℃
+ * 例）特記・ご様子・変化: その他・ご様子等: xxxx（＝NOTE_S_ID は特記事項へ）
+ */
+function buildContentAndNoteWithCategories(params: {
+  items: ItemRow[]
+  defMap: Map<string, ItemDefRow>
+  lMap: Map<string, CategoryLRow>
+  sMap: Map<string, CategorySRow>
+}): { content: string; note: string } {
+  const { items, defMap, lMap, sMap } = params
+
+  type GroupKey = string // `${l_id ?? ''}|${s_id ?? ''}`
+  type Group = {
+    l_id: string | null
+    s_id: string | null
+    l_sort: number
+    s_sort: number
+    label: string
+    parts: Array<{ sort: number; text: string }>
+  }
+
+  const contentGroups = new Map<GroupKey, Group>()
+  const noteGroups = new Map<GroupKey, Group>()
+
+  const getGroup = (bucket: Map<GroupKey, Group>, def: ItemDefRow): Group => {
+    const lId = def.l_id
+    const sId = def.s_id
+    const key = `${lId ?? ''}|${sId ?? ''}`
+
+    const existing = bucket.get(key)
+    if (existing) return existing
+
+    const l = lId ? lMap.get(lId) : undefined
+    const s = sId ? sMap.get(sId) : undefined
+
+    const lName = l?.name ?? ''
+    const sName = s?.name ?? ''
+
+    const label =
+      lName && sName ? `${lName}・${sName}` : lName ? lName : sName ? sName : '（未分類）'
+
+    const g: Group = {
+      l_id: lId,
+      s_id: sId,
+      l_sort: l?.sort_order ?? 9999,
+      s_sort: s?.sort_order ?? 9999,
+      label,
+      parts: [],
+    }
+    bucket.set(key, g)
+    return g
+  }
+
+  for (const it of items) {
+    const def = defMap.get(it.item_def_id)
+    if (!def) continue
+
+    const body = formatItemBody(def, it.value_text)
+    if (!body) continue
+
+    const isNote = def.s_id === NOTE_S_ID
+    const bucket = isNote ? noteGroups : contentGroups
+    const g = getGroup(bucket, def)
+    g.parts.push({ sort: def.sort_order ?? 1000, text: body })
+  }
+
+  const render = (groups: Map<GroupKey, Group>, joiner: ' / ' | '\n') => {
+    const list = Array.from(groups.values())
+      .map((g) => {
+        g.parts.sort((a, b) => a.sort - b.sort || a.text.localeCompare(b.text))
+        const texts = g.parts.map((x) => x.text).join(' / ')
+        return { l_sort: g.l_sort, s_sort: g.s_sort, line: `${g.label}: ${texts}` }
+      })
+      .filter((x) => x.line.trim() !== ':')
+      .sort((a, b) => a.l_sort - b.l_sort || a.s_sort - b.s_sort || a.line.localeCompare(b.line))
+
+    return list.map((x) => x.line).join(joiner)
+  }
+
+  return {
+    content: render(contentGroups, ' / '),
+    note: render(noteGroups, '\n'),
+  }
 }
 
 /* =========================
@@ -217,6 +295,8 @@ export default function ShiftRecordMonthlyViewPage() {
   const [rows, setRows] = useState<ShiftShiftRecordRow[]>([])
   const [detailMap, setDetailMap] = useState<Map<number, { content: string; note: string }>>(new Map())
   const [defMap, setDefMap] = useState<Map<string, ItemDefRow>>(new Map())
+  const [lMap, setLMap] = useState<Map<string, CategoryLRow>>(new Map())
+  const [sMap, setSMap] = useState<Map<string, CategorySRow>>(new Map())
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map())
 
   const [loading, setLoading] = useState(false)
@@ -230,26 +310,52 @@ export default function ShiftRecordMonthlyViewPage() {
     return `${clientName} 様　${y}年${Number(m)}月分　サービスご提供実績`
   }, [rows, month])
 
-  // ① item_defs 読み込み（1回）
+  // ① item_defs + category L/S 読み込み（1回）
   useEffect(() => {
     let mounted = true
+
     const run = async () => {
       try {
-        const { data, error } = await supabase
+        // item_defs
+        const defsRes = await supabase
           .from('shift_record_item_defs')
-          .select('id,s_id,code,label,input_type,unit,sort_order,active,options,meta_json')
+          .select('id,l_id,s_id,code,label,input_type,unit,sort_order,active,options,meta_json')
           .eq('active', true)
+        if (defsRes.error) throw defsRes.error
 
-        if (error) throw error
+        const dm = new Map<string, ItemDefRow>()
+        ;(defsRes.data ?? []).forEach((r: ItemDefRow) => dm.set(r.id, r))
 
-        const m = new Map<string, ItemDefRow>()
-        ;(data ?? []).forEach((r: ItemDefRow) => m.set(r.id, r))
-        if (mounted) setDefMap(m)
+        // category_l
+        const lRes = await supabase
+          .from('shift_record_category_l')
+          .select('id,name,sort_order,active')
+          .eq('active', true)
+        if (lRes.error) throw lRes.error
+
+        const lm = new Map<string, CategoryLRow>()
+        ;(lRes.data ?? []).forEach((r: CategoryLRow) => lm.set(r.id, r))
+
+        // category_s
+        const sRes = await supabase
+          .from('shift_record_category_s')
+          .select('id,l_id,name,sort_order,active')
+          .eq('active', true)
+        if (sRes.error) throw sRes.error
+
+        const sm = new Map<string, CategorySRow>()
+        ;(sRes.data ?? []).forEach((r: CategorySRow) => sm.set(r.id, r))
+
+        if (!mounted) return
+        setDefMap(dm)
+        setLMap(lm)
+        setSMap(sm)
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'item defs の取得に失敗しました'
+        const msg = e instanceof Error ? e.message : 'マスタ取得に失敗しました'
         if (mounted) setErrMsg(msg)
       }
     }
+
     run()
     return () => {
       mounted = false
@@ -285,7 +391,6 @@ export default function ShiftRecordMonthlyViewPage() {
         arr.forEach((u) => m.set(u.user_id, buildUserName(u)))
         if (mounted) setUserMap(m)
       } catch (e) {
-        // users は必須ではないので、落とさずにログだけ
         console.error('[shift-record-view] users load failed', e)
       }
     }
@@ -295,7 +400,7 @@ export default function ShiftRecordMonthlyViewPage() {
     }
   }, [])
 
-  // ③ 一覧＋詳細（defMap が揃ってから）
+  // ③ 一覧＋詳細（マスタ揃ってから）
   useEffect(() => {
     let mounted = true
 
@@ -313,7 +418,6 @@ export default function ShiftRecordMonthlyViewPage() {
       try {
         const { from, to } = monthToRange(month)
 
-        // View 一発取得（利用者×月）
         const list = await fetchShiftShiftRecords(supabase, {
           kaipokeCsId: kaipoke_cs_id,
           fromDate: from,
@@ -323,13 +427,19 @@ export default function ShiftRecordMonthlyViewPage() {
         if (!mounted) return
         setRows(list)
 
-        // items（shift_idごと）
         const entries = await Promise.all(
           list.map(async (r) => {
             try {
               await fetchShiftRecord(r.shift_id)
               const itemsRes = await fetchRecordItemsByShiftId(r.shift_id)
-              const built = buildContentAndNote(itemsRes.items ?? [], defMap)
+
+              const built = buildContentAndNoteWithCategories({
+                items: itemsRes.items ?? [],
+                defMap,
+                lMap,
+                sMap,
+              })
+
               return [r.shift_id, built] as const
             } catch {
               return [r.shift_id, { content: '', note: '' }] as const
@@ -349,24 +459,20 @@ export default function ShiftRecordMonthlyViewPage() {
       }
     }
 
-    if (defMap.size > 0) run()
+    if (defMap.size > 0 && lMap.size > 0 && sMap.size > 0) run()
 
     return () => {
       mounted = false
     }
-  }, [kaipoke_cs_id, month, defMap])
+  }, [kaipoke_cs_id, month, defMap, lMap, sMap])
 
   return (
     <div className="p-4 print:p-0">
-      {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{title}</h1>
           <div className="text-sm text-muted-foreground mt-1">
             事業所名：ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知事業所
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            表示URL: ?kaipoke_cs_id=XXXX&amp;month=YYYY-MM
           </div>
         </div>
 
@@ -384,12 +490,10 @@ export default function ShiftRecordMonthlyViewPage() {
         </div>
       )}
 
-      {/* Table */}
       <div className="border rounded bg-white overflow-x-auto">
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr className="bg-muted">
-              {/* 幅調整：実施内容と特記事項を同幅＆広め。他は必要最小限 */}
               <th className="border p-2 w-[110px]">日付</th>
               <th className="border p-2 w-[130px]">サービス提供時間</th>
               <th className="border p-2 w-[50px]">分</th>
@@ -426,18 +530,15 @@ export default function ShiftRecordMonthlyViewPage() {
                 const detail = detailMap.get(r.shift_id)
                 const status = statusLabel(r.record_status)
 
-                // ★ここが修正：user_id → 氏名
                 const staffId = r.staff_01_user_id ?? ''
                 const staffName = staffId ? userMap.get(staffId) ?? staffId : '（未設定）'
 
                 return (
                   <tr key={r.shift_id}>
                     <td className="border p-2 align-top">{formatDateJP(r.shift_start_date)}</td>
-
                     <td className="border p-2 align-top">
                       {start} ～ {end}
                     </td>
-
                     <td className="border p-2 align-top text-center">{mins}</td>
 
                     <td className="border p-2 align-top">
@@ -447,11 +548,8 @@ export default function ShiftRecordMonthlyViewPage() {
                       </div>
                     </td>
 
-                    {/* ここは現状どおり（viewが身体/家事を返してる想定） */}
                     <td className="border p-2 align-top">{r.service_code ?? ''}</td>
-
                     <td className="border p-2 align-top whitespace-pre-wrap">{detail?.content ?? ''}</td>
-
                     <td className="border p-2 align-top whitespace-pre-wrap">{detail?.note ?? ''}</td>
                   </tr>
                 )
