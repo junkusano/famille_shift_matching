@@ -170,24 +170,48 @@ function mapValueToLabel(def: ItemDefRow, raw: string): string {
  * - select/number/text: 「項目名: 値」
  */
 function formatItemBody(def: ItemDefRow, valueText: string | null): string | null {
-  const v = (valueText ?? '').trim()
+  const v = (valueText ?? "").trim()
 
-  if (def.input_type === 'checkbox') {
-    return isCheckedValue(v) ? def.label : null
+  // ★ JSON配列（複数選択）を先に吸収
+  const arr = v ? parseJsonStringArrayMaybe(v) : null
+
+  // checkbox
+  if (def.input_type === "checkbox") {
+    // 既存：単一チェック
+    if (arr === null) {
+      return isCheckedValue(v) ? def.label : null
+    }
+    // ★ 追加：配列が来たら「項目名: ラベル1 / ラベル2」
+    const mapped = arr.map((x) => mapValueToLabel(def, x)).filter(Boolean)
+    if (mapped.length === 0) return null
+    return `${def.label}: ${mapped.join(" / ")}`
   }
-  if (!v) return null
 
-  if (def.input_type === 'select') {
+  // select
+  if (def.input_type === "select") {
+    if (!v) return null
+    if (arr !== null) {
+      // ★ 追加：複数選択
+      const mapped = arr.map((x) => mapValueToLabel(def, x)).filter(Boolean)
+      const text = mapped.join(" / ")
+      return `${def.label}: ${text}${def.unit ? ` ${def.unit}` : ""}`
+    }
+    // 既存：単一選択
     const mapped = mapValueToLabel(def, v)
-    return `${def.label}: ${mapped}${def.unit ? ` ${def.unit}` : ''}`
+    return `${def.label}: ${mapped}${def.unit ? ` ${def.unit}` : ""}`
   }
 
-  if (def.input_type === 'number') {
-    return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ''}`
+  // number
+  if (def.input_type === "number") {
+    if (!v) return null
+    return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ""}`
   }
 
-  return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ''}`
+  // text / textarea / display など
+  if (!v) return null
+  return `${def.label}: ${v}${def.unit ? ` ${def.unit}` : ""}`
 }
+
 
 function buildUserName(u: UserUnitedRow): string {
   const name = `${u.last_name_kanji ?? ''}${u.first_name_kanji ?? ''}`.trim()
@@ -282,6 +306,20 @@ function buildContentAndNoteWithCategories(params: {
   }
 }
 
+function parseJsonStringArrayMaybe(v: string): string[] | null {
+  const s = v.trim()
+  if (!(s.startsWith("[") && s.endsWith("]"))) return null
+  try {
+    const parsed: unknown = JSON.parse(s)
+    if (!Array.isArray(parsed)) return null
+    const arr = parsed.filter((x) => typeof x === "string") as string[]
+    return arr.length > 0 ? arr : []
+  } catch {
+    return null
+  }
+}
+
+
 /* =========================
    Page
 ========================= */
@@ -324,7 +362,7 @@ export default function ShiftRecordMonthlyViewPage() {
         if (defsRes.error) throw defsRes.error
 
         const dm = new Map<string, ItemDefRow>()
-        ;(defsRes.data ?? []).forEach((r: ItemDefRow) => dm.set(r.id, r))
+          ; (defsRes.data ?? []).forEach((r: ItemDefRow) => dm.set(r.id, r))
 
         // category_l
         const lRes = await supabase
@@ -334,7 +372,7 @@ export default function ShiftRecordMonthlyViewPage() {
         if (lRes.error) throw lRes.error
 
         const lm = new Map<string, CategoryLRow>()
-        ;(lRes.data ?? []).forEach((r: CategoryLRow) => lm.set(r.id, r))
+          ; (lRes.data ?? []).forEach((r: CategoryLRow) => lm.set(r.id, r))
 
         // category_s
         const sRes = await supabase
@@ -344,7 +382,7 @@ export default function ShiftRecordMonthlyViewPage() {
         if (sRes.error) throw sRes.error
 
         const sm = new Map<string, CategorySRow>()
-        ;(sRes.data ?? []).forEach((r: CategorySRow) => sm.set(r.id, r))
+          ; (sRes.data ?? []).forEach((r: CategorySRow) => sm.set(r.id, r))
 
         if (!mounted) return
         setDefMap(dm)
@@ -373,18 +411,18 @@ export default function ShiftRecordMonthlyViewPage() {
 
         const arr: UserUnitedRow[] = Array.isArray(raw)
           ? raw
-              .map((x) => {
-                if (typeof x !== 'object' || x === null) return null
-                const o = x as Record<string, unknown>
-                const user_id = typeof o.user_id === 'string' ? o.user_id : ''
-                if (!user_id) return null
-                return {
-                  user_id,
-                  last_name_kanji: typeof o.last_name_kanji === 'string' ? o.last_name_kanji : null,
-                  first_name_kanji: typeof o.first_name_kanji === 'string' ? o.first_name_kanji : null,
-                }
-              })
-              .filter((x): x is UserUnitedRow => x !== null)
+            .map((x) => {
+              if (typeof x !== 'object' || x === null) return null
+              const o = x as Record<string, unknown>
+              const user_id = typeof o.user_id === 'string' ? o.user_id : ''
+              if (!user_id) return null
+              return {
+                user_id,
+                last_name_kanji: typeof o.last_name_kanji === 'string' ? o.last_name_kanji : null,
+                first_name_kanji: typeof o.first_name_kanji === 'string' ? o.first_name_kanji : null,
+              }
+            })
+            .filter((x): x is UserUnitedRow => x !== null)
           : []
 
         const m = new Map<string, string>()
