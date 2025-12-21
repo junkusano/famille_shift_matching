@@ -420,19 +420,34 @@ export default function ShiftViewPage() {
       <p className="text-sm text-gray-600 mb-3">過去の実績確認、訪問記録のエラー確認などで活用してください。</p>
 
       {/* フィルター */}
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex justify-end gap-2">
         <Button asChild variant="outline">
           <Link href="/portal/shift-view">フィルターをクリア</Link>
         </Button>
-        {/* ▼ Client が選ばれている時だけ表示 */}
+
+        {/* ▼ Client（kaipoke_cs_id）と月が特定されている時だけ表示 */}
         {qClient && qMonth && (
-          <Button asChild>
-            <Link
-              href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(qClient)}&month=${encodeURIComponent(qMonth)}`}
-            >
-              印刷ビュー
-            </Link>
-          </Button>
+          <>
+            <Button asChild>
+              <Link
+                href={`/portal/roster/monthly/print-view?kaipoke_cs_id=${encodeURIComponent(
+                  qClient
+                )}&month=${encodeURIComponent(qMonth)}`}
+              >
+                印刷ビュー
+              </Link>
+            </Button>
+
+            <Button asChild variant="secondary">
+              <Link
+                href={`/portal/roster/monthly/shift-record-view?kaipoke_cs_id=${encodeURIComponent(
+                  qClient
+                )}&month=${encodeURIComponent(qMonth)}`}
+              >
+                訪問記録印刷
+              </Link>
+            </Button>
+          </>
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 items-end">
