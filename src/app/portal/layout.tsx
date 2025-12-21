@@ -159,7 +159,8 @@ export default function PortalLayout({ children }: Props) {
 
   const pathname = usePathname();
   const hideAlertBar =
-    pathname?.startsWith("/portal/roster/monthly/print-view") ?? false;
+    (pathname?.startsWith("/portal/roster/monthly/print-view") ||
+      pathname?.startsWith("/portal/roster/monthly/shift-record-view")) ?? false;
 
   // PC向け：左メニュー折りたたみ
   const [isCollapsed, setIsCollapsed] = useState(false);

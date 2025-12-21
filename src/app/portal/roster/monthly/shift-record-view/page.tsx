@@ -104,7 +104,7 @@ function monthToRange(yyyyMM: string): { from: string; to: string } {
   const to = `${yStr}-${mStr}-${pad2(last)}`
   return { from, to }
 }
-
+/*
 function statusLabel(recordStatus: string | null) {
   switch (recordStatus) {
     case 'approved':
@@ -116,7 +116,7 @@ function statusLabel(recordStatus: string | null) {
       return '未作成'
   }
 }
-
+*/
 function isCheckedValue(v: string | null): boolean {
   const s = (v ?? '').trim().toLowerCase()
   return s === '1' || s === 'true' || s === 'on' || s === 'yes'
@@ -528,7 +528,7 @@ export default function ShiftRecordMonthlyViewPage() {
                 const mins = start && end ? diffMinutes(start, end) : ''
 
                 const detail = detailMap.get(r.shift_id)
-                const status = statusLabel(r.record_status)
+                //const status = statusLabel(r.record_status)
 
                 const staffId = r.staff_01_user_id ?? ''
                 const staffName = staffId ? userMap.get(staffId) ?? staffId : '（未設定）'
@@ -544,7 +544,6 @@ export default function ShiftRecordMonthlyViewPage() {
                     <td className="border p-2 align-top">
                       <div className="leading-snug">
                         <div>{staffName}</div>
-                        <div className="text-[11px] text-muted-foreground mt-1">{status}</div>
                       </div>
                     </td>
 
