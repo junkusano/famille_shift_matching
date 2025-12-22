@@ -459,32 +459,24 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
 
                             <td className="small" colSpan={10} style={{ padding: 0 }}>
+                                {/* 左：2行ラベル／右：氏名欄（1枠） */}
                                 <div
                                     style={{
                                         display: "grid",
-                                        gridTemplateColumns: "45% 55%", // 左：ラベル / 右：氏名欄
-                                        gridTemplateRows: "1fr 1fr",
-                                        height: "100%",
+                                        gridTemplateColumns: "38% 62%", // 左ラベル列／右入力列（好みで微調整OK）
+                                        height: "32px",                // 2行分の高さに固定（必要なら微調整）
                                     }}
                                 >
-                                    {/* 左：2行ラベル（右側に縦線＝右カラムとの境界） */}
+                                    {/* 左列：2行ラベル */}
                                     <div style={{ borderRight: "1px solid #000" }}>
                                         <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
-                                            支給決定者（保護者）氏名
+                                            支給決定者(保護者)氏名
                                         </div>
                                         <div style={{ padding: "2px 4px" }}>（児童氏名）</div>
                                     </div>
 
-                                    {/* 右：名前欄（2行ぶんの高さを使うが、区切り線なし＝“1行扱い”） */}
-                                    <div
-                                        style={{
-                                            gridRow: "1 / span 2",
-                                            padding: "2px 6px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            whiteSpace: "pre-wrap",
-                                        }}
-                                    >
+                                    {/* 右列：氏名（1枠、2行分の高さだが分割しない） */}
+                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
                                         {data.client.client_name}
                                     </div>
                                 </div>
