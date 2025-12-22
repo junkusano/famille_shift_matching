@@ -119,7 +119,14 @@ export default function JissekiPrintPage() {
                         {f.formType === "KODO" && <KodoEngoForm data={data} form={f} />}
                         {f.formType === "DOKO" && <DokoEngoForm data={data} form={f} />}
                         {f.formType === "JYUHO" && <JudoHommonForm data={data} form={f} />}
-                        {f.formType === "IDOU" && <IdoShienForm data={data} form={f} />}
+                        {f.formType === "IDOU" && (
+                            <IdoShienForm
+                                data={data}
+                                form={f}
+                                pageNo={idx + 1}
+                                totalPages={data.forms.length}
+                            />
+                        )}
                     </div>
                 ))}
             </div>
@@ -345,7 +352,43 @@ function JudoHommonForm({ data, form }: FormProps) {
     );
 }
 
-function IdoShienForm({ data, form }: FormProps) {
+// 1桁ずつ枠で区切る（10桁など）
+function DigitBoxes({ value = "", length = 10 }: { value?: string; length?: number }) {
+    const digits = (value ?? "").replace(/\D/g, "").padEnd(length, " ").slice(0, length).split("");
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${length}, 1fr)`, height: 18 }}>
+            {digits.map((d, i) => (
+                <div key={i} style={{ borderLeft: i === 0 ? "1px solid #000" : "none", borderRight: "1px solid #000", borderTop: "1px solid #000", borderBottom: "1px solid #000", textAlign: "center", lineHeight: "18px" }}>
+                    {d.trim() ? d : "\u00A0"}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// 斜線セル（右上→左下）
+function DiagCell({ children }: { children?: React.ReactNode }) {
+    return (
+        <td
+            className="diag"
+            style={{
+                position: "relative",
+                backgroundImage: "linear-gradient(to bottom left, transparent 49%, #000 50%, transparent 51%)",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "100% 100%",
+            }}
+        >
+            {children ?? "\u00A0"}
+        </td>
+    );
+}
+
+function IdoShienForm({
+    data,
+    form,
+    pageNo,
+    totalPages,
+}: FormProps & { pageNo: number; totalPages: number }) {
     // ⑤ 合計計算（未入力項目は 0 扱い。後でAPI項目追加したら差し替え）
     const sumPlanMin = (form.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0);
 
@@ -383,6 +426,7 @@ function IdoShienForm({ data, form }: FormProps) {
                         <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
 
                         <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
+                        <col style={{ width: "6%" }} />  {/* 利用形態 */}
                         <col style={{ width: "6%" }} />  {/* 片道支援加算 */}
                         <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
 
@@ -398,88 +442,110 @@ function IdoShienForm({ data, form }: FormProps) {
          ========================= */}
 
                         {/* 1行目：左ブロック(受給者証番号/氏名/事業所番号) + 右ブロック(事業者事業所の名称：3行分) */}
+                        {/* ====== ヘッダ（PDF寄せ）====== */}
+                        {/* 1行目：受給者証番号（左ラベル+縦線+10桁枠）／支給決定者氏名（2段ラベル）／事業所番号（2段ラベル+10桁枠） */}
                         <tr>
-                            <td className="small" colSpan={4}>
-                                受給者証番号
-                                <div className="mt-1">&nbsp;</div>
+                            {/* 受給者証番号：左寄せラベル + 右側縦線 */}
+                            <td className="small" colSpan={4} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: 40 }}>
+                                    <div style={{ padding: "4px", borderRight: "1px solid #000" }}>受給者証番号</div>
+                                    <div style={{ padding: "4px" }}>
+                                        {/* 受給者証番号（10桁） ※実値が無いので空。後でAPIで差し込み */}
+                                        <DigitBoxes value={""} length={10} />
+                                    </div>
+                                </div>
                             </td>
 
-                            {/* 支給決定者(保護者)氏名（児童氏名）＋右に2行分の記入欄 */}
+                            {/* 支給決定者(保護者)氏名 /（児童氏名） */}
                             <td className="small" colSpan={8} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-                                    {/* 左：ラベル（2段） */}
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", height: 40 }}>
                                     <div>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
-                                            支給決定者(保護者)氏名
-                                        </div>
+                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>支給決定者(保護者)氏名</div>
                                         <div style={{ padding: "2px 4px" }}>（児童氏名）</div>
                                     </div>
-
-                                    {/* 右：記入欄（2行分の太さで 1枠） */}
-                                    <div style={{ borderLeft: "1px solid #000" }}>
-                                        <div style={{ padding: "2px 4px", height: "100%" }}>
-                                            {data.client.client_name}
-                                        </div>
+                                    <div style={{ borderLeft: "1px solid #000", padding: "4px" }}>
+                                        {data.client.client_name}
                                     </div>
                                 </div>
                             </td>
 
-                            <td className="small" colSpan={3}>
-                                事業所番号
-                                <div className="mt-1">{OFFICE_NO}</div>
+                            {/* 事業所番号（2段ラベル + 10桁枠） */}
+                            <td className="small" colSpan={3} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 40 }}>
+                                    <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>事業所番号</div>
+                                    <div style={{ padding: "4px" }}>
+                                        <DigitBoxes value={OFFICE_NO} length={10} />
+                                    </div>
+                                </div>
                             </td>
 
-                            {/* 右：事業者事業所の名称（3行分） */}
-                            <td className="small" colSpan={3} rowSpan={3}>
-                                事業者事業所の名称
-                                <div className="mt-1">{OFFICE_NAME}</div>
-                                <div className="mt-1">&nbsp;</div>
-                                <div className="mt-1">&nbsp;</div>
+                            {/* 事業者事業所の名称（左寄せラベル + 縦線 + 右に社名3行） */}
+                            <td className="small" colSpan={3} rowSpan={3} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: "100%" }}>
+                                    <div style={{ padding: "4px", borderRight: "1px solid #000" }}>事業者事業所の名称</div>
+                                    <div style={{ padding: "4px", whiteSpace: "pre-line" }}>
+                                        {OFFICE_NAME.replace("合同会社施恩", "合同会社施恩\n")
+                                            .replace("ファミーユヘルパーサービス", "ファミーユヘルパーサービス\n")}
+                                    </div>
+                                </div>
                             </td>
                         </tr>
 
-                        {/* 2行目：総決定支給量(不可欠/その他) と 契約支給量(不可欠/その他) */}
+                        {/* 2行目：総決定支給量（1枠） + 右隣に2段「不可欠／その他」枠 ／ 契約支給量も同様 */}
                         <tr>
-                            <td className="small" colSpan={4} style={{ padding: 0 }}>
-                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
-                                    総決定支給量（不可欠）
-                                    <div className="mt-1">&nbsp;</div>
-                                </div>
-                                <div style={{ padding: "2px 4px" }}>
-                                    総決定支給量（その他）
-                                    <div className="mt-1">&nbsp;</div>
+                            {/* 総決定支給量（1枠） */}
+                            <td className="small" colSpan={6} style={{ padding: "4px" }}>
+                                総決定支給量
+                            </td>
+
+                            {/* 総決定：不可欠/その他（2段） */}
+                            <td className="small" colSpan={6} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 32 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", borderBottom: "1px solid #000" }}>
+                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>不可欠</div>
+                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr" }}>
+                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>その他</div>
+                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    </div>
                                 </div>
                             </td>
 
-                            <td className="small" colSpan={8} style={{ padding: 0 }}>
-                                <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
-                                    契約支給量（不可欠）
-                                    <div className="mt-1">&nbsp;</div>
-                                </div>
-                                <div style={{ padding: "2px 4px" }}>
-                                    契約支給量（その他）
-                                    <div className="mt-1">&nbsp;</div>
-                                </div>
-                            </td>
-
-                            <td className="small" colSpan={3}>
-                                {/* 右ブロックがrowSpanなので、ここは空でOK */}
-                                &nbsp;
-                            </td>
+                            {/* 右（rowSpanブロックがあるので空でOK） */}
+                            <td className="small" colSpan={3}>&nbsp;</td>
                         </tr>
 
-                        {/* 3行目：月額上限負担額（左側） */}
+                        <tr>
+                            {/* 契約支給量（1枠） */}
+                            <td className="small" colSpan={6} style={{ padding: "4px" }}>
+                                契約支給量
+                            </td>
+
+                            {/* 契約：不可欠/その他（2段） */}
+                            <td className="small" colSpan={6} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 32 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", borderBottom: "1px solid #000" }}>
+                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>不可欠</div>
+                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr" }}>
+                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>その他</div>
+                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td className="small" colSpan={3}>&nbsp;</td>
+                        </tr>
+
+                        {/* 月額上限負担額（PDFにもある） */}
                         <tr>
                             <td className="small" colSpan={12}>
                                 月額上限負担額
                                 <div className="mt-1 right">0円</div>
                             </td>
                             <td className="small" colSpan={3}>&nbsp;</td>
-                        </tr>
-
-                        {/* （ヘッダと明細の間の空白行：見た目調整） */}
-                        <tr>
-                            <td colSpan={18} style={{ border: "none", padding: 0, height: "6px" }} />
                         </tr>
 
                         {/* =========================
@@ -491,6 +557,7 @@ function IdoShienForm({ data, form }: FormProps) {
                             <th className="center" rowSpan={3}>曜日</th>
                             <th className="center" colSpan={9}>移動支援計画</th>
                             <th className="center" rowSpan={3}>算定時間(時間)</th>
+                            <th className="center" rowSpan={3}>利用形態</th>
                             <th className="center" rowSpan={3}>片道支援加算</th>
                             <th className="center" rowSpan={3}>利用者負担額</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
@@ -533,29 +600,46 @@ function IdoShienForm({ data, form }: FormProps) {
 
                         {/* 合計行（列数18に一致させる） */}
                         <tr>
-                            <td className="center" colSpan={8}><b>合計</b></td>
+                            <td className="center" colSpan={2}><b>合計</b></td>
+
+                            {/* 指定の空白セルは斜線にする（後述） */}
+                            <DiagCell /> {/* サービス提供 開始時刻 */}
+                            <DiagCell /> {/* サービス提供 終了時刻 */}
+                            <DiagCell /> {/* サービス提供 分 */}
+                            <DiagCell /> {/* 控除 開始時刻 */}
+                            <DiagCell /> {/* 控除 終了時刻 */}
+                            <DiagCell /> {/* 控除 分 */}
+
                             <td className="right"><b>{sumPlanMin}</b></td>
                             <td className="right"><b>{sumUphitMin}</b></td>
                             <td className="right"><b>{sumOtherMin}</b></td>
+
                             <td className="right"><b>{sumSanteiHour}</b></td>
+                            <DiagCell /> {/* 利用形態（合計行は斜線） */}
                             <td className="right"><b>{sumKatamichi}</b></td>
                             <td className="right"><b>{sumFutan}</b></td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                        </tr>
-                        {/* ★ここに追加：フッタ（合計）も table の中に統合 */}
-                        <tr>
-                            <td className="small" colSpan={18} style={{ padding: "6px 4px" }}>
-                                合計（後で自動計算）
-                            </td>
+
+                            <DiagCell /> {/* サービス提供時間 開始時刻 */}
+                            <DiagCell /> {/* サービス提供時間 終了時刻 */}
+                            <DiagCell /> {/* サービス提供者名 */}
+                            <DiagCell /> {/* 利用者確認欄 */}
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <div className="mt-1 small right">1 / 1</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                <table className="grid" style={{ width: 120, tableLayout: "fixed" }}>
+                    <tbody>
+                        <tr>
+                            <td className="center small">{pageNo}</td>
+                            <td className="center small">枚中</td>
+                            <td className="center small">{totalPages}</td>
+                            <td className="center small">枚</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
