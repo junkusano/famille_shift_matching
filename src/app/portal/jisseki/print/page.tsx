@@ -307,8 +307,8 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
-    const sumFirst = 0;       // 初回加算 回
-    const sumEmergency = 0;   // 緊急時対応加算 回
+// const sumFirst = 0;       // 初回加算 回  ←削除
+// const sumEmergency = 0;   // 緊急時対応加算 回 ←削除
 
     return (
         <div className="formBox p-2">
@@ -449,22 +449,74 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                             </tr>
                         ))}
 
-                        {/* ===== フッタ合計（PDF下部の合計枠イメージ） ===== */}
+                        {/* ===== フッタ合計（3行構成） ===== */}
                         <tr>
-                            <td className="center" colSpan={5}><b>合計</b></td>
-                            <td className="right"><b>{sumPlanHours}</b></td>
-                            <td className="diag">&nbsp;</td>
-                            <td className="diag">&nbsp;</td>
-                            <td className="right"><b>{sumSanteiHours}</b></td>
-                            <td className="diag">&nbsp;</td>
+                            {/* 左側：合計（3行分の厚さ＝rowSpan=3） */}
+                            <td className="center" colSpan={5} rowSpan={3}>
+                                <b>合計</b>
+                            </td>
 
-                            {/* 初回加算・緊急時対応加算（回） */}
-                            <td className="right"><b>{sumFirst}</b></td>
-                            <td className="right"><b>{sumEmergency}</b></td>
+                            {/* 計画時間数（縦2行：上=ラベル、下=数値。3行目は空欄） */}
+                            <td className="small" rowSpan={3} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr 1fr", height: "100%" }}>
+                                    <div className="center" style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                        計画時間数計
+                                    </div>
+                                    <div className="right" style={{ borderBottom: "1px solid #000", padding: "2px 4px", fontWeight: 700 }}>
+                                        {sumPlanHours}
+                                    </div>
+                                    <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                </div>
+                            </td>
 
-                            {/* 利用者確認欄・備考は斜線（PDFの見た目寄せ） */}
-                            <td className="diag">&nbsp;</td>
-                            <td className="diag">&nbsp;</td>
+                            {/* サービス提供時間（縦3行：上=内訳、真ん中=100/90、下=空欄） */}
+                            <td className="center small" colSpan={2}>
+                                内訳（適用単価別）
+                            </td>
+
+                            {/* 算定時間（縦2行：上=ラベル、下=数値。3行目は空欄） */}
+                            <td className="small" rowSpan={3} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr 1fr", height: "100%" }}>
+                                    <div className="center" style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                        算定時間数計
+                                    </div>
+                                    <div className="right" style={{ borderBottom: "1px solid #000", padding: "2px 4px", fontWeight: 700 }}>
+                                        {sumSanteiHours}
+                                    </div>
+                                    <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                </div>
+                            </td>
+
+                            {/* 派遣人数：斜線（3行分） */}
+                            <td className="diag" rowSpan={3}>&nbsp;</td>
+
+                            {/* 初回加算：マスに「回」（3行分） */}
+                            <td className="center" rowSpan={3}>
+                                回
+                            </td>
+
+                            {/* 緊急時対応加算：マスに「回」（3行分） */}
+                            <td className="center" rowSpan={3}>
+                                回
+                            </td>
+
+                            {/* 利用者確認欄：斜線（3行分） */}
+                            <td className="diag" rowSpan={3}>&nbsp;</td>
+
+                            {/* 備考：斜線（3行分） */}
+                            <td className="diag" rowSpan={3}>&nbsp;</td>
+                        </tr>
+
+                        <tr>
+                            {/* サービス提供時間：真ん中行（左右に分割） */}
+                            <td className="center"><b>100%</b></td>
+                            <td className="center"><b>90％</b></td>
+                        </tr>
+
+                        <tr>
+                            {/* サービス提供時間：一番下行（左右空欄） */}
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
                         </tr>
 
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
