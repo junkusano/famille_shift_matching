@@ -65,14 +65,17 @@ export default function JissekiPrintPage() {
             <style jsx global>{`
     @page { size: A4; margin: 6mm; }
     @media print {
-      .no-print { display: none !important; }
-      .page-break { page-break-before: always; }
+  .no-print { display: none !important; }
+  .page-break { page-break-before: always; }
 
-      /* ★追加：印刷時は“帳票エリアだけ”を表示 */
-      body { margin: 0 !important; }
-      .print-only { display: block !important; }
-      .screen-only { display: none !important; }
-    }
+  /* ★ここが重要：印刷時は print-only 以外を見えなくする */
+  body { margin: 0 !important; }
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
+
+  /* 印刷位置を左上に寄せる（余計な余白・ズレ対策） */
+  .print-only { position: absolute; top: 0; left: 0; width: 100%; }
+}
     @media screen {
       .print-only { display: block; }
       .screen-only { display: block; }

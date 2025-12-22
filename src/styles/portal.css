@@ -67,7 +67,8 @@
     overflow-y: auto;
     height: 95%;
     */
-    min-width: 0;   /* ← 超重要 */
+    min-width: 0;
+    /* ← 超重要 */
 }
 
 .user-profile {
@@ -216,103 +217,136 @@
 
 /* === Finder（候補帯）の固定幅 === */
 .finder-fixed {
-  width: 360px;         /* スマホ幅 */
-  max-width: 360px;
-  margin-left: auto;    /* 中央寄せ */
-  margin-right: auto;
+    width: 360px;
+    /* スマホ幅 */
+    max-width: 360px;
+    margin-left: auto;
+    /* 中央寄せ */
+    margin-right: auto;
 }
 
 @media (min-width: 768px) {
-  .finder-fixed {
-    width: 980px;       /* PC幅（必要なら好みで 960/1024 に調整） */
-    max-width: 980px;
-  }
+    .finder-fixed {
+        width: 980px;
+        /* PC幅（必要なら好みで 960/1024 に調整） */
+        max-width: 980px;
+    }
 }
 
 /* === 横スクロール帯（候補カード専用：nowrap 版）=== */
 .shift-rail {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;               /* ← ここがスクロール発生源 */
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    /* ← ここがスクロール発生源 */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable both-edges;
 }
 
 .shift-rail__inner {
-  white-space: nowrap;            /* ← 折り返さない */
+    white-space: nowrap;
+    /* ← 折り返さない */
 }
 
 .shift-rail__item {
-  display: inline-block;          /* ← 横に並べる */
-  vertical-align: top;
-  width: 280px;                   /* ← 1カード幅を固定 */
-  margin-right: 0.75rem;          /* gap相当 */
-  white-space: normal;            /* 子要素は折返しOKに戻す */
+    display: inline-block;
+    /* ← 横に並べる */
+    vertical-align: top;
+    width: 280px;
+    /* ← 1カード幅を固定 */
+    margin-right: 0.75rem;
+    /* gap相当 */
+    white-space: normal;
+    /* 子要素は折返しOKに戻す */
 }
 
 /* 念のため、カード本体がはみ出さない保険 */
-.shift-rail__item > * {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
+.shift-rail__item>* {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
-.content { min-width: 0; }
+.content {
+    min-width: 0;
+}
 
 .alert-count-red {
-  color: red;
-  font-weight: bold;
+    color: red;
+    font-weight: bold;
 }
 
-:root { --sidebar-w: 250px; } /* 左メニューは width:250px 固定なので一致させる:contentReference[oaicite:1]{index=1} */
+:root {
+    --sidebar-w: 250px;
+}
+
+/* 左メニューは width:250px 固定なので一致させる:contentReference[oaicite:1]{index=1} */
 
 /* PCのみ適用 */
 @media (min-width: 768px) {
-  /* 全画面オーバーレイを左メニューぶん避ける（背景/クリック領域用） */
-  .overlay-avoid-sidebar { padding-left: var(--sidebar-w); }
 
-  /* モーダル本体を右へオフセット（中央寄せ解除の代替として margin-left を付与） */
-  .modal-avoid-sidebar { margin-left: var(--sidebar-w); margin-right: auto; }
+    /* 全画面オーバーレイを左メニューぶん避ける（背景/クリック領域用） */
+    .overlay-avoid-sidebar {
+        padding-left: var(--sidebar-w);
+    }
+
+    /* モーダル本体を右へオフセット（中央寄せ解除の代替として margin-left を付与） */
+    .modal-avoid-sidebar {
+        margin-left: var(--sidebar-w);
+        margin-right: auto;
+    }
 }
 
 /* 左メニュー折りたたみ（PC） */
 .portal-collapsed .left-menu {
-  display: none;
+    display: none;
 }
-.portal-collapsed .portal-container .flex-1 {
-  /* 余白があれば詰める */
-}
+
+/* .portal-collapsed .portal-container .flex-1 {
+     余白があれば詰める
+} */
 
 /* 左端ホットゾーン（モバイル） — 最終版 */
 .edge-hotzone {
-position: fixed;
-top: 0;
-left: 0;
-width: 14px; /* 視認しやすい白い細帯（必要なら 8-12px に調整） */
-height: 100dvh; /* iOSのアドレスバー対策。100vh より安全 */
-background: #fff;
-border: none;
-z-index: 120; /* .menu(100) と overlay(90) の上に置く */
-display: none; /* PCでは非表示 */
--webkit-tap-highlight-color: transparent; /* iOSの青いハイライト無効化 */
-touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 14px;
+    /* 視認しやすい白い細帯（必要なら 8-12px に調整） */
+    height: 100dvh;
+    /* iOSのアドレスバー対策。100vh より安全 */
+    background: #fff;
+    border: none;
+    z-index: 120;
+    /* .menu(100) と overlay(90) の上に置く */
+    display: none;
+    /* PCでは非表示 */
+    -webkit-tap-highlight-color: transparent;
+    /* iOSの青いハイライト無効化 */
+    touch-action: manipulation;
+    /* ダブルタップズーム誤作動を抑制 */
 }
+
 @media (max-width: 768px) {
-.edge-hotzone { display: block; }
+    .edge-hotzone {
+        display: block;
+    }
 }
 
 /* === 左端ホットゾーン（サイズ＆色を変えやすく） === */
 :root {
-  --edge-width: 20px;      /* ← 一文字ぶんの目安。必要なら 36px/44px に */
-  /*--edge-color: #fff;      /* 既定色 */
-  --edge-color: #fb923c;   /*ファミーユカラー*/
+    --edge-width: 20px;
+    /* ← 一文字ぶんの目安。必要なら 36px/44px に */
+    /*--edge-color: #fff;      /* 既定色 */
+    --edge-color: #fb923c;
+    /*ファミーユカラー*/
 }
 
 .edge-hotzone {
-  width: var(--edge-width);
-  background: var(--edge-color);
+    width: var(--edge-width);
+    background: var(--edge-color);
 }
 
 /* 色バリエ（お好みでクラスを足すだけ） 
@@ -323,4 +357,45 @@ touch-action: manipulation; /* ダブルタップズーム誤作動を抑制 */
 */
 
 /* （任意）メニュー開いてる時はホットゾーンを消して、オーバーレイ全面タップで閉じられるように */
-.portal-container[data-menu-open="true"] .edge-hotzone { display: none; }
+.portal-container[data-menu-open="true"] .edge-hotzone {
+    display: none;
+}
+
+/* =========================
+   印刷時：帳票（print-only）以外を非表示
+   ========================= */
+@page {
+    size: A4;
+    margin: 6mm;
+}
+
+@media print {
+
+    /* まず全部隠す（ポータル共通の上部アラート等も含めて） */
+    body * {
+        visibility: hidden !important;
+    }
+
+    /* page.tsx 側の印刷領域だけ表示 */
+    .print-only,
+    .print-only * {
+        visibility: visible !important;
+    }
+
+    /* 印刷位置を左上に固定（余白ズレ対策） */
+    .print-only {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+    }
+
+    /* 保険：ポータルUIは強制的に消す */
+    .left-menu,
+    .menu,
+    .hamburger,
+    .edge-hotzone,
+    .no-print {
+        display: none !important;
+    }
+}
