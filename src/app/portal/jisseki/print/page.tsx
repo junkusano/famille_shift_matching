@@ -504,51 +504,66 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
                         </tr>
 
-                        {/* 総決定支給量・契約支給量：各「1枠」＋右隣に「不可欠/その他」2段 */}
+                        {/* 総決定支給量・契約支給量：
+    「(総決定支給量)｜(不可欠/その他が上下2行)」を一体で表現
+*/}
                         <tr>
-                            {/* 総決定支給量：1枠 */}
-                            <td className="small" colSpan={4} style={{ padding: 0 }}>
+                            {/* 総決定支給量：左ラベル（右線）＋右側に不可欠/その他（上下2行） */}
+                            <td className="small" colSpan={8} style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "30% 70%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px", textAlign: "left" }}>総決定支給量</div>
-                                    <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    {/* 左：総決定支給量（右側に縦線） */}
+                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px", textAlign: "left" }}>
+                                        総決定支給量
+                                    </div>
+
+                                    {/* 右：不可欠／その他（上下2行） */}
+                                    <div style={{ padding: 0 }}>
+                                        <div style={{ display: "grid", gridTemplateRows: "1fr 1fr" }}>
+                                            {/* 不可欠 行 */}
+                                            <div style={{ display: "grid", gridTemplateColumns: "40% 60%", borderBottom: "1px solid #000" }}>
+                                                <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>不可欠</div>
+                                                <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                            </div>
+
+                                            {/* その他 行 */}
+                                            <div style={{ display: "grid", gridTemplateColumns: "40% 60%" }}>
+                                                <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>その他</div>
+                                                <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
 
-                            {/* 総決定支給量の右隣：不可欠/その他（2段） */}
-                            <td className="small" colSpan={4} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
-                                    <div style={{ borderRight: "1px solid #000" }}>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>不可欠</div>
-                                        <div style={{ padding: "2px 4px" }}>その他</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>&nbsp;</div>
-                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
-                                    </div>
-                                </div>
-                            </td>
-
-                            {/* 契約支給量：1枠 */}
-                            <td className="small" colSpan={4} style={{ padding: 0 }}>
+                            {/* 契約支給量：左ラベル（右線）＋右側に不可欠/その他（上下2行） */}
+                            <td className="small" colSpan={7} style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "30% 70%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px", textAlign: "left" }}>契約支給量</div>
-                                    <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                    {/* 左：契約支給量（右側に縦線） */}
+                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px", textAlign: "left" }}>
+                                        契約支給量
+                                    </div>
+
+                                    {/* 右：不可欠／その他（上下2行） */}
+                                    <div style={{ padding: 0 }}>
+                                        <div style={{ display: "grid", gridTemplateRows: "1fr 1fr" }}>
+                                            {/* 不可欠 行 */}
+                                            <div style={{ display: "grid", gridTemplateColumns: "40% 60%", borderBottom: "1px solid #000" }}>
+                                                <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>不可欠</div>
+                                                <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                            </div>
+
+                                            {/* その他 行 */}
+                                            <div style={{ display: "grid", gridTemplateColumns: "40% 60%" }}>
+                                                <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>その他</div>
+                                                <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
 
-                            {/* 契約支給量の右隣：不可欠/その他（2段） */}
-                            <td className="small" colSpan={3} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
-                                    <div style={{ borderRight: "1px solid #000" }}>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>不可欠</div>
-                                        <div style={{ padding: "2px 4px" }}>その他</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>&nbsp;</div>
-                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
-                                    </div>
-                                </div>
-                            </td>
+                            {/* 右側（事業所名称 rowSpan=3 の列を避けるための埋め） */}
+                            <td className="small" colSpan={3}>&nbsp;</td>
                         </tr>
 
                         <tr>
