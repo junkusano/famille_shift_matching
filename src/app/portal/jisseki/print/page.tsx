@@ -122,7 +122,7 @@ export default function JissekiPrintPage() {
     .ido-grid { max-width: 100% !important; }
 
 /* 10桁：外枠なし、区切り線のみ */
-.digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 16px; }
+.digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 14px; }
 .digitCell { display: flex; align-items: center; justify-content: center; }
 .digitCell + .digitCell { border-left: 1px solid #000; } /* 区切り線のみ */
 
@@ -135,8 +135,9 @@ export default function JissekiPrintPage() {
       #000 calc(50% - 0.5px),
       #000 calc(50% + 0.5px),
       transparent calc(50% + 0.5px));
+}
 
-      /* 縦書き見出し（例：日付・曜日） */
+/* 縦書き見出し（例：日付・曜日） */
 .vtext {
   writing-mode: vertical-rl;
   text-orientation: upright;
@@ -144,7 +145,6 @@ export default function JissekiPrintPage() {
   padding: 0 !important;
 }
 
-}
   `}</style>
 
 
@@ -337,7 +337,7 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
             <div className="mt-2">
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
-                    {/* 12列で固定（PDFの縦罫イメージに合わせやすい） */}
+                    {/* 14列で固定（PDFの縦罫イメージに合わせやすい） */}
                     <colgroup>
                         <col style={{ width: "3%" }} />  {/* 日付（小さく） */}
                         <col style={{ width: "3%" }} />  {/* 曜日（小さく） */}
@@ -360,21 +360,21 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                         {/* 1行目：受給者証番号（左）＋氏名（右） ／ 右ブロック：事業所番号（縦幅を小さくするため、この行にのみ置く） */}
                         <tr>
                             {/* 左ブロック（8/14）：2列横並び */}
-                            <td colSpan={8} className="small" style={{ padding: 0 }}>
+                            <td colSpan={9} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
                                     {/* 受給者証番号 */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
-                                        <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
-                                            受給者証番号
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                            受給者証<br />番号
                                         </div>
-                                        <div style={{ padding: "2px 4px" }}>
+                                        <div style={{ padding: "1px 3px" }}>
                                             <DigitBoxes10 value={DOKO_JUKYUSHA_NO} />
                                         </div>
                                     </div>
 
                                     {/* 氏名 */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
-                                        <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px", fontSize: "9px", lineHeight: 1.05 }}>
                                             支給決定障害者等氏名<br />（障害児氏名）
                                         </div>
                                         <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
@@ -385,12 +385,12 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                             </td>
 
                             {/* 右ブロック（6/14）：事業所番号（この行だけ＝縦幅が小さくなる） */}
-                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                            <td colSpan={5} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業所番号
                                     </div>
-                                    <div style={{ padding: "2px 4px" }}>
+                                    <div style={{ padding: "1px 3px" }}>
                                         <DigitBoxes10 value={DOKO_OFFICE_NO} />
                                     </div>
                                 </div>
@@ -400,24 +400,24 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                         {/* 2行目：契約支給量（左ブロックは横一杯） ／ 右ブロック：事業者及びその事業所（こちらの方が縦幅大きくなる） */}
                         <tr>
                             {/* 左ブロック（8/14）：契約支給量（横一杯） */}
-                            <td colSpan={8} className="small" style={{ padding: 0 }}>
+                            <td colSpan={9} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "18% 82%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         契約支給量
                                     </div>
-                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
+                                    <div style={{ padding: "1px 3px", display: "flex", alignItems: "center" }}>
                                         {DOKO_CONTRACT}
                                     </div>
                                 </div>
                             </td>
 
                             {/* 右ブロック（6/14）：事業者及びその事業所 */}
-                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                            <td colSpan={5} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業者及び<br />その事業所
                                     </div>
-                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
+                                    <div style={{ padding: "1px 3px", display: "flex", alignItems: "center" }}>
                                         {DOKO_OFFICE_NAME}
                                     </div>
                                 </div>
