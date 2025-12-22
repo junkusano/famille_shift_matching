@@ -399,7 +399,8 @@ function DiagCell({ children }: { children?: React.ReactNode }) {
             className="diag"
             style={{
                 position: "relative",
-                backgroundImage: "linear-gradient(to bottom left, transparent 49%, #000 50%, transparent 51%)",
+                backgroundImage:
+                    "linear-gradient(to bottom left, transparent calc(50% - 1px), #000 calc(50% - 1px), #000 calc(50% + 1px), transparent calc(50% + 1px))",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "100% 100%",
             }}
@@ -415,6 +416,8 @@ function IdoShienForm({
     pageNo,
     totalPages,
 }: FormProps & { pageNo: number; totalPages: number }) {
+    // ★ヘッダの基本高さ（事業所番号の2段と揃える）
+    const H = 28;
     // ⑤ 合計計算（未入力項目は 0 扱い。後でAPI項目追加したら差し替え）
     const sumPlanMin = (form.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0);
 
@@ -474,27 +477,29 @@ function IdoShienForm({
                         <tr>
                             {/* 受給者証番号：左寄せラベル + 右側縦線 */}
                             <td className="small" colSpan={4} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: 40 }}>
-                                    <div style={{ padding: "4px", borderRight: "1px solid #000" }}>受給者証番号</div>
-                                    <div style={{ padding: "4px" }}>
-                                        {/* 受給者証番号（10桁） ※実値が無いので空。後でAPIで差し込み */}
+                                const H = 28; // ヘッダの基本高さ（必要なら 26〜30 で微調整）
+
+                                // 受給者証番号ブロック：1行（ラベル＋10桁）
+                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: H }}>
+                                    <div style={{ padding: "4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                        受給者証番号
+                                    </div>
+                                    <div style={{ padding: "2px 4px", display: "flex", alignItems: "center" }}>
                                         <DigitLines value={""} length={10} />
-                                        <DigitLines value={OFFICE_NO} length={10} />
                                     </div>
                                 </div>
-                            </td>
 
-                            {/* 支給決定者(保護者)氏名 /（児童氏名） */}
-                            <td className="small" colSpan={11} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", height: 40 }}>
-                                    <div>
+// 支給決定者氏名ブロック：2段だが、全体高さを事業所番号と合わせる
+                                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", height: H }}>
+                                    <div style={{ borderRight: "1px solid #000" }}>
                                         <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>支給決定者(保護者)氏名</div>
                                         <div style={{ padding: "2px 4px" }}>（児童氏名）</div>
                                     </div>
-                                    <div style={{ borderLeft: "1px solid #000", padding: "4px" }}>
-                                        {data.client.client_name}
+                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
+                                        <b style={{ fontSize: 14 }}>{data.client.client_name}</b>
                                     </div>
                                 </div>
+
                             </td>
 
                             {/* 事業所番号 + 事業者事業所の名称（同一セル内で上下に配置） */}
@@ -523,7 +528,7 @@ function IdoShienForm({
                         {/* 2行目：総決定支給量（1枠） + 右隣に2段「不可欠／その他」枠 ／ 契約支給量も同様 */}
                         <tr>
                             {/* 総決定支給量（1枠） */}
-                            <td className="small" colSpan={6} style={{ padding: "4px" }}>
+                            <td className="small" colSpan={9} style={{ padding: "4px" }}>
                                 総決定支給量
                             </td>
 
@@ -540,119 +545,119 @@ function IdoShienForm({
                                     </div>
                                 </div>
                             </td>
+                            <tr>
+                                {/* 契約支給量（1枠） */}
+                                <td className="small" colSpan={6} style={{ padding: "4px" }}>
+                                    契約支給量
+                                </td>
 
-                            {/* 右（rowSpanブロックがあるので空でOK） */}
-                            <td className="small" colSpan={3}>&nbsp;</td>
-                        </tr>
-
-                        <tr>
-                            {/* 契約支給量（1枠） */}
-                            <td className="small" colSpan={6} style={{ padding: "4px" }}>
-                                契約支給量
-                            </td>
-
-                            {/* 契約：不可欠/その他（2段） */}
-                            <td className="small" colSpan={6} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 32 }}>
-                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", borderBottom: "1px solid #000" }}>
-                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>不可欠</div>
-                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                {/* 契約：不可欠/その他（2段） */}
+                                <td className="small" colSpan={6} style={{ padding: 0 }}>
+                                    <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 32 }}>
+                                        <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", borderBottom: "1px solid #000" }}>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>不可欠</div>
+                                            <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                        </div>
+                                        <div style={{ display: "grid", gridTemplateColumns: "70px 1fr" }}>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>その他</div>
+                                            <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr" }}>
-                                        <div style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>その他</div>
-                                        <div style={{ padding: "2px 4px" }}>&nbsp;</div>
+                                </td>
+
+                                <td className="small" colSpan={3}>&nbsp;</td>
+                            </tr>
+
+                            {/* 月額上限負担額（PDFにもある） */}
+                            <tr>
+                                <td className="small" colSpan={15} style={{ padding: 0 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", height: 28 }}>
+                                        <div style={{ padding: "4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                            月額上限負担額
+                                        </div>
+                                        <div style={{ padding: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                            0円
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
+                                </td>
+                            </tr>
 
-                            <td className="small" colSpan={3}>&nbsp;</td>
-                        </tr>
-
-                        {/* 月額上限負担額（PDFにもある） */}
-                        <tr>
-                            <td className="small" colSpan={12}>
-                                月額上限負担額
-                                <div className="mt-1 right">0円</div>
-                            </td>
-                            <td className="small" colSpan={3}>&nbsp;</td>
-                        </tr>
-
-                        {/* =========================
+                            {/* =========================
          下段：移動支援計画（同じ table の中で th を置く）
          ========================= */}
 
-                        <tr>
-                            <th className="center" rowSpan={3}>日付</th>
-                            <th className="center" rowSpan={3}>曜日</th>
-                            <th className="center" colSpan={9}>移動支援計画</th>
-                            <th className="center" rowSpan={3}>算定時間(時間)</th>
-                            <th className="center" rowSpan={3}>利用形態</th>
-                            <th className="center" rowSpan={3}>片道支援加算</th>
-                            <th className="center" rowSpan={3}>利用者負担額</th>
-                            <th className="center" colSpan={2}>サービス提供時間</th>
-                            <th className="center" rowSpan={3}>サービス提供者名</th>
-                            <th className="center" rowSpan={3}>利用者確認欄</th>
-                        </tr>
-
-                        <tr>
-                            <th className="center" colSpan={3}>サービス提供</th>
-                            <th className="center" colSpan={3}>控除</th>
-                            <th className="center" rowSpan={2}>計画時間(分)</th>
-                            <th className="center" colSpan={2}>内訳(分)</th>
-                            <th className="center" colSpan={2}>サービス提供</th>
-                        </tr>
-
-                        <tr>
-                            <th className="center">開始時刻</th>
-                            <th className="center">終了時刻</th>
-                            <th className="center">分</th>
-
-                            <th className="center">開始時刻</th>
-                            <th className="center">終了時刻</th>
-                            <th className="center">分</th>
-
-                            <th className="center">不可欠</th>
-                            <th className="center">その他</th>
-
-                            <th className="center">開始時刻</th>
-                            <th className="center">終了時刻</th>
-                        </tr>
-
-                        {/* 明細：31行 */}
-                        {Array.from({ length: 31 }).map((_, i) => (
-                            <tr key={i}>
-                                {Array.from({ length: 18 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
+                            <tr>
+                                <th className="center" rowSpan={3}>日付</th>
+                                <th className="center" rowSpan={3}>曜日</th>
+                                <th className="center" colSpan={9}>移動支援計画</th>
+                                <th className="center" rowSpan={3}>算定時間(時間)</th>
+                                <th className="center" rowSpan={3}>利用形態</th>
+                                <th className="center" rowSpan={3}>片道支援加算</th>
+                                <th className="center" rowSpan={3}>利用者負担額</th>
+                                <th className="center" colSpan={2}>サービス提供時間</th>
+                                <th className="center" rowSpan={3}>サービス提供者名</th>
+                                <th className="center" rowSpan={3}>利用者確認欄</th>
                             </tr>
-                        ))}
 
-                        {/* 合計行（列数18に一致させる） */}
-                        <tr>
-                            <td className="center" colSpan={2}><b>合計</b></td>
+                            <tr>
+                                <th className="center" colSpan={3}>サービス提供</th>
+                                <th className="center" colSpan={3}>控除</th>
+                                <th className="center" rowSpan={2}>計画時間(分)</th>
+                                <th className="center" colSpan={2}>内訳(分)</th>
+                                <th className="center" colSpan={2}>サービス提供</th>
+                            </tr>
 
-                            {/* 指定の空白セルは斜線にする（後述） */}
-                            <DiagCell /> {/* サービス提供 開始時刻 */}
-                            <DiagCell /> {/* サービス提供 終了時刻 */}
-                            <DiagCell /> {/* サービス提供 分 */}
-                            <DiagCell /> {/* 控除 開始時刻 */}
-                            <DiagCell /> {/* 控除 終了時刻 */}
-                            <DiagCell /> {/* 控除 分 */}
+                            <tr>
+                                <th className="center">開始時刻</th>
+                                <th className="center">終了時刻</th>
+                                <th className="center">分</th>
 
-                            <td className="right"><b>{sumPlanMin}</b></td>
-                            <td className="right"><b>{sumUphitMin}</b></td>
-                            <td className="right"><b>{sumOtherMin}</b></td>
+                                <th className="center">開始時刻</th>
+                                <th className="center">終了時刻</th>
+                                <th className="center">分</th>
 
-                            <td className="right"><b>{sumSanteiHour}</b></td>
-                            <DiagCell /> {/* 利用形態（合計行は斜線） */}
-                            <td className="right"><b>{sumKatamichi}</b></td>
-                            <td className="right"><b>{sumFutan}</b></td>
+                                <th className="center">不可欠</th>
+                                <th className="center">その他</th>
 
-                            <DiagCell /> {/* サービス提供時間 開始時刻 */}
-                            <DiagCell /> {/* サービス提供時間 終了時刻 */}
-                            <DiagCell /> {/* サービス提供者名 */}
-                            <DiagCell /> {/* 利用者確認欄 */}
-                        </tr>
+                                <th className="center">開始時刻</th>
+                                <th className="center">終了時刻</th>
+                            </tr>
+
+                            {/* 明細：31行 */}
+                            {Array.from({ length: 31 }).map((_, i) => (
+                                <tr key={i}>
+                                    {Array.from({ length: 19 }).map((__, j) => (
+                                        <td key={j}>&nbsp;</td>
+                                    ))}
+                                </tr>
+                            ))}
+
+                            {/* 合計行（列数18に一致させる） */}
+                            <tr>
+                                <td className="center" colSpan={2}><b>合計</b></td>
+
+                                {/* 指定の空白セルは斜線にする（後述） */}
+                                <DiagCell /> {/* サービス提供 開始時刻 */}
+                                <DiagCell /> {/* サービス提供 終了時刻 */}
+                                <DiagCell /> {/* サービス提供 分 */}
+                                <DiagCell /> {/* 控除 開始時刻 */}
+                                <DiagCell /> {/* 控除 終了時刻 */}
+                                <DiagCell /> {/* 控除 分 */}
+
+                                <td className="right"><b>{sumPlanMin}</b></td>
+                                <td className="right"><b>{sumUphitMin}</b></td>
+                                <td className="right"><b>{sumOtherMin}</b></td>
+
+                                <td className="right"><b>{sumSanteiHour}</b></td>
+                                <DiagCell /> {/* 利用形態（合計行は斜線） */}
+                                <td className="right"><b>{sumKatamichi}</b></td>
+                                <td className="right"><b>{sumFutan}</b></td>
+
+                                <DiagCell /> {/* サービス提供時間 開始時刻 */}
+                                <DiagCell /> {/* サービス提供時間 終了時刻 */}
+                                <DiagCell /> {/* サービス提供者名 */}
+                                <DiagCell /> {/* 利用者確認欄 */}
+                            </tr>
                     </tbody>
                 </table>
             </div>
