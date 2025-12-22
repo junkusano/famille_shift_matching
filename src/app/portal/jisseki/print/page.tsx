@@ -94,6 +94,18 @@ export default function JissekiPrintPage() {
     .ido-grid { width: 100% !important; }
     .ido-grid { max-width: 100% !important; }
 .print-only { width: 100%; }
+/* A4の実コンテンツ幅（210 - 左右マージン12 = 198） */
+:root { --a4w: 198mm; }
+
+/* 画面でも印刷でもA4幅に固定 */
+.print-only { width: var(--a4w) !important; margin: 0 auto; }
+
+/* 帳票本体も固定 */
+.formBox { width: var(--a4w); box-sizing: border-box; }
+
+/* tableを固定幅に */
+.grid { border-collapse: collapse; width: var(--a4w); table-layout: fixed; }
+.ido-grid { width: var(--a4w) !important; max-width: var(--a4w) !important; }
   `}</style>
 
 
@@ -353,12 +365,26 @@ function JudoHommonForm({ data, form }: FormProps) {
 }
 
 // 1桁ずつ枠で区切る（10桁など）
-function DigitBoxes({ value = "", length = 10 }: { value?: string; length?: number }) {
+function DigitLines({ value = "", length = 10 }: { value?: string; length?: number }) {
     const digits = (value ?? "").replace(/\D/g, "").padEnd(length, " ").slice(0, length).split("");
     return (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${length}, 1fr)`, height: 18 }}>
+        <div
+            style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${length}, 1fr)`,
+                height: 18,
+                borderBottom: "1px solid #000",  // 下線だけ
+            }}
+        >
             {digits.map((d, i) => (
-                <div key={i} style={{ borderLeft: i === 0 ? "1px solid #000" : "none", borderRight: "1px solid #000", borderTop: "1px solid #000", borderBottom: "1px solid #000", textAlign: "center", lineHeight: "18px" }}>
+                <div
+                    key={i}
+                    style={{
+                        textAlign: "center",
+                        lineHeight: "18px",
+                        borderRight: "1px solid #000", // 縦の区切り線のみ
+                    }}
+                >
                     {d.trim() ? d : "\u00A0"}
                 </div>
             ))}
@@ -410,30 +436,31 @@ function IdoShienForm({
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* 明細と同じ 18列 colgroup を 1回だけ定義（合計100%） */}
                     <colgroup>
-                        <col style={{ width: "5%" }} />  {/* 日付 */}
-                        <col style={{ width: "5%" }} />  {/* 曜日 */}
+                        <col style={{ width: "10mm" }} />  {/* 日付 */}
+                        <col style={{ width: "10mm" }} />  {/* 曜日 */}
 
-                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 サービス提供 終了 */}
-                        <col style={{ width: "4%" }} />  {/* 計画 サービス提供 分 */}
 
-                        <col style={{ width: "6%" }} />  {/* 計画 控除 開始 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 控除 終了 */}
-                        <col style={{ width: "4%" }} />  {/* 計画 控除 分 */}
+                        <col style={{ width: "12mm" }} /> {/* 計画 サービス提供 開始 */}
+                        <col style={{ width: "12mm" }} /> {/* 計画 サービス提供 終了 */}
+                        <col style={{ width: "8mm" }} /> {/* 計画 サービス提供 分 */}
 
-                        <col style={{ width: "5%" }} />  {/* 計画時間(分) */}
-                        <col style={{ width: "5%" }} />  {/* 内訳 不可欠 */}
-                        <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
+                        <col style={{ width: "12mm" }} /> {/* 計画 控除 開始 */}
+                        <col style={{ width: "12mm" }} />  {/* 計画 控除 終了 */}
+                        <col style={{ width: "8mm" }} />  {/* 計画 控除 分 */}
 
-                        <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
-                        <col style={{ width: "6%" }} />  {/* 利用形態 */}
-                        <col style={{ width: "6%" }} />  {/* 片道支援加算 */}
-                        <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
+                        <col style={{ width: "10mm" }} /> {/* 計画時間(分) */}
+                        <col style={{ width: "10mm" }} /> {/* 内訳 不可欠 */}
+                        <col style={{ width: "10mm" }} /> {/* 内訳 その他 */}
 
-                        <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
-                        <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
-                        <col style={{ width: "7%" }} />  {/* サービス提供者名 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "12mm" }} /> {/* 算定時間(時間) */}
+                        <col style={{ width: "12mm" }} />   {/* 利用形態 */}
+                        <col style={{ width: "12mm" }} />  {/* 片道支援加算 */}
+                        <col style={{ width: "12mm" }} />  {/* 利用者負担額 */}
+
+                        <col style={{ width: "12mm" }} /> {/* サービス提供時間 開始 */}
+                        <col style={{ width: "12mm" }} /> {/* サービス提供時間 終了 */}
+                        <col style={{ width: "14mm" }} /> {/* サービス提供者名 */}
+                        <col style={{ width: "18mm" }} />  {/* 利用者確認欄 */}
                     </colgroup>
 
                     <tbody>
@@ -451,13 +478,14 @@ function IdoShienForm({
                                     <div style={{ padding: "4px", borderRight: "1px solid #000" }}>受給者証番号</div>
                                     <div style={{ padding: "4px" }}>
                                         {/* 受給者証番号（10桁） ※実値が無いので空。後でAPIで差し込み */}
-                                        <DigitBoxes value={""} length={10} />
+                                        <DigitLines value={""} length={10} />
+                                        <DigitLines value={OFFICE_NO} length={10} />
                                     </div>
                                 </div>
                             </td>
 
                             {/* 支給決定者(保護者)氏名 /（児童氏名） */}
-                            <td className="small" colSpan={8} style={{ padding: 0 }}>
+                            <td className="small" colSpan={11} style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", height: 40 }}>
                                     <div>
                                         <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>支給決定者(保護者)氏名</div>
@@ -469,23 +497,24 @@ function IdoShienForm({
                                 </div>
                             </td>
 
-                            {/* 事業所番号（2段ラベル + 10桁枠） */}
+                            {/* 事業所番号 + 事業者事業所の名称（同一セル内で上下に配置） */}
                             <td className="small" colSpan={3} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", height: 40 }}>
-                                    <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>事業所番号</div>
-                                    <div style={{ padding: "4px" }}>
-                                        <DigitBoxes value={OFFICE_NO} length={10} />
+                                <div style={{ display: "grid", gridTemplateRows: "40px 1fr", height: "100%" }}>
+                                    {/* 上：事業所番号（2段ラベル + 10桁） */}
+                                    <div style={{ borderBottom: "1px solid #000" }}>
+                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>事業所番号</div>
+                                        <div style={{ padding: "4px" }}>
+                                            <DigitLines value={OFFICE_NO} length={10} />
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
 
-                            {/* 事業者事業所の名称（左寄せラベル + 縦線 + 右に社名3行） */}
-                            <td className="small" colSpan={3} rowSpan={3} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: "100%" }}>
-                                    <div style={{ padding: "4px", borderRight: "1px solid #000" }}>事業者事業所の名称</div>
-                                    <div style={{ padding: "4px", whiteSpace: "pre-line" }}>
-                                        {OFFICE_NAME.replace("合同会社施恩", "合同会社施恩\n")
-                                            .replace("ファミーユヘルパーサービス", "ファミーユヘルパーサービス\n")}
+                                    {/* 下：事業者事業所の名称（左寄せラベル + 縦線 + 右に社名改行） */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: "100%" }}>
+                                        <div style={{ padding: "4px", borderRight: "1px solid #000" }}>事業者事業所の名称</div>
+                                        <div style={{ padding: "4px", whiteSpace: "pre-line" }}>
+                                            {OFFICE_NAME.replace("合同会社施恩", "合同会社施恩\n")
+                                                .replace("ファミーユヘルパーサービス", "ファミーユヘルパーサービス\n")}
+                                        </div>
                                     </div>
                                 </div>
                             </td>
