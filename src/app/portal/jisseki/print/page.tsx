@@ -374,6 +374,7 @@ function DigitLines({ value = "", length = 10 }: { value?: string; length?: numb
                 gridTemplateColumns: `repeat(${length}, 1fr)`,
                 height: 18,
                 borderBottom: "1px solid #000",  // 下線だけ
+                borderLeft: "1px solid #000",
             }}
         >
             {digits.map((d, i) => (
@@ -475,50 +476,72 @@ function IdoShienForm({
                         {/* ====== ヘッダ（PDF寄せ）====== */}
                         {/* 1行目：受給者証番号（左ラベル+縦線+10桁枠）／支給決定者氏名（2段ラベル）／事業所番号（2段ラベル+10桁枠） */}
                         <tr>
-                            {/* 受給者証番号：左寄せラベル + 右側縦線 */}
-                            <td className="small" colSpan={4} style={{ padding: 0 }}>
+                            {/* 左ブロック：受給者証番号 + 支給決定者(2段) + 事業所番号（横並び） */}
+                            <td className="small" colSpan={15} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 0.8fr", height: H }}>
 
-                                {/* 受給者証番号ブロック：1行（ラベル＋10桁） */}
-                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: H }}>
-                                    <div style={{ padding: "4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
-                                        受給者証番号
+                                    {/* 受給者証番号：左ラベル（右に縦線） + 10桁（線だけで区切る） */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", borderRight: "1px solid #000" }}>
+                                        <div style={{ padding: "4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                            受給者証番号
+                                        </div>
+                                        <div style={{ padding: "2px 4px", display: "flex", alignItems: "center" }}>
+                                            {/* 値は後で差し込み。10桁を「枠」ではなく「区切り線のみ」にする */}
+                                            <DigitLines value={""} length={10} />
+                                        </div>
                                     </div>
-                                    <div style={{ padding: "2px 4px", display: "flex", alignItems: "center" }}>
-                                        <DigitLines value={""} length={10} />
-                                    </div>
-                                </div>
 
-                                {/* 支給決定者氏名ブロック */}
-                                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", height: H }}>
-                                    <div style={{ borderRight: "1px solid #000" }}>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>支給決定者(保護者)氏名</div>
-                                        <div style={{ padding: "2px 4px" }}>（児童氏名）</div>
-                                    </div>
-                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
-                                        <b style={{ fontSize: 14 }}>{data.client.client_name}</b>
-                                    </div>
-                                </div>
+                                    {/* 支給決定者(保護者)氏名／（児童氏名） 2段 + 10桁区切り + 名前欄（横書き） */}
+                                    <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", borderRight: "1px solid #000" }}>
 
-                            </td>
+                                        {/* 上段：支給決定者(保護者)氏名 + 10桁 + 名前欄 */}
+                                        <div style={{ display: "grid", gridTemplateColumns: "150px 120px 1fr", borderBottom: "1px solid #000" }}>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                                支給決定者(保護者)氏名
+                                            </div>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                                <DigitLines value={""} length={10} />
+                                            </div>
+                                            <div style={{ padding: "2px 6px", display: "flex", alignItems: "center", whiteSpace: "nowrap" }}>
+                                                {data.client.client_name}
+                                            </div>
+                                        </div>
 
-                            {/* 事業所番号 + 事業者事業所の名称（同一セル内で上下に配置） */}
-                            <td className="small" colSpan={3} style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateRows: "40px 1fr", height: "100%" }}>
-                                    {/* 上：事業所番号（2段ラベル + 10桁） */}
-                                    <div style={{ borderBottom: "1px solid #000" }}>
-                                        <div style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>事業所番号</div>
-                                        <div style={{ padding: "4px" }}>
+                                        {/* 下段：（児童氏名） + 10桁 + 名前欄（横書き） */}
+                                        <div style={{ display: "grid", gridTemplateColumns: "150px 120px 1fr" }}>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                                （児童氏名）
+                                            </div>
+                                            <div style={{ padding: "2px 4px", borderRight: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                                <DigitLines value={""} length={10} />
+                                            </div>
+                                            <div style={{ padding: "2px 6px", display: "flex", alignItems: "center", whiteSpace: "nowrap" }}>
+                                                {data.client.client_name}
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* 事業所番号：ラベル2段 + 10桁（線だけ区切り） */}
+                                    <div style={{ display: "grid", gridTemplateRows: "1fr 1fr" }}>
+                                        <div style={{ padding: "2px 4px", borderBottom: "1px solid #000", display: "flex", alignItems: "center" }}>
+                                            事業所番号
+                                        </div>
+                                        <div style={{ padding: "2px 4px", display: "flex", alignItems: "center" }}>
                                             <DigitLines value={OFFICE_NO} length={10} />
                                         </div>
                                     </div>
 
-                                    {/* 下：事業者事業所の名称（左寄せラベル + 縦線 + 右に社名改行） */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: "100%" }}>
-                                        <div style={{ padding: "4px", borderRight: "1px solid #000" }}>事業者事業所の名称</div>
-                                        <div style={{ padding: "4px", whiteSpace: "pre-line" }}>
-                                            {OFFICE_NAME.replace("合同会社施恩", "合同会社施恩\n")
-                                                .replace("ファミーユヘルパーサービス", "ファミーユヘルパーサービス\n")}
-                                        </div>
+                                </div>
+                            </td>
+
+                            {/* 右ブロック（ここでは空：後続行で「総決定支給量列」「月額上限負担額列」を作る） */}
+                            <td className="small" colSpan={4} style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "78px 1fr", height: "100%" }}>
+                                    <div style={{ padding: "4px", borderRight: "1px solid #000" }}>事業者事業所の名称</div>
+                                    <div style={{ padding: "4px", whiteSpace: "pre-line" }}>
+                                        {OFFICE_NAME.replace("合同会社施恩", "合同会社施恩\n")
+                                            .replace("ファミーユヘルパーサービス", "ファミーユヘルパーサービス\n")}
                                     </div>
                                 </div>
                             </td>
