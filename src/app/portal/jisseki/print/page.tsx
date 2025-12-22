@@ -159,15 +159,17 @@ export default function JissekiPrintPage() {
                         {/* ここで formType ごとに様式コンポーネントを切り替え */}
                         {f.formType === "TAKINO" && <TakinokyoForm data={data} form={f} />}
                         {f.formType === "KODO" && <KodoEngoForm data={data} form={f} />}
+
                         {f.formType === "DOKO" && (
                             <DokoEngoForm
                                 data={data}
-                                form={f}
                                 pageNo={idx + 1}
                                 totalPages={data.forms.length}
                             />
                         )}
+
                         {f.formType === "JYUHO" && <JudoHommonForm data={data} form={f} />}
+
                         {f.formType === "IDOU" && (
                             <IdoShienForm
                                 data={data}
@@ -301,7 +303,7 @@ function KodoEngoForm({ data, form }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, form: _form, pageNo = 1, totalPages = 1 }: FormProps) {
+function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "form">) {
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
