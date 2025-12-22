@@ -135,6 +135,15 @@ export default function JissekiPrintPage() {
       #000 calc(50% - 0.5px),
       #000 calc(50% + 0.5px),
       transparent calc(50% + 0.5px));
+
+      /* 縦書き見出し（例：日付・曜日） */
+.vtext {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  line-height: 1;
+  padding: 0 !important;
+}
+
 }
   `}</style>
 
@@ -307,8 +316,8 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
-// const sumFirst = 0;       // 初回加算 回  ←削除
-// const sumEmergency = 0;   // 緊急時対応加算 回 ←削除
+    // const sumFirst = 0;       // 初回加算 回  ←削除
+    // const sumEmergency = 0;   // 緊急時対応加算 回 ←削除
 
     return (
         <div className="formBox p-2">
@@ -330,31 +339,31 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* 12列で固定（PDFの縦罫イメージに合わせやすい） */}
                     <colgroup>
-                        <col style={{ width: "4%" }} />  {/* 日付 */}
-                        <col style={{ width: "4%" }} />  {/* 曜日 */}
+                        <col style={{ width: "3%" }} />  {/* 日付（小さく） */}
+                        <col style={{ width: "3%" }} />  {/* 曜日（小さく） */}
                         <col style={{ width: "10%" }} /> {/* サービス内容 */}
                         <col style={{ width: "7%" }} />  {/* 計画 開始 */}
                         <col style={{ width: "7%" }} />  {/* 計画 終了 */}
-                        <col style={{ width: "6%" }} />  {/* 計画 時間数 */}
+                        <col style={{ width: "4%" }} />  {/* 計画 時間数（小さく） */}
                         <col style={{ width: "7%" }} />  {/* 提供 開始 */}
                         <col style={{ width: "7%" }} />  {/* 提供 終了 */}
-                        <col style={{ width: "6%" }} />  {/* 算定時間 */}
-                        <col style={{ width: "5%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "5%" }} />  {/* 算定時間（小さく） */}
+                        <col style={{ width: "4%" }} />  {/* 派遣人数（小さく） */}
                         <col style={{ width: "6%" }} />  {/* 初回加算 */}
                         <col style={{ width: "6%" }} />  {/* 緊急時対応加算 */}
                         <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "17%" }} /> {/* 備考 */}
+                        <col style={{ width: "23%" }} /> {/* 備考（最大化） */}
                     </colgroup>
 
                     <tbody>
                         {/* ===== 上段ヘッダ枠（PDF上部の大枠） ===== */}
+                        {/* 1行目：受給者証番号（左）＋氏名（右） ／ 右ブロック：事業所番号（縦幅を小さくするため、この行にのみ置く） */}
                         <tr>
-                            {/* 左ブロック：受給者証番号（上）＋氏名（上） */}
+                            {/* 左ブロック（8/14）：2列横並び */}
                             <td colSpan={8} className="small" style={{ padding: 0 }}>
-                                {/* 受給者証番号 + 氏名（2段） */}
-                                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr" }}>
-                                    {/* 1段目：受給者証番号 */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "18% 82%" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
+                                    {/* 受給者証番号 */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
                                         <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
                                             受給者証番号
                                         </div>
@@ -363,8 +372,8 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                                         </div>
                                     </div>
 
-                                    {/* 2段目：支給決定障害者等氏名（障害児氏名） */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "18% 82%", borderTop: "1px solid #000" }}>
+                                    {/* 氏名 */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
                                         <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
                                             支給決定障害者等氏名<br />（障害児氏名）
                                         </div>
@@ -375,9 +384,9 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                                 </div>
                             </td>
 
-                            {/* 右ブロック：事業所番号（10桁） */}
+                            {/* 右ブロック（6/14）：事業所番号（この行だけ＝縦幅が小さくなる） */}
                             <td colSpan={6} className="small" style={{ padding: 0 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "25% 75%" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
                                         事業所番号
                                     </div>
@@ -388,18 +397,21 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                             </td>
                         </tr>
 
+                        {/* 2行目：契約支給量（左ブロックは横一杯） ／ 右ブロック：事業者及びその事業所（こちらの方が縦幅大きくなる） */}
                         <tr>
-                            {/* 左側：契約支給量（ラベル幅は「受給者証番号」左セルと同じ） */}
-                            <td colSpan={2} className="small" style={{ padding: "2px 4px", borderRight: "1px solid #000" }}>
-                                契約支給量
+                            {/* 左ブロック（8/14）：契約支給量（横一杯） */}
+                            <td colSpan={8} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "18% 82%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
+                                        契約支給量
+                                    </div>
+                                    <div style={{ padding: "2px 6px", display: "flex", alignItems: "center" }}>
+                                        {DOKO_CONTRACT}
+                                    </div>
+                                </div>
                             </td>
 
-                            {/* 左側：同行援護 25時間/月（幅は「氏名」の右セルと同じ） */}
-                            <td colSpan={6} className="small" style={{ padding: "2px 6px" }}>
-                                {DOKO_CONTRACT}
-                            </td>
-
-                            {/* 右側：事業者及びその事業所（従来どおり右ブロックに配置） */}
+                            {/* 右ブロック（6/14）：事業者及びその事業所 */}
                             <td colSpan={6} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>
@@ -419,8 +431,8 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
 
                         {/* ===== 明細テーブル見出し（PDFの列構造） ===== */}
                         <tr>
-                            <th className="center" rowSpan={2}>日付</th>
-                            <th className="center" rowSpan={2}>曜日</th>
+                            <th className="center vtext" rowSpan={2}>日付</th>
+                            <th className="center vtext" rowSpan={2}>曜日</th>
                             <th className="center" rowSpan={2}>サービス内容</th>
                             <th className="center" colSpan={3}>同行援護計画</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
