@@ -35,6 +35,13 @@ const OFFICE_NAME_LINES = ["合同会社施恩", "ファミーユヘルパーサ
 // 同行援護（様式19）用
 const DOKO_OFFICE_NO = "2311100974";
 const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+// 居宅介護（様式1）用（PDF要件）
+const TAKINO_CONTRACT = "身体介護 13時間/月";
+const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
+
+// 要件⑤：事業所番号は 2311100974、事業所名は「ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知」
+const TAKINO_OFFICE_NO = "2311100974";
+const TAKINO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 
 // 受給者証番号はデータ連携が未定なら空文字でOK（表示は10桁枠のみ出ます）
 const DOKO_JUKYUSHA_NO = ""; // 例: "2320600812"
@@ -199,61 +206,170 @@ function TakinokyoForm({ data, form }: FormProps) {
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
 
-            {/* ヘッダ枠 */}
+            {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
             <div className="mt-2">
-                <div className="grid grid-cols-12 gap-0">
-                    <div className="box col-span-3 p-1 small">受給者証番号</div>
-                    <div className="box col-span-5 p-1 small">支給決定障害者等氏名（障害児氏名）</div>
-                    <div className="box col-span-2 p-1 small">事業所番号</div>
-                    <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
+                <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
+                    {/* ★列数を固定（ズレの原因を排除） */}
+                    <colgroup>
+                        {/* 日付・曜日（小さめ） */}
+                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "3%" }} />
 
-                    <div className="box col-span-3 p-1 small">年月</div>
-                    <div className="box col-span-3 p-1 small center">{data.month}</div>
-                    <div className="box col-span-6 p-1 small">事業者及びその事業所</div>
+                        {/* サービス内容 */}
+                        <col style={{ width: "10%" }} />
 
-                    <div className="box col-span-6 p-1 small">利用者氏名</div>
-                    <div className="box col-span-6 p-1 small">{data.client.client_name}</div>
+                        {/* 居宅介護計画（4列） */}
+                        <col style={{ width: "6%" }} />
+                        <col style={{ width: "6%" }} />
+                        <col style={{ width: "4%" }} />
+                        <col style={{ width: "4%" }} />
 
-                    <div className="box col-span-6 p-1 small">サービス</div>
-                    <div className="box col-span-6 p-1 small">{form.service_codes.join(" / ")}</div>
-                </div>
-            </div>
+                        {/* サービス提供時間（4列） */}
+                        <col style={{ width: "6%" }} />
+                        <col style={{ width: "6%" }} />
+                        <col style={{ width: "4%" }} />
+                        <col style={{ width: "4%" }} />
 
-            {/* 明細テーブル（空行） */}
-            <div className="mt-2">
-                <table className="grid ido-grid">
-                    <thead>
-                        <tr>
-                            <th className="center" style={{ width: "6%" }}>日付</th>
-                            <th className="center" style={{ width: "6%" }}>曜日</th>
-                            <th className="center" style={{ width: "14%" }}>サービス内容</th>
-                            <th className="center" style={{ width: "10%" }}>開始</th>
-                            <th className="center" style={{ width: "10%" }}>終了</th>
-                            <th className="center" style={{ width: "8%" }}>時間</th>
-                            <th className="center" style={{ width: "8%" }}>派遣</th>
-                            <th className="center" style={{ width: "12%" }}>利用者確認</th>
-                            <th className="center">備考</th>
-                        </tr>
-                    </thead>
+                        {/* 右側の各列 */}
+                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "4%" }} />  {/* 算定 */}
+                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "20%" }} /> {/* 備考（最大化） */}
+                    </colgroup>
+
                     <tbody>
+                        {/* =========================
+                           上段（要件①〜⑤：5項目）
+                           左：受給者証番号・氏名・契約支給量
+                           右：事業所番号・事業者及びその事業所
+                        ========================= */}
+
+                        {/* 1行目：受給者証番号＋氏名（左）／事業所番号（右） */}
+                        <tr>
+                            {/* 左ブロック（受給者証番号＋氏名） */}
+                            <td colSpan={11} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
+                                    {/* 受給者証番号（10桁、1桁ごと縦線） */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                            受給者証<br />番号
+                                        </div>
+                                        <div style={{ padding: "1px 3px" }}>
+                                            <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
+                                        </div>
+                                    </div>
+
+                                    {/* 氏名欄（左にラベル、右に氏名） */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px", fontSize: "9px", lineHeight: 1.05 }}>
+                                            支給決定障害者等氏名<br />（障害児氏名）
+                                        </div>
+                                        <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                            {data.client.client_name}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            {/* 右ブロック：事業所番号（10桁、1桁ごと縦線） */}
+                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        事業所番号
+                                    </div>
+                                    <div style={{ padding: "1px 3px" }}>
+                                        <DigitBoxes10 value={TAKINO_OFFICE_NO} />
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+
+                        {/* 2行目：契約支給量（左：受給者証番号＋氏名の幅）／事業者及びその事業所（右） */}
+                        <tr>
+                            {/* 契約支給量：左側ブロックの横幅いっぱい */}
+                            <td colSpan={11} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "20% 80%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        契約支給量
+                                    </div>
+                                    <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                        {TAKINO_CONTRACT}
+                                    </div>
+                                </div>
+                            </td>
+
+                            {/* 事業者及びその事業所 */}
+                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        事業者及び<br />その事業所
+                                    </div>
+                                    <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                        {TAKINO_OFFICE_NAME}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+
+                        {/* （任意）サービス種別：form を実使用して TS6133 を消す */}
+                        <tr>
+                            <td colSpan={17} className="small" style={{ padding: "2px 4px" }}>
+                                サービス：{form.service_codes.join(" / ")}
+                            </td>
+                        </tr>
+
+                        {/* ヘッダと明細の間の余白（PDF見た目調整） */}
+                        <tr>
+                            <td colSpan={17} style={{ border: "none", padding: 0, height: "6px" }} />
+                        </tr>
+
+                        {/* =========================
+                           下段：列見出し（2段）
+                           ※日付・曜日は縦書き（要件）
+                        ========================= */}
+                        <tr>
+                            <th className="center vtext" rowSpan={2}>日付</th>
+                            <th className="center vtext" rowSpan={2}>曜日</th>
+                            <th className="center" rowSpan={2}>サービス内容</th>
+
+                            <th className="center" colSpan={4}>居宅介護計画</th>
+                            <th className="center" colSpan={4}>サービス提供時間</th>
+
+                            <th className="center" rowSpan={2}>派遣<br />人数</th>
+                            <th className="center" rowSpan={2}>算定</th>
+                            <th className="center" rowSpan={2}>初回<br />加算</th>
+                            <th className="center" rowSpan={2}>緊急時<br />対応加算</th>
+                            <th className="center" rowSpan={2}>利用者<br />確認欄</th>
+                            <th className="center" rowSpan={2}>備考</th>
+                        </tr>
+
+                        <tr>
+                            <th className="center">開始</th>
+                            <th className="center">終了</th>
+                            <th className="center">時間</th>
+                            <th className="center">乗降</th>
+
+                            <th className="center">開始</th>
+                            <th className="center">終了</th>
+                            <th className="center">時間</th>
+                            <th className="center">乗降</th>
+                        </tr>
+
+                        {/* 明細行（例：25行） */}
                         {Array.from({ length: 25 }).map((_, i) => (
                             <tr key={i}>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
-                                <td>&nbsp;</td>
+                                {Array.from({ length: 17 }).map((__, j) => (
+                                    <td key={j}>&nbsp;</td>
+                                ))}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
 
-            {/* フッタ枠（後で計算値を入れる） */}
+            {/* フッタ（必要なら後でPDFに合わせて table 内に統合可能） */}
             <div className="mt-2 grid grid-cols-12 gap-0">
                 <div className="box col-span-6 p-2 small">合計（計画時間／算定時間など：後で）</div>
                 <div className="box col-span-6 p-2 small">内訳（加算・単価区分：後で）</div>
@@ -261,6 +377,7 @@ function TakinokyoForm({ data, form }: FormProps) {
         </div>
     );
 }
+
 
 function KodoEngoForm({ data, form }: FormProps) {
     return (
