@@ -338,9 +338,8 @@ function TakinokyoForm({ data }: FormProps) {
                             <th className="center" rowSpan={3} style={{ fontSize: "9px", lineHeight: 1.05 }}>
                                 福祉専門職員等<br />連携加算
                             </th>
-                            {/* ★ここは後で「空白マス」を作るため rowSpan をやめる（下に変更） */}
-                            <th className="center">利用者<br />確認欄</th>
-                            <th className="center">備考</th>
+                            <th className="center" rowSpan={3}>利用者<br />確認欄</th>
+                            <th className="center" rowSpan={3}>備考</th>
                         </tr>
 
                         {/* ===== 見出し 2段目 ===== */}
@@ -358,9 +357,6 @@ function TakinokyoForm({ data }: FormProps) {
                             <th className="center" rowSpan={2}>時間</th>
                             <th className="center" rowSpan={2}>乗降</th>
 
-                            {/* ★利用者確認欄・備考：空白マスを作る（2段目は空白） */}
-                            <th className="center">&nbsp;</th>
-                            <th className="center">&nbsp;</th>
                         </tr>
 
                         {/* ===== 見出し 3段目 ===== */}
@@ -368,16 +364,12 @@ function TakinokyoForm({ data }: FormProps) {
                             {/* 計画時間数の下（1行） */}
                             <th className="center">時間</th>
                             <th className="center">乗降</th>
-
-                            {/* ★利用者確認欄・備考：3段目も空白マス */}
-                            <th className="center">&nbsp;</th>
-                            <th className="center">&nbsp;</th>
                         </tr>
 
                         {/* 明細行（例：25行） */}
                         {Array.from({ length: 25 }).map((_, i) => (
                             <tr key={i}>
-                                {Array.from({ length: 15 }).map((__, j) => (
+                                {Array.from({ length: 17 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
                             </tr>
@@ -406,7 +398,7 @@ function TakinokyoForm({ data }: FormProps) {
                                     <td colSpan={4} className="small">{label}</td>
 
                                     {/* 残り： 15列 - (日付1) - (colSpan4) = 10列 を空で埋める */}
-                                    {Array.from({ length: 10 }).map((_, j) => (
+                                    {Array.from({ length: 12 }).map((_, j) => (
                                         <td key={`sum-empty-${idx}-${j}`}>&nbsp;</td>
                                     ))}
                                 </tr>
@@ -501,22 +493,36 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
             <div className="mt-2">
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
-                    {/* 14列で固定（PDFの縦罫イメージに合わせやすい） */}
+                    {/* 17列で固定（PDFの縦罫イメージに合わせやすい） */}
                     <colgroup>
-                        <col style={{ width: "3%" }} />  {/* 日付（小さく） */}
-                        <col style={{ width: "3%" }} />  {/* 曜日（小さく） */}
-                        <col style={{ width: "10%" }} /> {/* サービス内容 */}
-                        <col style={{ width: "7%" }} />  {/* 計画 開始 */}
-                        <col style={{ width: "7%" }} />  {/* 計画 終了 */}
-                        <col style={{ width: "4%" }} />  {/* 計画 時間数（小さく） */}
-                        <col style={{ width: "7%" }} />  {/* 提供 開始 */}
-                        <col style={{ width: "7%" }} />  {/* 提供 終了 */}
-                        <col style={{ width: "5%" }} />  {/* 算定時間（小さく） */}
-                        <col style={{ width: "4%" }} />  {/* 派遣人数（小さく） */}
-                        <col style={{ width: "6%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "6%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "8%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "23%" }} /> {/* 備考（最大化） */}
+                        {/* 日付・曜日 */}
+                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "3%" }} />
+
+                        {/* サービス内容 */}
+                        <col style={{ width: "12%" }} />
+
+                        {/* 居宅介護計画（4列） */}
+                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
+                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
+                        <col style={{ width: "5%" }} />  {/* 時間 */}
+                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+
+                        {/* サービス提供時間（2列） */}
+                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
+                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
+
+                        {/* 算定時間数（2列） */}
+                        <col style={{ width: "5%" }} />  {/* 時間 */}
+                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+
+                        {/* 右側 */}
+                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
+                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
+                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "16%" }} /> {/* 備考（必要なら更に増やす） */}
                     </colgroup>
 
                     <tbody>
