@@ -199,6 +199,7 @@ export default function JissekiPrintPage() {
                         {f.formType === "KODO" && (
                             <KodoEngoForm
                                 data={data}
+                                form={f}
                                 pageNo={idx + 1}
                                 totalPages={data.forms.length}
                             />
@@ -581,7 +582,19 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function KodoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "form">) {
+function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+    // 計画時間数計：rows.minutes を「時間」に換算して合計（小数1桁まで）
+    const sumPlanHoursRaw =
+        (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
+
+    const sumPlanHours =
+        Number.isFinite(sumPlanHoursRaw)
+            ? (Math.round(sumPlanHoursRaw * 10) / 10).toString().replace(/\.0$/, "")
+            : "";
+
+    // 算定時間数計：現状 rows に「算定時間」専用の値が無いので minutes を流用
+    // （将来、算定時間用のフィールドが入ったらここを差し替え）
+    const sumSanteiHours = sumPlanHours;
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -740,6 +753,50 @@ function KodoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                                 ))}
                             </tr>
                         ))}
+
+                        {/* ===== 追加：最下部 合計（2行） ===== */}
+                        <tr>
+                            {/* 「日付」〜「行動援護計画の下の終了時間」までを結合して1マス
+      → 日付(1) + 曜日(1) + 計画開始(1) + 計画終了(1) = 4列
+      2行分なので rowSpan=2 */}
+                            <td className="center" colSpan={4} rowSpan={2}>
+                                <b>合計</b>
+                            </td>
+
+                            {/* 計画時間数：2行（上=ラベル、下=合計値） */}
+                            <td className="center small">
+                                <b>計画時間数計</b>
+                            </td>
+
+                            {/* サービス提供時間（開始/終了）は斜線：2行分 */}
+                            <td className="diag" rowSpan={2}>&nbsp;</td>
+                            <td className="diag" rowSpan={2}>&nbsp;</td>
+
+                            {/* 算定時間：2行（上=ラベル、下=合計値） */}
+                            <td className="center small">
+                                <b>算定時間数計</b>
+                            </td>
+
+                            {/* 派遣人数：斜線 */}
+                            <td className="diag" rowSpan={2}>&nbsp;</td>
+
+                            {/* 初回加算 / 緊急時対応加算 / 行動障害支援指導連携加算：2行結合して「回」 */}
+                            <td className="center" rowSpan={2}><b>回</b></td>
+                            <td className="center" rowSpan={2}><b>回</b></td>
+                            <td className="center" rowSpan={2}><b>回</b></td>
+
+                            {/* 利用者確認欄 / 備考：斜線 */}
+                            <td className="diag" rowSpan={2}>&nbsp;</td>
+                            <td className="diag" rowSpan={2}>&nbsp;</td>
+                        </tr>
+
+                        <tr>
+                            {/* 計画時間数（下段：合計値） */}
+                            <td className="right"><b>{sumPlanHours}</b></td>
+
+                            {/* 算定時間（下段：合計値） */}
+                            <td className="right"><b>{sumSanteiHours}</b></td>
+                        </tr>
 
                         {/* ページ数（PDF右下の「○枚中○枚」相当） */}
                         <tr>
