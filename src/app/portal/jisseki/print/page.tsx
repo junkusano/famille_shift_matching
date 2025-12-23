@@ -200,7 +200,14 @@ export default function JissekiPrintPage() {
                             />
                         )}
 
-                        {f.formType === "JYUHO" && <JudoHommonForm data={data} form={f} />}
+                        {f.formType === "JYUHO" && (
+                            <JudoHommonForm
+                                data={data}
+                                form={f}
+                                pageNo={idx + 1}
+                                totalPages={data.forms.length}
+                            />
+                        )}
 
                         {f.formType === "IDOU" && (
                             <IdoShienForm
@@ -869,7 +876,7 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
     );
 }
 
-function JudoHommonForm({ data }: FormProps) {
+function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
@@ -892,7 +899,7 @@ function JudoHommonForm({ data }: FormProps) {
                     <colgroup>
                         <col style={{ width: "5%" }} />  {/* 日付 */}
                         <col style={{ width: "5%" }} />  {/* 曜日 */}
-                        <col style={{ width: "12%" }} /> {/* サービス提供の状況 */}
+                        <col style={{ width: "8%" }} /> {/* サービス提供の状況 */}
 
                         <col style={{ width: "6%" }} />  {/* 計画 開始 */}
                         <col style={{ width: "6%" }} />  {/* 計画 終了 */}
@@ -905,9 +912,16 @@ function JudoHommonForm({ data }: FormProps) {
                         <col style={{ width: "5%" }} />  {/* 算定 時間 */}
                         <col style={{ width: "5%" }} />  {/* 算定 移動 */}
 
-                        <col style={{ width: "5%" }} />  {/* 派遣 */}
+                        <col style={{ width: "5%" }} />  {/* 派遣人数 */}
+
+                        <col style={{ width: "5%" }} />  {/* 同行支援 */}
+                        <col style={{ width: "5%" }} />  {/* 初回加算 */}
+                        <col style={{ width: "6%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "6%" }} />  {/* 行動障害支援連携加算 */}
+                        <col style={{ width: "6%" }} />  {/* 移動介護緊急時支援加算 */}
+
                         <col style={{ width: "9%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "20%" }} /> {/* 備考 */}
+                        <col style={{ width: "18%" }} /> {/* 備考 */}
                     </colgroup>
 
                     <tbody>
@@ -997,41 +1011,70 @@ function JudoHommonForm({ data }: FormProps) {
 
                         {/* 見出し 1段目 */}
                         <tr>
-                            <th className="center" rowSpan={2}>日付</th>
-                            <th className="center" rowSpan={2}>曜日</th>
-                            <th className="center" rowSpan={2}>サービス提供の状況</th>
+                            <th className="center" rowSpan={3}>日付</th>
+                            <th className="center" rowSpan={3}>曜日</th>
+
+                            <th className="center" rowSpan={3}>
+                                サービス提供<br />状況
+                            </th>
 
                             <th className="center" colSpan={4}>重度訪問介護計画</th>
-                            <th className="center" colSpan={2}>サービス提供時間</th>
-                            <th className="center" colSpan={2}>算定時間数</th>
+                            <th className="center" colSpan={2} rowSpan={2}>サービス提供時間</th>
+                            <th className="center" colSpan={2} rowSpan={2}>算定時間数</th>
 
-                            <th className="center" rowSpan={2}>派遣人数</th>
-                            <th className="center" rowSpan={2}>利用者確認欄</th>
-                            <th className="center" rowSpan={2}>備考</th>
+                            <th className="center" rowSpan={3}>派遣人数</th>
+
+                            <th className="center" rowSpan={3}>同行支援</th>
+                            <th className="center" rowSpan={3}>初回加算</th>
+                            <th className="center" rowSpan={3}>緊急時<br />対応加算</th>
+                            <th className="center" rowSpan={3} style={{ fontSize: "9px", lineHeight: 1.05 }}>
+                                行動障害支援<br />連携加算
+                            </th>
+                            <th className="center" rowSpan={3} style={{ fontSize: "9px", lineHeight: 1.05 }}>
+                                移動介護<br />緊急時支援加算
+                            </th>
+
+                            <th className="center" rowSpan={3}>利用者<br />確認欄</th>
+                            <th className="center" rowSpan={3}>備考</th>
                         </tr>
 
                         {/* 見出し 2段目 */}
                         <tr>
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
-                            <th className="center">時間</th>
-                            <th className="center">移動</th>
-
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
-
-                            <th className="center">時間</th>
-                            <th className="center">移動</th>
+                            <th className="center" rowSpan={2}>開始時間</th>
+                            <th className="center" rowSpan={2}>終了時間</th>
+                            <th className="center" colSpan={2}>計画時間数</th>
                         </tr>
+
+                        {/* 見出し 3段目 */}
+                        <tr>
+                            <th className="center">時間</th>
+                            <th className="center">乗降</th>
+                        </tr>
+
 
                         {/* 明細行（必要行数は仮で25） */}
                         {Array.from({ length: 25 }).map((_, i) => (
                             <tr key={i}>
-                                {Array.from({ length: 14 }).map((__, j) => (
+                                {Array.from({ length: 19 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
                             </tr>
                         ))}
+                        {/* ページ数（PDF右下の「1枚中1枚」相当） */}
+                        <tr>
+                            <td colSpan={19} style={{ border: "none", paddingTop: "6px" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <div style={{ width: "40mm" }}>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
