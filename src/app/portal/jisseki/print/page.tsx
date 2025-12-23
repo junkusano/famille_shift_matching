@@ -39,6 +39,15 @@ const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 const TAKINO_CONTRACT = "身体介護 13時間/月";
 const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
 
+// 重度訪問介護用（PDF要件）
+const JYUHO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
+const JYUHO_OFFICE_NO = "2311100974";
+const JYUHO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
+const JYUHO_CONTRACT_LINES = [
+    "重度訪問介護（その他） 11時間/月",
+    "重度訪問介護（移動介護） 10時間/月",
+];
+
 // 要件⑤：事業所番号は 2311100974、事業所名は「ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知」
 const TAKINO_OFFICE_NO = "2311100974";
 const TAKINO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
@@ -860,52 +869,174 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
     );
 }
 
-function JudoHommonForm({ data, form }: FormProps) {
+function JudoHommonForm({ data }: FormProps) {
     return (
         <div className="formBox p-2">
-            <div className="title">重度訪問介護サービス提供実績記録票（様式３－１）</div>
-
-            <div className="mt-2 grid grid-cols-12 gap-0">
-                <div className="box col-span-3 p-1 small">受給者証番号</div>
-                <div className="box col-span-5 p-1 small">{data.client.client_name}</div>
-                <div className="box col-span-4 p-1 small">事業所番号／事業所名</div>
-                <div className="box col-span-2 p-1 small center">{data.client.client_name}</div>
-
-                <div className="box col-span-3 p-1 small">年月</div>
-                <div className="box col-span-3 p-1 small center">{data.month}</div>
-                <div className="box col-span-6 p-1 small">サービス</div>
-                <div className="box col-span-12 p-1 small">{form.service_codes.join(" / ")}</div>
+            {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div style={{ flex: 1 }} className="small">
+                    {data.month}分
+                </div>
+                <div style={{ flex: 2 }} className="title">
+                    重度訪問介護サービス提供実績記録票
+                </div>
+                <div style={{ flex: 1 }} className="small right">
+                    （様式３－１）
+                </div>
             </div>
 
+            {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合（移動支援方式） */}
             <div className="mt-2">
-                <table className="grid ido-grid">
-                    <thead>
-                        <tr>
-                            <th className="center" style={{ width: "6%" }}>日付</th>
-                            <th className="center" style={{ width: "6%" }}>曜日</th>
-                            <th className="center" style={{ width: "14%" }}>提供状況</th>
-                            <th className="center" style={{ width: "10%" }}>計画開始</th>
-                            <th className="center" style={{ width: "10%" }}>計画終了</th>
-                            <th className="center" style={{ width: "8%" }}>計画</th>
-                            <th className="center" style={{ width: "10%" }}>提供開始</th>
-                            <th className="center" style={{ width: "10%" }}>提供終了</th>
-                            <th className="center" style={{ width: "8%" }}>算定</th>
-                            <th className="center" style={{ width: "8%" }}>派遣</th>
-                            <th className="center">備考</th>
-                        </tr>
-                    </thead>
+                <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
+                    {/* ★列数を固定（ここがズレ対策の本体） */}
+                    <colgroup>
+                        <col style={{ width: "5%" }} />  {/* 日付 */}
+                        <col style={{ width: "5%" }} />  {/* 曜日 */}
+                        <col style={{ width: "12%" }} /> {/* サービス提供の状況 */}
+
+                        <col style={{ width: "6%" }} />  {/* 計画 開始 */}
+                        <col style={{ width: "6%" }} />  {/* 計画 終了 */}
+                        <col style={{ width: "5%" }} />  {/* 計画 時間 */}
+                        <col style={{ width: "5%" }} />  {/* 計画 移動 */}
+
+                        <col style={{ width: "6%" }} />  {/* 提供 開始 */}
+                        <col style={{ width: "6%" }} />  {/* 提供 終了 */}
+
+                        <col style={{ width: "5%" }} />  {/* 算定 時間 */}
+                        <col style={{ width: "5%" }} />  {/* 算定 移動 */}
+
+                        <col style={{ width: "5%" }} />  {/* 派遣 */}
+                        <col style={{ width: "9%" }} />  {/* 利用者確認欄 */}
+                        <col style={{ width: "20%" }} /> {/* 備考 */}
+                    </colgroup>
+
                     <tbody>
+                        {/* =========================
+               上段ヘッダ（①〜④）
+               左：受給者証番号・氏名・契約支給量
+               右：事業所番号・事業者及びその事業所
+               ※列数はこの table の colgroup と一致させる（合計14列）
+            ========================= */}
+
+                        {/* 1行目：受給者証番号＋氏名（左）／事業所番号（右） */}
+                        <tr>
+                            {/* 左ブロック：受給者証番号＋氏名（合計 9列分） */}
+                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
+                                    {/* ①受給者証番号：10桁（1桁ごと縦線） */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                            受給者証<br />番号
+                                        </div>
+                                        <div style={{ padding: "1px 3px" }}>
+                                            <DigitBoxes10 value={JYUHO_JUKYUSHA_NO} />
+                                        </div>
+                                    </div>
+
+                                    {/* ②氏名欄：左にラベル */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px", fontSize: "9px", lineHeight: 1.05 }}>
+                                            支給決定障害者等氏名
+                                        </div>
+                                        <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                            {data.client.client_name}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            {/* ④事業所番号（右：5列分） */}
+                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        事業所番号
+                                    </div>
+                                    <div style={{ padding: "1px 3px" }}>
+                                        <DigitBoxes10 value={JYUHO_OFFICE_NO} />
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+
+                        {/* 2行目：③契約支給量（左）／④事業者及びその事業所（右） */}
+                        <tr>
+                            {/* ③契約支給量：受給者証番号＋氏名の2つ分の横幅（左9列分） */}
+                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "20% 80%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        契約支給量
+                                    </div>
+                                    <div style={{ padding: "1px 6px", textAlign: "left", lineHeight: 1.2 }}>
+                                        {JYUHO_CONTRACT_LINES[0]}<br />
+                                        {JYUHO_CONTRACT_LINES[1]}
+                                    </div>
+                                </div>
+                            </td>
+
+                            {/* ④事業者及びその事業所（右5列分） */}
+                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        事業者及び<br />その事業所
+                                    </div>
+                                    <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                        {JYUHO_OFFICE_NAME}
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+
+                        {/* ヘッダと明細の間の余白（見た目調整） */}
+                        <tr>
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                        </tr>
+
+                        {/* =========================
+               ⑤ 下段：明細（ズレ防止のため colgroup と列数を厳密一致）
+            ========================= */}
+
+                        {/* 見出し 1段目 */}
+                        <tr>
+                            <th className="center" rowSpan={2}>日付</th>
+                            <th className="center" rowSpan={2}>曜日</th>
+                            <th className="center" rowSpan={2}>サービス提供の状況</th>
+
+                            <th className="center" colSpan={4}>重度訪問介護計画</th>
+                            <th className="center" colSpan={2}>サービス提供時間</th>
+                            <th className="center" colSpan={2}>算定時間数</th>
+
+                            <th className="center" rowSpan={2}>派遣人数</th>
+                            <th className="center" rowSpan={2}>利用者確認欄</th>
+                            <th className="center" rowSpan={2}>備考</th>
+                        </tr>
+
+                        {/* 見出し 2段目 */}
+                        <tr>
+                            <th className="center">開始時間</th>
+                            <th className="center">終了時間</th>
+                            <th className="center">時間</th>
+                            <th className="center">移動</th>
+
+                            <th className="center">開始時間</th>
+                            <th className="center">終了時間</th>
+
+                            <th className="center">時間</th>
+                            <th className="center">移動</th>
+                        </tr>
+
+                        {/* 明細行（必要行数は仮で25） */}
                         {Array.from({ length: 25 }).map((_, i) => (
                             <tr key={i}>
-                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
-                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                {Array.from({ length: 14 }).map((__, j) => (
+                                    <td key={j}>&nbsp;</td>
+                                ))}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
 
-            <div className="mt-2 box p-2 small">下部：合計・加算欄（後で）</div>
+            {/* 下部合計欄は次工程で追加（今回は①〜⑤の範囲） */}
         </div>
     );
 }
