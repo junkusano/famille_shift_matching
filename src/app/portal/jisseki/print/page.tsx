@@ -1081,7 +1081,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* ====== 追加：最下部 2行（移動介護分／合計） ====== */}
 
-/* 移動介護分 */
+                        {/* 移動介護分 */}
                         <tr>
                             {/* 「重度訪問介護計画」の下の終了時間まで：日付+曜日+状況+計画開始+計画終了 = 5列 */}
                             <td className="center small" colSpan={5}><b>移動介護分</b></td>
@@ -1109,7 +1109,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td> {/* 備考 */}
                         </tr>
 
-/* 合計 */
+                        {/* 合計 */}
                         <tr>
                             <td className="center small" colSpan={5}><b>合計</b></td>
 
