@@ -211,32 +211,32 @@ function TakinokyoForm({ data }: FormProps) {
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* ★列数を固定（ズレの原因を排除） */}
                     <colgroup>
-                        {/* 日付・曜日（小さめ） */}
+                        {/* 日付・曜日 */}
                         <col style={{ width: "3%" }} />
                         <col style={{ width: "3%" }} />
 
                         {/* サービス内容 */}
-                        <col style={{ width: "10%" }} />
+                        <col style={{ width: "12%" }} />
 
-                        {/* 居宅介護計画（4列） */}
-                        <col style={{ width: "6%" }} />
-                        <col style={{ width: "6%" }} />
-                        <col style={{ width: "4%" }} />
-                        <col style={{ width: "4%" }} />
+                        {/* 居宅介護計画（2列） */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "7%" }} />
 
-                        {/* サービス提供時間（4列） */}
-                        <col style={{ width: "6%" }} />
-                        <col style={{ width: "6%" }} />
-                        <col style={{ width: "4%" }} />
-                        <col style={{ width: "4%" }} />
+                        {/* サービス提供時間（2列） */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "7%" }} />
 
-                        {/* 右側の各列 */}
+                        {/* 算定時間数（2列：時間／乗降） */}
+                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "5%" }} />
+
+                        {/* 右側 */}
                         <col style={{ width: "4%" }} />  {/* 派遣人数 */}
                         <col style={{ width: "4%" }} />  {/* 初回加算 */}
                         <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
                         <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
                         <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "20%" }} /> {/* 備考（最大化） */}
+                        <col style={{ width: "19%" }} /> {/* 備考（必要ならここをさらに増やす） */}
                     </colgroup>
 
                     <tbody>
@@ -341,19 +341,19 @@ function TakinokyoForm({ data }: FormProps) {
                             <th className="center" rowSpan={3}>備考</th>
                         </tr>
 
-                        {/* ===== 見出し 2段目 ===== */}
+                        {/* 見出し 2段目 */}
                         <tr>
-                            {/* 居宅介護計画：開始/終了 を「開始時間/終了時間」へ */}
+                            {/* 居宅介護計画（下段は空にしない＝ここで完結） */}
                             <th className="center">開始時間</th>
                             <th className="center">終了時間</th>
-                            {/* 残り2列の上に「計画時間数」を置く */}
-                            <th className="center" colSpan={2}>計画時間数</th>
 
-                            {/* サービス提供時間：開始/終了 を「開始時間/終了時間」へ */}
+                            {/* サービス提供時間（2列） */}
                             <th className="center">開始時間</th>
                             <th className="center">終了時間</th>
-                            {/* 残り2列の上に「算定時間数」を置く */}
-                            <th className="center" colSpan={2}>算定時間数</th>
+
+                            {/* 算定時間数（2列） */}
+                            <th className="center">時間</th>
+                            <th className="center">乗降</th>
                         </tr>
 
                         {/* ===== 見出し 3段目 ===== */}
@@ -370,11 +370,44 @@ function TakinokyoForm({ data }: FormProps) {
                         {/* 明細行（例：25行） */}
                         {Array.from({ length: 25 }).map((_, i) => (
                             <tr key={i}>
-                                {Array.from({ length: 17 }).map((__, j) => (
+                                {Array.from({ length: 15 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
                             </tr>
                         ))}
+                        {/* ===== 合計欄（7行）===== */}
+                        {(() => {
+                            const labels = [
+                                "", // 1行目：空（必要なら「総合計」等にしてもOK）
+                                "", // 2行目：空
+                                "居宅における身体介護",
+                                "通院介護（身体介護を伴う）",
+                                "家事援助",
+                                "通院介護（身体介護を伴わない）",
+                                "通院等乗降介助",
+                            ];
+
+                            return labels.map((label, idx) => (
+                                <tr key={`sum-${idx}`}>
+                                    {/* 日付列：縦書き「合計」 */}
+                                    {idx === 0 && (
+                                        <td rowSpan={7} className="center vtext">
+                                            合計
+                                        </td>
+                                    )}
+
+                                    {/* 「居宅介護計画の終了時間の枠まで」＝曜日〜計画終了までを1つにする */}
+                                    <td colSpan={4} className="small">
+                                        {label || "\u00A0"}
+                                    </td>
+
+                                    {/* 以降は右側の列（サービス提供時間〜備考）を空で埋める */}
+                                    {Array.from({ length: 15 - 1 - 4 }).map((_, j) => (
+                                        <td key={`sum-empty-${idx}-${j}`}>&nbsp;</td>
+                                    ))}
+                                </tr>
+                            ));
+                        })()}
                     </tbody>
                 </table>
             </div>
