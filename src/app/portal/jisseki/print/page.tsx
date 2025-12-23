@@ -421,19 +421,13 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 右側の残り（派遣人数/初回/緊急/連携/確認/備考）
             ここは画像だと斜線や「回」等が入るが、まず枠を7行分確保する。
             → 今回は上2行は縦結合にして見出し領域の高さを揃える（必要に応じて調整可） */}
+                                        {/* 右側（派遣人数/初回/緊急/連携/確認/備考）— 上2行は全部斜線 */}
                                         <td rowSpan={2} className="diag">&nbsp;</td> {/* 派遣人数 */}
-                                        {/* 上2行 */}
-                                        <td rowSpan={2} className="diag" />
-                                        <td rowSpan={2} className="diag" />
-                                        <td rowSpan={2} className="diag" />
-
-                                        {/* 下5行（sumLabels.map 内） */}
-                                        <td className="center">回</td>
-                                        <td className="center">回</td>
-                                        <td className="center">回</td>
-
-                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 利用者確認欄（上2行ぶんの見出し高さを揃える） */}
-                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 備考（上2行ぶんの見出し高さを揃える） */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 初回加算 */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 緊急時対応加算 */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 福祉専門職員等連携加算 */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 利用者確認欄 */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 備考 */}
                                     </tr>
 
                                     {/* 2行目（上段：100/90/70/重訪） */}
@@ -456,10 +450,11 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                                             <td colSpan={4} className="center small">{label}</td>
 
                                             {/* 計画時間数計（時間/乗降） */}
-                                            {/* 乗降：上4区分は斜線、通院等乗降介助は空欄 */}
-                                            <td className={label !== "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
-                                            {/* 時間：通院等乗降介助のみ斜線、それ以外は空欄 */}
+                                            {/* 時間：通院等乗降介助のみ斜線 */}
                                             <td className={label === "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
+
+                                            {/* 乗降：通院等乗降介助以外は斜線 */}
+                                            <td className={label !== "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
 
                                             {/* 内訳（適用単価別） 4列：100/90/70/重訪 */}
                                             <td colSpan={2} style={{ padding: 0 }}>
@@ -472,20 +467,23 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                                             </td>
 
                                             {/* 算定時間数計（時間/乗降） */}
-                                            {/* 乗降：上4区分は斜線、通院等乗降介助は空欄 */}
-                                            <td className={label !== "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
-                                            {/* 時間：通院等乗降介助のみ斜線、それ以外は空欄 */}
                                             <td className={label === "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
+                                            <td className={label !== "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
 
                                             {/* 派遣人数：7行すべて斜線 */}
                                             <td className="diag">&nbsp;</td>
 
-                                            {/* 初回/緊急/連携：下5行は「回」 */}
-                                            <td className="center">回</td>
-                                            <td className="center">回</td>
-                                            <td className="center">回</td>
+                                            {/* 初回加算／緊急時対応加算／福祉専門職員等連携加算
+    下5行（3〜7行目）を各列1マス（rowSpan=5）にして「回」 */}
+                                            {i === 0 ? (
+                                                <>
+                                                    <td className="center" rowSpan={5}>回</td> {/* 初回加算：下5行を1マス */}
+                                                    <td className="center" rowSpan={5}>回</td> {/* 緊急時対応加算：下5行を1マス */}
+                                                    <td className="center" rowSpan={5}>回</td> {/* 福祉専門職員等連携加算：下5行を1マス */}
+                                                </>
+                                            ) : null}
 
-                                            {/* 利用者確認欄/備考：7行すべて斜線 */}
+                                            {/* 利用者確認欄/備考：7行すべて斜線（下5行も各行で斜線） */}
                                             <td className="diag">&nbsp;</td>
                                             <td className="diag">&nbsp;</td>
                                         </tr>
