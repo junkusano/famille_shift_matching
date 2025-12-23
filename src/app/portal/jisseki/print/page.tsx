@@ -1071,6 +1071,25 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                                 ))}
                             </tr>
                         ))}
+
+/* ★追加：表の最下部に2行（移動介護分／合計） */
+                        <tr>
+                            {/* 「重度訪問介護計画」の下の「終了時間」まで＝
+      日付(1) + 曜日(1) + サービス提供状況(1) + 計画開始(1) + 計画終了(1) = 5列分 */}
+                            <td className="center small" colSpan={5}><b>移動介護分</b></td>
+                            {/* 以降の列は空白（残り 19-5 = 14列） */}
+                            {Array.from({ length: 14 }).map((_, j) => (
+                                <td key={`ido-sum-${j}`}>&nbsp;</td>
+                            ))}
+                        </tr>
+
+                        <tr>
+                            <td className="center small" colSpan={5}><b>合計</b></td>
+                            {Array.from({ length: 14 }).map((_, j) => (
+                                <td key={`total-sum-${j}`}>&nbsp;</td>
+                            ))}
+                        </tr>
+
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
                         <tr>
                             <td colSpan={19} style={{ border: "none", paddingTop: "6px" }}>
