@@ -876,7 +876,14 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
     );
 }
 
-function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
+function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+    const sumPlanHoursRaw =
+        (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
+
+    const sumPlanHours =
+        Number.isFinite(sumPlanHoursRaw)
+            ? (Math.round(sumPlanHoursRaw * 10) / 10).toString().replace(/\.0$/, "")
+            : "";
     return (
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
@@ -1072,22 +1079,67 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                             </tr>
                         ))}
 
-                        {/* ★追加：表の最下部に2行（移動介護分／合計） */}
+                        {/* ====== 追加：最下部 2行（移動介護分／合計） ====== */}
+
+/* 移動介護分 */
                         <tr>
-                            {/* 「重度訪問介護計画」の下の「終了時間」まで＝
-      日付(1) + 曜日(1) + サービス提供状況(1) + 計画開始(1) + 計画終了(1) = 5列分 */}
+                            {/* 「重度訪問介護計画」の下の終了時間まで：日付+曜日+状況+計画開始+計画終了 = 5列 */}
                             <td className="center small" colSpan={5}><b>移動介護分</b></td>
-                            {/* 以降の列は空白（残り 19-5 = 14列） */}
-                            {Array.from({ length: 14 }).map((_, j) => (
-                                <td key={`ido-sum-${j}`}>&nbsp;</td>
-                            ))}
+
+                            {/* 計画：時間(斜線)、移動(空欄) */}
+                            <td className="diag">&nbsp;</td>
+                            <td>&nbsp;</td>
+
+                            {/* サービス提供時間：開始/終了(斜線) */}
+                            <td className="diag">&nbsp;</td>
+                            <td className="diag">&nbsp;</td>
+
+                            {/* 算定：時間(斜線)、移動(空欄) */}
+                            <td className="diag">&nbsp;</td>
+                            <td>&nbsp;</td>
+
+                            {/* 派遣人数〜備考：指定の列は斜線 */}
+                            <td className="diag">&nbsp;</td> {/* 派遣人数 */}
+                            <td className="diag">&nbsp;</td> {/* 同行支援 */}
+                            <td className="diag">&nbsp;</td> {/* 初回加算 */}
+                            <td className="diag">&nbsp;</td> {/* 緊急時対応加算 */}
+                            <td className="diag">&nbsp;</td> {/* 行動障害支援連携加算 */}
+                            <td className="diag">&nbsp;</td> {/* 移動介護緊急時支援加算 */}
+                            <td className="diag">&nbsp;</td> {/* 利用者確認欄 */}
+                            <td className="diag">&nbsp;</td> {/* 備考 */}
                         </tr>
 
+/* 合計 */
                         <tr>
                             <td className="center small" colSpan={5}><b>合計</b></td>
-                            {Array.from({ length: 14 }).map((_, j) => (
-                                <td key={`total-sum-${j}`}>&nbsp;</td>
-                            ))}
+
+                            {/* 計画：時間(合計値)、移動(斜線) */}
+                            <td className="right"><b>{sumPlanHours}</b></td>
+                            <td className="diag">&nbsp;</td>
+
+                            {/* サービス提供時間：開始/終了(斜線) */}
+                            <td className="diag">&nbsp;</td>
+                            <td className="diag">&nbsp;</td>
+
+                            {/* 算定：時間(空欄)、移動(斜線) */}
+                            <td>&nbsp;</td>
+                            <td className="diag">&nbsp;</td>
+
+                            {/* 派遣人数(斜線) */}
+                            <td className="diag">&nbsp;</td>
+
+                            {/* 同行支援(斜線) */}
+                            <td className="diag">&nbsp;</td>
+
+                            {/* 初回/緊急/行動/移動介護緊急：回 */}
+                            <td className="center"><b>回</b></td>
+                            <td className="center"><b>回</b></td>
+                            <td className="center"><b>回</b></td>
+                            <td className="center"><b>回</b></td>
+
+                            {/* 利用者確認欄/備考：斜線 */}
+                            <td className="diag">&nbsp;</td>
+                            <td className="diag">&nbsp;</td>
                         </tr>
 
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
