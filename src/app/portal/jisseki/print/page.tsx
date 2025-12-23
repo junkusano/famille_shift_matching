@@ -459,10 +459,51 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                                             {/* 内訳（適用単価別） 4列：100/90/70/重訪 */}
                                             <td colSpan={2} style={{ padding: 0 }}>
                                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", height: "100%" }}>
+                                                    {/* 100%：指定なし（空欄） */}
                                                     <div style={{ borderRight: "1px solid #000" }}>&nbsp;</div>
-                                                    <div style={{ borderRight: "1px solid #000" }}>&nbsp;</div>
-                                                    <div style={{ borderRight: "1px solid #000" }}>&nbsp;</div>
-                                                    <div>&nbsp;</div>
+
+                                                    {/* 90%：
+        居宅における身体介護／通院介護（身体介護を伴う） に斜線 */}
+                                                    <div
+                                                        className={
+                                                            (label === "居宅における身体介護" ||
+                                                                label === "通院介護（身体介護を伴う）")
+                                                                ? "diag"
+                                                                : ""
+                                                        }
+                                                        style={{ borderRight: "1px solid #000" }}
+                                                    >
+                                                        &nbsp;
+                                                    </div>
+
+                                                    {/* 70%：
+        家事援助／通院介護（身体介護を伴わない）／通院等乗降介助 に斜線 */}
+                                                    <div
+                                                        className={
+                                                            (label === "家事援助" ||
+                                                                label === "通院介護（身体介護を伴わない）" ||
+                                                                label === "通院等乗降介助")
+                                                                ? "diag"
+                                                                : ""
+                                                        }
+                                                        style={{ borderRight: "1px solid #000" }}
+                                                    >
+                                                        &nbsp;
+                                                    </div>
+
+                                                    {/* 重訪：
+        家事援助／通院介護（身体介護を伴わない）／通院等乗降介助 に斜線 */}
+                                                    <div
+                                                        className={
+                                                            (label === "家事援助" ||
+                                                                label === "通院介護（身体介護を伴わない）" ||
+                                                                label === "通院等乗降介助")
+                                                                ? "diag"
+                                                                : ""
+                                                        }
+                                                    >
+                                                        &nbsp;
+                                                    </div>
                                                 </div>
                                             </td>
 
