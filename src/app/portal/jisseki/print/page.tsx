@@ -329,7 +329,8 @@ function TakinokyoForm({ data }: FormProps) {
                             <th className="center" rowSpan={3}>サービス内容</th>
 
                             <th className="center" colSpan={4}>居宅介護計画</th>
-                            <th className="center" colSpan={4}>サービス提供時間</th>
+                            <th className="center" colSpan={2}>サービス提供時間</th>
+                            <th className="center" colSpan={2}>算定時間数</th>
 
                             <th className="center" rowSpan={3}>派遣<br />人数</th>
                             <th className="center" rowSpan={3}>初回<br />加算</th>
@@ -337,34 +338,40 @@ function TakinokyoForm({ data }: FormProps) {
                             <th className="center" rowSpan={3} style={{ fontSize: "9px", lineHeight: 1.05 }}>
                                 福祉専門職員等<br />連携加算
                             </th>
-                            <th className="center" rowSpan={3}>利用者<br />確認欄</th>
-                            <th className="center" rowSpan={3}>備考</th>
+                            {/* ★ここは後で「空白マス」を作るため rowSpan をやめる（下に変更） */}
+                            <th className="center">利用者<br />確認欄</th>
+                            <th className="center">備考</th>
                         </tr>
 
-                        {/* 見出し 2段目 */}
+                        {/* ===== 見出し 2段目 ===== */}
                         <tr>
-                            {/* 居宅介護計画（下段は空にしない＝ここで完結） */}
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
+                            {/* 居宅介護計画（左2列は2行分） */}
+                            <th className="center" rowSpan={2}>開始時間</th>
+                            <th className="center" rowSpan={2}>終了時間</th>
+                            <th className="center" colSpan={2}>計画時間数</th>
 
-                            {/* サービス提供時間（2列） */}
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
+                            {/* サービス提供時間（2列・2行分） */}
+                            <th className="center" rowSpan={2}>開始時間</th>
+                            <th className="center" rowSpan={2}>終了時間</th>
 
-                            {/* 算定時間数（2列） */}
-                            <th className="center">時間</th>
-                            <th className="center">乗降</th>
+                            {/* 算定時間数（2列・2行分） */}
+                            <th className="center" rowSpan={2}>時間</th>
+                            <th className="center" rowSpan={2}>乗降</th>
+
+                            {/* ★利用者確認欄・備考：空白マスを作る（2段目は空白） */}
+                            <th className="center">&nbsp;</th>
+                            <th className="center">&nbsp;</th>
                         </tr>
 
                         {/* ===== 見出し 3段目 ===== */}
                         <tr>
-                            {/* 計画時間数の下：時間／乗降 */}
+                            {/* 計画時間数の下（1行） */}
                             <th className="center">時間</th>
                             <th className="center">乗降</th>
 
-                            {/* 算定時間数の下：時間／乗降 */}
-                            <th className="center">時間</th>
-                            <th className="center">乗降</th>
+                            {/* ★利用者確認欄・備考：3段目も空白マス */}
+                            <th className="center">&nbsp;</th>
+                            <th className="center">&nbsp;</th>
                         </tr>
 
                         {/* 明細行（例：25行） */}
@@ -395,14 +402,11 @@ function TakinokyoForm({ data }: FormProps) {
                                             合計
                                         </td>
                                     )}
+                                    {/* 「終了時間の枠まで」＝ 曜日〜計画終了（4列） */}
+                                    <td colSpan={4} className="small">{label}</td>
 
-                                    {/* 「居宅介護計画の終了時間の枠まで」＝曜日〜計画終了までを1つにする */}
-                                    <td colSpan={4} className="small">
-                                        {label || "\u00A0"}
-                                    </td>
-
-                                    {/* 以降は右側の列（サービス提供時間〜備考）を空で埋める */}
-                                    {Array.from({ length: 15 - 1 - 4 }).map((_, j) => (
+                                    {/* 残り： 15列 - (日付1) - (colSpan4) = 10列 を空で埋める */}
+                                    {Array.from({ length: 10 }).map((_, j) => (
                                         <td key={`sum-empty-${idx}-${j}`}>&nbsp;</td>
                                     ))}
                                 </tr>
