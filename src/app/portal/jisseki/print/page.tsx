@@ -129,7 +129,7 @@ export default function JissekiPrintPage() {
     .ido-grid { max-width: 100% !important; }
 
 /* 10桁：外枠なし、区切り線のみ */
-.digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 14px; }
+.digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
 .digitCell { display: flex; align-items: center; justify-content: center; }
 .digitCell + .digitCell { border-left: 1px solid #000; } /* 区切り線のみ */
 
@@ -201,7 +201,7 @@ export default function JissekiPrintPage() {
     );
 }
 
-function TakinokyoForm({ data, form }: FormProps) {
+function TakinokyoForm({ data }: FormProps) {
     return (
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
@@ -232,9 +232,9 @@ function TakinokyoForm({ data, form }: FormProps) {
 
                         {/* 右側の各列 */}
                         <col style={{ width: "4%" }} />  {/* 派遣人数 */}
-                        <col style={{ width: "4%" }} />  {/* 算定 */}
                         <col style={{ width: "4%" }} />  {/* 初回加算 */}
                         <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
+                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
                         <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
                         <col style={{ width: "20%" }} /> {/* 備考（最大化） */}
                     </colgroup>
@@ -253,20 +253,20 @@ function TakinokyoForm({ data, form }: FormProps) {
                                 <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
                                     {/* 受給者証番号（10桁、1桁ごと縦線） */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
-                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "0px 3px" }}>
                                             受給者証<br />番号
                                         </div>
-                                        <div style={{ padding: "1px 3px" }}>
+                                        <div style={{ padding: "0px 3px" }}>
                                             <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
                                         </div>
                                     </div>
 
                                     {/* 氏名欄（左にラベル、右に氏名） */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
-                                        <div style={{ borderRight: "1px solid #000", padding: "1px 3px", fontSize: "9px", lineHeight: 1.05 }}>
+                                        <div style={{ borderRight: "1px solid #000", padding: "0px 3px", fontSize: "9px", lineHeight: 1.0 }}>
                                             支給決定障害者等氏名<br />（障害児氏名）
                                         </div>
-                                        <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
+                                        <div style={{ padding: "0px 6px", display: "flex", alignItems: "center" }}>
                                             {data.client.client_name}
                                         </div>
                                     </div>
@@ -276,10 +276,10 @@ function TakinokyoForm({ data, form }: FormProps) {
                             {/* 右ブロック：事業所番号（10桁、1桁ごと縦線） */}
                             <td colSpan={6} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
-                                    <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
+                                    <div style={{ borderRight: "1px solid #000", padding: "0px 3px" }}>
                                         事業所番号
                                     </div>
-                                    <div style={{ padding: "1px 3px" }}>
+                                    <div style={{ padding: "0px 3px" }}>
                                         <DigitBoxes10 value={TAKINO_OFFICE_NO} />
                                     </div>
                                 </div>
@@ -313,13 +313,6 @@ function TakinokyoForm({ data, form }: FormProps) {
                             </td>
                         </tr>
 
-                        {/* （任意）サービス種別：form を実使用して TS6133 を消す */}
-                        <tr>
-                            <td colSpan={17} className="small" style={{ padding: "2px 4px" }}>
-                                サービス：{form.service_codes.join(" / ")}
-                            </td>
-                        </tr>
-
                         {/* ヘッダと明細の間の余白（PDF見た目調整） */}
                         <tr>
                             <td colSpan={17} style={{ border: "none", padding: 0, height: "6px" }} />
@@ -329,30 +322,47 @@ function TakinokyoForm({ data, form }: FormProps) {
                            下段：列見出し（2段）
                            ※日付・曜日は縦書き（要件）
                         ========================= */}
+                        {/* ===== 見出し 1段目 ===== */}
                         <tr>
-                            <th className="center vtext" rowSpan={2}>日付</th>
-                            <th className="center vtext" rowSpan={2}>曜日</th>
-                            <th className="center" rowSpan={2}>サービス内容</th>
+                            <th className="center vtext" rowSpan={3}>日付</th>
+                            <th className="center vtext" rowSpan={3}>曜日</th>
+                            <th className="center" rowSpan={3}>サービス内容</th>
 
                             <th className="center" colSpan={4}>居宅介護計画</th>
                             <th className="center" colSpan={4}>サービス提供時間</th>
 
-                            <th className="center" rowSpan={2}>派遣<br />人数</th>
-                            <th className="center" rowSpan={2}>算定</th>
-                            <th className="center" rowSpan={2}>初回<br />加算</th>
-                            <th className="center" rowSpan={2}>緊急時<br />対応加算</th>
-                            <th className="center" rowSpan={2}>利用者<br />確認欄</th>
-                            <th className="center" rowSpan={2}>備考</th>
+                            <th className="center" rowSpan={3}>派遣<br />人数</th>
+                            <th className="center" rowSpan={3}>初回<br />加算</th>
+                            <th className="center" rowSpan={3}>緊急時<br />対応加算</th>
+                            <th className="center" rowSpan={3} style={{ fontSize: "9px", lineHeight: 1.05 }}>
+                                福祉専門職員等<br />連携加算
+                            </th>
+                            <th className="center" rowSpan={3}>利用者<br />確認欄</th>
+                            <th className="center" rowSpan={3}>備考</th>
                         </tr>
 
+                        {/* ===== 見出し 2段目 ===== */}
                         <tr>
-                            <th className="center">開始</th>
-                            <th className="center">終了</th>
+                            {/* 居宅介護計画：開始/終了 を「開始時間/終了時間」へ */}
+                            <th className="center">開始時間</th>
+                            <th className="center">終了時間</th>
+                            {/* 残り2列の上に「計画時間数」を置く */}
+                            <th className="center" colSpan={2}>計画時間数</th>
+
+                            {/* サービス提供時間：開始/終了 を「開始時間/終了時間」へ */}
+                            <th className="center">開始時間</th>
+                            <th className="center">終了時間</th>
+                            {/* 残り2列の上に「算定時間数」を置く */}
+                            <th className="center" colSpan={2}>算定時間数</th>
+                        </tr>
+
+                        {/* ===== 見出し 3段目 ===== */}
+                        <tr>
+                            {/* 計画時間数の下：時間／乗降 */}
                             <th className="center">時間</th>
                             <th className="center">乗降</th>
 
-                            <th className="center">開始</th>
-                            <th className="center">終了</th>
+                            {/* 算定時間数の下：時間／乗降 */}
                             <th className="center">時間</th>
                             <th className="center">乗降</th>
                         </tr>
