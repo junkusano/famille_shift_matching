@@ -935,7 +935,7 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 1行目：受給者証番号＋氏名（左）／事業所番号（右） */}
                         <tr>
                             {/* 左ブロック：受給者証番号＋氏名（合計 9列分） */}
-                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                            <td colSpan={12} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
                                     {/* ①受給者証番号：10桁（1桁ごと縦線） */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
@@ -960,7 +960,7 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
 
                             {/* ④事業所番号（右：5列分） */}
-                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業所番号
@@ -975,7 +975,7 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 2行目：③契約支給量（左）／④事業者及びその事業所（右） */}
                         <tr>
                             {/* ③契約支給量：受給者証番号＋氏名の2つ分の横幅（左9列分） */}
-                            <td colSpan={9} className="small" style={{ padding: 0 }}>
+                            <td colSpan={12} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "20% 80%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         契約支給量
@@ -988,7 +988,7 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
 
                             {/* ④事業者及びその事業所（右5列分） */}
-                            <td colSpan={5} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業者及び<br />その事業所
@@ -1019,8 +1019,10 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                             </th>
 
                             <th className="center" colSpan={4}>重度訪問介護計画</th>
-                            <th className="center" colSpan={2} rowSpan={2}>サービス提供時間</th>
-                            <th className="center" colSpan={2} rowSpan={2}>算定時間数</th>
+
+                            {/* ★rowSpan を外して「下の一行」に見出しを入れられるようにする */}
+                            <th className="center" colSpan={2}>サービス提供時間</th>
+                            <th className="center" colSpan={2}>算定時間数</th>
 
                             <th className="center" rowSpan={3}>派遣人数</th>
 
@@ -1040,15 +1042,24 @@ function JudoHommonForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* 見出し 2段目 */}
                         <tr>
+                            {/* 重度訪問介護計画 */}
                             <th className="center" rowSpan={2}>開始時間</th>
                             <th className="center" rowSpan={2}>終了時間</th>
                             <th className="center" colSpan={2}>計画時間数</th>
+
+                            {/* ★サービス提供時間：空白だった段に追加（2列） */}
+                            <th className="center" rowSpan={2}>開始時間</th>
+                            <th className="center" rowSpan={2}>終了時間</th>
+
+                            {/* ★算定時間数：空白だった段に追加（2列） */}
+                            <th className="center" rowSpan={2}>時間</th>
+                            <th className="center" rowSpan={2}>移動</th>
                         </tr>
 
-                        {/* 見出し 3段目 */}
+                        {/* 見出し 3段目（計画時間数の下だけが残る） */}
                         <tr>
                             <th className="center">時間</th>
-                            <th className="center">乗降</th>
+                            <th className="center">移動</th> {/* ★「乗降」→「移動」 */}
                         </tr>
 
 
