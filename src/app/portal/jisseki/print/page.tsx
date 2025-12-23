@@ -173,7 +173,14 @@ export default function JissekiPrintPage() {
                 {data && data.forms.map((f, idx) => (
                     <div key={idx} className={idx === 0 ? "p-6" : "p-6 page-break"}>
                         {/* ここで formType ごとに様式コンポーネントを切り替え */}
-                        {f.formType === "TAKINO" && <TakinokyoForm data={data} form={f} />}
+                        {f.formType === "TAKINO" && (
+                            <TakinokyoForm
+                                data={data}
+                                form={f}
+                                pageNo={idx + 1}
+                                totalPages={data.forms.length}
+                            />
+                        )}
                         {f.formType === "KODO" && <KodoEngoForm data={data} form={f} />}
 
                         {f.formType === "DOKO" && (
@@ -201,7 +208,7 @@ export default function JissekiPrintPage() {
     );
 }
 
-function TakinokyoForm({ data }: FormProps) {
+function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
@@ -374,11 +381,9 @@ function TakinokyoForm({ data }: FormProps) {
                                 ))}
                             </tr>
                         ))}
-                        {/* ===== 合計欄（7行）===== */}
+                        {/* ===== 合計欄（画像どおり：7行） ===== */}
                         {(() => {
-                            const labels = [
-                                "", // 1行目：空（必要なら「総合計」等にしてもOK）
-                                "", // 2行目：空
+                            const sumLabels = [
                                 "居宅における身体介護",
                                 "通院介護（身体介護を伴う）",
                                 "家事援助",
@@ -386,32 +391,104 @@ function TakinokyoForm({ data }: FormProps) {
                                 "通院等乗降介助",
                             ];
 
-                            return labels.map((label, idx) => (
-                                <tr key={`sum-${idx}`}>
-                                    {/* 日付列：縦書き「合計」 */}
-                                    {idx === 0 && (
-                                        <td rowSpan={7} className="center vtext">
-                                            合計
-                                        </td>
-                                    )}
-                                    {/* 「終了時間の枠まで」＝ 曜日〜計画終了（4列） */}
-                                    <td colSpan={4} className="small">{label}</td>
+                            return (
+                                <>
+                                    {/* 1行目（上段） */}
+                                    <tr>
+                                        {/* 日付列：縦書き「合計」 7行分 */}
+                                        <td className="center vtext" rowSpan={7}><b>合計</b></td>
 
-                                    {/* 残り： 15列 - (日付1) - (colSpan4) = 10列 を空で埋める */}
-                                    {Array.from({ length: 12 }).map((_, j) => (
-                                        <td key={`sum-empty-${idx}-${j}`}>&nbsp;</td>
+                                        {/* 左側の大きいブロック（画像の左の大枠：上2行は斜線） 
+            ※「居宅介護計画の終了時間の枠まで」のイメージで
+            [曜日][サービス内容][計画開始][計画終了] の4列を結合 */}
+                                        <td colSpan={4} rowSpan={2} className="diag">&nbsp;</td>
+
+                                        {/* 計画時間数計：計画の「時間」「乗降」(2列) を使って、上2行結合 */}
+                                        <td colSpan={2} rowSpan={2} className="center small">
+                                            <b>計画<br />時間数計</b>
+                                        </td>
+
+                                        {/* 内訳（適用単価別）：サービス提供時間(2列) を使って上1行 */}
+                                        <td colSpan={2} className="center small">
+                                            <b>内訳（適用単価別）</b>
+                                        </td>
+
+                                        {/* 算定時間数計：算定の「時間」「乗降」(2列) を使って、上2行結合 */}
+                                        <td colSpan={2} rowSpan={2} className="center small">
+                                            <b>算定<br />時間数計</b>
+                                        </td>
+
+                                        {/* 右側の残り（派遣人数/初回/緊急/連携/確認/備考）
+            ここは画像だと斜線や「回」等が入るが、まず枠を7行分確保する。
+            → 今回は上2行は縦結合にして見出し領域の高さを揃える（必要に応じて調整可） */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 派遣人数 */}
+                                        <td rowSpan={2} className="center">回</td>   {/* 初回加算 */}
+                                        <td rowSpan={2} className="center">回</td>   {/* 緊急時対応加算 */}
+                                        <td rowSpan={2} className="center">回</td>   {/* 福祉専門職員等連携加算（必要なら斜線に変更） */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 利用者確認欄（上2行ぶんの見出し高さを揃える） */}
+                                        <td rowSpan={2} className="diag">&nbsp;</td> {/* 備考（上2行ぶんの見出し高さを揃える） */}
+                                    </tr>
+
+                                    {/* 2行目（上段：100/90/70/重訪） */}
+                                    <tr>
+                                        {/* サービス提供時間(2列)のセル内を4分割して「100/90/70/重訪」を作る */}
+                                        <td colSpan={2} style={{ padding: 0 }}>
+                                            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", height: "100%" }}>
+                                                <div className="center small" style={{ borderRight: "1px solid #000" }}><b>100%</b></div>
+                                                <div className="center small" style={{ borderRight: "1px solid #000" }}><b>90%</b></div>
+                                                <div className="center small" style={{ borderRight: "1px solid #000" }}><b>70%</b></div>
+                                                <div className="center small"><b>重訪</b></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    {/* 3〜7行目：サービス区分（5行） */}
+                                    {sumLabels.map((label, i) => (
+                                        <tr key={`sum-${i}`}>
+                                            {/* 左側ブロック：サービス区分名（4列ぶん） */}
+                                            <td colSpan={4} className="center small">{label}</td>
+
+                                            {/* 計画（時間/乗降の2列） */}
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+
+                                            {/* 内訳（2列） */}
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+
+                                            {/* 算定（時間/乗降の2列） */}
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+
+                                            {/* 右側残り6列（派遣/初回/緊急/連携/確認/備考） */}
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+                                            <td>&nbsp;</td>
+                                        </tr>
                                     ))}
-                                </tr>
-                            ));
+                                </>
+                            );
                         })()}
+                        {/* ページ数（PDF右下の「1枚中1枚」相当） */}
+                        <tr>
+                            <td colSpan={17} style={{ border: "none", paddingTop: "6px" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <div style={{ width: "40mm" }}>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
-            </div>
-
-            {/* フッタ（必要なら後でPDFに合わせて table 内に統合可能） */}
-            <div className="mt-2 grid grid-cols-12 gap-0">
-                <div className="box col-span-6 p-2 small">合計（計画時間／算定時間など：後で）</div>
-                <div className="box col-span-6 p-2 small">内訳（加算・単価区分：後で）</div>
             </div>
         </div>
     );
