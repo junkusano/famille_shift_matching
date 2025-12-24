@@ -1,3 +1,4 @@
+// li/roster/rosterDailyRepo.ts
 // ▼ 目的
 // ・/portal/roster/daily のスタッフ並び替えを「① roster_sort → ② 氏名」にするため、
 //   staff データに roster_sort を付与する。

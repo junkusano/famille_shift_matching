@@ -99,6 +99,9 @@ export async function PATCH(req: Request) {
     }
 
     // ===== まずRPC（監査コンテキスト付き）を試す =====
+    console.log("[roster] actorUserIdText", actorUserIdText);
+    console.log("[roster] requestPath", requestPath);
+
     const { error: rpcErr } = await SB.rpc("roster_patch_shift_with_context", {
       p_shift_id: shiftId,
       p_date: body.date,
