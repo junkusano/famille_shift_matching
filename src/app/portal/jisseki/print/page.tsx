@@ -216,9 +216,15 @@ export default function JissekiPrintPage() {
                     };
 
                     // 「印刷ページ」の配列を作る（フォームが複数ページになる）
+                    // ★2025年11月以降のみ（文字列 YYYY-MM-DD の比較でOK）
+                    const FILTER_FROM = "2025-11-01";
+
                     const pages = data.forms.flatMap((f) => {
                         const size = ROWS_PER_PAGE[f.formType];
-                        const rows = f.rows ?? [];
+
+                        // ★ページ分割前にフィルタする（これで「改ページ」も正しくなる）
+                        const rows = (f.rows ?? []).filter((r) => r.date >= FILTER_FROM);
+
                         const chunks = chunk(rows, size);
 
                         return chunks.map((rowsPage, pageIndex) => ({
@@ -255,8 +261,9 @@ export default function JissekiPrintPage() {
                             {p.formType === "DOKO" && (
                                 <DokoEngoForm
                                     data={data}
+                                    form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
-                                    totalPages={data.forms.length}
+                                    totalPages={totalPages}
                                 />
                             )}
 
@@ -1090,7 +1097,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "form">) {
+function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
@@ -1245,13 +1252,95 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                         </tr>
 
                         {/* 明細行（PDFは31日相当の空行が多いので多めに） */}
-                        {Array.from({ length: ROWS_PER_PAGE.DOKO }).map((_, i) => (
-                            <tr key={i} className="detail-row">
-                                {Array.from({ length: 14 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
-                            </tr>
-                        ))}
+                        {(() => {
+                            const weekdayJp = (dateStr: string) => {
+                                const d = new Date(`${dateStr}T00:00:00`);
+                                return ["日", "月", "火", "水", "木", "金", "土"][d.getDay()] ?? "";
+                            };
+
+                            const dayOfMonth = (dateStr: string) => {
+                                const d = new Date(`${dateStr}T00:00:00`);
+                                return String(d.getDate());
+                            };
+
+                            // 計画時間数：minutesがあれば優先、なければ start/end 差分（日跨ぎ対応）
+                            const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
+                                if (typeof r.minutes === "number") return r.minutes;
+                                const [sh, sm] = r.start.split(":").map(Number);
+                                const [eh, em] = r.end.split(":").map(Number);
+                                const s = sh * 60 + sm;
+                                const e = eh * 60 + em;
+                                return e >= s ? e - s : e + 24 * 60 - s;
+                            };
+
+                            // 要望：10:00-12:00 => "2"
+                            // 端数が出た場合も一応 0.1h 単位で出す（2.0は"2"）
+                            const fmtHours = (mins: number) => {
+                                const h = mins / 60;
+                                const t = (Math.round(h * 10) / 10).toString();
+                                return t.replace(/\.0$/, "");
+                            };
+
+                            const src = (form?.rows ?? [])
+                                .slice()
+                                .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+
+                            const MAX = ROWS_PER_PAGE.DOKO;
+
+                            const padded: Array<(typeof src)[number] | null> = [
+                                ...src,
+                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+                            ].slice(0, MAX);
+
+                            return padded.map((r, i) => {
+                                if (!r) {
+                                    return (
+                                        <tr key={`blank-${i}`} className="detail-row">
+                                            {Array.from({ length: 14 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
+
+                                const planHours = fmtHours(getMinutes(r));
+                                const dispatch = r.required_staff_count ?? 1;
+
+                                return (
+                                    <tr key={`row-${i}`} className="detail-row">
+                                        {/* 日付 */}
+                                        <td className="center">{dayOfMonth(r.date)}</td>
+
+                                        {/* 曜日 */}
+                                        <td className="center">{weekdayJp(r.date)}</td>
+
+                                        {/* サービス内容（要望対象外なので空欄のまま） */}
+                                        <td>&nbsp;</td>
+
+                                        {/* 同行援護計画：開始/終了/計画時間数 */}
+                                        <td className="center">{r.start}</td>
+                                        <td className="center">{r.end}</td>
+                                        <td className="center">{planHours}</td>
+
+                                        {/* サービス提供時間（要望対象外なので空欄） */}
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+
+                                        {/* 算定時間（要望対象外なので空欄） */}
+                                        <td>&nbsp;</td>
+
+                                        {/* 派遣人数 */}
+                                        <td className="center">{dispatch}</td>
+
+                                        {/* 初回加算/緊急時対応加算/利用者確認欄/備考（要望対象外なので空欄） */}
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                    </tr>
+                                );
+                            });
+                        })()}
                         {/* ===== フッタ合計（3行構成） ===== */}
                         <tr>
                             {/* 左側：合計（3行分の厚さ＝rowSpan=3） */}
