@@ -342,12 +342,14 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                     await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
+                        credentials: "include", // ★ 追加：Supabase Cookie セッションを必ず送る
                         headers: {
                             "Content-Type": "application/json",
                             ...(token ? { Authorization: `Bearer ${token}` } : {}),
                         },
                         body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
                     });
+
                 } catch (err) {
                     console.error("[PATCH] roster shift update failed", err);
                 }
@@ -362,7 +364,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
         };
-    }, [drag, displayStaff, date]);
+    }, [drag, displayStaff, date, supabase]);
 
     // ====== スタイル ======
     const MAX_H_MULTIPLIER = 10; // ← 4〜5倍にしたいときは 4 or 5 を指定
