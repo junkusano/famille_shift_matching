@@ -489,13 +489,22 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 派遣人数 */}
                                         <td className="center">{dispatch}</td>
 
-                                        {/* 残り列 */}
+                                        {/* 初回加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 緊急時対応加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 福祉専門職員等連携加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 利用者確認欄 */}
                                         <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
+
+                                        {/* 備考 ← ここに担当者名 */}
+                                        <td className="small">
+                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                        </td>
                                     </tr>
                                 );
                             });
