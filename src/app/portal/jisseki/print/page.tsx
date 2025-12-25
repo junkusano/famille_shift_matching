@@ -1746,16 +1746,53 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 }
 
 function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
-    // ⑤ 合計計算（未入力項目は 0 扱い。後でAPI項目追加したら差し替え）
-    const sumPlanMin = (form.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0);
+    // ★2025年11月以降のみ
+    const FILTER_FROM = "2025-11-01";
 
-    // 内訳（不可欠/その他）・算定時間(時間)・片道支援加算・利用者負担額は
-    // 今の rows 定義に無いので 0 で置く（後で追加する想定）
-    const sumUphitMin = 0;   // 不可欠(分)
-    const sumOtherMin = 0;   // その他(分)
-    const sumSanteiHour = 0; // 算定時間(時間)
-    const sumKatamichi = 0;  // 片道支援加算（回数等）
-    const sumFutan = 0;      // 利用者負担額（円）
+    const weekdayJp = (dateStr: string) => {
+        const d = new Date(`${dateStr}T00:00:00`);
+        return ["日", "月", "火", "水", "木", "金", "土"][d.getDay()] ?? "";
+    };
+
+    const dayOfMonth = (dateStr: string) => {
+        const d = new Date(`${dateStr}T00:00:00`);
+        return String(d.getDate());
+    };
+
+    // ★分数：minutes があれば優先、なければ start/end 差分（跨日対応）
+    const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
+        if (typeof r.minutes === "number") return r.minutes;
+
+        const [sh, sm] = r.start.split(":").map(Number);
+        const [eh, em] = r.end.split(":").map(Number);
+        const s = sh * 60 + sm;
+        const e = eh * 60 + em;
+
+        return e >= s ? e - s : e + 24 * 60 - s;
+    };
+
+    // ★明細（2025-11-01以降のみ）をソート
+    const src = (form.rows ?? [])
+        .filter((r) => r.date >= FILTER_FROM)
+        .slice()
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+
+    // ★指定行数にパディング（不足分は空行）
+    const MAX = ROWS_PER_PAGE.IDOU;
+    const padded: Array<(typeof src)[number] | null> = [
+        ...src,
+        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+    ].slice(0, MAX);
+
+    // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
+    const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
+    const sumUphitMin = sumPlanMin; // 不可欠（分）＝同じ数
+    const sumOtherMin = 0;
+
+    // 現状データ定義に無い項目は 0/斜線のまま
+    const sumSanteiHour = 0;
+    const sumKatamichi = 0;
+    const sumFutan = 0;
 
     return (
         <div className="formBox p-2">
@@ -1963,14 +2000,62 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center">終了時刻</th>
                         </tr>
 
-                        {/* 明細：31行 */}
-                        {Array.from({ length: ROWS_PER_PAGE.IDOU }).map((_, i) => (
-                            <tr key={i} className="detail-row">
-                                {Array.from({ length: 19 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
-                            </tr>
-                        ))}
+                        {/* 明細：rows を表示＋不足分は空行（2025-11-01以降のみ） */}
+                        {padded.map((r, i) => {
+                            if (!r) {
+                                return (
+                                    <tr key={`blank-${i}`} className="detail-row">
+                                        {Array.from({ length: 19 }).map((__, j) => (
+                                            <td key={j}>&nbsp;</td>
+                                        ))}
+                                    </tr>
+                                );
+                            }
+
+                            const mins = getMinutes(r);
+
+                            return (
+                                <tr key={`row-${i}`} className="detail-row">
+                                    {/* 日付 */}
+                                    <td className="center">{dayOfMonth(r.date)}</td>
+                                    {/* 曜日 */}
+                                    <td className="center">{weekdayJp(r.date)}</td>
+
+                                    {/* 移動支援計画 ＞ サービス提供（開始/終了/分） */}
+                                    <td className="center">{r.start}</td>
+                                    <td className="center">{r.end}</td>
+                                    <td className="right">{mins}</td>
+
+                                    {/* 控除（要望なし：空欄） */}
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+
+                                    {/* 計画時間（分）＝サービス提供「分」と同じ */}
+                                    <td className="right">{mins}</td>
+
+                                    {/* 内訳（分）不可欠＝同じ、その他は空欄 */}
+                                    <td className="right">{mins}</td>
+                                    <td>&nbsp;</td>
+
+                                    {/* 算定時間(時間)（要望なし） */}
+                                    <td>&nbsp;</td>
+
+                                    {/* 利用形態／片道支援加算／利用者負担額（要望なし） */}
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+
+                                    {/* サービス提供時間 ＞ サービス提供（開始/終了）＝計画と同じ */}
+                                    <td className="center">{r.start}</td>
+                                    <td className="center">{r.end}</td>
+
+                                    {/* サービス提供者名／利用者確認欄（要望なし） */}
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            );
+                        })}
 
                         {/* 合計行（列数19に一致させる） */}
                         <tr>
