@@ -724,17 +724,58 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
 function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // 計画時間数計：rows.minutes を「時間」に換算して合計（小数1桁まで）
-    const sumPlanHoursRaw =
-        (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
+    // minutes が無い行でも、start/end から分数を算出する
+    const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
+        if (typeof r.minutes === "number") return r.minutes;
 
-    const sumPlanHours =
-        Number.isFinite(sumPlanHoursRaw)
-            ? (Math.round(sumPlanHoursRaw * 10) / 10).toString().replace(/\.0$/, "")
-            : "";
+        const [sh, sm] = r.start.split(":").map(Number);
+        const [eh, em] = r.end.split(":").map(Number);
+        const s = sh * 60 + sm;
+        const e = eh * 60 + em;
 
-    // 算定時間数計：現状 rows に「算定時間」専用の値が無いので minutes を流用
-    // （将来、算定時間用のフィールドが入ったらここを差し替え）
+        // 日跨ぎ対応（end <= start の場合は翌日扱い）
+        return e >= s ? e - s : e + 24 * 60 - s;
+    };
+
+    const fmtHours = (mins: number) => {
+        const h = mins / 60;
+        const t = (Math.round(h * 10) / 10).toString(); // 小数1桁
+        return t.replace(/\.0$/, "");                   // 2.0 -> "2"
+    };
+
+    // 計画時間数計：minutes（無ければstart/end差分）を合計して時間へ
+    const sumPlanMin = (form?.rows ?? [])
+        .filter(r => r.date >= FILTER_FROM)   // ★ここも同じ条件
+        .reduce((a, r) => a + getMinutes(r), 0);
+    const sumPlanHours = fmtHours(sumPlanMin);
+
+    // 算定時間数計：要件どおり計画時間数と同じでOK
     const sumSanteiHours = sumPlanHours;
+    // ▼▼▼ 追加ここから：日付/曜日表示 + 31行に揃える ▼▼▼
+    const weekdayJp = (dateStr: string) => {
+        const d = new Date(`${dateStr}T00:00:00`);
+        return ["日", "月", "火", "水", "木", "金", "土"][d.getDay()] ?? "";
+    };
+
+    const dayOfMonth = (dateStr: string) => {
+        const d = new Date(`${dateStr}T00:00:00`);
+        return String(d.getDate());
+    };
+
+    // 明細用：日付+開始時刻でソートし、31行にパディング
+    // 2025-11-01 以降のみ対象
+    const FILTER_FROM = "2025-11-01";
+
+    const src = (form?.rows ?? [])
+        .filter(r => r.date >= FILTER_FROM)   // ★追加：2025年11月以降のみ
+        .slice()
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+
+    const padded: Array<(typeof src)[number] | null> = [
+        ...src,
+        ...Array.from({ length: Math.max(0, 31 - src.length) }).map(() => null),
+    ].slice(0, 31);
+    // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
@@ -885,14 +926,46 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center">終了時間</th>
                         </tr>
 
-                        {/* 明細行（PDFは月日分の行が並ぶ） */}
-                        {Array.from({ length: 31 }).map((_, i) => (
-                            <tr key={i}>
-                                {Array.from({ length: 14 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
-                            </tr>
-                        ))}
+                        {/* 明細行（rowsを表示＋不足分は空行） */}
+                        {padded.map((r, i) => {
+                            if (!r) {
+                                return (
+                                    <tr key={`blank-${i}`}>
+                                        {Array.from({ length: 14 }).map((__, j) => (
+                                            <td key={j}>&nbsp;</td>
+                                        ))}
+                                    </tr>
+                                );
+                            }
+
+                            const mins = getMinutes(r);
+                            const hours = fmtHours(mins);
+                            const dispatch = r.required_staff_count ?? 1;
+
+                            return (
+                                <tr key={`row-${i}`}>
+                                    <td className="center">{dayOfMonth(r.date)}</td>
+                                    <td className="center">{weekdayJp(r.date)}</td>
+
+                                    <td className="center">{r.start}</td>
+                                    <td className="center">{r.end}</td>
+                                    <td className="center">{hours}</td>
+
+                                    <td className="center">{r.start}</td>
+                                    <td className="center">{r.end}</td>
+
+                                    <td className="center">{hours}</td>
+
+                                    <td className="center">{dispatch}</td>
+
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            );
+                        })}
 
                         {/* ===== 追加：最下部 合計（2行） ===== */}
                         <tr>
