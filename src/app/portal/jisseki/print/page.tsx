@@ -63,6 +63,15 @@ const TAKINO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知"
 const DOKO_JUKYUSHA_NO = ""; // 例: "2320600812"
 const DOKO_CONTRACT = "同行援護 25時間/月";
 
+// ★1ページあたりの明細行数（+10）
+const ROWS_PER_PAGE = {
+    TAKINO: 35, // 25 + 10
+    KODO: 41,   // 31 + 10
+    DOKO: 41,   // 31 + 10
+    JYUHO: 35,  // 25 + 10
+    IDOU: 41,   // 31 + 10
+} as const;
+
 function DigitBoxes10({ value }: { value: string }) {
     const v = (value ?? "").replace(/\D/g, "").slice(0, 10).padEnd(10, " ");
     return (
@@ -198,47 +207,80 @@ export default function JissekiPrintPage() {
 
             {/* ★印刷対象エリア：帳票だけ */}
             <div className="print-only">
-                {data && data.forms.map((f, idx) => (
-                    <div key={idx} className={idx === 0 ? "p-6" : "p-6 page-break"}>
-                        {/* ここで formType ごとに様式コンポーネントを切り替え */}
-                        {f.formType === "TAKINO" && (
-                            <TakinokyoForm data={data} form={f} pageNo={idx + 1} totalPages={data.forms.length} />
-                        )}
-                        {f.formType === "KODO" && (
-                            <KodoEngoForm
-                                data={data}
-                                form={f}
-                                pageNo={idx + 1}
-                                totalPages={data.forms.length}
-                            />
-                        )}
-                        {f.formType === "DOKO" && (
-                            <DokoEngoForm
-                                data={data}
-                                pageNo={idx + 1}
-                                totalPages={data.forms.length}
-                            />
-                        )}
+                {data && (() => {
+                    // rows を n 行ごとに分割
+                    const chunk = <T,>(arr: T[], size: number): T[][] => {
+                        const res: T[][] = [];
+                        for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
+                        return res.length ? res : [[]];
+                    };
 
-                        {f.formType === "JYUHO" && (
-                            <JudoHommonForm
-                                data={data}
-                                form={f}
-                                pageNo={idx + 1}
-                                totalPages={data.forms.length}
-                            />
-                        )}
+                    // 「印刷ページ」の配列を作る（フォームが複数ページになる）
+                    const pages = data.forms.flatMap((f) => {
+                        const size = ROWS_PER_PAGE[f.formType];
+                        const rows = f.rows ?? [];
+                        const chunks = chunk(rows, size);
 
-                        {f.formType === "IDOU" && (
-                            <IdoShienForm
-                                data={data}
-                                form={f}
-                                pageNo={idx + 1}
-                                totalPages={data.forms.length}
-                            />
-                        )}
-                    </div>
-                ))}
+                        return chunks.map((rowsPage, pageIndex) => ({
+                            formType: f.formType,
+                            service_codes: f.service_codes,
+                            rowsPage,
+                            pageIndex,
+                            pageCount: chunks.length,
+                        }));
+                    });
+
+                    const totalPages = pages.length;
+
+                    return pages.map((p, idx) => (
+                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "p-6" : "p-6 page-break"}>
+                            {p.formType === "TAKINO" && (
+                                <TakinokyoForm
+                                    data={data}
+                                    form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                />
+                            )}
+
+                            {p.formType === "KODO" && (
+                                <KodoEngoForm
+                                    data={data}
+                                    form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                />
+                            )}
+
+                            {p.formType === "DOKO" && (
+                                <DokoEngoForm
+                                    data={data}
+                                    form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                />
+                            )}
+
+                            {p.formType === "JYUHO" && (
+                                <JudoHommonForm
+                                    data={data}
+                                    form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                />
+                            )}
+
+                            {p.formType === "IDOU" && (
+                                <IdoShienForm
+                                    data={data}
+                                    form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }}
+                                    pageNo={idx + 1}
+                                    totalPages={totalPages}
+                                />
+                            )}
+                        </div>
+                    ));
+                })()}
             </div>
         </div>
     );
@@ -456,10 +498,12 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 .slice()
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
+                            const MAX = ROWS_PER_PAGE.TAKINO;
+
                             const padded = [
                                 ...src,
-                                ...Array.from({ length: Math.max(0, 25 - src.length) }).map(() => null),
-                            ].slice(0, 25);
+                                ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+                            ].slice(0, MAX);
 
                             return padded.map((r, i) => {
                                 if (!r) {
@@ -782,10 +826,12 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         .slice()
         .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 
+    const MAX = ROWS_PER_PAGE.KODO;
+
     const padded: Array<(typeof src)[number] | null> = [
         ...src,
-        ...Array.from({ length: Math.max(0, 31 - src.length) }).map(() => null),
-    ].slice(0, 31);
+        ...Array.from({ length: Math.max(0, MAX - src.length) }).map(() => null),
+    ].slice(0, MAX);
     // ▲▲▲ 追加ここまで ▲▲▲
     return (
         <div className="formBox p-2">
@@ -1045,7 +1091,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "form">) {
+function DokoEngoForm({ data, form: _form, pageNo = 1, totalPages = 1 }: FormProps) {
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
@@ -1200,7 +1246,7 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
                         </tr>
 
                         {/* 明細行（PDFは31日相当の空行が多いので多めに） */}
-                        {Array.from({ length: 31 }).map((_, i) => (
+                        {Array.from({ length: ROWS_PER_PAGE.DOKO }).map((_, i) => (
                             <tr key={i} className="detail-row">
                                 {Array.from({ length: 14 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
@@ -1494,7 +1540,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
 
                         {/* 明細行（必要行数は仮で25） */}
-                        {Array.from({ length: 25 }).map((_, i) => (
+                        {Array.from({ length: ROWS_PER_PAGE.JYUHO }).map((_, i) => (
                             <tr key={i} className="detail-row">
                                 {Array.from({ length: 19 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
@@ -1807,7 +1853,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         </tr>
 
                         {/* 明細：31行 */}
-                        {Array.from({ length: 31 }).map((_, i) => (
+                        {Array.from({ length: ROWS_PER_PAGE.IDOU }).map((_, i) => (
                             <tr key={i} className="detail-row">
                                 {Array.from({ length: 19 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
