@@ -1,9 +1,12 @@
+// src/components/roster/RosterBoardDaily.tsx
 "use client";
 
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
 
 
 declare global {
@@ -86,6 +89,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     // ====== ルーティング（日付遷移） ======
     const router = useRouter();
     const searchParams = useSearchParams();
+    const supabase = useMemo(() => createClientComponentClient(), []);
     const go = (d: string) => {
         const params = new URLSearchParams(searchParams?.toString());
         params.set("date", d);
@@ -330,9 +334,15 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
             (async () => {
                 try {
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    const token = sessionData.session?.access_token ?? null;
+
                     await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
                         body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
                     });
                 } catch (err) {
