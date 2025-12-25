@@ -137,6 +137,18 @@ export default function JissekiPrintPage() {
     .box { border: 1px solid #000; }
     .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
+    + /* =========================
++    明細行をA4で安定させる：行高さ固定
++    ========================= */
++ :root{
++   --detail-row-h: 6.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
++ }
++ .detail-row > td{
++   height: var(--detail-row-h);
++   padding: 1px 2px;      /* 明細だけ少し詰める */
++   line-height: 1.05;     /* 文字で行が伸びるのを抑止 */
++   vertical-align: middle;
++ }
     .center { text-align: center; }
     .right { text-align: right; }
     .small { font-size: 10px; }
@@ -452,7 +464,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             return padded.map((r, i) => {
                                 if (!r) {
                                     return (
-                                        <tr key={`blank-${i}`}>
+                                        <tr key={`blank-${i}`} className="detail-row">
                                             {Array.from({ length: 17 }).map((__, j) => (
                                                 <td key={j}>&nbsp;</td>
                                             ))}
@@ -463,7 +475,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 const dispatch = r.required_staff_count ?? 1;
 
                                 return (
-                                    <tr key={`row-${i}`}>
+                                    <tr key={`row-${i}`} className="detail-row">
                                         {/* 日付 */}
                                         <td className="center">{dayOfMonth(r.date)}</td>
                                         {/* 曜日 */}
@@ -929,7 +941,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {padded.map((r, i) => {
                             if (!r) {
                                 return (
-                                    <tr key={`blank-${i}`}>
+                                    <tr key={`blank-${i}`} className="detail-row">
                                         {Array.from({ length: 14 }).map((__, j) => (
                                             <td key={j}>&nbsp;</td>
                                         ))}
@@ -942,7 +954,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             const dispatch = r.required_staff_count ?? 1;
 
                             return (
-                                <tr key={`row-${i}`}>
+                                <tr key={`row-${i}`} className="detail-row">
                                     <td className="center">{dayOfMonth(r.date)}</td>
                                     <td className="center">{weekdayJp(r.date)}</td>
 
@@ -1189,13 +1201,12 @@ function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "for
 
                         {/* 明細行（PDFは31日相当の空行が多いので多めに） */}
                         {Array.from({ length: 31 }).map((_, i) => (
-                            <tr key={i}>
+                            <tr key={i} className="detail-row">
                                 {Array.from({ length: 14 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
                             </tr>
                         ))}
-
                         {/* ===== フッタ合計（3行構成） ===== */}
                         <tr>
                             {/* 左側：合計（3行分の厚さ＝rowSpan=3） */}
@@ -1484,13 +1495,12 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* 明細行（必要行数は仮で25） */}
                         {Array.from({ length: 25 }).map((_, i) => (
-                            <tr key={i}>
+                            <tr key={i} className="detail-row">
                                 {Array.from({ length: 19 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
                             </tr>
                         ))}
-
                         {/* ====== 追加：最下部 2行（移動介護分／合計） ====== */}
 
                         {/* 移動介護分 */}
@@ -1798,7 +1808,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* 明細：31行 */}
                         {Array.from({ length: 31 }).map((_, i) => (
-                            <tr key={i}>
+                            <tr key={i} className="detail-row">
                                 {Array.from({ length: 19 }).map((__, j) => (
                                     <td key={j}>&nbsp;</td>
                                 ))}
