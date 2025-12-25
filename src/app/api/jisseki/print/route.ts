@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
         .lte("shift_start_date", end)
         .order("shift_start_date", { ascending: true })
         .order("shift_start_time", { ascending: true })
-        .returns<ShiftRow[]>(); // ★追加：shifts の型を確定
+        .returns<ShiftRow[]>();
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
