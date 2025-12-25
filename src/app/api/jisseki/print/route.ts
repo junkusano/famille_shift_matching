@@ -7,6 +7,7 @@ type PrintRow = {
     date: string;  // YYYY-MM-DD
     start: string; // HH:mm
     end: string;   // HH:mm
+    service_code?: string;            // ★追加：分類・表示用途
     minutes?: number;              // ★追加：サービス提供分（計画時間数算出に使用）
     required_staff_count?: number; // ★追加：派遣人数（shift.required_staff_count）
 };
@@ -33,7 +34,7 @@ const toFormType = (serviceCode: string): FormType => {
     if (serviceCode === "行動援護") return "KODO" as const;
 
     // 同行援護
-    if (serviceCode === "同行(初任者等)") return "DOKO" as const;
+    if (serviceCode.includes("同行")) return "DOKO" as const;
 
     // 居宅介護（身体・家事・通院）
     if (
@@ -103,17 +104,22 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = (shifts ?? []).map((s) => {
-        const startHHmm = String(s.shift_start_time).slice(0, 5);
-        const endHHmm = String(s.shift_end_time).slice(0, 5);
+    const rows: PrintRow[] = (shifts ?? []).map((s: any) => {
+        const start = String(s.shift_start_time ?? "").slice(0, 5);
+        const end = String(s.shift_end_time ?? "").slice(0, 5);
+
+        const minutes =
+            start && end
+                ? calcMinutes(start, end)
+                : undefined;
 
         return {
             date: String(s.shift_start_date),
-            start: startHHmm,
-            end: endHHmm,
-            minutes: calcMinutes(startHHmm, endHHmm),                 // ★追加
-            required_staff_count: Number(s.required_staff_count ?? 1), // ★追加
-            service_code: String(s.service_code ?? ""),               // 既存（toFormType用）
+            start,
+            end,
+            service_code: String(s.service_code ?? ""),
+            minutes,
+            required_staff_count: Number(s.required_staff_count ?? 1),
         };
     });
 
@@ -129,7 +135,14 @@ export async function GET(req: NextRequest) {
 
         const bucket = map.get(formType)!;
         bucket.service_codes.add(r.service_code);
-        bucket.rows.push({ date: r.date, start: r.start, end: r.end });
+        bucket.rows.push({
+            date: r.date,
+            start: r.start,
+            end: r.end,
+            service_code: r.service_code,
+            minutes: r.minutes,
+            required_staff_count: r.required_staff_count,
+        });
     }
 
     const forms: PrintForm[] = Array.from(map.entries()).map(([formType, bucket]) => ({
