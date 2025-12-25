@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
     const map = new Map<FormType, { service_codes: Set<string>; rows: PrintRow[] }>();
 
     for (const r of rows) {
-        const formType = toFormType(r.service_code);
+        const formType = toFormType(r.service_code ?? "");
 
         if (!map.has(formType)) {
             map.set(formType, { service_codes: new Set<string>(), rows: [] });

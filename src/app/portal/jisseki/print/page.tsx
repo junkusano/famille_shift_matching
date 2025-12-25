@@ -15,8 +15,8 @@ type PrintPayload = {
             start: string;       // HH:mm
             end: string;         // HH:mm
             minutes?: number;
+            required_staff_count?: number; // ★追加：派遣人数
             staffNames?: string[];
-            // …必要な項目を追加
         }>;
     }>;
 };
@@ -189,12 +189,7 @@ export default function JissekiPrintPage() {
                     <div key={idx} className={idx === 0 ? "p-6" : "p-6 page-break"}>
                         {/* ここで formType ごとに様式コンポーネントを切り替え */}
                         {f.formType === "TAKINO" && (
-                            <TakinokyoForm
-                                data={data}
-                                form={f}
-                                pageNo={idx + 1}
-                                totalPages={data.forms.length}
-                            />
+                            <TakinokyoForm data={data} form={f} pageNo={idx + 1} totalPages={data.forms.length} />
                         )}
                         {f.formType === "KODO" && (
                             <KodoEngoForm
@@ -236,7 +231,7 @@ export default function JissekiPrintPage() {
     );
 }
 
-function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
+function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
@@ -402,13 +397,94 @@ function TakinokyoForm({ data, pageNo = 1, totalPages = 1 }: FormProps) {
                         </tr>
 
                         {/* 明細行（例：25行） */}
-                        {Array.from({ length: 25 }).map((_, i) => (
-                            <tr key={i}>
-                                {Array.from({ length: 17 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
-                            </tr>
-                        ))}
+                        {(() => {
+                            const weekdayJp = (dateStr: string) => {
+                                const d = new Date(`${dateStr}T00:00:00`);
+                                return ["日", "月", "火", "水", "木", "金", "土"][d.getDay()] ?? "";
+                            };
+
+                            const dayOfMonth = (dateStr: string) => {
+                                const d = new Date(`${dateStr}T00:00:00`);
+                                return String(d.getDate());
+                            };
+
+                            const hoursText = (r: { start: string; end: string; minutes?: number }) => {
+                                const mins =
+                                    typeof r.minutes === "number"
+                                        ? r.minutes
+                                        : (() => {
+                                            const [sh, sm] = r.start.split(":").map(Number);
+                                            const [eh, em] = r.end.split(":").map(Number);
+                                            const s = sh * 60 + sm;
+                                            const e = eh * 60 + em;
+                                            return e >= s ? e - s : e + 24 * 60 - s;
+                                        })();
+
+                                const h = mins / 60;
+                                const t = (Math.round(h * 10) / 10).toString();
+                                return t.replace(/\.0$/, ""); // 2.0 -> "2"
+                            };
+
+                            const src = (form?.rows ?? [])
+                                .slice()
+                                .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+
+                            const padded = [
+                                ...src,
+                                ...Array.from({ length: Math.max(0, 25 - src.length) }).map(() => null),
+                            ].slice(0, 25);
+
+                            return padded.map((r, i) => {
+                                if (!r) {
+                                    return (
+                                        <tr key={`blank-${i}`}>
+                                            {Array.from({ length: 17 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
+
+                                const dispatch = r.required_staff_count ?? 1;
+
+                                return (
+                                    <tr key={`row-${i}`}>
+                                        {/* 日付 */}
+                                        <td className="center">{dayOfMonth(r.date)}</td>
+                                        {/* 曜日 */}
+                                        <td className="center">{weekdayJp(r.date)}</td>
+
+                                        {/* サービス内容（今回は要求外なので空のまま） */}
+                                        <td>&nbsp;</td>
+
+                                        {/* 居宅介護計画：開始/終了/計画時間数（時間） */}
+                                        <td className="center">{r.start}</td>
+                                        <td className="center">{r.end}</td>
+                                        <td className="center">{hoursText(r)}</td>
+
+                                        {/* 居宅介護計画：乗降は要望外なので空 */}
+                                        <td>&nbsp;</td>
+
+                                        {/* 以降の列（提供時間、算定、加算等）は要望外なので空のまま */}
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+
+                                        {/* 派遣人数 */}
+                                        <td className="center">{dispatch}</td>
+
+                                        {/* 残り列 */}
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                        <td>&nbsp;</td>
+                                    </tr>
+                                );
+                            });
+                        })()}
                         {/* ===== 合計欄（画像どおり：7行） ===== */}
                         {(() => {
                             const sumLabels = [
