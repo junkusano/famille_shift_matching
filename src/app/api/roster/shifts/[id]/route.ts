@@ -25,12 +25,27 @@ type ShiftRow = {
 const HHMM = /^\d{2}:\d{2}$/;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
+async function resolveActorUserId(req: Request): Promise<string | null> {
+  // 1) Authorization: Bearer <jwt> を優先（大小文字・余分スペースに強く）
+  const authHeader = (req.headers.get("authorization") ?? "").trim();
+  const m = authHeader.match(/^Bearer\s+(.+)$/i);
+  const jwt = m?.[1]?.trim() ?? null;
+
+  if (jwt) {
+    const { data, error } = await SB.auth.getUser(jwt);
+    if (!error) return data.user?.id ?? null;
+    console.warn("[roster] SB.auth.getUser error", error);
+  }
+
+  // 2) cookie セッション（従来）
+  const supabaseAuth = createRouteHandlerClient({ cookies });
+  const { data } = await supabaseAuth.auth.getUser();
+  return data.user?.id ?? null;
+}
+
 export async function PATCH(req: Request) {
   try {
-    // Auth（ログインユーザー）
-    const supabaseAuth = createRouteHandlerClient({ cookies });
-    const { data: userData } = await supabaseAuth.auth.getUser();
-    const actorUserIdText = userData?.user?.id ?? null; // UUID文字列 or null
+    const actorUserIdText = await resolveActorUserId(req);
 
     // shift_id
     const url = new URL(req.url);
@@ -89,19 +104,15 @@ export async function PATCH(req: Request) {
 
     if (!targetCol) {
       return NextResponse.json(
-        {
-          error: "cannot detect target column",
-          shift_id: shiftId,
-          src_staff_id: body.src_staff_id,
-        },
+        { error: "cannot detect target column", shift_id: shiftId, src_staff_id: body.src_staff_id },
         { status: 400 }
       );
     }
 
-    // ===== まずRPC（監査コンテキスト付き）を試す =====
     console.log("[roster] actorUserIdText", actorUserIdText);
     console.log("[roster] requestPath", requestPath);
 
+    // RPC（監査コンテキスト）
     const { error: rpcErr } = await SB.rpc("roster_patch_shift_with_context", {
       p_shift_id: shiftId,
       p_date: body.date,
@@ -110,7 +121,7 @@ export async function PATCH(req: Request) {
       p_update_at: updateAt,
       p_target_col: targetCol,
       p_staff_id: body.staff_id,
-      p_actor_user_id: actorUserIdText, // ← ここで入れる
+      p_actor_user_id: actorUserIdText, // nullでもOK（監査は空）
       p_request_path: requestPath,
     });
 
@@ -118,7 +129,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // ===== RPC失敗時はフォールバック（業務停止を回避）=====
+    // RPC失敗時フォールバック（業務停止を回避）
     console.error("rpcErr fallback:", rpcErr);
 
     const updateCols: {
@@ -133,14 +144,11 @@ export async function PATCH(req: Request) {
       shift_start_date: body.date,
       shift_start_time: body.start_at,
       shift_end_time: body.end_at,
-      update_at: updateAt, // ★ shiftは timestamp without time zone
+      update_at: updateAt,
     };
     updateCols[targetCol] = body.staff_id;
 
-    const { error: updErr } = await SB
-      .from("shift")
-      .update(updateCols)
-      .eq("shift_id", shiftId);
+    const { error: updErr } = await SB.from("shift").update(updateCols).eq("shift_id", shiftId);
 
     if (updErr) {
       const code = (updErr as { code?: string }).code;

@@ -334,8 +334,11 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
             (async () => {
                 try {
-                    const { data: sessionData } = await supabase.auth.getSession();
+                    const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                    if (sessErr) console.warn("[roster] getSession error", sessErr);
+
                     const token = sessionData.session?.access_token ?? null;
+                    if (!token) console.warn("[roster] no access_token (Bearer not attached)");
 
                     await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
