@@ -1089,7 +1089,6 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 </div>
                             </td>
                         </tr>
-
                     </tbody>
                 </table>
             </div>
@@ -1098,11 +1097,35 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 }
 
 function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
-    // 合計（必要なら form.rows から計算に差し替え）
-    const sumPlanHours = 0;   // 計画時間数計
-    const sumSanteiHours = 0; // 算定時間数計
-    // const sumFirst = 0;       // 初回加算 回  ←削除
-    // const sumEmergency = 0;   // 緊急時対応加算 回 ←削除
+    const FILTER_FROM = "2025-11-01";
+
+    const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
+        if (typeof r.minutes === "number") return r.minutes;
+        const [sh, sm] = r.start.split(":").map(Number);
+        const [eh, em] = r.end.split(":").map(Number);
+        const s = sh * 60 + sm;
+        const e = eh * 60 + em;
+        return e >= s ? e - s : e + 24 * 60 - s; // 日跨ぎ対応
+    };
+
+    const fmtHours = (mins: number) => {
+        const h = mins / 60;
+        const t = (Math.round(h * 10) / 10).toString();
+        return t.replace(/\.0$/, "");
+    };
+
+    // 2025-11-01 以降のみ
+    const src = (form?.rows ?? [])
+        .filter((r) => r.date >= FILTER_FROM)
+        .slice()
+        .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+
+    // 合計（計画時間数計）
+    const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
+    const sumPlanHours = fmtHours(sumPlanMin);
+
+    // 要望：算定時間数計も計画時間数計と同じ
+    const sumSanteiHours = sumPlanHours;
 
     return (
         <div className="formBox p-2">
@@ -1315,19 +1338,19 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">{weekdayJp(r.date)}</td>
 
                                         {/* サービス内容（要望対象外なので空欄のまま） */}
-                                        <td>&nbsp;</td>
+                                        <td className="center">同行 (初任者等)</td>
 
                                         {/* 同行援護計画：開始/終了/計画時間数 */}
                                         <td className="center">{r.start}</td>
                                         <td className="center">{r.end}</td>
                                         <td className="center">{planHours}</td>
 
-                                        {/* サービス提供時間（要望対象外なので空欄） */}
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
+                                        {/* サービス提供時間：計画と同じでOK */}
+                                        <td className="center">{r.start}</td>
+                                        <td className="center">{r.end}</td>
 
-                                        {/* 算定時間（要望対象外なので空欄） */}
-                                        <td>&nbsp;</td>
+                                        {/* 算定時間：計画時間数と同じでOK */}
+                                        <td className="center">{planHours}</td>
 
                                         {/* 派遣人数 */}
                                         <td className="center">{dispatch}</td>
@@ -1407,7 +1430,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         <tr>
                             {/* サービス提供時間：一番下行（左右空欄） */}
-                            <td>&nbsp;</td>
+                            <td className="right"><b>{sumPlanHours}</b></td>
                             <td>&nbsp;</td>
                         </tr>
 
