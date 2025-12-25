@@ -18,6 +18,14 @@ type PrintForm = {
     rows: PrintRow[];
 };
 
+type ShiftRow = {
+    shift_start_date: string | null;
+    shift_start_time: string | null;
+    shift_end_time: string | null;
+    service_code: string | null;
+    required_staff_count: number | null;
+};
+
 const toFormType = (serviceCode: string): FormType => {
     // 移動支援
     if (
@@ -93,20 +101,21 @@ export async function GET(req: NextRequest) {
     // シフト取得（テーブル名が shift / shifts どちらかはプロジェクトに合わせて調整）
     const { data: shifts, error } = await supabaseAdmin
         .from("shift")
-        .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count") // ★追加
+        .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count")
         .eq("kaipoke_cs_id", kaipoke_cs_id)
         .gte("shift_start_date", start)
         .lte("shift_start_date", end)
         .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true });
+        .order("shift_start_time", { ascending: true })
+        .returns<ShiftRow[]>(); // ★追加：shifts の型を確定
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows: PrintRow[] = (shifts ?? []).map((s: any) => {
-        const start = String(s.shift_start_time ?? "").slice(0, 5);
-        const end = String(s.shift_end_time ?? "").slice(0, 5);
+    const rows: PrintRow[] = (shifts ?? []).map((s: ShiftRow): PrintRow => {
+        const start = (s.shift_start_time ?? "").slice(0, 5);
+        const end = (s.shift_end_time ?? "").slice(0, 5);
 
         const minutes =
             start && end
@@ -114,12 +123,12 @@ export async function GET(req: NextRequest) {
                 : undefined;
 
         return {
-            date: String(s.shift_start_date),
+            date: s.shift_start_date ?? "",
             start,
             end,
-            service_code: String(s.service_code ?? ""),
+            service_code: s.service_code ?? "",
             minutes,
-            required_staff_count: Number(s.required_staff_count ?? 1),
+            required_staff_count: s.required_staff_count ?? 1,
         };
     });
 
