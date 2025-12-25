@@ -725,6 +725,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // 計画時間数計：rows.minutes を「時間」に換算して合計（小数1桁まで）
     // minutes が無い行でも、start/end から分数を算出する
+    const FILTER_FROM = "2025-11-01";
     const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
         if (typeof r.minutes === "number") return r.minutes;
 
@@ -763,8 +764,6 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     };
 
     // 明細用：日付+開始時刻でソートし、31行にパディング
-    // 2025-11-01 以降のみ対象
-    const FILTER_FROM = "2025-11-01";
 
     const src = (form?.rows ?? [])
         .filter(r => r.date >= FILTER_FROM)   // ★追加：2025年11月以降のみ
