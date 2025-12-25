@@ -14,8 +14,9 @@ type PrintPayload = {
             date: string;        // YYYY-MM-DD
             start: string;       // HH:mm
             end: string;         // HH:mm
+            service_code?: string;          // ★追加：サービス内容（身体/家事/通院…）
             minutes?: number;
-            required_staff_count?: number; // ★追加：派遣人数
+            required_staff_count?: number; // ★派遣人数
             staffNames?: string[];
         }>;
     }>;
@@ -425,6 +426,20 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 return t.replace(/\.0$/, ""); // 2.0 -> "2"
                             };
 
+                            const displayServiceLabel = (serviceCode?: string) => {
+                                const s = serviceCode ?? "";
+
+                                if (s === "身体") return "身体";
+                                if (s === "家事") return "家事";
+
+                                // 表記ゆれ対応： () と （） の両方を許容
+                                if (s === "通院(伴う)" || s === "通院（伴う）") return "通院（伴う）";
+                                if (s === "通院(伴ず)" || s === "通院（伴わず）" || s === "通院（伴ず）") return "通院（伴わず）";
+
+                                // 4種以外は空欄（必要なら s をそのまま返す運用に変更可）
+                                return "";
+                            };
+
                             const src = (form?.rows ?? [])
                                 .slice()
                                 .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
@@ -454,8 +469,8 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 曜日 */}
                                         <td className="center">{weekdayJp(r.date)}</td>
 
-                                        {/* サービス内容（今回は要求外なので空のまま） */}
-                                        <td>&nbsp;</td>
+                                        {/* サービス内容（4種のみ表示） */}
+                                        <td className="center">{displayServiceLabel(r.service_code)}</td>
 
                                         {/* 居宅介護計画：開始/終了/計画時間数（時間） */}
                                         <td className="center">{r.start}</td>
@@ -494,6 +509,45 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 "通院介護（身体介護を伴わない）",
                                 "通院等乗降介助",
                             ];
+
+                            // ===== 追加：計画時間数（時間）のサービス別合計 =====
+                            const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
+                                if (typeof r.minutes === "number") return r.minutes;
+                                const [sh, sm] = r.start.split(":").map(Number);
+                                const [eh, em] = r.end.split(":").map(Number);
+                                const s = sh * 60 + sm;
+                                const e = eh * 60 + em;
+                                return e >= s ? e - s : e + 24 * 60 - s;
+                            };
+
+                            const fmtHours = (mins: number) => {
+                                const h = mins / 60;
+                                const t = (Math.round(h * 10) / 10).toString();
+                                return t.replace(/\.0$/, "");
+                            };
+
+                            const toSumLabel = (serviceCode?: string) => {
+                                const s = serviceCode ?? "";
+                                if (s === "身体") return "居宅における身体介護";
+                                if (s === "家事") return "家事援助";
+                                if (s === "通院(伴う)" || s === "通院（伴う）") return "通院介護（身体介護を伴う）";
+                                if (s === "通院(伴ず)" || s === "通院（伴わず）" || s === "通院（伴ず）")
+                                    return "通院介護（身体介護を伴わない）";
+                                return null;
+                            };
+
+                            const sumMinutesByLabel: Record<string, number> = {};
+                            (form?.rows ?? []).forEach((r) => {
+                                const label = toSumLabel(r.service_code);
+                                if (!label) return;
+                                const mins = getMinutes(r);
+                                sumMinutesByLabel[label] = (sumMinutesByLabel[label] ?? 0) + mins;
+                            });
+
+                            const sumHoursByLabel: Record<string, string> = {};
+                            Object.entries(sumMinutesByLabel).forEach(([label, mins]) => {
+                                sumHoursByLabel[label] = fmtHours(mins);
+                            });
 
                             return (
                                 <>
@@ -552,12 +606,13 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <tr key={`sum-${i}`}>
                                             {/* 左側ブロック：サービス区分名（4列ぶん） */}
                                             <td colSpan={4} className="center small">{label}</td>
-
                                             {/* 計画時間数計（時間/乗降） */}
-                                            {/* 時間：通院等乗降介助のみ斜線 */}
-                                            <td className={label === "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
+                                            {/* 時間：通院等乗降介助のみ斜線。斜線でない行に合計値を入れる */}
+                                            <td className={label === "通院等乗降介助" ? "diag" : "right"}>
+                                                {label === "通院等乗降介助" ? "\u00A0" : (sumHoursByLabel[label] ?? "\u00A0")}
+                                            </td>
 
-                                            {/* 乗降：通院等乗降介助以外は斜線 */}
+                                            {/* 乗降：通院等乗降介助以外は斜線（ここは値を入れないので現状のまま空欄） */}
                                             <td className={label !== "通院等乗降介助" ? "diag" : ""}>&nbsp;</td>
 
                                             {/* 内訳（適用単価別） 4列：100/90/70/重訪 */}

@@ -86,6 +86,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "kaipoke_cs_id, month は必須です" }, { status: 400 });
     }
 
+    // ★追加：2025-11 以降のみ対象（2025-10 以前は空で返す）
+    if (month < "2025-11") {
+        const payload = {
+            client: { kaipoke_cs_id, client_name: "" },
+            month,
+            forms: [],
+        };
+        return NextResponse.json(payload);
+    }
+
     const { start, end } = ymToRange(month);
 
     // 利用者名（取得元はプロジェクトの実テーブルに合わせて調整）
