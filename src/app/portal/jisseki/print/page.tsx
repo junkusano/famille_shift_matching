@@ -255,9 +255,8 @@ export default function JissekiPrintPage() {
                             {p.formType === "DOKO" && (
                                 <DokoEngoForm
                                     data={data}
-                                    form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
-                                    totalPages={totalPages}
+                                    totalPages={data.forms.length}
                                 />
                             )}
 
@@ -1091,7 +1090,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, form: _form, pageNo = 1, totalPages = 1 }: FormProps) {
+function DokoEngoForm({ data, pageNo = 1, totalPages = 1 }: Omit<FormProps, "form">) {
     // 合計（必要なら form.rows から計算に差し替え）
     const sumPlanHours = 0;   // 計画時間数計
     const sumSanteiHours = 0; // 算定時間数計
