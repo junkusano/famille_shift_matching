@@ -7,6 +7,8 @@ type PrintRow = {
     date: string;  // YYYY-MM-DD
     start: string; // HH:mm
     end: string;   // HH:mm
+    minutes?: number;              // ★追加：サービス提供分（計画時間数算出に使用）
+    required_staff_count?: number; // ★追加：派遣人数（shift.required_staff_count）
 };
 
 type PrintForm = {
@@ -45,6 +47,18 @@ const toFormType = (serviceCode: string): FormType => {
     return "TAKINO" as const;
 };
 
+const calcMinutes = (startHHmm: string, endHHmm: string) => {
+    const [sh, sm] = startHHmm.split(":").map(Number);
+    const [eh, em] = endHHmm.split(":").map(Number);
+
+    const s = sh * 60 + sm;
+    const e = eh * 60 + em;
+
+    // 日跨ぎ（end <= start）も考慮
+    const diff = e >= s ? (e - s) : (e + 24 * 60 - s);
+    return diff;
+};
+
 const ymToRange = (ym: string) => {
     // ym: "2025-12"
     const [y, m] = ym.split("-").map(Number);
@@ -78,7 +92,7 @@ export async function GET(req: NextRequest) {
     // シフト取得（テーブル名が shift / shifts どちらかはプロジェクトに合わせて調整）
     const { data: shifts, error } = await supabaseAdmin
         .from("shift")
-        .select("shift_start_date,shift_start_time,shift_end_time,service_code")
+        .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count") // ★追加
         .eq("kaipoke_cs_id", kaipoke_cs_id)
         .gte("shift_start_date", start)
         .lte("shift_start_date", end)
@@ -89,12 +103,19 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = (shifts ?? []).map((s) => ({
-        date: String(s.shift_start_date),
-        start: String(s.shift_start_time).slice(0, 5),
-        end: String(s.shift_end_time).slice(0, 5),
-        service_code: String(s.service_code ?? ""),
-    }));
+    const rows = (shifts ?? []).map((s) => {
+        const startHHmm = String(s.shift_start_time).slice(0, 5);
+        const endHHmm = String(s.shift_end_time).slice(0, 5);
+
+        return {
+            date: String(s.shift_start_date),
+            start: startHHmm,
+            end: endHHmm,
+            minutes: calcMinutes(startHHmm, endHHmm),                 // ★追加
+            required_staff_count: Number(s.required_staff_count ?? 1), // ★追加
+            service_code: String(s.service_code ?? ""),               // 既存（toFormType用）
+        };
+    });
 
     // formType別にまとめる
     const map = new Map<FormType, { service_codes: Set<string>; rows: PrintRow[] }>();
