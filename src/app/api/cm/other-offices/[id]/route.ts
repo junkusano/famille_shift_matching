@@ -9,15 +9,19 @@ import { createLogger } from '@/lib/common/logger';
 
 const logger = createLogger('cm/api/other-offices/[id]');
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 /**
  * FAX代行番号の更新
  */
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
 
     // リクエストボディの取得
     let body;
@@ -78,10 +82,10 @@ export async function PATCH(
  */
 export async function GET(
   _request: NextRequest,
-  context: { params: { id: string } }
+  context: RouteContext
 ) {
   try {
-    const { id } = context.params;
+    const { id } = await context.params;
 
     // データ取得
     const { data: office, error: queryError } = await supabaseAdmin
