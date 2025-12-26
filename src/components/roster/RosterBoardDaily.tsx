@@ -124,6 +124,25 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
     useEffect(() => {
+        (async () => {
+            try {
+                const supabase = createClientComponentClient();
+                const { data, error } = await supabase.auth.getSession();
+
+                console.log("[auth] getSession error:", error);
+                console.log("[auth] session:", data?.session);
+
+                // 見たいところだけ抜粋
+                console.log("[auth] user.id:", data?.session?.user?.id ?? null);
+                console.log("[auth] access_token exists:", !!data?.session?.access_token);
+                console.log("[auth] expires_at:", data?.session?.expires_at ?? null);
+            } catch (e) {
+                console.error("[auth] debug exception:", e);
+            }
+        })();
+    }, []);
+
+    useEffect(() => {
         setCards(initialView.shifts);
     }, [initialView.shifts, date]);
 
