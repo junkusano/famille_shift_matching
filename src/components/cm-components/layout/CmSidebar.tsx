@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home,
   Users,
+  Building2,
   ClipboardList,
   CalendarDays,
   Receipt,
@@ -64,6 +65,15 @@ const CmMenuStructure: CmMenuGroup[] = [
       { id: 'client-list', label: '利用者一覧', path: '/cm-portal/clients' },
       { id: 'insurance', label: '被保険者証', path: '/cm-portal/clients/insurance' },
       { id: 'subsidy', label: '公費・減額', path: '/cm-portal/clients/subsidy' },
+    ],
+  },
+  {
+    id: 'other-offices',
+    label: '他社事業所管理',
+    icon: Building2,
+    // roles制限なし = 全員アクセス可能
+    items: [
+      { id: 'other-office-list', label: '他社事業所一覧', path: '/cm-portal/other-offices' },
     ],
   },
   {

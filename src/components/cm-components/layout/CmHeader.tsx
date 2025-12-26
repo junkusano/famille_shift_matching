@@ -24,6 +24,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/clients': '利用者一覧',
     '/cm-portal/clients/insurance': '被保険者証',
     '/cm-portal/clients/subsidy': '公費・減額',
+    '/cm-portal/other-offices': '他社事業所一覧',
     '/cm-portal/care-plan': '計画書作成',
     '/cm-portal/care-plan/weekly': '週間計画',
     '/cm-portal/care-plan/monitoring': 'モニタリング',
@@ -48,6 +49,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/settings/notifications': '通知設定',
     '/cm-portal/settings/account': 'アカウント',
     '/cm-portal/audit/logs': '操作ログ',
+    '/cm-portal/admin/alert-batch': 'アラートバッチ',
   };
 
   const breadcrumbs: CmBreadcrumb[] = [
