@@ -528,7 +528,7 @@ export default function ShiftRecordMonthlyViewPage() {
         </div>
       )}
 
-      <div className="border rounded bg-white overflow-x-auto">
+      <div className="border rounded bg-white overflow-x-auto print:overflow-visible">
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr className="bg-muted">

@@ -372,23 +372,16 @@
 @media print {
 
     /* まず全部隠す（ポータル共通の上部アラート等も含めて） */
-    body * {
-        visibility: hidden !important;
-    }
+  body * { visibility: hidden !important; }
 
-    /* page.tsx 側の印刷領域だけ表示 */
-    .print-only,
-    .print-only * {
-        visibility: visible !important;
-    }
+  .print-only,
+  .print-only * { visibility: visible !important; }
 
-    /* 印刷位置を左上に固定（余白ズレ対策） */
-    .print-only {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-    }
+  /* absolute をやめる */
+  .print-only {
+    position: static !important;
+    width: 100% !important;
+  }
 
     /* 保険：ポータルUIは強制的に消す */
     .left-menu,
