@@ -505,7 +505,7 @@ export default function ShiftRecordMonthlyViewPage() {
   }, [kaipoke_cs_id, month, defMap, lMap, sMap])
 
   return (
-    <div className="p-4 print:p-0">
+    <div className="p-4 print:p-0 print-only">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{title}</h1>
