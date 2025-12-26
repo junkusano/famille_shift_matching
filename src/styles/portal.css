@@ -399,3 +399,42 @@
         display: none !important;
     }
 }
+
+@media print {
+  /* サイドメニュー・モバイルメニュー系は印刷不要 */
+  .left-menu,
+  .edge-hotzone,
+  nav.menu,
+  .hamburger,
+  footer {
+    display: none !important;
+  }
+
+  /* ★これが本命：印刷が真っ白になる原因の定番（transform/fixed/overflow）を無効化 */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .portal-container,
+  .portal-container * {
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* fixed overlay/メニューが万一残っていても印刷に出さない */
+  .fixed {
+    position: static !important;
+  }
+
+  /* 印刷時に横スクロール・クリップされないように */
+  main {
+    overflow: visible !important;
+  }
+
+  /* 色が薄すぎる場合の保険（真っ白対策というより視認性） */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
