@@ -9,6 +9,8 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = req.nextUrl;
 
+  await supabase.auth.getSession();
+
   // ★ Cron/内部バッチは素通り
   if (pathname.startsWith('/api/cron/')) return NextResponse.next();
 
