@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -26,34 +25,35 @@ type ShiftRow = {
 const HHMM = /^\d{2}:\d{2}$/;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Bearer 検証用（anon）
-const sbAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 async function resolveActorUserId(req: Request): Promise<string | null> {
-  // 1) cookie セッション（まずこっち）
+  // 1) Authorization: Bearer <jwt> を最優先
+  const authHeader = req.headers.get("authorization") ?? "";
+  const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (jwt) {
+    // ★ service role で検証（これが一番確実）
+    const { data, error } = await SB.auth.getUser(jwt);
+    if (!error && data.user?.id) return data.user.id;
+    console.warn("[roster] SB.auth.getUser(Bearer) error", error);
+  }
+
+  // 2) cookie セッション（fallback）
   const supabaseAuth = createRouteHandlerClient({ cookies });
   const { data: cookieUser, error: cookieErr } = await supabaseAuth.auth.getUser();
   if (!cookieErr && cookieUser.user?.id) return cookieUser.user.id;
 
-  // 2) Authorization: Bearer <jwt>
-  const authHeader = req.headers.get("authorization") ?? "";
-  const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!jwt) return null;
+  if (cookieErr) console.warn("[roster] cookie getUser error", cookieErr);
 
-  const { data, error } = await sbAnon.auth.getUser(jwt);
-  if (error) {
-    console.warn("[roster] anon.auth.getUser error", error);
-    return null;
-  }
-  return data.user?.id ?? null;
+  return null;
 }
 
 export async function PATCH(req: Request) {
   try {
     const actorUserIdText = await resolveActorUserId(req);
+
+    console.log("[roster] actorUserIdText", actorUserIdText);
+    console.log("[roster] hasCookie", req.headers.get("cookie") ? "yes" : "no");
+    console.log("[roster] hasAuthHeader", req.headers.get("authorization") ? "yes" : "no");
 
     // shift_id
     const url = new URL(req.url);
@@ -117,12 +117,6 @@ export async function PATCH(req: Request) {
       );
     }
 
-    console.log("[roster] actorUserIdText", actorUserIdText);
-    console.log("[roster] requestPath", requestPath);
-    console.log("[roster] hasCookie", req.headers.get("cookie") ? "yes" : "no");
-    console.log("[roster] hasAuthHeader", req.headers.get("authorization") ? "yes" : "no");
-
-
     // RPC（監査コンテキスト）
     const { error: rpcErr } = await SB.rpc("roster_patch_shift_with_context", {
       p_shift_id: shiftId,
@@ -132,7 +126,7 @@ export async function PATCH(req: Request) {
       p_update_at: updateAt,
       p_target_col: targetCol,
       p_staff_id: body.staff_id,
-      p_actor_user_id: actorUserIdText, // nullでもOK（監査は空）
+      p_actor_user_id: actorUserIdText, // ★ここが埋まるのがゴール
       p_request_path: requestPath,
     });
 
@@ -140,9 +134,9 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // RPC失敗時フォールバック（業務停止を回避）
     console.error("rpcErr fallback:", rpcErr);
 
+    // フォールバック更新
     const updateCols: {
       shift_start_date: string;
       shift_start_time: string;
