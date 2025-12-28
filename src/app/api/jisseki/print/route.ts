@@ -1,181 +1,228 @@
+//api/jisseki/print/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 type FormType = "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
 
 type PrintRow = {
-    date: string;  // YYYY-MM-DD
-    start: string; // HH:mm
-    end: string;   // HH:mm
-    service_code?: string;            // ★追加：分類・表示用途
-    minutes?: number;              // ★追加：サービス提供分（計画時間数算出に使用）
-    required_staff_count?: number; // ★追加：派遣人数（shift.required_staff_count）
+  date: string; // YYYY-MM-DD
+  start: string; // HH:mm
+  end: string; // HH:mm
+  service_code?: string;
+  minutes?: number;
+  required_staff_count?: number;
+
+  // ★追加（IDOUで使用）
+  staffName?: string;          // ⑧
+  calc_hour?: number;          // ⑤（算定時間(時間)の確定値）
+  cs_pay?: string | number;    // ⑦（利用者負担額）
 };
 
 type PrintForm = {
-    formType: FormType;
-    service_codes: string[];
-    rows: PrintRow[];
+  formType: FormType;
+  service_codes: string[];
+  rows: PrintRow[];
 };
 
 type ShiftRow = {
-    shift_start_date: string | null;
-    shift_start_time: string | null;
-    shift_end_time: string | null;
-    service_code: string | null;
-    required_staff_count: number | null;
+  shift_start_date: string | null;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
+  service_code: string | null;
+  required_staff_count: number | null;
+
+  // ★追加
+  staff_01_user_id: string | null;
 };
 
 const toFormType = (serviceCode: string): FormType => {
-    // 移動支援
-    if (
-        serviceCode === "移：必要不可欠な外出" ||
-        serviceCode === "移：必要不可欠な外出（片道支援）" ||
-        serviceCode === "移：その他の外出" ||
-        serviceCode === "移：その他の外出（片道支援）"
-    ) return "IDOU" as const;
+  if (
+    serviceCode === "移：必要不可欠な外出" ||
+    serviceCode === "移：必要不可欠な外出（片道支援）" ||
+    serviceCode === "移：その他の外出" ||
+    serviceCode === "移：その他の外出（片道支援）"
+  ) return "IDOU";
 
-    // 重訪
-    if (serviceCode === "重訪Ⅱ" || serviceCode === "重訪Ⅲ") return "JYUHO" as const;
+  if (serviceCode === "重訪Ⅱ" || serviceCode === "重訪Ⅲ") return "JYUHO";
+  if (serviceCode === "行動援護") return "KODO";
+  if (serviceCode.includes("同行")) return "DOKO";
 
-    // 行動援護
-    if (serviceCode === "行動援護") return "KODO" as const;
+  if (
+    serviceCode === "身体" ||
+    serviceCode === "家事" ||
+    serviceCode === "通院(伴う)" ||
+    serviceCode === "通院(伴ず)"
+  ) return "TAKINO";
 
-    // 同行援護
-    if (serviceCode.includes("同行")) return "DOKO" as const;
-
-    // 居宅介護（身体・家事・通院）
-    if (
-        serviceCode === "身体" ||
-        serviceCode === "家事" ||
-        serviceCode === "通院(伴う)" ||
-        serviceCode === "通院(伴ず)"
-    ) return "TAKINO" as const;
-
-    // 未対応は居宅に寄せる/または Unknown で返す（運用に合わせて）
-    return "TAKINO" as const;
+  return "TAKINO";
 };
 
 const calcMinutes = (startHHmm: string, endHHmm: string) => {
-    const [sh, sm] = startHHmm.split(":").map(Number);
-    const [eh, em] = endHHmm.split(":").map(Number);
+  const [sh, sm] = startHHmm.split(":").map(Number);
+  const [eh, em] = endHHmm.split(":").map(Number);
+  const s = sh * 60 + sm;
+  const e = eh * 60 + em;
+  return e >= s ? (e - s) : (e + 24 * 60 - s);
+};
 
-    const s = sh * 60 + sm;
-    const e = eh * 60 + em;
-
-    // 日跨ぎ（end <= start）も考慮
-    const diff = e >= s ? (e - s) : (e + 24 * 60 - s);
-    return diff;
+// ⑤：15分以上は30分(0.5h)単位で切り上げ
+const calcHalfHourRoundedHours = (mins: number): number => {
+  const base = Math.floor(mins / 30) * 0.5;
+  const rem = mins % 30;
+  return rem >= 15 ? base + 0.5 : base;
 };
 
 const ymToRange = (ym: string) => {
-    // ym: "2025-12"
-    const [y, m] = ym.split("-").map(Number);
-    const start = `${y}-${String(m).padStart(2, "0")}-01`;
-    const endDate = new Date(y, m, 0).getDate(); // 月末日
-    const end = `${y}-${String(m).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`;
-    return { start, end };
+  const [y, m] = ym.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2, "0")}-01`;
+  const endDate = new Date(y, m, 0).getDate();
+  const end = `${y}-${String(m).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`;
+  return { start, end };
+};
+
+const isNagoyaZip = (zipRaw: string | null | undefined): boolean => {
+  const z = (zipRaw ?? "").replace(/\D/g, ""); // 例: 4600001
+  if (z.length < 3) return false;
+  const head3 = Number(z.slice(0, 3));
+  // 名古屋市: 450-459, 460-469 が中心 → 450〜469 で判定
+  return Number.isFinite(head3) && head3 >= 450 && head3 <= 469;
 };
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const kaipoke_cs_id = searchParams.get("kaipoke_cs_id") ?? "";
-    const month = searchParams.get("month") ?? ""; // YYYY-MM
+  const { searchParams } = new URL(req.url);
+  const kaipoke_cs_id = searchParams.get("kaipoke_cs_id") ?? "";
+  const month = searchParams.get("month") ?? ""; // YYYY-MM
 
-    if (!kaipoke_cs_id || !month) {
-        return NextResponse.json({ error: "kaipoke_cs_id, month は必須です" }, { status: 400 });
-    }
+  if (!kaipoke_cs_id || !month) {
+    return NextResponse.json({ error: "kaipoke_cs_id, month は必須です" }, { status: 400 });
+  }
 
-    // ★追加：2025-11 以降のみ対象（2025-10 以前は空で返す）
-    if (month < "2025-11") {
-        const payload = {
-            client: { kaipoke_cs_id, client_name: "" },
-            month,
-            forms: [],
-        };
-        return NextResponse.json(payload);
-    }
-
-    const { start, end } = ymToRange(month);
-
-    // 利用者名（取得元はプロジェクトの実テーブルに合わせて調整）
-    // 例：kaipoke_cs テーブルがある想定。無ければ disability_check_view などから拾う。
-    const { data: cs } = await supabaseAdmin
-        .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,name")
-        .eq("kaipoke_cs_id", kaipoke_cs_id)
-        .maybeSingle();
-
-    const client_name = cs?.name ?? ""; // 見つからなければ空でOK（IDはどこにも入れない）
-
-    // シフト取得（テーブル名が shift / shifts どちらかはプロジェクトに合わせて調整）
-    const { data: shifts, error } = await supabaseAdmin
-        .from("shift")
-        .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count")
-        .eq("kaipoke_cs_id", kaipoke_cs_id)
-        .gte("shift_start_date", start)
-        .lte("shift_start_date", end)
-        .order("shift_start_date", { ascending: true })
-        .order("shift_start_time", { ascending: true })
-        .returns<ShiftRow[]>();
-
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const rows: PrintRow[] = (shifts ?? []).map((s: ShiftRow): PrintRow => {
-        const start = (s.shift_start_time ?? "").slice(0, 5);
-        const end = (s.shift_end_time ?? "").slice(0, 5);
-
-        const minutes =
-            start && end
-                ? calcMinutes(start, end)
-                : undefined;
-
-        return {
-            date: s.shift_start_date ?? "",
-            start,
-            end,
-            service_code: s.service_code ?? "",
-            minutes,
-            required_staff_count: s.required_staff_count ?? 1,
-        };
+  // 2025-11以降のみ
+  if (month < "2025-11") {
+    return NextResponse.json({
+      client: { kaipoke_cs_id, client_name: "", ido_jukyusyasho: "", address_zip: "" },
+      month,
+      forms: [],
     });
+  }
 
-    // formType別にまとめる
-    const map = new Map<FormType, { service_codes: Set<string>; rows: PrintRow[] }>();
+  const { start, end } = ymToRange(month);
 
-    for (const r of rows) {
-        const formType = toFormType(r.service_code ?? "");
+  // ★①：ido_jukyusyasho と郵便番号（address_zip想定）も取得
+  const { data: cs } = await supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("kaipoke_cs_id,name,ido_jukyusyasho,address_zip")
+    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .maybeSingle();
 
-        if (!map.has(formType)) {
-            map.set(formType, { service_codes: new Set<string>(), rows: [] });
-        }
+  const client_name = cs?.name ?? "";
+  const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
+  const address_zip = (cs as { address_zip?: string } | null)?.address_zip ?? "";
 
-        const bucket = map.get(formType)!;
-        bucket.service_codes.add(r.service_code);
-        bucket.rows.push({
-            date: r.date,
-            start: r.start,
-            end: r.end,
-            service_code: r.service_code,
-            minutes: r.minutes,
-            required_staff_count: r.required_staff_count,
-        });
+  // シフト取得（staff_01_user_id 追加）
+  const { data: shifts, error } = await supabaseAdmin
+    .from("shift")
+    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id")
+    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .gte("shift_start_date", start)
+    .lte("shift_start_date", end)
+    .order("shift_start_date", { ascending: true })
+    .order("shift_start_time", { ascending: true })
+    .returns<ShiftRow[]>();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // ★⑧：スタッフ氏名の辞書を作る
+  const staffIds = Array.from(
+    new Set((shifts ?? []).map(s => s.staff_01_user_id).filter((v): v is string => !!v))
+  );
+
+  const staffNameMap = new Map<string, string>();
+  if (staffIds.length > 0) {
+    const { data: users } = await supabaseAdmin
+      .from("user_entry_united_view_single")
+      .select("user_id,last_name,first_name")
+      .in("user_id", staffIds);
+
+    (users ?? []).forEach((u: { user_id?: string; last_name?: string; first_name?: string }) => {
+      const uid = u.user_id ?? "";
+      if (!uid) return;
+      const name = `${u.last_name ?? ""}${u.first_name ?? ""}`.trim();
+      staffNameMap.set(uid, name);
+    });
+  }
+
+  // ★⑦：名古屋市なら insurance_unit_amount を引いて cal_hour=>cs_pay の辞書
+  const insurer = isNagoyaZip(address_zip) ? "名古屋市" : null;
+  const csPayByHour = new Map<number, string | number>();
+
+  if (insurer) {
+    const { data: units } = await supabaseAdmin
+      .from("insurance_unit_amount")
+      .select("cal_hour,cs_pay")
+      .eq("insurer", insurer)
+      .eq("insurance_kind", "移動支援");
+
+    (units ?? []).forEach((u: { cal_hour?: number | null; cs_pay?: string | number | null }) => {
+      if (typeof u.cal_hour === "number" && u.cs_pay != null) {
+        csPayByHour.set(u.cal_hour, u.cs_pay);
+      }
+    });
+  }
+
+  const rows: PrintRow[] = (shifts ?? []).map((s: ShiftRow): PrintRow => {
+    const startHHmm = (s.shift_start_time ?? "").slice(0, 5);
+    const endHHmm = (s.shift_end_time ?? "").slice(0, 5);
+
+    const minutes = startHHmm && endHHmm ? calcMinutes(startHHmm, endHHmm) : undefined;
+    const calc_hour = typeof minutes === "number" ? calcHalfHourRoundedHours(minutes) : undefined;
+
+    const staffName = s.staff_01_user_id ? (staffNameMap.get(s.staff_01_user_id) ?? "") : "";
+
+    // ⑦：cal_hour一致のcs_pay（名古屋市以外は空）
+    const cs_pay =
+      insurer && typeof calc_hour === "number"
+        ? (csPayByHour.get(calc_hour) ?? "")
+        : "";
+
+    return {
+      date: s.shift_start_date ?? "",
+      start: startHHmm,
+      end: endHHmm,
+      service_code: s.service_code ?? "",
+      minutes,
+      required_staff_count: s.required_staff_count ?? 1,
+      staffName,
+      calc_hour,
+      cs_pay,
+    };
+  });
+
+  const map = new Map<FormType, { service_codes: Set<string>; rows: PrintRow[] }>();
+
+  for (const r of rows) {
+    const formType = toFormType(r.service_code ?? "");
+
+    if (!map.has(formType)) {
+      map.set(formType, { service_codes: new Set<string>(), rows: [] });
     }
 
-    const forms: PrintForm[] = Array.from(map.entries()).map(([formType, bucket]) => ({
-        formType,
-        service_codes: Array.from(bucket.service_codes),
-        rows: bucket.rows,
-    }));
+    const bucket = map.get(formType)!;
+    bucket.service_codes.add(r.service_code ?? "");
+    bucket.rows.push(r);
+  }
 
-    const payload = {
-        client: { kaipoke_cs_id, client_name },
-        month,
-        forms,
-    };
+  const forms: PrintForm[] = Array.from(map.entries()).map(([formType, bucket]) => ({
+    formType,
+    service_codes: Array.from(bucket.service_codes),
+    rows: bucket.rows,
+  }));
 
-    return NextResponse.json(payload);
-
+  return NextResponse.json({
+    client: { kaipoke_cs_id, client_name, ido_jukyusyasho, address_zip },
+    month,
+    forms,
+  });
 }
