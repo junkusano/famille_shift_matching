@@ -97,6 +97,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/roster/monthly" className="text-blue-300 hover:underline">月間シフト</Link></li>
           <li><Link href="/portal/roster/daily" className="text-blue-300 hover:underline">シフト表</Link></li>
           <li><Link href="/portal/shift-wish" className="text-blue-300 hover:underline">シフトWish</Link></li>
+          <li><Link href="/portal/audit_log" className="text-blue-300 hover:underline">監査ログ</Link></li>
         </>
       )}
       <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
