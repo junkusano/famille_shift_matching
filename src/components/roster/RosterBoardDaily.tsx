@@ -5,8 +5,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-//import { supabase } from "@/lib/supabaseClient";
+//import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from "@/lib/supabaseClient";
 
 
 declare global {
@@ -89,7 +89,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     // ====== ルーティング（日付遷移） ======
     const router = useRouter();
     const searchParams = useSearchParams();
-    const supabase = useMemo(() => createClientComponentClient(), []);
+    //const supabase = useMemo(() => createClientComponentClient(), []);
     const go = (d: string) => {
         const params = new URLSearchParams(searchParams?.toString());
         params.set("date", d);
@@ -334,15 +334,19 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
             (async () => {
                 try {
+                    //const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+                    //f (sessErr) console.warn("[roster] getSession error", sessErr);
+
+                    //const token = sessionData.session?.access_token ?? null;
+                    //console.log("[roster] token?", token ? "yes" : "no");
+
                     const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
                     if (sessErr) console.warn("[roster] getSession error", sessErr);
-
                     const token = sessionData.session?.access_token ?? null;
                     console.log("[roster] token?", token ? "yes" : "no");
 
-                    const res = await fetch(`/api/roster/shifts/${shiftId}`, {
+                    await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
-                        credentials: "include",
                         headers: {
                             "Content-Type": "application/json",
                             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -350,12 +354,14 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
                     });
 
+                    /*
                     if (!res.ok) {
                         const msg = await res.text().catch(() => "");
                         console.error("[roster] PATCH failed", res.status, msg);
                     } else {
                         console.log("[roster] PATCH ok");
                     }
+                        */
                 } catch (err) {
                     console.error("[PATCH] roster shift update failed", err);
                 }
