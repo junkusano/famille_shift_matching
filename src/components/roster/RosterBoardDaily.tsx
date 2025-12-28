@@ -338,9 +338,9 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                     if (sessErr) console.warn("[roster] getSession error", sessErr);
 
                     const token = sessionData.session?.access_token ?? null;
-                    if (!token) console.warn("[roster] no access_token (Bearer not attached)");
+                    console.log("[roster] token?", token ? "yes" : "no");
 
-                    await fetch(`/api/roster/shifts/${shiftId}`, {
+                    const res = await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
                         credentials: "include",
                         headers: {
@@ -350,6 +350,12 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         body: JSON.stringify({ src_staff_id: srcStaffId, staff_id, start_at, end_at, date }),
                     });
 
+                    if (!res.ok) {
+                        const msg = await res.text().catch(() => "");
+                        console.error("[roster] PATCH failed", res.status, msg);
+                    } else {
+                        console.log("[roster] PATCH ok");
+                    }
                 } catch (err) {
                     console.error("[PATCH] roster shift update failed", err);
                 }

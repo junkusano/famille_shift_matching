@@ -213,7 +213,7 @@ export default function PrintViewMonthlyRoster() {
   const handlePrint = () => window.print()
 
   return (
-    <div className="w-full flex justify-center">
+    <div className="w-full flex justify-center print-only">
       <div className="w-[970px] p-4 print:p-0">
         {/* Header */}
         <div className="text-center text-xl font-medium mb-2 print:mb-1">{titleText}</div>
