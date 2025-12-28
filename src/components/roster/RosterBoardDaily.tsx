@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-
+import { supabase } from "@/lib/supabaseClient";
 
 
 declare global {
@@ -342,7 +342,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
                     await fetch(`/api/roster/shifts/${shiftId}`, {
                         method: "PATCH",
-                        credentials: "include", // ★ 追加：Supabase Cookie セッションを必ず送る
+                        credentials: "include",
                         headers: {
                             "Content-Type": "application/json",
                             ...(token ? { Authorization: `Bearer ${token}` } : {}),
