@@ -1,10 +1,9 @@
 // /src/app/api/shifts/route.ts
 import { supabaseAdmin } from '@/lib/supabase/service'
-import { createClient } from '@supabase/supabase-js'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
-// APIはNodeランタイムで実行（Service Role利用も可）
+// APIはNodeランタイムで実行（Service Role利用）
 export const runtime = 'nodejs'
 
 // === 共通: エラー型（軽量） ===
@@ -20,7 +19,7 @@ const toHMS = (v: string) => {
     const [h, m] = s.split(':')
     return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`
   }
-  return s
+  return s // 想定外はDB側でエラー
 }
 
 const toBool = (v: unknown): 0 | 1 => (String(v ?? '').trim().toUpperCase() === 'TRUE' ? 1 : 0)
@@ -32,7 +31,35 @@ const getBearerToken = (req: Request): string | null => {
   return m?.[1] ?? null
 }
 
-// ★ daily と同じ発想：referer から pathname（無ければ monthly）
+// ★ daily と同じ：Bearer 優先 → cookie fallback
+const resolveActorUserIdText = async (req: Request): Promise<string | null> => {
+  try {
+    const token = getBearerToken(req)
+
+    console.info('[shifts] hasCookie', req.headers.get('cookie') ? 'yes' : 'no')
+    console.info('[shifts] hasAuthHeader', token ? 'yes' : 'no')
+
+    // 1) Authorization: Bearer <jwt>
+    if (token) {
+      const { data, error } = await supabaseAdmin.auth.getUser(token)
+      if (!error && data.user?.id) return data.user.id
+      console.warn('[shifts] supabaseAdmin.auth.getUser(Bearer) error', error)
+    }
+
+    // 2) cookie セッション fallback
+    const supabaseAuth = createRouteHandlerClient({ cookies })
+    const { data: cookieUser, error: cookieErr } = await supabaseAuth.auth.getUser()
+    if (!cookieErr && cookieUser.user?.id) return cookieUser.user.id
+
+    if (cookieErr) console.warn('[shifts] cookie getUser error', cookieErr)
+    return null
+  } catch (e) {
+    console.warn('[shifts] resolveActorUserIdText failed', e)
+    return null
+  }
+}
+
+// ★ daily と同じ：referer → pathname（なければ monthly をデフォルト）
 const resolveRequestPath = (req: Request): string => {
   const referer = req.headers.get('referer') ?? ''
   try {
@@ -43,72 +70,7 @@ const resolveRequestPath = (req: Request): string => {
 }
 
 /**
- * ★重要：daily と同じ「ユーザーJWT優先」で Supabase client を作る
- * - Bearer があれば anon + Authorization: Bearer(userJWT) で PostgREST 実行
- *   → DB側で auth.uid() が取れる = actor_user_id が埋まる
- * - Bearer が無ければ cookie route client を試す
- * - それも無理なら service role fallback（この場合 actor_user_id は空のまま）
- *
- * さらに request_path を DB へ渡すために、Supabase へのリクエストヘッダに
- * referer 相当 & x-request-path を付ける（daily と同じ思想）
- */
-const getWriteClient = (req: Request) => {
-  const token = getBearerToken(req)
-  const requestPath = resolveRequestPath(req)
-
-  console.info('[shifts] hasCookie', req.headers.get('cookie') ? 'yes' : 'no')
-  console.info('[shifts] hasAuthHeader', token ? 'yes' : 'no')
-
-  const host = req.headers.get('host') ?? 'localhost'
-  const proto = req.headers.get('x-forwarded-proto') ?? 'https'
-  const origin = req.headers.get('origin') ?? `${proto}://${host}`
-  const refererForDb = `${origin}${requestPath}`
-
-  // 1) Bearer(userJWT) 優先（daily方式）
-  if (token) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !anon) {
-      console.warn('[shifts] missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY')
-    } else {
-      return createClient(url, anon, {
-        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // DB側が request.headers / referer を見ている場合に備えて両方渡す
-            'x-request-path': requestPath,
-            referer: refererForDb,
-          },
-        },
-      })
-    }
-  }
-
-  // 2) cookie セッション（auth-helpers）
-  // ※ monthly側が localStorage auth だとここは AuthSessionMissingError になることが多い
-  return createRouteHandlerClient({ cookies })
-}
-
-const getActorUserIdText = async (req: Request): Promise<string | null> => {
-  try {
-    const supabase = getWriteClient(req)
-    const { data, error } = await supabase.auth.getUser()
-    if (error) {
-      console.warn('[shifts] getUser error', error)
-      return null
-    }
-    return data.user?.id ?? null
-  } catch (e) {
-    console.warn('[shifts] getActorUserIdText failed', e)
-    return null
-  }
-}
-
-/**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
- * - view からは * を取得し、足りない項目は API 層で補完（デフォルト値）
- * - 月フィルタは [月初, 翌月初) の範囲フィルタ
  */
 export async function GET(req: Request) {
   try {
@@ -118,16 +80,18 @@ export async function GET(req: Request) {
 
     console.info('[shifts][GET] kaipoke_cs_id=', kaipokeCsId, ' month=', month)
 
-    if (!kaipokeCsId || !month) return json({ error: 'kaipoke_cs_id and month are required' }, 400)
+    if (!kaipokeCsId || !month) {
+      return json({ error: 'kaipoke_cs_id and month are required' }, 400)
+    }
 
     const m = month.match(/^(\d{4})-(\d{2})$/)
     if (!m) return json({ error: 'month must be YYYY-MM' }, 400)
 
     const year = Number(m[1])
-    const mon = Number(m[2])
+    const mon = Number(m[2]) // 1..12
     const startDate = new Date(Date.UTC(year, mon - 1, 1))
     const endDate = new Date(Date.UTC(year, mon, 1))
-    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+    const fmt = (d: Date) => d.toISOString().slice(0, 10) // YYYY-MM-DD
     const gte = fmt(startDate)
     const lt = fmt(endDate)
 
@@ -150,6 +114,7 @@ export async function GET(req: Request) {
 
       const requiredCount =
         typeof row['required_staff_count'] === 'number' ? (row['required_staff_count'] as number) : 1
+
       const twoPerson = toBool(row['two_person_work_flg'])
 
       return {
@@ -180,14 +145,13 @@ export async function GET(req: Request) {
   }
 }
 
-// === POST /api/shifts : 新規作成 ===
+// === POST /api/shifts : 新規作成（public.shift） ===
 export async function POST(req: Request) {
   try {
-    const actorUserIdText = await getActorUserIdText(req)
+    const actorUserIdText = await resolveActorUserIdText(req)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][POST] actorUserIdText', actorUserIdText, 'path', requestPath)
 
-    const supabase = getWriteClient(req)
     const raw = (await req.json()) as Record<string, unknown>
 
     for (const k of ['kaipoke_cs_id', 'shift_start_date', 'shift_start_time'] as const) {
@@ -197,13 +161,11 @@ export async function POST(req: Request) {
     const dispatchSize = raw['dispatch_size'] as string | undefined
     const dupRole = raw['dup_role'] as string | undefined
 
-    const required_staff_count =
-      (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1)
+    const required_staff_count = (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1)
 
     let two_person_work_flg = required_staff_count >= 2
     if (!two_person_work_flg) {
-      two_person_work_flg =
-        (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-')
+      two_person_work_flg = (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-')
     }
 
     const row = {
@@ -227,12 +189,32 @@ export async function POST(req: Request) {
       tokutei_comment: (raw['tokutei_comment'] ?? null) as string | null,
     }
 
-    const { data, error } = await supabase.from('shift').insert(row).select('shift_id').single()
-    if (error) {
-      const e = error as SupaErrLike
-      return json({ error: { code: e.code ?? null, message: e.message } }, 400)
+    const SHIFT_TABLE = 'shift' as const
+
+    const { data, error } = await supabaseAdmin.from(SHIFT_TABLE).insert(row).select('shift_id').single()
+
+    if (!error && data) {
+      return json({ shift_id: (data as { shift_id: number }).shift_id, table: SHIFT_TABLE }, 201)
     }
-    return json({ shift_id: (data as { shift_id: number }).shift_id }, 201)
+
+    const errMsg = (error as { message?: string; code?: string } | null)?.message ?? String(error ?? '')
+    const errCode = (error as { code?: string } | null)?.code ?? null
+
+    if (errCode === '23505' || /duplicate key value/i.test(errMsg)) {
+      const { data: existing, error: selErr } = await supabaseAdmin
+        .from(SHIFT_TABLE)
+        .select('shift_id')
+        .eq('kaipoke_cs_id', row.kaipoke_cs_id)
+        .eq('shift_start_date', row.shift_start_date)
+        .eq('shift_start_time', row.shift_start_time)
+        .single()
+
+      if (!selErr && existing) {
+        return json({ shift_id: (existing as { shift_id: number }).shift_id, duplicate: true }, 200)
+      }
+    }
+
+    return json({ error: { code: errCode, message: errMsg } }, 400)
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
     console.error('[shifts][POST] unhandled error', err)
@@ -243,16 +225,13 @@ export async function POST(req: Request) {
 // === PUT /api/shifts : 更新 ===
 export async function PUT(req: Request) {
   try {
-    const actorUserIdText = await getActorUserIdText(req)
+    const actorUserIdText = await resolveActorUserIdText(req)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][PUT] actorUserIdText', actorUserIdText, 'path', requestPath)
 
-    const supabase = getWriteClient(req)
     const raw = (await req.json()) as Record<string, unknown>
-
     const idVal = raw['shift_id'] ?? raw['id']
-    const id =
-      typeof idVal === 'string' ? Number(idVal) : typeof idVal === 'number' ? idVal : null
+    const id = typeof idVal === 'string' ? Number(idVal) : typeof idVal === 'number' ? idVal : null
 
     const patch: Record<string, unknown> = {}
     const setIf = (k: string, v: unknown) => {
@@ -296,7 +275,8 @@ export async function PUT(req: Request) {
     if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400)
 
     if (id != null) {
-      const { data, error } = await supabase.from('shift').update(patch).eq('shift_id', id).select('shift_id').single()
+      const { data, error } = await supabaseAdmin.from('shift').update(patch).eq('shift_id', id).select('shift_id').single()
+
       if (error) {
         const e = error as SupaErrLike
         return json({ error: { code: e.code ?? null, message: e.message } }, 400)
@@ -309,7 +289,7 @@ export async function PUT(req: Request) {
     const st = raw['shift_start_time'] as string | undefined
 
     if (cs && sd && st) {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('shift')
         .update(patch)
         .eq('kaipoke_cs_id', cs)
@@ -336,11 +316,10 @@ export async function PUT(req: Request) {
 // === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
   try {
-    const actorUserIdText = await getActorUserIdText(req)
+    const actorUserIdText = await resolveActorUserIdText(req)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][DELETE] actorUserIdText', actorUserIdText, 'path', requestPath)
 
-    const supabase = getWriteClient(req)
     const raw = (await req.json()) as Record<string, unknown>
 
     if (Array.isArray(raw['ids'])) {
@@ -350,7 +329,7 @@ export async function DELETE(req: Request) {
 
       if (ids.length === 0) return json({ error: { message: 'ids is empty' } }, 400)
 
-      const { error } = await supabase.from('shift').delete().in('shift_id', ids)
+      const { error } = await supabaseAdmin.from('shift').delete().in('shift_id', ids)
       if (error) {
         const e = error as SupaErrLike
         return json({ error: { code: e.code ?? null, message: e.message } }, 400)
@@ -361,7 +340,7 @@ export async function DELETE(req: Request) {
     const idVal = raw['shift_id'] ?? raw['id']
     if (idVal != null) {
       const id = typeof idVal === 'string' ? Number(idVal) : (idVal as number)
-      const { error } = await supabase.from('shift').delete().eq('shift_id', id)
+      const { error } = await supabaseAdmin.from('shift').delete().eq('shift_id', id)
       if (error) {
         const e = error as SupaErrLike
         return json({ error: { code: e.code ?? null, message: e.message } }, 400)
@@ -373,7 +352,7 @@ export async function DELETE(req: Request) {
     const sd = raw['shift_start_date'] as string | undefined
     const st = raw['shift_start_time'] as string | undefined
     if (cs && sd && st) {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('shift')
         .delete()
         .eq('kaipoke_cs_id', cs)

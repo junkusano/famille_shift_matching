@@ -12,18 +12,13 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-//import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabaseClient'
 
-/*
-async function getAccessToken(): Promise<string | null> {
-    const { data, error } = await supabase.auth.getSession()
-    if (error) {
-        console.warn('[monthly] getSession error', error)
-        return null
-    }
+
+const getAccessToken = async (): Promise<string | null> => {
+    const { data } = await supabase.auth.getSession()
     return data.session?.access_token ?? null
-}//
-    */
+}
 
 // ========= Types =========
 type KaipokeCs = {
@@ -847,18 +842,18 @@ export default function MonthlyRosterPage() {
             shift_end_time: hmToHMS(toHM(row.shift_end_time)),
         };
 
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token ?? null;
+        //const { data } = await supabase.auth.getSession();
+        const token = await getAccessToken()
 
         const res = await fetch('/api/shifts', {
             method: 'PUT',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(body),
-        });
+        })
+
 
         if (!res.ok) {
             const msg = await res.text().catch(() => '');
@@ -998,11 +993,13 @@ export default function MonthlyRosterPage() {
         }
 
         try {
+            const token = await getAccessToken()
             // API呼び出しパスとペイロードのキーを、既存の週間シフトのAPIに合わせる
             const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
                 // ▼ 修正: ペイロードのキーを 'rows' に変更
                 body: JSON.stringify({ rows: weeklyTemplateRecords }),
@@ -1042,8 +1039,8 @@ export default function MonthlyRosterPage() {
         if (selectedIds.size === 0) return
         if (!confirm(`${selectedIds.size} 件を削除します。よろしいですか？`)) return
         const ids = Array.from(selectedIds)
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token ?? null;
+        //const { data } = await supabase.auth.getSession();
+        const token = await getAccessToken()
 
         const res = await fetch('/api/shifts', {
             method: 'DELETE',
@@ -1068,8 +1065,8 @@ export default function MonthlyRosterPage() {
     const handleDeleteOne = async (id: string) => {
         if (readOnly) return;
         if (!confirm('この行を削除します。よろしいですか？')) return
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token ?? null;
+        //const { data } = await supabase.auth.getSession();
+        const token = await getAccessToken()
 
         const res = await fetch('/api/shifts', {
             method: 'DELETE',
