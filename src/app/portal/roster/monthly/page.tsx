@@ -1,17 +1,19 @@
 //portal/roster/monthly/page.tsx
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ShiftRecordLinkButton from '@/components/shift/ShiftRecordLinkButton'
-import { useCallback } from 'react';
 import { useRoleContext } from "@/context/RoleContext";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+
 
 // ========= Types =========
 type KaipokeCs = {
@@ -328,6 +330,7 @@ const checkTwoPersonRules = (
 
 // ========= Main =========
 export default function MonthlyRosterPage() {
+    const supabase = useMemo(() => createClientComponentClient(), []);
     const { role } = useRoleContext(); // Layoutと同じ判定に統一
     const readOnly = !["manager", "admin"].includes((role ?? "").toLowerCase());
     // マスタ
@@ -491,7 +494,18 @@ export default function MonthlyRosterPage() {
             staff_03_attend_flg: !!draft.staff_03_attend_flg,
         };
 
-        const res = await fetch('/api/shifts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token ?? null;
+
+        const res = await fetch('/api/shifts', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+        });
         const created = await res.json();
         if (!res.ok) throw new Error(created?.error?.message ?? 'failed to create');
 
@@ -823,11 +837,19 @@ export default function MonthlyRosterPage() {
             shift_end_time: hmToHMS(toHM(row.shift_end_time)),
         };
 
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token ?? null;
+
         const res = await fetch('/api/shifts', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify(body),
         });
+
         if (!res.ok) {
             const msg = await res.text().catch(() => '');
             alert(`保存に失敗しました\n${msg}`);
@@ -1008,11 +1030,19 @@ export default function MonthlyRosterPage() {
         if (selectedIds.size === 0) return
         if (!confirm(`${selectedIds.size} 件を削除します。よろしいですか？`)) return
         const ids = Array.from(selectedIds)
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token ?? null;
+
         const res = await fetch('/api/shifts', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ ids }),
-        })
+        });
+
         if (!res.ok) {
             const msg = await res.text().catch(() => '')
             alert(`削除に失敗しました\n${msg}`)
@@ -1026,11 +1056,19 @@ export default function MonthlyRosterPage() {
     const handleDeleteOne = async (id: string) => {
         if (readOnly) return;
         if (!confirm('この行を削除します。よろしいですか？')) return
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token ?? null;
+
         const res = await fetch('/api/shifts', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ ids: [id] }),
-        })
+        });
+
         if (!res.ok) {
             const msg = await res.text().catch(() => '')
             alert(`削除に失敗しました\n${msg}`)

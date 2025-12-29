@@ -23,6 +23,38 @@ const toHMS = (v: string) => {
 const toBool = (v: unknown): 0 | 1 =>
   String(v ?? '').trim().toUpperCase() === 'TRUE' ? 1 : 0;
 
+const getBearerToken = (req: Request): string | null => {
+  const h = req.headers.get('authorization') || req.headers.get('Authorization');
+  if (!h) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
+  return m?.[1] ?? null;
+};
+
+const getActorUserIdText = async (req: Request): Promise<string | null> => {
+  try {
+    const token = getBearerToken(req);
+
+    const hasCookie = !!req.headers.get('cookie');
+    const hasAuthHeader = !!token;
+
+    console.info('[shifts] hasCookie', hasCookie ? 'yes' : 'no');
+    console.info('[shifts] hasAuthHeader', hasAuthHeader ? 'yes' : 'no');
+
+    if (!token) return null;
+
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error) {
+      console.warn('[shifts] getUser error', error);
+      return null;
+    }
+    return data.user?.id ?? null;
+  } catch (e) {
+    console.warn('[shifts] getActorUserIdText failed', e);
+    return null;
+  }
+};
+
+
 /**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
  * - view からは * を取得し、足りない項目は API 層で補完（デフォルト値）
@@ -120,17 +152,9 @@ export async function POST(req: Request) {
   const json = (obj: unknown, status = 200) =>
     new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 
-  const toHMS = (v: string) => {
-    const s = String(v ?? '').trim();
-    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
-    if (/^\d{1,2}:\d{2}$/.test(s)) {
-      const [h, m] = s.split(':');
-      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`;
-    }
-    return s;
-  };
-
   try {
+    const actorUserIdText = await getActorUserIdText(req);
+    console.info('[shifts][POST] actorUserIdText', actorUserIdText);
     const raw = (await req.json()) as Record<string, unknown>;
 
     // 必須
@@ -222,6 +246,8 @@ export async function POST(req: Request) {
 // === PUT /api/shifts : 更新 ===
 export async function PUT(req: Request) {
   try {
+    const actorUserIdText = await getActorUserIdText(req);
+    console.info('[shifts][PUT] actorUserIdText', actorUserIdText);
     const raw = (await req.json()) as Record<string, unknown>;
     const idVal = raw['shift_id'] ?? raw['id'];
     const id = typeof idVal === 'string' ? Number(idVal) : (typeof idVal === 'number' ? idVal : null);
@@ -312,6 +338,8 @@ export async function PUT(req: Request) {
 // === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
   try {
+    const actorUserIdText = await getActorUserIdText(req);
+    console.info('[shifts][DELETE] actorUserIdText', actorUserIdText);
     const raw = (await req.json()) as Record<string, unknown>;
 
     // 1) 複数ID
