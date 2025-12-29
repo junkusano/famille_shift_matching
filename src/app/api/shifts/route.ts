@@ -1,5 +1,9 @@
-// /src/app/api/shifts/route.ts
+//api/shifts/route.ts
 import { supabaseAdmin } from '@/lib/supabase/service'
+
+// ★追加（dailyと同じ）
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
 // APIはNodeランタイムで実行（Service Role利用）
 export const runtime = 'nodejs'
@@ -30,6 +34,45 @@ const getBearerToken = (req: Request): string | null => {
   return m?.[1] ?? null;
 };
 
+// ★ daily と同じ：Bearer 優先 → cookie fallback
+const resolveActorUserIdText = async (req: Request): Promise<string | null> => {
+  try {
+    const token = getBearerToken(req);
+
+    console.info('[shifts] hasCookie', req.headers.get('cookie') ? 'yes' : 'no');
+    console.info('[shifts] hasAuthHeader', token ? 'yes' : 'no');
+
+    // 1) Authorization: Bearer <jwt>
+    if (token) {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data.user?.id) return data.user.id;
+      console.warn('[shifts] supabaseAdmin.auth.getUser(Bearer) error', error);
+    }
+
+    // 2) cookie セッション fallback
+    const supabaseAuth = createRouteHandlerClient({ cookies });
+    const { data: cookieUser, error: cookieErr } = await supabaseAuth.auth.getUser();
+    if (!cookieErr && cookieUser.user?.id) return cookieUser.user.id;
+
+    if (cookieErr) console.warn('[shifts] cookie getUser error', cookieErr);
+    return null;
+  } catch (e) {
+    console.warn('[shifts] resolveActorUserIdText failed', e);
+    return null;
+  }
+};
+
+// ★ daily と同じ：referer → pathname（なければ monthly をデフォルト）
+const resolveRequestPath = (req: Request): string => {
+  const referer = req.headers.get('referer') ?? '';
+  try {
+    return referer ? new URL(referer).pathname : '/portal/roster/monthly';
+  } catch {
+    return '/portal/roster/monthly';
+  }
+};
+
+/*
 const getActorUserIdText = async (req: Request): Promise<string | null> => {
   try {
     const token = getBearerToken(req);
@@ -53,7 +96,7 @@ const getActorUserIdText = async (req: Request): Promise<string | null> => {
     return null;
   }
 };
-
+*/
 
 /**
  * GET /api/shifts?kaipoke_cs_id=XXXX&month=YYYY-MM
@@ -153,7 +196,7 @@ export async function POST(req: Request) {
     new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 
   try {
-    const actorUserIdText = await getActorUserIdText(req);
+    const actorUserIdText = await resolveActorUserIdText(req);
     console.info('[shifts][POST] actorUserIdText', actorUserIdText);
     const raw = (await req.json()) as Record<string, unknown>;
 
@@ -246,8 +289,10 @@ export async function POST(req: Request) {
 // === PUT /api/shifts : 更新 ===
 export async function PUT(req: Request) {
   try {
-    const actorUserIdText = await getActorUserIdText(req);
-    console.info('[shifts][PUT] actorUserIdText', actorUserIdText);
+    const actorUserIdText = await resolveActorUserIdText(req);
+    const requestPath = resolveRequestPath(req);
+    console.info('[shifts][PUT] actorUserIdText', actorUserIdText, 'path', requestPath);
+
     const raw = (await req.json()) as Record<string, unknown>;
     const idVal = raw['shift_id'] ?? raw['id'];
     const id = typeof idVal === 'string' ? Number(idVal) : (typeof idVal === 'number' ? idVal : null);
@@ -338,8 +383,9 @@ export async function PUT(req: Request) {
 // === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
   try {
-    const actorUserIdText = await getActorUserIdText(req);
-    console.info('[shifts][DELETE] actorUserIdText', actorUserIdText);
+    const actorUserIdText = await resolveActorUserIdText(req);
+    const requestPath = resolveRequestPath(req);
+    console.info('[shifts][DELETE] actorUserIdText', actorUserIdText, 'path', requestPath);
     const raw = (await req.json()) as Record<string, unknown>;
 
     // 1) 複数ID
