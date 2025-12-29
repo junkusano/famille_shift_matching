@@ -129,8 +129,8 @@ export default function AuditLogPage() {
               <th className="p-2 border-b">created_at</th>
               <th className="p-2 border-b">actor</th>
               <th className="p-2 border-b">path</th>
+              <th className="p-2 border-b">action</th>
               <th className="p-2 border-b">shift_id</th>
-
               <th className="p-2 border-b text-red-600">利用者名 *</th>
               <th className="p-2 border-b text-red-600">開始日 *</th>
               <th className="p-2 border-b text-red-600">開始 *</th>
@@ -147,8 +147,8 @@ export default function AuditLogPage() {
                 <td className="p-2 border-b">{toJstDateTime(r.created_at)}</td>
                 <td className="p-2 border-b">{r.actor_user_id_text ?? ""}</td>
                 <td className="p-2 border-b">{r.request_path ?? ""}</td>
+                <td className="p-2 border-b font-semibold">{r.action}</td>
                 <td className="p-2 border-b">{r.shift_id ?? ""}</td>
-
                 <td className="p-2 border-b">{r.cs_name ?? ""}</td>
                 <td className="p-2 border-b">{r.shift_start_date ?? ""}</td>
                 <td className="p-2 border-b">{r.shift_start_time ?? ""}</td>
