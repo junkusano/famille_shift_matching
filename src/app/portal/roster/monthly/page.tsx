@@ -12,8 +12,18 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+//import { supabase } from '@/lib/supabaseClient'
 
-
+/*
+async function getAccessToken(): Promise<string | null> {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) {
+        console.warn('[monthly] getSession error', error)
+        return null
+    }
+    return data.session?.access_token ?? null
+}//
+    */
 
 // ========= Types =========
 type KaipokeCs = {
@@ -991,7 +1001,9 @@ export default function MonthlyRosterPage() {
             // API呼び出しパスとペイロードのキーを、既存の週間シフトのAPIに合わせる
             const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 // ▼ 修正: ペイロードのキーを 'rows' に変更
                 body: JSON.stringify({ rows: weeklyTemplateRecords }),
             });
