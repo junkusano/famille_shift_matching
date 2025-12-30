@@ -7,7 +7,7 @@ import { cookies } from 'next/headers'
 export const runtime = 'nodejs'
 
 // === 共通: エラー型（軽量） ===
-type SupaErrLike = { code?: string | null; message: string; details?: string | null; hint?: string | null }
+//type SupaErrLike = { code?: string | null; message: string; details?: string | null; hint?: string | null }
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } })
@@ -161,11 +161,13 @@ export async function POST(req: Request) {
     const dispatchSize = raw['dispatch_size'] as string | undefined
     const dupRole = raw['dup_role'] as string | undefined
 
-    const required_staff_count = (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1)
+    const required_staff_count =
+      (raw['required_staff_count'] as number | undefined) ?? (dispatchSize === '01' ? 2 : 1)
 
     let two_person_work_flg = required_staff_count >= 2
     if (!two_person_work_flg) {
-      two_person_work_flg = (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-')
+      two_person_work_flg =
+        (raw['two_person_work_flg'] as boolean | undefined) ?? (!!dupRole && dupRole !== '-')
     }
 
     const row = {
@@ -189,32 +191,28 @@ export async function POST(req: Request) {
       tokutei_comment: (raw['tokutei_comment'] ?? null) as string | null,
     }
 
-    const SHIFT_TABLE = 'shift' as const
+    // ★ insert は RPC 経由（監査コンテキスト付与）
+    const { data, error: rpcErr } = await supabaseAdmin.rpc('shifts_insert_with_context', {
+      p_row: row,
+      p_actor_user_id: actorUserIdText,
+      p_request_path: requestPath,
+    })
 
-    const { data, error } = await supabaseAdmin.from(SHIFT_TABLE).insert(row).select('shift_id').single()
-
-    if (!error && data) {
-      return json({ shift_id: (data as { shift_id: number }).shift_id, table: SHIFT_TABLE }, 201)
+    if (rpcErr) {
+      const code = (rpcErr as { code?: string }).code ?? null
+      return json({ error: { code, message: rpcErr.message } }, 400)
     }
 
-    const errMsg = (error as { message?: string; code?: string } | null)?.message ?? String(error ?? '')
-    const errCode = (error as { code?: string } | null)?.code ?? null
+    // rpc は shift_id を返す想定
+    const shiftId =
+      (data as { shift_id?: number } | null)?.shift_id ??
+      (typeof data === 'number' ? data : null)
 
-    if (errCode === '23505' || /duplicate key value/i.test(errMsg)) {
-      const { data: existing, error: selErr } = await supabaseAdmin
-        .from(SHIFT_TABLE)
-        .select('shift_id')
-        .eq('kaipoke_cs_id', row.kaipoke_cs_id)
-        .eq('shift_start_date', row.shift_start_date)
-        .eq('shift_start_time', row.shift_start_time)
-        .single()
-
-      if (!selErr && existing) {
-        return json({ shift_id: (existing as { shift_id: number }).shift_id, duplicate: true }, 200)
-      }
+    if (!shiftId) {
+      return json({ error: { message: 'rpc did not return shift_id' } }, 500)
     }
 
-    return json({ error: { code: errCode, message: errMsg } }, 400)
+    return json({ shift_id: shiftId, table: 'shift' }, 201)
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
     console.error('[shifts][POST] unhandled error', err)
@@ -234,6 +232,7 @@ export async function PUT(req: Request) {
     const id = typeof idVal === 'string' ? Number(idVal) : typeof idVal === 'number' ? idVal : null
 
     const patch: Record<string, unknown> = {}
+
     const setIf = (k: string, v: unknown) => {
       if (v !== undefined) patch[k] = v
     }
@@ -243,19 +242,19 @@ export async function PUT(req: Request) {
     if (raw['shift_start_time'] !== undefined) patch['shift_start_time'] = toHMS(String(raw['shift_start_time']))
     if (raw['shift_end_time'] !== undefined) patch['shift_end_time'] = toHMS(String(raw['shift_end_time']))
 
-    ;(
-      [
-        'service_code',
-        'staff_01_user_id',
-        'staff_02_user_id',
-        'staff_03_user_id',
-        'staff_01_role_code',
-        'staff_02_role_code',
-        'staff_03_role_code',
-        'judo_ido',
-        'tokutei_comment',
-      ] as const
-    ).forEach((k) => setIf(k, (raw[k] ?? null) as string | null))
+      ; (
+        [
+          'service_code',
+          'staff_01_user_id',
+          'staff_02_user_id',
+          'staff_03_user_id',
+          'staff_01_role_code',
+          'staff_02_role_code',
+          'staff_03_role_code',
+          'judo_ido',
+          'tokutei_comment',
+        ] as const
+      ).forEach((k) => setIf(k, (raw[k] ?? null) as string | null))
 
     if (raw['staff_02_attend_flg'] !== undefined) patch['staff_02_attend_flg'] = Boolean(raw['staff_02_attend_flg'])
     if (raw['staff_03_attend_flg'] !== undefined) patch['staff_03_attend_flg'] = Boolean(raw['staff_03_attend_flg'])
@@ -272,37 +271,64 @@ export async function PUT(req: Request) {
       patch['two_person_work_flg'] = Boolean(raw['two_person_work_flg'])
     }
 
-    if (Object.keys(patch).length === 0) return json({ error: { message: 'no fields to update' } }, 400)
-
-    if (id != null) {
-      const { data, error } = await supabaseAdmin.from('shift').update(patch).eq('shift_id', id).select('shift_id').single()
-
-      if (error) {
-        const e = error as SupaErrLike
-        return json({ error: { code: e.code ?? null, message: e.message } }, 400)
-      }
-      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id })
+    if (Object.keys(patch).length === 0) {
+      return json({ error: { message: 'no fields to update' } }, 400)
     }
 
+    // =========================
+    // ★ ここからが差し替えポイント
+    // =========================
+
+    // 1) shift_id があるならそれで更新（RPC）
+    if (id != null) {
+      const { error: rpcErr } = await supabaseAdmin.rpc('shifts_update_with_context', {
+        p_shift_id: id,
+        p_patch: patch,
+        p_actor_user_id: actorUserIdText,
+        p_request_path: requestPath,
+      })
+
+      if (rpcErr) {
+        const code = (rpcErr as { code?: string }).code ?? null
+        return json({ error: { code, message: rpcErr.message } }, 400)
+      }
+
+      return json({ ok: true, shift_id: id })
+    }
+
+    // 2) 複合キーしか無い場合：まず shift_id を引いてからRPCで更新
     const cs = raw['kaipoke_cs_id'] as string | undefined
     const sd = raw['shift_start_date'] as string | undefined
     const st = raw['shift_start_time'] as string | undefined
 
     if (cs && sd && st) {
-      const { data, error } = await supabaseAdmin
+      const { data: found, error: selErr } = await supabaseAdmin
         .from('shift')
-        .update(patch)
+        .select('shift_id')
         .eq('kaipoke_cs_id', cs)
         .eq('shift_start_date', sd)
         .eq('shift_start_time', toHMS(String(st)))
-        .select('shift_id')
         .single()
 
-      if (error) {
-        const e = error as SupaErrLike
-        return json({ error: { code: e.code ?? null, message: e.message } }, 400)
+      if (selErr || !found) {
+        return json({ error: { message: selErr?.message ?? 'shift not found' } }, 400)
       }
-      return json({ ok: true, shift_id: (data as { shift_id: number }).shift_id })
+
+      const foundId = (found as { shift_id: number }).shift_id
+
+      const { error: rpcErr } = await supabaseAdmin.rpc('shifts_update_with_context', {
+        p_shift_id: foundId,
+        p_patch: patch,
+        p_actor_user_id: actorUserIdText,
+        p_request_path: requestPath,
+      })
+
+      if (rpcErr) {
+        const code = (rpcErr as { code?: string }).code ?? null
+        return json({ error: { code, message: rpcErr.message } }, 400)
+      }
+
+      return json({ ok: true, shift_id: foundId })
     }
 
     return json({ error: { message: 'missing shift_id (or composite keys)' } }, 400)
@@ -322,6 +348,7 @@ export async function DELETE(req: Request) {
 
     const raw = (await req.json()) as Record<string, unknown>
 
+    // 1) 複数ID
     if (Array.isArray(raw['ids'])) {
       const ids = (raw['ids'] as unknown[])
         .map((v) => (typeof v === 'string' ? Number(v) : v))
@@ -329,40 +356,71 @@ export async function DELETE(req: Request) {
 
       if (ids.length === 0) return json({ error: { message: 'ids is empty' } }, 400)
 
-      const { error } = await supabaseAdmin.from('shift').delete().in('shift_id', ids)
-      if (error) {
-        const e = error as SupaErrLike
-        return json({ error: { code: e.code ?? null, message: e.message } }, 400)
+      // ★ delete は RPC 経由（監査コンテキスト付与）
+      const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
+        p_shift_ids: ids,
+        p_actor_user_id: actorUserIdText,
+        p_request_path: requestPath,
+      })
+
+      if (rpcErr) {
+        const code = (rpcErr as { code?: string }).code ?? null
+        return json({ error: { code, message: rpcErr.message } }, 400)
       }
+
       return json({ ok: true, count: ids.length })
     }
 
+    // 2) 単一ID
     const idVal = raw['shift_id'] ?? raw['id']
     if (idVal != null) {
       const id = typeof idVal === 'string' ? Number(idVal) : (idVal as number)
-      const { error } = await supabaseAdmin.from('shift').delete().eq('shift_id', id)
-      if (error) {
-        const e = error as SupaErrLike
-        return json({ error: { code: e.code ?? null, message: e.message } }, 400)
+
+      const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
+        p_shift_ids: [id],
+        p_actor_user_id: actorUserIdText,
+        p_request_path: requestPath,
+      })
+
+      if (rpcErr) {
+        const code = (rpcErr as { code?: string }).code ?? null
+        return json({ error: { code, message: rpcErr.message } }, 400)
       }
+
       return json({ ok: true, count: 1 })
     }
 
+    // 3) 複合キー指定：shift_id を引いてから RPC delete
     const cs = raw['kaipoke_cs_id'] as string | undefined
     const sd = raw['shift_start_date'] as string | undefined
     const st = raw['shift_start_time'] as string | undefined
+
     if (cs && sd && st) {
-      const { error } = await supabaseAdmin
+      const { data: found, error: selErr } = await supabaseAdmin
         .from('shift')
-        .delete()
+        .select('shift_id')
         .eq('kaipoke_cs_id', cs)
         .eq('shift_start_date', sd)
         .eq('shift_start_time', toHMS(String(st)))
+        .single()
 
-      if (error) {
-        const e = error as SupaErrLike
-        return json({ error: { code: e.code ?? null, message: e.message } }, 400)
+      if (selErr || !found) {
+        return json({ error: { message: selErr?.message ?? 'shift not found' } }, 400)
       }
+
+      const foundId = (found as { shift_id: number }).shift_id
+
+      const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
+        p_shift_ids: [foundId],
+        p_actor_user_id: actorUserIdText,
+        p_request_path: requestPath,
+      })
+
+      if (rpcErr) {
+        const code = (rpcErr as { code?: string }).code ?? null
+        return json({ error: { code, message: rpcErr.message } }, 400)
+      }
+
       return json({ ok: true, count: 1 })
     }
 
