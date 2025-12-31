@@ -2,6 +2,7 @@
 import { supabaseAdmin } from '@/lib/supabase/service'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import { notifyShiftChange } from "@/lib/lineworks/shiftChangeNotify";
 
 // APIはNodeランタイムで実行（Service Role利用）
 export const runtime = 'nodejs'
@@ -149,6 +150,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const actorUserIdText = await resolveActorUserIdText(req)
+    if (!actorUserIdText) return json({ error: { message: "unauthorized" } }, 401)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][POST] actorUserIdText', actorUserIdText, 'path', requestPath)
 
@@ -212,6 +214,32 @@ export async function POST(req: Request) {
       return json({ error: { message: 'rpc did not return shift_id' } }, 500)
     }
 
+    try {
+      const { data: s } = await supabaseAdmin
+        .from("shift")
+        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
+        .eq("shift_id", shiftId)
+        .maybeSingle();
+
+      if (s) {
+        await notifyShiftChange({
+          action: "INSERT",
+          requestPath,
+          actorUserIdText,
+          shift: {
+            shift_id: s.shift_id,
+            kaipoke_cs_id: s.kaipoke_cs_id,
+            shift_start_date: s.shift_start_date,
+            shift_start_time: s.shift_start_time,
+            shift_end_time: s.shift_end_time,
+            staff_01_user_id: s.staff_01_user_id,
+          },
+        })
+      }
+    } catch (e) {
+      console.warn("[shifts][POST] notify failed", e)
+    }
+    
     return json({ shift_id: shiftId, table: 'shift' }, 201)
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
@@ -224,6 +252,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const actorUserIdText = await resolveActorUserIdText(req)
+    if (!actorUserIdText) return json({ error: { message: "unauthorized" } }, 401)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][PUT] actorUserIdText', actorUserIdText, 'path', requestPath)
 
@@ -331,6 +360,33 @@ export async function PUT(req: Request) {
       return json({ ok: true, shift_id: foundId })
     }
 
+    // RPC成功後、最新のシフトを取得して通知（失敗しても本処理は成功扱い）
+    try {
+      const { data: s } = await supabaseAdmin
+        .from("shift")
+        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
+        .eq("shift_id", id)
+        .maybeSingle();
+
+      if (s) {
+        await notifyShiftChange({
+          action: "UPDATE",
+          requestPath,
+          actorUserIdText,
+          shift: {
+            shift_id: s.shift_id,
+            kaipoke_cs_id: s.kaipoke_cs_id,
+            shift_start_date: s.shift_start_date,
+            shift_start_time: s.shift_start_time,
+            shift_end_time: s.shift_end_time,
+            staff_01_user_id: s.staff_01_user_id,
+          },
+        })
+      }
+    } catch (e) {
+      console.warn("[shifts][PUT] notify failed", e)
+    }
+
     return json({ error: { message: 'missing shift_id (or composite keys)' } }, 400)
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
@@ -340,23 +396,35 @@ export async function PUT(req: Request) {
 }
 
 // === DELETE /api/shifts : 削除 ===
+// === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
   try {
     const actorUserIdText = await resolveActorUserIdText(req)
+    if (!actorUserIdText) return json({ error: { message: "unauthorized" } }, 401)
     const requestPath = resolveRequestPath(req)
     console.info('[shifts][DELETE] actorUserIdText', actorUserIdText, 'path', requestPath)
 
     const raw = (await req.json()) as Record<string, unknown>
 
+    // -------------------------
     // 1) 複数ID
+    // -------------------------
     if (Array.isArray(raw['ids'])) {
       const ids = (raw['ids'] as unknown[])
         .map((v) => (typeof v === 'string' ? Number(v) : v))
-        .filter((v): v is number => typeof v === 'number')
+        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
 
       if (ids.length === 0) return json({ error: { message: 'ids is empty' } }, 400)
 
-      // ★ delete は RPC 経由（監査コンテキスト付与）
+      // ★削除前に確保（通知用）
+      const { data: beforeShifts, error: beforeErr } = await supabaseAdmin
+        .from("shift")
+        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
+        .in("shift_id", ids)
+
+      if (beforeErr) console.warn("[shifts][DELETE] beforeShifts fetch error", beforeErr)
+
+      // ★削除（監査つき）
       const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
         p_shift_ids: ids,
         p_actor_user_id: actorUserIdText,
@@ -368,14 +436,55 @@ export async function DELETE(req: Request) {
         return json({ error: { code, message: rpcErr.message } }, 400)
       }
 
+      // ★通知（分岐の中でやる：スコープ問題なし）
+      try {
+        for (const s of beforeShifts ?? []) {
+          await notifyShiftChange({
+            action: "DELETE",
+            requestPath,
+            actorUserIdText,
+            shift: {
+              shift_id: s.shift_id,
+              kaipoke_cs_id: s.kaipoke_cs_id,
+              shift_start_date: s.shift_start_date,
+              shift_start_time: s.shift_start_time,
+              shift_end_time: s.shift_end_time,
+              staff_01_user_id: s.staff_01_user_id,
+            },
+            deleteChangedCols: {
+              shift_start_date: s.shift_start_date,
+              shift_start_time: s.shift_start_time,
+              staff_01_user_id: s.staff_01_user_id,
+              kaipoke_cs_id: s.kaipoke_cs_id,
+              shift_id: s.shift_id,
+            },
+          })
+        }
+      } catch (e) {
+        console.warn("[shifts][DELETE] notify failed", e)
+      }
+
       return json({ ok: true, count: ids.length })
     }
 
+    // -------------------------
     // 2) 単一ID
+    // -------------------------
     const idVal = raw['shift_id'] ?? raw['id']
     if (idVal != null) {
       const id = typeof idVal === 'string' ? Number(idVal) : (idVal as number)
+      if (!Number.isFinite(id)) return json({ error: { message: 'invalid id' } }, 400)
 
+      // ★削除前に 1件確保（通知用）
+      const { data: beforeShift, error: beforeErr } = await supabaseAdmin
+        .from("shift")
+        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
+        .eq("shift_id", id)
+        .maybeSingle()
+
+      if (beforeErr) console.warn("[shifts][DELETE] beforeShift fetch error", beforeErr)
+
+      // ★削除（監査つき）
       const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
         p_shift_ids: [id],
         p_actor_user_id: actorUserIdText,
@@ -387,10 +496,40 @@ export async function DELETE(req: Request) {
         return json({ error: { code, message: rpcErr.message } }, 400)
       }
 
+      // ★通知（ここで完結させる）
+      try {
+        if (beforeShift) {
+          await notifyShiftChange({
+            action: "DELETE",
+            requestPath,
+            actorUserIdText,
+            shift: {
+              shift_id: beforeShift.shift_id,
+              kaipoke_cs_id: beforeShift.kaipoke_cs_id,
+              shift_start_date: beforeShift.shift_start_date,
+              shift_start_time: beforeShift.shift_start_time,
+              shift_end_time: beforeShift.shift_end_time,
+              staff_01_user_id: beforeShift.staff_01_user_id,
+            },
+            deleteChangedCols: {
+              shift_start_date: beforeShift.shift_start_date,
+              shift_start_time: beforeShift.shift_start_time,
+              staff_01_user_id: beforeShift.staff_01_user_id,
+              kaipoke_cs_id: beforeShift.kaipoke_cs_id,
+              shift_id: beforeShift.shift_id,
+            },
+          })
+        }
+      } catch (e) {
+        console.warn("[shifts][DELETE] notify failed", e)
+      }
+
       return json({ ok: true, count: 1 })
     }
 
-    // 3) 複合キー指定：shift_id を引いてから RPC delete
+    // -------------------------
+    // 3) 複合キー指定（shift_id を引いてから削除）
+    // -------------------------
     const cs = raw['kaipoke_cs_id'] as string | undefined
     const sd = raw['shift_start_date'] as string | undefined
     const st = raw['shift_start_time'] as string | undefined
@@ -410,6 +549,16 @@ export async function DELETE(req: Request) {
 
       const foundId = (found as { shift_id: number }).shift_id
 
+      // ★削除前に 1件確保（通知用）
+      const { data: beforeShift, error: beforeErr } = await supabaseAdmin
+        .from("shift")
+        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
+        .eq("shift_id", foundId)
+        .maybeSingle()
+
+      if (beforeErr) console.warn("[shifts][DELETE] beforeShift fetch error", beforeErr)
+
+      // ★削除（監査つき）
       const { error: rpcErr } = await supabaseAdmin.rpc('shifts_delete_with_context', {
         p_shift_ids: [foundId],
         p_actor_user_id: actorUserIdText,
@@ -419,6 +568,34 @@ export async function DELETE(req: Request) {
       if (rpcErr) {
         const code = (rpcErr as { code?: string }).code ?? null
         return json({ error: { code, message: rpcErr.message } }, 400)
+      }
+
+      // ★通知
+      try {
+        if (beforeShift) {
+          await notifyShiftChange({
+            action: "DELETE",
+            requestPath,
+            actorUserIdText,
+            shift: {
+              shift_id: beforeShift.shift_id,
+              kaipoke_cs_id: beforeShift.kaipoke_cs_id,
+              shift_start_date: beforeShift.shift_start_date,
+              shift_start_time: beforeShift.shift_start_time,
+              shift_end_time: beforeShift.shift_end_time,
+              staff_01_user_id: beforeShift.staff_01_user_id,
+            },
+            deleteChangedCols: {
+              shift_start_date: beforeShift.shift_start_date,
+              shift_start_time: beforeShift.shift_start_time,
+              staff_01_user_id: beforeShift.staff_01_user_id,
+              kaipoke_cs_id: beforeShift.kaipoke_cs_id,
+              shift_id: beforeShift.shift_id,
+            },
+          })
+        }
+      } catch (e) {
+        console.warn("[shifts][DELETE] notify failed", e)
       }
 
       return json({ ok: true, count: 1 })
@@ -431,3 +608,4 @@ export async function DELETE(req: Request) {
     return json({ error: err }, 500)
   }
 }
+
