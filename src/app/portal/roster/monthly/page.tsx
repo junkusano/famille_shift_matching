@@ -854,6 +854,7 @@ export default function MonthlyRosterPage() {
 
         const res = await fetch('/api/shifts', {
             method: 'PUT',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -1004,6 +1005,7 @@ export default function MonthlyRosterPage() {
             // API呼び出しパスとペイロードのキーを、既存の週間シフトのAPIに合わせる
             const res = await fetch("/api/roster/weekly/templates/bulk_upsert", {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
