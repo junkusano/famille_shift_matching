@@ -155,23 +155,35 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const handleDelete = async (cardId: string) => {
         const { shiftId } = parseCardCompositeId(cardId);
         if (!confirm('このシフトを削除します。よろしいですか？')) return;
+
         setDeletingIds(prev => new Set(prev).add(shiftId));
+
         try {
+            const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+            if (sessErr) console.warn("[roster] getSession error", sessErr);
+            const token = sessionData.session?.access_token ?? null;
+
             const res = await fetch('/api/shifts', {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                // cookie fallback も効くように明示（同一オリジンなら通常不要だが保険）
+                credentials: 'same-origin',
                 body: JSON.stringify({ ids: [String(shiftId)] }),
             });
+
             if (!res.ok) {
                 const msg = await res.text().catch(() => '');
                 alert(`削除に失敗しました\n${msg}`);
                 setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
                 return;
             }
-            // 同じ shiftId のカードは全て盤面から除去
+
             setCards(prev => prev.filter(c => parseCardCompositeId(c.id).shiftId !== shiftId));
         } catch (e) {
-            void e;
+            console.error(e);
             alert('削除時にエラーが発生しました');
             setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
         }
