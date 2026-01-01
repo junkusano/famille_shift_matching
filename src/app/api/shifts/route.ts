@@ -194,7 +194,7 @@ export async function POST(req: Request) {
     }
 
     // ★ insert は RPC 経由（監査コンテキスト付与）
-    const { data, error: rpcErr } = await supabaseAdmin.rpc('shifts_insert_with_context', {
+    const { data, error: rpcErr } = await supabaseAdmin.rpc('shift_insert_with_context', {
       p_row: row,
       p_actor_user_id: actorUserIdText,
       p_request_path: requestPath,
