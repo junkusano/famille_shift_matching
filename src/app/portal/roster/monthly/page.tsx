@@ -11,8 +11,8 @@ import { useRoleContext } from "@/context/RoleContext";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-//import { supabase } from '@/lib/supabaseClient'
+//import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from '@/lib/supabaseClient'
 
 /*
 const getAccessToken = async (): Promise<string | null> => {
@@ -337,12 +337,12 @@ const checkTwoPersonRules = (
 // ========= Main =========
 export default function MonthlyRosterPage() {
     //const supabase = useMemo(() => createClientComponentClient(), []);
-    const sb = useMemo(() => createClientComponentClient(), []);
+    //const sb = useMemo(() => createClientComponentClient(), []);
 
-   const getAccessToken = useCallback(async (): Promise<string | null> => {
-     const { data } = await sb.auth.getSession();
-     return data.session?.access_token ?? null;
-   }, [sb]);
+    const getAccessToken = async (): Promise<string | null> => {
+        const { data } = await supabase.auth.getSession()
+        return data.session?.access_token ?? null
+    }
     const { role } = useRoleContext(); // Layoutと同じ判定に統一
     const readOnly = !["manager", "admin"].includes((role ?? "").toLowerCase());
     // マスタ
@@ -506,8 +506,11 @@ export default function MonthlyRosterPage() {
             staff_03_attend_flg: !!draft.staff_03_attend_flg,
         };
 
-        const { data } = await sb.auth.getSession();
-        const token = data.session?.access_token ?? null;
+        const token = await getAccessToken();
+        if (!token) {
+            alert("ログインセッションが取得できません（token null）。Supabaseクライアント混在 or 未ログインです。");
+            return { skipped: true };
+        }
 
         const res = await fetch('/api/shifts', {
             method: 'POST',
