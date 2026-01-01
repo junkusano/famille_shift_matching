@@ -90,7 +90,7 @@ async function getLineWorksAccessToken(): Promise<string> {
     body: form.toString(),
   });
 
-  const tokenJson = await tokenRes.json().catch(() => ({} as any));
+  const tokenJson = await tokenRes.json().catch(() => ({} ));
   if (!tokenRes.ok) {
     throw new Error(
       `LINE WORKS token error: ${tokenRes.status} ${JSON.stringify(tokenJson)}`
