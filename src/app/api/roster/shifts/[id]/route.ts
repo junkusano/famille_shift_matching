@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { notifyShiftChange } from "@/lib/lineworks/shiftChangeNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,10 @@ async function resolveActorUserId(req: Request): Promise<string | null> {
 export async function PATCH(req: Request) {
   try {
     const actorUserIdText = await resolveActorUserId(req);
+    // ★おすすめ：ここで弾く（通知＆監査の actor が null だと困る）
+    if (!actorUserIdText) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
 
     console.log("[roster] actorUserIdText", actorUserIdText);
     console.log("[roster] hasCookie", req.headers.get("cookie") ? "yes" : "no");
@@ -60,9 +65,6 @@ export async function PATCH(req: Request) {
     const seg = url.pathname.split("/");
     const idStr = seg[seg.length - 1];
     const shiftId = Number(idStr);
-    if (!Number.isFinite(shiftId)) {
-      return NextResponse.json({ error: "invalid shift id" }, { status: 400 });
-    }
 
     const body: PatchBody = await req.json();
     if (
@@ -126,47 +128,82 @@ export async function PATCH(req: Request) {
       p_update_at: updateAt,
       p_target_col: targetCol,
       p_staff_id: body.staff_id,
-      p_actor_user_id: actorUserIdText, // ★ここが埋まるのがゴール
+      p_actor_user_id: actorUserIdText,
       p_request_path: requestPath,
     });
 
+    // ★成功扱いの分岐を「ここで」決める
+    let ok = false;
+
     if (!rpcErr) {
-      return NextResponse.json({ ok: true });
-    }
+      ok = true;
+    } else {
+      console.error("rpcErr fallback:", rpcErr);
 
-    console.error("rpcErr fallback:", rpcErr);
+      // フォールバック更新
+      const updateCols: {
+        shift_start_date: string;
+        shift_start_time: string;
+        shift_end_time: string;
+        update_at: string;
+        staff_01_user_id?: string | null;
+        staff_02_user_id?: string | null;
+        staff_03_user_id?: string | null;
+      } = {
+        shift_start_date: body.date,
+        shift_start_time: body.start_at,
+        shift_end_time: body.end_at,
+        update_at: updateAt,
+      };
+      updateCols[targetCol] = body.staff_id;
 
-    // フォールバック更新
-    const updateCols: {
-      shift_start_date: string;
-      shift_start_time: string;
-      shift_end_time: string;
-      update_at: string;
-      staff_01_user_id?: string | null;
-      staff_02_user_id?: string | null;
-      staff_03_user_id?: string | null;
-    } = {
-      shift_start_date: body.date,
-      shift_start_time: body.start_at,
-      shift_end_time: body.end_at,
-      update_at: updateAt,
-    };
-    updateCols[targetCol] = body.staff_id;
+      const { error: updErr } = await SB.from("shift").update(updateCols).eq("shift_id", shiftId);
 
-    const { error: updErr } = await SB.from("shift").update(updateCols).eq("shift_id", shiftId);
-
-    if (updErr) {
-      const code = (updErr as { code?: string }).code;
-      if (code === "23505") {
-        return NextResponse.json(
-          { error: "unique violation on (kaipoke_cs_id, shift_start_date, shift_start_time, required_staff_count)" },
-          { status: 409 }
-        );
+      if (updErr) {
+        const code = (updErr as { code?: string }).code;
+        if (code === "23505") {
+          return NextResponse.json(
+            { error: "unique violation on (kaipoke_cs_id, shift_start_date, shift_start_time, required_staff_count)" },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json({ error: updErr }, { status: 500 });
       }
-      return NextResponse.json({ error: updErr }, { status: 500 });
+
+      ok = true;
     }
 
-    return NextResponse.json({ ok: true, warn: "rpc failed; fallback update used" });
+    // ★ここで「通知」を呼ぶ（失敗してもPATCH自体は成功で返す）
+    if (ok) {
+      try {
+        // ここは “更新後” の値を組み立てればOK（DBから引き直さなくてもよい）
+        const nextShift = {
+          shift_id: shiftId,
+          // cur に kaipoke_cs_id が無いので、必要なら select で取る or bodyに含める
+          // いちばん安全：ここで1回だけ kaipoke_cs_id を取り直す
+          kaipoke_cs_id: (await SB.from("shift").select("kaipoke_cs_id").eq("shift_id", shiftId).single()).data?.kaipoke_cs_id ?? "",
+          shift_start_date: body.date,
+          shift_start_time: body.start_at,
+          shift_end_time: body.end_at,
+          // staff_01_user_id は targetCol 次第で変わるので反映する
+          staff_01_user_id:
+            targetCol === "staff_01_user_id" ? body.staff_id : cur.staff_01_user_id,
+        };
+
+        await notifyShiftChange({
+          action: "UPDATE",
+          requestPath,
+          actorUserIdText,
+          shift: nextShift,
+        });
+
+        console.log("[roster][PATCH] notify ok", shiftId);
+      } catch (e) {
+        console.warn("[roster][PATCH] notify failed", e);
+      }
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
