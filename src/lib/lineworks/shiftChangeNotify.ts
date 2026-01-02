@@ -161,7 +161,7 @@ async function sendLineWorksMessage(channelId: string, text: string): Promise<vo
 
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`LINE WORKS send failed: ${res.status} ${t}`);
+    (`LINE WORKS send failed: ${res.status} ${t}`);
   }
 }
 

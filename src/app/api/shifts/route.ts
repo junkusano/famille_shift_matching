@@ -239,7 +239,7 @@ export async function POST(req: Request) {
     } catch (e) {
       console.warn("[shifts][POST] notify failed", e)
     }
-    
+
     return json({ shift_id: shiftId, table: 'shift' }, 201)
   } catch (e: unknown) {
     const err = e instanceof Error ? { message: e.message, stack: e.stack } : { message: String(e ?? 'unknown') }
@@ -304,10 +304,6 @@ export async function PUT(req: Request) {
       return json({ error: { message: 'no fields to update' } }, 400)
     }
 
-    // =========================
-    // ★ ここからが差し替えポイント
-    // =========================
-
     // 1) shift_id があるならそれで更新（RPC）
     if (id != null) {
       const { error: rpcErr } = await supabaseAdmin.rpc('shifts_update_with_context', {
@@ -320,6 +316,25 @@ export async function PUT(req: Request) {
       if (rpcErr) {
         const code = (rpcErr as { code?: string }).code ?? null
         return json({ error: { code, message: rpcErr.message } }, 400)
+      }
+
+      try {
+        const { data: shift } = await supabaseAdmin
+          .from("shift")
+          .select("*")
+          .eq("shift_id", id)
+          .single()
+
+        await notifyShiftChange({
+          action: "UPDATE",
+          actorUserIdText,
+          requestPath,
+          shift,
+        })
+
+        console.info("[shifts][PUT] notify ok", id)
+      } catch (e) {
+        console.warn("[shifts][PUT] notify failed", e)
       }
 
       return json({ ok: true, shift_id: id })
@@ -357,35 +372,29 @@ export async function PUT(req: Request) {
         return json({ error: { code, message: rpcErr.message } }, 400)
       }
 
+      // ★ここを追加（return の直前）
+      try {
+        const { data: shift } = await supabaseAdmin
+          .from("shift")
+          .select("*")
+          .eq("shift_id", foundId)
+          .single()
+
+        await notifyShiftChange({
+          action: "UPDATE",
+          actorUserIdText,
+          requestPath,
+          shift,
+        })
+
+        console.info("[shifts][PUT] notify ok", foundId)
+      } catch (e) {
+        console.warn("[shifts][PUT] notify failed", e)
+      }
+
       return json({ ok: true, shift_id: foundId })
     }
 
-    // RPC成功後、最新のシフトを取得して通知（失敗しても本処理は成功扱い）
-    try {
-      const { data: s } = await supabaseAdmin
-        .from("shift")
-        .select("shift_id, kaipoke_cs_id, shift_start_date, shift_start_time, shift_end_time, staff_01_user_id")
-        .eq("shift_id", id)
-        .maybeSingle();
-
-      if (s) {
-        await notifyShiftChange({
-          action: "UPDATE",
-          requestPath,
-          actorUserIdText,
-          shift: {
-            shift_id: s.shift_id,
-            kaipoke_cs_id: s.kaipoke_cs_id,
-            shift_start_date: s.shift_start_date,
-            shift_start_time: s.shift_start_time,
-            shift_end_time: s.shift_end_time,
-            staff_01_user_id: s.staff_01_user_id,
-          },
-        })
-      }
-    } catch (e) {
-      console.warn("[shifts][PUT] notify failed", e)
-    }
 
     return json({ error: { message: 'missing shift_id (or composite keys)' } }, 400)
   } catch (e: unknown) {
@@ -395,7 +404,6 @@ export async function PUT(req: Request) {
   }
 }
 
-// === DELETE /api/shifts : 削除 ===
 // === DELETE /api/shifts : 削除 ===
 export async function DELETE(req: Request) {
   try {
