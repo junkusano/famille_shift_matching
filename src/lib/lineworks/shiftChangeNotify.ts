@@ -49,8 +49,49 @@ const LW_BOT_NO =
   process.env.WORKS_BOT_NO ||
   process.env.LW_BOT_NO ||
   "";
+
+const JST_TZ = "Asia/Tokyo";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseYMDToUtcDate(ymd: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  return new Date(Date.UTC(y, mo - 1, d));
+}
+
+function todayYmdInJst(): string {
+  // サーバがUTCでも JST の「日付」だけは確実に取れる
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: JST_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(new Date())
+    .reduce<Record<string, string>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function shouldNotifyByDate(shiftYmd: string): boolean {
+  const today = parseYMDToUtcDate(todayYmdInJst());
+  const shiftDay = parseYMDToUtcDate(shiftYmd);
+  if (!today || !shiftDay) return false;
+
+  const diffDays = Math.round((shiftDay.getTime() - today.getTime()) / DAY_MS);
+  return diffDays >= -1 && diffDays <= 3;
+}
+
+
 // ====== access token cache (per instance) ======
 let cachedToken: { token: string; expiresAt: number } | null = null;
+
 
 async function getLineWorksAccessToken(): Promise<string> {
   if (!LW_CLIENT_ID || !LW_CLIENT_SECRET || !LW_SERVICE_ACCOUNT || !LW_PRIVATE_KEY) {
@@ -195,6 +236,18 @@ function buildText(args: NotifyShiftChangeArgs, csName: string, clientChannelId:
 }
 
 export async function notifyShiftChange(args: NotifyShiftChangeArgs): Promise<void> {
+
+  // ★ DELETE のときは deleteChangedCols の日付を優先（削除後に shift が変な値でもOK）
+  const ymd =
+    args.action === "DELETE"
+      ? (args.deleteChangedCols?.shift_start_date ?? args.shift.shift_start_date)
+      : args.shift.shift_start_date;
+
+  if (!shouldNotifyByDate(ymd)) {
+    console.log(`[shiftChangeNotify] skip notify (out of range): action=${args.action} date=${ymd}`);
+    return;
+  }
+
   const { data: cs, error: csErr } = await supabaseAdmin
     .from("cs_kaipoke_info")
     .select("name, kaipoke_cs_id")
