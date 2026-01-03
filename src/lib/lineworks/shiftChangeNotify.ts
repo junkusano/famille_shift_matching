@@ -130,7 +130,7 @@ async function getLineWorksAccessToken(): Promise<string> {
     body: form.toString(),
   });
 
-  const tokenJson = await tokenRes.json().catch(() => ({} ));
+  const tokenJson = await tokenRes.json().catch(() => ({}));
   if (!tokenRes.ok) {
     throw new Error(
       `LINE WORKS token error: ${tokenRes.status} ${JSON.stringify(tokenJson)}`
@@ -202,7 +202,9 @@ async function sendLineWorksMessage(channelId: string, text: string): Promise<vo
 
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`LINE WORKS send failed: ${res.status} ${t}`);
+    console.warn(`LINE WORKS send failed: ${res.status} ${t}`);
+    // 失敗を“例外扱いにしたい”なら throw に変更
+    // throw new Error(`LINE WORKS send failed: ${res.status} ${t}`);
   }
 }
 
