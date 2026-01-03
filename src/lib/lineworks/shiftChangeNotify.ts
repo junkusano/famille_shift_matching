@@ -57,7 +57,7 @@ async function resolveActorMentionUserId(actorAuthUserId: string): Promise<strin
   // actorAuthUserId = auth.users.id (uuid)
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("user_id")
+    .select("lw_userid")
     .eq("auth_user_id", actorAuthUserId)
     .maybeSingle();
 
@@ -68,9 +68,9 @@ async function resolveActorMentionUserId(actorAuthUserId: string): Promise<strin
 
   console.info("[shiftChangeNotify] users row =", data);
 
-  const userId = data?.user_id ? String(data.user_id) : null;
+  const userId = data?.lw_userid ? String(data.lw_userid) : null;
 
-  
+
   return userId || null;
 }
 
