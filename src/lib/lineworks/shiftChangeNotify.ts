@@ -53,6 +53,24 @@ const LW_BOT_NO =
 const JST_TZ = "Asia/Tokyo";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+async function resolveActorMentionUserId(actorAuthUserId: string): Promise<string | null> {
+  // actorAuthUserId = auth.users.id (uuid)
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("user_id")
+    .eq("auth_user_id", actorAuthUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[shiftChangeNotify] resolveActorMentionUserId error", error);
+    return null;
+  }
+
+  const userId = data?.user_id ? String(data.user_id) : null;
+  return userId || null;
+}
+
+
 function parseYMDToUtcDate(ymd: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return null;
@@ -208,15 +226,26 @@ async function sendLineWorksMessage(channelId: string, text: string): Promise<vo
   }
 }
 
-function buildText(args: NotifyShiftChangeArgs, csName: string, clientChannelId: string | null) {
+function buildText(
+  args: NotifyShiftChangeArgs,
+  csName: string,
+  clientChannelId: string | null,
+  actorMentionUserId: string | null
+) {
   const s = args.shift;
   const del = args.deleteChangedCols;
+  const actorMention = actorMentionUserId
+    ? `<m userId="${actorMentionUserId}">`
+    : args.actorUserIdText
+      ? `(${args.actorUserIdText})`
+      : "(不明)";
 
   const mentionText = s.staff_01_user_id ? `@${s.staff_01_user_id}` : "";
 
   const header = "直近シフトがマネジャーによって変更されました。内容：";
   const lines: string[] = [
     header,
+    `変更者：${actorMention}`,
     `利用者：${csName}（${s.kaipoke_cs_id}）`,
     `開始：${s.shift_start_date} ${s.shift_start_time}`,
     `担当：${mentionText || "(担当者なし)"}`,
@@ -268,7 +297,9 @@ export async function notifyShiftChange(args: NotifyShiftChangeArgs): Promise<vo
   if (chErr) throw chErr;
   const clientChannelId: string | null = ch?.channel_id ? String(ch.channel_id) : null;
 
-  const text = buildText(args, csName, clientChannelId);
+  const actorMentionUserId =
+    args.actorUserIdText ? await resolveActorMentionUserId(args.actorUserIdText) : null;
+  const text = buildText(args, csName, clientChannelId, actorMentionUserId);
 
   if (clientChannelId) {
     await sendLineWorksMessage(clientChannelId, text);
