@@ -66,7 +66,11 @@ async function resolveActorMentionUserId(actorAuthUserId: string): Promise<strin
     return null;
   }
 
+  console.info("[shiftChangeNotify] users row =", data);
+
   const userId = data?.user_id ? String(data.user_id) : null;
+
+  
   return userId || null;
 }
 
