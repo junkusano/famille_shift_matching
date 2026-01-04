@@ -192,7 +192,7 @@ export default function DashboardPage() {
                     <CardTitle>チーム別サービス時間実績</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <div className="flex flex-wrap gap-2 items-end">
+                    <div className="flex flex-nowrap gap-2 items-end overflow-x-auto whitespace-nowrap">
                         <div>
                             <div className="text-sm text-muted-foreground">From (YYYYMM)</div>
                             <Input value={fromYM} onChange={(e) => setFromYM(e.target.value)} className="w-32" />
@@ -201,13 +201,13 @@ export default function DashboardPage() {
                             <div className="text-sm text-muted-foreground">To (YYYYMM)</div>
                             <Input value={toYM} onChange={(e) => setToYM(e.target.value)} className="w-32" />
                         </div>
-                        <Button onClick={load} disabled={loading}>
+                        <Button className="shrink-0" onClick={load} disabled={loading}>
                             {loading ? "読込中..." : "更新"}
                         </Button>
                         {error && <div className="text-sm text-red-600">{error}</div>}
 
                         <select
-                            className="h-10 rounded-md border px-2 text-sm"
+                            className="h-10 w-24 shrink-0 rounded-md border px-2 text-sm"
                             value={recalcYM}
                             onChange={(e) => setRecalcYM(e.target.value)}
                         >
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                             ))}
                         </select>
 
-                        <Button onClick={runRecalc} disabled={recalcLoading}>
+                        <Button className="shrink-0" onClick={runRecalc} disabled={recalcLoading}>
                             {recalcLoading ? "再計算中..." : "再計算"}
                         </Button>
 

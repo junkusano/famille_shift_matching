@@ -17,6 +17,13 @@ function getBearerToken(req: Request) {
   return m?.[1] ?? null;
 }
 
+function emailToUserIdText(email: string | undefined | null) {
+  if (!email) return null;
+  const at = email.indexOf("@");
+  if (at <= 0) return null;
+  return email.slice(0, at); // junkusano@shi-on.net -> junkusano
+}
+
 export async function POST(req: Request) {
   try {
     const token = getBearerToken(req);
@@ -38,18 +45,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "年月の形式が不正です（YYYYMM）" }, { status: 400 });
     }
 
-    // ✅ admin判定：users.id(uuid) = auth.user.id 前提
-    const { data: userRow, error: roleErr } = await supabaseAdmin
+    // ✅ admin判定：まず uuid(id) を試す → ダメなら user_id(text) を試す
+    let systemRole: string | null = null;
+
+    // (A) users.id = auth uuid 方式（存在すればこれが最速）
+    const { data: rowByUuid } = await supabaseAdmin
       .from("users")
       .select("system_role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (roleErr) {
+    if (rowByUuid?.system_role) systemRole = rowByUuid.system_role;
+
+    // (B) users.user_id = "junkusano" 方式（あなたのログ上はこちらが本命）
+    if (!systemRole) {
+      const userIdText = emailToUserIdText(user.email);
+      if (userIdText) {
+        const { data: rowByText, error: rowByTextErr } = await supabaseAdmin
+          .from("users")
+          .select("system_role")
+          .eq("user_id", userIdText)
+          .maybeSingle();
+
+        if (rowByTextErr) {
+          return NextResponse.json({ error: "権限確認に失敗しました" }, { status: 500 });
+        }
+        if (rowByText?.system_role) systemRole = rowByText.system_role;
+      }
+    }
+
+    if (!systemRole) {
+      // ここに来るのは「users に紐づきが無い」ケース
       return NextResponse.json({ error: "権限確認に失敗しました" }, { status: 500 });
     }
 
-    if (userRow?.system_role !== "admin") {
+    if (systemRole !== "admin") {
       return NextResponse.json({ error: "管理者のみ実行できます" }, { status: 403 });
     }
 
