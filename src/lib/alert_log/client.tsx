@@ -1,3 +1,4 @@
+//lib/alert_log/client.tsx
 "use client";
 
 import { ReactNode } from "react";
@@ -27,6 +28,7 @@ export type AlertRow = {
   created_by: string | null;
   assigned_to: string | null;
   completed_by: string | null;
+  assigned_org_id: string | null;
   created_at: string;
   updated_at: string;
 };

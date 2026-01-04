@@ -20,6 +20,7 @@ import {
 } from "@/lib/alert_log/client";
 
 
+type OrgRow = { orgunitid: string; orgunitname: string };
 
 type SystemRole = "admin" | "manager" | "member";
 
@@ -39,6 +40,8 @@ export default function AlertBar() {
 
   // 一覧の表示/非表示（畳む）制御
   const [collapsed, setCollapsed] = useState(false);
+
+  const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
 
   // ---------- ログインユーザーの system_role 取得 ----------
   useEffect(() => {
@@ -72,6 +75,44 @@ export default function AlertBar() {
 
     void fetchRole();
   }, []);
+
+  // ---------- orgs（担当org名）取得 ----------
+  useEffect(() => {
+    const run = async () => {
+      // rows から assigned_org_id(uuid) を文字列で集める
+      const ids = Array.from(
+        new Set(
+          rows
+            .map((r) => (r.assigned_org_id ? String(r.assigned_org_id) : null))
+            .filter((v): v is string => !!v),
+        ),
+      );
+
+      if (ids.length === 0) {
+        setOrgMap(new Map());
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("orgs")
+        .select("orgunitid, orgunitname")
+        .in("orgunitid", ids);
+
+      if (error) {
+        console.error("[AlertBar] orgs fetch error", error);
+        return; // org名取れなくてもアラート自体は表示
+      }
+
+      const map = new Map<string, string>();
+      for (const o of (data ?? []) as OrgRow[]) {
+        map.set(o.orgunitid, o.orgunitname);
+      }
+      setOrgMap(map);
+    };
+
+    void run();
+  }, [rows]);
+
 
   // ---------- アラート一覧取得 ----------
   const fetchAlerts = useCallback(async () => {
@@ -211,6 +252,7 @@ export default function AlertBar() {
                 <thead>
                   <tr className="text-left text-gray-500">
                     <th className="py-2 pr-4">放置Lv</th>
+                    <th className="py-2 pr-4">担当org</th>
                     <th className="py-2 pr-4">メッセージ</th>
                     <th className="py-2 pr-4">ステータス</th>
                     <th className="py-2 pr-4">結果コメント</th>
@@ -221,7 +263,7 @@ export default function AlertBar() {
                   {rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className="py-4 text-center text-gray-500"
                       >
                         表示するアラートはありません
@@ -266,6 +308,20 @@ export default function AlertBar() {
                               </span>
                             );
                           })()}
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          {row.assigned_org_id ? (
+                            <div className="text-xs leading-tight">
+                              <div className="font-medium">
+                                {orgMap.get(String(row.assigned_org_id)) ?? "（org未設定）"}
+                              </div>
+                              <div className="text-gray-400">
+                                {String(row.assigned_org_id)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">（未設定）</span>
+                          )}
                         </td>
                         <td className="py-1.5 pr-4 whitespace-pre-wrap">
                           {renderAlertMessage(row.message)}
