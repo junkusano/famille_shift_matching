@@ -34,7 +34,7 @@ type Body = {
   shift_cert_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>;
   cs_contract_plan_check: CheckResult<{ scanned: number; alertsCreated: number; alertsUpdated: number }>; // ★追加
 
-   // ★ここを追加：移動系サービス標準移動情報チェックの結果
+  // ★ここを追加：移動系サービス標準移動情報チェックの結果
   shift_trans_info: CheckResult<{
     scannedShiftCount: number;
     scannedClientCount: number;
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
     shift_cert_check: { ok: false, error: "not executed" },
     cs_contract_plan_check: { ok: false, error: "not executed" },
-      // ★追加：最初は「まだ実行していない」扱い
+    // ★追加：最初は「まだ実行していない」扱い
     shift_trans_info: { ok: false, error: "not executed" },
   };
 
@@ -62,17 +62,53 @@ export async function GET(req: NextRequest) {
     // ★ ここでだけ cron 認証（CRON_SECRET 等）をチェック
     assertCronAuth(req);
 
-    // 0) まず open のアラートを一括クローズしてしまう
+    // ★AUTO DONE 一括クローズ（system の open だけ）
+    console.info("[cron][auto_done] start");
+
     const nowIso = new Date().toISOString();
-    await supabaseAdmin
-      .from('alert_log')
-      .update({
-        status: 'done',
-        status_source: 'auto_done',  // 「cron で一括クローズした」印
-        updated_at: nowIso,
-      })
-      .eq('status', 'open')
-      .in('status_source', ['system']);
+
+    // 1) pre-count
+    {
+      const { count, error } = await supabaseAdmin
+        .from("alert_log")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open")
+        .in("status_source", ["system"]);
+
+      console.info("[cron][auto_done] pre-count open(system) =", count ?? 0, "err=", error?.message);
+    }
+
+    // 2) update（count を必ず取る）
+    {
+      const { count, error } = await supabaseAdmin
+        .from("alert_log")
+        .update(
+          {
+            status: "done",
+            status_source: "auto_done",
+            updated_at: nowIso,
+          },
+          { count: "exact" }
+        )
+        .eq("status", "open")
+        .in("status_source", ["system"]);
+
+      console.info("[cron][auto_done] updated count =", count ?? 0, "err=", error?.message);
+    }
+
+    // 3) post-count
+    {
+      const { count, error } = await supabaseAdmin
+        .from("alert_log")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open")
+        .in("status_source", ["system"]);
+
+      console.info("[cron][auto_done] post-count open(system) =", count ?? 0, "err=", error?.message);
+    }
+
+    console.info("[cron][auto_done] end");
+
 
     // -1) 契約書・計画書不足チェック
     try {
