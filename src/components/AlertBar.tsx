@@ -21,6 +21,16 @@ import {
 
 
 type OrgRow = { orgunitid: string; orgunitname: string };
+type ManagerRow = {
+  org_unit_id: string | null;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+  level_sort: number | null;
+};
+
+//const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
+const [mgrMap, setMgrMap] = useState<Map<string, string[]>>(new Map());
+
 
 type SystemRole = "admin" | "manager" | "member";
 
@@ -76,10 +86,8 @@ export default function AlertBar() {
     void fetchRole();
   }, []);
 
-  // ---------- orgs（担当org名）取得 ----------
   useEffect(() => {
     const run = async () => {
-      // rows から assigned_org_id(uuid) を文字列で集める
       const ids = Array.from(
         new Set(
           rows
@@ -87,7 +95,6 @@ export default function AlertBar() {
             .filter((v): v is string => !!v),
         ),
       );
-
       if (ids.length === 0) {
         setOrgMap(new Map());
         return;
@@ -100,7 +107,7 @@ export default function AlertBar() {
 
       if (error) {
         console.error("[AlertBar] orgs fetch error", error);
-        return; // org名取れなくてもアラート自体は表示
+        return;
       }
 
       const map = new Map<string, string>();
@@ -112,6 +119,55 @@ export default function AlertBar() {
 
     void run();
   }, [rows]);
+
+
+  useEffect(() => {
+    const run = async () => {
+      const ids = Array.from(
+        new Set(
+          rows
+            .map((r) => (r.assigned_org_id ? String(r.assigned_org_id) : null))
+            .filter((v): v is string => !!v),
+        ),
+      );
+
+      if (ids.length === 0) {
+        setMgrMap(new Map());
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_entry_united_view_single")
+        .select("org_unit_id, last_name_kanji, first_name_kanji, level_sort")
+        .in("org_unit_id", ids)
+        .lt("level_sort", 4500000)
+        .order("level_sort", { ascending: true });
+
+      if (error) {
+        console.error("[AlertBar] managers fetch error", error);
+        return;
+      }
+
+      const map = new Map<string, string[]>();
+      for (const r of (data ?? []) as ManagerRow[]) {
+        const orgId = r.org_unit_id ?? "";
+        if (!orgId) continue;
+
+        const name =
+          `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() ||
+          "（氏名未設定）";
+
+        const arr = map.get(orgId) ?? [];
+        arr.push(name);
+        map.set(orgId, arr);
+      }
+
+      setMgrMap(map);
+    };
+
+    void run();
+  }, [rows]);
+
 
 
   // ---------- アラート一覧取得 ----------
@@ -315,14 +371,18 @@ export default function AlertBar() {
                               <div className="font-medium">
                                 {orgMap.get(String(row.assigned_org_id)) ?? "（org未設定）"}
                               </div>
-                              <div className="text-gray-400">
-                                {String(row.assigned_org_id)}
+                              <div className="text-gray-500">
+                                {(() => {
+                                  const names = mgrMap.get(String(row.assigned_org_id)) ?? [];
+                                  return names.length ? `担当: ${names.join(" / ")}` : "担当: （該当なし）";
+                                })()}
                               </div>
                             </div>
                           ) : (
                             <span className="text-xs text-gray-400">（未設定）</span>
                           )}
                         </td>
+
                         <td className="py-1.5 pr-4 whitespace-pre-wrap">
                           {renderAlertMessage(row.message)}
                         </td>

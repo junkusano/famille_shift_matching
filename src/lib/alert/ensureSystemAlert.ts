@@ -37,7 +37,8 @@ async function resolveAssignedOrgId(
   if (provided !== undefined) {
     return provided; // 呼び出し側が明示指定したならそれを優先
   }
-  if (!kaipoke_cs_id) return null;
+  const csid = (kaipoke_cs_id ?? "").trim(); // ✅追加
+  if (!csid) return null;
 
   if (assignedOrgCache.has(kaipoke_cs_id)) {
     return assignedOrgCache.get(kaipoke_cs_id) ?? null;
@@ -47,7 +48,7 @@ async function resolveAssignedOrgId(
   const { data, error } = await supabaseAdmin
     .from("cs_kaipoke_info")
     .select("asigned_org")
-    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .eq("kaipoke_cs_id", csid)
     .maybeSingle();
 
   if (error) {
@@ -55,12 +56,12 @@ async function resolveAssignedOrgId(
       kaipoke_cs_id,
     });
     // ここはアラート作成自体は止めない（nullで続行）
-    assignedOrgCache.set(kaipoke_cs_id, null);
+    assignedOrgCache.set(csid, null);
     return null;
   }
 
   const orgId = (data?.asigned_org ?? null) as string | null;
-  assignedOrgCache.set(kaipoke_cs_id, orgId);
+  assignedOrgCache.set(csid, orgId);
   return orgId;
 }
 

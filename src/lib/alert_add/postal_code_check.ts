@@ -12,6 +12,7 @@ type CsRow = {
   postal_code: string | null;
   is_active: boolean | null;
   end_at: string | null;
+  asigned_org: string | null; 
 };
 
 export type PostalCodeCheckResult = {
@@ -23,7 +24,7 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
   // cs_kaipoke_info 全件から必要なカラムだけ取得
   const { data, error } = await supabaseAdmin
     .from('cs_kaipoke_info')
-    .select('id, kaipoke_cs_id, name, postal_code, is_active, end_at');
+    .select('id, kaipoke_cs_id, name, postal_code, is_active, end_at, asigned_org');
 
   if (error) {
     console.error('[postal_code_check] select error', error);
@@ -61,6 +62,7 @@ export async function runPostalCodeCheck(): Promise<PostalCodeCheckResult> {
         message,
         visible_roles: ["manager", "staff"],
         kaipoke_cs_id: csid,
+        assigned_org_id: cs.asigned_org ?? null,
       });
       if (res.created) created++;
     } catch (e) {
