@@ -24,12 +24,6 @@ type Row = {
     avg_3m_hours: number | null;
 };
 
-function ymToMonthStart(ym: string) {
-    // ym: "YYYYMM" or "YYYY-MM"
-    if (ym.includes("-")) return `${ym}-01`;
-    return `${ym.slice(0, 4)}-${ym.slice(4, 6)}-01`;
-}
-
 function addMonths(date: Date, delta: number) {
     const d = new Date(date);
     d.setMonth(d.getMonth() + delta);
@@ -88,19 +82,16 @@ export default function ShiftSumBizStats({
         setLoading(true);
         setError("");
 
-        const from = ymToMonthStart(fromYM);
-        const to = ymToMonthStart(toYM);
-
         const { data, error } = await supabase
             .from("biz_stats_shift_sum_display_view")
             .select("snapshot_month,year_month,orgunitid,orgunitname,value,avg_3m,displaylevel,sort_lv2_order,sort_lv3_order")
-
-            .gte("snapshot_month", from)
-            .lte("snapshot_month", to)
+            .eq("metric", metric)
+            .gte("year_month", fromYM)
+            .lte("year_month", toYM)
             .order("sort_lv2_order", { ascending: true })
-            .order("displaylevel", { ascending: true })   // Lv2 → Lv3
+            .order("displaylevel", { ascending: true })
             .order("sort_lv3_order", { ascending: true })
-
+            .order("orgunitname", { ascending: true }); // 同順の保険
 
         if (error) {
             setError(error.message ?? "failed to load");
