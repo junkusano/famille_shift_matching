@@ -1,7 +1,7 @@
 // src/app/portal/dashboard/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,9 +42,18 @@ function toYYYYMM(d: Date) {
     return `${y}${m}`;
 }
 
-function formatNum(v: number | null | undefined) {
+function formatNumInt(v: number | null | undefined) {
     if (v == null || Number.isNaN(v)) return "";
-    return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 }).format(v);
+    return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(Math.round(v));
+}
+
+function diffClass(curr: number | null | undefined, prev: number | null | undefined) {
+    if (curr == null || prev == null) return "";
+    const c = Math.round(curr);
+    const p = Math.round(prev);
+    if (c > p) return "text-blue-600";
+    if (c < p) return "text-red-600";
+    return "";
 }
 
 export default function DashboardPage() {
@@ -57,6 +66,11 @@ export default function DashboardPage() {
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>("");
+
+    const [recalcYM, setRecalcYM] = useState<string>(defaultFrom); // 初期は適当でOK
+    const [recalcLoading, setRecalcLoading] = useState(false);
+    const [recalcError, setRecalcError] = useState<string>("");
+
 
     async function load() {
         setLoading(true);
@@ -95,6 +109,34 @@ export default function DashboardPage() {
         setLoading(false);
 
     }
+
+    async function runRecalc() {
+        setRecalcLoading(true);
+        setRecalcError("");
+
+        try {
+            const res = await fetch("/api/shift-sum", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ year_month: recalcYM }),
+            });
+            const json = (await res.json()) as { ok?: boolean; error?: string };
+
+            if (!res.ok) {
+                setRecalcError(json.error ?? "再計算に失敗しました");
+                setRecalcLoading(false);
+                return;
+            }
+
+            // 実行後に再読み込み
+            await load();
+        } catch {
+            setRecalcError("再計算に失敗しました");
+        } finally {
+            setRecalcLoading(false);
+        }
+    }
+
 
     useEffect(() => {
         load();
@@ -151,6 +193,24 @@ export default function DashboardPage() {
                             {loading ? "読込中..." : "更新"}
                         </Button>
                         {error && <div className="text-sm text-red-600">{error}</div>}
+
+                        <select
+                            className="h-10 rounded-md border px-2 text-sm"
+                            value={recalcYM}
+                            onChange={(e) => setRecalcYM(e.target.value)}
+                        >
+                            {/* もし months が空のときの保険 */}
+                            {(months.length ? months : [fromYM, toYM]).map((ym) => (
+                                <option key={ym} value={ym}>{ym}</option>
+                            ))}
+                        </select>
+
+                        <Button onClick={runRecalc} disabled={recalcLoading}>
+                            {recalcLoading ? "再計算中..." : "再計算"}
+                        </Button>
+
+                        {recalcError && <div className="text-sm text-red-600">{recalcError}</div>}
+
                     </div>
 
                     <div className="overflow-x-auto">
@@ -174,29 +234,48 @@ export default function DashboardPage() {
                                         <TableRow key={`${t.orgunitid}-total`}>
                                             <TableCell className="whitespace-nowrap">{t.orgunitname}</TableCell>
                                             <TableCell className="whitespace-nowrap">単月</TableCell>
-                                            {months.map((ym) => (
-                                                <TableCell key={`${t.orgunitid}-total-${ym}`} className="text-right">
-                                                    {formatNum(rowMap.get(ym)?.total ?? null)}
-                                                </TableCell>
-                                            ))}
+                                            {months.map((ym, i) => {
+                                                const curr = rowMap.get(ym)?.total ?? null;
+                                                const prevYm = i > 0 ? months[i - 1] : null;
+                                                const prev = prevYm ? rowMap.get(prevYm)?.total ?? null : null;
+                                                const cls = diffClass(curr, prev);
+
+                                                return (
+                                                    <TableCell key={`${t.orgunitid}-total-${ym}`} className={`text-right ${cls}`}>
+                                                        {formatNumInt(curr)}
+                                                    </TableCell>
+                                                );
+                                            })}
+
                                         </TableRow>
                                     );
                                     const avgRow = (
-                                        <TableRow key={`${t.orgunitid}-avg`}>
+                                        <TableRow key={`${t.orgunitid}-avg`} >
                                             <TableCell className="whitespace-nowrap"></TableCell>
-                                            <TableCell className="whitespace-nowrap">3か月平均</TableCell>
-                                            {months.map((ym) => (
-                                                <TableCell key={`${t.orgunitid}-avg-${ym}`} className="text-right">
-                                                    {formatNum(rowMap.get(ym)?.avg3 ?? null)}
-                                                </TableCell>
-                                            ))}
+                                            <TableCell className="whitespace-nowrap font-semibold">3か月平均</TableCell>
+                                            {months.map((ym, i) => {
+                                                const curr = rowMap.get(ym)?.avg3 ?? null;
+                                                const prevYm = i > 0 ? months[i - 1] : null;
+                                                const prev = prevYm ? rowMap.get(prevYm)?.avg3 ?? null : null;
+                                                const cls = diffClass(curr, prev);
+
+                                                return (
+                                                    <TableCell
+                                                        key={`${t.orgunitid}-avg-${ym}`}
+                                                        className={`text-right font-semibold ${cls}`}
+                                                    >
+                                                        {formatNumInt(curr)}
+                                                    </TableCell>
+                                                );
+                                            })}
+
                                         </TableRow>
                                     );
                                     return (
-                                        <>
+                                        <Fragment key={t.orgunitid}>
                                             {totalRow}
                                             {avgRow}
-                                        </>
+                                        </Fragment>
                                     );
                                 })}
                             </TableBody>
