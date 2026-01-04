@@ -46,12 +46,12 @@ async function resolveAssignedOrgId(
   // cs_kaipoke_info から担当orgを取得
   const { data, error } = await supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("asigned_org_id")
+    .select("asigned_org")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .maybeSingle();
 
   if (error) {
-    console.error("[alert][ensure] resolve asigned_org_id error", error, {
+    console.error("[alert][ensure] resolve asigned_org error", error, {
       kaipoke_cs_id,
     });
     // ここはアラート作成自体は止めない（nullで続行）
@@ -59,7 +59,7 @@ async function resolveAssignedOrgId(
     return null;
   }
 
-  const orgId = (data?.asigned_org_id ?? null) as string | null;
+  const orgId = (data?.asigned_org ?? null) as string | null;
   assignedOrgCache.set(kaipoke_cs_id, orgId);
   return orgId;
 }
