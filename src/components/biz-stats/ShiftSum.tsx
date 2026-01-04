@@ -1,4 +1,3 @@
-// component file: src/components/biz-stats/ShiftSum.tsx
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -58,7 +57,7 @@ function diffClass(curr: number | null | undefined, prev: number | null | undefi
 
 type Props = {
   title?: string;
-  metric?: string; // default: team_service_hours
+  metric?: string;
 };
 
 export default function ShiftSumBizStats({
@@ -69,19 +68,24 @@ export default function ShiftSumBizStats({
   const defaultFrom = useMemo(() => toYYYYMM(addMonths(today, -6)), [today]);
   const defaultTo = useMemo(() => toYYYYMM(addMonths(today, 2)), [today]);
 
-  const [fromYM, setFromYM] = useState(defaultFrom); // YYYYMM
-  const [toYM, setToYM] = useState(defaultTo); // YYYYMM
+  const [fromYM, setFromYM] = useState(defaultFrom);
+  const [toYM, setToYM] = useState(defaultTo);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // 再計算：今月〜将来6か月（固定で出す）
+  // ✅ ① 再計算：過去6〜未来6（±6か月）
   const recalcOptions = useMemo(() => {
     const base = new Date(today.getFullYear(), today.getMonth(), 1);
-    return Array.from({ length: 7 }, (_, i) => toYYYYMM(addMonths(base, i))); // 0..6
+    return Array.from({ length: 13 }, (_, i) => toYYYYMM(addMonths(base, i - 6))); // -6..+6
   }, [today]);
 
-  const [recalcYM, setRecalcYM] = useState<string>(recalcOptions[0] ?? defaultFrom);
+  const currentYM = useMemo(() => {
+    const base = new Date(today.getFullYear(), today.getMonth(), 1);
+    return toYYYYMM(base);
+  }, [today]);
+
+  const [recalcYM, setRecalcYM] = useState<string>(currentYM);
   const [recalcLoading, setRecalcLoading] = useState(false);
   const [recalcError, setRecalcError] = useState<string>("");
 
@@ -98,9 +102,9 @@ export default function ShiftSumBizStats({
       .gte("year_month", fromYM)
       .lte("year_month", toYM)
       .order("sort_lv2_order", { ascending: true })
-      .order("displaylevel", { ascending: true }) // Lv2 → Lv3
+      .order("displaylevel", { ascending: true })
       .order("sort_lv3_order", { ascending: true })
-      .order("orgunitname", { ascending: true }); // 同順の保険
+      .order("orgunitname", { ascending: true });
 
     if (error) {
       setError(error.message ?? "failed to load");
@@ -171,13 +175,11 @@ export default function ShiftSumBizStats({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 表示月（列）
   const months = useMemo(() => {
     const set = new Set(rows.map((r) => r.year_month));
     return Array.from(set).sort();
   }, [rows]);
 
-  // 行（順序保持ユニーク：DBの並びを壊さない）
   const teams = useMemo(() => {
     const seen = new Set<string>();
     const list: Array<{ orgunitid: string; orgunitname: string; displaylevel: number | null }> = [];
@@ -188,7 +190,6 @@ export default function ShiftSumBizStats({
       list.push({ orgunitid: r.orgunitid, orgunitname: r.orgunitname, displaylevel: r.displaylevel });
     }
 
-    // TOTAL/UNASSIGNED を末尾へ（viewでやってるなら不要）
     const isTail = (id: string) => id === "TOTAL" || id === "UNASSIGNED";
     const head = list.filter((x) => !isTail(x.orgunitid));
     const tail = list.filter((x) => isTail(x.orgunitid));
@@ -209,7 +210,6 @@ export default function ShiftSumBizStats({
       <CardHeader className="space-y-1">
         <CardTitle>{title}</CardTitle>
 
-        {/* ② 副題 + リンク */}
         <div className="text-sm text-muted-foreground">
           シニアマネジャー・マネジャーの報酬決定・足切りはこの数字で決定。詳細は{" "}
           <a
@@ -219,13 +219,12 @@ export default function ShiftSumBizStats({
             rel="noreferrer"
           >
             ★重要：マネジャーへの期待値・報酬体系が変わります
-          </a>
-          {" "}で確認してください。
+          </a>{" "}
+          で確認してください。
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* ✅ 折り返さず横スクロール */}
         <div className="flex flex-nowrap gap-2 items-end overflow-x-auto whitespace-nowrap">
           <div>
             <div className="text-sm text-muted-foreground">From (YYYYMM)</div>
@@ -242,7 +241,6 @@ export default function ShiftSumBizStats({
           </Button>
           {error && <div className="text-sm text-red-600 shrink-0">{error}</div>}
 
-          {/* ① 再計算年月：将来6か月（今月〜+6） */}
           <select
             className="h-10 w-24 shrink-0 rounded-md border px-2 text-sm"
             value={recalcYM}
@@ -282,30 +280,33 @@ export default function ShiftSumBizStats({
                 const isLv2 = t.displaylevel === 2;
                 const isTotal = t.orgunitid === "TOTAL";
 
-                // ③ エリア(Lv2)の前 & Totalの前に border
+                // ✅ ② 罫線：tr じゃなく「セルに border-t」を付ける（確実）
                 const prev = idx > 0 ? teams[idx - 1] : null;
                 const borderTop =
-                  (isLv2 && prev && prev.displaylevel !== 2) || // Lv2に切り替わったタイミング
-                  isTotal; // Totalの前
+                  (isLv2 && prev && prev.displaylevel !== 2) || // Lv2の塊の先頭
+                  isTotal; // Total直前
 
-                const trBorderClass = borderTop ? "border-t border-border" : "";
+                const cellBorderTop = borderTop ? "border-t border-border" : "";
 
                 const totalRow = (
-                  <TableRow key={`${t.orgunitid}-total`} className={trBorderClass}>
-                    <TableCell className={`whitespace-nowrap ${isLv2 ? "font-bold" : ""}`}>
+                  <TableRow key={`${t.orgunitid}-total`}>
+                    <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
                       {t.orgunitname}
                     </TableCell>
-                    <TableCell className={`whitespace-nowrap ${isLv2 ? "font-bold" : ""}`}>単月</TableCell>
+                    <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
+                      単月
+                    </TableCell>
 
                     {months.map((ym, i) => {
                       const curr = rowMap.get(ym)?.total ?? null;
                       const prevYm = i > 0 ? months[i - 1] : null;
                       const prevVal = prevYm ? rowMap.get(prevYm)?.total ?? null : null;
                       const cls = diffClass(curr, prevVal);
+
                       return (
                         <TableCell
                           key={`${t.orgunitid}-total-${ym}`}
-                          className={`text-right ${isLv2 ? "font-bold" : ""} ${cls}`}
+                          className={`text-right ${cellBorderTop} ${isLv2 ? "font-bold" : ""} ${cls}`}
                         >
                           {formatNumInt(curr)}
                         </TableCell>
@@ -326,6 +327,7 @@ export default function ShiftSumBizStats({
                       const prevYm = i > 0 ? months[i - 1] : null;
                       const prevVal = prevYm ? rowMap.get(prevYm)?.avg3 ?? null : null;
                       const cls = diffClass(curr, prevVal);
+
                       return (
                         <TableCell
                           key={`${t.orgunitid}-avg-${ym}`}
