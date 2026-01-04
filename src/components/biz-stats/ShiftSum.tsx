@@ -16,13 +16,18 @@ import {
 } from "@/components/ui/table";
 
 type Row = {
-    month_start: string; // YYYY-MM-DD
-    year_month: string; // YYYYMM
+    month_start: string;
+    year_month: string;
     orgunitid: string;
     orgunitname: string;
     total_hours: number;
     avg_3m_hours: number | null;
+
+    displaylevel: number | null;
+    sort_lv2_order: number | null;
+    sort_lv3_order: number | null;
 };
+
 
 function addMonths(date: Date, delta: number) {
     const d = new Date(date);
@@ -107,7 +112,12 @@ export default function ShiftSumBizStats({
             orgunitname: r.orgunitname as string,
             total_hours: Number(r.value ?? 0),
             avg_3m_hours: r.avg_3m == null ? null : Number(r.avg_3m),
+
+            displaylevel: r.displaylevel == null ? null : Number(r.displaylevel),
+            sort_lv2_order: r.sort_lv2_order == null ? null : Number(r.sort_lv2_order),
+            sort_lv3_order: r.sort_lv3_order == null ? null : Number(r.sort_lv3_order),
         }));
+
 
         setRows(mapped);
         setLoading(false);
@@ -165,18 +175,22 @@ export default function ShiftSumBizStats({
     }, [rows]);
 
     const teams = useMemo(() => {
-        const map = new Map<string, { orgunitid: string; orgunitname: string }>();
+        const seen = new Set<string>();
+        const list: Array<{ orgunitid: string; orgunitname: string; displaylevel: number | null }> = [];
+
         for (const r of rows) {
-            if (!map.has(r.orgunitid))
-                map.set(r.orgunitid, { orgunitid: r.orgunitid, orgunitname: r.orgunitname });
+            if (seen.has(r.orgunitid)) continue;
+            seen.add(r.orgunitid);
+            list.push({ orgunitid: r.orgunitid, orgunitname: r.orgunitname, displaylevel: r.displaylevel });
         }
-        const list = Array.from(map.values()).sort((a, b) => {
-            if (a.orgunitid === "TOTAL") return 1;
-            if (b.orgunitid === "TOTAL") return -1;
-            return a.orgunitname.localeCompare(b.orgunitname, "ja");
-        });
-        return list;
+
+        // TOTAL/UNASSIGNED を末尾へ（viewでやってるなら不要）
+        const isTail = (id: string) => id === "TOTAL" || id === "UNASSIGNED";
+        const head = list.filter((x) => !isTail(x.orgunitid));
+        const tail = list.filter((x) => isTail(x.orgunitid));
+        return [...head, ...tail];
     }, [rows]);
+
 
     const pivot = useMemo(() => {
         const m = new Map<string, Map<string, { total: number; avg3: number | null }>>();
