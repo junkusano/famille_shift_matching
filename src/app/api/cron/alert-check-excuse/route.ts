@@ -62,6 +62,19 @@ export async function GET(req: NextRequest) {
     // ★ ここでだけ cron 認証（CRON_SECRET 等）をチェック
     assertCronAuth(req);
 
+    // まず重複整理＆severity再計算（最優先）
+    try {
+      console.info("[cron][alert_dedupe_recalc] start");
+      const { data, error } = await supabaseAdmin.rpc("cron_alert_dedupe_and_recalc");
+      if (error) throw error;
+      console.info("[cron][alert_dedupe_recalc] end", data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[cron][alert_dedupe_recalc] error", msg);
+      result.ok = false;
+      // ここで止めたければ return してもOK（今は継続させるなら throwしない）
+    }
+
     // ★AUTO DONE 一括クローズ（system の open だけ）
     console.info("[cron][auto_done] start");
 
