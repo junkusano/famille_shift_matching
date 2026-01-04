@@ -12,11 +12,13 @@ export type AlertStatus =
 export type EnsureAlertParams = {
   message: string;
   visible_roles?: string[];
-  status?: AlertStatus; // 基本は "open" 固定でOK
+  status?: AlertStatus;
   kaipoke_cs_id?: string | null;
   user_id?: string | null;
   shift_id?: string | null;
   rpa_request_id?: string | null;
+  // ✅ 追加：担当org（uuid文字列）
+  assigned_org_id?: string | null;
 };
 
 export type EnsureResult = {
@@ -25,11 +27,46 @@ export type EnsureResult = {
   severity: number;
 };
 
+// ✅ kaipoke_cs_id → assigned_org_id キャッシュ（同一実行内のDB負荷を減らす）
+const assignedOrgCache = new Map<string, string | null>();
+
+async function resolveAssignedOrgId(
+  kaipoke_cs_id: string | null,
+  provided: string | null | undefined
+): Promise<string | null> {
+  if (provided !== undefined) {
+    return provided; // 呼び出し側が明示指定したならそれを優先
+  }
+  if (!kaipoke_cs_id) return null;
+
+  if (assignedOrgCache.has(kaipoke_cs_id)) {
+    return assignedOrgCache.get(kaipoke_cs_id) ?? null;
+  }
+
+  // cs_kaipoke_info から担当orgを取得
+  const { data, error } = await supabaseAdmin
+    .from("cs_kaipoke_info")
+    .select("asigned_org_id")
+    .eq("kaipoke_cs_id", kaipoke_cs_id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[alert][ensure] resolve asigned_org_id error", error, {
+      kaipoke_cs_id,
+    });
+    // ここはアラート作成自体は止めない（nullで続行）
+    assignedOrgCache.set(kaipoke_cs_id, null);
+    return null;
+  }
+
+  const orgId = (data?.asigned_org_id ?? null) as string | null;
+  assignedOrgCache.set(kaipoke_cs_id, orgId);
+  return orgId;
+}
+
 /**
  * システムアラートを「1メッセージにつき1つの open」に保ちながら Upsert する
  * - UNIQUE は (message, status)
- * - severity は created_at からの経過日数で自動計算（2日ごとに +1, 最大5）
- * - status_source は常に 'system'
  */
 export async function ensureSystemAlert(
   params: EnsureAlertParams
@@ -42,6 +79,7 @@ export async function ensureSystemAlert(
     user_id = null,
     shift_id = null,
     rpa_request_id = null,
+    assigned_org_id, // ✅ 追加
   } = params;
 
   const now = new Date();
@@ -52,9 +90,13 @@ export async function ensureSystemAlert(
     return { created: false, id: null, severity: 1 };
   }
 
-  // ==========================
-  // 1. まず「すでに open の行」が無いか見る
-  // ==========================
+  // ✅ assigned_org_id を解決（未指定なら cs_kaipoke_info から引く）
+  const resolvedAssignedOrgId = await resolveAssignedOrgId(
+    kaipoke_cs_id,
+    assigned_org_id
+  );
+
+  // 1) すでに open があるか？
   const { data: openExisting, error: openSelError } = await supabaseAdmin
     .from("alert_log")
     .select("*")
@@ -63,24 +105,15 @@ export async function ensureSystemAlert(
     .maybeSingle();
 
   if (openSelError) {
-    console.error("[alert][ensure] select open error", openSelError, {
-      message,
-    });
+    console.error("[alert][ensure] select open error", openSelError, { message });
     throw openSelError;
   }
 
   if (openExisting) {
-    // 既存 open をベースに severity 自動レベルアップ
     const createdAt = new Date(openExisting.created_at);
-    const diffDays = Math.floor(
-      (now.getTime() - createdAt.getTime()) / 86400000
-    );
-
-    const autoLevel = 1 + Math.floor(diffDays / 2); // 2日で+1
-    const severity = Math.min(
-      Math.max(openExisting.severity ?? 1, autoLevel),
-      5
-    );
+    const diffDays = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
+    const autoLevel = 1 + Math.floor(diffDays / 2);
+    const severity = Math.min(Math.max(openExisting.severity ?? 1, autoLevel), 5);
 
     const updatePayload = {
       severity,
@@ -90,6 +123,7 @@ export async function ensureSystemAlert(
       user_id,
       shift_id,
       rpa_request_id,
+      assigned_org_id: resolvedAssignedOrgId, // ✅ 追加
       status_source: openExisting.status_source ?? "system",
     };
 
@@ -106,16 +140,10 @@ export async function ensureSystemAlert(
       throw updError;
     }
 
-    return {
-      created: false,
-      id: openExisting.id,
-      severity,
-    };
+    return { created: false, id: openExisting.id, severity };
   }
 
-  // ==========================
-  // 2. open が無い → 同じ message の履歴があるか？
-  // ==========================
+  // 2) open が無い → 同 message の履歴があるか？
   const { data: anyExisting, error: anySelError } = await supabaseAdmin
     .from("alert_log")
     .select("*")
@@ -125,24 +153,23 @@ export async function ensureSystemAlert(
     .maybeSingle();
 
   if (anySelError) {
-    console.error("[alert][ensure] select any error", anySelError, {
-      message,
-    });
+    console.error("[alert][ensure] select any error", anySelError, { message });
     throw anySelError;
   }
 
-  // 2-1. 完全に新しいメッセージ → 新規 insert
+  // 2-1) 完全新規 → insert
   if (!anyExisting) {
     const insertPayload = {
       message,
       visible_roles,
-      status, // 基本 'open'
+      status,
       status_source: "system",
       severity: 1,
       kaipoke_cs_id,
       user_id,
       shift_id,
       rpa_request_id,
+      assigned_org_id: resolvedAssignedOrgId, // ✅ 追加
       created_at: nowIso,
       updated_at: nowIso,
     };
@@ -154,29 +181,18 @@ export async function ensureSystemAlert(
       .maybeSingle();
 
     if (insError) {
-      console.error("[alert][ensure] insert error", insError, {
-        payload: insertPayload,
-      });
+      console.error("[alert][ensure] insert error", insError, { payload: insertPayload });
       throw insError;
     }
 
-    return {
-      created: true,
-      id: inserted?.id ?? null,
-      severity: 1,
-    };
+    return { created: true, id: inserted?.id ?? null, severity: 1 };
   }
 
-  // 2-2. 過去レコードあり（現在は done/muted/cancelled 等） → 再オープン
+  // 2-2) 過去レコードあり → 再open
   const createdAt = new Date(anyExisting.created_at);
-  const diffDays = Math.floor(
-    (now.getTime() - createdAt.getTime()) / 86400000
-  );
+  const diffDays = Math.floor((now.getTime() - createdAt.getTime()) / 86400000);
   const autoLevel = 1 + Math.floor(diffDays / 2);
-  const severity = Math.min(
-    Math.max(anyExisting.severity ?? 1, autoLevel),
-    5
-  );
+  const severity = Math.min(Math.max(anyExisting.severity ?? 1, autoLevel), 5);
 
   const reopenPayload = {
     status: "open" as const,
@@ -188,6 +204,7 @@ export async function ensureSystemAlert(
     user_id,
     shift_id,
     rpa_request_id,
+    assigned_org_id: resolvedAssignedOrgId, // ✅ 追加
   };
 
   const { error: reopenError } = await supabaseAdmin
@@ -196,15 +213,7 @@ export async function ensureSystemAlert(
     .eq("id", anyExisting.id);
 
   if (reopenError) {
-    // ここで 23505 が出るのは、
-    // 「どこか別で既に open レコードが新規作成されている」ケース
-    if ((reopenError).code === "23505") {
-      console.error(
-        "[alert][ensure] reopen duplicate, fallback to open-only",
-        reopenError,
-        { message }
-      );
-
+    if (reopenError.code === "23505") {
       const { data: fallbackOpen } = await supabaseAdmin
         .from("alert_log")
         .select("*")
@@ -230,9 +239,5 @@ export async function ensureSystemAlert(
     throw reopenError;
   }
 
-  return {
-    created: false,
-    id: anyExisting.id,
-    severity,
-  };
+  return { created: false, id: anyExisting.id, severity };
 }
