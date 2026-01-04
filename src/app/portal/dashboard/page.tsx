@@ -115,20 +115,33 @@ export default function DashboardPage() {
         setRecalcError("");
 
         try {
+            const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+            if (sessionErr) {
+                setRecalcError("セッション取得に失敗しました");
+                return;
+            }
+            const token = sessionData.session?.access_token;
+            if (!token) {
+                setRecalcError("ログインしてください");
+                return;
+            }
+
             const res = await fetch("/api/shift-sum", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`, // ✅ 追加
+                },
                 body: JSON.stringify({ year_month: recalcYM }),
             });
+
             const json = (await res.json()) as { ok?: boolean; error?: string };
 
             if (!res.ok) {
                 setRecalcError(json.error ?? "再計算に失敗しました");
-                setRecalcLoading(false);
                 return;
             }
 
-            // 実行後に再読み込み
             await load();
         } catch {
             setRecalcError("再計算に失敗しました");
@@ -136,7 +149,6 @@ export default function DashboardPage() {
             setRecalcLoading(false);
         }
     }
-
 
     useEffect(() => {
         load();
