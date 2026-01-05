@@ -206,6 +206,31 @@ export default function JissekiPrintPage() {
   padding: 0 !important;
 }
 
+/* 同行援護：備考セル内の文字を確実に枠内に収める */
+.biko-td {
+  padding: 0 !important;      /* 余白であふれないように */
+  overflow: hidden;           /* td側も一応 */
+}
+
+.biko-box {
+  box-sizing: border-box;
+  height: var(--detail-row-h);  /* 行の高さに合わせて固定 */
+  padding: 2px 3px;             /* セル内余白 */
+  overflow: hidden;             /* ここで確実にクリップ */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+}
+
+/* 1行ごとの表示。長い場合は折り返しても良いなら normal、折り返さず省略なら nowrap */
+.biko-line {
+  line-height: 1.05;
+  white-space: normal;        /* 折り返す */
+  word-break: break-word;     /* 日本語・英数字混在でも折る */
+ overflow-wrap: anywhere;
+}
+
   `}</style>
 
 
@@ -1385,9 +1410,17 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td>&nbsp;</td>
 
                                         {/* 備考：担当者名（staffNames があれば表示） */}
-                                        <td className="left small">
-                                            <div className="cell-wrap">
-                                                {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                        <td className="left small biko-td">
+                                            <div className="biko-box">
+                                                {(r.staffNames ?? []).length > 0 ? (
+                                                    (r.staffNames ?? []).slice(0, 4).map((name, idx) => (
+                                                        <div key={idx} className="biko-line">
+                                                            {name}
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="biko-line">{"\u00A0"}</div>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
