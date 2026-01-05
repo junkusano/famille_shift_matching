@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type PrintPayload = {
-    client: { kaipoke_cs_id: string; client_name: string };
+    client: {
+        kaipoke_cs_id: string;
+        client_name: string;
+        ido_jukyusyasho?: string | null; // ★追加
+        // もし今後使うなら postal_code 等もここに追加できます
+    };
     month: string; // YYYY-MM
     forms: Array<{
         formType: "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
@@ -18,6 +23,8 @@ type PrintPayload = {
             minutes?: number;
             required_staff_count?: number; // ★派遣人数
             staffNames?: string[];
+            calc_hour?: number | null;
+            cs_pay?: number | null;
         }>;
     }>;
 };
@@ -65,11 +72,11 @@ const DOKO_CONTRACT = "同行援護 25時間/月";
 
 // ★1ページあたりの明細行数（+10）
 const ROWS_PER_PAGE = {
-    TAKINO: 30, 
-    KODO: 31,  
+    TAKINO: 30,
+    KODO: 31,
     DOKO: 31,
-    JYUHO: 31, 
-    IDOU: 31,  
+    JYUHO: 31,
+    IDOU: 31,
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -1789,8 +1796,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumUphitMin = sumPlanMin; // 不可欠（分）＝同じ数
     const sumOtherMin = 0;
 
-    // 現状データ定義に無い項目は 0/斜線のまま
-    const sumSanteiHour = 0;
+    // ★算定時間(時間) 合計：明細の calc_hour を合計
+    const sumSanteiHour = src.reduce((a, r) => {
+        const h = r.calc_hour;
+        return a + (typeof h === "number" ? h : 0);
+    }, 0);
+
     const sumKatamichi = 0;
     const sumFutan = 0;
 
@@ -1820,13 +1831,13 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
 
                         <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
-                        <col style={{ width: "6%" }} />  {/* 利用形態 ★追加 */}
-                        <col style={{ width: "6%" }} />  {/* 片道支援加算 */}
+                        <col style={{ width: "4%" }} />  {/* 利用形態 ★追加 */}
+                        <col style={{ width: "4%" }} />  {/* 片道支援加算 */}
                         <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
 
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
-                        <col style={{ width: "7%" }} />  {/* サービス提供者名 */}
+                        <col style={{ width: "11%" }} />  {/* サービス提供者名 */}
                         <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
                     </colgroup>
 
@@ -1848,7 +1859,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 <div style={{ display: "grid", gridTemplateColumns: "25% 75%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>受給者証番号</div>
                                     <div style={{ padding: "2px 4px" }}>
-                                        <DigitBoxes10 value={""} />
+                                        <DigitBoxes10 value={data.client.ido_jukyusyasho ?? ""} />
                                     </div>
                                 </div>
                             </td>
@@ -1968,8 +1979,8 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center" rowSpan={3}>曜日</th>
                             <th className="center" colSpan={9}>移動支援計画</th>
                             <th className="center" rowSpan={3}>算定時間(時間)</th>
-                            <th className="center" rowSpan={3}>利用形態</th>
-                            <th className="center" rowSpan={3}>片道支援加算</th>
+                            <th className="center vtext" rowSpan={3}>利用形態</th>
+                            <th className="center vtext" rowSpan={3}>片道支援加算</th>
                             <th className="center" rowSpan={3}>利用者負担額</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
                             <th className="center" rowSpan={3}>サービス提供者名</th>
@@ -2038,13 +2049,23 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td className="right">{mins}</td>
                                     <td>&nbsp;</td>
 
-                                    {/* 算定時間(時間)（要望なし） */}
+                                    {/* 算定時間(時間)：内訳(分)を0.5h単位で丸めた値（route.tsのcalc_hour） */}
+                                    <td className="right">
+                                        {typeof r?.calc_hour === "number"
+                                            ? String(r.calc_hour).replace(/\.0$/, "")
+                                            : "\u00A0"}
+                                    </td>
+
+                                    {/* 利用形態：シフトがある行は「1」 */}
+                                    <td className="center">1</td>
+
+                                    {/* 片道支援加算：今回は要件②のみ（縦書き）で値は未指定なので空 */}
                                     <td>&nbsp;</td>
 
-                                    {/* 利用形態／片道支援加算／利用者負担額（要望なし） */}
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
+                                    {/* 利用者負担額：route.ts が cs_pay を返しているので表示したいならここで出せます（任意） */}
+                                    <td className="right">
+                                        {typeof r?.cs_pay === "number" ? r.cs_pay : "\u00A0"}
+                                    </td>
 
                                     {/* サービス提供時間 ＞ サービス提供（開始/終了）＝計画と同じ */}
                                     <td className="center">{r.start}</td>
