@@ -125,17 +125,34 @@ export default function JissekiPrintPage() {
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
     @page { size: A4; margin: 6mm; }
-    @media print {
+ @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
 
-  /* ★ここが重要：印刷時は print-only 以外を見えなくする */
+  /* p-6 の左右余白を確実に消す（全方向） */
+  .print-only .p-6 {
+    padding: 0 !important;
+  }
+
+  /* 追加：p-6 を持つページラッパー自体を幅いっぱいに */
+  .print-only .p-6, 
+  .print-only .page-break {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   body { margin: 0 !important; }
   body * { visibility: hidden !important; }
   .print-only, .print-only * { visibility: visible !important; }
 
-/* 印刷位置を左上に寄せる（余計な余白・ズレ対策） */
-.print-only { position: absolute; top: 0; left: 0; width: 210mm; min-height: 297mm; }
+  /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
+  .print-only {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    min-height: 297mm;
+  }
 }
     @media screen {
    /* 画面でもA4固定で表示（PC画面幅に追従しない） */
