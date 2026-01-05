@@ -124,10 +124,11 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 6mm; }
+    @page { size: A4; margin: 0mm; }
  @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
+    .page-pad { padding: 6mm !important; }
 
   /* p-6 の左右余白を確実に消す（全方向） */
   .print-only .p-6 {
@@ -161,6 +162,7 @@ export default function JissekiPrintPage() {
   min-height: 297mm;
   margin: 0 auto;
   background: #fff;
+  .page-pad { padding: 24px; } /
 }
       .screen-only { display: block; }
        /* ★追加：この文言を含む要素を印刷に出さない（暫定対策） */
@@ -298,7 +300,10 @@ export default function JissekiPrintPage() {
                     const totalPages = pages.length;
 
                     return pages.map((p, idx) => (
-                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "p-6" : "p-6 page-break"}>
+                        <div
+                            key={`${p.formType}-${idx}`}
+                            className={idx === 0 ? "page-pad" : "page-pad page-break"}
+                        >
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}
