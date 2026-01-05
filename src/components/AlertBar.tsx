@@ -29,7 +29,7 @@ type ManagerRow = {
 };
 
 //const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
-const [mgrMap, setMgrMap] = useState<Map<string, string[]>>(new Map());
+//const [mgrMap, setMgrMap] = useState<Map<string, string[]>>(new Map());
 
 
 type SystemRole = "admin" | "manager" | "member";
@@ -51,7 +51,9 @@ export default function AlertBar() {
   // 一覧の表示/非表示（畳む）制御
   const [collapsed, setCollapsed] = useState(false);
 
+    // ✅ ここに移動（orgMap と並べるのが自然）
   const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
+  const [mgrMap, setMgrMap] = useState<Map<string, string[]>>(new Map());
 
   // ---------- ログインユーザーの system_role 取得 ----------
   useEffect(() => {
