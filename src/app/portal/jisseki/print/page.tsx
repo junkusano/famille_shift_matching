@@ -65,11 +65,11 @@ const DOKO_CONTRACT = "同行援護 25時間/月";
 
 // ★1ページあたりの明細行数（+10）
 const ROWS_PER_PAGE = {
-    TAKINO: 35, // 25 + 10
-    KODO: 41,   // 31 + 10
-    DOKO: 41,   // 31 + 10
-    JYUHO: 35,  // 25 + 10
-    IDOU: 41,   // 31 + 10
+    TAKINO: 30, 
+    KODO: 31,  
+    DOKO: 31,
+    JYUHO: 31, 
+    IDOU: 31,  
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -150,12 +150,12 @@ export default function JissekiPrintPage() {
 +    明細行をA4で安定させる：行高さ固定
 +    ========================= */
 + :root{
-+   --detail-row-h: 6.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
++   --detail-row-h: 8.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
 + }
 + .detail-row > td{
 +   height: var(--detail-row-h);
-+   padding: 1px 2px;      /* 明細だけ少し詰める */
-+   line-height: 1.05;     /* 文字で行が伸びるのを抑止 */
++   padding: 3px 4px;      /* 明細だけ少し詰める */
++   line-height: 1.2;     /* 文字で行が伸びるのを抑止 */
 +   vertical-align: middle;
 + }
     .center { text-align: center; }

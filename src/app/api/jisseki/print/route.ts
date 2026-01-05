@@ -108,16 +108,20 @@ export async function GET(req: NextRequest) {
 
   const { start, end } = ymToRange(month);
 
-  // ★①：ido_jukyusyasho と郵便番号（address_zip想定）も取得
-  const { data: cs } = await supabaseAdmin
-    .from("cs_kaipoke_info")
-    .select("kaipoke_cs_id,name,ido_jukyusyasho,address_zip")
-    .eq("kaipoke_cs_id", kaipoke_cs_id)
-    .maybeSingle();
+ // ★①：利用者名と郵便番号（名古屋市判定用）を取得
+const { data: cs } = await supabaseAdmin
+  .from("cm_kaipoke_info")
+  .select("kaipoke_cs_id,name,postal_code")
+  .eq("kaipoke_cs_id", kaipoke_cs_id)
+  .maybeSingle();
 
-  const client_name = cs?.name ?? "";
-  const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
-  const address_zip = (cs as { address_zip?: string } | null)?.address_zip ?? "";
+const client_name = cs?.name ?? "";
+
+// cm_kaipoke_info には ido_jukyusyasho が無いので空（必要なら別テーブルから取得に拡張）
+const ido_jukyusyasho = "";
+
+// 名古屋市判定に使っているので postal_code を入れる
+const address_zip = (cs as { postal_code?: string } | null)?.postal_code ?? "";
 
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin
