@@ -2,6 +2,8 @@
 
 import ShiftSumBizStats from "@/components/biz-stats/ShiftSum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DefectSum from "@/components/biz-stats/DefectSum";
+
 
 export default function DashboardPage() {
   return (
@@ -21,6 +23,7 @@ export default function DashboardPage() {
 
       {/* ===== 個別ウィジェット ===== */}
       <ShiftSumBizStats />
+      <DefectSum />
     </div>
   );
 }
