@@ -1084,7 +1084,11 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td>&nbsp;</td>
                                     <td>&nbsp;</td>
                                     <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
+
+                                    {/* 備考：担当者名（staffNames があれば表示） */}
+                                    <td className="small">
+                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                    </td>
                                 </tr>
                             );
                         })}
