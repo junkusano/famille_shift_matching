@@ -173,6 +173,15 @@ export default function JissekiPrintPage() {
     .ido-grid { width: 100% !important; }
     .ido-grid { max-width: 100% !important; }
 
+    /* セル内に文字を収める（枠外に出さない） */
+.cell-wrap {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
+
 /* 10桁：外枠なし、区切り線のみ */
 .digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
 .digitCell { display: flex; align-items: center; justify-content: center; }
@@ -1377,7 +1386,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                                         {/* 備考：担当者名（staffNames があれば表示） */}
                                         <td className="left small">
-                                            {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                            <div className="cell-wrap">
+                                                {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
