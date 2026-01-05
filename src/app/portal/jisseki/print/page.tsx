@@ -25,6 +25,7 @@ type PrintPayload = {
             staffNames?: string[];
             calc_hour?: number | null;
             cs_pay?: number | null;
+            katamichi_addon?: 0 | 1;
         }>;
     }>;
 };
@@ -1362,11 +1363,22 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 派遣人数 */}
                                         <td className="center">{dispatch}</td>
 
-                                        {/* 初回加算/緊急時対応加算/利用者確認欄/備考（要望対象外なので空欄） */}
+                                        {/* 初回加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 緊急時対応加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 福祉専門職員等連携加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 利用者確認欄（はんこ欄なので空でOK） */}
                                         <td>&nbsp;</td>
+
+                                        {/* 備考：担当者名（staffNames があれば表示） */}
+                                        <td className="left small">
+                                            {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                        </td>
                                     </tr>
                                 );
                             });
@@ -2059,20 +2071,23 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     {/* 利用形態：シフトがある行は「1」 */}
                                     <td className="center">1</td>
 
-                                    {/* 片道支援加算：今回は要件②のみ（縦書き）で値は未指定なので空 */}
-                                    <td>&nbsp;</td>
+                                    <td className="center">
+                                        {r.katamichi_addon === 1 ? "1" : "\u00A0"}
+                                    </td>
 
                                     {/* 利用者負担額：route.ts が cs_pay を返しているので表示したいならここで出せます（任意） */}
                                     <td className="right">
-                                        {typeof r?.cs_pay === "number" ? r.cs_pay : "\u00A0"}
+                                        {r.cs_pay != null && String(r.cs_pay).trim() !== "" ? r.cs_pay : "\u00A0"}
                                     </td>
 
                                     {/* サービス提供時間 ＞ サービス提供（開始/終了）＝計画と同じ */}
                                     <td className="center">{r.start}</td>
                                     <td className="center">{r.end}</td>
 
-                                    {/* サービス提供者名／利用者確認欄（要望なし） */}
-                                    <td>&nbsp;</td>
+                                    {/* サービス提供者名／利用者確認欄 */}
+                                    <td className="left small">
+                                        {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                    </td>
                                     <td>&nbsp;</td>
                                 </tr>
                             );
