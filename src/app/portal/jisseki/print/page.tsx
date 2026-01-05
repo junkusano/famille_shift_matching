@@ -1187,7 +1187,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
             <div className="mt-2">
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
-                    {/* 17列で固定（PDFの縦罫イメージに合わせやすい） */}
+                    {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
                         <col style={{ width: "3%" }} />
@@ -1196,27 +1196,24 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* サービス内容 */}
                         <col style={{ width: "12%" }} />
 
-                        {/* 居宅介護計画（4列） */}
-                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
-                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
-                        <col style={{ width: "5%" }} />  {/* 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+                        {/* 同行援護計画（開始/終了/時間）= 3列 */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "5%" }} />
 
-                        {/* サービス提供時間（2列） */}
-                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
-                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
+                        {/* サービス提供時間（開始/終了）= 2列 */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "7%" }} />
 
-                        {/* 算定時間数（2列） */}
-                        <col style={{ width: "5%" }} />  {/* 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+                        {/* 算定時間（時間）= 1列 */}
+                        <col style={{ width: "5%" }} />
 
-                        {/* 右側 */}
-                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
-                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "16%" }} /> {/* 備考（必要なら更に増やす） */}
+                        {/* 派遣人数・初回・緊急・利用者確認・備考 */}
+                        <col style={{ width: "4%" }} />   {/* 派遣人数 */}
+                        <col style={{ width: "4%" }} />   {/* 初回加算 */}
+                        <col style={{ width: "5%" }} />   {/* 緊急時対応加算 */}
+                        <col style={{ width: "7%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "24%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
@@ -1309,10 +1306,10 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         </tr>
 
                         <tr>
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
+                            <th className="center">開始<br />時間</th>
+                            <th className="center">終了<br />時間</th>
                             <th className="center">計画<br />時間数</th>
-                            <th className="center">開始時間</th>
+                            <th className="center">開始<br />時間</th>
                             <th className="center">終了時間</th>
                         </tr>
 
