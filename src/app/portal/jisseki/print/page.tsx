@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type PrintPayload = {
-    client: { kaipoke_cs_id: string; client_name: string };
+    client: {
+        kaipoke_cs_id: string;
+        client_name: string;
+        ido_jukyusyasho?: string | null; // ★追加
+        // もし今後使うなら postal_code 等もここに追加できます
+    };
     month: string; // YYYY-MM
     forms: Array<{
         formType: "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
@@ -18,6 +23,9 @@ type PrintPayload = {
             minutes?: number;
             required_staff_count?: number; // ★派遣人数
             staffNames?: string[];
+            calc_hour?: number | null;
+            cs_pay?: number | null;
+            katamichi_addon?: 0 | 1;
         }>;
     }>;
 };
@@ -65,11 +73,11 @@ const DOKO_CONTRACT = "同行援護 25時間/月";
 
 // ★1ページあたりの明細行数（+10）
 const ROWS_PER_PAGE = {
-    TAKINO: 35, // 25 + 10
-    KODO: 41,   // 31 + 10
-    DOKO: 41,   // 31 + 10
-    JYUHO: 35,  // 25 + 10
-    IDOU: 41,   // 31 + 10
+    TAKINO: 30,
+    KODO: 31,
+    DOKO: 31,
+    JYUHO: 31,
+    IDOU: 31,
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -116,18 +124,35 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 6mm; }
-    @media print {
+    @page { size: A4; margin: 0mm; }
+ @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
 
-  /* ★ここが重要：印刷時は print-only 以外を見えなくする */
+  /* p-6 の左右余白を確実に消す（全方向） */
+  .print-only .p-6 {
+    padding: 0 !important;
+  }
+
+  /* 追加：p-6 を持つページラッパー自体を幅いっぱいに */
+  .print-only .p-6, 
+  .print-only .page-break {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   body { margin: 0 !important; }
   body * { visibility: hidden !important; }
   .print-only, .print-only * { visibility: visible !important; }
 
-/* 印刷位置を左上に寄せる（余計な余白・ズレ対策） */
-.print-only { position: absolute; top: 0; left: 0; width: 210mm; min-height: 297mm; }
+  /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
+  .print-only {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    min-height: 297mm;
+  }
 }
     @media screen {
    /* 画面でもA4固定で表示（PC画面幅に追従しない） */
@@ -150,12 +175,12 @@ export default function JissekiPrintPage() {
 +    明細行をA4で安定させる：行高さ固定
 +    ========================= */
 + :root{
-+   --detail-row-h: 6.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
++   --detail-row-h: 8.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
 + }
 + .detail-row > td{
 +   height: var(--detail-row-h);
-+   padding: 1px 2px;      /* 明細だけ少し詰める */
-+   line-height: 1.05;     /* 文字で行が伸びるのを抑止 */
++   padding: 3px 4px;      /* 明細だけ少し詰める */
++   line-height: 1.2;     /* 文字で行が伸びるのを抑止 */
 +   vertical-align: middle;
 + }
     .center { text-align: center; }
@@ -164,6 +189,15 @@ export default function JissekiPrintPage() {
     .title { font-size: 14px; font-weight: 700; text-align: center; }
     .ido-grid { width: 100% !important; }
     .ido-grid { max-width: 100% !important; }
+
+    /* セル内に文字を収める（枠外に出さない） */
+.cell-wrap {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
 
 /* 10桁：外枠なし、区切り線のみ */
 .digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
@@ -187,6 +221,31 @@ export default function JissekiPrintPage() {
   text-orientation: upright;
   line-height: 1;
   padding: 0 !important;
+}
+
+/* 同行援護：備考セル内の文字を確実に枠内に収める */
+.biko-td {
+  padding: 0 !important;      /* 余白であふれないように */
+  overflow: hidden;           /* td側も一応 */
+}
+
+.biko-box {
+  box-sizing: border-box;
+  height: var(--detail-row-h);  /* 行の高さに合わせて固定 */
+  padding: 2px 3px;             /* セル内余白 */
+  overflow: hidden;             /* ここで確実にクリップ */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+}
+
+/* 1行ごとの表示。長い場合は折り返しても良いなら normal、折り返さず省略なら nowrap */
+.biko-line {
+  line-height: 1.05;
+  white-space: normal;        /* 折り返す */
+  word-break: break-word;     /* 日本語・英数字混在でも折る */
+ overflow-wrap: anywhere;
 }
 
   `}</style>
@@ -1025,7 +1084,11 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td>&nbsp;</td>
                                     <td>&nbsp;</td>
                                     <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
+
+                                    {/* 備考：担当者名（staffNames があれば表示） */}
+                                    <td className="small">
+                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                    </td>
                                 </tr>
                             );
                         })}
@@ -1130,7 +1193,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
                     令和7年12月分
                 </div>
@@ -1145,7 +1208,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
             <div className="mt-2">
                 <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
-                    {/* 17列で固定（PDFの縦罫イメージに合わせやすい） */}
+                    {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
                         <col style={{ width: "3%" }} />
@@ -1154,27 +1217,24 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* サービス内容 */}
                         <col style={{ width: "12%" }} />
 
-                        {/* 居宅介護計画（4列） */}
-                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
-                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
-                        <col style={{ width: "5%" }} />  {/* 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+                        {/* 同行援護計画（開始/終了/時間）= 3列 */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "3%" }} />
 
-                        {/* サービス提供時間（2列） */}
-                        <col style={{ width: "7%" }} />  {/* 開始時間 */}
-                        <col style={{ width: "7%" }} />  {/* 終了時間 */}
+                        {/* サービス提供時間（開始/終了）= 2列 */}
+                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "6%" }} />
 
-                        {/* 算定時間数（2列） */}
-                        <col style={{ width: "5%" }} />  {/* 時間 */}
-                        <col style={{ width: "5%" }} />  {/* 乗降 */}
+                        {/* 算定時間（時間）= 1列 */}
+                        <col style={{ width: "3%" }} />
 
-                        {/* 右側 */}
-                        <col style={{ width: "4%" }} />  {/* 派遣人数 */}
-                        <col style={{ width: "4%" }} />  {/* 初回加算 */}
-                        <col style={{ width: "5%" }} />  {/* 緊急時対応加算 */}
-                        <col style={{ width: "5%" }} />  {/* 福祉専門職員等連携加算 */}
-                        <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
-                        <col style={{ width: "16%" }} /> {/* 備考（必要なら更に増やす） */}
+                        {/* 派遣人数・初回・緊急・利用者確認・備考 */}
+                        <col style={{ width: "3%" }} />   {/* 派遣人数 */}
+                        <col style={{ width: "3%" }} />   {/* 初回加算 */}
+                        <col style={{ width: "4%" }} />   {/* 緊急時対応加算 */}
+                        <col style={{ width: "6%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "33%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
@@ -1258,20 +1318,20 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center" rowSpan={2}>サービス内容</th>
                             <th className="center" colSpan={3}>同行援護計画</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
-                            <th className="center" rowSpan={2}>算定時間</th>
-                            <th className="center" rowSpan={2}>派遣人数</th>
-                            <th className="center" rowSpan={2}>初回加算</th>
-                            <th className="center" rowSpan={2}>緊急時<br />対応加算</th>
+                            <th className="center vtext" rowSpan={2}>算定時間</th>
+                            <th className="center vtext" rowSpan={2}>派遣人数</th>
+                            <th className="center vtext" rowSpan={2}>初回加算</th>
+                            <th className="center" rowSpan={2}>緊急時<br />対応<br />加算</th>
                             <th className="center" rowSpan={2}>利用者<br />確認欄</th>
                             <th className="center" rowSpan={2}>備考</th>
                         </tr>
 
                         <tr>
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
+                            <th className="center">開始<br />時間</th>
+                            <th className="center">終了<br />時間</th>
                             <th className="center">計画<br />時間数</th>
-                            <th className="center">開始時間</th>
-                            <th className="center">終了時間</th>
+                            <th className="center">開始<br />時間</th>
+                            <th className="center">終了<br />時間</th>
                         </tr>
 
                         {/* 明細行（PDFは31日相当の空行が多いので多めに） */}
@@ -1355,11 +1415,27 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 派遣人数 */}
                                         <td className="center">{dispatch}</td>
 
-                                        {/* 初回加算/緊急時対応加算/利用者確認欄/備考（要望対象外なので空欄） */}
+                                        {/* 初回加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 緊急時対応加算 */}
                                         <td>&nbsp;</td>
+
+                                        {/* 利用者確認欄（はんこ欄なので空でOK） */}
                                         <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
+
+                                        {/* 備考：担当者名（staffNames があれば表示） */}
+                                        <td className="left small biko-td">
+                                            <div className="biko-box">
+                                                {(r.staffNames ?? []).length > 0 ? (
+                                                    (r.staffNames ?? []).slice(0, 4).map((name, idx) => (
+                                                        <div key={idx} className="biko-line">{name}</div>
+                                                    ))
+                                                ) : (
+                                                    <div className="biko-line">{"\u00A0"}</div>
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             });
@@ -1789,8 +1865,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumUphitMin = sumPlanMin; // 不可欠（分）＝同じ数
     const sumOtherMin = 0;
 
-    // 現状データ定義に無い項目は 0/斜線のまま
-    const sumSanteiHour = 0;
+    // ★算定時間(時間) 合計：明細の calc_hour を合計
+    const sumSanteiHour = src.reduce((a, r) => {
+        const h = r.calc_hour;
+        return a + (typeof h === "number" ? h : 0);
+    }, 0);
+
     const sumKatamichi = 0;
     const sumFutan = 0;
 
@@ -1820,13 +1900,13 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         <col style={{ width: "5%" }} />  {/* 内訳 その他 */}
 
                         <col style={{ width: "6%" }} />  {/* 算定時間(時間) */}
-                        <col style={{ width: "6%" }} />  {/* 利用形態 ★追加 */}
-                        <col style={{ width: "6%" }} />  {/* 片道支援加算 */}
+                        <col style={{ width: "4%" }} />  {/* 利用形態 ★追加 */}
+                        <col style={{ width: "4%" }} />  {/* 片道支援加算 */}
                         <col style={{ width: "6%" }} />  {/* 利用者負担額 */}
 
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 開始 */}
                         <col style={{ width: "6%" }} />  {/* サービス提供時間 終了 */}
-                        <col style={{ width: "7%" }} />  {/* サービス提供者名 */}
+                        <col style={{ width: "11%" }} />  {/* サービス提供者名 */}
                         <col style={{ width: "7%" }} />  {/* 利用者確認欄 */}
                     </colgroup>
 
@@ -1848,7 +1928,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 <div style={{ display: "grid", gridTemplateColumns: "25% 75%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "2px 4px" }}>受給者証番号</div>
                                     <div style={{ padding: "2px 4px" }}>
-                                        <DigitBoxes10 value={""} />
+                                        <DigitBoxes10 value={data.client.ido_jukyusyasho ?? ""} />
                                     </div>
                                 </div>
                             </td>
@@ -1968,8 +2048,8 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <th className="center" rowSpan={3}>曜日</th>
                             <th className="center" colSpan={9}>移動支援計画</th>
                             <th className="center" rowSpan={3}>算定時間(時間)</th>
-                            <th className="center" rowSpan={3}>利用形態</th>
-                            <th className="center" rowSpan={3}>片道支援加算</th>
+                            <th className="center vtext" rowSpan={3}>利用形態</th>
+                            <th className="center vtext" rowSpan={3}>片道支援加算</th>
                             <th className="center" rowSpan={3}>利用者負担額</th>
                             <th className="center" colSpan={2}>サービス提供時間</th>
                             <th className="center" rowSpan={3}>サービス提供者名</th>
@@ -2038,20 +2118,33 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td className="right">{mins}</td>
                                     <td>&nbsp;</td>
 
-                                    {/* 算定時間(時間)（要望なし） */}
-                                    <td>&nbsp;</td>
+                                    {/* 算定時間(時間)：内訳(分)を0.5h単位で丸めた値（route.tsのcalc_hour） */}
+                                    <td className="right">
+                                        {typeof r?.calc_hour === "number"
+                                            ? String(r.calc_hour).replace(/\.0$/, "")
+                                            : "\u00A0"}
+                                    </td>
 
-                                    {/* 利用形態／片道支援加算／利用者負担額（要望なし） */}
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
-                                    <td>&nbsp;</td>
+                                    {/* 利用形態：シフトがある行は「1」 */}
+                                    <td className="center">1</td>
+
+                                    <td className="center">
+                                        {r.katamichi_addon === 1 ? "1" : "\u00A0"}
+                                    </td>
+
+                                    {/* 利用者負担額：route.ts が cs_pay を返しているので表示したいならここで出せます（任意） */}
+                                    <td className="right">
+                                        {r.cs_pay != null && String(r.cs_pay).trim() !== "" ? r.cs_pay : "\u00A0"}
+                                    </td>
 
                                     {/* サービス提供時間 ＞ サービス提供（開始/終了）＝計画と同じ */}
                                     <td className="center">{r.start}</td>
                                     <td className="center">{r.end}</td>
 
-                                    {/* サービス提供者名／利用者確認欄（要望なし） */}
-                                    <td>&nbsp;</td>
+                                    {/* サービス提供者名／利用者確認欄 */}
+                                    <td className="left small">
+                                        {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                    </td>
                                     <td>&nbsp;</td>
                                 </tr>
                             );

@@ -5,17 +5,18 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 type FormType = "TAKINO" | "KODO" | "DOKO" | "JYUHO" | "IDOU";
 
 type PrintRow = {
-  date: string; // YYYY-MM-DD
-  start: string; // HH:mm
-  end: string; // HH:mm
+  date: string;
+  start: string;
+  end: string;
   service_code?: string;
   minutes?: number;
   required_staff_count?: number;
 
-  // ★追加（IDOUで使用）
-  staffName?: string;          // ⑧
-  calc_hour?: number;          // ⑤（算定時間(時間)の確定値）
-  cs_pay?: string | number;    // ⑦（利用者負担額）
+  // ★IDOUで使用
+  calc_hour?: number;                 // ⑤ 算定時間(時間)
+  katamichi_addon?: 0 | 1;            // ⑥ 片道支援加算（0/1）
+  cs_pay?: string | number;           // ⑦ 利用者負担額（insurance_unit_amount.cs_pay）
+  staffNames?: string[];              // ⑧ サービス提供者名（複数）
 };
 
 type PrintForm = {
@@ -31,8 +32,9 @@ type ShiftRow = {
   service_code: string | null;
   required_staff_count: number | null;
 
-  // ★追加
   staff_01_user_id: string | null;
+  staff_02_user_id: string | null;
+  staff_03_user_id: string | null;
 };
 
 const toFormType = (serviceCode: string): FormType => {
@@ -108,21 +110,21 @@ export async function GET(req: NextRequest) {
 
   const { start, end } = ymToRange(month);
 
-  // ★①：ido_jukyusyasho と郵便番号（address_zip想定）も取得
+  // ★①：利用者名と郵便番号（名古屋市判定用）を取得
   const { data: cs } = await supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("kaipoke_cs_id,name,ido_jukyusyasho,address_zip")
+    .select("kaipoke_cs_id,name,postal_code,ido_jukyusyasho")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .maybeSingle();
 
   const client_name = cs?.name ?? "";
   const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
-  const address_zip = (cs as { address_zip?: string } | null)?.address_zip ?? "";
+  const address_zip = (cs as { postal_code?: string } | null)?.postal_code ?? "";
 
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin
     .from("shift")
-    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id")
+    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id,staff_02_user_id,staff_03_user_id")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .gte("shift_start_date", start)
     .lte("shift_start_date", end)
@@ -136,21 +138,29 @@ export async function GET(req: NextRequest) {
 
   // ★⑧：スタッフ氏名の辞書を作る
   const staffIds = Array.from(
-    new Set((shifts ?? []).map(s => s.staff_01_user_id).filter((v): v is string => !!v))
+    new Set(
+      (shifts ?? [])
+        .flatMap(s => [s.staff_01_user_id, s.staff_02_user_id, s.staff_03_user_id])
+        .filter((v): v is string => !!v)
+    )
   );
 
   const staffNameMap = new Map<string, string>();
   if (staffIds.length > 0) {
+    type StaffViewRow = {
+      user_id: string;
+      last_name_kanji: string | null;
+      first_name_kanji: string | null;
+    };
+
     const { data: users } = await supabaseAdmin
       .from("user_entry_united_view_single")
-      .select("user_id,last_name,first_name")
+      .select("user_id,last_name_kanji,first_name_kanji")
       .in("user_id", staffIds);
 
-    (users ?? []).forEach((u: { user_id?: string; last_name?: string; first_name?: string }) => {
-      const uid = u.user_id ?? "";
-      if (!uid) return;
-      const name = `${u.last_name ?? ""}${u.first_name ?? ""}`.trim();
-      staffNameMap.set(uid, name);
+    (users as StaffViewRow[] | null ?? []).forEach((u) => {
+      const name = `${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}`.trim();
+      staffNameMap.set(u.user_id, name);
     });
   }
 
@@ -179,9 +189,20 @@ export async function GET(req: NextRequest) {
     const minutes = startHHmm && endHHmm ? calcMinutes(startHHmm, endHHmm) : undefined;
     const calc_hour = typeof minutes === "number" ? calcHalfHourRoundedHours(minutes) : undefined;
 
-    const staffName = s.staff_01_user_id ? (staffNameMap.get(s.staff_01_user_id) ?? "") : "";
+    // ⑥ 片道支援加算判定（service_code と calc_hour を使う）
+    const isKatamichiService =
+      (s.service_code ?? "") === "移：必要不可欠な外出（片道支援）";
+    const katamichi_addon: 0 | 1 =
+      isKatamichiService && typeof calc_hour === "number" && calc_hour > 1.5 ? 1 : 0;
 
-    // ⑦：cal_hour一致のcs_pay（名古屋市以外は空）
+    // ⑧ staffNames（01/02/03 を氏名化）
+    const staffNames = [
+      s.staff_01_user_id ? staffNameMap.get(s.staff_01_user_id) ?? "" : "",
+      s.staff_02_user_id ? staffNameMap.get(s.staff_02_user_id) ?? "" : "",
+      s.staff_03_user_id ? staffNameMap.get(s.staff_03_user_id) ?? "" : "",
+    ].filter((v) => v.trim().length > 0);
+
+    // ⑦ 利用者負担額（名古屋市以外は空）
     const cs_pay =
       insurer && typeof calc_hour === "number"
         ? (csPayByHour.get(calc_hour) ?? "")
@@ -194,9 +215,11 @@ export async function GET(req: NextRequest) {
       service_code: s.service_code ?? "",
       minutes,
       required_staff_count: s.required_staff_count ?? 1,
-      staffName,
+
       calc_hour,
-      cs_pay,
+      katamichi_addon, // ⑥
+      cs_pay,          // ⑦
+      staffNames,      // ⑧
     };
   });
 
