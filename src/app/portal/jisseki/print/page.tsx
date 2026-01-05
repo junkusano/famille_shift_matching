@@ -1172,7 +1172,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
                     令和7年12月分
                 </div>
@@ -1199,21 +1199,21 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
                         <col style={{ width: "7%" }} />
                         <col style={{ width: "7%" }} />
-                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "3%" }} />
 
                         {/* サービス提供時間（開始/終了）= 2列 */}
                         <col style={{ width: "7%" }} />
                         <col style={{ width: "6%" }} />
 
                         {/* 算定時間（時間）= 1列 */}
-                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "3%" }} />
 
                         {/* 派遣人数・初回・緊急・利用者確認・備考 */}
-                        <col style={{ width: "4%" }} />   {/* 派遣人数 */}
-                        <col style={{ width: "4%" }} />   {/* 初回加算 */}
-                        <col style={{ width: "5%" }} />   {/* 緊急時対応加算 */}
-                        <col style={{ width: "7%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "25%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "3%" }} />   {/* 派遣人数 */}
+                        <col style={{ width: "3%" }} />   {/* 初回加算 */}
+                        <col style={{ width: "4%" }} />   {/* 緊急時対応加算 */}
+                        <col style={{ width: "6%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "33%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
