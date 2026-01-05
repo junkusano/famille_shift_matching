@@ -128,7 +128,18 @@ export default function JissekiPrintPage() {
  @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
-    .page-pad { padding: 0 !important; }
+
+  /* p-6 の左右余白を確実に消す（全方向） */
+  .print-only .p-6 {
+    padding: 0 !important;
+  }
+
+  /* 追加：p-6 を持つページラッパー自体を幅いっぱいに */
+  .print-only .p-6, 
+  .print-only .page-break {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
 
   body { margin: 0 !important; }
   body * { visibility: hidden !important; }
@@ -145,16 +156,12 @@ export default function JissekiPrintPage() {
 }
     @media screen {
    /* 画面でもA4固定で表示（PC画面幅に追従しない） */
-@media screen {
-  .print-only {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0 auto;
-    background: #fff;
-  }
-  .page-pad { padding: 24px; }
+.print-only {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #fff;
 }
-
       .screen-only { display: block; }
        /* ★追加：この文言を含む要素を印刷に出さない（暫定対策） */
     }
@@ -164,18 +171,18 @@ export default function JissekiPrintPage() {
     .box { border: 1px solid #000; }
     .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
-/* =========================
-   明細行をA4で安定させる：行高さ固定
-   ========================= */
-:root{
-  --detail-row-h: 8.0mm;
-}
-.detail-row > td{
-  height: var(--detail-row-h);
-  padding: 3px 4px;
-  line-height: 1.2;
-  vertical-align: middle;
-}
+    + /* =========================
++    明細行をA4で安定させる：行高さ固定
++    ========================= */
++ :root{
++   --detail-row-h: 8.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
++ }
++ .detail-row > td{
++   height: var(--detail-row-h);
++   padding: 3px 4px;      /* 明細だけ少し詰める */
++   line-height: 1.2;     /* 文字で行が伸びるのを抑止 */
++   vertical-align: middle;
++ }
     .center { text-align: center; }
     .right { text-align: right; }
     .small { font-size: 10px; }
