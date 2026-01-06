@@ -169,15 +169,18 @@ export default function JissekiPrintPage() {
     + /* =========================
 +    明細行をA4で安定させる：行高さ固定
 +    ========================= */
-+ :root{
-+   --detail-row-h: 8.0mm; /* 小さくすると行数を増やせる（まずは 6.0mm 推奨） */
-+ }
-+ .detail-row > td{
-+   height: var(--detail-row-h);
-+   padding: 3px 4px;      /* 明細だけ少し詰める */
-+   line-height: 1.2;     /* 文字で行が伸びるのを抑止 */
-+   vertical-align: middle;
-+ }
+:root{
+  --row-normal: 6.5mm; /* 通常（使うなら） */
+  --row-thick: 8.0mm;  /* 日付・時間などの「データが入る明細行」 */
+  --row-biko: 13.0mm;  /* 備考は2行分を確保（=固定で太くする） */
+}
+.detail-row > td{
+  height: var(--row-thick);   /* ← ここを統一基準にする */
+  padding: 2px 3px;           /* 少し詰めてA4に収めやすく */
+  line-height: 1.15;          /* 行が伸びないように抑える */
+  vertical-align: middle;
+}
+
     .center { text-align: center; }
     .right { text-align: right; }
     .small { font-size: 10px; }
@@ -220,15 +223,16 @@ export default function JissekiPrintPage() {
 
 /* 同行援護：備考セル内の文字を確実に枠内に収める */
 .biko-td {
-  padding: 0 !important;      /* 余白であふれないように */
-  overflow: hidden;           /* td側も一応 */
+  padding: 0 !important;
+  overflow: hidden;
+  height: var(--row-biko);       /* ← 追加：td自体を2行分に固定 */
 }
 
 .biko-box {
   box-sizing: border-box;
-  height: var(--detail-row-h);  /* 行の高さに合わせて固定 */
-  padding: 2px 3px;             /* セル内余白 */
-  overflow: hidden;             /* ここで確実にクリップ */
+  height: 100%;                  /* ← tdの高さに追従 */
+  padding: 2px 3px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
