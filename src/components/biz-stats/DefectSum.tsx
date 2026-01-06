@@ -51,15 +51,6 @@ function formatNumInt(v: number | null | undefined) {
     );
 }
 
-function diffClass(curr: number | null | undefined, prev: number | null | undefined) {
-    if (curr == null || prev == null) return "";
-    const c = Math.round(curr);
-    const p = Math.round(prev);
-    if (c > p) return "text-blue-600";
-    if (c < p) return "text-red-600";
-    return "";
-}
-
 function diffClassDefect(curr?: number | null, prev?: number | null) {
     if (curr == null || prev == null) return "";
     if (curr > prev) return "text-red-600";   // 悪化
@@ -81,7 +72,7 @@ type Props = {
 
 export default function DefectSumBizStats({
     title = "チーム別 Lv5 到達件数",
-    metric = "team_lv5_defect_count",
+    //metric = "team_lv5_defect_count",
 }: Props) {
     const today = useMemo(() => new Date(), []);
     const defaultFrom = useMemo(() => toYYYYMM(addMonths(today, -6)), [today]);
@@ -138,11 +129,11 @@ export default function DefectSumBizStats({
             orgunitid: r.orgunitid as string,
             orgunitname: r.orgunitname as string,
 
-            defect_count: Number((r as any).defect_count ?? 0),
-            avg_3m_count: (r as any).defect_avg_3m == null ? null : Number((r as any).defect_avg_3m),
+            defect_count: Number(r.defect_count ?? 0),
+            avg_3m_count: (r).defect_avg_3m == null ? null : Number(r.defect_avg_3m),
 
-            defect_rate: Number((r as any).defect_rate ?? 1),
-            defect_rate_avg_3m: (r as any).defect_rate_avg_3m == null ? null : Number((r as any).defect_rate_avg_3m),
+            defect_rate: Number((r).defect_rate ?? 1),
+            defect_rate_avg_3m: (r).defect_rate_avg_3m == null ? null : Number(r.defect_rate_avg_3m),
 
             displaylevel: r.displaylevel == null ? null : Number(r.displaylevel),
             sort_lv2_order: r.sort_lv2_order == null ? null : Number(r.sort_lv2_order),
