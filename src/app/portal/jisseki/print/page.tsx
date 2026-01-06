@@ -1606,7 +1606,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={JYUHO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.ido_jukyusyasho ?? "").trim() || JYUHO_JUKYUSHA_NO} />
                                         </div>
                                     </div>
 
@@ -1726,14 +1726,111 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         </tr>
 
 
-                        {/* 明細行（必要行数は仮で25） */}
-                        {Array.from({ length: ROWS_PER_PAGE.JYUHO }).map((_, i) => (
-                            <tr key={i} className="detail-row">
-                                {Array.from({ length: 19 }).map((__, j) => (
-                                    <td key={j}>&nbsp;</td>
-                                ))}
-                            </tr>
-                        ))}
+                        {/* 明細行（データ行＋不足分は空行で埋める） */}
+                        {(() => {
+                            const rows = form?.rows ?? [];
+                            const pageSize = ROWS_PER_PAGE.JYUHO;
+                            const startIndex = (pageNo - 1) * pageSize;
+                            const pageRows = rows.slice(startIndex, startIndex + pageSize);
+
+                            // 末尾まで空行で埋める
+                            const padded = [
+                                ...pageRows,
+                                ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
+                            ];
+
+                            // 曜日（日本語表記）
+                            const weekdayJa = (d?: string) => {
+                                if (!d) return "";
+                                const dt = new Date(d);
+                                const w = dt.getDay(); // 0=日
+                                return ["日", "月", "火", "水", "木", "金", "土"][w] ?? "";
+                            };
+
+                            // "HH:MM" 表示（time型が "HH:MM:SS" で来ても対応）
+                            const hm = (t?: string) => (t ? t.slice(0, 5) : "");
+
+                            return padded.map((r, i) => {
+                                if (!r) {
+                                    // 空行（19列）
+                                    return (
+                                        <tr key={i} className="detail-row">
+                                            {Array.from({ length: 19 }).map((__, j) => (
+                                                <td key={j}>&nbsp;</td>
+                                            ))}
+                                        </tr>
+                                    );
+                                }
+
+                                // 備考：担当者（漢字氏名） staff_01 / staff_02（API側で staffNames を返している前提）
+                                const staffMemo = (r.staffNames ?? []).join("、");
+
+                                // 日付表示（1〜31だけ出したい場合はここで加工）
+                                const day = r.date ? String(new Date(r.date).getDate()) : "";
+
+                                return (
+                                    <tr key={i} className="detail-row">
+                                        {/* 1 日付 */}
+                                        <td className="center">{day}</td>
+
+                                        {/* 2 曜日 */}
+                                        <td className="center">{weekdayJa(r.date)}</td>
+
+                                        {/* 3 サービス提供状況（必要なら r.status 等に差し替え） */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 4 計画 開始（shift_start_time） */}
+                                        <td className="center">{hm(r.start)}</td>
+
+                                        {/* 5 計画 終了（shift_end_time） */}
+                                        <td className="center">{hm(r.end)}</td>
+
+                                        {/* 6 計画 時間（必要なら分→時間計算。無ければ空でOK） */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 7 計画 移動 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 8 提供 開始（shift_start_time） */}
+                                        <td className="center">{hm(r.start)}</td>
+
+                                        {/* 9 提供 終了（shift_end_time） */}
+                                        <td className="center">{hm(r.end)}</td>
+
+                                        {/* 10 算定 時間 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 11 算定 移動 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 12 派遣人数（常に1） */}
+                                        <td className="center">1</td>
+
+                                        {/* 13 同行支援 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 14 初回加算 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 15 緊急時対応加算 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 16 行動障害支援連携加算 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 17 移動介護緊急時支援加算 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 18 利用者確認欄 */}
+                                        <td className="center">&nbsp;</td>
+
+                                        {/* 19 備考（担当者名） */}
+                                        <td className="small">{staffMemo}</td>
+                                    </tr>
+                                );
+                            });
+                        })()}
+
                         {/* ====== 追加：最下部 2行（移動介護分／合計） ====== */}
 
                         {/* 移動介護分 */}
