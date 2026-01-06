@@ -352,7 +352,6 @@ const DisabilityCheckPage: React.FC = () => {
 
     // ★追加：利用者（cs）/実績担当者
     const cs = searchParams.get("cs") ?? "";
-    const staffIdQ = searchParams.get("staffId") ?? "";
 
     if (ym) setYearMonth(ym);
     setKaipokeServicek(svc);
@@ -361,11 +360,11 @@ const DisabilityCheckPage: React.FC = () => {
 
     setFilterKaipokeCsId(cs);
 
-    // staffId は後述（マネージャーのみ反映。非マネージャーは自分固定）
-    if (!isManager) {
-      setFilterStaffId(myUserId);
+    // ★要件：memberのみ自分固定、それ以外（manager/admin）は全件（staffIdは使わない）
+    if (!(isManager || isAdmin)) {
+      setFilterStaffId(myUserId); // member
     } else {
-      setFilterStaffId(staffIdQ);
+      setFilterStaffId("");       // manager/admin は常に全件
     }
 
     setDidInitFromUrl(true);
@@ -386,12 +385,11 @@ const DisabilityCheckPage: React.FC = () => {
     // ★追加：利用者名（選択時のみ）
     if (filterKaipokeCsId) qp.set("cs", filterKaipokeCsId);
 
-    // 非マネージャーは必ず自分（URLに書く＝共有しても本人以外は見れないよう後述でサーバ固定）
-    if (!isManager && myUserId) {
+    // ★要件：memberのみURLにstaffId固定。それ以外（manager/admin）は全件なので staffId をURLに持たない
+    if (!(isManager || isAdmin) && myUserId) {
       qp.set("staffId", myUserId);
-    } else {
-      if (filterStaffId) qp.set("staffId", filterStaffId);
     }
+    // manager/admin は staffId を qp に入れない（= URL から消える）
 
     const next = qp.toString();
     const nextUrl = next ? `${pathname}?${next}` : pathname;
@@ -462,7 +460,7 @@ const DisabilityCheckPage: React.FC = () => {
 
               // ★追加：サービス切替時に検索条件をリセット（これが効きます）
               setFilterKaipokeCsId("");
-              setFilterStaffId("");
+              setFilterStaffId((isManager || isAdmin) ? "" : myUserId);
               setFilterTeamId("");
               setDistricts([]);
             }}
