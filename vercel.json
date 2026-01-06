@@ -58,7 +58,7 @@
     },
     {
       "path": "/api/cron/cs_docs_sync_to_kaipokeinfo",
-      "schedule": "47 * * * *"
+      "schedule": "47 10* * *"
     }
   ]
 }
