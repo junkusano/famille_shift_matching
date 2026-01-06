@@ -6,345 +6,404 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 
 type Row = {
-  month_start: string;
-  year_month: string;
-  orgunitid: string;
-  orgunitname: string;
-  defect_count: number;
-  avg_3m_count: number | null;
+    month_start: string;
+    year_month: string;
+    orgunitid: string;
+    orgunitname: string;
 
-  displaylevel: number | null;
-  sort_lv2_order: number | null;
-  sort_lv3_order: number | null;
+    defect_count: number;          // Lv5到達件数
+    avg_3m_count: number | null;   // 3か月平均（件数）
+
+    defect_rate: number;           // 不備率（0〜1）
+    defect_rate_avg_3m: number | null; // 3か月平均（不備率）
+
+    displaylevel: number | null;
+    sort_lv2_order: number | null;
+    sort_lv3_order: number | null;
 };
 
+
 function addMonths(date: Date, delta: number) {
-  const d = new Date(date);
-  d.setMonth(d.getMonth() + delta);
-  return d;
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + delta);
+    return d;
 }
 
 function toYYYYMM(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}${m}`;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}${m}`;
 }
 
 function formatNumInt(v: number | null | undefined) {
-  if (v == null || Number.isNaN(v)) return "";
-  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(
-    Math.round(v)
-  );
+    if (v == null || Number.isNaN(v)) return "";
+    return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(
+        Math.round(v)
+    );
 }
 
 function diffClass(curr: number | null | undefined, prev: number | null | undefined) {
-  if (curr == null || prev == null) return "";
-  const c = Math.round(curr);
-  const p = Math.round(prev);
-  if (c > p) return "text-blue-600";
-  if (c < p) return "text-red-600";
-  return "";
+    if (curr == null || prev == null) return "";
+    const c = Math.round(curr);
+    const p = Math.round(prev);
+    if (c > p) return "text-blue-600";
+    if (c < p) return "text-red-600";
+    return "";
 }
 
+function diffClassDefect(curr?: number | null, prev?: number | null) {
+    if (curr == null || prev == null) return "";
+    if (curr > prev) return "text-red-600";   // 悪化
+    if (curr < prev) return "text-blue-600";  // 改善
+    return "";
+}
+
+function formatRate(v: number | null | undefined) {
+    if (v == null) return "";
+    return `${(v * 100).toFixed(2)}%`;
+}
+
+
+
 type Props = {
-  title?: string;
-  metric?: string;
+    title?: string;
+    metric?: string;
 };
 
 export default function DefectSumBizStats({
-  title = "チーム別 Lv5 到達件数",
-  metric = "team_lv5_defect_count",
+    title = "チーム別 Lv5 到達件数",
+    metric = "team_lv5_defect_count",
 }: Props) {
-  const today = useMemo(() => new Date(), []);
-  const defaultFrom = useMemo(() => toYYYYMM(addMonths(today, -6)), [today]);
-  const defaultTo = useMemo(() => toYYYYMM(addMonths(today, 2)), [today]);
+    const today = useMemo(() => new Date(), []);
+    const defaultFrom = useMemo(() => toYYYYMM(addMonths(today, -6)), [today]);
+    const defaultTo = useMemo(() => toYYYYMM(addMonths(today, 2)), [today]);
 
-  const [fromYM, setFromYM] = useState(defaultFrom);
-  const [toYM, setToYM] = useState(defaultTo);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+    const [fromYM, setFromYM] = useState(defaultFrom);
+    const [toYM, setToYM] = useState(defaultTo);
+    const [rows, setRows] = useState<Row[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string>("");
 
-  // ✅ 再計算：±6か月（ShiftSumと同じ）
-  const recalcOptions = useMemo(() => {
-    const base = new Date(today.getFullYear(), today.getMonth(), 1);
-    return Array.from({ length: 13 }, (_, i) => toYYYYMM(addMonths(base, i - 6))); // -6..+6
-  }, [today]);
+    // ✅ 再計算：±6か月（ShiftSumと同じ）
+    const recalcOptions = useMemo(() => {
+        const base = new Date(today.getFullYear(), today.getMonth(), 1);
+        return Array.from({ length: 13 }, (_, i) => toYYYYMM(addMonths(base, i - 6))); // -6..+6
+    }, [today]);
 
-  const currentYM = useMemo(() => {
-    const base = new Date(today.getFullYear(), today.getMonth(), 1);
-    return toYYYYMM(base);
-  }, [today]);
+    const currentYM = useMemo(() => {
+        const base = new Date(today.getFullYear(), today.getMonth(), 1);
+        return toYYYYMM(base);
+    }, [today]);
 
-  const [recalcYM, setRecalcYM] = useState<string>(currentYM);
-  const [recalcLoading, setRecalcLoading] = useState(false);
-  const [recalcError, setRecalcError] = useState<string>("");
+    const [recalcYM, setRecalcYM] = useState<string>(currentYM);
+    const [recalcLoading, setRecalcLoading] = useState(false);
+    const [recalcError, setRecalcError] = useState<string>("");
 
-  async function load() {
-    setLoading(true);
-    setError("");
+    async function load() {
+        setLoading(true);
+        setError("");
 
-    const { data, error } = await supabase
-      .from("biz_stats_defect_sum_display_view")
-      .select(
-        "snapshot_month,year_month,orgunitid,orgunitname,value,avg_3m,displaylevel,sort_lv2_order,sort_lv3_order"
-      )
-      .eq("metric", metric)
-      .gte("year_month", fromYM)
-      .lte("year_month", toYM)
-      .order("sort_lv2_order", { ascending: true })
-      .order("displaylevel", { ascending: true })
-      .order("sort_lv3_order", { ascending: true })
-      .order("orgunitname", { ascending: true });
+        const { data, error } = await supabase
+            .from("biz_stats_defect_rate_view") // ★ここ重要
+            .select(
+                "snapshot_month,year_month,orgunitid,orgunitname,defect_count,defect_avg_3m,defect_rate,defect_rate_avg_3m,displaylevel,sort_lv2_order,sort_lv3_order"
+            )
+            .gte("year_month", fromYM)
+            .lte("year_month", toYM)
+            .order("sort_lv2_order", { ascending: true })
+            .order("displaylevel", { ascending: true })
+            .order("sort_lv3_order", { ascending: true })
+            .order("orgunitname", { ascending: true });
 
-    if (error) {
-      setError(error.message ?? "failed to load");
-      setRows([]);
-      setLoading(false);
-      return;
+
+        if (error) {
+            setError(error.message ?? "failed to load");
+            setRows([]);
+            setLoading(false);
+            return;
+        }
+
+        const mapped: Row[] = (data ?? []).map((r) => ({
+            month_start: r.snapshot_month as string,
+            year_month: r.year_month as string,
+            orgunitid: r.orgunitid as string,
+            orgunitname: r.orgunitname as string,
+
+            defect_count: Number((r as any).defect_count ?? 0),
+            avg_3m_count: (r as any).defect_avg_3m == null ? null : Number((r as any).defect_avg_3m),
+
+            defect_rate: Number((r as any).defect_rate ?? 1),
+            defect_rate_avg_3m: (r as any).defect_rate_avg_3m == null ? null : Number((r as any).defect_rate_avg_3m),
+
+            displaylevel: r.displaylevel == null ? null : Number(r.displaylevel),
+            sort_lv2_order: r.sort_lv2_order == null ? null : Number(r.sort_lv2_order),
+            sort_lv3_order: r.sort_lv3_order == null ? null : Number(r.sort_lv3_order),
+        }));
+
+        setRows(mapped);
+        setLoading(false);
     }
 
-    const mapped: Row[] = (data ?? []).map((r) => ({
-      month_start: r.snapshot_month as string,
-      year_month: r.year_month as string,
-      orgunitid: r.orgunitid as string,
-      orgunitname: r.orgunitname as string,
-      defect_count: Number(r.value ?? 0),
-      avg_3m_count: r.avg_3m == null ? null : Number(r.avg_3m),
+    async function runRecalc() {
+        setRecalcLoading(true);
+        setRecalcError("");
 
-      displaylevel: r.displaylevel == null ? null : Number(r.displaylevel),
-      sort_lv2_order: r.sort_lv2_order == null ? null : Number(r.sort_lv2_order),
-      sort_lv3_order: r.sort_lv3_order == null ? null : Number(r.sort_lv3_order),
-    }));
+        try {
+            const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+            if (sessionErr) {
+                setRecalcError("セッション取得に失敗しました");
+                return;
+            }
+            const token = sessionData.session?.access_token;
+            if (!token) {
+                setRecalcError("ログインしてください");
+                return;
+            }
 
-    setRows(mapped);
-    setLoading(false);
-  }
+            const res = await fetch("/api/defect-sum", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ year_month: recalcYM }),
+            });
 
-  async function runRecalc() {
-    setRecalcLoading(true);
-    setRecalcError("");
+            const json = (await res.json()) as { ok?: boolean; error?: string };
 
-    try {
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr) {
-        setRecalcError("セッション取得に失敗しました");
-        return;
-      }
-      const token = sessionData.session?.access_token;
-      if (!token) {
-        setRecalcError("ログインしてください");
-        return;
-      }
+            if (!res.ok) {
+                setRecalcError(json.error ?? "再計算に失敗しました");
+                return;
+            }
 
-      const res = await fetch("/api/defect-sum", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ year_month: recalcYM }),
-      });
-
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-
-      if (!res.ok) {
-        setRecalcError(json.error ?? "再計算に失敗しました");
-        return;
-      }
-
-      await load();
-    } catch {
-      setRecalcError("再計算に失敗しました");
-    } finally {
-      setRecalcLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const months = useMemo(() => {
-    const set = new Set(rows.map((r) => r.year_month));
-    return Array.from(set).sort();
-  }, [rows]);
-
-  const teams = useMemo(() => {
-    const seen = new Set<string>();
-    const list: Array<{ orgunitid: string; orgunitname: string; displaylevel: number | null }> =
-      [];
-
-    for (const r of rows) {
-      if (seen.has(r.orgunitid)) continue;
-      seen.add(r.orgunitid);
-      list.push({ orgunitid: r.orgunitid, orgunitname: r.orgunitname, displaylevel: r.displaylevel });
+            await load();
+        } catch {
+            setRecalcError("再計算に失敗しました");
+        } finally {
+            setRecalcLoading(false);
+        }
     }
 
-    const isTail = (id: string) => id === "TOTAL" || id === "UNASSIGNED";
-    const head = list.filter((x) => !isTail(x.orgunitid));
-    const tail = list.filter((x) => isTail(x.orgunitid));
-    return [...head, ...tail];
-  }, [rows]);
+    useEffect(() => {
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-  const pivot = useMemo(() => {
-    const m = new Map<string, Map<string, { total: number; avg3: number | null }>>();
-    for (const r of rows) {
-      if (!m.has(r.orgunitid)) m.set(r.orgunitid, new Map());
-      m.get(r.orgunitid)!.set(r.year_month, { total: r.defect_count, avg3: r.avg_3m_count });
-    }
-    return m;
-  }, [rows]);
+    const months = useMemo(() => {
+        const set = new Set(rows.map((r) => r.year_month));
+        return Array.from(set).sort();
+    }, [rows]);
 
-  return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
+    const teams = useMemo(() => {
+        const seen = new Set<string>();
+        const list: Array<{ orgunitid: string; orgunitname: string; displaylevel: number | null }> =
+            [];
 
-      <CardContent className="space-y-3">
-        {/* ✅ 上部UI：ShiftSumと同型 */}
-        <div className="flex flex-nowrap gap-2 items-end overflow-x-auto whitespace-nowrap">
-          <div>
-            <div className="text-sm text-muted-foreground">From (YYYYMM)</div>
-            <Input value={fromYM} onChange={(e) => setFromYM(e.target.value)} className="w-32" />
-          </div>
+        for (const r of rows) {
+            if (seen.has(r.orgunitid)) continue;
+            seen.add(r.orgunitid);
+            list.push({ orgunitid: r.orgunitid, orgunitname: r.orgunitname, displaylevel: r.displaylevel });
+        }
 
-          <div>
-            <div className="text-sm text-muted-foreground">To (YYYYMM)</div>
-            <Input value={toYM} onChange={(e) => setToYM(e.target.value)} className="w-32" />
-          </div>
+        const isTail = (id: string) => id === "TOTAL" || id === "UNASSIGNED";
+        const head = list.filter((x) => !isTail(x.orgunitid));
+        const tail = list.filter((x) => isTail(x.orgunitid));
+        return [...head, ...tail];
+    }, [rows]);
 
-          <Button className="shrink-0" onClick={load} disabled={loading}>
-            {loading ? "読込中..." : "更新"}
-          </Button>
-          {error && <div className="text-sm text-red-600 shrink-0">{error}</div>}
+    const pivot = useMemo(() => {
+        const m = new Map<string, Map<string, { defect: number; rate: number; rateAvg: number | null }>>();
 
-          <select
-            className="h-10 w-24 shrink-0 rounded-md border px-2 text-sm"
-            value={recalcYM}
-            onChange={(e) => setRecalcYM(e.target.value)}
-          >
-            {recalcOptions.map((ym) => (
-              <option key={ym} value={ym}>
-                {ym}
-              </option>
-            ))}
-          </select>
+        for (const r of rows) {
+            if (!m.has(r.orgunitid)) m.set(r.orgunitid, new Map());
+            m.get(r.orgunitid)!.set(r.year_month, {
+                defect: r.defect_count,
+                rate: r.defect_rate,
+                rateAvg: r.defect_rate_avg_3m,
+            });
+        }
+        return m;
+    }, [rows]);
 
-          <Button className="shrink-0" onClick={runRecalc} disabled={recalcLoading}>
-            {recalcLoading ? "再計算中..." : "再計算"}
-          </Button>
 
-          {recalcError && <div className="text-sm text-red-600 shrink-0">{recalcError}</div>}
-        </div>
+    return (
+        <Card>
+            <CardHeader className="space-y-1">
+                <CardTitle>{title}</CardTitle>
+            </CardHeader>
 
-        {/* ✅ 年月推移（ピボット）：ShiftSumと同型 */}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="whitespace-nowrap">チーム</TableHead>
-                <TableHead className="whitespace-nowrap">種別</TableHead>
-                {months.map((ym) => (
-                  <TableHead key={ym} className="text-right whitespace-nowrap">
-                    {ym}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
+            <CardContent className="space-y-3">
+                {/* ✅ 上部UI：ShiftSumと同型 */}
+                <div className="flex flex-nowrap gap-2 items-end overflow-x-auto whitespace-nowrap">
+                    <div>
+                        <div className="text-sm text-muted-foreground">From (YYYYMM)</div>
+                        <Input value={fromYM} onChange={(e) => setFromYM(e.target.value)} className="w-32" />
+                    </div>
 
-            <TableBody>
-              {teams.map((t, idx) => {
-                const rowMap = pivot.get(t.orgunitid) ?? new Map();
-                const isLv2 = t.displaylevel === 2;
-                const isTotal = t.orgunitid === "TOTAL";
+                    <div>
+                        <div className="text-sm text-muted-foreground">To (YYYYMM)</div>
+                        <Input value={toYM} onChange={(e) => setToYM(e.target.value)} className="w-32" />
+                    </div>
 
-                // 罫線ルールも ShiftSum踏襲（Lv2塊の先頭、Total直前）
-                const prev = idx > 0 ? teams[idx - 1] : null;
-                const borderTop =
-                  (isLv2 && prev && prev.displaylevel !== 2) || // Lv2の塊の先頭
-                  isTotal;
+                    <Button className="shrink-0" onClick={load} disabled={loading}>
+                        {loading ? "読込中..." : "更新"}
+                    </Button>
+                    {error && <div className="text-sm text-red-600 shrink-0">{error}</div>}
 
-                const cellBorderTop = borderTop ? "border-t border-border" : "";
+                    <select
+                        className="h-10 w-24 shrink-0 rounded-md border px-2 text-sm"
+                        value={recalcYM}
+                        onChange={(e) => setRecalcYM(e.target.value)}
+                    >
+                        {recalcOptions.map((ym) => (
+                            <option key={ym} value={ym}>
+                                {ym}
+                            </option>
+                        ))}
+                    </select>
 
-                const totalRow = (
-                  <TableRow key={`${t.orgunitid}-total`}>
-                    <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
-                      {t.orgunitname}
-                    </TableCell>
-                    <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
-                      単月
-                    </TableCell>
+                    <Button className="shrink-0" onClick={runRecalc} disabled={recalcLoading}>
+                        {recalcLoading ? "再計算中..." : "再計算"}
+                    </Button>
 
-                    {months.map((ym, i) => {
-                      const curr = rowMap.get(ym)?.total ?? null;
-                      const prevYm = i > 0 ? months[i - 1] : null;
-                      const prevVal = prevYm ? rowMap.get(prevYm)?.total ?? null : null;
-                      const cls = diffClass(curr, prevVal);
+                    {recalcError && <div className="text-sm text-red-600 shrink-0">{recalcError}</div>}
+                </div>
 
-                      return (
-                        <TableCell
-                          key={`${t.orgunitid}-total-${ym}`}
-                          className={`text-right ${cellBorderTop} ${isLv2 ? "font-bold" : ""} ${cls}`}
-                        >
-                          {formatNumInt(curr)}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
+                {/* ✅ 年月推移（ピボット）：ShiftSumと同型 */}
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="whitespace-nowrap">チーム</TableHead>
+                                <TableHead className="whitespace-nowrap">種別</TableHead>
+                                {months.map((ym) => (
+                                    <TableHead key={ym} className="text-right whitespace-nowrap">
+                                        {ym}
+                                    </TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
 
-                const avgRow = (
-                  <TableRow key={`${t.orgunitid}-avg`}>
-                    <TableCell className="whitespace-nowrap"></TableCell>
-                    <TableCell className={`whitespace-nowrap font-semibold ${isLv2 ? "font-bold" : ""}`}>
-                      3か月平均
-                    </TableCell>
+                        <TableBody>
+                            {teams.map((t, idx) => {
+                                const rowMap = pivot.get(t.orgunitid) ?? new Map();
+                                const isLv2 = t.displaylevel === 2;
+                                const isTotal = t.orgunitid === "TOTAL";
 
-                    {months.map((ym, i) => {
-                      const curr = rowMap.get(ym)?.avg3 ?? null;
-                      const prevYm = i > 0 ? months[i - 1] : null;
-                      const prevVal = prevYm ? rowMap.get(prevYm)?.avg3 ?? null : null;
-                      const cls = diffClass(curr, prevVal);
+                                // 罫線ルールも ShiftSum踏襲（Lv2塊の先頭、Total直前）
+                                const prev = idx > 0 ? teams[idx - 1] : null;
+                                const borderTop =
+                                    (isLv2 && prev && prev.displaylevel !== 2) || // Lv2の塊の先頭
+                                    isTotal;
 
-                      return (
-                        <TableCell
-                          key={`${t.orgunitid}-avg-${ym}`}
-                          className={`text-right font-semibold ${isLv2 ? "font-bold" : ""} ${cls}`}
-                        >
-                          {formatNumInt(curr)}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
+                                const cellBorderTop = borderTop ? "border-t border-border" : "";
 
-                return (
-                  <Fragment key={t.orgunitid}>
-                    {totalRow}
-                    {avgRow}
-                  </Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                                const countRow = (
+                                    <TableRow key={`${t.orgunitid}-count`}>
+                                        <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
+                                            {t.orgunitname}
+                                        </TableCell>
+                                        <TableCell className={`whitespace-nowrap ${cellBorderTop} ${isLv2 ? "font-bold" : ""}`}>
+                                            単月（件数）
+                                        </TableCell>
 
-        <div className="text-xs text-muted-foreground">
-          ※ 単月 = Lv5到達件数。3か月平均 = 当月を含む直近3か月の移動平均。
-        </div>
-      </CardContent>
-    </Card>
-  );
+                                        {months.map((ym, i) => {
+                                            const curr = rowMap.get(ym)?.defect ?? null;
+                                            const prevYm = i > 0 ? months[i - 1] : null;
+                                            const prevVal = prevYm ? rowMap.get(prevYm)?.defect ?? null : null;
+                                            const cls = diffClassDefect(curr, prevVal); // ★不備は悪化=赤/改善=青
+
+                                            return (
+                                                <TableCell
+                                                    key={`${t.orgunitid}-count-${ym}`}
+                                                    className={`text-right ${cellBorderTop} ${isLv2 ? "font-bold" : ""} ${cls}`}
+                                                >
+                                                    {formatNumInt(curr ?? 0)}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                );
+
+                                const rateRow = (
+                                    <TableRow key={`${t.orgunitid}-rate`}>
+                                        <TableCell className="whitespace-nowrap"></TableCell>
+                                        <TableCell className={`whitespace-nowrap font-semibold ${isLv2 ? "font-bold" : ""}`}>
+                                            不備率
+                                        </TableCell>
+
+                                        {months.map((ym, i) => {
+                                            const curr = rowMap.get(ym)?.rate ?? null;
+                                            const prevYm = i > 0 ? months[i - 1] : null;
+                                            const prevVal = prevYm ? rowMap.get(prevYm)?.rate ?? null : null;
+                                            const cls = diffClassDefect(curr, prevVal);
+
+                                            return (
+                                                <TableCell
+                                                    key={`${t.orgunitid}-rate-${ym}`}
+                                                    className={`text-right font-semibold ${isLv2 ? "font-bold" : ""} ${cls}`}
+                                                >
+                                                    {formatRate(curr)}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                );
+
+                                const rateAvgRow = (
+                                    <TableRow key={`${t.orgunitid}-rateavg`}>
+                                        <TableCell className="whitespace-nowrap"></TableCell>
+                                        <TableCell className={`whitespace-nowrap font-semibold ${isLv2 ? "font-bold" : ""}`}>
+                                            3か月平均（不備率）
+                                        </TableCell>
+
+                                        {months.map((ym, i) => {
+                                            const curr = rowMap.get(ym)?.rateAvg ?? null;
+                                            const prevYm = i > 0 ? months[i - 1] : null;
+                                            const prevVal = prevYm ? rowMap.get(prevYm)?.rateAvg ?? null : null;
+                                            const cls = diffClassDefect(curr, prevVal);
+
+                                            return (
+                                                <TableCell
+                                                    key={`${t.orgunitid}-rateavg-${ym}`}
+                                                    className={`text-right font-semibold ${isLv2 ? "font-bold" : ""} ${cls}`}
+                                                >
+                                                    {formatRate(curr)}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                );
+
+                                return (
+                                    <Fragment key={t.orgunitid}>
+                                        {countRow}
+                                        {rateRow}
+                                        {rateAvgRow}
+                                    </Fragment>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                    ※ 単月 = Lv5到達件数。3か月平均 = 当月を含む直近3か月の移動平均。
+
+                    ※ 不備率 = Lv5到達件数 ÷ サービス時間。<br />
+                    ※ サービス時間が0の場合は不備率を100%として表示します。<br />
+                    ※ 青＝改善、赤＝悪化。
+                </div>
+            </CardContent>
+        </Card>
+    );
 }
