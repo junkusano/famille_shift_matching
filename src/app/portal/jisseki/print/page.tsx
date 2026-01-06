@@ -1969,7 +1969,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     }, 0);
 
     const sumKatamichi = 0;
-    const sumFutan = 0;
+
+    // ★追加：利用者負担額（cs_pay）の合計
+    const sumFutan = src.reduce((a, r) => {
+        const v = r.cs_pay;
+        return a + (typeof v === "number" ? v : 0);
+    }, 0);
 
     return (
         <div className="formBox p-2">
