@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
       yearMonth,
       kaipokeServicek,
       districts = [],
-      staffId: staffIdReq = null,
       kaipoke_cs_id: csReq = null,
     } = (await req.json()) as Body;
 
@@ -69,13 +68,12 @@ export async function POST(req: NextRequest) {
     }
 
     const role = String(me.system_role ?? "").toLowerCase();
-    const isManager = role === "manager" || role === "admin";
+    const isMember = role === "member";
+
     const myUserId = String(me.user_id);
 
-    // ★最重要：実績担当者（user_id）をサーバ側で強制確定
-    // - 非マネージャー：必ず自分
-    // - マネージャー：リクエストの staffId を採用（未指定なら全て）
-    const effectiveStaffId = isManager ? (staffIdReq || "") : myUserId;
+    // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
+    const effectiveStaffId = isMember ? myUserId : "";
 
     let query = supabaseAdmin
       .from("disability_check_view")

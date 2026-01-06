@@ -72,6 +72,7 @@ const DisabilityCheckPage: React.FC = () => {
   //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
   const [filterTeamId, setFilterTeamId] = useState<string>("");
   const [isManager, setIsManager] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   // ★追加：ログインユーザー自身の user_id（＝ asigned_jisseki_staff_id と同じ系統のID）
   const [myUserId, setMyUserId] = useState<string>("");
@@ -323,10 +324,11 @@ const DisabilityCheckPage: React.FC = () => {
 
         const role = String(data?.system_role ?? "").toLowerCase();
 
-        // ★ここは環境の role 値に合わせて調整してください
-        // 例: "manager" / "admin" / "member" など
-        setIsManager(role === "manager" || role === "admin");
+        setIsAdmin(role === "admin");
+        setIsManager(role === "manager" || role === "admin"); // ※ admin も「管理側操作OK」にするならこのままでOK
+
         setMyUserId(String(data?.user_id ?? ""));
+
       } catch (e) {
         console.error("Failed to determine role", e);
         setIsManager(false);
@@ -526,7 +528,7 @@ const DisabilityCheckPage: React.FC = () => {
           実績担当者
           <select
             value={filterStaffId}
-            disabled={!isManager}
+            disabled={!(isManager || isAdmin)}
             onChange={(e) => {
               if (!isManager) return;
               setFilterStaffId(e.target.value);
@@ -667,7 +669,7 @@ const DisabilityCheckPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={!!r.is_checked}
-                    disabled={!isManager}
+                    disabled={!(isManager || isAdmin)}
                     onChange={(e) => {
                       if (!isManager) return;
                       handleCheckChange(r, e.target.checked);
