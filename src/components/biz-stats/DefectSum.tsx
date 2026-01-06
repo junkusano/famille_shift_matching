@@ -63,6 +63,11 @@ function formatRate(v: number | null | undefined) {
     return `${(v * 100).toFixed(2)}%`;
 }
 
+// 不備率の絶対値判定（1%超で赤）
+function rateClassByThreshold(rate?: number | null) {
+    if (rate == null) return "";
+    return rate > 0.01 ? "text-red-600" : "";
+}
 
 
 type Props = {
@@ -332,11 +337,9 @@ export default function DefectSumBizStats({
                                             不備率
                                         </TableCell>
 
-                                        {months.map((ym, i) => {
+                                        {months.map((ym) => {
                                             const curr = rowMap.get(ym)?.rate ?? null;
-                                            const prevYm = i > 0 ? months[i - 1] : null;
-                                            const prevVal = prevYm ? rowMap.get(prevYm)?.rate ?? null : null;
-                                            const cls = diffClassDefect(curr, prevVal);
+                                            const cls = rateClassByThreshold(curr);
 
                                             return (
                                                 <TableCell
@@ -347,6 +350,7 @@ export default function DefectSumBizStats({
                                                 </TableCell>
                                             );
                                         })}
+
                                     </TableRow>
                                 );
 
@@ -357,11 +361,9 @@ export default function DefectSumBizStats({
                                             3か月平均（不備率）
                                         </TableCell>
 
-                                        {months.map((ym, i) => {
+                                        {months.map((ym) => {
                                             const curr = rowMap.get(ym)?.rateAvg ?? null;
-                                            const prevYm = i > 0 ? months[i - 1] : null;
-                                            const prevVal = prevYm ? rowMap.get(prevYm)?.rateAvg ?? null : null;
-                                            const cls = diffClassDefect(curr, prevVal);
+                                            const cls = rateClassByThreshold(curr);
 
                                             return (
                                                 <TableCell
