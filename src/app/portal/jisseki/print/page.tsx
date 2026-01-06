@@ -1970,8 +1970,12 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
     const sumKatamichi = 0;
 
-    // ★追加：利用者負担額（cs_pay）の合計
-    const sumFutan = src.reduce((a, r) => {
+    // ★修正：利用者負担額（cs_pay）は「IDOU 全行」の合計にする（ページ分割の影響を受けない）
+    const allIdouRows =
+        (data.forms.find((f) => f.formType === "IDOU")?.rows ?? [])
+            .filter((r) => r.date >= FILTER_FROM);
+
+    const sumFutan = allIdouRows.reduce((a, r) => {
         const n = Number(r.cs_pay);
         return a + (Number.isFinite(n) ? n : 0);
     }, 0);
