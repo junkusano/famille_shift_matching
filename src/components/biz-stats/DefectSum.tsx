@@ -72,11 +72,11 @@ function rateClassByThreshold(rate?: number | null) {
 
 type Props = {
     title?: string;
-    metric?: string;
+    //metric?: string;
 };
 
 export default function DefectSumBizStats({
-    title = "チーム別 Lv5 到達件数",
+    title = "不備件数・不備率　（アラート Lv5 到達）",
     //metric = "team_lv5_defect_count",
 }: Props) {
     const today = useMemo(() => new Date(), []);
@@ -235,6 +235,18 @@ export default function DefectSumBizStats({
         <Card>
             <CardHeader className="space-y-1">
                 <CardTitle>{title}</CardTitle>
+                <div className="text-sm text-muted-foreground">
+          シニアマネジャー・マネジャーの報酬決定・足切りはこの数字で決定。詳細は{" "}
+          <a
+            href="https://talk.worksmobile.com/note/99142491/4090000000158760277"
+            className="underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            ★重要：マネジャーへの期待値・報酬体系が変わります
+          </a>{" "}
+          で確認してください。
+        </div>
             </CardHeader>
 
             <CardContent className="space-y-3">
@@ -390,11 +402,9 @@ export default function DefectSumBizStats({
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                    ※ 単月 = Lv5到達件数。3か月平均 = 当月を含む直近3か月の移動平均。
-
+                    ※ 単月 = Lv5到達件数。<br />
+                    ※ 3か月平均 = 当月を含む直近3か月の移動平均。<br />
                     ※ 不備率 = Lv5到達件数 ÷ サービス時間。<br />
-                    ※ サービス時間が0の場合は不備率を100%として表示します。<br />
-                    ※ 青＝改善、赤＝悪化。
                 </div>
             </CardContent>
         </Card>

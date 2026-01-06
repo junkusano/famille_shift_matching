@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/cm/alert-batch",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/cs_docs_sync_to_kaipokeinfo",
+      "schedule": "47 * * * *"
     }
   ]
 }
