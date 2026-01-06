@@ -119,7 +119,7 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 0mm; }
+    @page { size: A4; margin: 6mm; }
  @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
@@ -141,13 +141,17 @@ export default function JissekiPrintPage() {
   .print-only, .print-only * { visibility: visible !important; }
 
   /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
-  .print-only {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100% !important;
-    min-height: 297mm;
-  }
+.print-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  min-height: 297mm;
+
+  /* 追加：ページ内側に余白を確保（黒枠がギリギリにならない） */
+  padding: 6mm 7mm;
+  box-sizing: border-box;
+}
 }
     @media screen {
    /* 画面でもA4固定で表示（PC画面幅に追従しない） */
@@ -162,7 +166,7 @@ export default function JissekiPrintPage() {
     }
 
     /* ★帳票用 罫線・レイアウト */
-    .formBox { border: 2px solid #000; }
+    .formBox { border: 1px solid #000; }
     .box { border: 1px solid #000; }
     .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
