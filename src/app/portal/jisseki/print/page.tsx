@@ -46,21 +46,15 @@ const OFFICE_NAME_LINES = ["合同会社施恩", "ファミーユヘルパーサ
 const DOKO_OFFICE_NO = "2311100974";
 const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 // 居宅介護（様式1）用（PDF要件）
-const TAKINO_CONTRACT = "身体介護 13時間/月";
 const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
 
 // 重度訪問介護用（PDF要件）
 const JYUHO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
 const JYUHO_OFFICE_NO = "2311100974";
 const JYUHO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
-const JYUHO_CONTRACT_LINES = [
-    "重度訪問介護（その他） 11時間/月",
-    "重度訪問介護（移動介護） 10時間/月",
-];
 
 // 行動援護（様式2）用（PDF要件）
 const KODO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
-const KODO_CONTRACT = "行動援護 165時間/月";
 const KODO_OFFICE_NO = "2311100974";
 const KODO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 
@@ -446,7 +440,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         契約支給量
                                     </div>
                                     <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
-                                        {TAKINO_CONTRACT}
+                                        &nbsp;
                                     </div>
                                 </div>
                             </td>
@@ -995,7 +989,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         契約支給量
                                     </div>
                                     <div style={{ padding: "1px 6px", display: "flex", alignItems: "center" }}>
-                                        {KODO_CONTRACT}
+                                        &nbsp;
                                     </div>
                                 </div>
                             </td>
@@ -1692,8 +1686,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         契約支給量
                                     </div>
                                     <div style={{ padding: "1px 6px", textAlign: "left", lineHeight: 1.2 }}>
-                                        {JYUHO_CONTRACT_LINES[0]}<br />
-                                        {JYUHO_CONTRACT_LINES[1]}
+                                        {"\u00A0"}
                                     </div>
                                 </div>
                             </td>
@@ -1897,9 +1890,9 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td>
                             <td className="diag">&nbsp;</td>
 
-                            {/* 算定：時間(合計値)、移動(斜線) */}
-                            <td className="right"><b>{sumSanteiHours || "\u00A0"}</b></td>
+                            {/* 算定：時間(斜線)、移動(合計) */}
                             <td className="diag">&nbsp;</td>
+                            <td className="right"><b>{sumMoveHours || "\u00A0"}</b></td>
 
                             {/* 派遣人数〜備考：指定の列は斜線 */}
                             <td className="diag">&nbsp;</td> {/* 派遣人数 */}
@@ -1924,8 +1917,8 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td>
                             <td className="diag">&nbsp;</td>
 
-                            {/* 算定：時間(空欄)、移動(斜線) */}
-                            <td>&nbsp;</td>
+                            {/* 算定：時間(合計)、移動(斜線) */}
+                            <td className="right"><b>{sumSanteiHours || "\u00A0"}</b></td>
                             <td className="diag">&nbsp;</td>
 
                             {/* 派遣人数(斜線) */}
