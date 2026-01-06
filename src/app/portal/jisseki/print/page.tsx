@@ -119,7 +119,7 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 6mm; }
+    @page { size: A4; margin: 3mm; }
  @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
@@ -149,7 +149,7 @@ export default function JissekiPrintPage() {
   min-height: 297mm;
 
   /* 追加：ページ内側に余白を確保（黒枠がギリギリにならない） */
-  padding: 6mm 7mm;
+  padding: 2mm 4mm;
   box-sizing: border-box;
 }
 }
@@ -166,7 +166,7 @@ export default function JissekiPrintPage() {
     }
 
     /* ★帳票用 罫線・レイアウト */
-    .formBox { border: 1px solid #000; }
+    .formBox { border: none !important; }
     .box { border: 1px solid #000; }
     .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
@@ -174,15 +174,26 @@ export default function JissekiPrintPage() {
 +    明細行をA4で安定させる：行高さ固定
 +    ========================= */
 :root{
-  --row-normal: 6.5mm; /* 通常（使うなら） */
-  --row-thick: 8.0mm;  /* 日付・時間などの「データが入る明細行」 */
-  --row-biko: 13.0mm;  /* 備考は2行分を確保（=固定で太くする） */
+  --row-2line: 12.0mm;  /* ← 明細行（データ・空白行とも）を2行分で固定 */
 }
+
+/* 明細行（データ行・空行含む）を全部2行分に固定 */
 .detail-row > td{
-  height: var(--row-thick);   /* ← ここを統一基準にする */
-  padding: 2px 3px;           /* 少し詰めてA4に収めやすく */
-  line-height: 1.15;          /* 行が伸びないように抑える */
+  height: var(--row-2line);
+  padding: 2px 3px;
+  line-height: 1.05;        /* 2行で収めやすく */
   vertical-align: middle;
+  overflow: hidden;         /* 文字で伸びない */
+}
+
+/* 既存の備考セル指定はそのままでもOKだが、統一しておく */
+.biko-td{
+  padding: 0 !important;
+  overflow: hidden;
+  height: var(--row-2line);
+}
+.biko-box{
+  height: 100%;
 }
 
     .center { text-align: center; }
