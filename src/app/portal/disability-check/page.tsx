@@ -530,7 +530,7 @@ const DisabilityCheckPage: React.FC = () => {
             value={filterStaffId}
             disabled={!(isManager || isAdmin)}
             onChange={(e) => {
-              if (!isManager) return;
+              if (!(isManager || isAdmin)) return;
               setFilterStaffId(e.target.value);
             }}
             style={{ width: 220 }}
@@ -671,7 +671,7 @@ const DisabilityCheckPage: React.FC = () => {
                     checked={!!r.is_checked}
                     disabled={!(isManager || isAdmin)}
                     onChange={(e) => {
-                      if (!isManager) return;
+                      if (!(isManager || isAdmin)) return;
                       handleCheckChange(r, e.target.checked);
                     }}
                     style={{ display: "inline-block" }}

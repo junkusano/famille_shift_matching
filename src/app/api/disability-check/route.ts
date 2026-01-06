@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       yearMonth,
       kaipokeServicek,
       districts = [],
+      staffId: staffIdReq = null,
       kaipoke_cs_id: csReq = null,
     } = (await req.json()) as Body;
 
@@ -57,8 +58,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ★追加：ログインユーザーの role と user_id を取得（RLSが効くクライアントで読む）
+    // ★追加：ログインユーザーの role と user_id を取得（users テーブルから）
     const { data: me, error: meErr } = await supabase
-      .from("user_entry_united_view")
+      .from("users")
       .select("system_role,user_id")
       .eq("auth_user_id", user.id)
       .maybeSingle();
@@ -69,7 +71,6 @@ export async function POST(req: NextRequest) {
 
     const role = String(me.system_role ?? "").toLowerCase();
     const isMember = role === "member";
-
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
@@ -92,16 +93,20 @@ export async function POST(req: NextRequest) {
           "asigned_org_name",
         ].join(",")
       )
-      .eq("year_month", yearMonth)
-      .order("district", { ascending: true })
-      .order("client_name", { ascending: true });
+      .eq("year_month", yearMonth);
 
-    if (kaipokeServicek) {
-      query = query.eq("kaipoke_servicek", kaipokeServicek);
-    }
+    if (kaipokeServicek) query = query.eq("kaipoke_servicek", kaipokeServicek);
+    if (districts.length > 0) query = query.in("district", districts);
 
-    if (districts.length > 0) {
-      query = query.in("district", districts);
+    // 利用者（cs）での任意絞り込み
+    if (csReq) query = query.eq("kaipoke_cs_id", csReq);
+
+    // ★要件：member は必ず自分のみ。それ以外は全件（絞り込み無し）
+    if (isMember) {
+      query = query.eq("asigned_jisseki_staff_id", myUserId);
+    } else {
+      // （任意）manager/admin は staffId 指定があれば絞れる（なくても全件）
+      if (staffIdReq) query = query.eq("asigned_jisseki_staff_id", staffIdReq);
     }
 
     // ★追加：利用者（kaipoke_cs_id）で絞り込み
