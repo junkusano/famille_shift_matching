@@ -298,40 +298,45 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
-  // ★追加：ログインユーザーの system_role を取得してマネージャー判定
+  // ★追加：ログインユーザーの system_role を取得して権限判定
   useEffect(() => {
     const loadRole = async () => {
       try {
-        const { data: sess } = await supabase.auth.getSession();
-        const authUserId = sess.session?.user?.id;
-
-        if (!authUserId) {
+        // 1) ログインユーザーを取得（user を正しく取り出す）
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !userData?.user) {
+          setIsAdmin(false);
           setIsManager(false);
+          setMyUserId("");
           return;
         }
 
-        const { data, error } = await supabase
+        const authUserId = userData.user.id;
+
+        // 2) role を view から取得（data/error の名前衝突を避ける）
+        const { data: roleRow, error: roleErr } = await supabase
           .from("user_entry_united_view")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
 
-        if (error) {
-          console.error("Failed to load system_role", error);
+        if (roleErr) {
+          console.error("Failed to load system_role", roleErr);
+          setIsAdmin(false);
           setIsManager(false);
+          setMyUserId("");
           return;
         }
 
-        const role = String(data?.system_role ?? "").toLowerCase();
-
+        const role = String(roleRow?.system_role ?? "").toLowerCase();
         setIsAdmin(role === "admin");
-        setIsManager(role === "manager" || role === "admin"); // ※ admin も「管理側操作OK」にするならこのままでOK
-
-        setMyUserId(String(data?.user_id ?? ""));
-
+        setIsManager(role === "manager" || role === "admin");
+        setMyUserId(String(roleRow?.user_id ?? ""));
       } catch (e) {
         console.error("Failed to determine role", e);
+        setIsAdmin(false);
         setIsManager(false);
+        setMyUserId("");
       }
     };
 
@@ -345,26 +350,20 @@ const DisabilityCheckPage: React.FC = () => {
     // メンバーは myUserId が必要（role取得完了待ち）
     if (!isManager && !myUserId) return;
 
-    const ym = searchParams.get("ym") ?? "";
-    const svc = searchParams.get("svc") ?? "";
-    const team = searchParams.get("team") ?? "";
-    const dist = searchParams.get("dist") ?? "";
+    // 利用者（新: kaipoke_cs_id / 旧: cs）
+    const cs = searchParams.get("kaipoke_cs_id") ?? searchParams.get("cs") ?? "";
 
-    // ★追加：利用者（cs）/実績担当者
-    const cs = searchParams.get("cs") ?? "";
-
-    if (ym) setYearMonth(ym);
-    setKaipokeServicek(svc);
-    setFilterTeamId(team);
-    setDistricts(dist ? [dist] : []);
+    // 実績担当者（新: user_id / 旧: staffId）
+    const staff = searchParams.get("user_id") ?? searchParams.get("staffId") ?? "";
 
     setFilterKaipokeCsId(cs);
 
-    // ★要件：memberのみ自分固定、それ以外（manager/admin）は全件（staffIdは使わない）
+    // member は必ず自分固定（URLで何が来ても上書き）
     if (!(isManager || isAdmin)) {
-      setFilterStaffId(myUserId); // member
+      setFilterStaffId(myUserId);
     } else {
-      setFilterStaffId("");       // manager/admin は常に全件
+      // manager/admin は URL 指定があればそれを採用、なければ全件
+      setFilterStaffId(staff);
     }
 
     setDidInitFromUrl(true);
@@ -382,15 +381,19 @@ const DisabilityCheckPage: React.FC = () => {
     if (filterTeamId) qp.set("team", filterTeamId);
     if (districts[0]) qp.set("dist", districts[0]);
 
-    // ★追加：利用者名（選択時のみ）
-    if (filterKaipokeCsId) qp.set("cs", filterKaipokeCsId);
+    // 利用者（新キーに統一）
+    if (filterKaipokeCsId) qp.set("kaipoke_cs_id", filterKaipokeCsId);
 
-    // ★要件：memberのみURLにstaffId固定。それ以外（manager/admin）は全件なので staffId をURLに持たない
-    if (!(isManager || isAdmin) && myUserId) {
-      qp.set("staffId", myUserId);
+    // 実績担当者
+    if (!(isManager || isAdmin)) {
+      // member は常に自分固定
+      if (myUserId) qp.set("user_id", myUserId);
+    } else {
+      // manager/admin は選択されているときだけURLに出す（未選択=全件）
+      if (filterStaffId) qp.set("user_id", filterStaffId);
     }
-    // manager/admin は staffId を qp に入れない（= URL から消える）
 
+    // manager/admin は staffId を qp に入れない（= URL から消える）
     const next = qp.toString();
     const nextUrl = next ? `${pathname}?${next}` : pathname;
 

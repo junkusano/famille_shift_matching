@@ -74,8 +74,6 @@ export async function POST(req: NextRequest) {
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
-    const effectiveStaffId = isMember ? myUserId : "";
-
     let query = supabaseAdmin
       .from("disability_check_view")
       .select(
@@ -101,22 +99,13 @@ export async function POST(req: NextRequest) {
     // 利用者（cs）での任意絞り込み
     if (csReq) query = query.eq("kaipoke_cs_id", csReq);
 
-    // ★要件：member は必ず自分のみ。それ以外は全件（絞り込み無し）
+    // 権限による強制絞り込み
     if (isMember) {
+      // member は必ず自分のみ（リクエストで staffId が来ても無視）
       query = query.eq("asigned_jisseki_staff_id", myUserId);
     } else {
-      // （任意）manager/admin は staffId 指定があれば絞れる（なくても全件）
+      // manager/admin は任意で担当者絞り込み可能
       if (staffIdReq) query = query.eq("asigned_jisseki_staff_id", staffIdReq);
-    }
-
-    // ★追加：利用者（kaipoke_cs_id）で絞り込み
-    if (csReq) {
-      query = query.eq("kaipoke_cs_id", csReq);
-    }
-
-    // ★最重要：担当者（非マネージャーは必ず自分に固定）
-    if (effectiveStaffId) {
-      query = query.eq("asigned_jisseki_staff_id", effectiveStaffId);
     }
 
     const { data, error } = await query;
