@@ -1575,6 +1575,14 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     // ★追加：移動（judo_ido）の合計（時間）
     const sumMoveHoursNum = (form?.rows ?? []).reduce((a, r) => a + judoIdoToHoursNumber(r.judo_ido), 0);
     const sumMoveHours = String(Math.round(sumMoveHoursNum * 10) / 10).replace(/\.0$/, "");
+    // ★算定時間数（時間）の合計：minutes を合算
+    const sumSanteiMinutes =
+        (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0);
+
+    const sumSanteiHours =
+        sumSanteiMinutes > 0
+            ? String(Math.round((sumSanteiMinutes / 60) * 10) / 10).replace(/\.0$/, "")
+            : "";
 
     const sumPlanHours =
         Number.isFinite(sumPlanHoursRaw)
@@ -1889,10 +1897,10 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td>
                             <td className="diag">&nbsp;</td>
 
-                            {/* 算定：時間(斜線)、移動(空欄) */}
+                            {/* 算定：時間(合計値)、移動(斜線) */}
+                            <td className="right"><b>{sumSanteiHours || "\u00A0"}</b></td>
                             <td className="diag">&nbsp;</td>
-                            <td className="right"><b>{sumMoveHours || "\u00A0"}</b></td>
-                            
+
                             {/* 派遣人数〜備考：指定の列は斜線 */}
                             <td className="diag">&nbsp;</td> {/* 派遣人数 */}
                             <td className="diag">&nbsp;</td> {/* 同行支援 */}
