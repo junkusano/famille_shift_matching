@@ -26,6 +26,7 @@ type PrintPayload = {
             calc_hour?: number | null;
             cs_pay?: number | null;
             katamichi_addon?: 0 | 1;
+            judo_ido?: string | null; // "0100" "0630" "0105" 等
         }>;
     }>;
 };
@@ -1532,6 +1533,24 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
+// "HHMM" 文字列（例 "0630"）→ 時間文字列（例 "6.5"）
+// ルール：分は 0〜29 → 切り捨て、30〜59 → 0.5
+function judoIdoToHoursText(v?: string | null): string {
+    const s = (v ?? "").trim();
+    if (!/^\d{4}$/.test(s)) return "";
+    const hh = Number(s.slice(0, 2));
+    const mm = Number(s.slice(2, 4));
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return "";
+
+    const hours = hh + (mm >= 30 ? 0.5 : 0);
+
+    // 0 は空欄でよいなら "" に。0も表示したいなら String(hours) に。
+    if (hours === 0) return "";
+
+    // "2.0" を "2" に
+    return String(hours).replace(/\.0$/, "");
+}
+
 function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumPlanHoursRaw =
         (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
@@ -1789,7 +1808,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">&nbsp;</td>
 
                                         {/* 7 計画 移動 */}
-                                        <td className="center">&nbsp;</td>
+                                        <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
 
                                         {/* 8 提供 開始（shift_start_time） */}
                                         <td className="center">{hm(r.start)}</td>
@@ -1801,7 +1820,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">&nbsp;</td>
 
                                         {/* 11 算定 移動 */}
-                                        <td className="center">&nbsp;</td>
+                                        <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
 
                                         {/* 12 派遣人数（常に1） */}
                                         <td className="center">1</td>

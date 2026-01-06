@@ -11,6 +11,7 @@ type PrintRow = {
   service_code?: string;
   minutes?: number;
   required_staff_count?: number;
+  judo_ido?: string | null;
 
   // ★IDOUで使用
   calc_hour?: number;                 // ⑤ 算定時間(時間)
@@ -35,6 +36,7 @@ type ShiftRow = {
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
+  judo_ido: string | null;
 };
 
 const toFormType = (serviceCode: string): FormType => {
@@ -124,7 +126,7 @@ export async function GET(req: NextRequest) {
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin
     .from("shift")
-    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id,staff_02_user_id,staff_03_user_id")
+    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id,staff_02_user_id,staff_03_user_id, judo_ido")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .gte("shift_start_date", start)
     .lte("shift_start_date", end)
@@ -215,6 +217,7 @@ export async function GET(req: NextRequest) {
       service_code: s.service_code ?? "",
       minutes,
       required_staff_count: s.required_staff_count ?? 1,
+      judo_ido: s.judo_ido ?? "0000",
 
       calc_hour,
       katamichi_addon, // ⑥
