@@ -339,16 +339,23 @@ const DisabilityCheckPage: React.FC = () => {
     const team = searchParams.get("team") ?? "";
     const dist = searchParams.get("dist") ?? "";
 
+    // ★追加：利用者名/実績担当者
+    const client = searchParams.get("client") ?? "";
+    const staffIdQ = searchParams.get("staffId") ?? "";
+
     if (ym) setYearMonth(ym);
     setKaipokeServicek(svc); // ""なら全て
     setFilterTeamId(team);
     setDistricts(dist ? [dist] : []);
 
-    // メンバーは自分固定、マネージャーは固定しない
+    // ★追加：利用者名
+    setFilterClientName(client);
+
+    // メンバーは自分固定、マネージャーはURLのstaffIdを採用（無ければ全て）
     if (!isManager) {
       setFilterStaffId(myUserId);
     } else {
-      setFilterStaffId("");
+      setFilterStaffId(staffIdQ);
     }
 
     setDidInitFromUrl(true);
@@ -366,9 +373,15 @@ const DisabilityCheckPage: React.FC = () => {
     if (filterTeamId) qp.set("team", filterTeamId);
     if (districts[0]) qp.set("dist", districts[0]);
 
-    // メンバーは staffId を自分に固定してURLへ
+    // ★追加：利用者名（選択時のみ）
+    if (filterClientName) qp.set("client", filterClientName);
+
+    // ★修正：実績担当者
     if (!isManager && myUserId) {
-      qp.set("staffId", myUserId);
+      qp.set("staffId", myUserId); // メンバーは固定
+    } else {
+      // マネージャーは選択内容を反映（全てなら省略）
+      if (filterStaffId) qp.set("staffId", filterStaffId);
     }
 
     const next = qp.toString();
@@ -381,6 +394,8 @@ const DisabilityCheckPage: React.FC = () => {
     kaipokeServicek,
     filterTeamId,
     districts,
+    filterClientName,   // ★追加
+    filterStaffId,      // ★追加
     isManager,
     myUserId,
     pathname,
