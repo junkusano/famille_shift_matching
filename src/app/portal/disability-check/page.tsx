@@ -66,7 +66,7 @@ const DisabilityCheckPage: React.FC = () => {
   const yearMonthOptions = useMemo(buildYearMonthOptions, []);
 
   // ② 検索用ステート
-  const [filterClientName, setFilterClientName] = useState<string>("");    // 利用者名（Select）
+  const [filterKaipokeCsId, setFilterKaipokeCsId] = useState<string>("");  // 利用者（kaipoke_cs_id）
   const [filterStaffId, setFilterStaffId] = useState<string>("");          // 実績担当者（Select）
   //const [filterKaipokeId, setFilterKaipokeId] = useState<string>("");      // カイポケID（Text）
   //const [filterIdo, setFilterIdo] = useState<string>("");                  // 受給者証番号（Text）
@@ -85,12 +85,16 @@ const DisabilityCheckPage: React.FC = () => {
 
 
   // ② Selectbox 用の選択肢
-  const clientNameOptions = useMemo(() => {
-    const set = new Set<string>();
+  const clientOptions = useMemo(() => {
+    const map = new Map<string, string>(); // kaipoke_cs_id -> client_name
     records.forEach((r) => {
-      if (r.client_name) set.add(r.client_name);
+      if (r.kaipoke_cs_id && r.client_name) {
+        map.set(r.kaipoke_cs_id, r.client_name);
+      }
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
   }, [records]);
 
   const staffOptions = useMemo(() => {
@@ -120,8 +124,7 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
-      if (filterClientName && r.client_name !== filterClientName) return false;
-
+      if (filterKaipokeCsId && r.kaipoke_cs_id !== filterKaipokeCsId) return false;
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
       // ★追加：チームで絞り込み
@@ -133,7 +136,7 @@ const DisabilityCheckPage: React.FC = () => {
 
       return true;
     });
-  }, [records, filterClientName, filterStaffId, filterTeamId]);
+  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
   // 件数はフィルタ後を表示
   // ★サービス別に件数を数える
@@ -175,7 +178,13 @@ const DisabilityCheckPage: React.FC = () => {
       const res = await fetch("/api/disability-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ yearMonth, kaipokeServicek, districts }),
+        body: JSON.stringify({
+          yearMonth,
+          kaipokeServicek,
+          districts,
+          staffId: filterStaffId || null,      // 非マネージャーなら myUserId が入る
+          kaipoke_cs_id: filterKaipokeCsId || null,
+        }),
       });
       if (!res.ok) throw new Error("failed");
       const rows: Row[] = await res.json();
@@ -339,16 +348,22 @@ const DisabilityCheckPage: React.FC = () => {
     const team = searchParams.get("team") ?? "";
     const dist = searchParams.get("dist") ?? "";
 
+    // ★追加：利用者（cs）/実績担当者
+    const cs = searchParams.get("cs") ?? "";
+    const staffIdQ = searchParams.get("staffId") ?? "";
+
     if (ym) setYearMonth(ym);
-    setKaipokeServicek(svc); // ""なら全て
+    setKaipokeServicek(svc);
     setFilterTeamId(team);
     setDistricts(dist ? [dist] : []);
 
-    // メンバーは自分固定、マネージャーは固定しない
+    setFilterKaipokeCsId(cs);
+
+    // staffId は後述（マネージャーのみ反映。非マネージャーは自分固定）
     if (!isManager) {
       setFilterStaffId(myUserId);
     } else {
-      setFilterStaffId("");
+      setFilterStaffId(staffIdQ);
     }
 
     setDidInitFromUrl(true);
@@ -366,9 +381,14 @@ const DisabilityCheckPage: React.FC = () => {
     if (filterTeamId) qp.set("team", filterTeamId);
     if (districts[0]) qp.set("dist", districts[0]);
 
-    // メンバーは staffId を自分に固定してURLへ
+    // ★追加：利用者名（選択時のみ）
+    if (filterKaipokeCsId) qp.set("cs", filterKaipokeCsId);
+
+    // 非マネージャーは必ず自分（URLに書く＝共有しても本人以外は見れないよう後述でサーバ固定）
     if (!isManager && myUserId) {
       qp.set("staffId", myUserId);
+    } else {
+      if (filterStaffId) qp.set("staffId", filterStaffId);
     }
 
     const next = qp.toString();
@@ -381,6 +401,8 @@ const DisabilityCheckPage: React.FC = () => {
     kaipokeServicek,
     filterTeamId,
     districts,
+    filterKaipokeCsId,   // ★追加
+    filterStaffId,      // ★追加
     isManager,
     myUserId,
     pathname,
@@ -395,7 +417,7 @@ const DisabilityCheckPage: React.FC = () => {
   /** フィルタ変更で再読込 */
   useEffect(() => {
     fetchRecords();
-  }, [yearMonth, kaipokeServicek, districts]);
+  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId]);
 
   return (
     <div>
@@ -437,7 +459,7 @@ const DisabilityCheckPage: React.FC = () => {
               setKaipokeServicek(v);
 
               // ★追加：サービス切替時に検索条件をリセット（これが効きます）
-              setFilterClientName("");
+              setFilterKaipokeCsId("");
               setFilterStaffId("");
               setFilterTeamId("");
               setDistricts([]);
@@ -487,14 +509,14 @@ const DisabilityCheckPage: React.FC = () => {
         <label style={{ width: 180 }}>
           利用者名
           <select
-            value={filterClientName}
-            onChange={(e) => setFilterClientName(e.target.value)}
+            value={filterKaipokeCsId}
+            onChange={(e) => setFilterKaipokeCsId(e.target.value)}
             style={{ width: 180 }}
           >
             <option value="">（全て）</option>
-            {clientNameOptions.map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {clientOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </select>
