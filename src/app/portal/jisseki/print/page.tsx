@@ -178,24 +178,12 @@ export default function JissekiPrintPage() {
 }
 
 /* 明細行（データ行・空行含む）を全部2行分に固定 */
-:root{
-  --row-2line: 12.0mm;  /* ここを増減して調整 */
-}
-
-tr.detail-row{
-  height: var(--row-2line) !important;
-}
-
-tr.detail-row > td{
-  height: var(--row-2line) !important;
-  min-height: var(--row-2line) !important;
-  max-height: var(--row-2line) !important;
-
-  padding: 2px 3px !important;
-  line-height: 1.05 !important;
-  vertical-align: middle !important;
-
-  overflow: hidden !important;
+.detail-row > td{
+  height: var(--row-2line);
+  padding: 2px 3px;
+  line-height: 1.05;        /* 2行で収めやすく */
+  vertical-align: middle;
+  overflow: hidden;         /* 文字で伸びない */
 }
 
 /* 既存の備考セル指定はそのままでもOKだが、統一しておく */
@@ -252,7 +240,7 @@ tr.detail-row > td{
 .biko-td {
   padding: 0 !important;
   overflow: hidden;
-  height: var(--row-2line) !important;  /* ← ここを統一 */
+  height: var(--row-biko);       /* ← 追加：td自体を2行分に固定 */
 }
 
 .biko-box {
