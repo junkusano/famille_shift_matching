@@ -76,13 +76,25 @@ type ClientAccumulator = {
 
 const DEFAULT_FROM_DATE = "2025-07-01";
 
-// 日付を YYYY-MM-DD 文字列に整形
-function formatYmd(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+// JSTの「今日」を YYYY-MM-DD で取る（サーバTZに依存しない）
+function todayJstYmd(): string {
+    return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(
+        new Date(),
+    ); // YYYY-MM-DD
 }
+
+// YYYY-MM-DD に日数を足す（JSTの暦日として扱う）
+function addDaysYmd(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+}
+
+function minYmd(a: string, b: string): string {
+    return a <= b ? a : b; // YYYY-MM-DD 文字列比較でOK
+}
+
 
 // cs_kaipoke_info.documents から「書類マスタID」を抜き出す
 // ※ 実際の JSON 構造に合わせて key 名は調整してください。
@@ -163,20 +175,30 @@ export async function findClientsMissingContractAndPlanDocs(
     const startTs = Date.now();
     console.info("[cs_contract_plan] start scan", { options });
 
-    const now = new Date();
-    const baseTo = new Date(now.getTime() + 10 * 86400000); // 今日 + 10日
+    const nowJst = todayJstYmd();
+    const defaultTo = addDaysYmd(nowJst, 10); // 既存仕様：今日+10日
 
     const fromDate = options?.fromDate ?? DEFAULT_FROM_DATE;
-    const toDate = options?.toDate ?? formatYmd(baseTo);
+    const toDate = options?.toDate ?? defaultTo;
 
-    console.info("[cs_contract_plan] date range", { fromDate, toDate });
+    // ★追加：開始2日前まではアラート出さない（= 今日+2日までのシフトだけ見る）
+    const gateTo = addDaysYmd(nowJst, 2);
+    const effectiveToDate = minYmd(toDate, gateTo);
+
+    console.info("[cs_contract_plan] date range", {
+        fromDate,
+        toDate,
+        gateTo,
+        effectiveToDate,
+    });
+
 
     // 1. 期間内のシフト取得（ダミー利用者を除外）
     const { data: shifts, error: shiftError } = await supabaseAdmin
         .from("shift")
         .select("shift_id, kaipoke_cs_id, shift_start_date, service_code")
         .gte("shift_start_date", fromDate)
-        .lte("shift_start_date", toDate)
+        .lte("shift_start_date", effectiveToDate) // ★ここ
         .not("kaipoke_cs_id", "ilike", "99999999%")
         .not("service_code", "is", null);
 
