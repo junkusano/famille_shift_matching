@@ -1551,9 +1551,30 @@ function judoIdoToHoursText(v?: string | null): string {
     return String(hours).replace(/\.0$/, "");
 }
 
+// "HHMM" → 時間数（number）
+// ルール：分 0〜29 → 切り捨て、30〜59 → 0.5
+function judoIdoToHoursNumber(v?: string | null): number {
+    const s = (v ?? "").trim();
+    if (!/^\d{4}$/.test(s)) return 0;
+    const hh = Number(s.slice(0, 2));
+    const mm = Number(s.slice(2, 4));
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
+    return hh + (mm >= 30 ? 0.5 : 0);
+}
+
+// 分 → 時間文字列（例: 180分→"3", 330分→"5.5"）
+function minutesToHoursText(mins?: number | null): string {
+    if (typeof mins !== "number" || !Number.isFinite(mins) || mins <= 0) return "";
+    const hours = Math.round((mins / 60) * 10) / 10; // 小数1桁（例: 5.5）
+    return String(hours).replace(/\.0$/, "");        // "3.0" → "3"
+}
+
 function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumPlanHoursRaw =
         (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
+    // ★追加：移動（judo_ido）の合計（時間）
+    const sumMoveHoursNum = (form?.rows ?? []).reduce((a, r) => a + judoIdoToHoursNumber(r.judo_ido), 0);
+    const sumMoveHours = String(Math.round(sumMoveHoursNum * 10) / 10).replace(/\.0$/, "");
 
     const sumPlanHours =
         Number.isFinite(sumPlanHoursRaw)
@@ -1786,6 +1807,9 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                                 // 日付表示（1〜31だけ出したい場合はここで加工）
                                 const day = r.date ? String(new Date(r.date).getDate()) : "";
+                                // 追加：このシフトの稼働時間（時間表記）
+                                const workHoursText = minutesToHoursText(r.minutes);
+
 
                                 return (
                                     <tr key={i} className="detail-row">
@@ -1805,7 +1829,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">{hm(r.end)}</td>
 
                                         {/* 6 計画 時間（必要なら分→時間計算。無ければ空でOK） */}
-                                        <td className="center">&nbsp;</td>
+                                        <td className="center">{workHoursText || "\u00A0"}</td>
 
                                         {/* 7 計画 移動 */}
                                         <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
@@ -1817,7 +1841,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">{hm(r.end)}</td>
 
                                         {/* 10 算定 時間 */}
-                                        <td className="center">&nbsp;</td>
+                                        <td className="center">{workHoursText || "\u00A0"}</td>
 
                                         {/* 11 算定 移動 */}
                                         <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
@@ -1859,7 +1883,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                             {/* 計画：時間(斜線)、移動(空欄) */}
                             <td className="diag">&nbsp;</td>
-                            <td>&nbsp;</td>
+                            <td className="right"><b>{sumMoveHours || "\u00A0"}</b></td>
 
                             {/* サービス提供時間：開始/終了(斜線) */}
                             <td className="diag">&nbsp;</td>
@@ -1867,8 +1891,8 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                             {/* 算定：時間(斜線)、移動(空欄) */}
                             <td className="diag">&nbsp;</td>
-                            <td>&nbsp;</td>
-
+                            <td className="right"><b>{sumMoveHours || "\u00A0"}</b></td>
+                            
                             {/* 派遣人数〜備考：指定の列は斜線 */}
                             <td className="diag">&nbsp;</td> {/* 派遣人数 */}
                             <td className="diag">&nbsp;</td> {/* 同行支援 */}
