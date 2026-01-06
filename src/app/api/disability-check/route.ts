@@ -1,7 +1,5 @@
 //api/disability-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 type Body = {
@@ -46,24 +44,38 @@ export async function POST(req: NextRequest) {
     } = (await req.json()) as Body;
 
     // ★追加：ログインユーザーを確定（ここが無いと改ざんされる）
-    const supabase = createRouteHandlerClient({ cookies });
+    // 1) Authorization Bearer からトークン取得
+    const authHeader = req.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    // 2) トークンから user を特定（supabaseAdmin で検証）
+    if (!token) {
+      return NextResponse.json({ error: "unauthorized:no_token" }, { status: 401 });
     }
 
-    // ★追加：ログインユーザーの role と user_id を取得（RLSが効くクライアントで読む）
-    // ★追加：ログインユーザーの role と user_id を取得（users テーブルから）
-    const { data: me, error: meErr } = await supabase
-      .from("users")
+    const { data: userRes, error: userErr } = await supabaseAdmin.auth.getUser(token);
+    const user = userRes?.user;
+
+    if (userErr || !user) {
+      return NextResponse.json(
+        { error: "unauthorized:bad_token", detail: userErr?.message ?? null },
+        { status: 401 }
+      );
+    }
+
+    // 3) role と user_id を取得（フロントと同じ view に揃えるのが安全）
+    const { data: me, error: meErr } = await supabaseAdmin
+      .from("user_entry_united_view")
       .select("system_role,user_id")
       .eq("auth_user_id", user.id)
       .maybeSingle();
+
+    if (meErr || !me?.user_id) {
+      return NextResponse.json(
+        { error: "forbidden:no_role", detail: meErr?.message ?? null },
+        { status: 403 }
+      );
+    }
 
     if (meErr || !me?.user_id) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

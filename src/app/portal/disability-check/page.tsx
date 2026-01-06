@@ -176,14 +176,22 @@ const DisabilityCheckPage: React.FC = () => {
   /** ビューからデータ取得（Server 絞り込み＋Client 最終ソート） */
   const fetchRecords = async () => {
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
       const res = await fetch("/api/disability-check", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        // cookies を使う運用に将来寄せる場合に備えて入れておいてもOK
+        credentials: "same-origin",
         body: JSON.stringify({
           yearMonth,
           kaipokeServicek,
           districts,
-          staffId: filterStaffId || null,      // 非マネージャーなら myUserId が入る
+          staffId: filterStaffId || null,
           kaipoke_cs_id: filterKaipokeCsId || null,
         }),
       });
