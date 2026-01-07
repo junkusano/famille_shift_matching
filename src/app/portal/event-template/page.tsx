@@ -335,19 +335,17 @@ export default function Page() {
                                 onValueChange={(v) =>
                                     setCreateDraft((p) => ({ ...p, due_rule_type: v as DueRuleType }))
                                 }
+                                className={triggerDisabledClass(!admin || loading)}
+                                disabled={!admin || loading}
+                                placeholder="選択"
                             >
-                                <SelectTrigger className={triggerDisabledClass(!admin || loading)}>
-                                    <SelectValue placeholder="選択" />
-                                </SelectTrigger>
-
-                                <SelectContent>
-                                    {DUE_RULE_TYPES.map((x) => (
-                                        <SelectItem key={x.value} value={x.value}>
-                                            {x.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
+                                {DUE_RULE_TYPES.map((x) => (
+                                    <SelectItem key={x.value} value={x.value}>
+                                        {x.label}
+                                    </SelectItem>
+                                ))}
                             </Select>
+
                         </div>
 
                         <div className="space-y-1">
@@ -517,19 +515,16 @@ export default function Page() {
                                             onValueChange={(v) =>
                                                 setEditDraft((p) => ({ ...p, due_rule_type: v as DueRuleType }))
                                             }
+                                            disabled={!admin || loading}
+                                            placeholder="選択"
                                         >
-                                            <SelectTrigger disabled={!admin || loading}>
-                                                <SelectValue placeholder="category / label を選択" />
-                                            </SelectTrigger>
-
-                                            <SelectContent>
-                                                {DUE_RULE_TYPES.map((x) => (
-                                                    <SelectItem key={x.value} value={x.value}>
-                                                        {x.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
+                                            {DUE_RULE_TYPES.map((x) => (
+                                                <SelectItem key={x.value} value={x.value}>
+                                                    {x.label}
+                                                </SelectItem>
+                                            ))}
                                         </Select>
+
                                     </div>
 
                                     <div className="space-y-1">
@@ -663,45 +658,41 @@ function ReqDocsEditor({
                                             return { ...p, required_docs: next };
                                         });
                                     }}
-                            >
-                                    <SelectTrigger className={triggerDisabledClass(disabled)}>
-                                        <SelectValue placeholder="選択" />
-                                    </SelectTrigger>
-
-                                    <SelectContent>
-                                        {docMasterOptions.map((d) => (
-                                            <SelectItem key={d.id} value={d.id}>
-                                                {d.is_active ? "" : "[inactive] "}
-                                                {d.category} / {d.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
+                                    disabled={disabled}
+                                    placeholder="選択"
+                                >
+                                    {docMasterOptions.map((d) => (
+                                        <SelectItem key={d.id} value={d.id}>
+                                            {d.is_active ? "" : "[inactive] "}
+                                            {d.category} / {d.label}
+                                        </SelectItem>
+                                    ))}
                                 </Select>
+
 
                             </TableCell>
 
                             <TableCell>
                                 <Select
                                     value={r.check_source}
-                                    onValueChange={(v) =>
+                                    onValueChange={(v) => {
+                                        if (disabled) return;
                                         setDraft((p) => {
                                             const next = [...p.required_docs];
                                             next[idx] = { ...next[idx], check_source: v as CheckSource };
                                             return { ...p, required_docs: next };
-                                        })
-                                    }
+                                        });
+                                    }}
+                                    disabled={disabled}
+                                    placeholder="選択"
                                 >
-                                    <SelectTrigger disabled={disabled}>
-                                        <SelectValue placeholder="選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {CHECK_SOURCES.map((x) => (
-                                            <SelectItem key={x.value} value={x.value}>
-                                                {x.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
+                                    {CHECK_SOURCES.map((x) => (
+                                        <SelectItem key={x.value} value={x.value}>
+                                            {x.label}
+                                        </SelectItem>
+                                    ))}
                                 </Select>
+
 
                             </TableCell>
 

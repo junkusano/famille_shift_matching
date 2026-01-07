@@ -7,7 +7,7 @@ type SelectProps = {
   children: React.ReactNode;
   className?: string;
   placeholder?: string;
-  disabled?: boolean;
+  disabled?: boolean; // ✅追加（後方互換）
 };
 
 export function Select({
@@ -42,9 +42,9 @@ export function SelectItem({
 }
 
 /**
- * shadcn 風 API 互換のダミー。
- * props を受け取るが、DOMに載せる先がないので、
- * aria 属性だけは children の wrapper(span) に付与しておく。
+ * 互換用のダミー（props を受け取れるようにする）
+ * ※実体は <select> なので Trigger/Content は layout 上意味を持たないが、
+ *   型エラー回避のため受け取れるようにしておく。
  */
 export function SelectTrigger({
   children,
@@ -55,15 +55,10 @@ export function SelectTrigger({
   className?: string;
   disabled?: boolean;
 }) {
-  return (
-    <span
-      className={className}
-      aria-disabled={disabled ? "true" : undefined}
-      data-disabled={disabled ? "true" : undefined}
-    >
-      {children}
-    </span>
-  );
+  // 使わないが未使用警告を避ける
+  void className;
+  void disabled;
+  return <>{children}</>;
 }
 
 export function SelectContent({
@@ -73,11 +68,12 @@ export function SelectContent({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <span className={className}>{children}</span>;
+  void className;
+  return <>{children}</>;
 }
 
 export function SelectValue({ placeholder }: { placeholder: string }) {
-  // placeholder は Select 側で出しているので、ここは noop
+  // もともと Select 側で placeholder option を出してるので noop にするのが安全
   void placeholder;
   return null;
 }
