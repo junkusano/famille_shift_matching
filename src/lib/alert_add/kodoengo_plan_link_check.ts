@@ -18,20 +18,44 @@ type CsRow = {
   end_at: string | null;
 };
 
+function todayJstYmd(): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(
+    new Date(),
+  ); // YYYY-MM-DD
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+
 export type KodoengoPlanLinkCheckResult = {
   scanned: number;
   created: number;
 };
 
+
+
 export async function kodoengoPlanLinkCheck(): Promise<KodoengoPlanLinkCheckResult> {
   console.log("[kodoengo_plan_link_check] start");
 
-  // 1) 行動援護シフトがある CS ID 一覧を取得
+  // ★追加：開始2日前から対象（= 今日+2日までのシフトだけ見る）
+  const gateTo = addDaysYmd(todayJstYmd(), 2);
+
+  console.log("[kodoengo_plan_link_check] gateTo", { gateTo });
+
+
+  // 1) 行動援護シフトがある CS ID 一覧を取得（未来を取りすぎない）
   const { data: shiftRows, error: shiftError } = await supabaseAdmin
     .from("shift")
     .select("kaipoke_cs_id")
     .eq("service_code", "行動援護")
-    .not("kaipoke_cs_id", "is", null);
+    .not("kaipoke_cs_id", "is", null)
+    .lte("shift_start_date", gateTo); // ★ここが本丸
+
 
   if (shiftError) {
     console.error("[kodoengo_plan_link_check] failed to load shift rows", shiftError);
