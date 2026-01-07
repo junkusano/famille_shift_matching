@@ -386,7 +386,10 @@ export default function Page() {
                                 rows={5}
                             />
                             <div className="text-xs text-muted-foreground">
-                                例：{"{"}"service_code":"HH1111","ref":"shift_start_date"{"}"}
+                                例：
+                                <code className="ml-1">
+                                    {`{"service_code":"HH1111","ref":"shift_start_date"}`}
+                                </code>
                             </div>
                         </div>
                     </div>
