@@ -21,6 +21,7 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 // PDF.js Worker 設定（CDN経由 - 最も安定）
 // react-pdf 8.0.2 は pdfjs-dist 3.11.174 を使用
 // =============================================================
+/* 只腰さんへ　一旦削除します　↑を代わりに追加しています。詳細はChatGPTに
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.js',
   import.meta.url
@@ -29,6 +30,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 // react-pdf のスタイル
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+*/
 
 // =============================================================
 // Types
