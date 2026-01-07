@@ -8,21 +8,38 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const category = searchParams.get('category') ?? 'certificate'
 
+  // ✅ 追加：event-template 用（全件の doc type 一覧）
+  // 返却：{ rows: [{id, category, label, is_active, sort_order}] }
+  if (category === 'all') {
+    const { data, error } = await supabaseAdmin
+      .from('user_doc_master')
+      .select('id, category, label, is_active, sort_order')
+      .order('category', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('label', { ascending: true })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ rows: data ?? [] })
+  }
+
   // ① 契約書・プラン用：cs_doc → id / label をそのまま返す
   if (category === 'cs_doc') {
     const { data, error } = await supabaseAdmin
       .from('user_doc_master')
       .select('id, label')
       .eq('category', 'cs_doc')
-      .order('sort_order', { ascending: true })  // ★ 並び順
+      .order('sort_order', { ascending: true }) // ★ 並び順
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     const options: Option[] = (data ?? []).map((r) => ({
-      value: r.id,     // ★ uuid
-      label: r.label,  // 表示名
+      value: r.id, // ★ uuid
+      label: r.label, // 表示名
     }))
 
     return NextResponse.json(options)
