@@ -3,11 +3,19 @@
 // react-pdf 8.0.2 で PDF を表示（Next.js 15 対応版）
 // =============================================================
 
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import { Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import React, { useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
+
+pdfjs.GlobalWorkerOptions.workerSrc =
+  `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+
+// CSS（合わない場合は dist/esm に変える）
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import "react-pdf/dist/esm/Page/TextLayer.css";
+
 
 // =============================================================
 // PDF.js Worker 設定（CDN経由 - 最も安定）
