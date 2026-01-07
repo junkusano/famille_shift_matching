@@ -37,6 +37,20 @@ function calcFromDate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function todayJstYmd(): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(
+    new Date(),
+  ); // YYYY-MM-DD
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+
 function chunk<T>(arr: T[], size: number): T[][] {
   if (size <= 0) return [arr];
   const result: T[][] = [];
@@ -48,6 +62,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResult> {
   const fromDate = calcFromDate();
+
+  // ★追加：開始2日前からチェック開始（= 今日+2日までのシフトだけ拾う）
+  const gateTo = addDaysYmd(todayJstYmd(), 2);
 
   // 1) idou_f = true のサービスコード一覧
   const { data: svcRows, error: svcError } = await supabaseAdmin
@@ -80,6 +97,7 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
     .from("shift")
     .select("shift_id, kaipoke_cs_id, shift_start_date, service_code")
     .gte("shift_start_date", fromDate)
+    .lte("shift_start_date", gateTo) // ★追加：未来を取りすぎない
     .in("service_code", transServiceCodes);
 
   if (shiftError) {
@@ -201,6 +219,7 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
 
   console.info("[shift_trans_info_check] done", {
     fromDate,
+    gateTo,
     scannedShiftCount: shiftRows.length,
     scannedClientCount: clients.length,
     targetClientCount: targets.length,
@@ -220,7 +239,7 @@ export async function runShiftTransInfoCheck(): Promise<ShiftTransInfoCheckResul
 function buildAlertMessage(c: ClientRow): string {
   const name = c.name ?? "利用者名不明";
   const csId = c.kaipoke_cs_id;
-    // ★ cs_kaipoke_info.id を使った詳細ページ URL
+  // ★ cs_kaipoke_info.id を使った詳細ページ URL
   const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${c.id}`;
 
   return [
