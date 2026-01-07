@@ -21,6 +21,7 @@ type CmBreadcrumb = {
 const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   const pathMap: Record<string, string> = {
     '/cm-portal': 'ホーム',
+    '/cm-portal/fax': 'FAX受信一覧',
     '/cm-portal/clients': '利用者一覧',
     '/cm-portal/clients/insurance': '被保険者証',
     '/cm-portal/clients/subsidy': '公費・減額',
@@ -68,6 +69,14 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   if (clientDetailMatch) {
     breadcrumbs.push({ label: '利用者情報一覧', path: '/cm-portal/clients', isLink: true });
     breadcrumbs.push({ label: '利用者詳細', path: pathname, isLink: false });
+    return breadcrumbs;
+  }
+
+  // FAX詳細ページ
+  const faxDetailMatch = pathname.match(/^\/cm-portal\/fax\/([^/]+)$/);
+  if (faxDetailMatch) {
+    breadcrumbs.push({ label: 'FAX受信一覧', path: '/cm-portal/fax', isLink: true });
+    breadcrumbs.push({ label: 'FAX詳細', path: pathname, isLink: false });
     return breadcrumbs;
   }
 

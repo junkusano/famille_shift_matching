@@ -20,6 +20,7 @@ import {
   ChevronRight,
   HeartHandshake,
   Terminal,
+  FileText,
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
@@ -55,6 +56,14 @@ const CmMenuStructure: CmMenuGroup[] = [
         requireBoth: true,
       },
       { id: 'kyotaku-home', label: '居宅介護支援ポータルHome', path: '/cm-portal' },
+    ],
+  },
+  {
+    id: 'fax',
+    label: 'FAX管理',
+    icon: FileText,
+    items: [
+      { id: 'fax-list', label: 'FAX受信一覧', path: '/cm-portal/fax' },
     ],
   },
   {
@@ -169,7 +178,7 @@ type CmSidebarProps = {
 
 export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
   const pathname = usePathname();
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'clients']);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'clients', 'fax']);
   
   const isManagerOrAdmin = useCmHasRole(['admin', 'manager']);
   const isAdmin = useCmHasRole(['admin']);
