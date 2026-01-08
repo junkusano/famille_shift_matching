@@ -43,8 +43,12 @@ export default function JissekiPrintBody({ kaipoke_cs_id, month }: Props) {
                 // /api/jisseki/print が HTML を返している想定
                 const text = await res.text();
                 setHtml(text);
-            } catch (e: any) {
-                setError(e?.message ?? "failed");
+            } catch (e: unknown) {
+                if (e instanceof Error) {
+                    setError(e.message);
+                } else {
+                    setError("failed");
+                }
             } finally {
                 setLoading(false);
             }
