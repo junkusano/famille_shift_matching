@@ -209,7 +209,7 @@ const DisabilityCheckPage: React.FC = () => {
         kaipokeServicek,
         districts,
         staffId: (isManager || isAdmin)
-          ? (filterStaffId || null)     // manager/admin: 未選択なら全件
+          ? null                        // manager/admin: ここでは絞らない（全件取得）
           : (myUserId || null),         // member: 自分固定
         kaipoke_cs_id: filterKaipokeCsId || null,
       };
@@ -383,7 +383,7 @@ const DisabilityCheckPage: React.FC = () => {
           return;
         }
 
-        const role = String(roleRow?.system_role ?? "").toLowerCase();
+        const role = String(roleRow?.system_role ?? "").trim().toLowerCase();
         const isAdminRole = role === "admin" || role === "super_admin";
         const isManagerRole = role === "manager" || isAdminRole;
 
