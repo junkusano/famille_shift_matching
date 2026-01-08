@@ -139,6 +139,15 @@ const DisabilityCheckPage: React.FC = () => {
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
+  // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
+  const bulkClientIds = useMemo(() => {
+    const set = new Set<string>();
+    filteredRecords.forEach((r) => {
+      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
+    });
+    return Array.from(set);
+  }, [filteredRecords]);
+
   // 件数はフィルタ後を表示
   // ★サービス別に件数を数える
   const countShogai = records.filter((r) => r.kaipoke_servicek === "障害").length;
@@ -309,6 +318,24 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
+  // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
+  const handleBulkPrint = () => {
+    const payload = {
+      month: yearMonth,
+      clientIds: bulkClientIds,
+    };
+
+    // URLが長くなりすぎるのを避けるため localStorage で渡す
+    localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
+
+    // 一括印刷ページ（新規追加）を別タブで開く
+    window.open(
+      `/portal/jisseki/print/bulk?month=${encodeURIComponent(yearMonth)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   // ★追加：ログインユーザーの system_role を取得して権限判定
   useEffect(() => {
     const loadRole = async () => {
@@ -449,6 +476,29 @@ const DisabilityCheckPage: React.FC = () => {
         <span style={{ marginRight: 16 }}>表示中：{filteredCount}</span>
         <span>回収済：{checkedCount}</span>
       </div>
+
+      {/* ★追加：member向け 一括印刷ボタン */}
+      {!(isManager || isAdmin) && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={handleBulkPrint}
+            disabled={bulkClientIds.length === 0}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #999",
+              borderRadius: 6,
+              background: bulkClientIds.length ? "#fff" : "#f5f5f5",
+              cursor: bulkClientIds.length ? "pointer" : "not-allowed",
+            }}
+          >
+            担当分を一括印刷（{bulkClientIds.length}名）
+          </button>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+            表示中の担当利用者をまとめて印刷します（別タブで印刷画面が開きます）
+          </div>
+        </div>
+      )}
 
       {/* フィルタ：横並び・幅180 */}
       <div className="filters" style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
