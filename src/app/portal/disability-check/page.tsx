@@ -74,6 +74,9 @@ const DisabilityCheckPage: React.FC = () => {
   const [isManager, setIsManager] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
+  // ★追加：member 判定（manager/admin 以外はすべて member）
+  const isMember = !(isManager || isAdmin);
+
   // ★追加：ログインユーザー自身の user_id（＝ asigned_jisseki_staff_id と同じ系統のID）
   const [myUserId, setMyUserId] = useState<string>("");
 
@@ -139,20 +142,57 @@ const DisabilityCheckPage: React.FC = () => {
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
-  // 件数はフィルタ後を表示
-  // ★サービス別に件数を数える
-  const countShogai = records.filter((r) => r.kaipoke_servicek === "障害").length;
-  const countIdo = records.filter((r) => r.kaipoke_servicek === "移動支援").length;
+  // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
+  const bulkClientIds = useMemo(() => {
+    const set = new Set<string>();
+    filteredRecords.forEach((r) => {
+      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
+    });
+    return Array.from(set);
+  }, [filteredRecords]);
 
-  // ★「全て」の件数は単純に足す
+  // 件数はフィルタ後を表示
+  // ===== ユニーク利用者数（kaipoke_cs_id）でカウントする =====
+  const uniqCountByService = (svc: string) => {
+    const set = new Set<string>();
+    records.forEach((r) => {
+      if (r.kaipoke_servicek === svc && r.kaipoke_cs_id) {
+        set.add(r.kaipoke_cs_id);
+      }
+    });
+    return set.size;
+  };
+
+  const uniqCount = (rows: Row[]) => {
+    const set = new Set<string>();
+    rows.forEach((r) => {
+      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
+    });
+    return set.size;
+  };
+
+  const uniqCheckedCount = (rows: Row[]) => {
+    const set = new Set<string>();
+    rows.forEach((r) => {
+      if (r.kaipoke_cs_id && r.is_checked) set.add(r.kaipoke_cs_id);
+    });
+    return set.size;
+  };
+
+  // ★サービス別「件数」（利用者数）
+  const countShogai = uniqCountByService("障害");
+  const countIdo = uniqCountByService("移動支援");
+
+  // ★「全て」の件数は障害＋移動支援（利用者数）
   const totalCount =
     kaipokeServicek === ""
       ? countShogai + countIdo
-      : records.length;
+      : uniqCount(records);
 
-  // 表示中・回収済は今まで通り
-  const filteredCount = filteredRecords.length;
-  const checkedCount = filteredRecords.filter((r) => !!r.is_checked).length;
+  // ★表示中・回収済も利用者数で統一
+  const filteredCount = uniqCount(filteredRecords);
+  const checkedCount = uniqCheckedCount(filteredRecords);
+
 
   /** District 選択肢取得 */
   const fetchDistricts = async () => {
@@ -309,6 +349,24 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
+  // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
+  const handleBulkPrint = () => {
+    const payload = {
+      month: yearMonth,
+      clientIds: bulkClientIds,
+    };
+
+    // URLが長くなりすぎるのを避けるため localStorage で渡す
+    localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
+
+    // 一括印刷ページ（新規追加）を別タブで開く
+    window.open(
+      `/portal/jisseki/print/bulk?month=${encodeURIComponent(yearMonth)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   // ★追加：ログインユーザーの system_role を取得して権限判定
   useEffect(() => {
     const loadRole = async () => {
@@ -325,24 +383,46 @@ const DisabilityCheckPage: React.FC = () => {
         const authUserId = userData.user.id;
 
         // 2) role を view から取得（data/error の名前衝突を避ける）
-        const { data: roleRow, error: roleErr } = await supabase
-          .from("user_entry_united_view")
+        // 2) まず single を試す
+        const { data: roleRow1, error: roleErr1 } = await supabase
+          .from("user_entry_united_view_single")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
 
-        if (roleErr) {
-          console.error("Failed to load system_role", roleErr);
+        let roleRow = roleRow1;
+        let roleErr = roleErr1;
+
+        // 3) single が取れない/ user_id が空なら、fallback で united_view を試す
+        if (!roleErr && (!roleRow?.user_id || !roleRow?.system_role)) {
+          const { data: roleRow2, error: roleErr2 } = await supabase
+            .from("user_entry_united_view")
+            .select("system_role,user_id")
+            .eq("auth_user_id", authUserId)
+            .maybeSingle();
+
+          roleRow = roleRow2;
+          roleErr = roleErr2;
+        }
+
+        if (roleErr || !roleRow?.user_id) {
+          console.error("Failed to load system_role (no row)", roleErr);
           setIsAdmin(false);
           setIsManager(false);
           setMyUserId("");
           return;
         }
 
-        const role = String(roleRow?.system_role ?? "").toLowerCase();
-        setIsAdmin(role === "admin");
-        setIsManager(role === "manager" || role === "admin");
-        setMyUserId(String(roleRow?.user_id ?? ""));
+        const role = String(roleRow.system_role ?? "").trim().toLowerCase();
+
+        const isAdminRole = role === "admin" || role === "super_admin";
+        // ★ manager 系ロール（senior_manager 等）をまとめて拾う
+        const isManagerRole = isAdminRole || role.includes("manager");
+
+        setIsAdmin(isAdminRole);
+        setIsManager(isManagerRole);
+        setMyUserId(String(roleRow.user_id));
+
       } catch (e) {
         console.error("Failed to determine role", e);
         setIsAdmin(false);
@@ -450,6 +530,29 @@ const DisabilityCheckPage: React.FC = () => {
         <span>回収済：{checkedCount}</span>
       </div>
 
+      {/* ★追加：member向け 一括印刷ボタン */}
+      {!(isManager || isAdmin) && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={handleBulkPrint}
+            disabled={bulkClientIds.length === 0}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #999",
+              borderRadius: 6,
+              background: bulkClientIds.length ? "#fff" : "#f5f5f5",
+              cursor: bulkClientIds.length ? "pointer" : "not-allowed",
+            }}
+          >
+            担当分を一括印刷（{bulkClientIds.length}名）
+          </button>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+            表示中の担当利用者をまとめて印刷します（別タブで印刷画面が開きます）
+          </div>
+        </div>
+      )}
+
       {/* フィルタ：横並び・幅180 */}
       <div className="filters" style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
         <label style={{ width: 180 }}>
@@ -543,9 +646,9 @@ const DisabilityCheckPage: React.FC = () => {
           実績担当者
           <select
             value={filterStaffId}
-            disabled={!(isManager || isAdmin)}
+            disabled={isMember} // ★memberのみ無効
             onChange={(e) => {
-              if (!(isManager || isAdmin)) return;
+              if (isMember) return;
               setFilterStaffId(e.target.value);
             }}
             style={{ width: 220 }}
@@ -684,9 +787,9 @@ const DisabilityCheckPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={!!r.is_checked}
-                    disabled={!(isManager || isAdmin)}
+                    disabled={isMember} // ★memberのみ無効
                     onChange={(e) => {
-                      if (!(isManager || isAdmin)) return;
+                      if (isMember) return;
                       handleCheckChange(r, e.target.checked);
                     }}
                     style={{ display: "inline-block" }}

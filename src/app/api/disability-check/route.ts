@@ -64,25 +64,52 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) role と user_id を取得（フロントと同じ view に揃えるのが安全）
-    const { data: me, error: meErr } = await supabaseAdmin
-      .from("user_entry_united_view")
-      .select("system_role,user_id")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+    // 3) role と user_id を取得（複数行でも落ちないように 1行に決め打ち）
+    let me: { system_role: string | null; user_id: string | null } | null = null;
 
-    if (meErr || !me?.user_id) {
+    // 3-1) まず single view を優先（基本は1行のはず）
+    {
+      const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("system_role,user_id")
+        .eq("auth_user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[disability-check] role(single) error", error);
+      }
+      if (data?.user_id) me = data;
+    }
+
+    // 3-2) single が取れない場合だけ、united_view から 1件だけ拾う（複数行でも落ちない）
+    if (!me?.user_id) {
+      const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view")
+        .select("system_role,user_id")
+        .eq("auth_user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[disability-check] role(view) error", error);
+      }
+      if (data?.user_id) me = data;
+    }
+
+    if (!me?.user_id) {
       return NextResponse.json(
-        { error: "forbidden:no_role", detail: meErr?.message ?? null },
+        { error: "forbidden:no_role", detail: "role row not found" },
         { status: 403 }
       );
     }
 
-    if (meErr || !me?.user_id) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    }
+    const role = String(me.system_role ?? "").trim().toLowerCase();
 
-    const role = String(me.system_role ?? "").toLowerCase();
-    const isMember = role === "member";
+    const isAdmin = role === "admin" || role === "super_admin";
+    const isManager = isAdmin || role.includes("manager"); // senior_manager 等も拾う
+    const isMember = !isManager; // ★要件：member=自分のみ / manager・admin=全件
+
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
