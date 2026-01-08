@@ -124,6 +124,7 @@ export default function Page() {
         try {
             const res = await fetch("/api/event-template", { cache: "no-store" });
             const json = await res.json();
+            console.log("event-template api admin=", json.admin, json);
             if (!res.ok) throw new Error(json?.error ?? "Failed to load");
 
             setAdmin(!!json.admin);
