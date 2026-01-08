@@ -125,19 +125,34 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
+      // ★追加：サービスで絞り込み（"" のときは全て）
+      if (kaipokeServicek && r.kaipoke_servicek !== kaipokeServicek) return false;
+
+      // ★追加：地域で絞り込み（districts が空なら全て）
+      if (districts.length > 0) {
+        const d = (r.district ?? "").trim();
+        if (!districts.includes(d)) return false;
+      }
+
+      // 既存：利用者
       if (filterKaipokeCsId && r.kaipoke_cs_id !== filterKaipokeCsId) return false;
+
+      // 既存：実績担当者
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
-      // ★追加：チームで絞り込み
+      // 既存：チーム
       if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
-
-      // if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
-
-      // if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
 
       return true;
     });
-  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
+  }, [
+    records,
+    kaipokeServicek,   // ★追加
+    districts,         // ★追加
+    filterKaipokeCsId,
+    filterStaffId,
+    filterTeamId,
+  ]);
 
   // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
   const bulkClientIds = useMemo(() => {
@@ -188,29 +203,28 @@ const DisabilityCheckPage: React.FC = () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
+      // ★ここで body を組み立てる（if を fetch の中に書かない）
+      const body = {
+        yearMonth,
+        kaipokeServicek,
+        districts,
+        staffId: (isManager || isAdmin) ? (filterStaffId || null) : null,
+        kaipoke_cs_id: filterKaipokeCsId || null,
+      };
+
       const res = await fetch("/api/disability-check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        // cookies を使う運用に将来寄せる場合に備えて入れておいてもOK
         credentials: "same-origin",
-        body: JSON.stringify({
-          yearMonth,
-          kaipokeServicek,
-          districts,
-          staffId:
-            (isManager || isAdmin)
-              ? (filterStaffId || null)
-              : myUserId,
-          kaipoke_cs_id: filterKaipokeCsId || null,
-        }),
+        body: JSON.stringify(body),
       });
+
       if (!res.ok) throw new Error("failed");
       const rows: Row[] = await res.json();
 
-      // 念のためクライアント側でも district → client_name で昇順
       rows.sort((a, b) => {
         const da = (a.district ?? "");
         const db = (b.district ?? "");
@@ -226,7 +240,7 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
-  /** ✅ チェック更新 */
+  // ★追加：回収✅チェック更新（is_checked）
   const handleCheckChange = async (row: Row, checked: boolean) => {
     // 先に画面を更新（楽観的）
     setRecords((prev) =>
@@ -238,6 +252,7 @@ const DisabilityCheckPage: React.FC = () => {
           : r
       )
     );
+
     try {
       await fetch("/api/disability-check/update", {
         method: "PUT",

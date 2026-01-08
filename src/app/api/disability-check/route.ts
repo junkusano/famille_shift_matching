@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     // 3) role と user_id を取得（フロントと同じ view に揃えるのが安全）
     const { data: me, error: meErr } = await supabaseAdmin
-      .from("user_entry_united_view")
+      .from("user_entry_united_view_single")
       .select("system_role,user_id")
       .eq("auth_user_id", user.id)
       .maybeSingle();
@@ -75,10 +75,6 @@ export async function POST(req: NextRequest) {
         { error: "forbidden:no_role", detail: meErr?.message ?? null },
         { status: 403 }
       );
-    }
-
-    if (meErr || !me?.user_id) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const role = String(me.system_role ?? "").toLowerCase();
