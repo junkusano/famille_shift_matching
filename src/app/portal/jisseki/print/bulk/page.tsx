@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import JissekiPrintBody from "@/components/jisseki/JissekiPrintBody"; // ★ここ
 
 type Payload = { month: string; clientIds: string[] };
 
@@ -31,11 +32,9 @@ export default function BulkPrintPage() {
 
     return (
         <div className="print-only">
-            {clientIds.map((csId) => (
-                <div key={csId} className="page-break">
-                    {/* ここに既存の単票印刷の“本体コンポーネント”を呼ぶのが理想 */}
-                    {/* 例: <JissekiPrintBody kaipoke_cs_id={csId} month={month} /> */}
-                    <div>TODO: {csId} / {month}</div>
+            {clientIds.map((csId, idx) => (
+                <div key={csId} className={idx === 0 ? "" : "page-break"}>
+                    <JissekiPrintBody kaipoke_cs_id={csId} month={month} />
                 </div>
             ))}
         </div>
