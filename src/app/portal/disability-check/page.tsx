@@ -414,8 +414,10 @@ const DisabilityCheckPage: React.FC = () => {
         }
 
         const role = String(roleRow.system_role ?? "").trim().toLowerCase();
+
         const isAdminRole = role === "admin" || role === "super_admin";
-        const isManagerRole = role === "manager" || isAdminRole;
+        // ★ manager 系ロール（senior_manager 等）をまとめて拾う
+        const isManagerRole = isAdminRole || role.includes("manager");
 
         setIsAdmin(isAdminRole);
         setIsManager(isManagerRole);

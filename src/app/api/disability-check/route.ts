@@ -81,8 +81,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
-    const role = String(me.system_role ?? "").toLowerCase();
-    const isMember = role === "member";
+    const role = String(me.system_role ?? "").trim().toLowerCase();
+
+    const isAdmin = role === "admin" || role === "super_admin";
+    const isManager = isAdmin || role.includes("manager"); // senior_manager 等も拾う
+    const isMember = !isManager; // ★要件：member=自分のみ / manager・admin=全件
+
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
