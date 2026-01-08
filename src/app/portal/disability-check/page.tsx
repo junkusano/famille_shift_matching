@@ -125,34 +125,19 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
-      // ★追加：サービスで絞り込み（"" のときは全て）
-      if (kaipokeServicek && r.kaipoke_servicek !== kaipokeServicek) return false;
-
-      // ★追加：地域で絞り込み（districts が空なら全て）
-      if (districts.length > 0) {
-        const d = (r.district ?? "").trim();
-        if (!districts.includes(d)) return false;
-      }
-
-      // 既存：利用者
       if (filterKaipokeCsId && r.kaipoke_cs_id !== filterKaipokeCsId) return false;
-
-      // 既存：実績担当者
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
-      // 既存：チーム
+      // ★追加：チームで絞り込み
       if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
+
+      // if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
+
+      // if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
 
       return true;
     });
-  }, [
-    records,
-    kaipokeServicek,   // ★追加
-    districts,         // ★追加
-    filterKaipokeCsId,
-    filterStaffId,
-    filterTeamId,
-  ]);
+  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
   // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
   const bulkClientIds = useMemo(() => {
@@ -203,30 +188,29 @@ const DisabilityCheckPage: React.FC = () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
-      // ★ここで body を組み立てる（if を fetch の中に書かない）
-      const body = {
-        yearMonth,
-        kaipokeServicek,
-        districts,
-        staffId: (isManager || isAdmin)
-          ? null                        // manager/admin: ここでは絞らない（全件取得）
-          : (myUserId || null),         // member: 自分固定
-        kaipoke_cs_id: filterKaipokeCsId || null,
-      };
-
       const res = await fetch("/api/disability-check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
+        // cookies を使う運用に将来寄せる場合に備えて入れておいてもOK
         credentials: "same-origin",
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          yearMonth,
+          kaipokeServicek,
+          districts,
+          staffId:
+            (isManager || isAdmin)
+              ? (filterStaffId || null)
+              : myUserId,
+          kaipoke_cs_id: filterKaipokeCsId || null,
+        }),
       });
-
       if (!res.ok) throw new Error("failed");
       const rows: Row[] = await res.json();
 
+      // 念のためクライアント側でも district → client_name で昇順
       rows.sort((a, b) => {
         const da = (a.district ?? "");
         const db = (b.district ?? "");
@@ -242,7 +226,7 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
-  // ★追加：回収✅チェック更新（is_checked）
+  /** ✅ チェック更新 */
   const handleCheckChange = async (row: Row, checked: boolean) => {
     // 先に画面を更新（楽観的）
     setRecords((prev) =>
@@ -254,7 +238,6 @@ const DisabilityCheckPage: React.FC = () => {
           : r
       )
     );
-
     try {
       await fetch("/api/disability-check/update", {
         method: "PUT",
@@ -370,7 +353,7 @@ const DisabilityCheckPage: React.FC = () => {
 
         // 2) role を view から取得（data/error の名前衝突を避ける）
         const { data: roleRow, error: roleErr } = await supabase
-          .from("user_entry_united_view_single")
+          .from("user_entry_united_view")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
@@ -383,12 +366,9 @@ const DisabilityCheckPage: React.FC = () => {
           return;
         }
 
-        const role = String(roleRow?.system_role ?? "").trim().toLowerCase();
-        const isAdminRole = role === "admin" || role === "super_admin";
-        const isManagerRole = role === "manager" || isAdminRole;
-
-        setIsAdmin(isAdminRole);
-        setIsManager(isManagerRole);
+        const role = String(roleRow?.system_role ?? "").toLowerCase();
+        setIsAdmin(role === "admin");
+        setIsManager(role === "manager" || role === "admin");
         setMyUserId(String(roleRow?.user_id ?? ""));
       } catch (e) {
         console.error("Failed to determine role", e);
@@ -480,11 +460,8 @@ const DisabilityCheckPage: React.FC = () => {
 
   /** フィルタ変更で再読込 */
   useEffect(() => {
-    // member なのに myUserId がまだ取れていない間は呼ばない
-    if (!(isManager || isAdmin) && !myUserId) return;
-
     fetchRecords();
-  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId, isManager, isAdmin, myUserId]);
+  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId]);
 
   return (
     <div>

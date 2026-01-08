@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     // 3) role と user_id を取得（フロントと同じ view に揃えるのが安全）
     const { data: me, error: meErr } = await supabaseAdmin
-      .from("user_entry_united_view_single")
+      .from("user_entry_united_view")
       .select("system_role,user_id")
       .eq("auth_user_id", user.id)
       .maybeSingle();
@@ -77,13 +77,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const role = String(me.system_role ?? "").trim().toLowerCase();
+    if (meErr || !me?.user_id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
 
-    // admin/manager を明示し、それ以外はすべて member 扱いに寄せる（値ゆれ吸収）
-    const isAdmin = role === "admin" || role === "super_admin";
-    const isManager = role === "manager" || isAdmin;
-    const isMember = !isManager;
-
+    const role = String(me.system_role ?? "").toLowerCase();
+    const isMember = role === "member";
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
