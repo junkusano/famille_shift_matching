@@ -191,7 +191,10 @@ const DisabilityCheckPage: React.FC = () => {
           yearMonth,
           kaipokeServicek,
           districts,
-          staffId: filterStaffId || null,
+          staffId:
+            (isManager || isAdmin)
+              ? (filterStaffId || null)
+              : myUserId,
           kaipoke_cs_id: filterKaipokeCsId || null,
         }),
       });
@@ -355,27 +358,30 @@ const DisabilityCheckPage: React.FC = () => {
   useEffect(() => {
     if (didInitFromUrl) return;
 
-    // メンバーは myUserId が必要（role取得完了待ち）
-    if (!isManager && !myUserId) return;
+    // role 取得が終わるまで待つ
+    if (!myUserId && !isManager && !isAdmin) return;
 
-    // 利用者（新: kaipoke_cs_id / 旧: cs）
-    const cs = searchParams.get("kaipoke_cs_id") ?? searchParams.get("cs") ?? "";
-
-    // 実績担当者（新: user_id / 旧: staffId）
-    const staff = searchParams.get("user_id") ?? searchParams.get("staffId") ?? "";
+    const cs =
+      searchParams.get("kaipoke_cs_id") ??
+      searchParams.get("cs") ??
+      "";
 
     setFilterKaipokeCsId(cs);
 
-    // member は必ず自分固定（URLで何が来ても上書き）
-    if (!(isManager || isAdmin)) {
-      setFilterStaffId(myUserId);
-    } else {
-      // manager/admin は URL 指定があればそれを採用、なければ全件
+    if (isManager || isAdmin) {
+      // manager / admin は URL 指定を尊重
+      const staff =
+        searchParams.get("user_id") ??
+        searchParams.get("staffId") ??
+        "";
       setFilterStaffId(staff);
+    } else {
+      // member は常に自分固定
+      setFilterStaffId(myUserId);
     }
 
     setDidInitFromUrl(true);
-  }, [didInitFromUrl, searchParams, isManager, myUserId]);
+  }, [didInitFromUrl, searchParams, isManager, isAdmin, myUserId]);
 
   // ★追加⑥：state → URL（クエリ）同期
   useEffect(() => {
