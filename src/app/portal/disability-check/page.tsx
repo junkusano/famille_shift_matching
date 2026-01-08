@@ -353,7 +353,7 @@ const DisabilityCheckPage: React.FC = () => {
 
         // 2) role を view から取得（data/error の名前衝突を避ける）
         const { data: roleRow, error: roleErr } = await supabase
-          .from("user_entry_united_view")
+          .from("user_entry_united_view_single")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
@@ -460,8 +460,11 @@ const DisabilityCheckPage: React.FC = () => {
 
   /** フィルタ変更で再読込 */
   useEffect(() => {
+    // member で myUserId がまだ取れていない間は呼ばない（空 staffId を送らない）
+    if (!(isManager || isAdmin) && !myUserId) return;
+
     fetchRecords();
-  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId]);
+  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId, isManager, isAdmin, myUserId]);
 
   return (
     <div>
