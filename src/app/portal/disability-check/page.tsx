@@ -208,7 +208,9 @@ const DisabilityCheckPage: React.FC = () => {
         yearMonth,
         kaipokeServicek,
         districts,
-        staffId: (isManager || isAdmin) ? (filterStaffId || null) : null,
+        staffId: (isManager || isAdmin)
+          ? (filterStaffId || null)     // manager/admin: 未選択なら全件
+          : (myUserId || null),         // member: 自分固定
         kaipoke_cs_id: filterKaipokeCsId || null,
       };
 
@@ -478,8 +480,11 @@ const DisabilityCheckPage: React.FC = () => {
 
   /** フィルタ変更で再読込 */
   useEffect(() => {
+    // member なのに myUserId がまだ取れていない間は呼ばない
+    if (!(isManager || isAdmin) && !myUserId) return;
+
     fetchRecords();
-  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId]);
+  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId, isManager, isAdmin, myUserId]);
 
   return (
     <div>

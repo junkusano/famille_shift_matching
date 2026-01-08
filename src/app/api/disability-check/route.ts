@@ -77,8 +77,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const role = String(me.system_role ?? "").toLowerCase();
-    const isMember = role === "member";
+    const role = String(me.system_role ?? "").trim().toLowerCase();
+
+    // admin/manager を明示し、それ以外はすべて member 扱いに寄せる（値ゆれ吸収）
+    const isAdmin = role === "admin" || role === "super_admin";
+    const isManager = role === "manager" || isAdmin;
+    const isMember = !isManager;
+
     const myUserId = String(me.user_id);
 
     // ★要件：member=自分のみ / manager・admin=全件（＝絞り込み無し）
