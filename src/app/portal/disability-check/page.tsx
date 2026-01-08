@@ -368,7 +368,7 @@ const DisabilityCheckPage: React.FC = () => {
 
         // 2) role を view から取得（data/error の名前衝突を避ける）
         const { data: roleRow, error: roleErr } = await supabase
-          .from("user_entry_united_view")
+          .from("user_entry_united_view_single")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
@@ -382,8 +382,11 @@ const DisabilityCheckPage: React.FC = () => {
         }
 
         const role = String(roleRow?.system_role ?? "").toLowerCase();
-        setIsAdmin(role === "admin");
-        setIsManager(role === "manager" || role === "admin");
+        const isAdminRole = role === "admin" || role === "super_admin";
+        const isManagerRole = role === "manager" || isAdminRole;
+
+        setIsAdmin(isAdminRole);
+        setIsManager(isManagerRole);
         setMyUserId(String(roleRow?.user_id ?? ""));
       } catch (e) {
         console.error("Failed to determine role", e);
