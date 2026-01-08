@@ -355,28 +355,44 @@ const DisabilityCheckPage: React.FC = () => {
         const authUserId = userData.user.id;
 
         // 2) role を view から取得（data/error の名前衝突を避ける）
-        const { data: roleRow, error: roleErr } = await supabase
+        // 2) まず single を試す
+        const { data: roleRow1, error: roleErr1 } = await supabase
           .from("user_entry_united_view_single")
           .select("system_role,user_id")
           .eq("auth_user_id", authUserId)
           .maybeSingle();
 
-        if (roleErr) {
-          console.error("Failed to load system_role", roleErr);
+        let roleRow = roleRow1;
+        let roleErr = roleErr1;
+
+        // 3) single が取れない/ user_id が空なら、fallback で united_view を試す
+        if (!roleErr && (!roleRow?.user_id || !roleRow?.system_role)) {
+          const { data: roleRow2, error: roleErr2 } = await supabase
+            .from("user_entry_united_view")
+            .select("system_role,user_id")
+            .eq("auth_user_id", authUserId)
+            .maybeSingle();
+
+          roleRow = roleRow2;
+          roleErr = roleErr2;
+        }
+
+        if (roleErr || !roleRow?.user_id) {
+          console.error("Failed to load system_role (no row)", roleErr);
           setIsAdmin(false);
           setIsManager(false);
           setMyUserId("");
           return;
         }
 
-        const role = String(roleRow?.system_role ?? "").trim().toLowerCase();
-
+        const role = String(roleRow.system_role ?? "").trim().toLowerCase();
         const isAdminRole = role === "admin" || role === "super_admin";
         const isManagerRole = role === "manager" || isAdminRole;
 
         setIsAdmin(isAdminRole);
         setIsManager(isManagerRole);
-        setMyUserId(String(roleRow?.user_id ?? ""));
+        setMyUserId(String(roleRow.user_id));
+
       } catch (e) {
         console.error("Failed to determine role", e);
         setIsAdmin(false);
