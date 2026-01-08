@@ -74,6 +74,9 @@ const DisabilityCheckPage: React.FC = () => {
   const [isManager, setIsManager] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
+  // ★追加：member 判定（manager/admin 以外はすべて member）
+  const isMember = !(isManager || isAdmin);
+
   // ★追加：ログインユーザー自身の user_id（＝ asigned_jisseki_staff_id と同じ系統のID）
   const [myUserId, setMyUserId] = useState<string>("");
 
@@ -366,9 +369,13 @@ const DisabilityCheckPage: React.FC = () => {
           return;
         }
 
-        const role = String(roleRow?.system_role ?? "").toLowerCase();
-        setIsAdmin(role === "admin");
-        setIsManager(role === "manager" || role === "admin");
+        const role = String(roleRow?.system_role ?? "").trim().toLowerCase();
+
+        const isAdminRole = role === "admin" || role === "super_admin";
+        const isManagerRole = role === "manager" || isAdminRole;
+
+        setIsAdmin(isAdminRole);
+        setIsManager(isManagerRole);
         setMyUserId(String(roleRow?.user_id ?? ""));
       } catch (e) {
         console.error("Failed to determine role", e);
@@ -593,9 +600,9 @@ const DisabilityCheckPage: React.FC = () => {
           実績担当者
           <select
             value={filterStaffId}
-            disabled={!(isManager || isAdmin)}
+            disabled={isMember} // ★memberのみ無効
             onChange={(e) => {
-              if (!(isManager || isAdmin)) return;
+              if (isMember) return;
               setFilterStaffId(e.target.value);
             }}
             style={{ width: 220 }}
@@ -734,9 +741,9 @@ const DisabilityCheckPage: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={!!r.is_checked}
-                    disabled={!(isManager || isAdmin)}
+                    disabled={isMember} // ★memberのみ無効
                     onChange={(e) => {
-                      if (!(isManager || isAdmin)) return;
+                      if (isMember) return;
                       handleCheckChange(r, e.target.checked);
                     }}
                     style={{ display: "inline-block" }}
