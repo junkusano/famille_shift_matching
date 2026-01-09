@@ -99,6 +99,29 @@ const emptyDraft = (): TemplateDraft => ({
 const triggerDisabledClass = (disabled: boolean) =>
     disabled ? "pointer-events-none opacity-60" : "";
 
+async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    if (!token) {
+        // ログイン切れ等
+        throw new Error("ログイン情報が取得できません（tokenなし）");
+    }
+
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+
+    // JSON送るとき用（指定がない場合だけ）
+    if (!headers.has("Content-Type") && init.body) {
+        headers.set("Content-Type", "application/json");
+    }
+
+    return fetch(input, {
+        ...init,
+        headers,
+        cache: "no-store",
+    });
+}
 
 export default function Page() {
     const [loading, setLoading] = useState(false);
@@ -124,15 +147,10 @@ export default function Page() {
         setLoading(true);
         try {
 
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData.session?.access_token;
+            //const { data: sessionData } = await supabase.auth.getSession();
+            //const accessToken = sessionData.session?.access_token;
 
-            const res = await fetch("/api/event-template", {
-                cache: "no-store",
-                headers: {
-                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-                },
-            });
+            const res = await fetchWithAuth("/api/event-template");
 
             //const res = await fetch("/api/event-template", { cache: "no-store" });
             const json = await res.json();
@@ -237,9 +255,8 @@ export default function Page() {
 
         setLoading(true);
         try {
-            const res = await fetch("/api/event-template", {
+            const res = await fetchWithAuth("/api/event-template", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
             const json = await res.json();
@@ -264,11 +281,11 @@ export default function Page() {
 
         setLoading(true);
         try {
-            const res = await fetch(`/api/event-template/${editId}`, {
+            const res = await fetchWithAuth(`/api/event-template/${editId}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
+
             const json = await res.json();
             if (!res.ok) throw new Error(json?.error ?? "Update failed");
 
@@ -288,7 +305,9 @@ export default function Page() {
 
         setLoading(true);
         try {
-            const res = await fetch(`/api/event-template/${id}`, { method: "DELETE" });
+            const res = await fetchWithAuth(`/api/event-template/${id}`, {
+                method: "DELETE",
+            });
             const json = await res.json();
             if (!res.ok) throw new Error(json?.error ?? "Delete failed");
             await refresh();
