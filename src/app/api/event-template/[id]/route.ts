@@ -1,32 +1,32 @@
-//api/event-template/[id]/route.ts
+// src/app/api/event-template/[id]/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { supabaseAdmin } from "@/lib/supabase/service";
 import { isAdminByAuthUserId } from "@/lib/auth/isAdmin";
 import type { UpsertEventTemplatePayload } from "@/types/eventTemplate";
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
+async function getUserFromBearer(req: Request) {
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return { user: null as any, error: "Missing token" };
 
-export async function PUT(req: Request, { params }: RouteContext) {
-  const supabase = createRouteHandlerClient({ cookies });
-
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
-
-  if (authErr || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data?.user) {
+    return { user: null as any, error: error?.message ?? "Invalid token" };
   }
+  return { user: data.user, error: null as string | null };
+}
 
-  const admin = await isAdminByAuthUserId(supabase, user.id);
-  if (!admin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+// Next.js App Router route handler の ctx.params は通常 {id:string}
+type Ctx = { params: { id: string } };
 
-  const { id } = await params;
+export async function PUT(req: Request, ctx: Ctx) {
+  const { user, error } = await getUserFromBearer(req);
+  if (!user) return NextResponse.json({ error: error ?? "Unauthorized" }, { status: 401 });
+
+  const admin = await isAdminByAuthUserId(supabaseAdmin as any, user.id);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const id = ctx.params.id;
 
   const body = (await req.json()) as UpsertEventTemplatePayload;
 
@@ -37,7 +37,8 @@ export async function PUT(req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "required_docs is required" }, { status: 400 });
   }
 
-  const { error: uErr } = await supabase
+  // 1) template update
+  const { error: uErr } = await supabaseAdmin
     .from("event_template")
     .update({
       template_name: body.template_name.trim(),
@@ -51,7 +52,8 @@ export async function PUT(req: Request, { params }: RouteContext) {
 
   if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
-  const { error: dErr } = await supabase
+  // 2) required_docs 全入替
+  const { error: dErr } = await supabaseAdmin
     .from("event_template_required_docs")
     .delete()
     .eq("template_id", id);
@@ -67,49 +69,41 @@ export async function PUT(req: Request, { params }: RouteContext) {
   }));
 
   if (rows.length) {
-    const { error: iErr } = await supabase.from("event_template_required_docs").insert(rows);
+    const { error: iErr } = await supabaseAdmin.from("event_template_required_docs").insert(rows);
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(req: Request, { params }: RouteContext) {
-  const supabase = createRouteHandlerClient({ cookies });
+export async function DELETE(req: Request, ctx: Ctx) {
+  const { user, error } = await getUserFromBearer(req);
+  if (!user) return NextResponse.json({ error: error ?? "Unauthorized" }, { status: 401 });
 
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
+  const admin = await isAdminByAuthUserId(supabaseAdmin as any, user.id);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  if (authErr || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const admin = await isAdminByAuthUserId(supabase, user.id);
-  if (!admin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const { id } = await params;
+  const id = ctx.params.id;
 
   const url = new URL(req.url);
   const hard = url.searchParams.get("hard") === "1";
 
   if (hard) {
-    const { error: dErr } = await supabase
+    // 子→親
+    const { error: dErr } = await supabaseAdmin
       .from("event_template_required_docs")
       .delete()
       .eq("template_id", id);
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
-    const { error: tErr } = await supabase.from("event_template").delete().eq("id", id);
+    const { error: tErr } = await supabaseAdmin.from("event_template").delete().eq("id", id);
     if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
 
     return NextResponse.json({ ok: true, hard: true });
   }
 
-  const { error: uErr } = await supabase
+  // inactive化
+  const { error: uErr } = await supabaseAdmin
     .from("event_template")
     .update({ is_active: false })
     .eq("id", id);

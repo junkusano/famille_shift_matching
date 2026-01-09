@@ -23,6 +23,7 @@ import {
     //SelectTrigger,
     //SelectValue,
 } from "@/components/ui/select";
+import { supabase } from "@/lib/supabaseClient";
 
 import type {
     CheckSource,
@@ -122,7 +123,18 @@ export default function Page() {
     const refresh = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/event-template", { cache: "no-store" });
+
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const res = await fetch("/api/event-template", {
+                cache: "no-store",
+                headers: {
+                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+            });
+
+            //const res = await fetch("/api/event-template", { cache: "no-store" });
             const json = await res.json();
             console.log("event-template api admin=", json.admin, json);
             if (!res.ok) throw new Error(json?.error ?? "Failed to load");
