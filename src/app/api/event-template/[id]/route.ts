@@ -5,8 +5,7 @@ import { isAdminByAuthUserId } from "@/lib/auth/isAdmin";
 import type { UpsertEventTemplatePayload } from "@/types/eventTemplate";
 import type { User } from "@supabase/supabase-js";
 
-type RouteParams = { params: { id: string } };
-
+type RouteParams = { params: Promise<{ id: string }> };
 
 async function getUserFromBearer(req: Request): Promise<{ user: User | null; error: string | null }> {
   const auth = req.headers.get("authorization") ?? "";
@@ -21,13 +20,14 @@ async function getUserFromBearer(req: Request): Promise<{ user: User | null; err
 }
 
 export async function PUT(req: Request, { params }: RouteParams) {
+  const { id } = await params;
+
   const { user } = await getUserFromBearer(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = await isAdminByAuthUserId(supabaseAdmin as never, user.id);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const id = params.id;
   const body = (await req.json()) as UpsertEventTemplatePayload;
 
   if (!body?.template_name?.trim()) {
@@ -80,13 +80,14 @@ export async function PUT(req: Request, { params }: RouteParams) {
 }
 
 export async function DELETE(req: Request, { params }: RouteParams) {
+  const { id } = await params;
+
   const { user } = await getUserFromBearer(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = await isAdminByAuthUserId(supabaseAdmin as never, user.id);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const id = params.id;
   const url = new URL(req.url);
   const hard = url.searchParams.get("hard") === "1";
 
