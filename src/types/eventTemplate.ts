@@ -37,6 +37,7 @@ export type EventTemplateRequiredDocRow = {
   // join 表示用（APIで付与）
   doc_category?: string;
   doc_label?: string;
+  doc_master_is_active: boolean | null; // ✅ これを追加
 };
 
 export type EventTemplateWithDocs = EventTemplateRow & {
