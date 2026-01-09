@@ -68,22 +68,19 @@ export async function GET(req: Request) {
   const docsByTemplate = new Map<string, EventTemplateRequiredDocRow[]>();
   (reqDocs ?? []).forEach((r) => {
     const m = docMap.get(r.doc_type_id);
-    export type EventTemplateRequiredDocRow = {
-      id: string;
-      template_id: string;
-      doc_type_id: string;
-      check_source: string; // CheckSource でもOK
-      sort_order: number;
-      memo: string | null;
-      created_at: string;
-      updated_at: string;
-
-      // join表示用
-      doc_category: string | null;
-      doc_label: string | null;
-      doc_master_is_active: boolean | null; // ✅ これを追加
+    const row: EventTemplateRequiredDocRow = {
+      id: r.id,
+      template_id: r.template_id,
+      doc_type_id: r.doc_type_id,
+      check_source: r.check_source,
+      sort_order: r.sort_order,
+      memo: r.memo,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      doc_category: m?.category ?? null,
+      doc_label: m?.label ?? null,
+      doc_master_is_active: m?.is_active ?? null,
     };
-
 
     const arr = docsByTemplate.get(r.template_id) ?? [];
     arr.push(row);
