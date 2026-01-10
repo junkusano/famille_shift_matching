@@ -86,6 +86,8 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者情報</Link></li>
           <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
           <li><Link href="/portal/cs_docs" className="text-blue-300 hover:underline">利用者書類一覧</Link></li>
+          <li><Link href="/portal/event-tasks" className="text-blue-300 hover:underline">イベント管理</Link></li> 
+          <li><Link href="/portal/event-template" className="text-blue-300 hover:underline">イベントテンプレート管理</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>
           <li><Link href="/portal/fax-sending" className="text-blue-300 hover:underline">fax送付</Link></li>
           <li><Link href="/portal/fax" className="text-blue-300 hover:underline">fax電話帳</Link></li>
