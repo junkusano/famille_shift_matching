@@ -21,9 +21,16 @@ import type {
     EventTaskStatus,
     EventTaskView,
     RequiredDocStatus,
+    UpdateEventTaskPayload,
 } from "@/types/eventTasks";
 
 type ApiTasksResponse = { admin: boolean; tasks: EventTaskView[] };
+
+type ApiErrorBody = { message?: string };
+
+function errMsg(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
 
 async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
     const { data } = await supabase.auth.getSession();
@@ -45,8 +52,9 @@ async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
         throw new Error("ログインが切れました。再ログインしてください。");
     }
     if (!res.ok) {
-        const j = await res.json().catch(() => null);
+        const j = (await res.json().catch(() => null)) as ApiErrorBody | null;
         throw new Error(j?.message ?? `API error: ${res.status}`);
+
     }
     return res;
 }
@@ -117,8 +125,8 @@ export default function EventTasksPage() {
             const res = await fetchWithAuth(`/api/event-tasks?${qs.toString()}`, { method: "GET" });
             const j = (await res.json()) as ApiTasksResponse;
             setTasks(j.tasks ?? []);
-        } catch (e: any) {
-            setError(e?.message ?? String(e));
+        } catch (e: unknown) {
+            setError(errMsg(e));
         } finally {
             setLoading(false);
         }
@@ -165,13 +173,14 @@ export default function EventTasksPage() {
             setEditId("");
             await reload();
             alert("作成しました");
-        } catch (e: any) {
-            setError(e?.message ?? String(e));
-            alert(e?.message ?? String(e));
+        } catch (e: unknown) {
+            const m = errMsg(e);
+            setError(m);
+            alert(m);
         }
     }
 
-    async function onUpdateTask(patch: any) {
+    async function onUpdateTask(patch: UpdateEventTaskPayload) {
         if (!editTask) return;
         setError(null);
         try {
@@ -181,9 +190,10 @@ export default function EventTasksPage() {
             });
             await reload();
             alert("更新しました");
-        } catch (e: any) {
-            setError(e?.message ?? String(e));
-            alert(e?.message ?? String(e));
+        } catch (e: unknown) {
+            const m = errMsg(e);
+            setError(m);
+            alert(m);
         }
     }
 
@@ -200,9 +210,10 @@ export default function EventTasksPage() {
             setEditId("");
             await reload();
             alert("削除しました");
-        } catch (e: any) {
-            setError(e?.message ?? String(e));
-            alert(e?.message ?? String(e));
+        } catch (e: unknown) {
+            const m = errMsg(e);
+            setError(m);
+            alert(m);
         }
     }
 
@@ -263,7 +274,7 @@ export default function EventTasksPage() {
                                     .filter((t) => t.is_active)
                                     .map((t) => (
                                         <SelectItem key={t.id} value={t.id}>
-                                            {t.template_name}
+                                            {!t.is_active ? `（inactive）${t.template_name}` : t.template_name}
                                         </SelectItem>
                                     ))}
                             </Select>
@@ -392,7 +403,7 @@ export default function EventTasksPage() {
                                 <div className="text-sm text-muted-foreground">status</div>
                                 <Select
                                     value={editTask.status}
-                                    onValueChange={(v) => onUpdateTask({ status: v })}
+                                    onValueChange={(v) => onUpdateTask({ status: v as EventTaskStatus })}
                                     disabled={!canUse || loading}
                                 >
                                     {TASK_STATUS.map((s) => (
