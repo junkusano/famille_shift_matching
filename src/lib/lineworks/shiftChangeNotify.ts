@@ -6,7 +6,7 @@ import { SignJWT, importPKCS8 } from "jose";
  * 送信先（ヘルパーマネジャー固定チャンネル）
  * ※ご指定：Channel_id：99142491
  */
-const MANAGER_CHANNEL_ID = "99142491";
+const MANAGER_CHANNEL_ID = "52e31296-6764-0a1e-5b37-11023360216b";
 
 // ====== LINE WORKS ENV ======
 // 既存の env 名が違っても吸収できるように複数候補で拾います
