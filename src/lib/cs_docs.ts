@@ -23,6 +23,7 @@ export type CsKaipokeInfo = {
   id: string;
   kaipoke_cs_id: string;
   name: string | null;
+  kana: string | null;
 };
 
 export type CsDocsInitialData = {
@@ -81,9 +82,12 @@ export async function getCsDocsInitialData(
 
   const { data: kaipokeList, error: kaipokeErr } = await supabase
     .from("cs_kaipoke_info")
-    .select("id, kaipoke_cs_id, name")
+    .select("id, kaipoke_cs_id, name, kana") // ★ kana追加
     .eq("is_active", true)
-    .order("name", { ascending: true });
+    .order("kana", { ascending: true })     // ★ kana昇順
+    .order("name", { ascending: true })     // 同かなの時の安定化（任意）
+    .order("kaipoke_cs_id", { ascending: true }); // さらに安定化（任意）
+
 
   if (kaipokeErr) throw new Error(`cs_kaipoke_info 取得エラー: ${kaipokeErr.message}`);
 

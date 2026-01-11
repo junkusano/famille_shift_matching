@@ -8,7 +8,9 @@ import type { EventTaskMetaResponse } from "@/types/eventTasks";
 type CsKaipokeInfoRow = {
     kaipoke_cs_id: string;
     name: string | null;
+    kana: string | null;
 };
+
 
 type UserEntryRow = {
     user_id: string;
@@ -37,15 +39,15 @@ export async function GET(req: NextRequest) {
     // clients（列名が環境で違う可能性があるので、多めに取って最後に整形）
     const { data: clientsRaw, error: cErr } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id, name")
-        .order("kaipoke_cs_id", { ascending: true })
+        .select("kaipoke_cs_id, name, kana")
+        .order("kana", { ascending: true, nullsFirst: false })
         .limit(5000);
 
     if (cErr) return NextResponse.json({ message: cErr.message }, { status: 500 });
 
     const clients = (clientsRaw ?? []).map((r: CsKaipokeInfoRow) => ({
         kaipoke_cs_id: r.kaipoke_cs_id,
-        name: r.name ?? r.kaipoke_cs_id,
+        name: r.name ?? r.kana ?? r.kaipoke_cs_id,
     }));
 
     // users（担当者選択用：user_entry_united_view_single を想定）
