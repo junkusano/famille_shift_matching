@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
-import { isAdminByAuthUserId } from "@/lib/auth/isAdmin";
+//import { isAdminByAuthUserId } from "@/lib/auth/isAdmin";
 import type { UpdateEventTaskPayload } from "@/types/eventTasks";
 
 type EventTaskUpdate = Partial<{
@@ -38,8 +38,8 @@ export async function PUT(req: NextRequest, context: unknown) {
   const { user } = await getUserFromBearer(req);
   if (!user) return bad("Missing token", 401);
 
-  const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
-  if (!admin) return bad("Forbidden", 403);
+  //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
+  //if (!admin) return bad("Forbidden", 403);
 
   const body = (await req.json().catch(() => null)) as UpdateEventTaskPayload | null;
   if (!body) return bad("Invalid JSON");
@@ -97,8 +97,8 @@ export async function DELETE(req: NextRequest, context: unknown) {
   const { user } = await getUserFromBearer(req);
   if (!user) return bad("Missing token", 401);
 
-  const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
-  if (!admin) return bad("Forbidden", 403);
+  //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
+  //if (!admin) return bad("Forbidden", 403);
 
   const url = new URL(req.url);
   const hard = url.searchParams.get("hard") === "1";

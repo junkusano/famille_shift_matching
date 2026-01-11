@@ -217,7 +217,8 @@ export default function EventTasksPage() {
         }
     }
 
-    const canUse = meta?.admin ?? false;
+    //const canUse = meta?.admin ?? false;
+    const canUse = true;
 
     return (
         <div className="p-6 space-y-6">
@@ -256,12 +257,6 @@ export default function EventTasksPage() {
                     <CardTitle>新規作成</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    {!canUse && (
-                        <div className="text-sm text-red-600">
-                            権限がありません（adminのみ）
-                        </div>
-                    )}
-
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="md:col-span-2">
                             <Select

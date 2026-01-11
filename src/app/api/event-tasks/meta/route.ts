@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
-import { isAdminByAuthUserId } from "@/lib/auth/isAdmin"; // ←既存パスに合わせて
+//import { isAdminByAuthUserId } from "@/lib/auth/isAdmin"; // ←既存パスに合わせて
 import type { EventTaskMetaResponse } from "@/types/eventTasks";
 
 type CsKaipokeInfoRow = {
@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
     const { user } = await getUserFromBearer(req);
     if (!user) return NextResponse.json({ message: "Missing token" }, { status: 401 });
 
-    const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
-    if (!admin) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
+    //if (!admin) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
     // templates
     const { data: templates, error: tErr } = await supabaseAdmin
@@ -65,12 +65,7 @@ export async function GET(req: NextRequest) {
             name: `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || r.user_id,
         }));
 
-    const res: EventTaskMetaResponse = {
-        admin,
-        templates: templates ?? [],
-        clients,
-        users,
-    };
+    const res: EventTaskMetaResponse = { admin: true, templates, clients, users };
 
     return NextResponse.json(res);
 }
