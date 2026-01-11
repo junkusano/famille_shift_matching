@@ -4,22 +4,22 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 //import { isAdminByAuthUserId } from "@/lib/auth/isAdminByAuthUserId";
 import type {
-  UpsertEventTaskPayload,
-  EventTaskView,
-  EventTaskRequiredDocView,
+    UpsertEventTaskPayload,
+    EventTaskView,
+    EventTaskRequiredDocView,
 } from "@/types/eventTasks";
 
 type RequiredDocRow = {
-  id: string;
-  event_task_id: string;
-  doc_type_id: string;
-  memo: string | null;
-  result_doc_id: string | null;
-  status: "pending" | "ok" | "ng" | "skipped";
-  checked_at: string | null;
-  checked_by_user_id: string | null;
-  created_at: string;
-  updated_at: string;
+    id: string;
+    event_task_id: string;
+    doc_type_id: string;
+    memo: string | null;
+    result_doc_id: string | null;
+    status: "pending" | "ok" | "ng" | "skipped";
+    checked_at: string | null;
+    checked_by_user_id: string | null;
+    created_at: string;
+    updated_at: string;
 };
 
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
                 ? supabaseAdmin.from("event_template").select("id,template_name").in("id", templateIds)
                 : Promise.resolve({ data: [], error: null }),
             csIds.length
-                ? supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id,client_name,name").in("kaipoke_cs_id", csIds)
+                ? supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id,name").in("kaipoke_cs_id", csIds)
                 : Promise.resolve({ data: [], error: null }),
             userIds.length
                 ? supabaseAdmin.from("user_entry_united_view_single").select("user_id,last_name_kanji,first_name_kanji").in("user_id", userIds as string[])
@@ -93,7 +93,12 @@ export async function GET(req: NextRequest) {
         : { data: [] };
 
     const templateMap = new Map((templates ?? []).map((r) => [r.id, r.template_name]));
-    const clientMap = new Map((clients ?? []).map((r) => [r.kaipoke_cs_id, (r.client_name ?? r.name ?? r.kaipoke_cs_id) as string]));
+    const clientMap = new Map(
+        (clients ?? []).map((r) => [
+            r.kaipoke_cs_id,
+            (r.name ?? r.kaipoke_cs_id) as string,
+        ])
+    );
     const userMap = new Map(
         (users ?? []).map((r) => [
             r.user_id,

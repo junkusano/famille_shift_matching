@@ -24,7 +24,7 @@ import type {
     UpdateEventTaskPayload,
 } from "@/types/eventTasks";
 
-type ApiTasksResponse = { admin: boolean; tasks: EventTaskView[] };
+type ApiTasksResponse = { tasks: EventTaskView[] };
 
 type ApiErrorBody = { message?: string };
 
@@ -257,6 +257,7 @@ export default function EventTasksPage() {
                     <CardTitle>新規作成</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div className="md:col-span-2">
                             <Select
@@ -276,18 +277,21 @@ export default function EventTasksPage() {
                         </div>
 
                         <div className="md:col-span-2">
-                            <Select
-                                value={clientId}
-                                onValueChange={setClientId}
-                                placeholder="利用者選択"
-                                disabled={!canUse || loading}
-                            >
-                                {(meta?.clients ?? []).map((c) => (
-                                    <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
-                                        {c.client_name}（{c.kaipoke_cs_id}）
-                                    </SelectItem>
-                                ))}
-                            </Select>
+                            <div className="md:col-span-2">
+                                <Select
+                                    value={clientId}
+                                    onValueChange={setClientId}
+                                    placeholder="利用者選択"
+                                    disabled={!canUse || loading}
+                                >
+                                    {(meta?.clients ?? []).map((c) => (
+                                        <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+                                            {c.name}（{c.kaipoke_cs_id}）
+                                        </SelectItem>
+                                    ))}
+                                </Select>
+                            </div>
+
                         </div>
 
                         <div className="md:col-span-2">

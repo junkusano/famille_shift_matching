@@ -80,6 +80,6 @@ export type UpdateEventTaskPayload = Partial<Omit<UpsertEventTaskPayload, "templ
 export type EventTaskMetaResponse = {
   admin: boolean;
   templates: Array<Pick<EventTemplateRow, "id" | "template_name" | "overview" | "due_rule_type" | "due_offset_days" | "is_active">>;
-  clients: Array<{ kaipoke_cs_id: string; client_name: string }>;
+  clients: { kaipoke_cs_id: string; name: string }[];
   users: Array<{ user_id: string; name: string }>;
 };
