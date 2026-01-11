@@ -3,7 +3,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 //import { isAdminByAuthUserId } from "@/lib/auth/isAdminByAuthUserId";
-import type { UpsertEventTaskPayload, EventTaskView } from "@/types/eventTasks";
+import type {
+  UpsertEventTaskPayload,
+  EventTaskView,
+  EventTaskRequiredDocView,
+} from "@/types/eventTasks";
+
+type RequiredDocRow = {
+  id: string;
+  event_task_id: string;
+  doc_type_id: string;
+  memo: string | null;
+  result_doc_id: string | null;
+  status: "pending" | "ok" | "ng" | "skipped";
+  checked_at: string | null;
+  checked_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 
 export const dynamic = "force-dynamic";
 
@@ -61,21 +79,23 @@ export async function GET(req: NextRequest) {
                 : Promise.resolve({ data: [], error: null }),
         ]);
 
+    const reqDocsRows = (reqDocs ?? []) as RequiredDocRow[];
+
     if (rdErr) return NextResponse.json({ message: rdErr.message }, { status: 500 });
     if (tplErr) return NextResponse.json({ message: tplErr.message }, { status: 500 });
     if (cErr) return NextResponse.json({ message: cErr.message }, { status: 500 });
     if (uErr) return NextResponse.json({ message: uErr.message }, { status: 500 });
 
     // doc master 名称（列名は環境差あり得るので最小限で）
-    const docTypeIds = Array.from(new Set((reqDocs ?? []).map((d: any) => d.doc_type_id)));
+    const docTypeIds = Array.from(new Set((reqDocs ?? []).map((d) => d.doc_type_id)));
     const { data: docMasters } = docTypeIds.length
         ? await supabaseAdmin.from("user_doc_master").select("*").in("id", docTypeIds)
-        : { data: [] as any[] };
+        : { data: [] };
 
-    const templateMap = new Map((templates ?? []).map((r: any) => [r.id, r.template_name]));
-    const clientMap = new Map((clients ?? []).map((r: any) => [r.kaipoke_cs_id, (r.client_name ?? r.name ?? r.kaipoke_cs_id) as string]));
+    const templateMap = new Map((templates ?? []).map((r) => [r.id, r.template_name]));
+    const clientMap = new Map((clients ?? []).map((r) => [r.kaipoke_cs_id, (r.client_name ?? r.name ?? r.kaipoke_cs_id) as string]));
     const userMap = new Map(
-        (users ?? []).map((r: any) => [
+        (users ?? []).map((r) => [
             r.user_id,
             `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || r.user_id,
         ])
@@ -83,11 +103,11 @@ export async function GET(req: NextRequest) {
 
     // doc master の表示名候補（doc_name / name / title などに寄せる）
     const docNameMap = new Map(
-        (docMasters ?? []).map((r: any) => [r.id, (r.doc_name ?? r.name ?? r.title ?? r.id) as string])
+        (docMasters ?? []).map((r) => [r.id, (r.doc_name ?? r.name ?? r.title ?? r.id) as string])
     );
 
-    const docsByTask = new Map<string, any[]>();
-    for (const d of reqDocs ?? []) {
+    const docsByTask = new Map<string, EventTaskRequiredDocView[]>();
+    for (const d of reqDocsRows) {
         const arr = docsByTask.get(d.event_task_id) ?? [];
         arr.push({
             ...d,
@@ -96,7 +116,7 @@ export async function GET(req: NextRequest) {
         docsByTask.set(d.event_task_id, arr);
     }
 
-    const result: EventTaskView[] = (tasks ?? []).map((t: any) => ({
+    const result: EventTaskView[] = (tasks ?? []).map((t) => ({
         ...t,
         template_name: templateMap.get(t.template_id) ?? null,
         client_name: clientMap.get(t.kaipoke_cs_id) ?? null,
@@ -149,7 +169,7 @@ export async function POST(req: NextRequest) {
 
         if (tdErr) return NextResponse.json({ message: tdErr.message }, { status: 500 });
 
-        reqDocsPayload = (tplDocs ?? []).map((d: any) => ({
+        reqDocsPayload = (tplDocs ?? []).map((d) => ({
             doc_type_id: d.doc_type_id as string,
             memo: d.memo ?? null,
             status: "pending" as const,
