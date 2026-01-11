@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import Footer from '@/components/Footer'
+import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -40,9 +41,10 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: `${origin}/signup/complete`,
       },
     })
+
 
     if (error) {
       setLoading(false)
@@ -65,26 +67,27 @@ export default function LoginPage() {
       <h1 className="text-xl font-bold mb-4">ログイン</h1>
 
       {/* OAuth */}
-      <div className="space-y-2 mb-6">
-        <button
-          type="button"
-          onClick={() => handleOAuthLogin('google')}
+      <div className="grid gap-2">
+        <Button
+          variant="outline"
+          onClick={() => handleOAuthLogin("google")}
+          className="w-full justify-start gap-2"
           disabled={loading}
-          className="w-full border px-4 py-2 rounded disabled:opacity-60"
         >
+          <img src="/icons/google.svg" alt="" className="h-5 w-5" />
           Googleでログイン
-        </button>
+        </Button>
 
-        <button
-          type="button"
-          onClick={() => handleOAuthLogin('facebook')}
+        <Button
+          variant="outline"
+          onClick={() => handleOAuthLogin("facebook")}
+          className="w-full justify-start gap-2"
           disabled={loading}
-          className="w-full border px-4 py-2 rounded disabled:opacity-60"
         >
+          <img src="/icons/facebook.png" alt="" className="h-5 w-5" />
           Facebookでログイン
-        </button>
+        </Button>
       </div>
-
       <div className="my-4 text-center text-sm text-gray-500">または</div>
 
       {/* Email/Password */}
