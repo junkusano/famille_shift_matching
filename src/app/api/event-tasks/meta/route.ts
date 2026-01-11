@@ -13,11 +13,11 @@ type CsKaipokeInfoRow = {
 
 
 type UserEntryRow = {
-    user_id: string;
-    last_name_kanji: string | null;
-    first_name_kanji: string | null;
+  user_id: string;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+  roster_sort: number | null;
 };
-
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +53,8 @@ export async function GET(req: NextRequest) {
     // users（担当者選択用：user_entry_united_view_single を想定）
     const { data: usersRaw, error: uErr } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id,last_name_kanji,first_name_kanji,status,system_role")
-        .order("last_name_kanji", { ascending: true })
+        .select("user_id,last_name_kanji,first_name_kanji,roster_sort,status,system_role")
+        .order("roster_sort", { ascending: true, nullsLast: true })
         .limit(5000);
 
     if (uErr) return NextResponse.json({ message: uErr.message }, { status: 500 });
