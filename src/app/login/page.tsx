@@ -74,7 +74,7 @@ export default function LoginPage() {
           className="w-full justify-start gap-2"
           disabled={loading}
         >
-          <img src="/icons/google.svg" alt="" className="h-5 w-5" />
+          <img src="/icons/google.png" alt="" className="h-5 w-5" />
           Googleでログイン
         </Button>
 
