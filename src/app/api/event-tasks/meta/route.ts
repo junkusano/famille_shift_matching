@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     const { data: usersRaw, error: uErr } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select("user_id,last_name_kanji,first_name_kanji,roster_sort,status,system_role")
-        .order("roster_sort", { ascending: true, nullsLast: true })
+        .order("roster_sort", { ascending: true, nullsFirst: false })
         .limit(5000);
 
     if (uErr) return NextResponse.json({ message: uErr.message }, { status: 500 });
