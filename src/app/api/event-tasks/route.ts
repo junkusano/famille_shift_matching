@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
 
     if (!reqDocsPayload) {
         const { data: tplDocs, error: tdErr } = await supabaseAdmin
-            .from("event_template_require_docs")
+            .from("event_template_required_docs")
             .select("doc_type_id,memo,sort_order")
             .eq("template_id", body.template_id)
             .order("sort_order", { ascending: true });
