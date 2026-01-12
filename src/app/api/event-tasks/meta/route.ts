@@ -19,13 +19,6 @@ type UserEntryRow = {
   roster_sort: number | null;
 };
 
-type DocTypeRow = {
-  id: string;
-  doc_name: string | null;
-  name: string | null;
-  title: string | null;
-};
-
 export async function GET(req: NextRequest) {
   const { user } = await getUserFromBearer(req);
   if (!user) return NextResponse.json({ message: "Missing token" }, { status: 401 });
@@ -39,18 +32,23 @@ export async function GET(req: NextRequest) {
   if (tErr) return NextResponse.json({ message: tErr.message }, { status: 500 });
 
   // doc types（必要書類追加用）
-  const { data: docTypesRaw, error: dErr } = await supabaseAdmin
-    .from("user_doc_master")
-    .select("id,doc_name,name,title")
-    .order("doc_name", { ascending: true, nullsFirst: false })
-    .limit(5000);
 
-  if (dErr) return NextResponse.json({ message: dErr.message }, { status: 500 });
+const { data: docTypesRaw, error: dErr } = await supabaseAdmin
+  .from("user_doc_master")
+  .select("id,label,sort_order,is_active")
+  .eq("is_active", true)
+  .order("sort_order", { ascending: true })
+  .limit(5000);
 
-  const doc_types = (docTypesRaw ?? []).map((r: DocTypeRow) => ({
-    id: r.id,
-    name: (r.doc_name ?? r.name ?? r.title ?? r.id) as string,
-  }));
+if (dErr) {
+  return NextResponse.json({ message: dErr.message }, { status: 500 });
+}
+
+const doc_types = (docTypesRaw ?? []).map((r) => ({
+  id: r.id,
+  name: r.label, // ← 正式名称
+}));
+
 
   // clients（kana 昇順）
   const { data: clientsRaw, error: cErr } = await supabaseAdmin
