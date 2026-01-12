@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { ParkingPlace } from "@/types/parking-places";
 
 /** -----------------------------
  *  util: ISO → input[type=datetime-local] 値（先に宣言しておく）
@@ -151,6 +152,54 @@ export default function KaipokeInfoDetailPage() {
     const [newDocLabel, setNewDocLabel] = useState('');
 
     const [timeAdjustOptions, setTimeAdjustOptions] = useState<TimeAdjustRow[]>([]);
+
+    const [parkingPlaces, setParkingPlaces] = useState<ParkingPlace[]>([]);
+    const [newParkingPlace, setNewParkingPlace] = useState<ParkingPlace>({
+        id: "",
+        kaipoke_cs_id: "", // 必要に応じて設定
+        serial: 0,
+        label: "",
+        location_link: "",
+        parking_orientation: "北向き", // デフォルトで北向き
+        permit_required: true, // 許可証必要
+        remarks: "",
+        picture1_url: null,
+        picture2_url: null,
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setNewParkingPlace((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSave = async () => {
+        const { data, error } = await supabase
+            .from("parking_cs_places")
+            .upsert([newParkingPlace]);
+
+        if (error) {
+            alert("保存エラー");
+            return;
+        }
+
+        setParkingPlaces((prev) => [...prev, data[0]])
+        alert("保存しました");
+    };
+
+    const handleDelete = async (id: string) => {
+        const { error } = await supabase
+            .from("parking_cs_places")
+            .delete()
+            .eq("id", id);
+
+        if (error) {
+            alert("削除エラー");
+            return;
+        }
+
+        setParkingPlaces((prev) => prev.filter((item) => item.id !== id));
+        alert("削除しました");
+    };
 
 
     // 書類の編集用（id ごとに一時値を保持）
@@ -742,6 +791,75 @@ export default function KaipokeInfoDetailPage() {
                 </div>
             </div>
 
+            <div>
+                {/* 駐車場所フォーム */}
+                <div>
+                    <h3>駐車場所の追加・編集</h3>
+                    <input
+                        type="text"
+                        name="label"
+                        value={newParkingPlace.label}
+                        onChange={handleChange}
+                        placeholder="駐車場所ラベル"
+                    />
+                    <input
+                        type="text"
+                        name="location_link"
+                        value={newParkingPlace.location_link}
+                        onChange={handleChange}
+                        placeholder="Googleマップリンク"
+                    />
+                    <select
+                        name="parking_orientation"
+                        value={newParkingPlace.parking_orientation}
+                        onChange={handleChange}
+                    >
+                        <option value="北向き">北向き</option>
+                        <option value="東向き">東向き</option>
+                        <option value="南向き">南向き</option>
+                        <option value="西向き">西向き</option>
+                        <option value="北東向き">北東向き</option>
+                        <option value="南東向き">南東向き</option>
+                        <option value="南西向き">南西向き</option>
+                        <option value="北西向き">北西向き</option>
+                    </select>
+                    <input
+                        type="checkbox"
+                        name="permit_required"
+                        checked={newParkingPlace.permit_required}
+                        onChange={(e) => setNewParkingPlace({ ...newParkingPlace, permit_required: e.target.checked })}
+                    />
+                    <span>許可証が必要</span>
+                    <textarea
+                        name="remarks"
+                        value={newParkingPlace.remarks}
+                        onChange={handleChange}
+                        placeholder="備考"
+                    />
+                    <input
+                        type="file"
+                        name="picture1_url"
+                        onChange={(e) => handleImageUpload(e, 1)}
+                    />
+                    <input
+                        type="file"
+                        name="picture2_url"
+                        onChange={(e) => handleImageUpload(e, 2)}
+                    />
+                    <button onClick={handleSave}>保存</button>
+                </div>
+
+                {/* 既存駐車場所のリスト */}
+                <div>
+                    <h3>駐車場所リスト</h3>
+                    {parkingPlaces.map((place) => (
+                        <div key={place.id}>
+                            <p>{place.label} - {place.location_link}</p>
+                            <button onClick={() => handleDelete(place.id)}>削除</button>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
             {/* 書類（documents: JSONB） */}
             <div className="space-y-2">
@@ -1089,3 +1207,26 @@ function FileThumbnail({
     );
 }
 
+async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, index: number) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        const imageUrl = data.url;
+
+        if (index === 1) {
+            setNewParkingPlace({ ...newParkingPlace, picture1_url: imageUrl });
+        } else if (index === 2) {
+            setNewParkingPlace({ ...newParkingPlace, picture2_url: imageUrl });
+        }
+    }
+}
