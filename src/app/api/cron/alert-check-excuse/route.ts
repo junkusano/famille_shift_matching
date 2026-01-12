@@ -20,6 +20,7 @@ import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { runShiftTransInfoCheck } from "@/lib/alert_add/shift_trans_info_check";
 import { runEventTaskCheck } from "@/lib/alert_add/event_task_check";
+import { runLwAiChanBotCheck } from "@/lib/alert_add/lw_aichan_bot_check";
 
 
 type CheckResultOk<T> = { ok: true } & T;
@@ -52,6 +53,17 @@ type Body = {
     alertsCreated: number;
     alertsUpdated: number;
   }>;
+
+  // LW（利用者様情報連携グループ）Bot未登録チェック
+  lw_aichan_bot_check: CheckResult<{
+    scannedGroupCount: number;
+    targetGroupCount: number;
+    alertsCreated: number;
+    alertsUpdated: number;
+    skippedNoCsId: number;
+    skippedNoRecentShift: number;
+  }>;
+
 };
 
 export async function GET(req: NextRequest) {
@@ -66,6 +78,7 @@ export async function GET(req: NextRequest) {
     cs_contract_plan_check: { ok: false, error: "not executed" },
     shift_trans_info: { ok: false, error: "not executed" },
     event_task_check: { ok: false, error: "not executed" },
+    lw_aichan_bot_check: { ok: false, error: "not executed" },
   };
 
   try {
@@ -224,6 +237,20 @@ export async function GET(req: NextRequest) {
       result.lw_user_group_missing_check = { ok: false, error: msg };
       result.ok = false;
     }
+
+    // 5-2) LW「利用者様情報連携グループ」Bot未登録
+    try {
+      console.info('[cron][lw_aichan_bot_check] start');
+      const r = await runLwAiChanBotCheck();
+      console.info('[cron][lw_aichan_bot_check] end', r);
+      result.lw_aichan_bot_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[cron][lw_aichan_bot_check] error', msg);
+      result.lw_aichan_bot_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
 
     // 6) シフト資格チェック
     try {
