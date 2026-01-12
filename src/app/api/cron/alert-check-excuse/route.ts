@@ -16,9 +16,11 @@ import { runShiftRecordUnfinishedCheck } from '@/lib/alert_add/shift_record_unfi
 import { kodoengoPlanLinkCheck } from "@/lib/alert_add/kodoengo_plan_link_check";
 import { lwUserGroupMissingCheck } from "@/lib/alert_add/lw_user_group_missing_check";
 import { runShiftCertCheck } from "@/lib/alert_add/shift_cert_check";
-import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check"; // ★追加
+import { runCsContractPlanCheck } from "@/lib/alert_add/cs_contract_plan_check";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { runShiftTransInfoCheck } from "@/lib/alert_add/shift_trans_info_check";
+import { runEventTaskCheck } from "@/lib/alert_add/event_task_check";
+
 
 type CheckResultOk<T> = { ok: true } & T;
 type CheckResultErr = { ok: false; error: string };
@@ -42,6 +44,14 @@ type Body = {
     alertsCreated: number;
     alertsUpdated: number;
   }>;
+
+  // event_task_check 結果
+  event_task_check: CheckResult<{
+    scannedTaskCount: number;
+    targetTaskCount: number;
+    alertsCreated: number;
+    alertsUpdated: number;
+  }>;
 };
 
 export async function GET(req: NextRequest) {
@@ -54,8 +64,8 @@ export async function GET(req: NextRequest) {
     lw_user_group_missing_check: { ok: false, error: 'not executed' },
     shift_cert_check: { ok: false, error: "not executed" },
     cs_contract_plan_check: { ok: false, error: "not executed" },
-    // ★追加：最初は「まだ実行していない」扱い
     shift_trans_info: { ok: false, error: "not executed" },
+    event_task_check: { ok: false, error: "not executed" },
   };
 
   try {
@@ -148,6 +158,20 @@ export async function GET(req: NextRequest) {
       result.shift_trans_info = { ok: false, error: msg };
       result.ok = false;
     }
+
+    // GET(req) の中、他チェックと同様の try/catch を追加
+    try {
+      console.info("[cron][event_task_check] start");
+      const r = await runEventTaskCheck();
+      console.info("[cron][event_task_check] end", r);
+      result.event_task_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[cron][event_task_check] error", msg);
+      result.event_task_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
 
     // 1) 郵便番号チェック
     try {
