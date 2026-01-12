@@ -133,6 +133,11 @@ export default function KaipokeInfoDetailPage() {
     const params = useParams<{ id: string }>();
     const id = params?.id;
 
+    // 書類の編集用（id ごとに一時値を保持）
+    const [docEditState, setDocEditState] = useState<
+        Record<string, { label: string; useCustom: boolean; acquiredDate: string }>
+    >({});
+
     const [row, setRow] = useState<KaipokeInfo | null>(null);
     const [saving, setSaving] = useState(false);
     const [staffList, setStaffList] = useState<
@@ -255,11 +260,6 @@ export default function KaipokeInfoDetailPage() {
         alert("削除しました");
     };
 
-    // 書類の編集用（id ごとに一時値を保持）
-    const [docEditState, setDocEditState] = useState<
-        Record<string, { label: string; useCustom: boolean; acquiredDate: string }>
-    >({});
-
     const getDocEdit = (doc: Attachment) => {
         const existing = docEditState[doc.id];
         if (existing) return existing;
@@ -287,13 +287,14 @@ export default function KaipokeInfoDetailPage() {
                     return;
                 }
 
-                setParkingPlaces(data || []); // ここでsetParkingPlacesを使用
+                setParkingPlaces(data || []);
+            } else {
+                setParkingPlaces([]); // kaipoe_cs_idがない場合は空の配列に設定
             }
         };
 
         fetchParkingPlaces();
-    }, [row]); // rowが変更されるたびに駐車場所のデータを取得
-
+    }, [row?.kaipoke_cs_id]);
 
     useEffect(() => {
         fetchData();
