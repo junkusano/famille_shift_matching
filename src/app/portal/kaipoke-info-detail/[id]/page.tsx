@@ -214,12 +214,6 @@ export default function KaipokeInfoDetailPage() {
         }
     };
 
-    return (
-        <div>
-            {/* ここにJSXを記述 */}
-        </div>
-    );
-
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setNewParkingPlace((prev) => ({ ...prev, [name]: value }));
