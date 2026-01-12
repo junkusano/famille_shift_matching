@@ -23,7 +23,7 @@ type ClientRow = {
 
 type EventTemplateRow = {
     id: string;
-    name: string | null; // ※ event_template の列名が name じゃない場合ここを合わせる
+    template_name: string;
 };
 
 export type EventTaskCheckResult = {
@@ -127,7 +127,7 @@ export async function runEventTaskCheck(): Promise<EventTaskCheckResult> {
     for (const ids of chunk(templateIds, 200)) {
         const { data, error } = await supabaseAdmin
             .from("event_template")
-            .select("id, name") // ←列名が違うならここ変更（例: template_name など）
+            .select("id, template_name")
             .in("id", ids);
 
         if (error) {
@@ -135,16 +135,16 @@ export async function runEventTaskCheck(): Promise<EventTaskCheckResult> {
             throw error;
         }
 
-        for (const row of (data ?? []) as { id: string; name: string | null }[]) {
+        for (const row of (data ?? []) as EventTemplateRow[]) {
             templates.push({
                 id: row.id,
-                name: row.name,
+                template_name: row.template_name,
             });
         }
     }
 
     const templateMap = new Map<string, string>();
-    for (const t of templates) templateMap.set(t.id, t.name ?? "（テンプレ名不明）");
+    for (const t of templates) templateMap.set(t.id, t.template_name);
 
 
     if (tasks.length === 0) {
