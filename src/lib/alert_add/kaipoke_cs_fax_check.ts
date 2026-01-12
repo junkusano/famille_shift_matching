@@ -263,18 +263,19 @@ export async function runKaipokeCsFaxCheck(): Promise<KaipokeCsFaxCheckResult> {
         const faxVal = (fx.fax ?? "").trim();
         const emailVal = (fx.email ?? "").trim();
 
-        const missingFax = !faxVal;
-        const missingEmail = !emailVal;
+        // ✅ どちらか入っていればOK（両方空だけNG）
+        const bothMissing = !faxVal && !emailVal;
 
-        if (missingFax || missingEmail) {
+        if (bothMissing) {
             targets.push({
                 kind: "missing_contact",
                 client: c,
                 fax: fx,
-                missingFax,
-                missingEmail,
+                missingFax: true,
+                missingEmail: true,
             });
         }
+
     }
 
     if (targets.length === 0) {
