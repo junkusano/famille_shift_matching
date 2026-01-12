@@ -12,6 +12,7 @@ type EventTaskRow = {
     user_id: string | null; // text
     due_date: string; // YYYY-MM-DD
     status: string; // open / in_progress / done / cancelled / muted
+    memo: string | null;
 };
 
 type ClientRow = {
@@ -88,7 +89,8 @@ function buildAlertMessage(
         clientUrl
             ? `<a href="${clientUrl}">${name}様</a> の`
             : `${name}様 の`,
-        `<a href="${taskPortalUrl}">（${templateName}）</a>が未完了です。`,
+        `<a href="${taskPortalUrl}">${templateName}</a>が未完了です。`,
+        task.memo ? `内容：${task.memo}` : "",
         `期限：${task.due_date}`,
     ].join(" ");
 }
@@ -104,7 +106,7 @@ export async function runEventTaskCheck(): Promise<EventTaskCheckResult> {
     // cancelled/muted も鳴らしたい場合は .neq("status","done") に変更してください。
     const { data: taskRowsRaw, error: taskError } = await supabaseAdmin
         .from("event_tasks")
-        .select("id, template_id, kaipoke_cs_id, user_id, due_date, status")
+        .select("id, template_id, kaipoke_cs_id, user_id, due_date, status,memo")
         .lt("due_date", today)
         .in("status", ["open", "in_progress"]);
 
