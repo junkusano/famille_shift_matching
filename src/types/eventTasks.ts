@@ -82,4 +82,5 @@ export type EventTaskMetaResponse = {
   templates: Array<Pick<EventTemplateRow, "id" | "template_name" | "overview" | "due_rule_type" | "due_offset_days" | "is_active">>;
   clients: { kaipoke_cs_id: string; name: string }[];
   users: Array<{ user_id: string; name: string }>;
+  doc_types: { id: string; name: string }[];
 };

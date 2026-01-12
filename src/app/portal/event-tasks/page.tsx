@@ -111,6 +111,9 @@ export default function EventTasksPage() {
     // edit
     const [editId, setEditId] = useState<string>("");
     const editTask = useMemo(() => tasks.find((t) => t.id === editId) ?? null, [tasks, editId]);
+    const [addDocTypeId, setAddDocTypeId] = useState<string>("");
+    const [addDocMemo, setAddDocMemo] = useState<string>("");
+
 
     async function reload() {
         setLoading(true);
@@ -460,12 +463,84 @@ export default function EventTasksPage() {
 
                         <div className="border-t pt-4">
                             <div className="font-medium mb-2">必要書類</div>
+                            <div className="flex flex-col md:flex-row gap-2 mb-3">
+                                <div className="md:w-[360px]">
+                                    <Select
+                                        value={addDocTypeId}
+                                        onValueChange={setAddDocTypeId}
+                                        placeholder="追加する書類を選択"
+                                        disabled={!canUse || loading}
+                                    >
+                                        {(meta?.doc_types ?? []).map((d) => (
+                                            <SelectItem key={d.id} value={d.id}>
+                                                {d.name}
+                                            </SelectItem>
+                                        ))}
+                                    </Select>
+                                </div>
+
+                                <div className="flex-1">
+                                    <Input
+                                        value={addDocMemo}
+                                        onChange={(e) => setAddDocMemo(e.target.value)}
+                                        placeholder="memo（任意）"
+                                        disabled={!canUse || loading}
+                                    />
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    disabled={!canUse || loading || !addDocTypeId}
+                                    onClick={() => {
+                                        if (!editTask) return;
+
+                                        const exists = (editTask.required_docs ?? []).some((x) => x.doc_type_id === addDocTypeId);
+                                        if (exists) {
+                                            alert("その書類は既に追加されています");
+                                            return;
+                                        }
+
+                                        const next = [
+                                            ...(editTask.required_docs ?? []),
+                                            {
+                                                id: `new-${addDocTypeId}`,
+                                                event_task_id: editTask.id,
+                                                doc_type_id: addDocTypeId,
+                                                doc_type_name: (meta?.doc_types ?? []).find((x) => x.id === addDocTypeId)?.name ?? null,
+                                                memo: addDocMemo || null,
+                                                status: "pending" as const,
+                                                result_doc_id: null,
+                                                checked_at: null,
+                                                checked_by_user_id: null,
+                                                created_at: "",
+                                                updated_at: "",
+                                            },
+                                        ];
+
+                                        onUpdateTask({
+                                            required_docs: next.map((x) => ({
+                                                doc_type_id: x.doc_type_id,
+                                                memo: x.memo,
+                                                status: x.status,
+                                                result_doc_id: x.result_doc_id,
+                                            })),
+                                        });
+
+                                        setAddDocTypeId("");
+                                        setAddDocMemo("");
+                                    }}
+                                >
+                                    追加
+                                </Button>
+                            </div>
+
                             <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>書類</TableHead>
                                         <TableHead>status</TableHead>
                                         <TableHead>memo</TableHead>
+                                        <TableHead className="text-right">操作</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -516,11 +591,36 @@ export default function EventTasksPage() {
                                                     disabled={!canUse || loading}
                                                 />
                                             </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={!canUse || loading}
+                                                    onClick={() => {
+                                                        if (!editTask) return;
+                                                        const ok = confirm("この書類を削除します。よろしいですか？");
+                                                        if (!ok) return;
+
+                                                        const next = (editTask.required_docs ?? []).filter((x) => x.doc_type_id !== d.doc_type_id);
+
+                                                        onUpdateTask({
+                                                            required_docs: next.map((x) => ({
+                                                                doc_type_id: x.doc_type_id,
+                                                                memo: x.memo,
+                                                                status: x.status,
+                                                                result_doc_id: x.result_doc_id,
+                                                            })),
+                                                        });
+                                                    }}
+                                                >
+                                                    削除
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     {!editTask.required_docs?.length && (
                                         <TableRow>
-                                            <TableCell colSpan={3} className="text-sm text-muted-foreground">
+                                            <TableCell colSpan={4} className="text-sm text-muted-foreground">
                                                 必要書類がありません
                                             </TableCell>
                                         </TableRow>
