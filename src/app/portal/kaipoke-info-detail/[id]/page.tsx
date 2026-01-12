@@ -167,7 +167,55 @@ export default function KaipokeInfoDetailPage() {
         picture2_url: null,
     });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const fetchData = async () => {
+        const { data, error } = await supabase
+            .from("cs_kaipoke_info")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        if (data) {
+            setRow(data); // ここでデータを状態にセット
+        }
+    };
+
+    // handleImageUpload関数
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const imageUrl = data.url;
+
+            if (index === 1) {
+                setNewParkingPlace({ ...newParkingPlace, picture1_url: imageUrl });
+            } else if (index === 2) {
+                setNewParkingPlace({ ...newParkingPlace, picture2_url: imageUrl });
+            }
+        }
+    };
+
+    return (
+        <div>
+            {/* ここにJSXを記述 */}
+        </div>
+    );
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setNewParkingPlace((prev) => ({ ...prev, [name]: value }));
     };
@@ -175,14 +223,21 @@ export default function KaipokeInfoDetailPage() {
     const handleSave = async () => {
         const { data, error } = await supabase
             .from("parking_cs_places")
-            .upsert([newParkingPlace]);
+            .select("*")
+            .eq("kaipoke_cs_id", newParkingPlace.kaipoke_cs_id);
 
         if (error) {
-            alert("保存エラー");
+            console.error(error);
             return;
         }
 
-        setParkingPlaces((prev) => [...prev, data[0]])
+        // data が null でないことを確認
+        if (data && data.length > 0) {
+            setParkingPlaces((prev) => [...prev, data[0]]);
+        } else {
+            console.warn("No data found.");
+        }
+
         alert("保存しました");
     };
 
@@ -197,10 +252,8 @@ export default function KaipokeInfoDetailPage() {
             return;
         }
 
-        setParkingPlaces((prev) => prev.filter((item) => item.id !== id));
         alert("削除しました");
     };
-
 
     // 書類の編集用（id ごとに一時値を保持）
     const [docEditState, setDocEditState] = useState<
@@ -221,8 +274,29 @@ export default function KaipokeInfoDetailPage() {
         };
     };
 
+    useEffect(() => {
+        const fetchParkingPlaces = async () => {
+            if (row?.kaipoke_cs_id) {
+                const { data, error } = await supabase
+                    .from("parking_cs_places")
+                    .select("*")
+                    .eq("kaipoke_cs_id", row.kaipoke_cs_id);
+
+                if (error) {
+                    console.error(error);
+                    return;
+                }
+
+                setParkingPlaces(data || []); // ここでsetParkingPlacesを使用
+            }
+        };
+
+        fetchParkingPlaces();
+    }, [row]); // rowが変更されるたびに駐車場所のデータを取得
+
 
     useEffect(() => {
+        fetchData();
         if (!id) return;
         const fetchRow = async () => {
             const { data, error } = await supabase
@@ -1205,28 +1279,4 @@ function FileThumbnail({
             )}
         </div>
     );
-}
-
-async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, index: number) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-    });
-
-    if (response.ok) {
-        const data = await response.json();
-        const imageUrl = data.url;
-
-        if (index === 1) {
-            setNewParkingPlace({ ...newParkingPlace, picture1_url: imageUrl });
-        } else if (index === 2) {
-            setNewParkingPlace({ ...newParkingPlace, picture2_url: imageUrl });
-        }
-    }
 }
