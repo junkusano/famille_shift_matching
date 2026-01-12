@@ -73,8 +73,8 @@ function buildMsgNoConsultant(c: ClientRow): string {
     const url = buildDetailUrl(c.id);
 
     return [
-        `【相談支援 未登録】相談支援（care_consultant）が登録されていません：${name} 様（CS ID: ${csId}）`,
-        `相談支援事業所（FAX/Email）を登録してください。`,
+        `【ケアマネ 未登録】ケアマネ（care_consultant）が登録されていません：${name} 様（CS ID: ${csId}）`,
+        `ケアマネ事業所（FAX/Email）を登録してください。モニタリング等のFAX送付ができていません。登録後、手動で送ってください。`,
         `利用者情報ページ: ${url}`,
     ].join(" ");
 }
