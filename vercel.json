@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/alert-check-excuse",
-      "schedule": "9 0 * * *"
+      "schedule": "9 3 * * *"
     },
     {
       "path": "/api/cron/shift-record-check",
