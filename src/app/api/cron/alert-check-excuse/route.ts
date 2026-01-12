@@ -21,6 +21,7 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { runShiftTransInfoCheck } from "@/lib/alert_add/shift_trans_info_check";
 import { runEventTaskCheck } from "@/lib/alert_add/event_task_check";
 import { runLwAiChanBotCheck } from "@/lib/alert_add/lw_aichan_bot_check";
+import { runKaipokeCsFaxCheck } from "@/lib/alert_add/kaipoke_cs_fax_check";
 
 
 type CheckResultOk<T> = { ok: true } & T;
@@ -64,6 +65,15 @@ type Body = {
     skippedNoRecentShift: number;
   }>;
 
+  // 相談支援（care_consultant）未登録／FAX・Email未登録チェック
+  kaipoke_cs_fax_check: CheckResult<{
+    scannedShiftCount: number;
+    scannedClientCount: number;
+    targetClientCount: number;
+    alertsCreated: number;
+    alertsUpdated: number;
+  }>;
+
 };
 
 export async function GET(req: NextRequest) {
@@ -79,6 +89,7 @@ export async function GET(req: NextRequest) {
     shift_trans_info: { ok: false, error: "not executed" },
     event_task_check: { ok: false, error: "not executed" },
     lw_aichan_bot_check: { ok: false, error: "not executed" },
+    kaipoke_cs_fax_check: { ok: false, error: "not executed" },
   };
 
   try {
@@ -171,6 +182,20 @@ export async function GET(req: NextRequest) {
       result.shift_trans_info = { ok: false, error: msg };
       result.ok = false;
     }
+
+    // 0-2) 相談支援（care_consultant）未登録／FAX・Email未登録チェック
+    try {
+      console.info("[cron][kaipoke_cs_fax_check] start");
+      const r = await runKaipokeCsFaxCheck();
+      console.info("[cron][kaipoke_cs_fax_check] end", r);
+      result.kaipoke_cs_fax_check = { ok: true, ...r };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[cron][kaipoke_cs_fax_check] error", msg);
+      result.kaipoke_cs_fax_check = { ok: false, error: msg };
+      result.ok = false;
+    }
+
 
     // GET(req) の中、他チェックと同様の try/catch を追加
     try {

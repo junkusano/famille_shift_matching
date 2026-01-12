@@ -88,7 +88,7 @@ function buildAlertMessage(
         clientUrl
             ? `<a href="${clientUrl}">${name}様</a> の`
             : `${name}様 の`,
-        `<a href="${taskPortalUrl}">モニタリング回答（${templateName}）</a>が未完了です。`,
+        `<a href="${taskPortalUrl}">（${templateName}）</a>が未完了です。`,
         `期限：${task.due_date}`,
     ].join(" ");
 }
