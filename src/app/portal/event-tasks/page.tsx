@@ -202,7 +202,7 @@ export default function EventTasksPage() {
 
     async function onDeleteTask(hard = false) {
         if (!editTask) return;
-        const ok = confirm(hard ? "物理削除します。よろしいですか？" : "キャンセル（cancelled）にします。よろしいですか？");
+        const ok = confirm(hard ? "タスク削除します。よろしいですか？" : "キャンセル（cancelled）にします。よろしいですか？");
         if (!ok) return;
 
         setError(null);
@@ -343,7 +343,7 @@ export default function EventTasksPage() {
             {/* 一覧 */}
             <Card>
                 <CardHeader>
-                    <CardTitle>一覧</CardTitle>
+                    <CardTitle>一覧（タスクをクリックすると詳細編集できます）</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -457,7 +457,7 @@ export default function EventTasksPage() {
                                 キャンセル（cancelled）
                             </Button>
                             <Button variant="destructive" onClick={() => onDeleteTask(true)} disabled={!canUse || loading}>
-                                物理削除（hard）
+                                タスク削除（hard）
                             </Button>
                         </div>
 
@@ -546,7 +546,7 @@ export default function EventTasksPage() {
                                 <TableBody>
                                     {(editTask.required_docs ?? []).map((d) => (
                                         <TableRow key={d.id}>
-                                            <TableCell>{d.doc_type_name ?? d.doc_type_id}</TableCell>
+                                            <TableCell>{d.doc_type_name ?? "（名称未設定）"}</TableCell>
                                             <TableCell className="w-[180px]">
                                                 <Select
                                                     value={d.status}

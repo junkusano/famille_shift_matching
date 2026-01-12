@@ -86,30 +86,47 @@ export async function GET(req: NextRequest) {
     if (cErr) return NextResponse.json({ message: cErr.message }, { status: 500 });
     if (uErr) return NextResponse.json({ message: uErr.message }, { status: 500 });
 
-    // doc master 名称（列名は環境差あり得るので最小限で）
-    const docTypeIds = Array.from(new Set((reqDocs ?? []).map((d) => d.doc_type_id)));
-    const { data: docMasters } = docTypeIds.length
-        ? await supabaseAdmin.from("user_doc_master").select("*").in("id", docTypeIds)
-        : { data: [] };
+    // doc master 名称（user_doc_master は label が表示名）
+    const docTypeIds = Array.from(new Set(reqDocsRows.map((d) => d.doc_type_id)));
 
-    const templateMap = new Map((templates ?? []).map((r) => [r.id, r.template_name]));
-    const clientMap = new Map(
-        (clients ?? []).map((r) => [
-            r.kaipoke_cs_id,
-            (r.name ?? r.kaipoke_cs_id) as string,
-        ])
-    );
-    const userMap = new Map(
-        (users ?? []).map((r) => [
-            r.user_id,
-            `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || r.user_id,
-        ])
+    const { data: docMasters, error: dmErr } = docTypeIds.length
+        ? await supabaseAdmin
+            .from("user_doc_master")
+            .select("id,label")
+            .in("id", docTypeIds)
+        : { data: [], error: null };
+
+    if (dmErr) return NextResponse.json({ message: dmErr.message }, { status: 500 });
+
+    const docNameMap = new Map<string, string>(
+        (docMasters ?? [])
+            .filter((r) => typeof r.id === "string")
+            .map((r) => [r.id as string, (r.label ?? r.id) as string])
     );
 
-    // doc master の表示名候補（doc_name / name / title などに寄せる）
-    const docNameMap = new Map(
-        (docMasters ?? []).map((r) => [r.id, (r.doc_name ?? r.name ?? r.title ?? r.id) as string])
+    // template / client / user 表示名Map
+    const templateMap = new Map<string, string>(
+        (templates ?? [])
+            .filter((r) => typeof r.id === "string")
+            .map((r) => [r.id as string, (r.template_name ?? r.id) as string])
     );
+
+    const clientMap = new Map<string, string>(
+        (clients ?? [])
+            .filter((r) => typeof r.kaipoke_cs_id === "string")
+            .map((r) => [r.kaipoke_cs_id as string, ((r as { name?: string | null }).name ?? r.kaipoke_cs_id) as string])
+    );
+
+    const userMap = new Map<string, string>(
+        (users ?? [])
+            .filter((r) => typeof r.user_id === "string")
+            .map((r) => [
+                r.user_id as string,
+                `${(r as { last_name_kanji?: string | null }).last_name_kanji ?? ""}${(r as { first_name_kanji?: string | null }).first_name_kanji ?? ""}`.trim() ||
+                (r.user_id as string),
+            ])
+    );
+
 
     const docsByTask = new Map<string, EventTaskRequiredDocView[]>();
     for (const d of reqDocsRows) {
