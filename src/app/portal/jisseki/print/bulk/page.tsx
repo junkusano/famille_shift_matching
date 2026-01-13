@@ -28,17 +28,26 @@ export default function BulkPrintPage() {
 
                 // unknown → Record 判定
                 const isRecord = (v: unknown): v is Record<string, unknown> =>
-                    v !== null && typeof v === "object";
+                    v !== null && typeof v === "object" && !Array.isArray(v);
 
                 // ★配列でも {items: []} でも単体でも受ける（raw は unknown[]）
+                const pickArrayFromRecord = (obj: Record<string, unknown>): unknown[] | null => {
+                    const keys = ["items", "targets", "selected", "rows", "data", "list", "payload"];
+                    for (const k of keys) {
+                        const v = obj[k];
+                        if (Array.isArray(v)) return v;
+                    }
+                    return null;
+                };
+
                 const list: unknown[] = Array.isArray(parsed)
                     ? parsed
-                    : isRecord(parsed) && Array.isArray(parsed.items)
-                        ? (parsed.items as unknown[])
+                    : isRecord(parsed)
+                        ? (pickArrayFromRecord(parsed) ?? [parsed])
                         : [parsed];
 
-                // ---------- 追加：deep 検索 ----------
-                const pickDeep = (v: unknown, keys: string[], maxDepth = 4): string | null => {
+                // ---------- deep 検索 ----------
+                const pickDeep = (v: unknown, keys: string[], maxDepth = 6): string | null => {
                     const seen = new Set<unknown>();
 
                     const walk = (cur: unknown, depth: number): string | null => {
@@ -49,6 +58,15 @@ export default function BulkPrintPage() {
 
                         if (depth > maxDepth) return null;
 
+                        // Array のとき要素を走査（先）
+                        if (Array.isArray(cur)) {
+                            for (const child of cur) {
+                                const got = walk(child, depth + 1);
+                                if (got) return got;
+                            }
+                            return null;
+                        }
+
                         // Record のときキー一致を探す
                         if (isRecord(cur)) {
                             for (const k of keys) {
@@ -56,20 +74,11 @@ export default function BulkPrintPage() {
                                 if (typeof val === "string" && val.trim() !== "") return val.trim();
                                 if (typeof val === "number" && Number.isFinite(val)) return String(val);
                             }
-                            // さらに深掘り
                             for (const child of Object.values(cur)) {
                                 const got = walk(child, depth + 1);
                                 if (got) return got;
                             }
                             return null;
-                        }
-
-                        // Array のとき要素を走査
-                        if (Array.isArray(cur)) {
-                            for (const child of cur) {
-                                const got = walk(child, depth + 1);
-                                if (got) return got;
-                            }
                         }
 
                         return null;
@@ -99,7 +108,11 @@ export default function BulkPrintPage() {
                         return `${y}-${mm}`;
                     }
 
-                    // 3) "YYYYMM" 例: 202512
+                    // 3) ISO日時 "YYYY-MM-DDTHH:MM:SS..." → YYYY-MM
+                    const mIso = s.match(/^(\d{4})-(\d{2})-\d{2}T/);
+                    if (mIso) return `${mIso[1]}-${mIso[2]}`;
+
+                    // 4) "YYYYMM" 例: 202512
                     const m3 = s.match(/^(\d{4})(\d{2})$/);
                     if (m3) return `${m3[1]}-${m3[2]}`;
 
@@ -109,8 +122,8 @@ export default function BulkPrintPage() {
                 // ---------- 追加：year + month の分離形式にも対応 ----------
                 const pickYearMonthParts = (v: unknown): string | null => {
                     // 年・月が別キーで入っているケース（ネスト含む）
-                    const y = pickDeep(v, ["year", "yyyy", "targetYear"], 4);
-                    const m = pickDeep(v, ["month", "mm", "targetMonth"], 4);
+                    const y = pickDeep(v, ["year", "yyyy", "targetYear"], 6);
+                    const m = pickDeep(v, ["month", "mm", "targetMonth"], 6);
                     if (!y || !m) return null;
 
                     const yy = String(Number(y)).padStart(4, "0");
@@ -126,12 +139,36 @@ export default function BulkPrintPage() {
                         // kaipoke_cs_id はネストも含めて探索
                         const kaipoke_cs_id = pickDeep(
                             x,
-                            ["kaipoke_cs_id", "kaipokeCsId", "client_id", "kaipokeId", "cs_id"],
-                            4
+                            [
+                                "kaipoke_cs_id",
+                                "kaipoke_csId",
+                                "kaipokeCsId",
+                                "kaipokeCsID",
+                                "client_id",
+                                "clientId",
+                                "kaipokeId",
+                                "cs_id",
+                                "csId",
+                            ],
+                            6
                         );
 
-                        // month は (A) 直接キー探索 → 正規化、(B) year+month 分離探索
-                        const monthRaw = pickDeep(x, ["month", "yearMonth", "year_month", "yearmonth", "target_month"], 4);
+                        const monthRaw = pickDeep(
+                            x,
+                            [
+                                "month",
+                                "yearMonth",
+                                "year_month",
+                                "yearmonth",
+                                "target_month",
+                                "month_start",
+                                "monthStart",
+                                "month_start_date",
+                                "yearMonthStr",
+                                "ym",
+                            ],
+                            6
+                        );
                         const month = normalizeMonth(monthRaw) ?? pickYearMonthParts(x);
 
                         if (!kaipoke_cs_id || !month) return null;
@@ -176,13 +213,12 @@ export default function BulkPrintPage() {
                 } else {
                     setError(String(e));
                 }
-            }
-            finally {
+            } finally {
                 setLoading(false);
             }
         };
 
-        run();
+        void run();
     }, []);
 
     if (loading) return <div>読み込み中...</div>;
