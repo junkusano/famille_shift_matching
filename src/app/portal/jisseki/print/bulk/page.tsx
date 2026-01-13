@@ -68,9 +68,14 @@ export default function BulkPrintPage() {
                 }
 
                 setDatas(results);
-            } catch (e: any) {
-                setError(e?.message ?? String(e));
-            } finally {
+            } catch (e: unknown) {
+                if (e instanceof Error) {
+                    setError(e.message);
+                } else {
+                    setError(String(e));
+                }
+            }
+            finally {
                 setLoading(false);
             }
         };
