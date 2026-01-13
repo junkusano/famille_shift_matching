@@ -7,6 +7,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { ParkingPlace } from "@/types/parking-places";
+import { toast } from "react-toastify";  // 通知ライブラリのインポート
+import "react-toastify/dist/ReactToastify.css";
+
 
 /** -----------------------------
  *  util: ISO → input[type=datetime-local] 値（先に宣言しておく）
@@ -224,22 +227,32 @@ export default function KaipokeInfoDetailPage() {
     const handleSave = async () => {
         const { data, error } = await supabase
             .from("parking_cs_places")
-            .select("*")
-            .eq("kaipoke_cs_id", newParkingPlace.kaipoke_cs_id);
+            .update({
+                label: newParkingPlace.label,
+                location_link: newParkingPlace.location_link,
+                parking_orientation: newParkingPlace.parking_orientation,
+                permit_required: newParkingPlace.permit_required,
+                remarks: newParkingPlace.remarks,
+                picture1_url: newParkingPlace.picture1_url,
+                picture2_url: newParkingPlace.picture2_url,
+            })
+            .eq("id", newParkingPlace.id)  // 修正: newParkingPlace.id を使用
+            .select("id") // 更新された行を取得
+            .maybeSingle();
 
         if (error) {
-            console.error(error);
+            console.error("Error saving parking data:", error);
+            toast.error("駐車場データ保存に失敗しました");
             return;
         }
 
-        // data が null でないことを確認
-        if (data && data.length > 0) {
-            setParkingPlaces((prev) => [...prev, data[0]]);
-        } else {
-            console.warn("No data found.");
+        if (!data) {
+            console.error("No rows updated, RLS or permissions issue");
+            toast.error("保存できませんでした（RLS制限または権限）");
+            return;
         }
 
-        alert("保存しました");
+        toast.success("駐車場データが保存されました");
     };
 
     const handleDelete = async (id: string) => {
@@ -773,7 +786,7 @@ export default function KaipokeInfoDetailPage() {
                 />
             </div>
 
-            <div className="space-y-2">
+            <div className="max-w-[14rem] md:max-w-[18rem]">
                 <label className="block text-sm text-gray-600">ケアマネ（相談支援）</label>
                 <select
                     className="w-full border rounded px-2 py-1"
@@ -788,7 +801,6 @@ export default function KaipokeInfoDetailPage() {
                     ))}
                 </select>
             </div>
-
 
             {/* 希望性別 */}
             <div className="space-y-2 max-w-xs">
