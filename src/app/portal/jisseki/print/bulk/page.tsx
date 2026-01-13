@@ -11,6 +11,9 @@ export default function BulkPrintPage() {
     const [datas, setDatas] = useState<PrintPayload[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [didAutoPrint, setDidAutoPrint] = useState(false);
+    const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
+    const sheetInnerRefs = useState<Record<string, HTMLDivElement | null>>({})[0];
 
     useEffect(() => {
         const run = async () => {
@@ -28,17 +31,26 @@ export default function BulkPrintPage() {
 
                 // unknown → Record 判定
                 const isRecord = (v: unknown): v is Record<string, unknown> =>
-                    v !== null && typeof v === "object";
+                    v !== null && typeof v === "object" && !Array.isArray(v);
 
                 // ★配列でも {items: []} でも単体でも受ける（raw は unknown[]）
+                const pickArrayFromRecord = (obj: Record<string, unknown>): unknown[] | null => {
+                    const keys = ["items", "targets", "selected", "rows", "data", "list", "payload", "clientIds"];
+                    for (const k of keys) {
+                        const v = obj[k];
+                        if (Array.isArray(v)) return v;
+                    }
+                    return null;
+                };
+
                 const list: unknown[] = Array.isArray(parsed)
                     ? parsed
-                    : isRecord(parsed) && Array.isArray(parsed.items)
-                        ? (parsed.items as unknown[])
+                    : isRecord(parsed)
+                        ? (pickArrayFromRecord(parsed) ?? [parsed])
                         : [parsed];
 
-                // ---------- 追加：deep 検索 ----------
-                const pickDeep = (v: unknown, keys: string[], maxDepth = 4): string | null => {
+                // ---------- deep 検索 ----------
+                const pickDeep = (v: unknown, keys: string[], maxDepth = 6): string | null => {
                     const seen = new Set<unknown>();
 
                     const walk = (cur: unknown, depth: number): string | null => {
@@ -49,6 +61,15 @@ export default function BulkPrintPage() {
 
                         if (depth > maxDepth) return null;
 
+                        // Array のとき要素を走査（先）
+                        if (Array.isArray(cur)) {
+                            for (const child of cur) {
+                                const got = walk(child, depth + 1);
+                                if (got) return got;
+                            }
+                            return null;
+                        }
+
                         // Record のときキー一致を探す
                         if (isRecord(cur)) {
                             for (const k of keys) {
@@ -56,20 +77,11 @@ export default function BulkPrintPage() {
                                 if (typeof val === "string" && val.trim() !== "") return val.trim();
                                 if (typeof val === "number" && Number.isFinite(val)) return String(val);
                             }
-                            // さらに深掘り
                             for (const child of Object.values(cur)) {
                                 const got = walk(child, depth + 1);
                                 if (got) return got;
                             }
                             return null;
-                        }
-
-                        // Array のとき要素を走査
-                        if (Array.isArray(cur)) {
-                            for (const child of cur) {
-                                const got = walk(child, depth + 1);
-                                if (got) return got;
-                            }
                         }
 
                         return null;
@@ -99,7 +111,11 @@ export default function BulkPrintPage() {
                         return `${y}-${mm}`;
                     }
 
-                    // 3) "YYYYMM" 例: 202512
+                    // 3) ISO日時 "YYYY-MM-DDTHH:MM:SS..." → YYYY-MM
+                    const mIso = s.match(/^(\d{4})-(\d{2})-\d{2}T/);
+                    if (mIso) return `${mIso[1]}-${mIso[2]}`;
+
+                    // 4) "YYYYMM" 例: 202512
                     const m3 = s.match(/^(\d{4})(\d{2})$/);
                     if (m3) return `${m3[1]}-${m3[2]}`;
 
@@ -109,8 +125,8 @@ export default function BulkPrintPage() {
                 // ---------- 追加：year + month の分離形式にも対応 ----------
                 const pickYearMonthParts = (v: unknown): string | null => {
                     // 年・月が別キーで入っているケース（ネスト含む）
-                    const y = pickDeep(v, ["year", "yyyy", "targetYear"], 4);
-                    const m = pickDeep(v, ["month", "mm", "targetMonth"], 4);
+                    const y = pickDeep(v, ["year", "yyyy", "targetYear"], 6);
+                    const m = pickDeep(v, ["month", "mm", "targetMonth"], 6);
                     if (!y || !m) return null;
 
                     const yy = String(Number(y)).padStart(4, "0");
@@ -120,27 +136,75 @@ export default function BulkPrintPage() {
                     return `${yy}-${mm}`;
                 };
 
-                // ★ここでだけ BulkItem に正規化する（ネストも探索）
-                const normalized: BulkItem[] = list
-                    .map((x) => {
-                        // kaipoke_cs_id はネストも含めて探索
-                        const kaipoke_cs_id = pickDeep(
-                            x,
-                            ["kaipoke_cs_id", "kaipokeCsId", "client_id", "kaipokeId", "cs_id"],
-                            4
-                        );
+                // ① トップ階層の month を拾う（今回の形式: { month, clientIds } に対応）
+                const topMonth = isRecord(parsed)
+                    ? normalizeMonth(pickDeep(parsed, ["month", "yearMonth", "year_month", "target_month"], 6))
+                    : null;
 
-                        // month は (A) 直接キー探索 → 正規化、(B) year+month 分離探索
-                        const monthRaw = pickDeep(x, ["month", "yearMonth", "year_month", "yearmonth", "target_month"], 4);
-                        const month = normalizeMonth(monthRaw) ?? pickYearMonthParts(x);
+                // ② list が clientIds 配列だった場合は、各要素に topMonth を適用して BulkItem 化する
+                const normalized: BulkItem[] =
+                    topMonth && isRecord(parsed) && Array.isArray((parsed as Record<string, unknown>).clientIds)
+                        ? (list
+                            .map((id) => {
+                                // clientIds は string/number の配列想定
+                                if (typeof id === "string" && id.trim() !== "") {
+                                    return { kaipoke_cs_id: id.trim(), month: topMonth };
+                                }
+                                if (typeof id === "number" && Number.isFinite(id)) {
+                                    return { kaipoke_cs_id: String(id), month: topMonth };
+                                }
+                                return null;
+                            })
+                            .filter((v): v is BulkItem => v !== null))
+                        : // ③ 従来形式（配列内に month/kaipoke_cs_id がある）も引き続き対応
+                        list
+                            .map((x) => {
+                                const kaipoke_cs_id = pickDeep(
+                                    x,
+                                    [
+                                        "kaipoke_cs_id",
+                                        "kaipoke_csId",
+                                        "kaipokeCsId",
+                                        "kaipokeCsID",
+                                        "client_id",
+                                        "clientId",
+                                        "kaipokeId",
+                                        "cs_id",
+                                        "csId",
+                                    ],
+                                    6
+                                );
 
-                        if (!kaipoke_cs_id || !month) return null;
-                        return { kaipoke_cs_id: String(kaipoke_cs_id), month };
-                    })
-                    .filter((v): v is BulkItem => v !== null);
+                                const monthRaw = pickDeep(
+                                    x,
+                                    [
+                                        "month",
+                                        "yearMonth",
+                                        "year_month",
+                                        "yearmonth",
+                                        "target_month",
+                                        "month_start",
+                                        "monthStart",
+                                        "month_start_date",
+                                        "yearMonthStr",
+                                        "ym",
+                                    ],
+                                    6
+                                );
+
+                                const month = normalizeMonth(monthRaw) ?? pickYearMonthParts(x);
+
+                                if (!kaipoke_cs_id || !month) return null;
+                                return { kaipoke_cs_id: String(kaipoke_cs_id), month };
+                            })
+                            .filter((v): v is BulkItem => v !== null);
 
                 if (normalized.length === 0) {
-                    setError("印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）");
+                    setError(
+                        "印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）\n\n" +
+                        "jisseki_bulk_print(先頭800文字):\n" +
+                        payload.slice(0, 800)
+                    );
                     return;
                 }
 
@@ -176,14 +240,71 @@ export default function BulkPrintPage() {
                 } else {
                     setError(String(e));
                 }
-            }
-            finally {
+            } finally {
                 setLoading(false);
             }
         };
 
-        run();
+        void run();
     }, []);
+
+    useEffect(() => {
+        // データが揃ったら一度だけ印刷ダイアログを出す
+        if (loading) return;
+        if (error) return;
+        if (didAutoPrint) return;
+        if (datas.length === 0) return;
+
+        setDidAutoPrint(true);
+
+        // 描画が終わる前に print すると真っ白になることがあるため少し待つ
+        const t = window.setTimeout(() => {
+            window.print();
+        }, 300);
+
+        return () => window.clearTimeout(t);
+    }, [loading, error, datas.length, didAutoPrint]);
+    useEffect(() => {
+        if (loading) return;
+        if (error) return;
+        if (datas.length === 0) return;
+
+        const id = window.requestAnimationFrame(() => {
+            const next: Record<string, number> = {};
+
+            for (const d of datas) {
+                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+                const el = sheetInnerRefs[key];
+                if (!el) continue;
+
+                const sheet = el.closest(".sheet") as HTMLElement | null;
+                if (!sheet) continue;
+
+                // 「縦」だけでなく「横」も見る（右余白が大きい/縮みすぎ対策）
+                const cs = window.getComputedStyle(el);
+                const padL = parseFloat(cs.paddingLeft || "0");
+                const padR = parseFloat(cs.paddingRight || "0");
+                const padT = parseFloat(cs.paddingTop || "0");
+                const padB = parseFloat(cs.paddingBottom || "0");
+
+                const availW = sheet.clientWidth - padL - padR;
+                const availH = sheet.clientHeight - padT - padB;
+
+                const contentW = el.scrollWidth;
+                const contentH = el.scrollHeight;
+
+                const sx = contentW > 0 ? availW / contentW : 1;
+                const sy = contentH > 0 ? availH / contentH : 1;
+
+                const s = Math.min(1, sx, sy);
+                next[key] = Math.max(0.55, s);
+            }
+
+            setScaleMap(next);
+        });
+
+        return () => window.cancelAnimationFrame(id);
+    }, [loading, error, datas, sheetInnerRefs]);
 
     if (loading) return <div>読み込み中...</div>;
 
@@ -195,14 +316,81 @@ export default function BulkPrintPage() {
         );
     }
 
-    // ★全件をページ区切りで描画
+    // ...中略...
+
     return (
-        <div>
-            {datas.map((d, idx) => (
-                <div key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`} className={idx === 0 ? "" : "page-break"}>
-                    <JissekiPrintBody data={d} />
-                </div>
-            ))}
+        <div className="print-root">
+            <style jsx global>{`
+  /* 単票と同じ：印刷は A4 + 適切な余白 */
+  @page { size: A4; margin: 3mm; }
+
+  .print-root {
+    background: #eee;
+    padding: 12px;
+  }
+
+  /* 画面ではA4の見た目（従来どおり） */
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto 12px auto;
+    background: white;
+    box-shadow: 0 0 6px rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
+
+  /* 中の余白：単票の print-only に近い値へ（右余白過多になりにくい） */
+  .sheet-inner {
+    padding: 2mm 4mm;
+    box-sizing: border-box;
+    transform-origin: top left;
+    width: 100%;
+    height: 100%;
+  }
+
+  @media print {
+    body { margin: 0 !important; background: #fff !important; }
+
+    .print-root {
+      background: #fff !important;
+      padding: 0 !important;
+    }
+
+    /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
+    .sheet {
+      width: 100% !important;
+      height: 297mm;
+      margin: 0 !important;
+      box-shadow: none !important;
+      page-break-after: always;
+      box-sizing: border-box;
+    }
+
+    .sheet-inner {
+      padding: 2mm 4mm;
+      box-sizing: border-box;
+    }
+  }
+`}</style>
+
+            {datas.map((d) => {
+                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+                const scale = scaleMap[key] ?? 1;
+
+                return (
+                    <div key={key} className="sheet">
+                        <div
+                            className="sheet-inner"
+                            ref={(el) => {
+                                sheetInnerRefs[key] = el;
+                            }}
+                            style={{ transform: `scale(${scale})` }}
+                        >
+                            <JissekiPrintBody data={d} />
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
