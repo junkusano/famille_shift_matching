@@ -33,6 +33,47 @@ type ViewRow = {
   asigned_org_name: string | null;
 };
 
+// GET メソッドを追加
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const month = searchParams.get("month");
+
+    if (!month) {
+      return NextResponse.json({ error: "month パラメータが必要です" }, { status: 400 });
+    }
+
+    // 一括印刷用のデータを取り出す処理
+    // ここで実際にlocalStorageのデータを取得しても良いが、今回は GET パラメータから月だけ取得
+    return new NextResponse(
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>実績記録票 一括印刷</title>
+            <meta charset="utf-8" />
+          </head>
+          <body>
+            <div id="root"></div>
+            <script>
+              // フロントエンドのJSコード
+              const payload = localStorage.getItem("jisseki_bulk_print");
+              if (payload) {
+                const data = JSON.parse(payload);
+                // 必要なデータで一括印刷を処理
+              }
+            </script>
+          </body>
+        </html>
+      `,
+      { headers: { "Content-Type": "text/html" } }
+    );
+  } catch (e) {
+    console.error("エラー:", e);
+    return NextResponse.json({ error: "内部サーバーエラー" }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const {
