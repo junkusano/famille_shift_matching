@@ -318,53 +318,66 @@ export default function BulkPrintPage() {
     return (
         <div className="print-root">
             <style jsx global>{`
-  :root{
-    /* ★下部に必ず余白を作る（px扱いになるので 14〜20 あたりで調整） */
-    --bulk-bottom-reserve: 16px;
-  }
+      :root{
+        /* ★下部に必ず余白を作る（px扱いになるので 14〜20 あたりで調整） */
+        --bulk-bottom-reserve: 16px;
+      }
 
-  @page { size: A4; margin: 3mm; }
+      @page { size: A4; margin: 3mm; }
 
-  /* 画面表示もA4っぽく */
-  .print-root { background: #eee; padding: 12px; }
+      /* 画面表示もA4っぽく */
+      .print-root { background: #eee; padding: 12px; }
 
-  /* 1人=1枚（画面ではA4固定） */
-  @media screen {
-    .sheet{
-      width: 210mm;
-      height: 297mm;
-      margin: 0 auto 12px auto;
-      background: #fff;
-      box-shadow: 0 0 6px rgba(0,0,0,0.15);
-      overflow: hidden;
-    }
-  }
+      /* 1人=1枚（画面ではA4固定） */
+      @media screen {
+        .sheet{
+          width: 210mm;
+          height: 297mm;
+          margin: 0 auto 12px auto;
+          background: #fff;
+          box-shadow: 0 0 6px rgba(0,0,0,0.15);
+          overflow: hidden;
+        }
+      }
 
-  /* ★印刷時は「210mm固定をやめる」＝右余白過多対策 */
-  @media print {
-    body { margin: 0 !important; background: #fff !important; }
-    .print-root { background:#fff !important; padding: 0 !important; }
+      /* ★印刷時は「210mm固定をやめる」＝右余白過多対策 */
+      @media print {
+        .no-print { display: none !important; }
 
-    .sheet{
-      width: 100% !important;
-      min-height: 297mm;
-      height: auto;
-      margin: 0 !important;
-      box-shadow: none !important;
-      page-break-after: always;
-      overflow: hidden;
-    }
-  }
+        body { margin: 0 !important; background: #fff !important; }
+        .print-root { background:#fff !important; padding: 0 !important; }
 
-  /* 中身の余白（/portal/jisseki/print の考え方に寄せる） */
-  .sheet-inner{
-    /* ★右余白が大きすぎる→左右を均す（4mm） */
-    padding: 2mm 4mm 4mm 4mm; /* 下は少し厚め＝見た目と安全余白 */
-    box-sizing: border-box;
-    transform-origin: top left;
-  }
-`}</style>
+        .sheet{
+          width: 100% !important;
+          min-height: 297mm;
+          height: auto;
+          margin: 0 !important;
+          box-shadow: none !important;
+          page-break-after: always;
+          overflow: hidden;
+        }
+      }
 
+      /* 中身の余白（/portal/jisseki/print の考え方に寄せる） */
+      .sheet-inner{
+        padding: 2mm 4mm 4mm 4mm; /* 下は少し厚め＝見た目と安全余白 */
+        box-sizing: border-box;
+        transform-origin: top left;
+      }
+    `}</style>
+
+            {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
+            <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
+                <div className="font-semibold">実績記録 一括印刷</div>
+                <button
+                    className="ml-auto px-3 py-2 border rounded"
+                    onClick={() => window.print()}
+                >
+                    印刷
+                </button>
+            </div>
+
+            {/* ★ここが本体：実データで map する（... は絶対に残さない） */}
             {datas.map((d) => {
                 const key = `${d.client.kaipoke_cs_id}-${d.month}`;
                 const scale = scaleMap[key] ?? 1;
