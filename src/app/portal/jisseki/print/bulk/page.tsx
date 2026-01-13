@@ -32,7 +32,7 @@ export default function BulkPrintPage() {
 
                 // ★配列でも {items: []} でも単体でも受ける（raw は unknown[]）
                 const pickArrayFromRecord = (obj: Record<string, unknown>): unknown[] | null => {
-                    const keys = ["items", "targets", "selected", "rows", "data", "list", "payload"];
+                    const keys = ["items", "targets", "selected", "rows", "data", "list", "payload", "clientIds"];
                     for (const k of keys) {
                         const v = obj[k];
                         if (Array.isArray(v)) return v;
@@ -133,48 +133,68 @@ export default function BulkPrintPage() {
                     return `${yy}-${mm}`;
                 };
 
-                // ★ここでだけ BulkItem に正規化する（ネストも探索）
-                const normalized: BulkItem[] = list
-                    .map((x) => {
-                        // kaipoke_cs_id はネストも含めて探索
-                        const kaipoke_cs_id = pickDeep(
-                            x,
-                            [
-                                "kaipoke_cs_id",
-                                "kaipoke_csId",
-                                "kaipokeCsId",
-                                "kaipokeCsID",
-                                "client_id",
-                                "clientId",
-                                "kaipokeId",
-                                "cs_id",
-                                "csId",
-                            ],
-                            6
-                        );
+                // ① トップ階層の month を拾う（今回の形式: { month, clientIds } に対応）
+                const topMonth = isRecord(parsed)
+                    ? normalizeMonth(pickDeep(parsed, ["month", "yearMonth", "year_month", "target_month"], 6))
+                    : null;
 
-                        const monthRaw = pickDeep(
-                            x,
-                            [
-                                "month",
-                                "yearMonth",
-                                "year_month",
-                                "yearmonth",
-                                "target_month",
-                                "month_start",
-                                "monthStart",
-                                "month_start_date",
-                                "yearMonthStr",
-                                "ym",
-                            ],
-                            6
-                        );
-                        const month = normalizeMonth(monthRaw) ?? pickYearMonthParts(x);
+                // ② list が clientIds 配列だった場合は、各要素に topMonth を適用して BulkItem 化する
+                const normalized: BulkItem[] =
+                    topMonth && isRecord(parsed) && Array.isArray((parsed as Record<string, unknown>).clientIds)
+                        ? (list
+                            .map((id) => {
+                                // clientIds は string/number の配列想定
+                                if (typeof id === "string" && id.trim() !== "") {
+                                    return { kaipoke_cs_id: id.trim(), month: topMonth };
+                                }
+                                if (typeof id === "number" && Number.isFinite(id)) {
+                                    return { kaipoke_cs_id: String(id), month: topMonth };
+                                }
+                                return null;
+                            })
+                            .filter((v): v is BulkItem => v !== null))
+                        : // ③ 従来形式（配列内に month/kaipoke_cs_id がある）も引き続き対応
+                        list
+                            .map((x) => {
+                                const kaipoke_cs_id = pickDeep(
+                                    x,
+                                    [
+                                        "kaipoke_cs_id",
+                                        "kaipoke_csId",
+                                        "kaipokeCsId",
+                                        "kaipokeCsID",
+                                        "client_id",
+                                        "clientId",
+                                        "kaipokeId",
+                                        "cs_id",
+                                        "csId",
+                                    ],
+                                    6
+                                );
 
-                        if (!kaipoke_cs_id || !month) return null;
-                        return { kaipoke_cs_id: String(kaipoke_cs_id), month };
-                    })
-                    .filter((v): v is BulkItem => v !== null);
+                                const monthRaw = pickDeep(
+                                    x,
+                                    [
+                                        "month",
+                                        "yearMonth",
+                                        "year_month",
+                                        "yearmonth",
+                                        "target_month",
+                                        "month_start",
+                                        "monthStart",
+                                        "month_start_date",
+                                        "yearMonthStr",
+                                        "ym",
+                                    ],
+                                    6
+                                );
+
+                                const month = normalizeMonth(monthRaw) ?? pickYearMonthParts(x);
+
+                                if (!kaipoke_cs_id || !month) return null;
+                                return { kaipoke_cs_id: String(kaipoke_cs_id), month };
+                            })
+                            .filter((v): v is BulkItem => v !== null);
 
                 if (normalized.length === 0) {
                     setError(
