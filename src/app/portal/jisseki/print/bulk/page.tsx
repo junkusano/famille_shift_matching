@@ -11,6 +11,7 @@ export default function BulkPrintPage() {
     const [datas, setDatas] = useState<PrintPayload[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [didAutoPrint, setDidAutoPrint] = useState(false);
 
     useEffect(() => {
         const run = async () => {
@@ -245,6 +246,23 @@ export default function BulkPrintPage() {
         void run();
     }, []);
 
+    useEffect(() => {
+        // データが揃ったら一度だけ印刷ダイアログを出す
+        if (loading) return;
+        if (error) return;
+        if (didAutoPrint) return;
+        if (datas.length === 0) return;
+
+        setDidAutoPrint(true);
+
+        // 描画が終わる前に print すると真っ白になることがあるため少し待つ
+        const t = window.setTimeout(() => {
+            window.print();
+        }, 300);
+
+        return () => window.clearTimeout(t);
+    }, [loading, error, datas.length, didAutoPrint]);
+
     if (loading) return <div>読み込み中...</div>;
 
     if (error) {
@@ -255,12 +273,87 @@ export default function BulkPrintPage() {
         );
     }
 
+    const PRINT_SCALE = 0.88; // ここで収まり具合を調整（0.85〜0.92あたりが現実的）
+
+    // ...中略...
+
+    return (
+        <div className="print-root">
+            <style jsx global>{`
+            /* 画面表示もA4っぽく */
+            .print-root {
+                background: #eee;
+                padding: 12px;
+            }
+
+            /* 1人=1枚 */
+            .sheet {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0 auto 12px auto;
+                background: white;
+                box-shadow: 0 0 6px rgba(0,0,0,0.15);
+                overflow: hidden; /* はみ出しを抑える */
+            }
+
+            /* 中身の余白（必要なら調整） */
+            .sheet-inner {
+                padding: 6mm;
+                box-sizing: border-box;
+                transform-origin: top left;
+            }
+
+            @page {
+                size: A4;
+                margin: 0;
+            }
+
+            @media print {
+                body {
+                    background: white !important;
+                }
+                .print-root {
+                    background: white !important;
+                    padding: 0 !important;
+                }
+
+                .sheet {
+                    margin: 0 !important;
+                    box-shadow: none !important;
+                    page-break-after: always;
+                    width: 210mm;
+                    height: 297mm;
+                }
+
+                /* 印刷時に縮小してA4 1枚に収める（縦長対策） */
+                .sheet-inner {
+                    padding: 6mm;
+                    transform: scale(${PRINT_SCALE});
+                }
+            }
+        `}</style>
+
+            {datas.map((d, idx) => (
+                <div key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`} className="sheet">
+                    <div className="sheet-inner">
+                        <JissekiPrintBody data={d} />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+
     // ★全件をページ区切りで描画
     return (
-        <div>
+        <div className="print-root">
             {datas.map((d, idx) => (
-                <div key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`} className={idx === 0 ? "" : "page-break"}>
-                    <JissekiPrintBody data={d} />
+                <div
+                    key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`}
+                    className="sheet"
+                >
+                    <div className="sheet-inner">
+                        <JissekiPrintBody data={d} />
+                    </div>
                 </div>
             ))}
         </div>
