@@ -177,7 +177,11 @@ export default function BulkPrintPage() {
                     .filter((v): v is BulkItem => v !== null);
 
                 if (normalized.length === 0) {
-                    setError("印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）");
+                    setError(
+                        "印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）\n\n" +
+                        "jisseki_bulk_print(先頭800文字):\n" +
+                        payload.slice(0, 800)
+                    );
                     return;
                 }
 
