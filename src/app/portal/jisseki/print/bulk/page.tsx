@@ -265,16 +265,6 @@ export default function BulkPrintPage() {
         return () => window.clearTimeout(t);
     }, [loading, error, datas.length, didAutoPrint]);
 
-    if (loading) return <div>読み込み中...</div>;
-
-    if (error) {
-        return (
-            <div style={{ whiteSpace: "pre-wrap", color: "red" }}>
-                {error}
-            </div>
-        );
-    }
-
     useEffect(() => {
         if (datas.length === 0) return;
 
@@ -310,6 +300,16 @@ export default function BulkPrintPage() {
 
         return () => window.cancelAnimationFrame(id);
     }, [datas, sheetInnerRefs]);
+
+    if (loading) return <div>読み込み中...</div>;
+
+    if (error) {
+        return (
+            <div style={{ whiteSpace: "pre-wrap", color: "red" }}>
+                {error}
+            </div>
+        );
+    }
 
     // ...中略...
 
@@ -381,22 +381,6 @@ export default function BulkPrintPage() {
                     </div>
                 );
             })}
-        </div>
-    );
-
-    // ★全件をページ区切りで描画
-    return (
-        <div className="print-root">
-            {datas.map((d, idx) => (
-                <div
-                    key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`}
-                    className="sheet"
-                >
-                    <div className="sheet-inner">
-                        <JissekiPrintBody data={d} />
-                    </div>
-                </div>
-            ))}
         </div>
     );
 }
