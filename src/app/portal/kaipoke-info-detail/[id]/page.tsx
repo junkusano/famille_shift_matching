@@ -85,18 +85,14 @@ type KaipokeInfo = {
     commuting_flg: boolean | null;
     standard_trans_ways: string | null;
     standard_purpose: string | null;
-
-    // ★ 追加：cs_kaipoke_info から表示したい情報
+    care_consultant: string | null;
     address: string | null;
     kana: string | null;
     gender: string | null;
     phone_01: string | null;
     phone_02: string | null;
-
     asigned_org: string | null;
     asigned_jisseki_staff: string | null;
-
-    // 追加分
     documents: Attachment[] | null; // JSONB
     time_adjustability_id: string | null; // マスタ参照
 
@@ -111,6 +107,9 @@ type DocMasterRow = {
 };
 
 type TimeAdjustRow = { id: string; label: string };
+
+type FaxOption = { id: string; office_name: string | null };
+
 
 type Staff = {
     user_id: string;
@@ -171,6 +170,9 @@ export default function KaipokeInfoDetailPage() {
         picture1_url: null,
         picture2_url: null,
     });
+
+    const [faxOptions, setFaxOptions] = useState<FaxOption[]>([]);
+
 
     const fetchData = async () => {
         const { data, error } = await supabase
@@ -267,6 +269,21 @@ export default function KaipokeInfoDetailPage() {
             acquiredDate: toDateInputValueFromIso(doc.acquired_at),
         };
     };
+
+    const loadFaxOptions = async () => {
+        const { data, error } = await supabase
+            .from("fax")
+            .select("id, office_name")
+            .order("office_name", { ascending: true });
+
+        if (error) {
+            console.error("fax load error:", error);
+            setFaxOptions([]);
+            return;
+        }
+        setFaxOptions((data ?? []) as FaxOption[]);
+    };
+
 
     useEffect(() => {
         const fetchParkingPlaces = async () => {
@@ -399,6 +416,7 @@ export default function KaipokeInfoDetailPage() {
         loadStaffList();
         loadStaffList();
         loadTeams();
+        loadFaxOptions();
     }, [id]);
 
     const documentsArray = useMemo<Attachment[]>(() => {
@@ -754,6 +772,23 @@ export default function KaipokeInfoDetailPage() {
                     onChange={(e) => setRow({ ...row, biko: e.target.value })}
                 />
             </div>
+
+            <div className="space-y-2">
+                <label className="block text-sm text-gray-600">ケアマネ（相談支援）</label>
+                <select
+                    className="w-full border rounded px-2 py-1"
+                    value={row.care_consultant ?? ""}
+                    onChange={(e) => setRow({ ...row, care_consultant: e.target.value || null })}
+                >
+                    <option value="">未設定</option>
+                    {faxOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                            {o.office_name ?? "(名称未設定)"}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
 
             {/* 希望性別 */}
             <div className="space-y-2 max-w-xs">
