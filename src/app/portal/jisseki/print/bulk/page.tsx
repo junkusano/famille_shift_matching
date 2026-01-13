@@ -264,11 +264,11 @@ export default function BulkPrintPage() {
 
         return () => window.clearTimeout(t);
     }, [loading, error, datas.length, didAutoPrint]);
-
     useEffect(() => {
+        if (loading) return;
+        if (error) return;
         if (datas.length === 0) return;
 
-        // 次の描画フレームで計測（レイアウト確定後）
         const id = window.requestAnimationFrame(() => {
             const next: Record<string, number> = {};
 
@@ -280,18 +280,23 @@ export default function BulkPrintPage() {
                 const sheet = el.closest(".sheet") as HTMLElement | null;
                 if (!sheet) continue;
 
-                // A4枠の中で収めたい「内側の高さ」を計算
-                // sheet の高さ(297mm相当) - inner の padding 上下
+                // 「縦」だけでなく「横」も見る（右余白が大きい/縮みすぎ対策）
                 const cs = window.getComputedStyle(el);
-                const padTop = parseFloat(cs.paddingTop || "0");
-                const padBottom = parseFloat(cs.paddingBottom || "0");
-                const available = sheet.clientHeight - padTop - padBottom;
+                const padL = parseFloat(cs.paddingLeft || "0");
+                const padR = parseFloat(cs.paddingRight || "0");
+                const padT = parseFloat(cs.paddingTop || "0");
+                const padB = parseFloat(cs.paddingBottom || "0");
 
-                // 実際の内容高さ（スクロール高さ）
-                const contentHeight = el.scrollHeight;
+                const availW = sheet.clientWidth - padL - padR;
+                const availH = sheet.clientHeight - padT - padB;
 
-                // 収まるなら 1、はみ出すなら縮小（下限は極端に小さくなりすぎないように 0.55 で止める）
-                const s = contentHeight > 0 ? Math.min(1, available / contentHeight) : 1;
+                const contentW = el.scrollWidth;
+                const contentH = el.scrollHeight;
+
+                const sx = contentW > 0 ? availW / contentW : 1;
+                const sy = contentH > 0 ? availH / contentH : 1;
+
+                const s = Math.min(1, sx, sy);
                 next[key] = Math.max(0.55, s);
             }
 
@@ -299,7 +304,7 @@ export default function BulkPrintPage() {
         });
 
         return () => window.cancelAnimationFrame(id);
-    }, [datas, sheetInnerRefs]);
+    }, [loading, error, datas, sheetInnerRefs]);
 
     if (loading) return <div>読み込み中...</div>;
 
@@ -316,52 +321,57 @@ export default function BulkPrintPage() {
     return (
         <div className="print-root">
             <style jsx global>{`
-            /* 画面表示もA4っぽく */
-            .print-root {
-                background: #eee;
-                padding: 12px;
-            }
+  /* 単票と同じ：印刷は A4 + 適切な余白 */
+  @page { size: A4; margin: 3mm; }
 
-            /* 1人=1枚 */
-            .sheet {
-  width: 210mm;
-  height: 297mm;      /* 画面でもA4固定（重要） */
-  margin: 0 auto 12px auto;
-  background: white;
-  box-shadow: 0 0 6px rgba(0,0,0,0.15);
-  overflow: hidden;
-}
+  .print-root {
+    background: #eee;
+    padding: 12px;
+  }
 
-            /* 中身の余白（必要なら調整） */
-            .sheet-inner {
-  padding: 6mm;
-  box-sizing: border-box;
-  transform-origin: top left;
-}
+  /* 画面ではA4の見た目（従来どおり） */
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto 12px auto;
+    background: white;
+    box-shadow: 0 0 6px rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
 
-            @page {
-                size: A4;
-                margin: 0;
-            }
+  /* 中の余白：単票の print-only に近い値へ（右余白過多になりにくい） */
+  .sheet-inner {
+    padding: 2mm 4mm;
+    box-sizing: border-box;
+    transform-origin: top left;
+    width: 100%;
+    height: 100%;
+  }
 
-            @media print {
-                body {
-                    background: white !important;
-                }
-                .print-root {
-                    background: white !important;
-                    padding: 0 !important;
-                }
+  @media print {
+    body { margin: 0 !important; background: #fff !important; }
 
-                .sheet {
-                    margin: 0 !important;
-                    box-shadow: none !important;
-                    page-break-after: always;
-                    width: 210mm;
-                    height: 297mm;
-                }
-            }
-        `}</style>
+    .print-root {
+      background: #fff !important;
+      padding: 0 !important;
+    }
+
+    /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
+    .sheet {
+      width: 100% !important;
+      height: 297mm;
+      margin: 0 !important;
+      box-shadow: none !important;
+      page-break-after: always;
+      box-sizing: border-box;
+    }
+
+    .sheet-inner {
+      padding: 2mm 4mm;
+      box-sizing: border-box;
+    }
+  }
+`}</style>
 
             {datas.map((d) => {
                 const key = `${d.client.kaipoke_cs_id}-${d.month}`;
