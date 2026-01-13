@@ -135,6 +135,38 @@
     z-index: 200;
 }
 
+.btn-save {
+    background-color: #ff6347;
+    /* オレンジ色 */
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-save:hover {
+    background-color: #ff4500;
+    /* ホバー時の色変更 */
+}
+
+.btn-delete {
+    background-color: #d9534f;
+    /* 赤色 */
+    color: white;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-delete:hover {
+    background-color: #c9302c;
+    /* ホバー時の色変更 */
+}
+
 /* スマホ用メニュー */
 @media (max-width: 768px) {
     .filter-grid {
@@ -372,16 +404,20 @@
 @media print {
 
     /* まず全部隠す（ポータル共通の上部アラート等も含めて） */
-  body * { visibility: hidden !important; }
+    body * {
+        visibility: hidden !important;
+    }
 
-  .print-only,
-  .print-only * { visibility: visible !important; }
+    .print-only,
+    .print-only * {
+        visibility: visible !important;
+    }
 
-  /* absolute をやめる */
-  .print-only {
-    position: static !important;
-    width: 100% !important;
-  }
+    /* absolute をやめる */
+    .print-only {
+        position: static !important;
+        width: 100% !important;
+    }
 
     /* 保険：ポータルUIは強制的に消す */
     .left-menu,
@@ -394,40 +430,42 @@
 }
 
 @media print {
-  /* サイドメニュー・モバイルメニュー系は印刷不要 */
-  .left-menu,
-  .edge-hotzone,
-  nav.menu,
-  .hamburger,
-  footer {
-    display: none !important;
-  }
 
-  /* ★これが本命：印刷が真っ白になる原因の定番（transform/fixed/overflow）を無効化 */
-  html, body {
-    height: auto !important;
-    overflow: visible !important;
-  }
+    /* サイドメニュー・モバイルメニュー系は印刷不要 */
+    .left-menu,
+    .edge-hotzone,
+    nav.menu,
+    .hamburger,
+    footer {
+        display: none !important;
+    }
 
-  .portal-container,
-  .portal-container * {
-    transform: none !important;
-    filter: none !important;
-  }
+    /* ★これが本命：印刷が真っ白になる原因の定番（transform/fixed/overflow）を無効化 */
+    html,
+    body {
+        height: auto !important;
+        overflow: visible !important;
+    }
 
-  /* fixed overlay/メニューが万一残っていても印刷に出さない */
-  .fixed {
-    position: static !important;
-  }
+    .portal-container,
+    .portal-container * {
+        transform: none !important;
+        filter: none !important;
+    }
 
-  /* 印刷時に横スクロール・クリップされないように */
-  main {
-    overflow: visible !important;
-  }
+    /* fixed overlay/メニューが万一残っていても印刷に出さない */
+    .fixed {
+        position: static !important;
+    }
 
-  /* 色が薄すぎる場合の保険（真っ白対策というより視認性） */
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+    /* 印刷時に横スクロール・クリップされないように */
+    main {
+        overflow: visible !important;
+    }
+
+    /* 色が薄すぎる場合の保険（真っ白対策というより視認性） */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 }

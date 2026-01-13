@@ -963,7 +963,7 @@ export default function KaipokeInfoDetailPage() {
                         name="picture2_url"
                         onChange={(e) => handleImageUpload(e, 2)}
                     />
-                    <button onClick={handleSave}>保存</button>
+                    <button className="btn-save" onClick={handleSave}>駐車場情報保存</button>
                 </div>
 
                 {/* 既存駐車場所のリスト */}
@@ -972,7 +972,7 @@ export default function KaipokeInfoDetailPage() {
                     {parkingPlaces.map((place) => (
                         <div key={place.id}>
                             <p>{place.label} - {place.location_link}</p>
-                            <button onClick={() => handleDelete(place.id)}>削除</button>
+                            <button className="btn-delete"　onClick={() => handleDelete(place.id)}>削除</button>
                         </div>
                     ))}
                 </div>
