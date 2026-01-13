@@ -1,7 +1,7 @@
 // src/app/portal/jisseki/print/bulk/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
 
@@ -13,7 +13,7 @@ export default function BulkPrintPage() {
     const [error, setError] = useState<string | null>(null);
     const [didAutoPrint, setDidAutoPrint] = useState(false);
     const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
-    const sheetInnerRefs = useState<Record<string, HTMLDivElement | null>>({})[0];
+    const sheetInnerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     useEffect(() => {
         const run = async () => {
@@ -280,23 +280,22 @@ export default function BulkPrintPage() {
                 const sheet = el.closest(".sheet") as HTMLElement | null;
                 if (!sheet) continue;
 
-                // 「縦」だけでなく「横」も見る（右余白が大きい/縮みすぎ対策）
+                // A4枠の中で収めたい「内側の高さ」を計算
                 const cs = window.getComputedStyle(el);
-                const padL = parseFloat(cs.paddingLeft || "0");
-                const padR = parseFloat(cs.paddingRight || "0");
-                const padT = parseFloat(cs.paddingTop || "0");
-                const padB = parseFloat(cs.paddingBottom || "0");
+                const padTop = parseFloat(cs.paddingTop || "0");
+                const padBottom = parseFloat(cs.paddingBottom || "0");
 
-                const availW = sheet.clientWidth - padL - padR;
-                const availH = sheet.clientHeight - padT - padB;
+                // ★下に必ず余白を作る（ここが「ギリギリ1枚に収まらない」対策の本体）
+                const bottomReserve = parseFloat(
+                    window.getComputedStyle(document.documentElement).getPropertyValue("--bulk-bottom-reserve") || "14"
+                );
 
-                const contentW = el.scrollWidth;
-                const contentH = el.scrollHeight;
+                const available = sheet.clientHeight - padTop - padBottom - bottomReserve;
 
-                const sx = contentW > 0 ? availW / contentW : 1;
-                const sy = contentH > 0 ? availH / contentH : 1;
+                const contentHeight = el.scrollHeight;
+                const s = contentHeight > 0 ? Math.min(1, available / contentHeight) : 1;
 
-                const s = Math.min(1, sx, sy);
+                // 下限は必要なら調整（小さくなりすぎ防止）
                 next[key] = Math.max(0.55, s);
             }
 
@@ -304,7 +303,7 @@ export default function BulkPrintPage() {
         });
 
         return () => window.cancelAnimationFrame(id);
-    }, [loading, error, datas, sheetInnerRefs]);
+    }, [datas, loading, error]);
 
     if (loading) return <div>読み込み中...</div>;
 
@@ -316,60 +315,53 @@ export default function BulkPrintPage() {
         );
     }
 
-    // ...中略...
-
     return (
         <div className="print-root">
             <style jsx global>{`
-  /* 単票と同じ：印刷は A4 + 適切な余白 */
+  :root{
+    /* ★下部に必ず余白を作る（px扱いになるので 14〜20 あたりで調整） */
+    --bulk-bottom-reserve: 16px;
+  }
+
   @page { size: A4; margin: 3mm; }
 
-  .print-root {
-    background: #eee;
-    padding: 12px;
+  /* 画面表示もA4っぽく */
+  .print-root { background: #eee; padding: 12px; }
+
+  /* 1人=1枚（画面ではA4固定） */
+  @media screen {
+    .sheet{
+      width: 210mm;
+      height: 297mm;
+      margin: 0 auto 12px auto;
+      background: #fff;
+      box-shadow: 0 0 6px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
   }
 
-  /* 画面ではA4の見た目（従来どおり） */
-  .sheet {
-    width: 210mm;
-    height: 297mm;
-    margin: 0 auto 12px auto;
-    background: white;
-    box-shadow: 0 0 6px rgba(0,0,0,0.15);
-    overflow: hidden;
-  }
-
-  /* 中の余白：単票の print-only に近い値へ（右余白過多になりにくい） */
-  .sheet-inner {
-    padding: 2mm 4mm;
-    box-sizing: border-box;
-    transform-origin: top left;
-    width: 100%;
-    height: 100%;
-  }
-
+  /* ★印刷時は「210mm固定をやめる」＝右余白過多対策 */
   @media print {
     body { margin: 0 !important; background: #fff !important; }
+    .print-root { background:#fff !important; padding: 0 !important; }
 
-    .print-root {
-      background: #fff !important;
-      padding: 0 !important;
-    }
-
-    /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
-    .sheet {
+    .sheet{
       width: 100% !important;
-      height: 297mm;
+      min-height: 297mm;
+      height: auto;
       margin: 0 !important;
       box-shadow: none !important;
       page-break-after: always;
-      box-sizing: border-box;
+      overflow: hidden;
     }
+  }
 
-    .sheet-inner {
-      padding: 2mm 4mm;
-      box-sizing: border-box;
-    }
+  /* 中身の余白（/portal/jisseki/print の考え方に寄せる） */
+  .sheet-inner{
+    /* ★右余白が大きすぎる→左右を均す（4mm） */
+    padding: 2mm 4mm 4mm 4mm; /* 下は少し厚め＝見た目と安全余白 */
+    box-sizing: border-box;
+    transform-origin: top left;
   }
 `}</style>
 
@@ -382,7 +374,7 @@ export default function BulkPrintPage() {
                         <div
                             className="sheet-inner"
                             ref={(el) => {
-                                sheetInnerRefs[key] = el;
+                                sheetInnerRefs.current[key] = el;
                             }}
                             style={{ transform: `scale(${scale})` }}
                         >
