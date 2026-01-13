@@ -530,8 +530,8 @@ const DisabilityCheckPage: React.FC = () => {
         <span>回収済：{checkedCount}</span>
       </div>
 
-      {/* ★追加：member向け 一括印刷ボタン */}
-      {!(isManager || isAdmin) && (
+      {/* ★追加：admin, manager, member 向け 一括印刷ボタン */}
+      {(isAdmin || isManager || !(isManager || isAdmin)) && (
         <div style={{ marginBottom: 12 }}>
           <button
             type="button"
