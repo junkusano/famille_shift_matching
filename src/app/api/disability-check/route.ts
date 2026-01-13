@@ -75,19 +75,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // ★★★ ここから追加（ログ） ★★★
-  console.log("[API /api/disability-check] POST called", {
-    method: req.method,
-    url: req.url,
-    requestId: req.headers.get("x-request-id"),
-    contentType: req.headers.get("content-type"),
-  });
-  // ★★★ ここまで追加 ★★★
-  const body = (await req.json()) as Body;
-
-  // ★ body の中身も確認したい場合（必要なら）
-  console.log("[API /api/disability-check] POST body", body);
-
   try {
     const {
       yearMonth,
