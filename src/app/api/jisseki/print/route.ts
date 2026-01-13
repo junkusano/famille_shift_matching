@@ -252,3 +252,44 @@ export async function GET(req: NextRequest) {
     forms,
   });
 }
+
+type PrintRequestBody = {
+  kaipoke_cs_id?: string;
+  month?: string; // YYYY-MM
+};
+
+function isPrintRequestBody(v: unknown): v is PrintRequestBody {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    (o.kaipoke_cs_id === undefined || typeof o.kaipoke_cs_id === "string") &&
+    (o.month === undefined || typeof o.month === "string")
+  );
+}
+
+export async function POST(req: NextRequest) {
+  const raw: unknown = await req.json().catch(() => ({}));
+
+  const body: PrintRequestBody = isPrintRequestBody(raw) ? raw : {};
+  const kaipoke_cs_id = body.kaipoke_cs_id ?? "";
+  const month = body.month ?? ""; // YYYY-MM
+
+  if (!kaipoke_cs_id || !month) {
+    return NextResponse.json(
+      { error: "kaipoke_cs_id, month は必須です" },
+      { status: 400 }
+    );
+  }
+
+  // GET と同じ処理をそのまま使うため、URLにクエリを付け直して GET を呼ぶ
+  const url = new URL(req.url);
+  url.searchParams.set("kaipoke_cs_id", kaipoke_cs_id);
+  url.searchParams.set("month", month);
+
+  const req2 = new NextRequest(url.toString(), {
+    method: "GET",
+    headers: req.headers,
+  });
+
+  return GET(req2);
+}
