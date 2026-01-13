@@ -24,18 +24,47 @@ export default function BulkPrintPage() {
                     return;
                 }
 
-                const parsed = JSON.parse(payload);
+                const parsed: unknown = JSON.parse(payload);
 
-                // ★ここが重要：配列でも単体でも受ける
-                const list: BulkItem[] = Array.isArray(parsed)
+                // unknown → Record 判定
+                const isRecord = (v: unknown): v is Record<string, unknown> =>
+                    v !== null && typeof v === "object";
+
+                // obj から string を拾う（複数キー対応）
+                const pickString = (obj: Record<string, unknown>, keys: string[]): string | null => {
+                    for (const k of keys) {
+                        const val = obj[k];
+                        if (typeof val === "string" && val.trim() !== "") return val;
+                        if (typeof val === "number" && Number.isFinite(val)) return String(val);
+                    }
+                    return null;
+                };
+
+                // ★配列でも {items: []} でも単体でも受ける（raw は unknown[]）
+                const list: unknown[] = Array.isArray(parsed)
                     ? parsed
-                    : parsed?.items
-                        ? parsed.items
+                    : isRecord(parsed) && Array.isArray(parsed.items)
+                        ? (parsed.items as unknown[])
                         : [parsed];
 
-                const normalized = list
-                    .filter((x) => x?.kaipoke_cs_id && x?.month)
-                    .map((x) => ({ kaipoke_cs_id: String(x.kaipoke_cs_id), month: String(x.month) }));
+                // ★ここでだけ BulkItem に正規化する
+                const normalized: BulkItem[] = list
+                    .map((x) => {
+                        if (!isRecord(x)) return null;
+
+                        const kaipoke_cs_id = pickString(x, ["kaipoke_cs_id", "kaipokeCsId", "client_id"]);
+                        const month = pickString(x, ["month", "yearMonth", "year_month"]);
+
+                        if (!kaipoke_cs_id || !month) return null;
+
+                        return { kaipoke_cs_id, month };
+                    })
+                    .filter((v): v is BulkItem => v !== null);
+
+                if (normalized.length === 0) {
+                    setError("印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）");
+                    return;
+                }
 
                 if (normalized.length === 0) {
                     setError("印刷対象の形式が不正です。（kaipoke_cs_id / month が取れません）");
