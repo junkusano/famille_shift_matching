@@ -353,10 +353,10 @@ const DisabilityCheckPage: React.FC = () => {
   const handleBulkPrint = () => {
     const payload = {
       month: yearMonth,
-      clientIds: bulkClientIds,
+      clientIds: bulkClientIds, // 表示されている利用者の ID を渡す
     };
 
-    // URLが長くなりすぎるのを避けるため localStorage で渡す
+    // データを localStorage に保存
     localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
 
     // 一括印刷ページ（新規追加）を別タブで開く
