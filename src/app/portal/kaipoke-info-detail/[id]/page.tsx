@@ -971,7 +971,7 @@ export default function KaipokeInfoDetailPage() {
                     <h3>駐車場所リスト</h3>
                     {parkingPlaces.map((place) => (
                         <div key={place.id}>
-                            <p>{place.label} - {place.location_link}</p>
+                            <p><a href={place.location_link}>{place.label} - {place.location_link}</a></p>
                             <button className="btn-delete"　onClick={() => handleDelete(place.id)}>削除</button>
                         </div>
                     ))}
