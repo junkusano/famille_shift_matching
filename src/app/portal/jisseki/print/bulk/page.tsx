@@ -12,6 +12,8 @@ export default function BulkPrintPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [didAutoPrint, setDidAutoPrint] = useState(false);
+    const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
+    const sheetInnerRefs = useState<Record<string, HTMLDivElement | null>>({})[0];
 
     useEffect(() => {
         const run = async () => {
@@ -273,7 +275,41 @@ export default function BulkPrintPage() {
         );
     }
 
-    const PRINT_SCALE = 0.88; // ここで収まり具合を調整（0.85〜0.92あたりが現実的）
+    useEffect(() => {
+        if (datas.length === 0) return;
+
+        // 次の描画フレームで計測（レイアウト確定後）
+        const id = window.requestAnimationFrame(() => {
+            const next: Record<string, number> = {};
+
+            for (const d of datas) {
+                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+                const el = sheetInnerRefs[key];
+                if (!el) continue;
+
+                const sheet = el.closest(".sheet") as HTMLElement | null;
+                if (!sheet) continue;
+
+                // A4枠の中で収めたい「内側の高さ」を計算
+                // sheet の高さ(297mm相当) - inner の padding 上下
+                const cs = window.getComputedStyle(el);
+                const padTop = parseFloat(cs.paddingTop || "0");
+                const padBottom = parseFloat(cs.paddingBottom || "0");
+                const available = sheet.clientHeight - padTop - padBottom;
+
+                // 実際の内容高さ（スクロール高さ）
+                const contentHeight = el.scrollHeight;
+
+                // 収まるなら 1、はみ出すなら縮小（下限は極端に小さくなりすぎないように 0.55 で止める）
+                const s = contentHeight > 0 ? Math.min(1, available / contentHeight) : 1;
+                next[key] = Math.max(0.55, s);
+            }
+
+            setScaleMap(next);
+        });
+
+        return () => window.cancelAnimationFrame(id);
+    }, [datas, sheetInnerRefs]);
 
     // ...中略...
 
@@ -288,20 +324,20 @@ export default function BulkPrintPage() {
 
             /* 1人=1枚 */
             .sheet {
-                width: 210mm;
-                min-height: 297mm;
-                margin: 0 auto 12px auto;
-                background: white;
-                box-shadow: 0 0 6px rgba(0,0,0,0.15);
-                overflow: hidden; /* はみ出しを抑える */
-            }
+  width: 210mm;
+  height: 297mm;      /* 画面でもA4固定（重要） */
+  margin: 0 auto 12px auto;
+  background: white;
+  box-shadow: 0 0 6px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
 
             /* 中身の余白（必要なら調整） */
             .sheet-inner {
-                padding: 6mm;
-                box-sizing: border-box;
-                transform-origin: top left;
-            }
+  padding: 6mm;
+  box-sizing: border-box;
+  transform-origin: top left;
+}
 
             @page {
                 size: A4;
@@ -324,22 +360,27 @@ export default function BulkPrintPage() {
                     width: 210mm;
                     height: 297mm;
                 }
-
-                /* 印刷時に縮小してA4 1枚に収める（縦長対策） */
-                .sheet-inner {
-                    padding: 6mm;
-                    transform: scale(${PRINT_SCALE});
-                }
             }
         `}</style>
 
-            {datas.map((d, idx) => (
-                <div key={`${d.client.kaipoke_cs_id}-${d.month}-${idx}`} className="sheet">
-                    <div className="sheet-inner">
-                        <JissekiPrintBody data={d} />
+            {datas.map((d) => {
+                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+                const scale = scaleMap[key] ?? 1;
+
+                return (
+                    <div key={key} className="sheet">
+                        <div
+                            className="sheet-inner"
+                            ref={(el) => {
+                                sheetInnerRefs[key] = el;
+                            }}
+                            style={{ transform: `scale(${scale})` }}
+                        >
+                            <JissekiPrintBody data={d} />
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 
