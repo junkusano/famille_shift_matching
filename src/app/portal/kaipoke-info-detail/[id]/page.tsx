@@ -577,6 +577,7 @@ export default function KaipokeInfoDetailPage() {
                     standard_purpose: (row.standard_purpose ?? '').trim() || null,
                     time_adjustability_id: row.time_adjustability_id || null,
                     kodoengo_plan_link: (row.kodoengo_plan_link ?? '').trim() || null,
+                    care_consultant: row.care_consultant || null,
                 })
                 .eq('id', row.id);
             if (error) throw new Error(error.message);
