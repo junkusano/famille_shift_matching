@@ -221,22 +221,29 @@ export default function KaipokeInfoDetailPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setNewParkingPlace((prev) => ({ ...prev, [name]: value }));
+        setNewParkingPlace((prev) => {
+            const updated = { ...prev, [name]: value };
+            console.log(updated);  // 状態の更新を確認
+            return updated;
+        });
     };
 
+
     const handleSave = async () => {
+        console.log("Saving parking place:", newParkingPlace);  // ここでデバッグ
+
         const { data, error } = await supabase
             .from("parking_cs_places")
             .update({
                 label: newParkingPlace.label,
                 location_link: newParkingPlace.location_link,
-                parking_orientation: newParkingPlace.parking_orientation,
+                parking_orientation: newParkingPlace.parking_orientation,  // ここを確認
                 permit_required: newParkingPlace.permit_required,
                 remarks: newParkingPlace.remarks,
                 picture1_url: newParkingPlace.picture1_url,
                 picture2_url: newParkingPlace.picture2_url,
             })
-            .eq("id", newParkingPlace.id)  // 修正: newParkingPlace.id を使用
+            .eq("id", newParkingPlace.id)  // 駐車場所のIDで更新
             .select("id") // 更新された行を取得
             .maybeSingle();
 
@@ -928,8 +935,8 @@ export default function KaipokeInfoDetailPage() {
                     />
                     <select
                         name="parking_orientation"
-                        value={newParkingPlace.parking_orientation}
-                        onChange={handleChange}
+                        value={newParkingPlace.parking_orientation}  // 値が状態にバインドされているか確認
+                        onChange={handleChange}  // 状態変更を反映
                     >
                         <option value="北向き">北向き</option>
                         <option value="東向き">東向き</option>
@@ -940,6 +947,7 @@ export default function KaipokeInfoDetailPage() {
                         <option value="南西向き">南西向き</option>
                         <option value="北西向き">北西向き</option>
                     </select>
+
                     <input
                         type="checkbox"
                         name="permit_required"
@@ -972,7 +980,7 @@ export default function KaipokeInfoDetailPage() {
                     {parkingPlaces.map((place) => (
                         <div key={place.id}>
                             <p><a href={place.location_link}>{place.label} （{place.parking_orientation}） - {place.location_link}</a></p>
-                            <button className="btn-delete"　onClick={() => handleDelete(place.id)}>削除</button>
+                            <button className="btn-delete" onClick={() => handleDelete(place.id)}>削除</button>
                         </div>
                     ))}
                 </div>
