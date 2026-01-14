@@ -1,6 +1,6 @@
 // =============================================================
 // src/components/cm-components/fax/CmFaxDetailView.tsx
-// FAX詳細画面
+// FAX詳細画面（デバッグログ追加版）
 // =============================================================
 
 'use client';
@@ -112,14 +112,48 @@ export function CmFaxDetailView({ faxId }: Props) {
   const [isAdvertisement, setIsAdvertisement] = useState(false);
 
   // ---------------------------------------------------------
+  // 🔍 DEBUG: faxデータ全体のログ
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (fax) {
+      console.log('🔍 DEBUG: FAXデータ全体', {
+        faxId: fax.id,
+        pageCount: fax.page_count,
+        pages: fax.pages.map(p => ({
+          page_number: p.page_number,
+          rotation: p.rotation,
+          rotation_source: p.rotation_source,
+        })),
+      });
+    }
+  }, [fax]);
+
+  // ---------------------------------------------------------
   // ページ変更時のフォームリセット
   // ---------------------------------------------------------
   useEffect(() => {
     if (!currentPageData) return;
 
+    // 🔍 DEBUG: 現在のページデータ
+    console.log('🔍 DEBUG: currentPageData', {
+      page_number: currentPageData.page_number,
+      rotation: currentPageData.rotation,
+      rotation_source: currentPageData.rotation_source,
+      assigned_at: currentPageData.assigned_at,
+    });
+
+    // 🔍 DEBUG: 推定データ
+    console.log('🔍 DEBUG: currentSuggestion', {
+      rotation: currentSuggestion?.rotation,
+      confidence: currentSuggestion?.confidence,
+      client: currentSuggestion?.client,
+      docType: currentSuggestion?.docType,
+    });
+
     // 既に保存済みの場合
     const localAssignment = pageAssignments[currentPage];
     if (localAssignment) {
+      console.log('🔍 DEBUG: ローカル保存済み → rotation:', localAssignment.rotation);
       setSelectedClient(localAssignment.clientId);
       setSelectedDocType(localAssignment.docTypeId.toString());
       setIsAdvertisement(localAssignment.isAd);
@@ -129,6 +163,7 @@ export function CmFaxDetailView({ faxId }: Props) {
 
     // DB保存済みの場合
     if (currentPageData.assigned_at) {
+      console.log('🔍 DEBUG: DB保存済み → rotation:', currentPageData.rotation);
       setSelectedClient(currentPageData.assigned_client_id || '');
       setSelectedDocType(currentPageData.document_type_id?.toString() || '');
       setIsAdvertisement(currentPageData.is_advertisement);
@@ -138,11 +173,13 @@ export function CmFaxDetailView({ faxId }: Props) {
 
     // 推定がある場合（信頼度が低くない場合）
     if (currentSuggestion && currentSuggestion.confidence !== 'low') {
+      console.log('🔍 DEBUG: 推定あり（confidence != low）→ rotation:', currentSuggestion.rotation);
       setSelectedClient(currentSuggestion.client?.id || '');
       setSelectedDocType(currentSuggestion.docType?.id?.toString() || '');
       setIsAdvertisement(currentSuggestion.isAd);
       setAppliedRotation(currentSuggestion.rotation);
     } else {
+      console.log('🔍 DEBUG: 推定なし/低信頼度 → currentPageData.rotation:', currentPageData.rotation);
       setSelectedClient('');
       setSelectedDocType('');
       setIsAdvertisement(false);
@@ -151,6 +188,11 @@ export function CmFaxDetailView({ faxId }: Props) {
 
     setShowSuggestionReason(false);
   }, [currentPage, currentPageData, pageAssignments, currentSuggestion]);
+
+  // 🔍 DEBUG: appliedRotation変更時
+  useEffect(() => {
+    console.log('🔍 DEBUG: appliedRotation 変更 →', appliedRotation);
+  }, [appliedRotation]);
 
   // ---------------------------------------------------------
   // ハンドラー（useCallback）
@@ -344,6 +386,13 @@ export function CmFaxDetailView({ faxId }: Props) {
       </div>
     );
   }
+
+  // 🔍 DEBUG: レンダリング時のログ
+  console.log('🔍 DEBUG: レンダリング', {
+    currentPage,
+    appliedRotation,
+    'CmPdfViewerに渡すrotation': appliedRotation,
+  });
 
   // ---------------------------------------------------------
   // メインレンダリング
