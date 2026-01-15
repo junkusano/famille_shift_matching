@@ -173,14 +173,16 @@ export default function JissekiPrintPage() {
             <style jsx global>{`
     @page { size: A4; margin: 0mm; }
  @media print {
-  .no-print { display: none !important; }
-  .page-break { page-break-before: always; }
-  .formBox { padding: 0 !important; }    /* p-2相当を消す */
-  .mt-2 { margin-top: 0 !important; }    /* タイトル下の余白を消す */
+  .print-only{
+    position: relative;              /* absolute をやめる */
+    margin: 0 auto;                  /* ★左右中央寄せの基本 */
+    width: 210mm;
 
-  /* p-6 の左右余白を確実に消す（全方向） */
-  .print-only .p-6 {
-  padding: 0 !important;
+    /* ★左右を同じ余白に */
+    padding: 0mm 3mm 1mm 3mm;
+
+    box-sizing: border-box;
+  }
 }
 
 html, body{
@@ -202,22 +204,6 @@ html, body{
   body { margin: 0 !important; }
   body * { visibility: hidden !important; }
   .print-only, .print-only * { visibility: visible !important; }
-
-  /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
-.print-only{
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 210mm;
-
-  min-height: auto;
-
-  /* ★左右を同じだけ空ける（左詰め過ぎの解消＋左右対称） */
-  padding: 0mm 2mm 1mm 2mm;
-
-  box-sizing: border-box;
-}
 }
     @media screen {
    /* 画面でもA4固定で表示（PC画面幅に追従しない） */
