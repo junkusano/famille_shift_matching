@@ -1,158 +1,71 @@
 // =============================================================
 // src/hooks/cm/useCmFaxDetail.ts
 // FAX詳細のデータ取得・状態管理フック
+//
+// 【v3.1対応】
+// - setPageOrder を公開（ドラッグ&ドロップ対応）
+// - removePageFromDocument を追加（書類からページ削除）
 // =============================================================
 
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type {
-  CmFaxDetail,
-  CmFaxClientCandidate,
+  CmFaxReceived,
+  CmFaxPage,
+  CmFaxDocument,
+  CmFaxReceivedOffice,
+  CmClientCandidate,
   CmDocumentType,
-  CmFaxOffice,
-  CmPageAssignment,
+  CmProcessingStatus,
+  CmSelectedClient,
   CmPageSuggestion,
+  CmFaxDetailApiResponse,
+  CmOfficeSearchResult,
 } from '@/types/cm/faxDetail';
 
-// =============================================================
-// Hook
-// =============================================================
+/** 広告の文書種別ID */
+const ADVERTISEMENT_DOC_TYPE_ID = 8;
 
 export function useCmFaxDetail(faxId: number) {
   // ---------------------------------------------------------
   // State
   // ---------------------------------------------------------
-  const [fax, setFax] = useState<CmFaxDetail | null>(null);
-  const [clientCandidates, setClientCandidates] = useState<CmFaxClientCandidate[]>([]);
+  const [fax, setFax] = useState<CmFaxReceived | null>(null);
+  const [pages, setPages] = useState<CmFaxPage[]>([]);
+  const [offices, setOffices] = useState<CmFaxReceivedOffice[]>([]);
+  const [documents, setDocuments] = useState<CmFaxDocument[]>([]);
+  const [clients, setClients] = useState<CmClientCandidate[]>([]);
   const [documentTypes, setDocumentTypes] = useState<CmDocumentType[]>([]);
+  const [processingStatus, setProcessingStatus] = useState<CmProcessingStatus | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  // ページ状態
+  // ページ操作
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageAssignments, setPageAssignments] = useState<Record<number, CmPageAssignment>>({});
+  const [pageOrder, setPageOrder] = useState<number[]>([]);
+  const [zoom, setZoom] = useState(100);
+  const [rotation, setRotation] = useState(0);
+
+  // 選択状態
+  const [selectedClients, setSelectedClients] = useState<CmSelectedClient[]>([]);
+  const [selectedDocType, setSelectedDocType] = useState<number | null>(null);
+  const [addToExistingDocument, setAddToExistingDocument] = useState<CmFaxDocument | null>(null);
+  const [requiresResponse, setRequiresResponse] = useState(false);
+
+  // フィルター
+  const [selectedOfficeFilter, setSelectedOfficeFilter] = useState<number | null>(null);
+  const [clientSearch, setClientSearch] = useState('');
 
   // 事業所検索
   const [officeSearchQuery, setOfficeSearchQuery] = useState('');
-  const [officeSearchResults, setOfficeSearchResults] = useState<CmFaxOffice[]>([]);
-  const [officeSearchLoading, setOfficeSearchLoading] = useState(false);
+  const [officeSearchResults, setOfficeSearchResults] = useState<CmOfficeSearchResult[]>([]);
 
   // ---------------------------------------------------------
-  // 計算値
+  // API 呼び出し
   // ---------------------------------------------------------
-  const totalPages = fax?.page_count || 0;
-  const currentPageData = fax?.pages.find((p) => p.page_number === currentPage) || null;
-
-  // 処理済みページ数
-  const processedCount = useMemo(() => {
-    if (!fax) return 0;
-    return fax.pages.filter((p) => p.assigned_at !== null).length + Object.keys(pageAssignments).length;
-  }, [fax, pageAssignments]);
-
-  // 現在のページが処理済みか
-  const isCurrentPageProcessed = useMemo(() => {
-    if (!currentPageData) return false;
-    return currentPageData.assigned_at !== null || !!pageAssignments[currentPage];
-  }, [currentPageData, pageAssignments, currentPage]);
-
-  // AI推定情報を構築
-  const currentSuggestion = useMemo((): CmPageSuggestion | null => {
-    if (!currentPageData) return null;
-
-    // 既に確定済みの場合は推定なし
-    if (currentPageData.assigned_at) return null;
-
-    // 推定データがあるか確認
-    const hasClient = !!currentPageData.kaipoke_cs_id;
-    const hasDocType = !!currentPageData.suggested_doc_type_id;
-    const isAd = currentPageData.suggested_is_ad;
-
-    if (!hasClient && !hasDocType && !isAd) return null;
-
-    // 信頼度を判定
-    let confidence: 'high' | 'medium' | 'low' = 'low';
-    const conf = currentPageData.suggested_confidence;
-    if (conf !== null) {
-      if (conf >= 0.8) confidence = 'high';
-      else if (conf >= 0.5) confidence = 'medium';
-    }
-
-    // 推定理由を構築
-    let reason: CmPageSuggestion['reason'] = undefined;
-    if (currentPageData.suggested_source) {
-      const source = currentPageData.suggested_source;
-      if (source.includes('ocr')) {
-        reason = {
-          type: 'ocr_match',
-          detail: `OCRで「${currentPageData.suggested_client_name || ''}」を検出`,
-        };
-      } else if (source.includes('pattern')) {
-        reason = {
-          type: 'pattern',
-          detail: 'この事業所からはこの文書種別が多いパターン',
-        };
-      } else if (source.includes('ad')) {
-        reason = {
-          type: 'ad_keyword',
-          detail: '広告キーワードを検出',
-        };
-      }
-    }
-
-    return {
-      rotation: currentPageData.rotation || 0,
-      client: hasClient
-        ? { id: currentPageData.kaipoke_cs_id!, name: currentPageData.suggested_client_name || '' }
-        : null,
-      docType: hasDocType
-        ? { id: currentPageData.suggested_doc_type_id!, name: currentPageData.suggested_doc_type_name || '' }
-        : null,
-      isAd,
-      confidence,
-      reason,
-    };
-  }, [currentPageData]);
-
-  // 前ページの振り分け
-  const previousAssignment = useMemo((): CmPageAssignment | null => {
-    if (currentPage <= 1) return null;
-
-    // まずローカルの振り分けを確認
-    if (pageAssignments[currentPage - 1]) {
-      return pageAssignments[currentPage - 1];
-    }
-
-    // DBに保存済みの振り分けを確認
-    const prevPage = fax?.pages.find((p) => p.page_number === currentPage - 1);
-    if (prevPage?.assigned_at) {
-      return {
-        clientId: prevPage.assigned_client_id || '',
-        clientName: prevPage.assigned_client_name || '',
-        docTypeId: prevPage.document_type_id || 0,
-        docTypeName: prevPage.document_type_name || '',
-        isAd: prevPage.is_advertisement,
-        rotation: prevPage.rotation || 0,
-      };
-    }
-
-    return null;
-  }, [currentPage, pageAssignments, fax]);
-
-  // 意味のある推定があるか
-  const hasMeaningfulSuggestion = useMemo(() => {
-    if (!currentSuggestion) return false;
-    if (currentSuggestion.confidence === 'low') return false;
-    return !!(currentSuggestion.client || currentSuggestion.docType || currentSuggestion.isAd);
-  }, [currentSuggestion]);
-
-  // ---------------------------------------------------------
-  // API呼び出し
-  // ---------------------------------------------------------
-
-  // FAX詳細取得
-  const fetchFaxDetail = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -161,177 +74,368 @@ export function useCmFaxDetail(faxId: number) {
         credentials: 'include',
       });
 
-      const data = await res.json();
+      const data: CmFaxDetailApiResponse = await res.json();
 
       if (!data.ok) {
         setError(data.error || 'エラーが発生しました');
         return;
       }
 
-      setFax(data.fax);
-      setClientCandidates(data.clientCandidates || []);
+      setFax(data.fax || null);
+      setPages(data.pages || []);
+      setOffices(data.offices || []);
+      setDocuments(data.documents || []);
+      setClients(data.clients || []);
       setDocumentTypes(data.documentTypes || []);
+      setProcessingStatus(data.processingStatus || null);
 
-      // 初期ページ設定（未処理のページがあればそこから）
-      const firstUnprocessed = data.fax.pages.find(
-        (p: { assigned_at: string | null; page_number: number }) => !p.assigned_at
-      );
-      if (firstUnprocessed) {
-        setCurrentPage(firstUnprocessed.page_number);
+      // ページ順を初期化
+      if (data.pages?.length) {
+        const order = data.pages
+          .sort((a, b) => (a.logical_order ?? a.page_number) - (b.logical_order ?? b.page_number))
+          .map((p) => p.page_number);
+        setPageOrder(order);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : '通信エラーが発生しました');
+      setError(e instanceof Error ? e.message : '通信エラー');
     } finally {
       setLoading(false);
     }
   }, [faxId]);
 
-  // 事業所検索
-  const searchOffices = useCallback(async (query: string) => {
-    setOfficeSearchLoading(true);
-    try {
-      const res = await fetch(`/api/cm/fax/offices?q=${encodeURIComponent(query)}`, {
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setOfficeSearchResults(data.offices || []);
-      }
-    } catch (e) {
-      console.error('事業所検索エラー:', e);
-    } finally {
-      setOfficeSearchLoading(false);
-    }
-  }, []);
-
-  // ページ保存
-  const savePage = useCallback(
-    async (
-      clientId: string,
-      docTypeId: number,
-      isAd: boolean,
-      rotation: number = 0
-    ) => {
-      if (!currentPageData) return false;
-
-      setSaving(true);
-      try {
-        const res = await fetch(`/api/cm/fax/${faxId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            action: 'save_page',
-            page_id: currentPageData.id,
-            client_id: clientId || null,
-            document_type_id: docTypeId || null,
-            is_advertisement: isAd,
-            rotation,
-          }),
-        });
-
-        const data = await res.json();
-        if (!data.ok) {
-          console.error('保存エラー:', data.error);
-          return false;
-        }
-
-        // ローカル状態を更新
-        const client = clientCandidates.find((c) => c.id === clientId);
-        const docType = documentTypes.find((d) => d.id === docTypeId);
-
-        setPageAssignments((prev) => ({
-          ...prev,
-          [currentPage]: {
-            clientId,
-            clientName: client?.name || '',
-            docTypeId,
-            docTypeName: isAd ? '広告・案内' : docType?.name || '',
-            isAd,
-            rotation,
-          },
-        }));
-
-        return true;
-      } catch (e) {
-        console.error('保存例外:', e);
-        return false;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [faxId, currentPageData, currentPage, clientCandidates, documentTypes]
-  );
-
-  // 事業所割当
-  const assignOffice = useCallback(
-    async (officeId: number, registerFaxProxy: boolean = false) => {
-      if (!fax) return false;
-
-      setSaving(true);
-      try {
-        const res = await fetch(`/api/cm/fax/${faxId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            action: 'assign_office',
-            office_id: officeId,
-            register_fax_proxy: registerFaxProxy,
-            fax_number: fax.fax_number,
-          }),
-        });
-
-        const data = await res.json();
-        if (!data.ok) {
-          console.error('事業所割当エラー:', data.error);
-          return false;
-        }
-
-        // 再取得
-        await fetchFaxDetail();
-        return true;
-      } catch (e) {
-        console.error('事業所割当例外:', e);
-        return false;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [faxId, fax, fetchFaxDetail]
-  );
-
   // ---------------------------------------------------------
   // 初回読み込み
   // ---------------------------------------------------------
   useEffect(() => {
-    if (faxId) {
-      fetchFaxDetail();
-    }
-  }, [faxId, fetchFaxDetail]);
+    fetchData();
+  }, [fetchData]);
 
-  // 事業所検索（デバウンス）
+  // ---------------------------------------------------------
+  // ページ移動時に選択状態をリセット
+  // ---------------------------------------------------------
   useEffect(() => {
-    const timer = setTimeout(() => {
-      searchOffices(officeSearchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [officeSearchQuery, searchOffices]);
+    setSelectedClients([]);
+    setSelectedDocType(null);
+    setAddToExistingDocument(null);
+    setRequiresResponse(false);
+    setRotation(0);
+  }, [currentPage]);
+
+  // ---------------------------------------------------------
+  // 派生データ
+  // ---------------------------------------------------------
+  const currentPageData = pages.find((p) => p.page_number === currentPage) || null;
+
+  const filteredClients = clients.filter((client) => {
+    // 事業所フィルター
+    if (selectedOfficeFilter !== null && client.office_id !== selectedOfficeFilter) {
+      return false;
+    }
+    // 検索フィルター
+    if (clientSearch) {
+      const search = clientSearch.toLowerCase();
+      const searchKatakana = clientSearch.replace(/[\u3041-\u3096]/g, (char) =>
+        String.fromCharCode(char.charCodeAt(0) + 0x60)
+      );
+      return (
+        client.client_name.toLowerCase().includes(search) ||
+        client.client_kana.toLowerCase().includes(search) ||
+        client.client_kana.toLowerCase().includes(searchKatakana.toLowerCase())
+      );
+    }
+    return true;
+  });
+
+  // ---------------------------------------------------------
+  // AI推定取得
+  // ---------------------------------------------------------
+  const getCurrentPageSuggestion = useCallback((): CmPageSuggestion | null => {
+    if (!currentPageData) return null;
+
+    const suggestion: CmPageSuggestion = {
+      clients: [],
+      docType: null,
+      reason: currentPageData.suggested_reason,
+      is_advertisement: false,
+    };
+
+    // 利用者推定
+    if (currentPageData.suggested_client_id && currentPageData.suggested_client_name) {
+      suggestion.clients.push({
+        kaipoke_cs_id: currentPageData.suggested_client_id,
+        client_name: currentPageData.suggested_client_name,
+        confidence: currentPageData.suggested_confidence || 0,
+      });
+    }
+
+    // 文書種別推定
+    if (currentPageData.suggested_doc_type_id) {
+      const docType = documentTypes.find((d) => d.id === currentPageData.suggested_doc_type_id);
+      if (docType) {
+        suggestion.docType = {
+          id: docType.id,
+          name: docType.name,
+          confidence: currentPageData.suggested_confidence || 0,
+        };
+      }
+
+      // 広告判定
+      if (currentPageData.suggested_doc_type_id === ADVERTISEMENT_DOC_TYPE_ID) {
+        suggestion.is_advertisement = true;
+      }
+    }
+
+    // 推定がない場合はnull
+    if (suggestion.clients.length === 0 && !suggestion.docType) {
+      return null;
+    }
+
+    return suggestion;
+  }, [currentPageData, documentTypes]);
 
   // ---------------------------------------------------------
   // ハンドラー
   // ---------------------------------------------------------
-  const goToNextPage = useCallback(() => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+  const goToPage = useCallback((pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= pages.length) {
+      setCurrentPage(pageNumber);
     }
-  }, [currentPage, totalPages]);
+  }, [pages.length]);
 
-  const goToPrevPage = useCallback(() => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+  const goToNextUnassigned = useCallback(() => {
+    // 現在のページ以降で未割当のページを探す
+    for (let i = currentPage; i <= pages.length; i++) {
+      const page = pages.find((p) => p.page_number === i);
+      if (page) {
+        const isAssigned = documents.some((doc) => doc.page_ids?.includes(page.id));
+        if (!isAssigned && i !== currentPage) {
+          setCurrentPage(i);
+          return;
+        }
+      }
     }
-  }, [currentPage]);
+    // 見つからなければ最初から探す
+    for (let i = 1; i < currentPage; i++) {
+      const page = pages.find((p) => p.page_number === i);
+      if (page) {
+        const isAssigned = documents.some((doc) => doc.page_ids?.includes(page.id));
+        if (!isAssigned) {
+          setCurrentPage(i);
+          return;
+        }
+      }
+    }
+  }, [currentPage, pages, documents]);
+
+  const reversePageOrder = useCallback(() => {
+    setPageOrder((prev) => [...prev].reverse());
+  }, []);
+
+  const toggleClientSelection = useCallback((client: CmClientCandidate) => {
+    setSelectedClients((prev) => {
+      const exists = prev.find((c) => c.kaipokeCSId === client.kaipoke_cs_id);
+      if (exists) {
+        return prev.filter((c) => c.kaipokeCSId !== client.kaipoke_cs_id);
+      }
+      const isPrimary = prev.length === 0;
+      return [
+        ...prev,
+        {
+          kaipokeCSId: client.kaipoke_cs_id,
+          name: client.client_name,
+          officeId: client.office_id,
+          isPrimary,
+        },
+      ];
+    });
+  }, []);
+
+  const clearSelectedClients = useCallback(() => {
+    setSelectedClients([]);
+  }, []);
+
+  const applySuggestion = useCallback(() => {
+    const suggestion = getCurrentPageSuggestion();
+    if (!suggestion) return;
+
+    // 文書種別を適用
+    if (suggestion.docType) {
+      setSelectedDocType(suggestion.docType.id);
+    }
+
+    // 利用者を適用
+    if (suggestion.clients.length > 0) {
+      const newClients: CmSelectedClient[] = suggestion.clients.map((c, idx) => ({
+        kaipokeCSId: c.kaipoke_cs_id,
+        name: c.client_name,
+        officeId: clients.find((cl) => cl.kaipoke_cs_id === c.kaipoke_cs_id)?.office_id || 0,
+        isPrimary: idx === 0,
+      }));
+      setSelectedClients(newClients);
+    }
+  }, [getCurrentPageSuggestion, clients]);
+
+  // ---------------------------------------------------------
+  // 書類保存
+  // ---------------------------------------------------------
+  const saveDocument = useCallback(async () => {
+    if (!currentPageData) {
+      return { ok: false, error: 'ページが選択されていません' };
+    }
+
+    const isAd = selectedDocType === ADVERTISEMENT_DOC_TYPE_ID;
+
+    try {
+      const res = await fetch('/api/cm/fax/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          fax_received_id: faxId,
+          page_ids: [currentPageData.id],
+          document_type_id: selectedDocType,
+          client_ids: isAd ? [] : selectedClients.map((c) => c.kaipokeCSId),
+          client_names: isAd ? [] : selectedClients.map((c) => c.name),
+          office_id: selectedClients[0]?.officeId || null,
+          is_advertisement: isAd,
+          requires_response: requiresResponse,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        await fetchData();
+      }
+
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '保存エラー' };
+    }
+  }, [faxId, currentPageData, selectedDocType, selectedClients, requiresResponse, fetchData]);
+
+  // ---------------------------------------------------------
+  // 既存書類にページ追加
+  // ---------------------------------------------------------
+  const addPagesToDocument = useCallback(async (documentId: number, pageIds: number[]) => {
+    try {
+      const res = await fetch(`/api/cm/fax/documents/${documentId}/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ page_ids: pageIds }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        await fetchData();
+      }
+
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '追加エラー' };
+    }
+  }, [fetchData]);
+
+  // ---------------------------------------------------------
+  // 書類からページ削除（v3.1追加）
+  // ---------------------------------------------------------
+  const removePageFromDocument = useCallback(async (documentId: number, pageNumber: number) => {
+    // ページ番号からページIDを取得
+    const page = pages.find((p) => p.page_number === pageNumber);
+    if (!page) {
+      return { ok: false, error: 'ページが見つかりません' };
+    }
+
+    try {
+      const res = await fetch(`/api/cm/fax/documents/${documentId}/pages`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ page_ids: [page.id] }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        await fetchData();
+      }
+
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '削除エラー' };
+    }
+  }, [pages, fetchData]);
+
+  // ---------------------------------------------------------
+  // 事業所検索（既存APIに合わせたパス）
+  // ---------------------------------------------------------
+  const searchOffices = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setOfficeSearchResults([]);
+      return;
+    }
+
+    try {
+      // 既存API: /api/cm/fax/offices
+      const res = await fetch(`/api/cm/fax/offices?q=${encodeURIComponent(query)}`, {
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        // 既存APIのレスポンス形式に対応
+        const results: CmOfficeSearchResult[] = (data.offices || []).map((o: {
+          id: number;
+          office_name: string;
+          fax_number?: string;
+          fax?: string;
+          fax_proxy?: string;
+          service_type?: string;
+          prefecture?: string;
+        }) => ({
+          id: o.id,
+          office_name: o.office_name,
+          fax: o.fax_number || o.fax || null,
+          fax_proxy: o.fax_proxy || null,
+          service_type: o.service_type || null,
+          prefecture: o.prefecture || null,
+        }));
+        setOfficeSearchResults(results);
+      }
+    } catch (e) {
+      console.error('事業所検索エラー:', e);
+    }
+  }, []);
+
+  // ---------------------------------------------------------
+  // 事業所追加
+  // ---------------------------------------------------------
+  const addOffice = useCallback(async (officeId: number, registerFaxProxy: boolean) => {
+    try {
+      const res = await fetch(`/api/cm/fax/${faxId}/offices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          office_id: officeId,
+          register_fax_proxy: registerFaxProxy,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        await fetchData();
+      }
+
+      return data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '追加エラー' };
+    }
+  }, [faxId, fetchData]);
 
   // ---------------------------------------------------------
   // Return
@@ -339,37 +443,64 @@ export function useCmFaxDetail(faxId: number) {
   return {
     // データ
     fax,
-    clientCandidates,
+    pages,
+    offices,
+    documents,
+    clients,
     documentTypes,
-    currentPageData,
-
-    // 状態
+    processingStatus,
     loading,
     error,
-    saving,
+
+    // ページ操作
     currentPage,
-    totalPages,
-    processedCount,
-    isCurrentPageProcessed,
-    pageAssignments,
+    currentPageData,
+    pageOrder,
+    setPageOrder, // v3.1追加: ドラッグ&ドロップ用
+    goToPage,
+    goToNextUnassigned,
+    reversePageOrder,
+    zoom,
+    setZoom,
+    rotation,
+    setRotation,
 
-    // 推定
-    currentSuggestion,
-    previousAssignment,
-    hasMeaningfulSuggestion,
+    // 選択状態
+    selectedClients,
+    setSelectedClients,
+    toggleClientSelection,
+    clearSelectedClients,
+    selectedDocType,
+    setSelectedDocType,
+    addToExistingDocument,
+    setAddToExistingDocument,
+    requiresResponse,
+    setRequiresResponse,
 
-    // 事業所検索
+    // フィルター
+    selectedOfficeFilter,
+    setSelectedOfficeFilter,
+    clientSearch,
+    setClientSearch,
+    filteredClients,
+
+    // AI推定
+    getCurrentPageSuggestion,
+    applySuggestion,
+
+    // 書類操作
+    saveDocument,
+    addPagesToDocument,
+    removePageFromDocument, // v3.1追加: 書類からページ削除
+
+    // 事業所操作
     officeSearchQuery,
     setOfficeSearchQuery,
     officeSearchResults,
-    officeSearchLoading,
+    searchOffices,
+    addOffice,
 
-    // ハンドラー
-    setCurrentPage,
-    goToNextPage,
-    goToPrevPage,
-    savePage,
-    assignOffice,
-    refresh: fetchFaxDetail,
+    // アクション
+    refresh: fetchData,
   };
 }

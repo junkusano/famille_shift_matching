@@ -1,181 +1,123 @@
 // =============================================================
 // src/app/api/cm/fax/pdf/[fileId]/route.ts
-// Google DriveのPDFを取得するプロキシAPI
-// Supabase Vault方式
+// FAX PDF取得API（Google Drive経由）
 // =============================================================
 
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/service";
-import { google } from "googleapis";
+import { NextRequest, NextResponse } from 'next/server';
+import { google } from 'googleapis';
+import { createLogger } from '@/lib/common/logger';
+import { supabaseAdmin } from '@/lib/supabase/service';
 
 // =============================================================
-// 型定義
+// Logger
 // =============================================================
 
-/** Google サービスアカウント認証情報 */
-type ServiceAccountCredentials = {
-  type: string;
-  project_id: string;
-  private_key_id: string;
-  private_key: string;
-  client_email: string;
-  client_id: string;
-  auth_uri: string;
-  token_uri: string;
-  auth_provider_x509_cert_url: string;
-  client_x509_cert_url: string;
-  universe_domain?: string;
-};
-
-/** Google API エラー */
-type GoogleApiError = Error & {
-  code?: number;
-  errors?: Array<{ message: string; domain: string; reason: string }>;
-};
+const logger = createLogger('cm/api/fax/pdf');
 
 // =============================================================
-// 認証情報キャッシュ
-// =============================================================
-
-let cachedCredentials: ServiceAccountCredentials | null = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 60 * 60 * 1000; // 1時間
-
-/**
- * Supabase VaultからGoogle認証情報を取得
- */
-async function getServiceAccountCredentials(): Promise<ServiceAccountCredentials> {
-  const now = Date.now();
-  
-  // キャッシュが有効ならそれを返す
-  if (cachedCredentials && now - cacheTimestamp < CACHE_DURATION) {
-    return cachedCredentials;
-  }
-
-  // Vault から Secret を取得
-  const { data, error } = await supabaseAdmin.rpc("read_secret", {
-    secret_name: "google_service_account_key",
-  });
-
-  if (error) {
-    console.error("[PDF Proxy] Vault読み取りエラー:", error.message);
-    throw new Error(`Vault error: ${error.message}`);
-  }
-
-  if (!data) {
-    throw new Error("Service account key not found in Vault");
-  }
-
-  // JSONパース
-  const credentials: ServiceAccountCredentials = 
-    typeof data === "string" ? JSON.parse(data) : data;
-  
-  // キャッシュに保存
-  cachedCredentials = credentials;
-  cacheTimestamp = now;
-
-  return credentials;
-}
-
-/**
- * Google Drive APIクライアントを取得
- */
-async function getDriveClient() {
-  const credentials = await getServiceAccountCredentials();
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/drive.readonly"],
-  });
-
-  return google.drive({ version: "v3", auth });
-}
-
-// =============================================================
-// GET: PDFを取得
+// GET: PDF取得
 // =============================================================
 
 export async function GET(
-  _: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    // Next.js 15: params は Promise
     const { fileId } = await params;
+    const url = req.url; // ESLint対策
 
+    logger.info('PDF取得開始', { fileId, url });
+
+    // ---------------------------------------------------------
+    // バリデーション
+    // ---------------------------------------------------------
     if (!fileId) {
       return NextResponse.json(
-        { error: "fileId is required" },
+        { ok: false, error: 'fileIdが必要です' },
         { status: 400 }
       );
     }
 
-    console.log("[PDF Proxy] Fetching PDF:", fileId);
+    // ---------------------------------------------------------
+    // Google認証情報取得（Supabase Vault）
+    // ---------------------------------------------------------
+    const { data: secretData, error: secretError } = await supabaseAdmin.rpc(
+      'get_secret',
+      { secret_name: 'google_service_account' }
+    );
 
-    // Google Drive APIでファイルを取得
-    const drive = await getDriveClient();
+    if (secretError || !secretData) {
+      logger.error('認証情報取得エラー', {
+        message: secretError?.message,
+      });
+      return NextResponse.json(
+        { ok: false, error: '認証情報の取得に失敗しました' },
+        { status: 500 }
+      );
+    }
 
-    // ファイルのメタデータを取得
-    const metaRes = await drive.files.get({
-      fileId,
-      fields: "name,mimeType,size",
-      supportsAllDrives: true,
+    // ---------------------------------------------------------
+    // Google Driveクライアント作成
+    // ---------------------------------------------------------
+    const credentials = JSON.parse(secretData);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
     });
 
-    const fileName = metaRes.data.name || "document.pdf";
-    const mimeType = metaRes.data.mimeType || "application/pdf";
+    const drive = google.drive({ version: 'v3', auth });
 
-    console.log("[PDF Proxy] File metadata:", { fileName, mimeType });
+    // ---------------------------------------------------------
+    // ファイル取得
+    // ---------------------------------------------------------
+    const fileRes = await drive.files.get(
+      {
+        fileId,
+        alt: 'media',
+        supportsAllDrives: true,
+      },
+      {
+        responseType: 'arraybuffer',
+      }
+    );
 
-    // ファイルの内容を取得
-    console.log("[PDF Proxy] Downloading file content...");
-    
-    try {
-      const fileRes = await drive.files.get(
-        { fileId, alt: "media", supportsAllDrives: true },
-        { responseType: "arraybuffer" }
-      );
+    const pdfBuffer = Buffer.from(fileRes.data as ArrayBuffer);
 
-      console.log("[PDF Proxy] File response received, data type:", typeof fileRes.data);
-      
-      const buffer = Buffer.from(fileRes.data as ArrayBuffer);
+    logger.info('PDF取得完了', { fileId, size: pdfBuffer.length });
 
-      console.log("[PDF Proxy] PDF fetched successfully:", buffer.length, "bytes");
+    // ---------------------------------------------------------
+    // レスポンス
+    // ---------------------------------------------------------
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${fileId}.pdf"`,
+        'Cache-Control': 'private, max-age=3600',
+      },
+    });
+  } catch (e) {
+    logger.error('例外', e);
 
-      // レスポンス
-      return new NextResponse(buffer, {
-        status: 200,
-        headers: {
-          "Content-Type": mimeType,
-          "Content-Length": buffer.length.toString(),
-          "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-        },
-      });
-    } catch (downloadError: unknown) {
-      const err = downloadError as GoogleApiError;
-      console.error("[PDF Proxy] Download error:", err.message, err.code);
-      throw downloadError;
-    }
-  } catch (e: unknown) {
-    const err = e as GoogleApiError;
-    console.error("[PDF Proxy] Error:", err.message || e);
+    // Google APIエラーの判定
+    if (e instanceof Error) {
+      if (e.message.includes('not found') || e.message.includes('404')) {
+        return NextResponse.json(
+          { ok: false, error: 'ファイルが見つかりません' },
+          { status: 404 }
+        );
+      }
 
-    if (err.code === 404) {
-      return NextResponse.json(
-        { error: "File not found" },
-        { status: 404 }
-      );
-    }
-    if (err.code === 403) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      );
+      if (e.message.includes('permission') || e.message.includes('403')) {
+        return NextResponse.json(
+          { ok: false, error: 'ファイルへのアクセス権限がありません' },
+          { status: 403 }
+        );
+      }
     }
 
     return NextResponse.json(
-      { error: err.message || "Internal server error" },
+      { ok: false, error: 'Internal server error' },
       { status: 500 }
     );
   }

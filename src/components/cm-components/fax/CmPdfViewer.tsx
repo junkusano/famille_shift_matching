@@ -1,140 +1,104 @@
 // =============================================================
 // src/components/cm-components/fax/CmPdfViewer.tsx
-// react-pdf 8.0.2 で PDF を表示（Next.js 15 対応版）
+// FAX詳細 - PDFビューワー
+//
+// ⚠️ このコンポーネントはSSRで動作しません
+// 必ず dynamic import + ssr: false で使用してください
 // =============================================================
 
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import React, { useState, useCallback } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import { Loader2, AlertCircle } from 'lucide-react';
 
-pdfjs.GlobalWorkerOptions.workerSrc =
-  `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-
-// CSS（合わない場合は dist/esm に変える）
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import "react-pdf/dist/esm/Page/TextLayer.css";
-
-
-// =============================================================
-// PDF.js Worker 設定（CDN経由 - 最も安定）
-// react-pdf 8.0.2 は pdfjs-dist 3.11.174 を使用
-// =============================================================
-/* 只腰さんへ　一旦削除します　↑を代わりに追加しています。詳細はChatGPTに
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
+// PDF.js ワーカーの設定
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 // react-pdf のスタイル
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
-*/
-
-// =============================================================
-// Types
-// =============================================================
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 type Props = {
   fileId: string;
   pageNumber: number;
-  rotation: number;
-  zoom: number;
+  zoom?: number;
+  rotation?: number;
+  width?: number;
 };
-
-// =============================================================
-// Component
-// =============================================================
 
 export function CmPdfViewer({
   fileId,
   pageNumber,
-  rotation,
-  zoom,
+  zoom = 100,
+  rotation = 0,
+  width = 700,
 }: Props) {
-  const [numPages, setNumPages] = useState<number>(0);
+  const [numPages, setNumPages] = useState(0);
+  const [loadingDoc, setLoadingDoc] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const pdfUrl = `/api/cm/fax/pdf/${fileId}`;
-  const driveUrl = `https://drive.google.com/file/d/${fileId}/view`;
+  const scaledWidth = (width * zoom) / 100;
 
-  const baseWidth = 595;
-  const scaledWidth = baseWidth * (zoom / 100);
+  const handleDocumentLoadSuccess = useCallback(
+    ({ numPages: pages }: { numPages: number }) => {
+      setNumPages(pages);
+      setLoadingDoc(false);
+      setError(null);
+    },
+    []
+  );
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setError(null);
-  };
-
-  const onDocumentLoadError = (err: Error) => {
-    console.error('[CmPdfViewer] PDF load error:', err);
+  const handleDocumentLoadError = useCallback((err: Error) => {
+    console.error('[CmPdfViewer] Load error:', err);
+    setLoadingDoc(false);
     setError('PDFの読み込みに失敗しました');
-  };
-
-  // ローディング表示コンポーネント
-  const LoadingComponent = (
-    <div className="w-[595px] h-[842px] flex items-center justify-center bg-white">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
-        <p className="mt-4 text-sm text-gray-500">PDF読み込み中...</p>
-      </div>
-    </div>
-  );
-
-  // エラー表示コンポーネント
-  const ErrorComponent = (
-    <div className="w-[595px] h-[842px] flex items-center justify-center bg-white">
-      <div className="text-center text-red-500">
-        <AlertCircle className="w-8 h-8 mx-auto" />
-        <p className="mt-4 text-sm">{error || 'PDFの読み込みに失敗しました'}</p>
-        <a
-          href={driveUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 text-xs text-blue-500 hover:underline flex items-center justify-center gap-1"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Google Driveで開く
-        </a>
-      </div>
-    </div>
-  );
+  }, []);
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="bg-white shadow-2xl rounded overflow-hidden">
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={LoadingComponent}
-          error={ErrorComponent}
-        >
-          <Page
-            pageNumber={pageNumber}
-            rotate={rotation}
-            width={scaledWidth}
-            renderTextLayer={false}
-            renderAnnotationLayer={false}
-          />
-        </Document>
-      </div>
+    <div className="relative flex items-center justify-center bg-slate-100 min-h-[600px]">
+      {loadingDoc && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <span className="text-sm text-slate-500">PDFを読み込み中...</span>
+          </div>
+        </div>
+      )}
 
-      <div className="mt-3 flex items-center gap-4">
-        <p className="text-xs text-white/50">
-          ページ {pageNumber} / {numPages || '...'}
-        </p>
-        <a
-          href={driveUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-white/50 hover:text-white/70 flex items-center gap-1"
-        >
-          <ExternalLink className="w-3 h-3" />
-          別タブで開く
-        </a>
-      </div>
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+          <div className="flex flex-col items-center gap-3 text-red-600">
+            <AlertCircle className="w-8 h-8" />
+            <span className="text-sm">{error}</span>
+          </div>
+        </div>
+      )}
+
+      <Document
+        file={pdfUrl}
+        onLoadSuccess={handleDocumentLoadSuccess}
+        onLoadError={handleDocumentLoadError}
+        loading={null}
+        className="flex justify-center"
+      >
+        <Page
+          pageNumber={pageNumber}
+          width={scaledWidth}
+          rotate={rotation}
+          loading={null}
+          renderTextLayer={true}
+          renderAnnotationLayer={true}
+          className="shadow-lg"
+        />
+      </Document>
+
+      {!loadingDoc && !error && numPages > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full">
+          {pageNumber} / {numPages}
+        </div>
+      )}
     </div>
   );
 }

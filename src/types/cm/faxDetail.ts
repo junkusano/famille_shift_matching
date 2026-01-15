@@ -1,81 +1,95 @@
 // =============================================================
 // src/types/cm/faxDetail.ts
-// FAX詳細関連の型定義
+// FAX詳細画面関連の型定義
 // =============================================================
 
 /**
- * FAXページ詳細情報
+ * FAX受信情報
  */
-export type CmFaxPageDetail = {
+export type CmFaxReceived = {
   id: number;
-  fax_received_id: number;
-  page_number: number;
-  rotation: number;
-  rotation_source: string | null;
-  image_url: string | null;
-  ocr_status: 'pending' | 'completed' | 'failed';
-  // 推定情報
-  suggested_doc_type_id: number | null;
-  suggested_doc_type_name: string | null;
-  suggested_is_ad: boolean;
-  suggested_confidence: number | null;
-  suggested_source: string | null;
-  kaipoke_cs_id: string | null;
-  suggested_client_name: string | null;
-  // 確定情報
-  document_type_id: number | null;
-  document_type_name: string | null;
-  is_advertisement: boolean;
-  assigned_client_id: string | null;
-  assigned_client_name: string | null;
-  assigned_by: string | null;
-  assigned_at: string | null;
-  // OCR結果
-  ocr_text: string | null;
-  ocr_reason: string | null;
+  fax_number: string;
+  sender_name: string | null;
+  received_at: string;
+  page_count: number;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  pdf_drive_file_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 /**
- * FAX詳細情報
+ * FAXページ情報
  */
-export type CmFaxDetail = {
+export type CmFaxPage = {
   id: number;
-  gmail_message_id: string;
-  fax_number: string;
+  fax_received_id: number;
+  page_number: number;
+  image_url: string | null;
+  image_drive_file_id: string | null;
+  rotation: number;
+  logical_order: number | null;
+  ocr_status: 'pending' | 'processing' | 'completed' | 'error' | null;
+  ocr_text: string | null;
+  suggested_client_id: string | null;
+  suggested_client_name: string | null;
+  suggested_doc_type_id: number | null;
+  suggested_confidence: number | null;
+  suggested_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * 書類情報
+ */
+export type CmFaxDocument = {
+  id: number;
+  fax_received_id: number;
+  document_type_id: number | null;
+  document_type_name: string | null;
   office_id: number | null;
   office_name: string | null;
-  office_fax_number: string | null;
-  office_fax_proxy: string | null;
-  office_assigned_by: string | null;
-  office_assigned_at: string | null;
-  file_name: string;
-  file_path: string;
-  file_id: string;
-  page_count: number;
-  status: string;
-  received_at: string;
-  processed_at: string | null;
-  pages: CmFaxPageDetail[];
+  is_advertisement: boolean;
+  is_cover_sheet: boolean;
+  requires_response: boolean;
+  response_deadline: string | null;
+  response_sent_at: string | null;
+  assigned_by: string | null;
+  assigned_at: string | null;
+  created_at: string;
+  updated_at: string;
+  client_ids: string[] | null;
+  client_names: string[] | null;
+  page_ids: number[] | null;
+  page_numbers: number[] | null;
+};
+
+/**
+ * FAX-事業所紐付け
+ */
+export type CmFaxReceivedOffice = {
+  id: number;
+  fax_received_id: number;
+  office_id: number;
+  office_name: string;
+  fax: string | null;
+  fax_proxy: string | null;
+  service_type: string | null;
+  is_primary: boolean;
+  assigned_by: string | null;
+  assigned_at: string | null;
 };
 
 /**
  * 利用者候補
  */
-export type CmFaxClientCandidate = {
-  id: string;
-  name: string;
-  kana: string;
-  care_level: string | null;
-};
-
-/**
- * 事業所情報
- */
-export type CmFaxOffice = {
-  id: number;
+export type CmClientCandidate = {
+  kaipoke_cs_id: string;
+  client_name: string;
+  client_kana: string;
+  office_id: number;
   office_name: string;
-  fax_number: string | null;
-  fax_proxy: string | null;
 };
 
 /**
@@ -84,79 +98,106 @@ export type CmFaxOffice = {
 export type CmDocumentType = {
   id: number;
   name: string;
-  category: string;
+  category: string | null;
+  sort_order: number;
 };
 
 /**
- * ページ保存リクエスト
+ * 事業所検索結果
  */
-export type CmFaxPageSaveRequest = {
-  page_id: number;
-  client_id: string | null;
-  document_type_id: number | null;
+export type CmOfficeSearchResult = {
+  id: number;
+  office_name: string;
+  fax: string | null;
+  fax_proxy: string | null;
+  service_type: string | null;
+  prefecture: string | null;
+};
+
+/**
+ * ページごとのAI推定
+ */
+export type CmPageSuggestion = {
+  clients: Array<{
+    kaipoke_cs_id: string;
+    client_name: string;
+    confidence: number;
+  }>;
+  docType: {
+    id: number;
+    name: string;
+    confidence: number;
+  } | null;
+  reason: string | null;
   is_advertisement: boolean;
-  rotation: number;
 };
 
 /**
- * 事業所割当リクエスト
+ * 処理状況
  */
-export type CmFaxOfficeAssignRequest = {
-  office_id: number;
-  register_fax_proxy: boolean;
-  fax_number: string;
+export type CmProcessingStatus = {
+  total_pages: number;
+  assigned_pages: number;
+  total_documents: number;
+  completion_rate: number;
 };
+
+/**
+ * 選択中の利用者
+ */
+export type CmSelectedClient = {
+  kaipokeCSId: string;
+  name: string;
+  officeId: number;
+  isPrimary: boolean;
+};
+
+/**
+ * トースト状態
+ */
+export type CmToastState = {
+  show: boolean;
+  message: string;
+  type: 'success' | 'error' | 'info';
+};
+
+/**
+ * タブID
+ */
+export type CmFaxDetailTabId = 'assign' | 'documents';
 
 /**
  * FAX詳細APIレスポンス
  */
 export type CmFaxDetailApiResponse = {
   ok: boolean;
-  fax?: CmFaxDetail;
-  clientCandidates?: CmFaxClientCandidate[];
+  fax?: CmFaxReceived;
+  pages?: CmFaxPage[];
+  offices?: CmFaxReceivedOffice[];
+  documents?: CmFaxDocument[];
+  clients?: CmClientCandidate[];
   documentTypes?: CmDocumentType[];
+  processingStatus?: CmProcessingStatus;
   error?: string;
 };
 
 /**
- * 事業所検索APIレスポンス
+ * 書類保存APIレスポンス
  */
-export type CmFaxOfficeSearchResponse = {
+export type CmSaveDocumentApiResponse = {
   ok: boolean;
-  offices?: CmFaxOffice[];
+  document_id?: number;
   error?: string;
 };
 
 /**
- * ページ振り分け状態
+ * 事業所追加APIレスポンス
  */
-export type CmPageAssignment = {
-  clientId: string;
-  clientName: string;
-  docTypeId: number;
-  docTypeName: string;
-  isAd: boolean;
-  rotation: number;
-};
-
-/**
- * AI推定理由
- */
-export type CmSuggestionReason = {
-  type: 'keyword' | 'ocr_match' | 'ocr_partial' | 'continuation' | 'ad_keyword' | 'pattern' | 'unknown';
-  detail: string;
-  secondary?: string;
-};
-
-/**
- * AI推定情報
- */
-export type CmPageSuggestion = {
-  rotation: number;
-  client: { id: string; name: string } | null;
-  docType: { id: number; name: string } | null;
-  isAd: boolean;
-  confidence: 'high' | 'medium' | 'low';
-  isContinuation?: boolean;
-  reason?: CmSuggestionReason;
+export type CmAddOfficeApiResponse = {
+  ok: boolean;
+  fax_received_id?: number;
+  office_id?: number;
+  is_primary?: boolean;
+  fax_proxy_registered?: boolean;
+  error?: string;
 };
