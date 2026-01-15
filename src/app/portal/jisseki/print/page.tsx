@@ -230,7 +230,7 @@ export default function JissekiPrintPage() {
    明細行をA4で安定させる：行高さ固定
    ========================= */
 :root{
-  --row-2line: 13.5mm; 
+  --row-2line: 12mm; 
 }
 
 /* 明細行（データ行・空行含む）を全部2行分に固定 */
