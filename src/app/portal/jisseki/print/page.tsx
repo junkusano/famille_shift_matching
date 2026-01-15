@@ -223,7 +223,7 @@ export default function JissekiPrintPage() {
                     const totalPages = pages.length;
 
                     return pages.map((p, idx) => (
-                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "p-6" : "p-6 page-break"}>
+                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "print-page" : "print-page page-break"}>
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}

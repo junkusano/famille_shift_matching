@@ -128,25 +128,30 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       /* ----- single: /portal/jisseki/print ----- */
       ${mode === "single" ? `
       @media print {
-        /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */
-        body * { visibility: hidden !important; }
-        .print-only, .print-only * { visibility: visible !important; }
+  /* 印刷時は帳票だけ可視化 */
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
 
-        /* 左右対称の余白＋中央寄せ */
-        .print-only{
-          position: relative;
-          margin: 0 auto;
-          width: 210mm;
-          padding: 0mm 3mm 1mm 3mm;
-          box-sizing: border-box;
-        }
+  /* ★上余白を削り、下に余白を回す（1枚に収める） */
+  .print-only{
+    position: relative;
+    margin: 0 auto;
+    width: 210mm;
 
-        .print-only .p-6,
-        .print-only .page-break {
-          width: 100% !important;
-          box-sizing: border-box !important;
-        }
-      }
+    /* 変更点 ↓ */
+    padding: 0mm 3mm 2mm 3mm; /* 上0 / 左右3mm / 下2mm */
+
+    box-sizing: border-box;
+  }
+
+  /* ★p-6（画面用余白）を印刷では無効化 */
+  .print-only .p-6,
+  .print-only .page-break {
+    padding: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
 
       @media screen {
         .print-only{
