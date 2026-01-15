@@ -759,20 +759,15 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                             );
                         })()}
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
-                        <tr>
-                            <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
-                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                                    <div style={{ width: "40mm" }}>
-                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
-                                            <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
-                                            <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
-                                            <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
-                                            <div className="center" style={{ border: "1px solid #000" }}>枚</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                        {/* ★ページ数（右下に固定） */}
+                        <div className="page-counter">
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+                                <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
+                                <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
+                                <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
+                                <div className="center" style={{ border: "1px solid #000" }}>枚</div>
+                            </div>
+                        </div>
                     </tbody>
                 </table>
             </div>
