@@ -268,6 +268,15 @@ export default function JissekiPrintPage() {
   /* word-break: break-word; */
 }
 
+/* ★追加：fitAllText の対象は絶対に折り返さない（行高を変えない） */
+.fit-text{
+  display: inline-block;   /* scrollWidth 計測を安定させる */
+  max-width: 100%;
+  white-space: nowrap;     /* 改行禁止 */
+  overflow: hidden;        /* はみ出しで行高が変わらない */
+  text-overflow: clip;     /* 省略記号は不要なら clip */
+}
+
 /* 10桁：外枠なし、区切り線のみ */
 .digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
 .digitCell { display: flex; align-items: center; justify-content: center; }
@@ -293,10 +302,10 @@ export default function JissekiPrintPage() {
 }
 
 /* 同行援護：備考セル内の文字を確実に枠内に収める */
-.biko-td {
+.biko-td{
   padding: 0 !important;
   overflow: hidden;
-  height: var(--row-biko);       /* ← 追加：td自体を2行分に固定 */
+  height: var(--row-2line);  /* ★ここを統一 */
 }
 
 .biko-box {
@@ -396,7 +405,7 @@ export default function JissekiPrintPage() {
                                     fitRefs={fitRefs}
                                 />
                             )}
-                            
+
                             {p.formType === "DOKO" && (
                                 <DokoEngoForm
                                     data={data}
