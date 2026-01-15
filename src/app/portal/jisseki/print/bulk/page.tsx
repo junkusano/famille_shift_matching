@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
+import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
 
 type BulkItem = { kaipoke_cs_id: string; month: string };
 
@@ -317,61 +318,7 @@ export default function BulkPrintPage() {
 
     return (
         <div className="print-root">
-            <style jsx global>{`
-      :root{
-        /* ★下部に必ず余白を作る（px扱いになるので 14〜20 あたりで調整） */
-        --bulk-bottom-reserve: 20px;
-      }
-
-      @page { size: A4; margin: 3mm; }
-
-      /* 画面表示もA4っぽく */
-      .print-root { background: #eee; padding: 12px; }
-
-      /* 1人=1枚（画面ではA4固定） */
-      @media screen {
-        .sheet{
-          width: 210mm;
-          height: 297mm;
-          margin: 0 auto 12px auto;
-          background: #fff;
-          box-shadow: 0 0 6px rgba(0,0,0,0.15);
-          overflow: hidden;
-        }
-      }
-
-      /* ★印刷時は「210mm固定をやめる」＝右余白過多対策 */
-      @media print {
-  .sheet{
-    width: 100% !important;
-
-    /* ★A4 1枚に固定（内容で伸びるのを禁止） */
-    height: 297mm !important;
-    min-height: 0 !important;
-
-    margin: 0 !important;
-    box-shadow: none !important;
-
-    /* ★改ページを確実に（古い/新しい両方） */
-    page-break-after: always;
-    break-after: page;
-
-    /* 枠外にはみ出させない */
-    overflow: hidden;
-  }
-}
-
-      /* 中身の余白（/portal/jisseki/print の考え方に寄せる） */
-      .sheet-inner{
-  padding: 2mm 4mm 4mm 4mm;
-  box-sizing: border-box;
-  transform-origin: top left;
-
-  /* ★余計な改ページを誘発しない */
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-    `}</style>
+            <JissekiPrintGlobalStyles mode="bulk" />
 
             {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
