@@ -18,10 +18,26 @@ export async function PUT(req: NextRequest) {
       (await req.json()) as Body;
 
     // ★追加：ログインユーザーを取得（Cookieベース）
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: auth } = await supabase.auth.getUser();
+    // 1) Bearer token 優先
+    const authHeader = req.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-    const authUserId = auth.user?.id;
+    let authUserId: string | null = null;
+
+    if (token) {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data?.user?.id) {
+        authUserId = data.user.id;
+      }
+    }
+
+    // 2) Bearer で取れない場合のみ Cookie フォールバック
+    if (!authUserId) {
+      const supabase = createRouteHandlerClient({ cookies });
+      const { data: auth } = await supabase.auth.getUser();
+      authUserId = auth.user?.id ?? null;
+    }
+
     if (!authUserId) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
@@ -38,8 +54,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "role_fetch_failed" }, { status: 500 });
     }
 
-    const role = String(me?.system_role ?? "").toLowerCase();
-    const isManager = role === "manager" || role === "admin";
+    const role = String(me?.system_role ?? "").trim().toLowerCase();
+    const isAdmin = role === "admin" || role === "super_admin";
+    const isManager = isAdmin || role.includes("manager");
 
     // ★回収✅の更新（check）だけ、マネージャー以外は拒否
     // ※ handleCheckChange は { check: boolean, ... } を送る前提

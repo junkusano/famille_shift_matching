@@ -270,9 +270,16 @@ const DisabilityCheckPage: React.FC = () => {
       )
     );
     try {
-      await fetch("/api/disability-check/update", {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/update", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
         body: JSON.stringify({
           check: checked,
           year_month: row.year_month,
@@ -280,6 +287,12 @@ const DisabilityCheckPage: React.FC = () => {
           kaipoke_cs_id: row.kaipoke_cs_id,
         }),
       });
+
+      // ★重要：非2xxを失敗扱いにする
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`update failed: ${res.status} ${t}`);
+      }
     } catch {
       // 失敗時は元に戻す
       setRecords((prev) =>
@@ -307,9 +320,16 @@ const DisabilityCheckPage: React.FC = () => {
       )
     );
     try {
-      await fetch("/api/disability-check/update", {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/update", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
         body: JSON.stringify({
           submitted,
           year_month: row.year_month,
@@ -317,6 +337,11 @@ const DisabilityCheckPage: React.FC = () => {
           kaipoke_cs_id: row.kaipoke_cs_id,
         }),
       });
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`update failed: ${res.status} ${t}`);
+      }
     } catch {
       // 失敗時は元に戻す
       setRecords((prev) =>
