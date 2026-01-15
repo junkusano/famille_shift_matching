@@ -193,15 +193,18 @@ export default function JissekiPrintPage() {
   .print-only, .print-only * { visibility: visible !important; }
 
   /* ここが重要：210mm固定をやめて「印刷可能領域いっぱい」にする */
-.print-only {
+.print-only{
   position: absolute;
   top: 0;
   left: 0;
   width: 100% !important;
-  min-height: 297mm;
 
-  /* 追加：ページ内側に余白を確保（黒枠がギリギリにならない） */
-  padding: 2mm 4mm;
+  /* ★重要：min-height をやめる（これが空白ページの主因） */
+  min-height: auto;
+
+  /* ★余白は必要最小限に（下に少し余白が欲しい要件も満たす） */
+  padding: 0mm 3mm 2mm 3mm;
+
   box-sizing: border-box;
 }
 }
@@ -222,11 +225,12 @@ export default function JissekiPrintPage() {
     .box { border: 1px solid #000; }
     .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
     .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
-    + /* =========================
-+    明細行をA4で安定させる：行高さ固定
-+    ========================= */
+
+/* =========================
+   明細行をA4で安定させる：行高さ固定
+   ========================= */
 :root{
-  --row-2line: 15mm;  /* ← 明細行（データ・空白行とも）を2行分で固定 */
+  --row-2line: 13.5mm; 
 }
 
 /* 明細行（データ行・空行含む）を全部2行分に固定 */
