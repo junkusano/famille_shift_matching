@@ -42,8 +42,8 @@ export async function GET(
     // Google認証情報取得（Supabase Vault）
     // ---------------------------------------------------------
     const { data: secretData, error: secretError } = await supabaseAdmin.rpc(
-      'get_secret',
-      { secret_name: 'google_service_account' }
+      'read_secret',
+      { secret_name: 'google_service_account_key' }
     );
 
     if (secretError || !secretData) {

@@ -113,8 +113,11 @@ export function CmFaxDetailHeader({
                 >
                   {office.is_primary && <span className="text-teal-500">●</span>}
                   <span className="font-medium">{office.office_name}</span>
+                  {office.service_type && (
+                    <span className="text-gray-500">（{office.service_type}）</span>
+                  )}
                   {office.is_primary && (
-                    <span className="text-teal-600">（プライマリ）</span>
+                    <span className="text-teal-600 ml-1">★プライマリ</span>
                   )}
                   {office.assigned_by && (
                     <span className="text-gray-400">（手動）</span>
