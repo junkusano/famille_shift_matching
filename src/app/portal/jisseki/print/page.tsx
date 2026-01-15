@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSearchParams } from "next/navigation";
 
 type PrintPayload = {
@@ -38,6 +38,7 @@ type FormProps = {
     form: FormData;
     pageNo?: number;      // 1始まり（任意）
     totalPages?: number;  // 総枚数（任意）
+    fitRefs?: RefObject<HTMLElement[]>;
 };
 
 const OFFICE_NO = "2360181545";
@@ -93,6 +94,57 @@ export default function JissekiPrintPage() {
 
     const [data, setData] = useState<PrintPayload | null>(null);
     const [error, setError] = useState<string>("");
+    const fitRefs = useRef<HTMLElement[]>([]);
+
+    const fitAllText = () => {
+        const MIN_PX = 7;     // 最小フォント（これ以下にはしない）
+        const STEP = 0.1;     // 縮小刻み（10%ずつ）
+
+        fitRefs.current.forEach((el) => {
+            // 毎回リセット
+            el.style.fontSize = "";
+            el.style.transform = "";
+            el.style.transformOrigin = "";
+
+            const parent = el.parentElement as HTMLElement | null;
+            const maxWidth = parent?.clientWidth ?? el.clientWidth;
+
+            // 収まっているなら何もしない
+            if (el.scrollWidth <= maxWidth) return;
+
+            const cs = window.getComputedStyle(el);
+            const base = Number.parseFloat(cs.fontSize || "11");
+            if (!Number.isFinite(base) || base <= 0) return;
+
+            // まず font-size を下げていく
+            let size = base;
+            while (size > MIN_PX) {
+                size = Math.max(MIN_PX, size - base * STEP);
+                el.style.fontSize = `${size}px`;
+                if (el.scrollWidth <= maxWidth) break;
+                if (size === MIN_PX) break;
+            }
+
+            // それでも溢れる場合は scaleX で最後の安全弁
+            if (el.scrollWidth > maxWidth) {
+                const scale = Math.max(0.7, Math.min(1, maxWidth / el.scrollWidth));
+                el.style.transform = `scaleX(${scale})`;
+                el.style.transformOrigin = "left center";
+            }
+        });
+    };
+
+    // data描画後＋印刷直前にもfitを実行
+    useEffect(() => {
+        if (!data) return;
+
+        // DOMが描画された後に計測したいので rAF
+        requestAnimationFrame(() => fitAllText());
+
+        const onBeforePrint = () => fitAllText();
+        window.addEventListener("beforeprint", onBeforePrint);
+        return () => window.removeEventListener("beforeprint", onBeforePrint);
+    }, [data]);
 
     useEffect(() => {
         if (!kaipoke_cs_id || !month) return;
@@ -208,8 +260,12 @@ export default function JissekiPrintPage() {
   display: block;
   height: 100%;
   overflow: hidden;
-  white-space: normal;
-  word-break: break-word;
+
+  /* ★行の高さを変えない：折り返し禁止 */
+  white-space: nowrap;
+
+  /* 既存の折り返し設定は不要なので外す */
+  /* word-break: break-word; */
 }
 
 /* 10桁：外枠なし、区切り線のみ */
@@ -257,9 +313,17 @@ export default function JissekiPrintPage() {
 /* 1行ごとの表示。長い場合は折り返しても良いなら normal、折り返さず省略なら nowrap */
 .biko-line {
   line-height: 1.05;
-  white-space: normal;        /* 折り返す */
-  word-break: break-word;     /* 日本語・英数字混在でも折る */
- overflow-wrap: anywhere;
+
+  /* ★行の高さを変えない：折り返し禁止 */
+  white-space: nowrap;
+
+  /* ★はみ出しは切る（縮小はJSで対応） */
+  overflow: hidden;
+  text-overflow: clip;
+
+  /* 既存の折り返し設定は不要なので外す */
+  /* word-break: break-word; */
+  /* overflow-wrap: anywhere; */
 }
 
   `}</style>
@@ -319,6 +383,7 @@ export default function JissekiPrintPage() {
                                     form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
                                     totalPages={totalPages}
+                                    fitRefs={fitRefs}
                                 />
                             )}
 
@@ -328,15 +393,17 @@ export default function JissekiPrintPage() {
                                     form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
                                     totalPages={totalPages}
+                                    fitRefs={fitRefs}
                                 />
                             )}
-
+                            
                             {p.formType === "DOKO" && (
                                 <DokoEngoForm
                                     data={data}
                                     form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
                                     totalPages={totalPages}
+                                    fitRefs={fitRefs}
                                 />
                             )}
 
@@ -346,6 +413,7 @@ export default function JissekiPrintPage() {
                                     form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
                                     totalPages={totalPages}
+                                    fitRefs={fitRefs}
                                 />
                             )}
 
@@ -355,6 +423,7 @@ export default function JissekiPrintPage() {
                                     form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }}
                                     pageNo={idx + 1}
                                     totalPages={totalPages}
+                                    fitRefs={fitRefs}
                                 />
                             )}
                         </div>
@@ -365,7 +434,7 @@ export default function JissekiPrintPage() {
     );
 }
 
-function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
@@ -638,7 +707,14 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                                         {/* 備考 ← ここに担当者名 */}
                                         <td className="small">
-                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                            <span
+                                                className="fit-text"
+                                                ref={(el) => {
+                                                    if (el && !fitRefs.current.includes(el)) fitRefs.current.push(el);
+                                                }}
+                                            >
+                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                            </span>
                                         </td>
                                     </tr>
                                 );
@@ -1173,7 +1249,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     const FILTER_FROM = "2025-11-01";
 
     const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
@@ -1441,13 +1517,16 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 備考：担当者名（staffNames があれば表示） */}
                                         <td className="left small biko-td">
                                             <div className="biko-box">
-                                                {(r.staffNames ?? []).length > 0 ? (
-                                                    (r.staffNames ?? []).slice(0, 4).map((name, idx) => (
-                                                        <div key={idx} className="biko-line">{name}</div>
-                                                    ))
-                                                ) : (
-                                                    <div className="biko-line">{"\u00A0"}</div>
-                                                )}
+                                                <div className="biko-box">
+                                                    <span
+                                                        className="biko-line fit-text"
+                                                        ref={(el) => {
+                                                            if (el && !fitRefs.current.includes(el)) fitRefs.current.push(el);
+                                                        }}
+                                                    >
+                                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
