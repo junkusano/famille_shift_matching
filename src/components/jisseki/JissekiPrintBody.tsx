@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 // src/components/jisseki/JissekiPrintBody.tsx
+import { type RefObject } from "react";
 
 import {
     TAKINO_JUKYUSHA_NO,
@@ -54,10 +55,16 @@ type FormProps = {
     form: FormData;
     pageNo?: number;
     totalPages?: number;
+    fitRefs?: RefObject<HTMLElement[]>;
 };
-
 // page.tsx にあった定数も移植
-const ROWS_PER_PAGE = { TAKINO: 30, KODO: 31, DOKO: 31, JYUHO: 31, IDOU: 31 } as const;
+const ROWS_PER_PAGE = {
+    TAKINO: 24,
+    KODO: 25,
+    DOKO: 25,
+    JYUHO: 25,
+    IDOU: 25,
+} as const;
 
 // ★ここに page.tsx の <style jsx global> を「そのまま」移す
 export function JissekiPrintSheetStyles() {
@@ -131,9 +138,10 @@ function DigitBoxes10({ value }: { value: string }) {
 export default function JissekiPrintSheet({ data }: { data: PrintPayload }) {
     const pages = useMemo(() => {
         const chunk = <T,>(arr: T[], size: number): T[][] => {
+            if (!arr.length) return [];
             const res: T[][] = [];
             for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
-            return res.length ? res : [[]];
+            return res;
         };
 
         const FILTER_FROM = "2025-11-01";
@@ -141,7 +149,12 @@ export default function JissekiPrintSheet({ data }: { data: PrintPayload }) {
         const pages = data.forms.flatMap((f) => {
             const size = ROWS_PER_PAGE[f.formType];
             const rows = (f.rows ?? []).filter((r) => r.date >= FILTER_FROM);
+
+            // ★0件ならスキップ（空白ページを作らない）
+            if (rows.length === 0) return [];
+
             const chunks = chunk(rows, size);
+
             return chunks.map((rowsPage, pageIndex) => ({
                 formType: f.formType,
                 service_codes: f.service_codes,
@@ -161,7 +174,10 @@ export default function JissekiPrintSheet({ data }: { data: PrintPayload }) {
             <JissekiPrintSheetStyles />
             <div className="print-only">
                 {pages.map((p, idx) => (
-                    <div key={`${p.formType}-${idx}`} className={idx === 0 ? "p-6" : "p-6 page-break"}>
+                    <div
+                        key={`${p.formType}-${idx}`}
+                        className={idx === 0 ? "print-page" : "print-page page-break"}
+                    >
                         {p.formType === "TAKINO" && (
                             <TakinokyoForm data={data} form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
                         )}

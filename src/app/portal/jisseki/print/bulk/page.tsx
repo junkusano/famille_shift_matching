@@ -318,7 +318,7 @@ export default function BulkPrintPage() {
 
     return (
         <div className="print-root">
-            <JissekiPrintGlobalStyles mode="bulk" />
+            <JissekiPrintGlobalStyles mode="single" />
 
             {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
