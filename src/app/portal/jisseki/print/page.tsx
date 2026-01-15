@@ -207,16 +207,15 @@ html, body{
 .print-only{
   position: absolute;
   top: 0;
-
-  /* ★用紙中央に固定（右だけ余る問題を解消） */
   left: 50%;
   transform: translateX(-50%);
-
-  /* ★A4幅に固定（印刷可能領域の差でズレないように） */
   width: 210mm;
 
   min-height: auto;
-  padding: 0mm 0mm 1mm 0mm;
+
+  /* ★左右を同じだけ空ける（左詰め過ぎの解消＋左右対称） */
+  padding: 0mm 2mm 1mm 2mm;
+
   box-sizing: border-box;
 }
 }
@@ -398,9 +397,10 @@ html, body{
                 {data && (() => {
                     // rows を n 行ごとに分割
                     const chunk = <T,>(arr: T[], size: number): T[][] => {
+                        if (!arr.length) return [];
                         const res: T[][] = [];
                         for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
-                        return res.length ? res : [[]];
+                        return res;
                     };
 
                     // 「印刷ページ」の配列を作る（フォームが複数ページになる）
@@ -410,8 +410,10 @@ html, body{
                     const pages = data.forms.flatMap((f) => {
                         const size = ROWS_PER_PAGE[f.formType];
 
-                        // ★ページ分割前にフィルタする（これで「改ページ」も正しくなる）
                         const rows = (f.rows ?? []).filter((r) => r.date >= FILTER_FROM);
+
+                        /* ★ここで0件ならスキップ（空白ページの原因を除去） */
+                        if (rows.length === 0) return [];
 
                         const chunks = chunk(rows, size);
 
