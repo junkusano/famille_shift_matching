@@ -97,7 +97,7 @@ export default function JissekiPrintPage() {
     const fitRefs = useRef<HTMLElement[]>([]);
 
     const fitAllText = () => {
-        const MIN_PX = 7;     // 最小フォント（これ以下にはしない）
+        const MIN_PX = 8;     // 最小フォント（これ以下にはしない）
         const STEP = 0.1;     // 縮小刻み（10%ずつ）
 
         fitRefs.current.forEach((el) => {
@@ -226,7 +226,7 @@ export default function JissekiPrintPage() {
 +    明細行をA4で安定させる：行高さ固定
 +    ========================= */
 :root{
-  --row-2line: 12.0mm;  /* ← 明細行（データ・空白行とも）を2行分で固定 */
+  --row-2line: 13.5mm;  /* ← 明細行（データ・空白行とも）を2行分で固定 */
 }
 
 /* 明細行（データ行・空行含む）を全部2行分に固定 */
@@ -236,6 +236,7 @@ export default function JissekiPrintPage() {
   line-height: 1.05;        /* 2行で収めやすく */
   vertical-align: middle;
   overflow: hidden;         /* 文字で伸びない */
+  font-size: 12px;
 }
 
 /* 既存の備考セル指定はそのままでもOKだが、統一しておく */
