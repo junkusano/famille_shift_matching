@@ -129,7 +129,7 @@ export default function JissekiPrintPage() {
             if (el.scrollWidth > maxWidth) {
                 const scale = Math.max(0.7, Math.min(1, maxWidth / el.scrollWidth));
                 el.style.transform = `scaleX(${scale})`;
-                el.style.transformOrigin = "left center";
+                el.style.transformOrigin = "center center";  // ★中央基準で縮小
             }
         });
     };
@@ -231,18 +231,15 @@ export default function JissekiPrintPage() {
 /* =========================
    明細行をA4で安定させる：行高さ固定
    ========================= */
-:root{
-  --row-2line: 10mm; 
-}
+:root{ --row-2line: 8.8mm; }   /* ★さらに下げる */
 
-/* 明細行（データ行・空行含む）を全部2行分に固定 */
 .detail-row > td{
   height: var(--row-2line);
-  padding: 1px 3px;
-  line-height: 1.05;        /* 2行で収めやすく */
+  padding: 0px 2px;            /* ★詰める */
+  line-height: 1.0;            /* ★詰める */
+  font-size: 11px;             /* ★戻す（収まり優先） */
   vertical-align: middle;
-  overflow: hidden;         /* 文字で伸びない */
-  font-size: 12px;
+  overflow: hidden;
 }
 
 /* 既存の備考セル指定はそのままでもOKだが、統一しておく */
@@ -250,6 +247,18 @@ export default function JissekiPrintPage() {
   padding: 0 !important;
   overflow: hidden;
   height: var(--row-2line);
+
+  text-align: center;       /* ★短い文字でも中央 */
+  vertical-align: middle;
+}
+
+.fit-text{
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+
+  transform-origin: center center; /* ★CSS側も念押し */
 }
 .biko-box{
   height: 100%;
@@ -312,7 +321,19 @@ export default function JissekiPrintPage() {
 .biko-td{
   padding: 0 !important;
   overflow: hidden;
-  height: var(--row-2line);  /* ★ここを統一 */
+  height: var(--row-2line);
+
+  text-align: center;       /* ★短い文字でも中央 */
+  vertical-align: middle;
+}
+
+.fit-text{
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+
+  transform-origin: center center; /* ★CSS側も念押し */
 }
 
 .biko-box {
@@ -722,7 +743,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                         <td>&nbsp;</td>
 
                                         {/* 備考 ← ここに担当者名 */}
-                                        <td className="small">
+                                        <td className="biko-td">
                                             <span
                                                 className="fit-text"
                                                 ref={(el) => {
@@ -1192,7 +1213,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td>&nbsp;</td>
 
                                     {/* 備考：担当者名（staffNames があれば表示） */}
-                                    <td className="small">
+                                    <td className="biko-td">
                                         {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
                                     </td>
                                 </tr>
@@ -1983,7 +2004,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">&nbsp;</td>
 
                                         {/* 19 備考（担当者名） */}
-                                        <td className="small">{staffMemo}</td>
+                                        <td className="biko-td">{staffMemo}</td>
                                     </tr>
                                 );
                             });
