@@ -171,10 +171,12 @@ export default function JissekiPrintPage() {
     return (
         <div className="min-h-screen bg-white text-black">
             <style jsx global>{`
-    @page { size: A4; margin: 3mm; }
+    @page { size: A4; margin: 0mm; }
  @media print {
   .no-print { display: none !important; }
   .page-break { page-break-before: always; }
+  .formBox { padding: 0 !important; }    /* p-2相当を消す */
+  .mt-2 { margin-top: 0 !important; }    /* タイトル下の余白を消す */
 
   /* p-6 の左右余白を確実に消す（全方向） */
   .print-only .p-6 {
@@ -203,7 +205,7 @@ export default function JissekiPrintPage() {
   min-height: auto;
 
   /* ★余白は必要最小限に（下に少し余白が欲しい要件も満たす） */
-  padding: 0mm 3mm 2mm 3mm;
+  padding: 0mm 2mm 2mm 2mm;
 
   box-sizing: border-box;
 }
@@ -230,13 +232,13 @@ export default function JissekiPrintPage() {
    明細行をA4で安定させる：行高さ固定
    ========================= */
 :root{
-  --row-2line: 12mm; 
+  --row-2line: 10mm; 
 }
 
 /* 明細行（データ行・空行含む）を全部2行分に固定 */
 .detail-row > td{
   height: var(--row-2line);
-  padding: 2px 3px;
+  padding: 1px 3px;
   line-height: 1.05;        /* 2行で収めやすく */
   vertical-align: middle;
   overflow: hidden;         /* 文字で伸びない */
@@ -562,7 +564,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
 
                         {/* ヘッダと明細の間の余白（PDF見た目調整） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={17} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -927,7 +929,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                         })()}
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", paddingTop: "6px" }}>
+                            <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
                                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                                     <div style={{ width: "40mm" }}>
                                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
@@ -1117,7 +1119,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -1412,7 +1414,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* ヘッダと明細の間の余白（PDFの見た目寄せ） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* ===== 明細テーブル見出し（PDFの列構造） ===== */}
@@ -1818,7 +1820,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -2298,7 +2300,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                         {/* （ヘッダと明細の間の空白行：見た目調整） */}
                         <tr>
-                            <td colSpan={19} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={19} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
