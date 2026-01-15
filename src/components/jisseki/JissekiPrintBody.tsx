@@ -20,8 +20,6 @@ import {
     OFFICE_NAME_LINES,
 } from "@/components/jisseki/jissekiPrintConstants";
 
-const fitRefs = useRef<HTMLElement[]>([]);
-
 // page.tsx にあった型をそのまま移植
 export type PrintPayload = {
     client: {
@@ -291,7 +289,7 @@ export default function JissekiPrintBody({
 }
 
 // ↓↓↓ ここから下に page.tsx にあった各 Form 関数を「そのまま」移植 ↓↓↓
-function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
             <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
@@ -567,7 +565,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                             <div
                                                 className="biko-box"
                                                 ref={(el) => {
-                                                    if (el && fitRefs) fitRefs.current.push(el);
+                                                    if (el) fitRefs?.current.push(el);
                                                 }}
                                             >
                                                 <div className="biko-line">
@@ -791,8 +789,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         </div>
     );
 }
-
-function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     // 計画時間数計：rows.minutes を「時間」に換算して合計（小数1桁まで）
     // minutes が無い行でも、start/end から分数を算出する
     const FILTER_FROM = "2025-11-01";
@@ -1039,7 +1036,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <div
                                             className="biko-box"
                                             ref={(el) => {
-                                                if (el && fitRefs) fitRefs.current.push(el);
+                                                if (el) fitRefs?.current.push(el);
                                             }}
                                         >
                                             <div className="biko-line">
@@ -1117,7 +1114,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     const FILTER_FROM = "2025-11-01";
 
     const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
@@ -1382,9 +1379,14 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 利用者確認欄（はんこ欄なので空でOK） */}
                                         <td>&nbsp;</td>
 
-                                        {/* 備考：担当者名（staffNames があれば表示） */}
+                                        {/* 備考：担当者名（fitRefs 対応） */}
                                         <td className="left small biko-td">
-                                            <div className="biko-box">
+                                            <div
+                                                className="biko-box"
+                                                ref={(el) => {
+                                                    if (el) fitRefs?.current.push(el);
+                                                }}
+                                            >
                                                 {(r.staffNames ?? []).length > 0 ? (
                                                     (r.staffNames ?? []).slice(0, 4).map((name, idx) => (
                                                         <div key={idx} className="biko-line">{name}</div>
@@ -1524,7 +1526,7 @@ function minutesToHoursText(mins?: number | null): string {
     return String(hours).replace(/\.0$/, "");        // "3.0" → "3"
 }
 
-function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     const sumPlanHoursRaw =
         (form?.rows ?? []).reduce((a, r) => a + (r.minutes ?? 0), 0) / 60;
     // ★追加：移動（judo_ido）の合計（時間）
@@ -1830,7 +1832,18 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td className="center">&nbsp;</td>
 
                                         {/* 19 備考（担当者名） */}
-                                        <td className="small">{staffMemo}</td>
+                                        <td className="small biko-td">
+                                            <div
+                                                className="biko-box"
+                                                ref={(el) => {
+                                                    if (el) fitRefs?.current.push(el);
+                                                }}
+                                            >
+                                                <div className="biko-line">
+                                                    {(staffMemo && staffMemo.trim()) ? staffMemo : "\u00A0"}
+                                                </div>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             });
@@ -1923,7 +1936,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
+function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     // ★2025年11月以降のみ
     const FILTER_FROM = "2025-11-01";
 
@@ -2253,8 +2266,17 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td className="center">{r.end}</td>
 
                                     {/* サービス提供者名／利用者確認欄 */}
-                                    <td className="left small">
-                                        {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                    <td className="left small biko-td">
+                                        <div
+                                            className="biko-box"
+                                            ref={(el) => {
+                                                if (el) fitRefs?.current.push(el);
+                                            }}
+                                        >
+                                            <div className="biko-line">
+                                                {(r.staffNames?.join(" ") ?? "").trim() || "\u00A0"}
+                                            </div>
+                                        </div>
                                     </td>
                                     <td>&nbsp;</td>
                                 </tr>
