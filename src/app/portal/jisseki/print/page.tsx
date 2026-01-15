@@ -180,14 +180,23 @@ export default function JissekiPrintPage() {
 
   /* p-6 の左右余白を確実に消す（全方向） */
   .print-only .p-6 {
-    padding: 0 !important;
-  }
+  padding: 0 !important;
+}
+
+html, body{
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
   /* 追加：p-6 を持つページラッパー自体を幅いっぱいに */
   .print-only .p-6, 
   .print-only .page-break {
     width: 100% !important;
     box-sizing: border-box !important;
+  }
+
+  .grid th, .grid td{
+    padding: 1px 2px !important;
   }
 
   body { margin: 0 !important; }
@@ -207,7 +216,7 @@ export default function JissekiPrintPage() {
   width: 210mm;
 
   min-height: auto;
-  padding: 0mm 2mm 2mm 2mm;
+  padding: 0mm 0mm 1mm 0mm;
   box-sizing: border-box;
 }
 }
@@ -232,7 +241,7 @@ export default function JissekiPrintPage() {
 /* =========================
    明細行をA4で安定させる：行高さ固定
    ========================= */
-:root{ --row-2line: 8.8mm; }   /* ★さらに下げる */
+:root{ --row-2line: 8.2mm; }   /* ★さらに下げる */
 
 .detail-row > td{
   height: var(--row-2line);
@@ -269,6 +278,10 @@ export default function JissekiPrintPage() {
     .right { text-align: right; }
     .small { font-size: 10px; }
     .title { font-size: 14px; font-weight: 700; text-align: center; }
+
+@media print{
+  .title{ font-size: 12px !important; }  /* ★上部を詰める */
+}
     .ido-grid { width: 100% !important; }
     .ido-grid { max-width: 100% !important; }
 
