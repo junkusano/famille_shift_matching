@@ -69,11 +69,11 @@ const DOKO_CONTRACT = "同行援護 25時間/月";
 
 // ★1ページあたりの明細行数（+10）
 const ROWS_PER_PAGE = {
-    TAKINO: 30,
-    KODO: 31,
-    DOKO: 31,
-    JYUHO: 31,
-    IDOU: 31,
+    TAKINO: 24, // 30 → 24（-6）
+    KODO: 25,   // 31 → 25（-6）
+    DOKO: 25,   // 31 → 25（-6）
+    JYUHO: 25,  // 31 → 25（-6）
+    IDOU: 25,   // 31 → 25（-6）
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -198,15 +198,16 @@ export default function JissekiPrintPage() {
 .print-only{
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100% !important;
 
-  /* ★重要：min-height をやめる（これが空白ページの主因） */
+  /* ★用紙中央に固定（右だけ余る問題を解消） */
+  left: 50%;
+  transform: translateX(-50%);
+
+  /* ★A4幅に固定（印刷可能領域の差でズレないように） */
+  width: 210mm;
+
   min-height: auto;
-
-  /* ★余白は必要最小限に（下に少し余白が欲しい要件も満たす） */
   padding: 0mm 2mm 2mm 2mm;
-
   box-sizing: border-box;
 }
 }
