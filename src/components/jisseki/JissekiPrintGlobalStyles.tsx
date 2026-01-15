@@ -127,48 +127,26 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
       /* ----- single: /portal/jisseki/print ----- */
       ${mode === "single" ? `
-     @media print {
-  /* 印刷時は帳票だけ可視化 */
-  body * { visibility: hidden !important; }
-  .print-only, .print-only * { visibility: visible !important; }
+      @media print {
+        /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */
+        body * { visibility: hidden !important; }
+        .print-only, .print-only * { visibility: visible !important; }
 
-  .print-only{
-    position: relative;
-    margin: 0 auto;
-    width: 210mm;
-    padding: 0mm 3mm 2mm 3mm;
-    box-sizing: border-box;
-  }
+        /* 左右対称の余白＋中央寄せ */
+        .print-only{
+          position: relative;
+          margin: 0 auto;
+          width: 210mm;
+          padding: 0mm 3mm 1mm 3mm;
+          box-sizing: border-box;
+        }
 
-  .print-only .p-6,
-  .print-only .page-break {
-    padding: 0 !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* =========================
-     ★ここから追加（変更1）
-     ========================= */
-
-  /* ★追加：各ページを固定配置の基準にする（ページ数をabsolute配置するため） */
-  .print-page{
-    position: relative;
-  }
-
-  /* ★追加：「1枚中1枚」を右下固定（押し出されて2枚目に行くのを防ぐ） */
-  .page-counter{
-    position: absolute;
-    right: 3mm;
-    bottom: 2mm;
-    width: 40mm;
-  }
-
-  /* ★追加：固定配置と本文が被らないように下側の予約領域を作る */
-  .formBox{
-    padding-bottom: 10mm !important;
-  }
-}
+        .print-only .p-6,
+        .print-only .page-break {
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+      }
 
       @media screen {
         .print-only{
