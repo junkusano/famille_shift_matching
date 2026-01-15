@@ -1,7 +1,7 @@
 // src/app/portal/jisseki/print/bulk/page.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
 import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
@@ -13,8 +13,6 @@ export default function BulkPrintPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [didAutoPrint, setDidAutoPrint] = useState(false);
-    const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
-    const sheetInnerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     useEffect(() => {
         const run = async () => {
@@ -265,46 +263,6 @@ export default function BulkPrintPage() {
 
         return () => window.clearTimeout(t);
     }, [loading, error, datas.length, didAutoPrint]);
-    useEffect(() => {
-        if (loading) return;
-        if (error) return;
-        if (datas.length === 0) return;
-
-        const id = window.requestAnimationFrame(() => {
-            const next: Record<string, number> = {};
-
-            for (const d of datas) {
-                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
-                const el = sheetInnerRefs[key];
-                if (!el) continue;
-
-                const sheet = el.closest(".sheet") as HTMLElement | null;
-                if (!sheet) continue;
-
-                // A4枠の中で収めたい「内側の高さ」を計算
-                const cs = window.getComputedStyle(el);
-                const padTop = parseFloat(cs.paddingTop || "0");
-                const padBottom = parseFloat(cs.paddingBottom || "0");
-
-                // ★下に必ず余白を作る（ここが「ギリギリ1枚に収まらない」対策の本体）
-                const bottomReserve = parseFloat(
-                    window.getComputedStyle(document.documentElement).getPropertyValue("--bulk-bottom-reserve") || "14"
-                );
-
-                const available = sheet.clientHeight - padTop - padBottom - bottomReserve;
-
-                const contentHeight = el.scrollHeight;
-                const s = contentHeight > 0 ? Math.min(1, available / contentHeight) : 1;
-
-                // 下限は必要なら調整（小さくなりすぎ防止）
-                next[key] = Math.max(0.55, s);
-            }
-
-            setScaleMap(next);
-        });
-
-        return () => window.cancelAnimationFrame(id);
-    }, [datas, loading, error]);
 
     if (loading) return <div>読み込み中...</div>;
 
@@ -331,25 +289,18 @@ export default function BulkPrintPage() {
                 </button>
             </div>
 
-            {/* ★ここが本体：実データで map する（... は絶対に残さない） */}
-            {datas.map((d) => {
-                const key = `${d.client.kaipoke_cs_id}-${d.month}`;
-                const scale = scaleMap[key] ?? 1;
+            {/* ★印刷対象は print-only に集約（単票と同じ発想） */}
+            <div className="print-only">
+                {datas.map((d, idx) => {
+                    const key = `${d.client.kaipoke_cs_id}-${d.month}`;
 
-                return (
-                    <div key={key} className="sheet">
-                        <div
-                            className="sheet-inner"
-                            ref={(el) => {
-                                sheetInnerRefs.current[key] = el;
-                            }}
-                            style={{ transform: `scale(${scale})` }}
-                        >
+                    return (
+                        <div key={key} className={idx === 0 ? "" : "page-break"}>
                             <JissekiPrintBody data={d} />
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 }

@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
-// src/components/jisseki/JissekiPrintBody.tsx
-import { type RefObject } from "react";
+import React, { useEffect, useMemo, useRef, type RefObject } from "react";
 
 import {
     TAKINO_JUKYUSHA_NO,
@@ -21,6 +19,8 @@ import {
     OFFICE_NO,
     OFFICE_NAME_LINES,
 } from "@/components/jisseki/jissekiPrintConstants";
+
+const fitRefs = useRef<HTMLElement[]>([]);
 
 // page.tsx にあった型をそのまま移植
 export type PrintPayload = {
@@ -135,7 +135,62 @@ function DigitBoxes10({ value }: { value: string }) {
 }
 
 // ★これが「帳票を描く本体」：page.tsx の print-only の中身を移植して export
-export default function JissekiPrintSheet({ data }: { data: PrintPayload }) {
+export default function JissekiPrintBody({
+    data,
+    wrapPrintOnly = true, // ★追加：bulk側では false にする
+}: {
+    data: PrintPayload;
+    wrapPrintOnly?: boolean;
+}) {
+    // ★追加：備考の文字詰め対象を集める
+    const fitRefs = useRef<HTMLElement[]>([]);
+
+    // ★追加：文字詰め処理（page.tsx と同等）
+    const fitAllText = () => {
+        const MIN_PX = 8;
+        const STEP = 0.1;
+
+        // 念のため重複を除去（同一要素が複数回pushされるのを防ぐ）
+        const uniq = Array.from(new Set(fitRefs.current));
+        fitRefs.current = uniq;
+
+        uniq.forEach((el) => {
+            el.style.fontSize = "";
+            el.style.transform = "";
+            el.style.transformOrigin = "";
+
+            const parent = el.parentElement as HTMLElement | null;
+            const maxWidth = parent?.clientWidth ?? el.clientWidth;
+            if (el.scrollWidth <= maxWidth) return;
+
+            const cs = window.getComputedStyle(el);
+            const base = Number.parseFloat(cs.fontSize || "11");
+            if (!Number.isFinite(base) || base <= 0) return;
+
+            let size = base;
+            while (size > MIN_PX) {
+                size = Math.max(MIN_PX, size - base * STEP);
+                el.style.fontSize = `${size}px`;
+                if (el.scrollWidth <= maxWidth) break;
+                if (size === MIN_PX) break;
+            }
+
+            if (el.scrollWidth > maxWidth) {
+                const scale = Math.max(0.7, Math.min(1, maxWidth / el.scrollWidth));
+                el.style.transform = `scaleX(${scale})`;
+                el.style.transformOrigin = "center center";
+            }
+        });
+    };
+
+    // ★追加：描画後と印刷直前でfit
+    useEffect(() => {
+        requestAnimationFrame(() => fitAllText());
+        const onBeforePrint = () => fitAllText();
+        window.addEventListener("beforeprint", onBeforePrint);
+        return () => window.removeEventListener("beforeprint", onBeforePrint);
+    }, [data]);
+
     const pages = useMemo(() => {
         const chunk = <T,>(arr: T[], size: number): T[][] => {
             if (!arr.length) return [];
@@ -169,35 +224,70 @@ export default function JissekiPrintSheet({ data }: { data: PrintPayload }) {
 
     const totalPages = pages.length;
 
+    const content = (
+        <>
+            {pages.map((p, idx) => (
+                <div
+                    key={`${p.formType}-${idx}`}
+                    className={idx === 0 ? "print-page" : "print-page page-break"}
+                >
+                    {p.formType === "TAKINO" && (
+                        <TakinokyoForm
+                            data={data}
+                            form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }}
+                            pageNo={idx + 1}
+                            totalPages={totalPages}
+                            fitRefs={fitRefs}   // ★修正箇所4で追加する fitRefs を渡す
+                        />
+                    )}
+                    {p.formType === "KODO" && (
+                        <KodoEngoForm
+                            data={data}
+                            form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }}
+                            pageNo={idx + 1}
+                            totalPages={totalPages}
+                            fitRefs={fitRefs}
+                        />
+                    )}
+                    {p.formType === "DOKO" && (
+                        <DokoEngoForm
+                            data={data}
+                            form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }}
+                            pageNo={idx + 1}
+                            totalPages={totalPages}
+                            fitRefs={fitRefs}
+                        />
+                    )}
+                    {p.formType === "JYUHO" && (
+                        <JudoHommonForm
+                            data={data}
+                            form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }}
+                            pageNo={idx + 1}
+                            totalPages={totalPages}
+                            fitRefs={fitRefs}
+                        />
+                    )}
+                    {p.formType === "IDOU" && (
+                        <IdoShienForm
+                            data={data}
+                            form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }}
+                            pageNo={idx + 1}
+                            totalPages={totalPages}
+                            fitRefs={fitRefs}
+                        />
+                    )}
+                </div>
+            ))}
+        </>
+    );
+
     return (
         <>
             <JissekiPrintSheetStyles />
-            <div className="print-only">
-                {pages.map((p, idx) => (
-                    <div
-                        key={`${p.formType}-${idx}`}
-                        className={idx === 0 ? "print-page" : "print-page page-break"}
-                    >
-                        {p.formType === "TAKINO" && (
-                            <TakinokyoForm data={data} form={{ formType: "TAKINO", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
-                        )}
-                        {p.formType === "KODO" && (
-                            <KodoEngoForm data={data} form={{ formType: "KODO", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
-                        )}
-                        {p.formType === "DOKO" && (
-                            <DokoEngoForm data={data} form={{ formType: "DOKO", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
-                        )}
-                        {p.formType === "JYUHO" && (
-                            <JudoHommonForm data={data} form={{ formType: "JYUHO", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
-                        )}
-                        {p.formType === "IDOU" && (
-                            <IdoShienForm data={data} form={{ formType: "IDOU", service_codes: p.service_codes, rows: p.rowsPage }} pageNo={idx + 1} totalPages={totalPages} />
-                        )}
-                    </div>
-                ))}
-            </div>
+            {wrapPrintOnly ? <div className="print-only">{content}</div> : content}
         </>
     );
+
 }
 
 // ↓↓↓ ここから下に page.tsx にあった各 Form 関数を「そのまま」移植 ↓↓↓
@@ -473,8 +563,17 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         <td>&nbsp;</td>
 
                                         {/* 備考 ← ここに担当者名 */}
-                                        <td className="small">
-                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                        <td className="small biko-td">
+                                            <div
+                                                className="biko-box"
+                                                ref={(el) => {
+                                                    if (el && fitRefs) fitRefs.current.push(el);
+                                                }}
+                                            >
+                                                <div className="biko-line">
+                                                    {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -936,8 +1035,17 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     <td>&nbsp;</td>
 
                                     {/* 備考：担当者名（staffNames があれば表示） */}
-                                    <td className="small">
-                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                    <td className="small biko-td">
+                                        <div
+                                            className="biko-box"
+                                            ref={(el) => {
+                                                if (el && fitRefs) fitRefs.current.push(el);
+                                            }}
+                                        >
+                                            <div className="biko-line">
+                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                             );
