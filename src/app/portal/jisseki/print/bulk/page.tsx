@@ -320,7 +320,7 @@ export default function BulkPrintPage() {
             <style jsx global>{`
       :root{
         /* ★下部に必ず余白を作る（px扱いになるので 14〜20 あたりで調整） */
-        --bulk-bottom-reserve: 16px;
+        --bulk-bottom-reserve: 20px;
       }
 
       @page { size: A4; margin: 3mm; }
@@ -342,28 +342,35 @@ export default function BulkPrintPage() {
 
       /* ★印刷時は「210mm固定をやめる」＝右余白過多対策 */
       @media print {
-        .no-print { display: none !important; }
+  .sheet{
+    width: 100% !important;
 
-        body { margin: 0 !important; background: #fff !important; }
-        .print-root { background:#fff !important; padding: 0 !important; }
+    /* ★A4 1枚に固定（内容で伸びるのを禁止） */
+    height: 297mm !important;
+    min-height: 0 !important;
 
-        .sheet{
-          width: 100% !important;
-          min-height: 297mm;
-          height: auto;
-          margin: 0 !important;
-          box-shadow: none !important;
-          page-break-after: always;
-          overflow: hidden;
-        }
-      }
+    margin: 0 !important;
+    box-shadow: none !important;
+
+    /* ★改ページを確実に（古い/新しい両方） */
+    page-break-after: always;
+    break-after: page;
+
+    /* 枠外にはみ出させない */
+    overflow: hidden;
+  }
+}
 
       /* 中身の余白（/portal/jisseki/print の考え方に寄せる） */
       .sheet-inner{
-        padding: 2mm 4mm 4mm 4mm; /* 下は少し厚め＝見た目と安全余白 */
-        box-sizing: border-box;
-        transform-origin: top left;
-      }
+  padding: 2mm 4mm 4mm 4mm;
+  box-sizing: border-box;
+  transform-origin: top left;
+
+  /* ★余計な改ページを誘発しない */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
     `}</style>
 
             {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
