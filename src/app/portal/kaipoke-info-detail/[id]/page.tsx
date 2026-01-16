@@ -1031,7 +1031,7 @@ export default function KaipokeInfoDetailPage() {
                                 編集
                             </button>
 
-                            <button className="btn-delete" onClick={() => handleDelete(place.id)}>
+                            <button className="btn-delete" onClick={() => handleDeleteParking(place.id)}>
                                 削除
                             </button>
                         </div>
