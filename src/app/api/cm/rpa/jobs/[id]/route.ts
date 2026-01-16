@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { validateApiKey } from '@/lib/cm/rpa/auth';
 import type {
   CmJob,
   CmJobItem,
@@ -34,28 +35,6 @@ const VALID_STATUSES: readonly CmJobStatus[] = ['pending', 'processing', 'comple
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
-
-// =============================================================
-// APIキー認証
-// =============================================================
-
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const apiKey = request.headers.get('x-api-key');
-
-  if (!apiKey) {
-    return false;
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  return !error && !!data;
-}
 
 // =============================================================
 // バリデーション

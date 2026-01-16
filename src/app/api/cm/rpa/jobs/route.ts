@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { validateApiKey } from '@/lib/cm/rpa/auth';
 import type {
   CmCreateJobRequest,
   CmCreateJobResponse,
@@ -24,28 +25,6 @@ const logger = createLogger('cm/api/rpa/jobs');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
-
-// =============================================================
-// APIキー認証
-// =============================================================
-
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const apiKey = request.headers.get('x-api-key');
-
-  if (!apiKey) {
-    return false;
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  return !error && !!data;
-}
 
 // =============================================================
 // マスタ検証

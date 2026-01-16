@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { validateApiKey } from '@/lib/cm/rpa/auth';
 
 // -------------------------------------------------------------
 // 型定義
@@ -49,25 +50,6 @@ type ApiResponse = {
   fail?: number;
   error?: string;
 };
-
-// -------------------------------------------------------------
-// 認証
-// -------------------------------------------------------------
-
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const apiKey = request.headers.get('x-api-key');
-  if (!apiKey) return false;
-
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  return !error && !!data;
-}
 
 // -------------------------------------------------------------
 // ジョブアイテム更新ヘルパー
