@@ -1,11 +1,16 @@
 // =============================================================
 // src/app/api/cm/other-offices/route.ts
 // 他社事業所一覧取得API
+//
+// 【修正】FAX番号検索のハイフン混在対応
+// - 単純なilike検索からワイルドカードパターン検索に変更
+// - 入力: 0312345678 → DB: 03-1234-5678 でもマッチ
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { buildFaxSearchPattern, normalizeFaxNumber } from '@/lib/cm/faxNumberUtils';
 
 const logger = createLogger('cm/api/other-offices');
 
@@ -23,6 +28,8 @@ export async function GET(request: NextRequest) {
     const officeNumber = searchParams.get('officeNumber') || '';
     const faxNumber = searchParams.get('faxNumber') || '';
 
+    logger.info('他社事業所検索', { officeName, faxNumber, serviceType });
+
     // ベースクエリ
     let query = supabaseAdmin
       .from('cm_kaipoke_other_office')
@@ -38,9 +45,28 @@ export async function GET(request: NextRequest) {
     if (officeNumber) {
       query = query.ilike('office_number', `%${officeNumber}%`);
     }
+    
+    // 【修正】FAX番号検索（ハイフン混在対応）
     if (faxNumber) {
-      // FAXまたはFAX代行番号で検索
-      query = query.or(`fax.ilike.%${faxNumber}%,fax_proxy.ilike.%${faxNumber}%`);
+      // 入力を正規化（数字のみに）
+      const normalized = normalizeFaxNumber(faxNumber);
+      
+      if (normalized && normalized.length >= 4) {
+        // ワイルドカードパターンを生成
+        const wildcardPattern = buildFaxSearchPattern(normalized);
+        
+        if (wildcardPattern) {
+          // ワイルドカード検索（ハイフン混在対応）
+          query = query.or(`fax.ilike.${wildcardPattern},fax_proxy.ilike.${wildcardPattern}`);
+          logger.info('FAX検索パターン', { input: faxNumber, pattern: wildcardPattern });
+        } else {
+          // 短すぎる場合は部分一致
+          query = query.or(`fax.ilike.%${normalized}%,fax_proxy.ilike.%${normalized}%`);
+        }
+      } else {
+        // 正規化できない場合は元の値で検索
+        query = query.or(`fax.ilike.%${faxNumber}%,fax_proxy.ilike.%${faxNumber}%`);
+      }
     }
 
     // ソート（サービス種別 → 事業所名）
@@ -63,19 +89,19 @@ export async function GET(request: NextRequest) {
     const { data: serviceTypesData } = await supabaseAdmin
       .from('cm_kaipoke_other_office')
       .select('service_type')
-      .not('service_type', 'is', null)
-      .order('service_type', { ascending: true });
+      .not('service_type', 'is', null);
 
-    // 重複を除去してユニークなサービス種別リストを作成
     const serviceTypes = [...new Set(
       (serviceTypesData || [])
-        .map(row => row.service_type)
-        .filter((v): v is string => v !== null)
-    )];
+        .map((d) => d.service_type)
+        .filter((s): s is string => s !== null)
+    )].sort();
 
     // ページネーション情報
     const total = count || 0;
     const totalPages = Math.ceil(total / limit);
+
+    logger.info('他社事業所取得完了', { count: offices?.length, total });
 
     return NextResponse.json({
       ok: true,
@@ -92,7 +118,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('他社事業所API予期せぬエラー', error);
+    logger.error('他社事業所取得API予期せぬエラー', error);
     return NextResponse.json({ ok: false, error: 'サーバーエラーが発生しました' }, { status: 500 });
   }
 }

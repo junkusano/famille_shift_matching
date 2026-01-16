@@ -11,6 +11,14 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 // -------------------------------------------------------------
 
 /**
+ * _job パラメータ
+ */
+type JobParam = {
+  job_id: number;
+  target_id: string;
+};
+
+/**
  * 他社事業所情報レコード
  */
 type OtherOfficeRecord = {
@@ -29,6 +37,7 @@ type OtherOfficeRecord = {
  */
 type RequestBody = {
   records: OtherOfficeRecord[];
+  _job?: JobParam;
 };
 
 /**
@@ -61,6 +70,41 @@ async function validateApiKey(request: NextRequest): Promise<boolean> {
 }
 
 // -------------------------------------------------------------
+// ジョブアイテム更新ヘルパー
+// -------------------------------------------------------------
+
+async function markJobItemCompleted(jobParam: JobParam): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from('cm_job_items')
+      .update({
+        status: 'completed',
+        processed_at: new Date().toISOString(),
+      })
+      .eq('job_id', jobParam.job_id)
+      .eq('target_id', jobParam.target_id);
+  } catch (e) {
+    console.error('[other-office] ジョブアイテム更新エラー:', e);
+  }
+}
+
+async function markJobItemFailed(jobParam: JobParam, errorMessage: string): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from('cm_job_items')
+      .update({
+        status: 'failed',
+        error_message: errorMessage,
+        processed_at: new Date().toISOString(),
+      })
+      .eq('job_id', jobParam.job_id)
+      .eq('target_id', jobParam.target_id);
+  } catch (e) {
+    console.error('[other-office] ジョブアイテム更新エラー:', e);
+  }
+}
+
+// -------------------------------------------------------------
 // バリデーション
 // -------------------------------------------------------------
 
@@ -88,6 +132,9 @@ function validateRecord(record: OtherOfficeRecord): string | null {
 // -------------------------------------------------------------
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
+  // _job パラメータを保持（エラー時のジョブアイテム更新用）
+  let jobParam: JobParam | undefined;
+
   try {
     // 1. 認証
     if (!(await validateApiKey(request))) {
@@ -102,12 +149,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
     }
 
+    // _job パラメータを抽出
+    const { records, _job } = body;
+    jobParam = _job;
+
     // 3. records 配列チェック
-    if (!body.records || !Array.isArray(body.records)) {
+    if (!records || !Array.isArray(records)) {
       return NextResponse.json({ ok: false, error: 'records array is required' }, { status: 400 });
     }
 
-    if (body.records.length === 0) {
+    if (records.length === 0) {
+      // 空配列の場合も成功扱い（_job があれば完了にする）
+      if (jobParam) {
+        await markJobItemCompleted(jobParam);
+      }
       return NextResponse.json({ ok: true, success: 0, fail: 0 });
     }
 
@@ -115,7 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     let successCount = 0;
     let failCount = 0;
 
-    for (const record of body.records) {
+    for (const record of records) {
       // バリデーション
       const validationError = validateRecord(record);
       if (validationError) {
@@ -150,7 +205,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       }
     }
 
-    // 5. 成功レスポンス
+    // 5. _job パラメータの処理
+    if (jobParam) {
+      if (failCount === 0) {
+        // 全件成功：アイテムを完了にする
+        await markJobItemCompleted(jobParam);
+      } else if (successCount === 0) {
+        // 全件失敗：アイテムを失敗にする
+        await markJobItemFailed(jobParam, `全 ${failCount} 件の保存に失敗しました`);
+      } else {
+        // 一部成功：成功扱いにする（部分的な成功も進捗として記録）
+        await markJobItemCompleted(jobParam);
+      }
+    }
+
+    // 6. 成功レスポンス
     return NextResponse.json({
       ok: true,
       success: successCount,
@@ -159,6 +228,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
   } catch (error) {
     console.error('[RPA other-office] Unexpected error:', error);
+    // 予期せぬエラー時も _job があれば失敗にする
+    if (jobParam) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      await markJobItemFailed(jobParam, errorMsg);
+    }
     return NextResponse.json(
       { ok: false, error: '予期せぬエラーが発生しました' },
       { status: 500 }

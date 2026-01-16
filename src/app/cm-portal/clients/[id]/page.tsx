@@ -1,11 +1,15 @@
 // =============================================================
 // src/app/cm-portal/clients/[id]/page.tsx
 // 利用者詳細画面
+//
+// 【修正】useSearchParams() の Suspense 対応
+// useCmClientDetail フックで useSearchParams を使用しているため
+// Suspense でラップする必要がある
 // =============================================================
 
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import { useCmClientDetail } from '@/hooks/cm/useCmClientDetail';
@@ -16,10 +20,22 @@ import { CmClientInsuranceTab } from '@/components/cm-components/clients/CmClien
 import { CmClientDocumentsTab } from '@/components/cm-components/clients/CmClientDocumentsTab';
 import { CmClientDisabledTab } from '@/components/cm-components/clients/CmClientDisabledTab';
 
-export default function CmClientDetailPage() {
-  const params = useParams();
+// =============================================================
+// ローディングフォールバック
+// =============================================================
+function CmClientDetailLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <RefreshCw className="w-8 h-8 animate-spin text-slate-400" />
+    </div>
+  );
+}
+
+// =============================================================
+// 利用者詳細コンテンツ
+// =============================================================
+function CmClientDetailContent({ kaipokeCsId }: { kaipokeCsId: string }) {
   const router = useRouter();
-  const kaipokeCsId = params.id as string;
 
   const {
     client,
@@ -107,5 +123,19 @@ export default function CmClientDetailPage() {
       {/* タブコンテンツ */}
       {renderTabContent()}
     </div>
+  );
+}
+
+// =============================================================
+// メインページコンポーネント
+// =============================================================
+export default function CmClientDetailPage() {
+  const params = useParams();
+  const kaipokeCsId = params.id as string;
+
+  return (
+    <Suspense fallback={<CmClientDetailLoading />}>
+      <CmClientDetailContent kaipokeCsId={kaipokeCsId} />
+    </Suspense>
   );
 }

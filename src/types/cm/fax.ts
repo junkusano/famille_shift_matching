@@ -1,6 +1,8 @@
 // =============================================================
 // src/types/cm/fax.ts
 // FAX関連の型定義
+//
+// 【修正】CmFaxFilters.status に 'unassignedOffice' を追加
 // =============================================================
 
 /**
@@ -10,22 +12,23 @@ export type CmFaxPage = {
   id: number;
   fax_received_id: number;
   page_number: number;
-  ocr_status: 'pending' | 'completed' | 'failed';
+  image_path: string;
+  ocr_text: string | null;
   assigned_at: string | null;
   is_advertisement: boolean;
 };
 
 /**
- * 候補利用者
+ * FAX候補利用者
  */
 export type CmFaxCandidateClient = {
-  id: string;
+  kaipoke_cs_id: string;
   name: string;
-  kana: string;
+  confidence: number;
 };
 
 /**
- * FAX受信レコード
+ * FAX受信情報
  */
 export type CmFaxReceived = {
   id: number;
@@ -45,17 +48,17 @@ export type CmFaxReceived = {
   processed_at: string | null;
   created_at: string;
   updated_at: string;
-  // 集計用（APIで計算）
   assigned_page_count: number;
   is_all_advertisement: boolean;
 };
 
 /**
  * FAX一覧フィルター
+ * 【修正】status に 'unassignedOffice' を追加
  */
 export type CmFaxFilters = {
   assignment: 'mine' | 'all';
-  status: 'all' | 'pending' | 'processing' | 'completed';
+  status: 'all' | 'pending' | 'processing' | 'completed' | 'unassignedOffice';
   search: string;
 };
 

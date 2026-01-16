@@ -1,6 +1,9 @@
 // =============================================================
 // src/types/cm/faxDetail.ts
 // FAX詳細画面関連の型定義
+//
+// 【v3.2対応】
+// - CmPageSuggestion を新旧両形式に対応
 // =============================================================
 
 /**
@@ -115,21 +118,33 @@ export type CmOfficeSearchResult = {
 };
 
 /**
- * ページごとのAI推定
+ * ページごとのAI推定（v3.2拡張版）
+ * 
+ * 新形式（clients配列、docTypeオブジェクト）と
+ * 旧形式（clientId/clientName/docTypeId）の両方に対応
  */
 export type CmPageSuggestion = {
-  clients: Array<{
+  // 新形式（配列・オブジェクト）
+  clients?: Array<{
     kaipoke_cs_id: string;
     client_name: string;
     confidence: number;
   }>;
-  docType: {
+  docType?: {
     id: number;
     name: string;
     confidence: number;
   } | null;
-  reason: string | null;
-  is_advertisement: boolean;
+
+  // 旧形式（単一値）- 後方互換
+  clientId?: string | null;
+  clientName?: string | null;
+  docTypeId?: number | null;
+  confidence?: number | null;
+
+  // 共通
+  reason?: string | null;
+  is_advertisement?: boolean;
 };
 
 /**

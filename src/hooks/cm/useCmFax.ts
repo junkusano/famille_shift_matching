@@ -1,11 +1,17 @@
 // =============================================================
 // src/hooks/cm/useCmFax.ts
-// FAX一覧のデータ取得・状態管理フック
+// FAX一覧用カスタムフック
+//
+// 【最適化】
+// - ページ番号をURLクエリパラメータで管理
+// - 統計を別APIから並列取得（高速化）
+// - unassignedOffice フィルターを追加
 // =============================================================
 
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type {
   CmFaxReceived,
   CmFaxStats,
@@ -36,6 +42,22 @@ const DEFAULT_SORT: CmFaxSortConfig = {
 
 export function useCmFax() {
   // ---------------------------------------------------------
+  // Router / URL
+  // ---------------------------------------------------------
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // ---------------------------------------------------------
+  // URLからページ番号を取得（デフォルト: 1）
+  // ---------------------------------------------------------
+  const pageFromUrl = useMemo(() => {
+    const pageParam = searchParams.get('page');
+    const parsed = pageParam ? parseInt(pageParam, 10) : 1;
+    return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  }, [searchParams]);
+
+  // ---------------------------------------------------------
   // State
   // ---------------------------------------------------------
   const [faxList, setFaxList] = useState<CmFaxReceived[]>([]);
@@ -46,7 +68,30 @@ export function useCmFax() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<CmFaxFilters>(DEFAULT_FILTERS);
   const [sortConfig, setSortConfig] = useState<CmFaxSortConfig>(DEFAULT_SORT);
-  const [page, setPage] = useState(1);
+
+  // 統計キャッシュ用（フィルター条件が変わった時のみ再取得）
+  const statsFilterRef = useRef<string>('');
+
+  // ページ番号はURLから取得
+  const page = pageFromUrl;
+
+  // ---------------------------------------------------------
+  // URLのクエリパラメータを更新するヘルパー
+  // ---------------------------------------------------------
+  const updateUrlParams = useCallback(
+    (newPage: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (newPage === 1) {
+        params.delete('page'); // ページ1の場合はパラメータを削除
+      } else {
+        params.set('page', String(newPage));
+      }
+      const query = params.toString();
+      const url = query ? `${pathname}?${query}` : pathname;
+      router.replace(url, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   // ---------------------------------------------------------
   // フィルター適用中かどうか
@@ -60,7 +105,39 @@ export function useCmFax() {
   }, [filters]);
 
   // ---------------------------------------------------------
-  // API 呼び出し
+  // 統計API呼び出し（別APIで高速化）
+  // ---------------------------------------------------------
+  const fetchStats = useCallback(async () => {
+    const filterKey = `${filters.assignment}-${filters.search}`;
+    
+    // 同じフィルター条件なら再取得しない
+    if (statsFilterRef.current === filterKey && stats !== null) {
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('assignment', filters.assignment);
+      if (filters.search) {
+        params.set('search', filters.search);
+      }
+
+      const res = await fetch(`/api/cm/fax/stats?${params.toString()}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        setStats(data.stats);
+        statsFilterRef.current = filterKey;
+      }
+    } catch {
+      // 統計取得失敗は無視（一覧は表示可能）
+    }
+  }, [filters.assignment, filters.search, stats]);
+
+  // ---------------------------------------------------------
+  // 一覧API呼び出し
   // ---------------------------------------------------------
   const fetchFaxList = useCallback(async () => {
     setLoading(true);
@@ -87,13 +164,11 @@ export function useCmFax() {
       if (!data.ok) {
         setError(data.error || 'エラーが発生しました');
         setFaxList([]);
-        setStats(null);
         setPagination(null);
         return;
       }
 
       setFaxList(data.faxList || []);
-      setStats(data.stats || null);
       setPagination(data.pagination || null);
       
       if (data.myAssignedOfficeIds) {
@@ -102,7 +177,6 @@ export function useCmFax() {
     } catch (e) {
       setError(e instanceof Error ? e.message : '通信エラーが発生しました');
       setFaxList([]);
-      setStats(null);
       setPagination(null);
     } finally {
       setLoading(false);
@@ -110,11 +184,12 @@ export function useCmFax() {
   }, [page, filters, sortConfig]);
 
   // ---------------------------------------------------------
-  // 初回読み込み & フィルター変更時
+  // 初回読み込み & フィルター変更時（並列取得）
   // ---------------------------------------------------------
   useEffect(() => {
-    fetchFaxList();
-  }, [fetchFaxList]);
+    // 一覧と統計を並列で取得
+    Promise.all([fetchFaxList(), fetchStats()]);
+  }, [fetchFaxList, fetchStats]);
 
   // ---------------------------------------------------------
   // ハンドラー
@@ -124,28 +199,28 @@ export function useCmFax() {
   const handleFilterChange = useCallback(
     (key: keyof CmFaxFilters, value: string) => {
       setFilters((prev) => ({ ...prev, [key]: value }));
-      setPage(1); // フィルター変更時はページをリセット
+      updateUrlParams(1); // フィルター変更時はページをリセット
     },
-    []
+    [updateUrlParams]
   );
 
   /** 検索実行 */
   const handleSearch = useCallback((searchText: string) => {
     setFilters((prev) => ({ ...prev, search: searchText }));
-    setPage(1);
-  }, []);
+    updateUrlParams(1);
+  }, [updateUrlParams]);
 
   /** フィルターリセット */
   const handleReset = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
     setSortConfig(DEFAULT_SORT);
-    setPage(1);
-  }, []);
+    updateUrlParams(1);
+  }, [updateUrlParams]);
 
   /** ページ変更 */
   const handlePageChange = useCallback((newPage: number) => {
-    setPage(newPage);
-  }, []);
+    updateUrlParams(newPage);
+  }, [updateUrlParams]);
 
   /** ソート変更 */
   const handleSort = useCallback((key: CmFaxSortConfig['key']) => {
@@ -153,25 +228,26 @@ export function useCmFax() {
       key,
       direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc',
     }));
-    setPage(1);
-  }, []);
+    updateUrlParams(1);
+  }, [updateUrlParams]);
 
   /** 担当切り替え */
   const handleAssignmentChange = useCallback((value: 'mine' | 'all') => {
     setFilters((prev) => ({ ...prev, assignment: value }));
-    setPage(1);
-  }, []);
+    updateUrlParams(1);
+  }, [updateUrlParams]);
 
-  /** ステータス切り替え */
+  /** ステータス切り替え（unassignedOffice対応） */
   const handleStatusChange = useCallback((value: CmFaxFilters['status']) => {
     setFilters((prev) => ({ ...prev, status: value }));
-    setPage(1);
-  }, []);
+    updateUrlParams(1);
+  }, [updateUrlParams]);
 
-  /** リフレッシュ */
+  /** リフレッシュ（統計キャッシュもクリア） */
   const refresh = useCallback(() => {
-    fetchFaxList();
-  }, [fetchFaxList]);
+    statsFilterRef.current = ''; // 統計キャッシュをクリア
+    Promise.all([fetchFaxList(), fetchStats()]);
+  }, [fetchFaxList, fetchStats]);
 
   // ---------------------------------------------------------
   // Return

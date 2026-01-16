@@ -1,6 +1,10 @@
 // =============================================================
 // src/app/api/cm/fax/[id]/route.ts
 // FAX詳細取得API（新DB構造対応版）
+//
+// 【v3.2対応】
+// - rotation_confirmed を優先して返却
+// - 確定値 → 推定値 → 0 の優先順位
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -18,7 +22,7 @@ const logger = createLogger("cm/api/fax/detail");
 // =============================================================
 
 export async function GET(
-  _: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -31,7 +35,7 @@ export async function GET(
       );
     }
 
-    logger.info("FAX詳細取得開始", { faxId });
+    logger.info("FAX詳細取得", { faxId });
 
     // ---------------------------------------------------------
     // FAX本体取得
@@ -51,11 +55,30 @@ export async function GET(
     }
 
     // ---------------------------------------------------------
-    // ページ情報取得
+    // ページ取得（rotation_confirmed を追加）
     // ---------------------------------------------------------
     const { data: pagesData, error: pagesError } = await supabaseAdmin
       .from("cm_fax_pages")
-      .select("*")
+      .select(`
+        id,
+        fax_received_id,
+        page_number,
+        rotation,
+        rotation_confirmed,
+        logical_order,
+        image_url,
+        ocr_status,
+        kaipoke_cs_id,
+        suggested_client_name,
+        suggested_doc_type_id,
+        suggested_confidence,
+        document_type_id,
+        is_advertisement,
+        assigned_by,
+        assigned_at,
+        created_at,
+        updated_at
+      `)
       .eq("fax_received_id", faxId)
       .order("page_number", { ascending: true });
 
@@ -64,25 +87,9 @@ export async function GET(
     }
 
     // ---------------------------------------------------------
-    // OCR結果取得
+    // 事業所取得
     // ---------------------------------------------------------
-    const { data: ocrData } = await supabaseAdmin
-      .from("cm_fax_ocr_results")
-      .select("page_number, detected_text, detected_client_name")
-      .eq("fax_received_id", faxId);
-
-    const ocrByPage = new Map<number, { text: string | null; clientName: string | null }>();
-    for (const ocr of ocrData || []) {
-      ocrByPage.set(ocr.page_number, {
-        text: ocr.detected_text,
-        clientName: ocr.detected_client_name,
-      });
-    }
-
-    // ---------------------------------------------------------
-    // 事業所一覧取得（cm_fax_received_offices）
-    // ---------------------------------------------------------
-    const { data: officesData, error: officesError } = await supabaseAdmin
+    const { data: officesData } = await supabaseAdmin
       .from("cm_fax_received_offices")
       .select(`
         id,
@@ -90,79 +97,65 @@ export async function GET(
         office_id,
         is_primary,
         assigned_by,
-        assigned_at,
-        created_at
+        assigned_at
       `)
-      .eq("fax_received_id", faxId)
-      .order("is_primary", { ascending: false });
+      .eq("fax_received_id", faxId);
 
-    if (officesError) {
-      logger.error("事業所取得エラー", { error: officesError.message });
-    }
+    const officeIds = (officesData || []).map((o) => o.office_id);
 
     // 事業所詳細を取得
-    const officeIds = (officesData || []).map((o) => o.office_id);
-    const officeDetailsMap = new Map<number, {
+    let officeDetails: Array<{
+      id: number;
       office_name: string;
       fax: string | null;
       fax_proxy: string | null;
       service_type: string | null;
-    }>();
+    }> = [];
 
     if (officeIds.length > 0) {
-      const { data: officeDetails } = await supabaseAdmin
+      const { data: officeData } = await supabaseAdmin
         .from("cm_kaipoke_other_office")
         .select("id, office_name, fax, fax_proxy, service_type")
         .in("id", officeIds);
 
-      for (const od of officeDetails || []) {
-        officeDetailsMap.set(od.id, {
-          office_name: od.office_name,
-          fax: od.fax,
-          fax_proxy: od.fax_proxy,
-          service_type: od.service_type,
-        });
-      }
+      officeDetails = officeData || [];
     }
 
+    const officeMap = new Map(officeDetails.map((o) => [o.id, o]));
+
     // ---------------------------------------------------------
-    // 書類一覧取得（cm_fax_documents）
+    // 書類取得
     // ---------------------------------------------------------
-    const { data: docsData, error: docsError } = await supabaseAdmin
+    const { data: documentsData } = await supabaseAdmin
       .from("cm_fax_documents")
       .select("*")
       .eq("fax_received_id", faxId)
-      .order("sort_order", { ascending: true });
+      .order("created_at", { ascending: true });
 
-    if (docsError) {
-      logger.error("書類取得エラー", { error: docsError.message });
-    }
+    // 書類-ページ紐付け取得
+    const docIds = (documentsData || []).map((d) => d.id);
+    const docPagesMap = new Map<number, Array<{ page_id: number; page_order: number }>>();
 
-    const docIds = (docsData || []).map((d) => d.id);
-
-    // 書類-ページ中間テーブル
-    const docPagesMap = new Map<number, { pageId: number; pageNumber: number }[]>();
     if (docIds.length > 0) {
-      const { data: docPages } = await supabaseAdmin
+      const { data: docPagesData } = await supabaseAdmin
         .from("cm_fax_document_pages")
         .select("fax_document_id, fax_page_id, page_order")
-        .in("fax_document_id", docIds)
-        .order("page_order", { ascending: true });
+        .in("fax_document_id", docIds);
 
-      for (const dp of docPages || []) {
-        const page = (pagesData || []).find((p) => p.id === dp.fax_page_id);
+      for (const dp of docPagesData || []) {
         if (!docPagesMap.has(dp.fax_document_id)) {
           docPagesMap.set(dp.fax_document_id, []);
         }
         docPagesMap.get(dp.fax_document_id)!.push({
-          pageId: dp.fax_page_id,
-          pageNumber: page?.page_number || 0,
+          page_id: dp.fax_page_id,
+          page_order: dp.page_order,
         });
       }
     }
 
-    // 書類-利用者中間テーブル
-    const docClientsMap = new Map<number, { id: string; name: string; isPrimary: boolean }[]>();
+    // 書類-利用者紐付け取得
+    const docClientsMap = new Map<number, Array<{ id: string; name: string; isPrimary: boolean }>>();
+
     if (docIds.length > 0) {
       const { data: docClients } = await supabaseAdmin
         .from("cm_fax_document_clients")
@@ -264,6 +257,30 @@ export async function GET(
     }
 
     // ---------------------------------------------------------
+    // OCR結果取得（suggested_reason用）
+    // ---------------------------------------------------------
+    const pageIds = (pagesData || []).map((p) => p.id);
+    const ocrByPage = new Map<number, { text: string | null; clientName: string | null; reason: string | null }>();
+
+    if (pageIds.length > 0) {
+      const { data: ocrData } = await supabaseAdmin
+        .from("cm_fax_ocr_results")
+        .select("fax_page_id, ocr_text, extracted_client_name, suggested_reason")
+        .in("fax_page_id", pageIds);
+
+      for (const ocr of ocrData || []) {
+        const page = (pagesData || []).find((p) => p.id === ocr.fax_page_id);
+        if (page) {
+          ocrByPage.set(page.page_number, {
+            text: ocr.ocr_text,
+            clientName: ocr.extracted_client_name,
+            reason: ocr.suggested_reason,
+          });
+        }
+      }
+    }
+
+    // ---------------------------------------------------------
     // レスポンス構築
     // ---------------------------------------------------------
 
@@ -280,7 +297,7 @@ export async function GET(
       updated_at: faxData.updated_at,
     };
 
-    // ページ一覧
+    // ページ一覧（rotation_confirmed を優先）
     const pages = (pagesData || []).map((p) => {
       const ocr = ocrByPage.get(p.page_number);
       return {
@@ -289,7 +306,8 @@ export async function GET(
         page_number: p.page_number,
         image_url: p.image_url,
         image_drive_file_id: null,
-        rotation: p.rotation || 0,
+        // 【v3.2】確定値 → 推定値 → 0 の優先順位
+        rotation: p.rotation_confirmed ?? p.rotation ?? 0,
         logical_order: p.logical_order,
         ocr_status: p.ocr_status || "pending",
         ocr_text: ocr?.text || null,
@@ -297,7 +315,7 @@ export async function GET(
         suggested_client_name: p.suggested_client_name || ocr?.clientName || null,
         suggested_doc_type_id: p.suggested_doc_type_id,
         suggested_confidence: p.suggested_confidence ? Number(p.suggested_confidence) : null,
-        suggested_reason: null,
+        suggested_reason: ocr?.reason || null,
         created_at: p.created_at,
         updated_at: p.updated_at,
       };
@@ -305,7 +323,7 @@ export async function GET(
 
     // 事業所一覧
     const offices = (officesData || []).map((o) => {
-      const detail = officeDetailsMap.get(o.office_id);
+      const detail = officeMap.get(o.office_id);
       return {
         id: o.id,
         fax_received_id: o.fax_received_id,
@@ -314,18 +332,20 @@ export async function GET(
         fax: detail?.fax || null,
         fax_proxy: detail?.fax_proxy || null,
         service_type: detail?.service_type || null,
-        is_primary: o.is_primary || false,
+        is_primary: o.is_primary,
         assigned_by: o.assigned_by,
         assigned_at: o.assigned_at,
       };
     });
 
     // 書類一覧
-    const documents = (docsData || []).map((d) => {
-      const docType = d.document_type_id ? docTypeMap.get(d.document_type_id) : null;
-      const officeDetail = d.office_id ? officeDetailsMap.get(d.office_id) : null;
+    const documents = (documentsData || []).map((d) => {
       const docPages = docPagesMap.get(d.id) || [];
       const docClients = docClientsMap.get(d.id) || [];
+      const docType = d.document_type_id ? docTypeMap.get(d.document_type_id) : null;
+
+      // page_id から page_number を取得
+      const pageNumberMap = new Map((pagesData || []).map((p) => [p.id, p.page_number]));
 
       return {
         id: d.id,
@@ -333,7 +353,7 @@ export async function GET(
         document_type_id: d.document_type_id,
         document_type_name: docType?.name || null,
         office_id: d.office_id,
-        office_name: officeDetail?.office_name || null,
+        office_name: d.office_id ? officeMap.get(d.office_id)?.office_name || null : null,
         is_advertisement: d.is_advertisement || false,
         is_cover_sheet: d.is_cover_sheet || false,
         requires_response: d.requires_response || false,
@@ -345,12 +365,12 @@ export async function GET(
         updated_at: d.updated_at,
         client_ids: docClients.map((c) => c.id),
         client_names: docClients.map((c) => c.name),
-        page_ids: docPages.map((p) => p.pageId),
-        page_numbers: docPages.map((p) => p.pageNumber),
+        page_ids: docPages.map((p) => p.page_id),
+        page_numbers: docPages.map((p) => pageNumberMap.get(p.page_id) || 0),
       };
     });
 
-    // 文書種別
+    // 文書種別マスタ
     const documentTypes = (docTypesData || []).map((dt) => ({
       id: dt.id,
       name: dt.name,
@@ -359,12 +379,7 @@ export async function GET(
     }));
 
     // 処理状況
-    const assignedPageIds = new Set<number>();
-    for (const doc of documents) {
-      for (const pageId of doc.page_ids || []) {
-        assignedPageIds.add(pageId);
-      }
-    }
+    const assignedPageIds = new Set(documents.flatMap((d) => d.page_ids || []));
     const processingStatus = {
       total_pages: pages.length,
       assigned_pages: assignedPageIds.size,

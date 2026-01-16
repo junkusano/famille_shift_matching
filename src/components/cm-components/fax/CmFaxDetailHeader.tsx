@@ -5,11 +5,14 @@
 // 【v3.1対応】
 // - 上段: 戻るボタン / FAX番号 / 受信日時 / 進捗バー
 // - 下段: 送信元事業所（複数対応、プライマリ色分け）
+//
+// 【修正】戻るボタンをrouter.back()に変更
+// - FAX一覧のページ番号が保持される
 // =============================================================
 
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, Building2, Plus } from 'lucide-react';
 import type {
@@ -36,9 +39,20 @@ export function CmFaxDetailHeader({
 }: Props) {
   const router = useRouter();
 
-  const handleBack = () => {
-    router.push('/cm-portal/fax');
-  };
+  /**
+   * 戻るボタンのハンドラー
+   * - ブラウザの履歴を使って戻る（ページ番号が保持される）
+   * - 履歴がない場合（直接アクセス）はFAX一覧トップに遷移
+   */
+  const handleBack = useCallback(() => {
+    // window.history.lengthが2以下の場合は直接アクセスの可能性が高い
+    // （1=初期状態、2=現在のページのみ）
+    if (typeof window !== 'undefined' && window.history.length > 2) {
+      router.back();
+    } else {
+      router.push('/cm-portal/fax');
+    }
+  }, [router]);
 
   // 日時フォーマット: 2026-01-13 10:30 形式
   const formatDateTime = (dateStr: string) => {

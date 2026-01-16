@@ -1,6 +1,9 @@
 // =============================================================
 // src/app/api/cm/fax/documents/route.ts
 // 書類保存API
+//
+// 【v3.2対応】
+// - rotation_confirmed, rotation_confirmed_by, rotation_confirmed_at を保存
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,6 +24,7 @@ const logger = createLogger("cm/api/fax/documents");
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
     const {
       fax_received_id,
       page_ids,
@@ -30,6 +34,7 @@ export async function POST(req: NextRequest) {
       office_id,
       is_advertisement,
       requires_response,
+      rotation, // 【v3.2追加】回転角度
     } = body;
 
     // ---------------------------------------------------------
@@ -55,6 +60,7 @@ export async function POST(req: NextRequest) {
       document_type_id,
       client_ids,
       is_advertisement,
+      rotation,
     });
 
     // ---------------------------------------------------------
@@ -84,7 +90,7 @@ export async function POST(req: NextRequest) {
     if (docError || !docData) {
       logger.error("書類作成エラー", { error: docError?.message });
       return NextResponse.json(
-        { ok: false, error: docError?.message || "Failed to create document" },
+        { ok: false, error: docError?.message || "書類作成に失敗しました" },
         { status: 500 }
       );
     }
@@ -92,12 +98,12 @@ export async function POST(req: NextRequest) {
     const documentId = docData.id;
 
     // ---------------------------------------------------------
-    // 書類-ページ紐付け
+    // ページ紐付け
     // ---------------------------------------------------------
     const pageInserts = page_ids.map((pageId: number, index: number) => ({
       fax_document_id: documentId,
       fax_page_id: pageId,
-      page_order: index + 1,
+      page_order: index,
     }));
 
     const { error: pageError } = await supabaseAdmin
@@ -106,7 +112,7 @@ export async function POST(req: NextRequest) {
 
     if (pageError) {
       logger.error("ページ紐付けエラー", { error: pageError.message });
-      // ロールバック: 書類を削除
+      // ロールバック
       await supabaseAdmin.from("cm_fax_documents").delete().eq("id", documentId);
       return NextResponse.json(
         { ok: false, error: pageError.message },
@@ -115,9 +121,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ---------------------------------------------------------
-    // 書類-利用者紐付け（広告以外）
+    // 利用者紐付け（広告以外）
     // ---------------------------------------------------------
-    if (!is_advertisement && client_ids && client_ids.length > 0) {
+    if (client_ids && client_ids.length > 0 && !is_advertisement) {
       const clientInserts = client_ids.map((clientId: string, index: number) => ({
         fax_document_id: documentId,
         kaipoke_cs_id: clientId,
@@ -144,22 +150,34 @@ export async function POST(req: NextRequest) {
 
     // ---------------------------------------------------------
     // ページの割当状態を更新（cm_fax_pages）
+    // 【v3.2】rotation_confirmed 系を追加
     // ---------------------------------------------------------
+    const now = new Date().toISOString();
+    
+    const updateData: Record<string, unknown> = {
+      assigned_by: userId,
+      assigned_at: now,
+      document_type_id: document_type_id || null,
+      is_advertisement: is_advertisement || false,
+    };
+
+    // 回転が指定されている場合は確定値として保存
+    if (rotation !== undefined && rotation !== null) {
+      updateData.rotation_confirmed = rotation;
+      updateData.rotation_confirmed_by = userId;
+      updateData.rotation_confirmed_at = now;
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from("cm_fax_pages")
-      .update({
-        assigned_by: userId,
-        assigned_at: new Date().toISOString(),
-        document_type_id: document_type_id || null,
-        is_advertisement: is_advertisement || false,
-      })
+      .update(updateData)
       .in("id", page_ids);
 
     if (updateError) {
       logger.warn("ページ更新エラー", { error: updateError.message });
     }
 
-    logger.info("書類保存完了", { documentId, pageCount: page_ids.length });
+    logger.info("書類保存完了", { documentId, pageCount: page_ids.length, rotation });
 
     return NextResponse.json({
       ok: true,

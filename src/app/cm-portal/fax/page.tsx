@@ -1,18 +1,58 @@
 // =============================================================
 // src/app/cm-portal/fax/page.tsx
 // FAX受信一覧画面
+//
+// 【修正】useSearchParams() の Suspense 対応
+// Next.js 14以降では useSearchParams() を使用するコンポーネントは
+// Suspense でラップする必要がある
 // =============================================================
 
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useCmFax } from '@/hooks/cm/useCmFax';
 import { useCmUser } from '@/hooks/cm/useCmUser';
 import { CmFaxFilters } from '@/components/cm-components/fax/CmFaxFilters';
 import { CmFaxStats } from '@/components/cm-components/fax/CmFaxStats';
 import { CmFaxTable } from '@/components/cm-components/fax/CmFaxTable';
 
-export default function CmFaxListPage() {
+// =============================================================
+// ローディングフォールバック
+// =============================================================
+function CmFaxListLoading() {
+  return (
+    <div className="space-y-6">
+      {/* フィルターセクション スケルトン */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="h-10 bg-slate-100 rounded animate-pulse" />
+      </div>
+
+      {/* 統計カード スケルトン */}
+      <div className="grid grid-cols-5 gap-4">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="h-8 w-16 bg-slate-100 rounded animate-pulse mb-2" />
+            <div className="h-4 w-12 bg-slate-100 rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+
+      {/* テーブル スケルトン */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-12 bg-slate-100 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// FAX一覧コンテンツ（実際のコンポーネント）
+// =============================================================
+function CmFaxListContent() {
   // ユーザー情報
   const { user } = useCmUser();
   const userName = user?.displayName || 'ユーザー';
@@ -90,5 +130,16 @@ export default function CmFaxListPage() {
         <p>FAX受信件数は月間900件までの制限があります</p>
       </div>
     </div>
+  );
+}
+
+// =============================================================
+// メインページコンポーネント
+// =============================================================
+export default function CmFaxListPage() {
+  return (
+    <Suspense fallback={<CmFaxListLoading />}>
+      <CmFaxListContent />
+    </Suspense>
   );
 }

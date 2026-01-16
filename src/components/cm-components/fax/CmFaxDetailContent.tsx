@@ -340,7 +340,7 @@ export function CmFaxDetailContent({
   // レンダリング
   // ---------------------------------------------------------
   return (
-    <div className="h-screen flex flex-col bg-gray-900 font-sans">
+    <div className="h-[calc(100vh-64px)] flex flex-col bg-gray-900 font-sans">
       {/* ヘッダー */}
       <CmFaxDetailHeader
         fax={fax}
@@ -402,7 +402,7 @@ export function CmFaxDetailContent({
           </div>
 
           {/* PDFビューワー */}
-          <div className="flex-1 flex items-center justify-center p-4 overflow-auto bg-gray-900">
+          <div className="flex-1 flex items-start justify-center p-4 overflow-auto bg-gray-900">
             {fax.pdf_drive_file_id ? (
               <div
                 className="bg-white shadow-2xl rounded overflow-hidden"
