@@ -232,8 +232,8 @@ export default function KaipokeInfoDetailPage() {
             }
 
             const payload = {
-                kaipoke_cs_id: row.kaipoke_cs_id, 
-                serial: Number.isFinite(Number(newParkingPlace.serial)) ? Number(newParkingPlace.serial) : 0, 
+                kaipoke_cs_id: row.kaipoke_cs_id,
+                serial: Number.isFinite(Number(newParkingPlace.serial)) ? Number(newParkingPlace.serial) : 0,
                 label: newParkingPlace.label,
                 location_link: newParkingPlace.location_link,
                 parking_orientation: newParkingPlace.parking_orientation,
@@ -1018,25 +1018,65 @@ export default function KaipokeInfoDetailPage() {
                 <div>
                     <h3>駐車場所リスト</h3>
                     {parkingPlaces.map((place) => (
-                        <div key={place.id}>
-                            <p>
-                                <a href={place.location_link} target="_blank" rel="noreferrer">
-                                    {place.label}（{place.parking_orientation}） - {place.location_link}
+                        <div
+                            key={place.id}
+                            className="border rounded p-3 bg-white space-y-2"
+                        >
+                            {/* タイトル行 */}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="font-medium">
+                                    {place.label || "(ラベル未設定)"}{" "}
+                                    <span className="text-sm text-gray-600">
+                                        （{place.parking_orientation || "向き未設定"}）
+                                    </span>
+                                </div>
+
+                                {/* ② 許可証必要・不要 */}
+                                <span
+                                    className={`text-xs px-2 py-1 rounded border ${place.permit_required
+                                            ? "bg-red-50 text-red-700 border-red-200"
+                                            : "bg-green-50 text-green-700 border-green-200"
+                                        }`}
+                                >
+                                    {place.permit_required ? "許可証：必要" : "許可証：不要"}
+                                </span>
+                            </div>
+
+                            {/* ① リンクをリンクらしく */}
+                            {place.location_link ? (
+                                <a
+                                    href={place.location_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-600 underline break-all hover:opacity-80"
+                                >
+                                    {place.location_link}
                                 </a>
-                            </p>
+                            ) : (
+                                <div className="text-sm text-gray-500">リンク未登録</div>
+                            )}
 
-                            <button
-                                className="btn-edit"
-                                onClick={() => setNewParkingPlace(place)} // ★これで id が入る
-                            >
-                                編集
-                            </button>
+                            {/* ③ ボタンをボタンらしく */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    className="px-3 py-1 rounded bg-blue-600 text-white shadow hover:bg-blue-700"
+                                    onClick={() => setNewParkingPlace(place)} // 編集時は id も入る
+                                >
+                                    編集
+                                </button>
 
-                            <button className="btn-delete" onClick={() => handleDeleteParking(place.id)}>
-                                削除
-                            </button>
+                                <button
+                                    type="button"
+                                    className="px-3 py-1 rounded bg-red-600 text-white shadow hover:bg-red-700"
+                                    onClick={() => handleDeleteParking(place.id)}
+                                >
+                                    削除
+                                </button>
+                            </div>
                         </div>
                     ))}
+
 
                 </div>
             </div>
