@@ -14,13 +14,16 @@ type Body = {
   remarks?: string | null;
 };
 
-export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { user } = await getUserFromBearer(req);
   if (!user?.id) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const id = ctx.params.id;
+  const { id } = await params;
   if (!id) {
     return NextResponse.json({ ok: false, message: "missing id" }, { status: 400 });
   }
@@ -32,7 +35,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
     return NextResponse.json({ ok: false, message: "invalid json" }, { status: 400 });
   }
 
-  // police_station_place_id は「空文字→null」に統一（部分ユニークと相性◎）
+  // 空文字 → null
   const normalizedPoliceId =
     typeof body.police_station_place_id === "string"
       ? (() => {
@@ -41,7 +44,6 @@ export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
         })()
       : body.police_station_place_id ?? undefined;
 
-  // updatePayload は Body 型のまま作る（unknown を使わない）
   const updatePayload: Body = {
     police_station_place_id: normalizedPoliceId,
     label: typeof body.label === "string" ? body.label : undefined,
