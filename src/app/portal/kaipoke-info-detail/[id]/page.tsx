@@ -232,7 +232,8 @@ export default function KaipokeInfoDetailPage() {
             }
 
             const payload = {
-                kaipoke_cs_id: row.kaipoke_cs_id, // ★追加時に必須
+                kaipoke_cs_id: row.kaipoke_cs_id, 
+                serial: Number.isFinite(Number(newParkingPlace.serial)) ? Number(newParkingPlace.serial) : 0, 
                 label: newParkingPlace.label,
                 location_link: newParkingPlace.location_link,
                 parking_orientation: newParkingPlace.parking_orientation,
