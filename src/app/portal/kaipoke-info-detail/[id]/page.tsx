@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { ParkingPlace } from "@/types/parking-places";
-import { toast } from "react-toastify";  // 通知ライブラリのインポート
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 
@@ -225,9 +225,14 @@ export default function KaipokeInfoDetailPage() {
     };
 
     const handleSave = async () => {
-        const { data, error } = await supabase
-            .from("parking_cs_places")
-            .update({
+        try {
+            if (!row?.kaipoke_cs_id) {
+                toast.error("kaipoke_cs_id が無いので保存できません");
+                return;
+            }
+
+            const payload = {
+                kaipoke_cs_id: row.kaipoke_cs_id, // ★追加時に必須
                 label: newParkingPlace.label,
                 location_link: newParkingPlace.location_link,
                 parking_orientation: newParkingPlace.parking_orientation,
@@ -235,38 +240,79 @@ export default function KaipokeInfoDetailPage() {
                 remarks: newParkingPlace.remarks,
                 picture1_url: newParkingPlace.picture1_url,
                 picture2_url: newParkingPlace.picture2_url,
-            })
-            .eq("id", newParkingPlace.id)  // 修正: newParkingPlace.id を使用
-            .select("id") // 更新された行を取得
-            .maybeSingle();
+            };
 
-        if (error) {
-            console.error("Error saving parking data:", error);
-            toast.error("駐車場データ保存に失敗しました");
-            return;
+            const isEdit = !!newParkingPlace.id;
+
+            const { data, error } = isEdit
+                ? await supabase
+                    .from("parking_cs_places")
+                    .update(payload)
+                    .eq("id", newParkingPlace.id)
+                    .select("*")
+                    .maybeSingle()
+                : await supabase
+                    .from("parking_cs_places")
+                    .insert(payload)
+                    .select("*")
+                    .maybeSingle();
+
+            if (error) {
+                console.error("Error saving parking data:", error);
+                toast.error(`駐車場データ保存に失敗: ${error.message}`);
+                return;
+            }
+            if (!data) {
+                toast.error("保存できませんでした（RLS制限または権限）");
+                return;
+            }
+
+            // 保存後に一覧を再取得（確実）
+            const { data: list, error: listErr } = await supabase
+                .from("parking_cs_places")
+                .select("*")
+                .eq("kaipoke_cs_id", row.kaipoke_cs_id);
+
+            if (!listErr) setParkingPlaces(list ?? []);
+
+            // フォーム初期化（連続追加しやすく）
+            setNewParkingPlace({
+                id: "",
+                kaipoke_cs_id: "",
+                serial: 0,
+                label: "",
+                location_link: "",
+                parking_orientation: "北向き",
+                permit_required: true,
+                remarks: "",
+                picture1_url: null,
+                picture2_url: null,
+            });
+
+            toast.success(isEdit ? "駐車場データを更新しました" : "駐車場データを追加しました");
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error(e);
+            toast.error(`保存中にエラー: ${msg}`);
         }
-
-        if (!data) {
-            console.error("No rows updated, RLS or permissions issue");
-            toast.error("保存できませんでした（RLS制限または権限）");
-            return;
-        }
-
-        toast.success("駐車場データが保存されました");
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDeleteParking = async (parkingId: string) => {
         const { error } = await supabase
             .from("parking_cs_places")
             .delete()
-            .eq("id", id);
+            .eq("id", parkingId);
 
         if (error) {
-            alert("削除エラー");
+            console.error("parking delete error:", error);
+            toast.error(`削除に失敗: ${error.message}`);
             return;
         }
 
-        alert("削除しました");
+        toast.success("削除しました");
+
+        // 画面の一覧も更新
+        setParkingPlaces((prev) => prev.filter((p) => p.id !== parkingId));
     };
 
     const getDocEdit = (doc: Attachment) => {
@@ -601,6 +647,7 @@ export default function KaipokeInfoDetailPage() {
 
     return (
         <div className="p-4 space-y-6">
+            <ToastContainer position="top-center" />
             <div className="flex items-center justify-between">
                 <h1 className="text-xl font-bold">CS詳細</h1>
                 <div className="flex items-center gap-2">
@@ -971,10 +1018,25 @@ export default function KaipokeInfoDetailPage() {
                     <h3>駐車場所リスト</h3>
                     {parkingPlaces.map((place) => (
                         <div key={place.id}>
-                            <p><a href={place.location_link}>{place.label} （{place.parking_orientation}） - {place.location_link}</a></p>
-                            <button className="btn-delete"　onClick={() => handleDelete(place.id)}>削除</button>
+                            <p>
+                                <a href={place.location_link} target="_blank" rel="noreferrer">
+                                    {place.label}（{place.parking_orientation}） - {place.location_link}
+                                </a>
+                            </p>
+
+                            <button
+                                className="btn-edit"
+                                onClick={() => setNewParkingPlace(place)} // ★これで id が入る
+                            >
+                                編集
+                            </button>
+
+                            <button className="btn-delete" onClick={() => handleDelete(place.id)}>
+                                削除
+                            </button>
                         </div>
                     ))}
+
                 </div>
             </div>
 
