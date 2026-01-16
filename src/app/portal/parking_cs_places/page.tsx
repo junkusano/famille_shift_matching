@@ -48,7 +48,7 @@ export default function ParkingCsPlacesPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
-      const res = await fetch(`/api/parking/cs-places?q=${encodeURIComponent(qq)}`, {
+      const res = await fetch(`/api/parking/cs_places?q=${encodeURIComponent(qq)}`, {
         method: "GET",
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
@@ -110,7 +110,7 @@ export default function ParkingCsPlacesPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
-      const res = await fetch(`/api/parking/cs-places/${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/parking/cs_places/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
