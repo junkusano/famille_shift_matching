@@ -257,7 +257,7 @@ export default function ParkingCsPlacesPage() {
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
-                                                    直近シフト無　
+                                                    直近ｼﾌﾄ無　
                                                 </span>
                                                 
                                             )}
