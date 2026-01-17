@@ -119,21 +119,34 @@ export default function ParkingCsPlacesPage() {
             const { data: sessionData } = await supabase.auth.getSession();
             const accessToken = sessionData.session?.access_token;
 
+            type PatchBody = {
+                police_station_place_id?: string | null;
+                label?: string;
+                location_link?: string | null;
+                parking_orientation?: string | null;
+                permit_required?: boolean | null;
+                remarks?: string | null;
+            };
+
+            const payload: PatchBody = {};
+
+            // ★「編集した項目だけ」詰める（undefined の項目は送らない）
+            if ("police_station_place_id" in patch) payload.police_station_place_id = patch.police_station_place_id ?? null;
+            if ("label" in patch) payload.label = patch.label;
+            if ("location_link" in patch) payload.location_link = patch.location_link ?? null;
+            if ("parking_orientation" in patch) payload.parking_orientation = patch.parking_orientation ?? null;
+            if ("permit_required" in patch) payload.permit_required = patch.permit_required ?? null;
+            if ("remarks" in patch) payload.remarks = patch.remarks ?? null;
+
             const res = await fetch(`/api/parking/cs_places/${encodeURIComponent(id)}`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
                     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
                 },
-                body: JSON.stringify({
-                    police_station_place_id: patch.police_station_place_id ?? null,
-                    label: patch.label,
-                    location_link: patch.location_link ?? null,
-                    parking_orientation: patch.parking_orientation ?? null,
-                    permit_required: patch.permit_required ?? null,
-                    remarks: patch.remarks ?? null,
-                }),
+                body: JSON.stringify(payload),
             });
+
 
             const json: unknown = await res.json();
 
@@ -257,9 +270,9 @@ export default function ParkingCsPlacesPage() {
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
-                                                    直近ｼﾌﾄ無　
+                                                    直近ｼﾌﾄ無
                                                 </span>
-                                                
+
                                             )}
                                         </td>
 
