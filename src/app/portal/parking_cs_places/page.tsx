@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type CsInfo = { name: string | null; address: string | null } | null;
+//type CsInfo = { name: string | null; address: string | null } | null;
 
 type Row = {
     id: string;
@@ -18,14 +18,14 @@ type Row = {
     police_station_place_id: string | null;
     updated_at: string | null;
     created_at: string | null;
-    cs_kaipoke_info: CsInfo;
+    //cs_kaipoke_info: CsInfo;
 
     client_name: string | null;
     client_address: string | null;
     next_shift_date: string | null;
 
     hasUpcomingShiftWithin2Months: boolean;
-    createdWithin2Months: boolean;
+    firstShiftWithin2Months: boolean;
     isTarget: boolean;
 
 };
@@ -242,14 +242,13 @@ export default function ParkingCsPlacesPage() {
                         </thead>
                         <tbody>
                             {mergedRows.map((r) => {
-                                const rowMuted = !r.isTarget;
+                                const isNoRecent = !r.isTarget;
                                 const dirty = !!edit[r.id];
                                 const permitNeed = !!r.permit_required;
                                 return (
                                     <tr
                                         key={r.id}
-                                        className={`hover:bg-gray-50 ${rowMuted ? "bg-gray-100 text-gray-400" : ""
-                                            }`}
+                                        className={`hover:bg-gray-50 ${isNoRecent ? "bg-gray-100 text-gray-400" : ""}`}
                                     >
                                         <td className="border-b p-2">
                                             {r.isTarget ? (
@@ -258,10 +257,12 @@ export default function ParkingCsPlacesPage() {
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
-                                                    直近シフト無
+                                                    直近シフト無　
                                                 </span>
+                                                
                                             )}
                                         </td>
+
                                         <td className="border-b p-2">
                                             <input
                                                 className="w-full rounded-md border px-2 py-1"

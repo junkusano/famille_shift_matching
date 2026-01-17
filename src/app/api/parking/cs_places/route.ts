@@ -21,7 +21,8 @@ type Row = {
     client_name: string | null;
     client_address: string | null;
 
-    next_shift_date: string | null; // view で date が文字列で返る想定
+    next_shift_date: string | null;
+    first_shift_date: string | null;
 };
 
 function addMonths(date: Date, months: number) {
@@ -59,22 +60,24 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
 
-    const today = new Date(); // server time
-    const limit = addMonths(today, 2);
-    const recentFrom = addMonths(today, -2);
+    const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }); // YYYY-MM-DD
+    const todayJst = new Date(todayStr);
+    const limitFuture = addMonths(todayJst, 2);
+    const limitPast = addMonths(todayJst, -2);
+
 
     const rows = ((data ?? []) as Row[]).map((r) => {
         const nextShift = r.next_shift_date ? new Date(r.next_shift_date) : null;
-        const createdAt = r.created_at ? new Date(r.created_at) : null;
+        const firstShift = r.first_shift_date ? new Date(r.first_shift_date) : null;
 
-        const hasUpcomingShiftWithin2Months = !!(nextShift && nextShift <= limit);
-        const createdWithin2Months = !!(createdAt && createdAt >= recentFrom);
+        const hasUpcomingShiftWithin2Months = !!(nextShift && nextShift <= limitFuture);
+        const firstShiftWithin2Months = !!(firstShift && firstShift >= limitPast);
 
         return {
             ...r,
             hasUpcomingShiftWithin2Months,
-            createdWithin2Months,
-            isTarget: hasUpcomingShiftWithin2Months || createdWithin2Months,
+            firstShiftWithin2Months,
+            isTarget: hasUpcomingShiftWithin2Months || firstShiftWithin2Months,
         };
     });
 
