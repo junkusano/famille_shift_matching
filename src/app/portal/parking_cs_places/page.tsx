@@ -104,6 +104,30 @@ export default function ParkingCsPlacesPage() {
         return rows.map((r) => ({ ...r, ...(edit[r.id] ?? {}) }));
     }, [rows, edit]);
 
+    // ★同じ police_station_place_id の件数（共有数）を作る
+    const sharedCountMap = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const r of mergedRows) {
+            const key = (r.police_station_place_id ?? "").trim();
+            if (!key) continue;
+            map.set(key, (map.get(key) ?? 0) + 1);
+        }
+        return map;
+    }, [mergedRows]);
+
+    // ★同じコードの利用者一覧（表示用）
+    const sharedUsersMap = useMemo(() => {
+        const map = new Map<string, Array<{ kaipoke_cs_id: string; client_name: string | null }>>();
+        for (const r of mergedRows) {
+            const key = (r.police_station_place_id ?? "").trim();
+            if (!key) continue;
+            const arr = map.get(key) ?? [];
+            arr.push({ kaipoke_cs_id: r.kaipoke_cs_id, client_name: r.client_name });
+            map.set(key, arr);
+        }
+        return map;
+    }, [mergedRows]);
+
     const setField = (id: string, patch: Partial<Row>) => {
         setEdit((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
     };
@@ -242,6 +266,7 @@ export default function ParkingCsPlacesPage() {
                             <tr className="text-left">
                                 <th className="border-b p-2 w-[120px]">状態</th>
                                 <th className="border-b p-2 w-[140px]">認識コード</th>
+                                <th className="border-b p-2 w-[110px]">共有</th>
                                 <th className="border-b p-2 w-[180px]">利用者</th>
                                 <th className="border-b p-2 w-[260px]">住所</th>
                                 <th className="border-b p-2 w-[70px]">連番</th>
@@ -284,6 +309,43 @@ export default function ParkingCsPlacesPage() {
                                                 onChange={(e) => setField(r.id, { police_station_place_id: e.target.value })}
                                             />
 
+                                        </td>
+
+                                        {/* ★共有列 */}
+                                        <td className="border-b p-2">
+                                            {(() => {
+                                                const key = (r.police_station_place_id ?? "").trim();
+                                                if (!key) return <span className="text-gray-500">-</span>;
+
+                                                const cnt = sharedCountMap.get(key) ?? 0;
+                                                if (cnt <= 1) {
+                                                    return <span className="text-gray-500">-</span>;
+                                                }
+
+                                                const users = sharedUsersMap.get(key) ?? [];
+                                                // 自分以外の利用者を最大2名だけ表示（長くなりすぎ防止）
+                                                const others = users
+                                                    .filter((u) => u.kaipoke_cs_id !== r.kaipoke_cs_id)
+                                                    .slice(0, 2);
+
+                                                return (
+                                                    <div>
+                                                        <span className="inline-flex rounded-full bg-indigo-600 px-2 py-1 text-xs font-semibold text-white">
+                                                            {cnt}名
+                                                        </span>
+                                                        <div className="mt-1 text-[11px] text-gray-600">
+                                                            {others.length ? (
+                                                                <>
+                                                                    {others.map((u) => u.client_name ?? u.kaipoke_cs_id).join(" / ")}
+                                                                    {users.length - 1 > 2 ? " …" : ""}
+                                                                </>
+                                                            ) : (
+                                                                <>共有</>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
 
                                         <td className="border-b p-2">
@@ -372,7 +434,7 @@ export default function ParkingCsPlacesPage() {
 
                             {!mergedRows.length && (
                                 <tr>
-                                    <td colSpan={10} className="p-6 text-center text-sm text-gray-600">
+                                    <td colSpan={11} className="p-6 text-center text-sm text-gray-600">
                                         データがありません
                                     </td>
                                 </tr>
@@ -387,7 +449,6 @@ export default function ParkingCsPlacesPage() {
                 <ul className="list-disc pl-5">
                     <li>利用者ページで作られる新規レコードは police_station_place_id = null のままでOK。</li>
                     <li>このページで「春日井1 / 春日井2 …」を付与して、申請書・スタッフの共通認識コードにする。</li>
-                    <li>ユニークは “値があるときだけ” かける（null/空は許容）。</li>
                 </ul>
             </div>
         </div>
