@@ -101,8 +101,28 @@ export default function ParkingCsPlacesPage() {
     }, []);
 
     const mergedRows = useMemo(() => {
-        return rows.map((r) => ({ ...r, ...(edit[r.id] ?? {}) }));
+        const list = rows.map((r) => ({ ...r, ...(edit[r.id] ?? {}) }));
+
+        list.sort((a, b) => {
+            const aKey = (a.police_station_place_id ?? "").trim();
+            const bKey = (b.police_station_place_id ?? "").trim();
+
+            // 両方空 → 同順位
+            if (!aKey && !bKey) return 0;
+
+            // a だけ空 → a を後ろへ
+            if (!aKey) return 1;
+
+            // b だけ空 → b を後ろへ
+            if (!bKey) return -1;
+
+            // 両方値あり → 文字列昇順
+            return aKey.localeCompare(bKey, "ja");
+        });
+
+        return list;
     }, [rows, edit]);
+
 
     // ★同じ police_station_place_id の件数（共有数）を作る
     const sharedCountMap = useMemo(() => {
