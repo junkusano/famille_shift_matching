@@ -1148,8 +1148,8 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
-                        <col style={{ width: "3%" }} />
-                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "5%" }} />
 
                         {/* サービス内容 */}
                         <col style={{ width: "16%" }} />
@@ -1157,21 +1157,21 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
                         <col style={{ width: "8%" }} />
                         <col style={{ width: "8%" }} />
-                        <col style={{ width: "3%" }} />
-
-                        {/* サービス提供時間（開始/終了）= 2列 */}
-                        <col style={{ width: "7%" }} />
                         <col style={{ width: "6%" }} />
 
+                        {/* サービス提供時間（開始/終了）= 2列 */}
+                        <col style={{ width: "8%" }} />
+                        <col style={{ width: "8%" }} />
+
                         {/* 算定時間（時間）= 1列 */}
-                        <col style={{ width: "3%" }} />
+                        <col style={{ width: "6%" }} />
 
                         {/* 派遣人数・初回・緊急・利用者確認・備考 */}
-                        <col style={{ width: "3%" }} />   {/* 派遣人数 */}
-                        <col style={{ width: "3%" }} />   {/* 初回加算 */}
+                        <col style={{ width: "6%" }} />   {/* 派遣人数 */}
+                        <col style={{ width: "6%" }} />   {/* 初回加算 */}
                         <col style={{ width: "6%" }} />   {/* 緊急時対応加算 */}
-                        <col style={{ width: "7%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "24%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "8%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "8%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
