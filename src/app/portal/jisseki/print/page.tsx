@@ -1179,7 +1179,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 1行目：受給者証番号（左）＋氏名（右） ／ 右ブロック：事業所番号（縦幅を小さくするため、この行にのみ置く） */}
                         <tr>
                             {/* 左ブロック（8/14）：2列横並び */}
-                            <td colSpan={8} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "50% 50%" }}>
                                     {/* 受給者証番号 */}
                                     <div style={{ display: "grid", gridTemplateColumns: "36% 64%", borderRight: "1px solid #000" }}>
@@ -1192,7 +1192,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     </div>
 
                                     {/* 氏名 */}
-                                    <div style={{ display: "grid", gridTemplateColumns: "36% 64%" }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "28% 72%" }}>
                                         <div style={{ borderRight: "1px solid #000", padding: "1px 3px", fontSize: "9px", lineHeight: 1.05 }}>
                                             支給決定障害者等氏名<br />（障害児氏名）
                                         </div>
@@ -1204,7 +1204,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
 
                             {/* 右ブロック（6/14）：事業所番号（この行だけ＝縦幅が小さくなる） */}
-                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業所番号
@@ -1219,7 +1219,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {/* 2行目：契約支給量（左ブロックは横一杯） ／ 右ブロック：事業者及びその事業所（こちらの方が縦幅大きくなる） */}
                         <tr>
                             {/* 左ブロック（8/14）：契約支給量（横一杯） */}
-                            <td colSpan={8} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "18% 82%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         契約支給量
@@ -1231,7 +1231,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             </td>
 
                             {/* 右ブロック（6/14）：事業者及びその事業所 */}
-                            <td colSpan={6} className="small" style={{ padding: 0 }}>
+                            <td colSpan={7} className="small" style={{ padding: 0 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "35% 65%" }}>
                                     <div style={{ borderRight: "1px solid #000", padding: "1px 3px" }}>
                                         事業者及び<br />その事業所
