@@ -1128,7 +1128,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumSanteiHours = sumPlanHours;
 
     return (
-        <div className="formBox p-2" style={{ width: "100%", marginLeft: "auto", marginRight: "auto" }}>
+        <div className="formBox p-2">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
             <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
@@ -1144,10 +1144,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
             {/* ★ヘッダ＋明細を “1つの table” に統合（ズレ防止） */}
             <div className="mt-2">
-                <table
-                    className="grid ido-grid doko-grid"
-                    style={{ width: "100%", minWidth: "100%", marginLeft: "auto", marginRight: "auto", tableLayout: "fixed" }}
-                >
+                <table className="grid ido-grid" style={{ width: "100%", tableLayout: "fixed" }}>
                     {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
