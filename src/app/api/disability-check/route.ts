@@ -191,7 +191,61 @@ export async function POST(req: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const rows: ViewRow[] = (data ?? []) as unknown as ViewRow[];
+    let rows: ViewRow[] = (data ?? []) as unknown as ViewRow[];
+
+    /* =========================
+   ★追加：shift_service_code の区分で利用者を絞り込む
+   - kaipoke_servicek が「障害」「移動支援」の service_code を持つ利用者だけ
+   ========================= */
+
+    const allowedServiceKs = kaipokeServicek
+      ? [kaipokeServicek] // 画面で「障害」or「移動支援」を選んでいるならそれに合わせる
+      : ["障害", "移動支援"]; // 念のため未指定でもこの2区分に限定
+
+    // 1) 許可された service_code を取得
+    const { data: sscRows, error: sscErr } = await supabaseAdmin
+      .from("shift_service_code")
+      .select("service_code, kaipoke_servicek")
+      .in("kaipoke_servicek", allowedServiceKs);
+
+    if (sscErr) throw sscErr;
+
+    const allowedServiceCodes = Array.from(
+      new Set((sscRows ?? []).map((r) => String(r.service_code ?? "").trim()).filter(Boolean))
+    );
+
+    // 設定が空なら「何も出さない」（誤表示防止）
+    if (allowedServiceCodes.length === 0) {
+      return NextResponse.json([], { status: 200 });
+    }
+
+    // 2) 対象月の範囲を作る（YYYY-MM-01 〜 次月1日未満）
+    const monthStart = `${yearMonth}-01`;
+    const [yStr, mStr] = yearMonth.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const nextY = m === 12 ? y + 1 : y;
+    const nextM = m === 12 ? 1 : m + 1;
+    const monthEndExclusive = `${String(nextY).padStart(4, "0")}-${String(nextM).padStart(2, "0")}-01`;
+
+    // 3) 対象月に「許可service_code」で入っている利用者を抽出
+    const { data: shiftRows, error: shiftErr } = await supabaseAdmin
+      .from("shift")
+      .select("kaipoke_cs_id, service_code, shift_start_date")
+      .gte("shift_start_date", monthStart)
+      .lt("shift_start_date", monthEndExclusive)
+      .in("service_code", allowedServiceCodes);
+
+    if (shiftErr) throw shiftErr;
+
+    const allowedCsIdSet = new Set(
+      (shiftRows ?? [])
+        .map((r) => (r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : ""))
+        .filter(Boolean)
+    );
+
+    // 4) disability_check_view の結果を「許可利用者」のみに絞る
+    rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
 
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
 
