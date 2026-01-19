@@ -96,7 +96,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
       /* 同行援護など備考セル */
       .biko-td{
-        padding: 0 !important;
+        padding: 1px 2px !important;
         overflow: hidden;
         height: var(--row-2line);
         text-align: center;

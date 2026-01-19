@@ -1096,7 +1096,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     );
 }
 
-function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
+function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const FILTER_FROM = "2025-11-01";
 
     const getMinutes = (r: { start: string; end: string; minutes?: number }) => {
@@ -1364,16 +1364,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                         {/* 備考：担当者名（staffNames があれば表示） */}
                                         <td className="left small biko-td">
                                             <div className="biko-box">
-                                                <div className="biko-box">
-                                                    <span
-                                                        className="biko-line fit-text"
-                                                        ref={(el) => {
-                                                            if (el && !fitRefs.current.includes(el)) fitRefs.current.push(el);
-                                                        }}
-                                                    >
-                                                        {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                                    </span>
-                                                </div>
+                                                <span className="biko-line">
+                                                    {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                                </span>
                                             </div>
                                         </td>
                                     </tr>
