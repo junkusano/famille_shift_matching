@@ -11,10 +11,86 @@ const OPS_CHANNEL_ID = "71038237-52f6-e937-49d9-8d5a46758065";
  * ここはプロジェクト既存の「LWアクセストークン取得処理」に置き換えてください。
  * 例：refresh token から取得する実装が既にあるはずなので、それを呼ぶ。
  */
+
+
+import crypto from "crypto";
+
+let cachedAccessToken: string | null = null;
+let cachedExpireAtMs = 0;
+
+function base64url(input: Buffer | string) {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return buf
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function signJwtRS256(header: object, payload: object, privateKeyPem: string) {
+  const h = base64url(JSON.stringify(header));
+  const p = base64url(JSON.stringify(payload));
+  const data = `${h}.${p}`;
+
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(data);
+  signer.end();
+
+  const sig = signer.sign(privateKeyPem);
+  return `${data}.${base64url(sig)}`;
+}
+
 async function getLineWorksAccessTokenOrThrow(): Promise<string> {
-  const token = process.env.LINEWORKS_BOT_ACCESS_TOKEN;
-  if (!token) throw new Error("LINEWORKS_BOT_ACCESS_TOKEN is not set");
-  return token;
+  // 60秒バッファでキャッシュ
+  if (cachedAccessToken && Date.now() < cachedExpireAtMs - 60_000) {
+    return cachedAccessToken;
+  }
+
+  const clientId = process.env.LINEWORKS_CLIENT_ID;
+  const clientSecret = process.env.LINEWORKS_CLIENT_SECRET;
+  const serviceAccount = process.env.LINEWORKS_SERVICE_ACCOUNT;
+  let privateKey = process.env.LINEWORKS_PRIVATE_KEY;
+
+  if (!clientId) throw new Error("LINEWORKS_CLIENT_ID is not set");
+  if (!clientSecret) throw new Error("LINEWORKS_CLIENT_SECRET is not set");
+  if (!serviceAccount) throw new Error("LINEWORKS_SERVICE_ACCOUNT is not set");
+  if (!privateKey) throw new Error("LINEWORKS_PRIVATE_KEY is not set");
+
+  // VercelのENVに貼ると改行が \n になることが多いので復元
+  privateKey = privateKey.replace(/\\n/g, "\n");
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expSec = nowSec + 60 * 60; // 最大60分（例）
+  const jwt = signJwtRS256(
+    { alg: "RS256", typ: "JWT" },
+    { iss: clientId, sub: serviceAccount, iat: nowSec, exp: expSec },
+    privateKey
+  );
+
+  const form = new URLSearchParams();
+  form.set("assertion", jwt);
+  form.set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
+  form.set("client_id", clientId);
+  form.set("client_secret", clientSecret);
+  form.set("scope", "bot"); // bot送信に必要（必要なら拡張） :contentReference[oaicite:1]{index=1}
+
+  const tokenRes = await fetch("https://auth.worksmobile.com/oauth2/v2.0/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+
+  const text = await tokenRes.text();
+  if (!tokenRes.ok) {
+    throw new Error(`LINEWORKS token failed: ${tokenRes.status} ${text}`);
+  }
+
+  const json = JSON.parse(text) as { access_token?: string; expires_in?: number };
+  if (!json.access_token) throw new Error("LINEWORKS token response missing access_token");
+
+  cachedAccessToken = json.access_token;
+  cachedExpireAtMs = Date.now() + (json.expires_in ?? 3600) * 1000;
+  return cachedAccessToken;
 }
 
 type Body = {
