@@ -2,13 +2,13 @@
 "use client";
 
 type Props = {
-    /** single: /portal/jisseki/print 用, bulk: /portal/jisseki/print/bulk 用 */
-    mode: "single" | "bulk";
+  /** single: /portal/jisseki/print 用, bulk: /portal/jisseki/print/bulk 用 */
+  mode: "single" | "bulk";
 };
 
 export default function JissekiPrintGlobalStyles({ mode }: Props) {
-    return (
-        <style jsx global>{`
+  return (
+    <style jsx global>{`
       /* =========================
          共通（印刷設定・罫線・文字詰め）
          ========================= */
@@ -191,6 +191,11 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           page-break-after: always;
           break-after: page;
           overflow: hidden;
+
+           /* ★追加：テーブル途中で改ページさせない（フッタ/合計欄が次ページへ飛ぶのを防ぐ） */
+  table, thead, tbody, tfoot, tr, th, td{
+    break-inside: avoid;
+    page-break-inside: avoid;
         }
       }
 
@@ -203,5 +208,5 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       }
       ` : ""}
     `}</style>
-    );
+  );
 }

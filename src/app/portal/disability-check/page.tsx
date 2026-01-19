@@ -781,9 +781,9 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ padding: 8 }}>
                   {r.asigned_jisseki_staff_id ? (
                     <Link
-                      href={`/portal/shift-view?user_id=${encodeURIComponent(
-                        r.asigned_jisseki_staff_id
-                      )}&ym=${encodeURIComponent(yearMonth)}`}
+                      href={`/portal/disability-check?ym=${encodeURIComponent(
+                        yearMonth
+                      )}&user_id=${encodeURIComponent(r.asigned_jisseki_staff_id)}`}
                       className="text-blue-600 underline"
                     >
                       {r.asigned_jisseki_staff_name ?? r.asigned_jisseki_staff_id}

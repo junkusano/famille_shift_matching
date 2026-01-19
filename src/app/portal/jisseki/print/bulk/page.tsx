@@ -295,7 +295,10 @@ export default function BulkPrintPage() {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
 
                     return (
-                        <div key={key} className={idx === 0 ? "" : "page-break"}>
+                        <div
+                            key={key}
+                            className={`print-page ${idx === 0 ? "" : "page-break"}`}
+                        >
                             <JissekiPrintBody data={d} />
                         </div>
                     );
