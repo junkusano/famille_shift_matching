@@ -122,6 +122,22 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       }
 
       /* =========================
+   同行援護（DOKO）だけ：中央寄せ＆横幅フルを強制
+   ========================= */
+.doko-sheet{
+  width: 100%;
+  margin: 0 auto;           /* ★全体を中央へ */
+  box-sizing: border-box;
+}
+
+.doko-grid{
+  width: 100% !important;   /* ★どこかで幅が縮められても戻す */
+  max-width: 100% !important;
+  margin: 0 auto !important; /* ★テーブル自体を中央へ */
+  table-layout: fixed;
+}
+
+      /* =========================
          mode別（single/bulk）
          ========================= */
 
