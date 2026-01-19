@@ -121,21 +121,24 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         text-overflow: clip;
       }
 
-      /* =========================
-   同行援護（DOKO）だけ：中央寄せ＆横幅フルを強制
+     /* =========================
+   同行援護（DOKO）専用指定：一旦停止
+   （まず他帳票と同じ挙動に揃えて原因を切り分ける）
    ========================= */
+/*
 .doko-sheet{
   width: 100%;
-  margin: 0 auto;           /* ★全体を中央へ */
+  margin: 0 auto;
   box-sizing: border-box;
 }
 
 .doko-grid{
-  width: 100% !important;   /* ★どこかで幅が縮められても戻す */
+  width: 100% !important;
   max-width: 100% !important;
-  margin: 0 auto !important; /* ★テーブル自体を中央へ */
+  margin: 0 auto !important;
   table-layout: fixed;
 }
+*/
 
       /* =========================
          mode別（single/bulk）
