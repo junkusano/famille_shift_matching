@@ -1152,11 +1152,11 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         <col style={{ width: "3%" }} />
 
                         {/* サービス内容 */}
-                        <col style={{ width: "15%" }} />
+                        <col style={{ width: "16%" }} />
 
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
-                        <col style={{ width: "7%" }} />
-                        <col style={{ width: "7%" }} />
+                        <col style={{ width: "8%" }} />
+                        <col style={{ width: "8%" }} />
                         <col style={{ width: "3%" }} />
 
                         {/* サービス提供時間（開始/終了）= 2列 */}
@@ -1171,7 +1171,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         <col style={{ width: "3%" }} />   {/* 初回加算 */}
                         <col style={{ width: "6%" }} />   {/* 緊急時対応加算 */}
                         <col style={{ width: "7%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "23%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "24%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
