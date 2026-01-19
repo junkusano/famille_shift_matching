@@ -156,19 +156,25 @@ export async function POST(req: NextRequest) {
         "【駐車注意】交差点・横断歩道・消火栓・バス停・車庫入り口・線引き道路、左右余白など、法定駐車禁止にならない様にくれぐれも注意してください。";
 
     // 申請者（ログインユーザー）の channel_id を取得（人事労務サポートルーム）
-    const { data: applicantCh, error: applicantChErr } = await supabaseAdmin
+    const { data: applicant, error: applicantErr } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("channel_id")
-        .eq("user_id", user.id)
-        .maybeSingle<{ channel_id: string | null }>();
+        .select("user_id,channel_id")
+        .eq("auth_user_id", user.id) // ★ここが正しい（uuid同士）
+        .maybeSingle<{ user_id: string; channel_id: string | null }>();
 
-    if (applicantChErr) {
-        return NextResponse.json({ ok: false, message: applicantChErr.message }, { status: 400 });
+    if (applicantErr) {
+        return NextResponse.json({ ok: false, message: applicantErr.message }, { status: 400 });
+    }
+    if (!applicant?.user_id) {
+        return NextResponse.json(
+            { ok: false, message: "申請者の user_id を特定できません（user_entry_united_view_single を確認）" },
+            { status: 400 }
+        );
     }
 
     const msg =
         `【駐車許可証 申請】\n` +
-        `申請者user_id：${user.id}\n` +
+        `申請者user_id：${applicant.user_id}\n` +
         `利用者：${client?.name ?? "(不明)"}（${place.kaipoke_cs_id}）\n` +
         (place.police_station_place_id ? `認識コード：${place.police_station_place_id}\n` : "") +
         `駐車場所：${place.label}\n` +
@@ -191,10 +197,11 @@ export async function POST(req: NextRequest) {
         }
 
         // ★申請者の channel_id へ（取れた時だけ）
-        const applicantChannelId = applicantCh?.channel_id ?? null;
+        const applicantChannelId = applicant.channel_id ?? null;
         if (applicantChannelId) {
             await sendLWBotMessage(applicantChannelId, msg, accessToken);
         }
+
     } catch (e) {
         console.error("[permit-apply] LW notify failed:", e);
         return NextResponse.json(
