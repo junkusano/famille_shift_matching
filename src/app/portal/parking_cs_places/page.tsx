@@ -361,7 +361,7 @@ export default function ParkingCsPlacesPage() {
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
-                                                    直近ｼﾌﾄ無
+                                                    シフト無
                                                 </span>
 
                                             )}
@@ -491,7 +491,7 @@ export default function ParkingCsPlacesPage() {
                                                     disabled={sendingId === r.id || !canApply}
                                                     onClick={() => void applyPermit(r.id)}
                                                 >
-                                                    {sendingId === r.id ? "送信中..." : "許可証申請"}
+                                                    {sendingId === r.id ? "送信中..." : "申請"}
                                                 </button>
 
                                                 <button
