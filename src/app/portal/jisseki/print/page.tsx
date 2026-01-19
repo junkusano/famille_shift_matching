@@ -1152,7 +1152,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         <col style={{ width: "3%" }} />
 
                         {/* サービス内容 */}
-                        <col style={{ width: "12%" }} />
+                        <col style={{ width: "15%" }} />
 
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
                         <col style={{ width: "7%" }} />
@@ -1169,9 +1169,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         {/* 派遣人数・初回・緊急・利用者確認・備考 */}
                         <col style={{ width: "3%" }} />   {/* 派遣人数 */}
                         <col style={{ width: "3%" }} />   {/* 初回加算 */}
-                        <col style={{ width: "4%" }} />   {/* 緊急時対応加算 */}
-                        <col style={{ width: "6%" }} />   {/* 利用者確認欄 */}
-                        <col style={{ width: "33%" }} />  {/* 備考（担当者名を入れる） */}
+                        <col style={{ width: "6%" }} />   {/* 緊急時対応加算 */}
+                        <col style={{ width: "7%" }} />   {/* 利用者確認欄 */}
+                        <col style={{ width: "23%" }} />  {/* 備考（担当者名を入れる） */}
                     </colgroup>
 
                     <tbody>
