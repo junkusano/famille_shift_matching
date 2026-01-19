@@ -1128,7 +1128,10 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     const sumSanteiHours = sumPlanHours;
 
     return (
-        <div className="formBox p-2">
+        <div
+            className="formBox p-2"
+            style={{ maxWidth: "210mm", margin: "0 auto" }}
+        >
             {/* タイトル行（PDFは右上に(様式19)表記） */}
             <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
