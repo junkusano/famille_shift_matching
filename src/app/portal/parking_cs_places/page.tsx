@@ -46,6 +46,7 @@ export default function ParkingCsPlacesPage() {
     const [savingId, setSavingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [q, setQ] = useState("");
+    const [sendingId, setSendingId] = useState<string | null>(null);
 
     // 編集中の一時状態（Row の一部だけ差分で持つ）
     const [edit, setEdit] = useState<Record<string, Partial<Row>>>({});
@@ -239,6 +240,50 @@ export default function ParkingCsPlacesPage() {
         }
     };
 
+    const applyPermit = async (parkingCsPlaceId: string) => {
+        setError(null);
+        setSendingId(parkingCsPlaceId);
+
+        try {
+            const ok = window.confirm("「許可証申請」メッセージを送信します。よろしいですか？");
+            if (!ok) return;
+
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const res = await fetch(`/api/parking/permit-apply`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify({ parking_cs_place_id: parkingCsPlaceId }),
+            });
+
+            const json: unknown = await res.json();
+
+            if (
+                !res.ok ||
+                typeof json !== "object" ||
+                json === null ||
+                !("ok" in json) ||
+                (json as { ok: unknown }).ok !== true
+            ) {
+                const msg =
+                    typeof json === "object" && json !== null && "message" in json
+                        ? String((json as { message?: unknown }).message ?? "apply failed")
+                        : "apply failed";
+                throw new Error(msg);
+            }
+
+            alert("送信しました。");
+        } catch (e: unknown) {
+            setError(getErrMessage(e));
+        } finally {
+            setSendingId(null);
+        }
+    };
+    
     return (
         <div className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -303,6 +348,7 @@ export default function ParkingCsPlacesPage() {
                                 const isNoRecent = !r.isTarget;
                                 const dirty = !!edit[r.id];
                                 const permitNeed = !!r.permit_required;
+                                const canApply = !!(r.police_station_place_id && r.police_station_place_id.trim());
                                 return (
                                     <tr
                                         key={r.id}
@@ -437,17 +483,28 @@ export default function ParkingCsPlacesPage() {
                                                 />
                                             </div>
                                         </td>
-
                                         <td className="border-b p-2">
-                                            <button
-                                                className={`w-full rounded-md px-3 py-2 text-sm ${dirty ? "bg-blue-600 text-white hover:opacity-90" : "border text-gray-500"
-                                                    }`}
-                                                disabled={!dirty || savingId === r.id}
-                                                onClick={() => void saveRow(r.id)}
-                                            >
-                                                {savingId === r.id ? "保存中..." : "保存"}
-                                            </button>
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    className={`w-full rounded-md px-3 py-2 text-sm ${sendingId === r.id ? "bg-gray-300 text-gray-700" : "bg-amber-500 text-white hover:opacity-90"
+                                                        }`}
+                                                    disabled={sendingId === r.id || !canApply}
+                                                    onClick={() => void applyPermit(r.id)}
+                                                >
+                                                    {sendingId === r.id ? "送信中..." : "許可証申請"}
+                                                </button>
+
+                                                <button
+                                                    className={`w-full rounded-md px-3 py-2 text-sm ${dirty ? "bg-blue-600 text-white hover:opacity-90" : "border text-gray-500"
+                                                        }`}
+                                                    disabled={!dirty || savingId === r.id}
+                                                    onClick={() => void saveRow(r.id)}
+                                                >
+                                                    {savingId === r.id ? "保存中..." : "保存"}
+                                                </button>
+                                            </div>
                                         </td>
+
                                     </tr>
                                 );
                             })}
