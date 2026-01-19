@@ -87,6 +87,25 @@ const DisabilityCheckPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
+  const handleClickStaff = (staffId: string) => {
+    // member は担当者固定運用なので、クリック絞り込みは不要（必要ならこの if を外す）
+    if (!(isManager || isAdmin)) return;
+
+    // 実績担当者で絞り込む
+    setFilterStaffId(staffId);
+
+    // 必要なら他の絞り込みを解除（「その人担当の利用者一覧」を出したい意図に合わせる）
+    setFilterKaipokeCsId("");
+    setFilterTeamId("");
+
+    // URL も要件通りに更新（ym は “今絞っている年月”）
+    const qp = new URLSearchParams(searchParams.toString());
+    qp.set("ym", yearMonth);
+    qp.set("user_id", staffId);
+
+    router.push(`${pathname}?${qp.toString()}`);
+  };
 
   // ② Selectbox 用の選択肢
   const clientOptions = useMemo(() => {
@@ -780,14 +799,18 @@ const DisabilityCheckPage: React.FC = () => {
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
                   {r.asigned_jisseki_staff_id ? (
-                    <Link
+                    <a
                       href={`/portal/disability-check?ym=${encodeURIComponent(
                         yearMonth
                       )}&user_id=${encodeURIComponent(r.asigned_jisseki_staff_id)}`}
                       className="text-blue-600 underline"
+                      onClick={(e) => {
+                        e.preventDefault(); // ★URLだけ変わって表示が変わらないのを防ぐ
+                        handleClickStaff(r.asigned_jisseki_staff_id!);
+                      }}
                     >
                       {r.asigned_jisseki_staff_name ?? r.asigned_jisseki_staff_id}
-                    </Link>
+                    </a>
                   ) : (
                     <span>-</span>
                   )}
