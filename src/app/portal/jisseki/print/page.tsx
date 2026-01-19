@@ -1175,6 +1175,16 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     </colgroup>
 
                     <tbody>
+                        {/* ★追加：タイトル行を table 内に入れる（ここが効きます） */}
+                        <tr>
+                            <td colSpan={14} style={{ borderBottom: "1px solid #000", padding: "2px 4px" }}>
+                                <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
+                                    <div style={{ flex: 1 }} className="small">令和7年12月分</div>
+                                    <div style={{ flex: 2 }} className="title">同行援護サービス提供実績記録票</div>
+                                    <div style={{ flex: 1 }} className="small right">（様式19）</div>
+                                </div>
+                            </td>
+                        </tr>
                         {/* ===== 上段ヘッダ枠（PDF上部の大枠） ===== */}
                         {/* 1行目：受給者証番号（左）＋氏名（右） ／ 右ブロック：事業所番号（縦幅を小さくするため、この行にのみ置く） */}
                         <tr>
