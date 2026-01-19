@@ -146,6 +146,20 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           width: 100% !important;
           box-sizing: border-box !important;
         }
+
+          /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
+  .print-only .print-page{
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* ★追加：帳票本体は親の中央に、幅は親に追従 */
+  .print-only .print-page > .formBox{
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
       }
 
       @media screen {
@@ -155,6 +169,15 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           margin: 0 auto;
           background: #fff;
         }
+      /* ★追加：画面でもページを中央揃え基準に統一 */
+  .print-only .print-page{
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .print-only .print-page > .formBox{
+    width: 100%;
+  }
       }
       ` : ""}
 
