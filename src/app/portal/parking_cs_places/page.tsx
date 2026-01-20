@@ -518,10 +518,10 @@ export default function ParkingCsPlacesPage() {
                                                             : "border text-gray-500"
                                                         }`}
                                                     disabled={isMember || !dirty || savingId === r.id}
-                                                    title={isMember ? "member は保存できません" : ""}
+                                                    title={isMember ? "-" : ""}
                                                     onClick={() => void saveRow(r.id)}
                                                 >
-                                                    {isMember ? "保存（権限なし）" : savingId === r.id ? "保存中..." : "保存"}
+                                                    {isMember ? "権限無" : savingId === r.id ? "保存中..." : "保存"}
                                                 </button>
                                             </div>
                                         </td>
