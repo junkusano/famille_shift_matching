@@ -23,6 +23,7 @@ type Row = {
 
     next_shift_date: string | null;
     first_shift_date: string | null;
+    is_active: boolean;
 };
 
 function addMonths(date: Date, months: number) {

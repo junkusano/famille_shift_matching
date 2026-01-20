@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRoleContext } from "@/context/RoleContext";
 
 //type CsInfo = { name: string | null; address: string | null } | null;
 
@@ -27,7 +28,7 @@ type Row = {
     hasUpcomingShiftWithin2Months: boolean;
     firstShiftWithin2Months: boolean;
     isTarget: boolean;
-
+    is_active: boolean;
 };
 
 function getErrMessage(e: unknown): string {
@@ -47,6 +48,8 @@ export default function ParkingCsPlacesPage() {
     const [error, setError] = useState<string | null>(null);
     const [q, setQ] = useState("");
     const [sendingId, setSendingId] = useState<string | null>(null);
+    const { role } = useRoleContext();
+    const isMember = (role ?? "") === "member";
 
     // 編集中の一時状態（Row の一部だけ差分で持つ）
     const [edit, setEdit] = useState<Record<string, Partial<Row>>>({});
@@ -150,6 +153,7 @@ export default function ParkingCsPlacesPage() {
     }, [mergedRows]);
 
     const setField = (id: string, patch: Partial<Row>) => {
+        if (isMember) return; // ★member は編集禁止
         setEdit((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...patch } }));
     };
 
@@ -171,6 +175,7 @@ export default function ParkingCsPlacesPage() {
                 parking_orientation?: string | null;
                 permit_required?: boolean | null;
                 remarks?: string | null;
+                is_active?: boolean; 
             };
 
             const payload: PatchBody = {};
@@ -182,6 +187,7 @@ export default function ParkingCsPlacesPage() {
             if ("parking_orientation" in patch) payload.parking_orientation = patch.parking_orientation ?? null;
             if ("permit_required" in patch) payload.permit_required = patch.permit_required ?? null;
             if ("remarks" in patch) payload.remarks = patch.remarks ?? null;
+            if ("is_active" in patch) payload.is_active = !!patch.is_active; 
 
             const res = await fetch(`/api/parking/cs_places/${encodeURIComponent(id)}`, {
                 method: "PATCH",
@@ -283,7 +289,7 @@ export default function ParkingCsPlacesPage() {
             setSendingId(null);
         }
     };
-    
+
     return (
         <div className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -329,6 +335,7 @@ export default function ParkingCsPlacesPage() {
                     <table className="min-w-[1200px] w-full border-collapse text-sm">
                         <thead className="bg-gray-50">
                             <tr className="text-left">
+                                <th className="border-b p-2 w-[90px]">有効</th>
                                 <th className="border-b p-2 w-[120px]">状態</th>
                                 <th className="border-b p-2 w-[140px]">認識コード</th>
                                 <th className="border-b p-2 w-[110px]">共有</th>
@@ -354,6 +361,18 @@ export default function ParkingCsPlacesPage() {
                                         key={r.id}
                                         className={`hover:bg-gray-50 ${isNoRecent ? "bg-gray-100 text-gray-400" : ""}`}
                                     >
+                                        <td className="border-b p-2">
+                                            <button
+                                                className={`rounded-md px-2 py-1 text-xs font-semibold ${r.is_active ? "bg-green-600 text-white" : "bg-gray-300 text-gray-700"
+                                                    } ${isMember ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                disabled={isMember}
+                                                onClick={() => setField(r.id, { is_active: !r.is_active })}
+                                                title={isMember ? "member は変更できません" : ""}
+                                            >
+                                                {r.is_active ? "有効" : "無効"}
+                                            </button>
+                                        </td>
+
                                         <td className="border-b p-2">
                                             {r.isTarget ? (
                                                 <span className="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
@@ -493,14 +512,16 @@ export default function ParkingCsPlacesPage() {
                                                 >
                                                     {sendingId === r.id ? "送信中..." : "申請"}
                                                 </button>
-
                                                 <button
-                                                    className={`w-full rounded-md px-3 py-2 text-sm ${dirty ? "bg-blue-600 text-white hover:opacity-90" : "border text-gray-500"
+                                                    className={`w-full rounded-md px-3 py-2 text-sm ${dirty && !isMember
+                                                            ? "bg-blue-600 text-white hover:opacity-90"
+                                                            : "border text-gray-500"
                                                         }`}
-                                                    disabled={!dirty || savingId === r.id}
+                                                    disabled={isMember || !dirty || savingId === r.id}
+                                                    title={isMember ? "member は保存できません" : ""}
                                                     onClick={() => void saveRow(r.id)}
                                                 >
-                                                    {savingId === r.id ? "保存中..." : "保存"}
+                                                    {isMember ? "保存（権限なし）" : savingId === r.id ? "保存中..." : "保存"}
                                                 </button>
                                             </div>
                                         </td>

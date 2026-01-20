@@ -12,6 +12,7 @@ type Body = {
   parking_orientation?: string | null;
   permit_required?: boolean | null;
   remarks?: string | null;
+  is_active?: boolean | null;
 };
 
 export async function PATCH(
@@ -39,9 +40,9 @@ export async function PATCH(
   const normalizedPoliceId =
     typeof body.police_station_place_id === "string"
       ? (() => {
-          const v = body.police_station_place_id.trim();
-          return v === "" ? null : v;
-        })()
+        const v = body.police_station_place_id.trim();
+        return v === "" ? null : v;
+      })()
       : body.police_station_place_id ?? undefined;
 
   const updatePayload: Body = {
@@ -61,7 +62,20 @@ export async function PATCH(
         : undefined,
     remarks:
       typeof body.remarks === "string" || body.remarks === null ? body.remarks : undefined,
+    is_active: typeof body.is_active === "boolean" ? body.is_active : undefined,
   };
+
+  const { data: urow, error: uerr } = await supabaseAdmin
+    .from("users")
+    .select("system_role")
+    .eq("auth_user_id", user.id)
+    .maybeSingle<{ system_role: string | null }>();
+
+  if (uerr) return NextResponse.json({ ok: false, message: uerr.message }, { status: 400 });
+
+  if ((urow?.system_role ?? "") === "member") {
+    return NextResponse.json({ ok: false, message: "Forbidden" }, { status: 403 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from("parking_cs_places")
