@@ -2,6 +2,10 @@
 // src/app/api/cm/rpa/logs/route.ts
 // RPA ログ API（保存 + 取得）
 // =============================================================
+//
+// ※ 既存のPOSTメソッドに加えて、GETメソッドを追加
+//
+// =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
@@ -9,7 +13,7 @@ import type { CmRpaLogRequest, CmRpaLogsApiResponse } from '@/types/cm/rpa';
 import type { CmRpaLogsListResponse } from '@/types/cm/rpaLogs';
 
 // =============================================================
-// APIキー認証
+// APIキー認証（既存）
 // =============================================================
 
 async function validateApiKey(request: NextRequest): Promise<boolean> {
@@ -35,7 +39,7 @@ async function validateApiKey(request: NextRequest): Promise<boolean> {
 }
 
 // =============================================================
-// バリデーション
+// バリデーション（既存）
 // =============================================================
 
 const VALID_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
@@ -108,7 +112,7 @@ function validateLogRequest(body: unknown): ValidationResult {
 }
 
 // =============================================================
-// GET /api/cm/rpa/logs - ログ一覧取得
+// GET /api/cm/rpa/logs - ログ一覧取得（新規追加）
 // =============================================================
 
 export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsListResponse>> {
@@ -202,7 +206,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsL
 }
 
 // =============================================================
-// POST /api/cm/rpa/logs - ログ保存
+// POST /api/cm/rpa/logs - ログ保存（既存）
 // =============================================================
 
 export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogsApiResponse>> {

@@ -26,6 +26,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/clients/insurance': '被保険者証',
     '/cm-portal/clients/subsidy': '公費・減額',
     '/cm-portal/other-offices': '他社事業所一覧',
+    '/cm-portal/local-fax-phonebook': 'ローカルFAX電話帳',
     '/cm-portal/care-plan': '計画書作成',
     '/cm-portal/care-plan/weekly': '週間計画',
     '/cm-portal/care-plan/monitoring': 'モニタリング',
@@ -40,6 +41,8 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/notifications/alerts': '期限アラート',
     '/cm-portal/notifications/reminders': '業務リマインド',
     '/cm-portal/notifications/history': '通知履歴',
+    '/cm-portal/rpa-jobs': 'RPAジョブ登録',
+    '/cm-portal/rpa-logs': 'RPAログ',
     '/cm-portal/rpa/status': '実行状況',
     '/cm-portal/rpa/queue': '実行キュー',
     '/cm-portal/rpa/history': '実行履歴',
@@ -51,6 +54,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/settings/account': 'アカウント',
     '/cm-portal/audit/logs': '操作ログ',
     '/cm-portal/admin/alert-batch': 'アラートバッチ',
+    '/cm-portal/service-credentials': 'サービス認証情報',
   };
 
   const breadcrumbs: CmBreadcrumb[] = [
@@ -77,6 +81,22 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   if (faxDetailMatch) {
     breadcrumbs.push({ label: 'FAX受信一覧', path: '/cm-portal/fax', isLink: true });
     breadcrumbs.push({ label: 'FAX詳細', path: pathname, isLink: false });
+    return breadcrumbs;
+  }
+
+  // RPAジョブ詳細ページ
+  const rpaJobDetailMatch = pathname.match(/^\/cm-portal\/rpa-jobs\/([^/]+)$/);
+  if (rpaJobDetailMatch) {
+    breadcrumbs.push({ label: 'RPAジョブ登録', path: '/cm-portal/rpa-jobs', isLink: true });
+    breadcrumbs.push({ label: 'ジョブ詳細', path: pathname, isLink: false });
+    return breadcrumbs;
+  }
+
+  // RPAログ詳細ページ
+  const rpaLogDetailMatch = pathname.match(/^\/cm-portal\/rpa-logs\/([^/]+)$/);
+  if (rpaLogDetailMatch) {
+    breadcrumbs.push({ label: 'RPAログ', path: '/cm-portal/rpa-logs', isLink: true });
+    breadcrumbs.push({ label: 'ログ詳細', path: pathname, isLink: false });
     return breadcrumbs;
   }
 

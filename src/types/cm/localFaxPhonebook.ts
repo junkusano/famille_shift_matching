@@ -71,6 +71,41 @@ export type CmOfficeContact = {
 };
 
 // =============================================================
+// カイポケ連携表示用の型
+// =============================================================
+
+/**
+ * カイポケ事業所情報（連携表示用）
+ */
+export type CmKaipokeOfficeInfo = {
+  /** カイポケ事業所ID */
+  id: number;
+  /** 事業所名 */
+  office_name: string;
+  /** サービス種別 */
+  service_type: string | null;
+  /** 事業者番号 */
+  office_number: string | null;
+};
+
+/**
+ * カイポケ情報付きローカルFAX電話帳エントリ
+ */
+export type CmLocalFaxPhonebookEntryWithKaipoke = CmLocalFaxPhonebookEntry & {
+  /** 同一FAX番号で登録されているカイポケ事業所 */
+  kaipoke_offices: CmKaipokeOfficeInfo[];
+};
+
+/**
+ * カイポケチェックAPIレスポンス
+ */
+export type CmKaipokeCheckResponse = {
+  ok: boolean;
+  offices?: CmKaipokeOfficeInfo[];
+  error?: string;
+};
+
+// =============================================================
 // API関連の型
 // =============================================================
 
@@ -238,3 +273,82 @@ export type CmLocalFaxPhonebookSyncResult = {
   log: string[];
   error?: string;
 };
+
+// =============================================================
+// GAS Web App API関連の型
+// =============================================================
+
+/**
+ * GAS APIアクション
+ */
+export type CmPhonebookGasAction = 'sync' | 'add' | 'update' | 'delete';
+
+/**
+ * GAS API リクエスト（追加）
+ */
+export type CmPhonebookGasAddRequest = {
+  action: 'add';
+  name: string;
+  name_kana?: string;
+  fax_number?: string;
+};
+
+/**
+ * GAS API リクエスト（更新）
+ */
+export type CmPhonebookGasUpdateRequest = {
+  action: 'update';
+  source_id: string;
+  name?: string;
+  name_kana?: string;
+  fax_number?: string;
+};
+
+/**
+ * GAS API リクエスト（削除）
+ */
+export type CmPhonebookGasDeleteRequest = {
+  action: 'delete';
+  source_id: string;
+};
+
+/**
+ * GAS API リクエスト（同期）
+ */
+export type CmPhonebookGasSyncRequest = {
+  action: 'sync';
+};
+
+/**
+ * GAS API リクエスト
+ */
+export type CmPhonebookGasRequest =
+  | CmPhonebookGasAddRequest
+  | CmPhonebookGasUpdateRequest
+  | CmPhonebookGasDeleteRequest
+  | CmPhonebookGasSyncRequest;
+
+/**
+ * GAS API レスポンス（追加）
+ */
+export type CmPhonebookGasAddResponse = {
+  ok: boolean;
+  source_id?: string;
+  name?: string;
+  fax_number?: string;
+  error?: string;
+};
+
+/**
+ * GAS API レスポンス（更新・削除）
+ */
+export type CmPhonebookGasUpdateDeleteResponse = {
+  ok: boolean;
+  source_id?: string;
+  error?: string;
+};
+
+/**
+ * GAS API レスポンス（同期）
+ */
+export type CmPhonebookGasSyncResponse = CmLocalFaxPhonebookSyncResult;

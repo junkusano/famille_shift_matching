@@ -78,11 +78,11 @@ const CmMenuStructure: CmMenuGroup[] = [
   },
   {
     id: 'other-offices',
-    label: '他社事業所管理',
+    label: '他事業所管理',
     icon: Building2,
-    // roles制限なし = 全員アクセス可能
     items: [
       { id: 'other-office-list', label: '他社事業所一覧', path: '/cm-portal/other-offices' },
+      { id: 'local-fax-phonebook', label: 'ローカルFAX電話帳', path: '/cm-portal/local-fax-phonebook' },
     ],
   },
   {
@@ -133,9 +133,8 @@ const CmMenuStructure: CmMenuGroup[] = [
     icon: Workflow,
     roles: ['admin', 'manager'],
     items: [
-      { id: 'rpa-status', label: '実行状況', path: '/cm-portal/rpa/status' },
-      { id: 'rpa-queue', label: '実行キュー', path: '/cm-portal/rpa/queue' },
-      { id: 'rpa-history', label: '実行履歴', path: '/cm-portal/rpa/history' },
+      { id: 'rpa-jobs', label: 'ジョブ登録', path: '/cm-portal/rpa-jobs' },
+      { id: 'rpa-logs', label: 'ログ', path: '/cm-portal/rpa-logs' },
     ],
   },
   {
@@ -155,6 +154,7 @@ const CmMenuStructure: CmMenuGroup[] = [
     icon: Terminal,
     roles: ['admin'],
     items: [
+      { id: 'service-credentials', label: 'サービス認証情報', path: '/cm-portal/service-credentials' },
       { id: 'alert-batch', label: 'アラートバッチ', path: '/cm-portal/admin/alert-batch' },
       { id: 'system-logs', label: 'システムログ', path: '/cm-portal/audit/logs' },
     ],
