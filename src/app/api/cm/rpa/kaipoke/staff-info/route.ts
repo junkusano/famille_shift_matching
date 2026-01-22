@@ -40,7 +40,7 @@ type RequestBody = {
  * APIレスポンス
  */
 type ApiResponse = {
-  success: boolean;
+  ok: boolean;
   updated: number;
   skipped: number;
   error?: string;
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     // 1. 認証
     if (!(await validateApiKey(request))) {
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'Unauthorized' },
+        { ok: false, updated: 0, skipped: 0, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'Invalid JSON' },
+        { ok: false, updated: 0, skipped: 0, error: 'Invalid JSON' },
         { status: 400 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     // 3. バリデーション
     if (!body.record) {
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'record is required' },
+        { ok: false, updated: 0, skipped: 0, error: 'record is required' },
         { status: 400 }
       );
     }
@@ -83,14 +83,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
     if (!staff_member_internal_id || typeof staff_member_internal_id !== 'string') {
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'staff_member_internal_id is required' },
+        { ok: false, updated: 0, skipped: 0, error: 'staff_member_internal_id is required' },
         { status: 400 }
       );
     }
 
     if (!login_id || typeof login_id !== 'string') {
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'login_id is required' },
+        { ok: false, updated: 0, skipped: 0, error: 'login_id is required' },
         { status: 400 }
       );
     }
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         login_id,
       });
       return NextResponse.json(
-        { success: false, updated: 0, skipped: 0, error: 'Database error' },
+        { ok: false, updated: 0, skipped: 0, error: 'Database error' },
         { status: 500 }
       );
     }
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
     // 5. レスポンス
     return NextResponse.json({
-      success: true,
+      ok: true,
       updated: updatedCount,
       skipped: skippedCount,
     });
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     logger.error('スタッフ情報更新例外', { error: errorMessage });
 
     return NextResponse.json(
-      { success: false, updated: 0, skipped: 0, error: 'Internal server error' },
+      { ok: false, updated: 0, skipped: 0, error: 'Internal server error' },
       { status: 500 }
     );
   }
