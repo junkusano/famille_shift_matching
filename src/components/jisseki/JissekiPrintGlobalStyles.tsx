@@ -239,16 +239,25 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
   .print-root { padding: 0 !important; background: #fff !important; }
         .sheet{
     width: 210mm !important;
-    height: 297mm !important;
+        /* ★固定heightをやめる（クリップ原因） */
+    height: auto !important;
+    min-height: 297mm !important;
+
     margin: 0 auto !important;
     box-shadow: none !important;
 
-    /* 1帳票=1ページ */
     page-break-after: always;
     break-after: page;
 
-    overflow: hidden;
+    /* ★下部を切らない */
+    overflow: visible !important;
   }
+
+  .sheet:last-child{
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+}
 
   /* 最後のsheetの後ろに「余計な白紙」を作らない */
   .sheet:last-child{
@@ -262,11 +271,13 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
 
       .sheet-inner{
   width: 210mm;
-  height: 297mm;
-  padding: 0mm 3mm 1mm 3mm; /* single の print-only と揃える（左右対称） */
-  box-sizing: border-box;
+   /* ★固定heightをやめる */
+  height: auto;
+  min-height: 297mm;
 
-  /* transform は使わないので不要 */
+  /* 単票と同じ左右対称・下に少し余白 */
+  padding: 0mm 3mm 2mm 3mm;
+  box-sizing: border-box;
 }
       ` : ""}
     `}</style>
