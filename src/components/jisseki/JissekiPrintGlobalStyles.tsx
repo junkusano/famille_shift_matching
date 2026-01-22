@@ -174,9 +174,11 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
     justify-content: center;
   }
 
-  /* ★追加：帳票本体は親の中央に、幅は親に追従 */
+    /* ★修正：帳票本体は“印刷可能幅(mm)”で固定し、左右autoで中央寄せ */
   .print-only .print-page > .formBox{
-    width: 100% !important;
+    width: 204mm !important;            /* 210mm - 左右3mmパディング×2 = 204mm */
+    margin-left: auto !important;
+    margin-right: auto !important;
     box-sizing: border-box !important;
   }
       }
@@ -195,8 +197,9 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
     justify-content: center;
   }
   .print-only .print-page > .formBox{
-    width: 100%;
-  }
+  width: 204mm;
+  margin: 0 auto;
+}
       }
       ` : ""}
 
