@@ -90,7 +90,7 @@ export function JissekiPrintSheetStyles() {
       .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
       .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
 
-      :root { --row-2line: 12.0mm; }
+      :root { --row-2line: 10.8mm; }
       .detail-row > td { height: var(--row-2line); padding: 2px 3px; line-height: 1.05; vertical-align: middle; overflow: hidden; }
 
       .center { text-align: center; }
@@ -403,7 +403,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
 
                         {/* ヘッダと明細の間の余白（PDF見た目調整） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={17} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -561,17 +561,15 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                         <td>&nbsp;</td>
 
                                         {/* 備考 ← ここに担当者名 */}
-                                        <td className="small biko-td">
-                                            <div
-                                                className="biko-box"
+                                        <td className="biko-td">
+                                            <span
+                                                className="fit-text"
                                                 ref={(el) => {
                                                     if (el) fitRefs?.current.push(el);
                                                 }}
                                             >
-                                                <div className="biko-line">
-                                                    {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                                </div>
-                                            </div>
+                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                            </span>
                                         </td>
                                     </tr>
                                 );
@@ -770,7 +768,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                         })()}
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", paddingTop: "6px" }}>
+                            <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
                                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                                     <div style={{ width: "40mm" }}>
                                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
@@ -959,7 +957,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -1032,17 +1030,15 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     <td>&nbsp;</td>
 
                                     {/* 備考：担当者名（staffNames があれば表示） */}
-                                    <td className="small biko-td">
-                                        <div
-                                            className="biko-box"
+                                    <td className="biko-td">
+                                        <span
+                                            className="fit-text"
                                             ref={(el) => {
                                                 if (el) fitRefs?.current.push(el);
                                             }}
                                         >
-                                            <div className="biko-line">
-                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                            </div>
-                                        </div>
+                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                        </span>
                                     </td>
                                 </tr>
                             );
@@ -1263,7 +1259,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* ヘッダと明細の間の余白（PDFの見た目寄せ） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* ===== 明細テーブル見出し（PDFの列構造） ===== */}
@@ -1669,7 +1665,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -1832,17 +1828,15 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                         <td className="center">&nbsp;</td>
 
                                         {/* 19 備考（担当者名） */}
-                                        <td className="small biko-td">
-                                            <div
-                                                className="biko-box"
+                                        <td className="biko-td">
+                                            <span
+                                                className="fit-text"
                                                 ref={(el) => {
                                                     if (el) fitRefs?.current.push(el);
                                                 }}
                                             >
-                                                <div className="biko-line">
-                                                    {(staffMemo && staffMemo.trim()) ? staffMemo : "\u00A0"}
-                                                </div>
-                                            </div>
+                                                {staffMemo || "\u00A0"}
+                                            </span>
                                         </td>
                                     </tr>
                                 );

@@ -42,6 +42,38 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         overflow: hidden;
       }
 
+       /* ===== ★bulk は印刷時だけ“あと数mm”詰める（1枚化の決定打） ===== */
+${mode === "bulk" ? `
+  @media print {
+    /* ★最重要：明細行高をさらに詰める */
+    :root{ --row-2line: 6.3mm; } /* 7.0mm → 6.3mm */
+
+    /* 表全体（見出し含む）も僅かに詰める */
+    .grid th, .grid td{
+      font-size: 10px !important;
+      line-height: 1.00 !important;
+      padding: 1px 2px !important;
+    }
+    .detail-row > td{
+      padding: 0px 1px !important;
+      font-size: 10px !important;
+      line-height: 1.00 !important;
+    }
+
+    /* ★Tailwind の mt-2 が縦を押し出すので bulk 印刷時だけ縮める */
+    .mt-2{ margin-top: 2px !important; } /* 0.5rem(約8px) → 2px */
+
+    /* 10桁枠の高さも僅かに縮める（上部ヘッダが数px下がる） */
+    .digits10{ height: 10px !important; } /* 12px → 10px */
+
+    /* 外枠（formBox）の余白をもう一段縮める */
+    .formBox{ padding: 1.5mm !important; } /* 2mm → 1.5mm */
+
+    /* タイトルも僅かに縮める（必要な帳票だけ効く） */
+    .title{ font-size: 11px !important; }
+  }
+` : ""}
+
       .center { text-align: center; }
       .right { text-align: right; }
       .small { font-size: 10px; }
@@ -161,10 +193,16 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         }
 
         .print-only .p-6,
-        .print-only .page-break {
-          width: 100% !important;
-          box-sizing: border-box !important;
-        }
+.print-only .page-break {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ★追加：実績記録票ごとに必ず改ページさせる */
+.print-only .page-break{
+  page-break-before: always !important; /* 旧仕様（Chrome安定） */
+  break-before: page !important;        /* 新仕様 */
+}
 
           /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
   .print-only .print-page{
@@ -174,9 +212,11 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
     justify-content: center;
   }
 
-  /* ★追加：帳票本体は親の中央に、幅は親に追従 */
+    /* ★修正：帳票本体は“印刷可能幅(mm)”で固定し、左右autoで中央寄せ */
   .print-only .print-page > .formBox{
-    width: 100% !important;
+    width: 204mm !important;            /* 210mm - 左右3mmパディング×2 = 204mm */
+    margin-left: auto !important;
+    margin-right: auto !important;
     box-sizing: border-box !important;
   }
       }
@@ -184,7 +224,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       @media screen {
         .print-only{
           width: 210mm;
-          min-height: 297mm;
+          min-height: 295mm;
           margin: 0 auto;
           background: #fff;
         }
@@ -195,8 +235,9 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
     justify-content: center;
   }
   .print-only .print-page > .formBox{
-    width: 100%;
-  }
+  width: 204mm;
+  margin: 0 auto;
+}
       }
       ` : ""}
 
@@ -206,14 +247,14 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         --bulk-bottom-reserve: 20px;
       }
 
-      @page { size: A4; margin: 3mm; }
+      @page { size: A4; margin: 0mm; }
 
       .print-root { background: #eee; padding: 12px; }
 
       @media screen {
         .sheet{
           width: 210mm;
-          height: 297mm;
+          height: 295mm;
           margin: 0 auto 12px auto;
           background: #fff;
           box-shadow: 0 0 6px rgba(0,0,0,0.15);
@@ -222,32 +263,54 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       }
 
       @media print {
+       /* 単票と同じ：帳票以外を不可視化（余計なDOMが白紙ページ原因になりやすい） */
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
+
+  /* 画面用の余白を印刷では消す */
+  .print-root { padding: 0 !important; background: #fff !important; }
         .sheet{
-          width: 100% !important;
-          height: 297mm !important;
-          min-height: 0 !important;
+    width: 210mm !important;
+        /* ★固定heightをやめる（クリップ原因） */
+    height: auto !important;
+    min-height: 295mm !important;
 
-          margin: 0 !important;
-          box-shadow: none !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
 
-          page-break-after: always;
-          break-after: page;
-          overflow: hidden;
+    page-break-after: always;
+    break-after: page;
 
-           /* ★追加：テーブル途中で改ページさせない（フッタ/合計欄が次ページへ飛ぶのを防ぐ） */
-  table, thead, tbody, tfoot, tr, th, td{
-    break-inside: avoid;
-    page-break-inside: avoid;
-        }
-      }
+    /* ★下部を切らない */
+    overflow: visible !important;
+  }
+
+  .sheet:last-child{
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+}
+
+  /* 最後のsheetの後ろに「余計な白紙」を作らない */
+  .sheet:last-child{
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* テーブル要素への一括 break-inside:avoid は、
+     ブラウザによっては「無理やり次ページに押し出す」→白紙発生の原因になるので削除 */
+}
 
       .sheet-inner{
-        padding: 2mm 4mm 4mm 4mm;
-        box-sizing: border-box;
-        transform-origin: top left;
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
+  width: 210mm;
+   /* ★固定heightをやめる */
+  height: auto;
+  min-height: 295mm;
+
+  /* 単票と同じ左右対称・下に少し余白 */
+  padding: 0mm 3mm 2mm 3mm;
+  box-sizing: border-box;
+}
       ` : ""}
     `}</style>
   );

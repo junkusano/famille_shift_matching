@@ -10,6 +10,7 @@ import Link from "next/link";
 interface Row {
   kaipoke_cs_id: string;
   client_name: string;
+  client_kana: string | null; // ★追加
   year_month: string;         // YYYY-MM
   kaipoke_servicek: string;   // "障害" | "移動支援" など
   ido_jukyusyasho: string | null;
@@ -55,6 +56,49 @@ const buildYearMonthOptions = (): string[] => {
 };
 
 const DisabilityCheckPage: React.FC = () => {
+  // ★共通：正規化（ゼロ幅スペース等も除去）
+  const norm = (s: string) =>
+    (s ?? "")
+      .normalize("NFKC")
+      .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF　]+/g, "") // NBSP/ゼロ幅/全角空白も除去
+      .trim();
+
+  // ★追加：kaipoke_cs_id 専用の正規化（数字と * だけ残す）
+  const normCsId = (s: string) => norm(s).replace(/[^\d*]/g, "");
+
+  // ★カタカナ→ひらがな
+  const kanaKey = (s: string) =>
+    norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x60)
+    );
+
+  // ★日本語ソート
+  const jaCollator = useMemo(
+    () =>
+      new Intl.Collator("ja", {
+        usage: "sort",
+        sensitivity: "base",
+        ignorePunctuation: true,
+        numeric: false,
+      }),
+    []
+  );
+
+  // ★地域ランク（表示とSelectを揃える）
+  const areaRank = (d?: string | null) => {
+    const s = norm(d ?? "");
+    if (s.includes("春日井")) return 0;
+    if (s.includes("名古屋")) return 1;
+    return 2;
+  };
+
+  const areaLabel = (d?: string | null) => {
+    const r = areaRank(d);
+    if (r === 0) return "春日井市";
+    if (r === 1) return "名古屋市";
+    return "その他";
+  };
+
   // ① 初期フィルタ：前月 × 障害
   const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
   const [kaipokeServicek, setKaipokeServicek] = useState<string>(""); // （全て）
@@ -108,17 +152,70 @@ const DisabilityCheckPage: React.FC = () => {
   };
 
   // ② Selectbox 用の選択肢
-  const clientOptions = useMemo(() => {
-    const map = new Map<string, string>(); // kaipoke_cs_id -> client_name
+  type ClientOption = {
+    id: string;
+    name: string;
+    kana: string;
+    district: string | null;
+    group: string; // "春日井市" | "名古屋市" | "その他"
+  };
+
+  type ClientGroup = { label: string; options: ClientOption[] };
+
+  const clientGroups = useMemo<ClientGroup[]>(() => {
+    // ★同一IDを1件にする：IDは必ず正規化してキーにする
+    const map = new Map<string, ClientOption>(); // normId -> option
+
     records.forEach((r) => {
-      if (r.kaipoke_cs_id && r.client_name) {
-        map.set(r.kaipoke_cs_id, r.client_name);
-      }
+      const id = normCsId(r.kaipoke_cs_id); // ★ここを変更
+      if (!id) return;
+
+      const name = (r.client_name ?? "").trim();
+      if (!name) return;
+
+      const kana = (r.client_kana ?? r.client_name ?? "").toString();
+
+      if (map.has(id)) return; // ★同一IDは必ず1件
+
+      map.set(id, {
+        id,
+        name,
+        kana,
+        district: r.district ?? null,
+        group: areaLabel(r.district),
+      });
     });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
-  }, [records]);
+
+    const all = Array.from(map.values());
+
+    // グループ分け
+    const groups: Record<string, ClientOption[]> = {
+      春日井市: [],
+      名古屋市: [],
+      その他: [],
+    };
+
+    all.forEach((o) => {
+      (groups[o.group] ?? groups["その他"]).push(o);
+    });
+
+    // 各グループ内を「かな優先の五十音順」
+    const sortByKana = (a: ClientOption, b: ClientOption) => {
+      const ak = kanaKey(a.kana);
+      const bk = kanaKey(b.kana);
+      const by = jaCollator.compare(ak, bk);
+      if (by !== 0) return by;
+      return jaCollator.compare(norm(a.id), norm(b.id));
+    };
+
+    const result: ClientGroup[] = [
+      { label: "春日井市", options: groups["春日井市"].sort(sortByKana) },
+      { label: "名古屋市", options: groups["名古屋市"].sort(sortByKana) },
+      { label: "その他", options: groups["その他"].sort(sortByKana) },
+    ].filter((g) => g.options.length > 0); // 空グループは非表示
+
+    return result;
+  }, [records, jaCollator]);
 
   const staffOptions = useMemo(() => {
     const map = new Map<string, string>(); // id -> name
@@ -147,7 +244,10 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
-      if (filterKaipokeCsId && r.kaipoke_cs_id !== filterKaipokeCsId) return false;
+      if (
+        filterKaipokeCsId &&
+        normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
+      ) return false;
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
       // ★追加：チームで絞り込み
@@ -161,11 +261,68 @@ const DisabilityCheckPage: React.FC = () => {
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
+  // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
+  const uniqueFilteredRecords = useMemo(() => {
+    const pickBetter = (a: Row, b: Row) => {
+      // サービスが「全て」の時だけ、どれを代表にするか決める
+      // 優先：障害 > 移動支援 > その他
+      const rankSvc = (svc: string) => {
+        if (svc === "障害") return 0;
+        if (svc === "移動支援") return 1;
+        return 2;
+      };
+
+      const ra = rankSvc(a.kaipoke_servicek ?? "");
+      const rb = rankSvc(b.kaipoke_servicek ?? "");
+      if (ra !== rb) return ra < rb ? a : b;
+
+      // 次に、回収済を優先（任意：見せたい方針に合わせて）
+      const ca = a.is_checked ? 0 : 1;
+      const cb = b.is_checked ? 0 : 1;
+      if (ca !== cb) return ca < cb ? a : b;
+
+      // 最後は安定化：year_month が新しい方（同一月なら同じ）
+      const ya = a.year_month ?? "";
+      const yb = b.year_month ?? "";
+      if (ya !== yb) return ya > yb ? a : b;
+
+      return a;
+    };
+
+    const map = new Map<string, Row>();
+
+    for (const r of filteredRecords) {
+      const id = normCsId(r.kaipoke_cs_id);
+      if (!id) continue;
+
+      const prev = map.get(id);
+      if (!prev) {
+        map.set(id, r);
+      } else {
+        map.set(id, pickBetter(prev, r));
+      }
+    }
+
+    // 既存の並び順（地区→かな→ID）を維持するため、元の filteredRecords の順序に寄せる
+    // ＝ map の値を “filteredRecords の順に” 取り出す
+    const seen = new Set<string>();
+    const out: Row[] = [];
+    for (const r of filteredRecords) {
+      const id = normCsId(r.kaipoke_cs_id);
+      if (!id || seen.has(id)) continue;
+      const v = map.get(id);
+      if (v) out.push(v);
+      seen.add(id);
+    }
+    return out;
+  }, [filteredRecords]);
+
   // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
   const bulkClientIds = useMemo(() => {
     const set = new Set<string>();
     filteredRecords.forEach((r) => {
-      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
+      const id = normCsId(r.kaipoke_cs_id);
+      if (id) set.add(id);
     });
     return Array.from(set);
   }, [filteredRecords]);
@@ -260,13 +417,49 @@ const DisabilityCheckPage: React.FC = () => {
       if (!res.ok) throw new Error("failed");
       const rows: Row[] = await res.json();
 
-      // 念のためクライアント側でも district → client_name で昇順
+      // ★追加：五十音順比較のための正規化
+      const norm = (s: string) =>
+        (s ?? "")
+          .normalize("NFKC")          // 全角半角などを揃える
+          .replace(/[\s　]+/g, "")    // 半角/全角スペース除去
+          .trim();
+
+      // ★追加：カタカナ→ひらがな（全角範囲）
+      // ※NFKC後なので半角カナの揺れも減ります
+      const kanaKey = (s: string) =>
+        norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+          String.fromCharCode(ch.charCodeAt(0) - 0x60)
+        );
+
+      // ★追加：日本語の並び替えを明示
+      const jaCollator = new Intl.Collator("ja", {
+        usage: "sort",
+        sensitivity: "base",
+        ignorePunctuation: true,
+        numeric: false,
+      });
+
+      // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
       rows.sort((a, b) => {
-        const da = (a.district ?? "");
-        const db = (b.district ?? "");
-        const byDistrict = da.localeCompare(db, "ja");
-        if (byDistrict !== 0) return byDistrict;
-        return (a.client_name ?? "").localeCompare(b.client_name ?? "", "ja");
+        const areaRank = (d?: string | null) => {
+          const s = norm(d ?? "");
+          if (s.includes("春日井")) return 0;
+          if (s.includes("名古屋")) return 1;
+          return 2;
+        };
+
+        const ra = areaRank(a.district);
+        const rb = areaRank(b.district);
+        if (ra !== rb) return ra - rb;
+
+        const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
+        const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
+        const byName = jaCollator.compare(ak, bk);
+
+        if (byName !== 0) return byName;
+
+        // 同名安定化
+        return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
       });
 
       setRecords(rows);
@@ -678,10 +871,14 @@ const DisabilityCheckPage: React.FC = () => {
             style={{ width: 180 }}
           >
             <option value="">（全て）</option>
-            {clientOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {clientGroups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
@@ -762,7 +959,7 @@ const DisabilityCheckPage: React.FC = () => {
         </thead>
         <tbody>
           {filteredRecords.map((r) => {
-            const key = `${r.kaipoke_cs_id}-${r.year_month}-${r.kaipoke_servicek}`;
+            const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
                 <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
@@ -846,7 +1043,7 @@ const DisabilityCheckPage: React.FC = () => {
               </tr>
             );
           })}
-          {records.length === 0 && (
+          {uniqueFilteredRecords.length === 0 && (
             <tr>
               <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません

@@ -24,6 +24,7 @@ type ViewRow = {
   year_month: string;
   kaipoke_servicek: string;
   client_name: string | null;
+  client_kana: string | null; // ★追加
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
@@ -31,6 +32,11 @@ type ViewRow = {
   asigned_jisseki_staff_name: string | null;
   asigned_org_id: string | null;
   asigned_org_name: string | null;
+};
+
+type CsKanaRow = {
+  kaipoke_cs_id: string;
+  kana: string | null;
 };
 
 // GET メソッドを追加
@@ -245,9 +251,26 @@ export async function POST(req: NextRequest) {
     );
 
     // 4) disability_check_view の結果を「許可利用者」のみに絞る
+    // rows を絞り込み
     rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
 
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
+
+    // ★追加：かな（よみがな）を cs_kaipoke_info から取得（targetCsIds の後ろ）
+    const kanaMap = new Map<string, string | null>();
+    if (targetCsIds.length > 0) {
+      const { data: kanaRows, error: kanaErr } = await supabaseAdmin
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id,kana")
+        .in("kaipoke_cs_id", targetCsIds);
+
+      if (kanaErr) throw kanaErr;
+
+      (kanaRows ?? []).forEach((r: CsKanaRow) => {
+        if (!r.kaipoke_cs_id) return;
+        kanaMap.set(r.kaipoke_cs_id, r.kana);
+      });
+    }
 
     let dcQuery = supabaseAdmin
       .from("disability_check")
@@ -280,6 +303,7 @@ export async function POST(req: NextRequest) {
 
       return {
         ...r,
+        client_kana: kanaMap.get(String(r.kaipoke_cs_id)) ?? null, // ★追加
         is_submitted: submitted,
       };
     });
