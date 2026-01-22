@@ -56,12 +56,15 @@ const buildYearMonthOptions = (): string[] => {
 };
 
 const DisabilityCheckPage: React.FC = () => {
-  // ★共通：五十音順比較のための正規化（IDも名前もここを通す）
+  // ★共通：正規化（ゼロ幅スペース等も除去）
   const norm = (s: string) =>
     (s ?? "")
       .normalize("NFKC")
-      .replace(/[\s　]+/g, "")
+      .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF　]+/g, "") // NBSP/ゼロ幅/全角空白も除去
       .trim();
+
+  // ★追加：kaipoke_cs_id 専用の正規化（数字と * だけ残す）
+  const normCsId = (s: string) => norm(s).replace(/[^\d*]/g, "");
 
   // ★カタカナ→ひらがな
   const kanaKey = (s: string) =>
@@ -164,18 +167,15 @@ const DisabilityCheckPage: React.FC = () => {
     const map = new Map<string, ClientOption>(); // normId -> option
 
     records.forEach((r) => {
-      const id = norm(r.kaipoke_cs_id);
+      const id = normCsId(r.kaipoke_cs_id); // ★ここを変更
       if (!id) return;
 
       const name = (r.client_name ?? "").trim();
       if (!name) return;
 
-      // kana が無ければ name を代用（既にAPIで client_kana が返ってくる前提）
       const kana = (r.client_kana ?? r.client_name ?? "").toString();
 
-      // 既に登録済みならスキップ（＝同一IDは1件）
-      // ※もし「より良い情報（kanaあり等）で上書きしたい」ならここを条件分岐してください
-      if (map.has(id)) return;
+      if (map.has(id)) return; // ★同一IDは必ず1件
 
       map.set(id, {
         id,
@@ -244,7 +244,10 @@ const DisabilityCheckPage: React.FC = () => {
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
-      if (filterKaipokeCsId && r.kaipoke_cs_id !== filterKaipokeCsId) return false;
+      if (
+        filterKaipokeCsId &&
+        normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
+      ) return false;
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
       // ★追加：チームで絞り込み
@@ -262,7 +265,8 @@ const DisabilityCheckPage: React.FC = () => {
   const bulkClientIds = useMemo(() => {
     const set = new Set<string>();
     filteredRecords.forEach((r) => {
-      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
+      const id = normCsId(r.kaipoke_cs_id);
+      if (id) set.add(id);
     });
     return Array.from(set);
   }, [filteredRecords]);
