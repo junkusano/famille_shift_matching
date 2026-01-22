@@ -10,6 +10,7 @@ import Link from "next/link";
 interface Row {
   kaipoke_cs_id: string;
   client_name: string;
+  client_kana: string | null; // ★追加
   year_month: string;         // YYYY-MM
   kaipoke_servicek: string;   // "障害" | "移動支援" など
   ido_jukyusyasho: string | null;
@@ -295,10 +296,10 @@ const DisabilityCheckPage: React.FC = () => {
         const rb = areaRank(b.district);
         if (ra !== rb) return ra - rb;
 
-        const ak = kanaKey(a.client_name ?? "");
-        const bk = kanaKey(b.client_name ?? "");
-
+        const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
+        const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
         const byName = jaCollator.compare(ak, bk);
+
         if (byName !== 0) return byName;
 
         // 同名安定化
