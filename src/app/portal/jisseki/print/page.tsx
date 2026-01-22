@@ -1148,11 +1148,11 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                     {/* 同行援護：14列で固定（列数不一致による「はみ出し」を防止） */}
                     <colgroup>
                         {/* 日付・曜日 */}
-                        <col style={{ width: "5%" }} />
-                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "4%" }} />
+                        <col style={{ width: "4%" }} />
 
                         {/* サービス内容 */}
-                        <col style={{ width: "16%" }} />
+                        <col style={{ width: "14%" }} />
 
                         {/* 同行援護計画（開始/終了/時間）= 3列 */}
                         <col style={{ width: "8%" }} />
@@ -1523,7 +1523,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     return (
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
                     {data.month}分
                 </div>
