@@ -1131,7 +1131,7 @@ export default function ShiftCard({
           <Dialog open={parkingOpen} onOpenChange={setParkingOpen}>
             <DialogPortal>
               <DialogOverlay className="overlay-avoid-sidebar" />
-              <DialogContent className="z-[110] w-[calc(100vw-32px)] sm:max-w-[640px] sm:mx-auto ml-4 mr-0">
+              <DialogContent className="z-[110] w-[calc(100vw-32px)] sm:max-w-[760px] sm:mx-auto ml-4 mr-0 max-h-[85vh] overflow-y-auto">
                 <DialogTitle>駐車情報</DialogTitle>
                 <DialogDescription>
                   駐車場所の地図・向き・備考を確認し、必要なら許可証申請を送信します。
@@ -1150,59 +1150,55 @@ export default function ShiftCard({
                     {parkingPlaces.length === 0 ? (
                       <div className="mt-3 text-sm text-gray-600">有効な駐車情報（is_active=true）がありません。</div>
                     ) : (
-                      <>
-                        {/* 複数ある場合の選択 */}
-                        {parkingPlaces.length > 1 && (
-                          <div className="mt-3">
-                            <label className="text-sm font-medium">駐車場所</label>
-                            <select
-                              className="mt-1 w-full rounded-md border p-2 text-sm"
-                              value={parkingSelectedId}
-                              onChange={(e) => setParkingSelectedId(e.target.value)}
-                            >
-                              {parkingPlaces.map((p) => {
-                                const code = (p.police_station_place_id ?? "").trim();
-                                const head = code ? `${code} / ` : "";
-                                return (
-                                  <option key={p.id} value={p.id}>
-                                    {head}{p.serial}. {p.label}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          </div>
-                        )}
-
-                        {(() => {
-                          const p = parkingPlaces.find(x => x.id === parkingSelectedId) ?? parkingPlaces[0];
-                          if (!p) return null;
-
+                      <div className="mt-3 space-y-4">
+                        {parkingPlaces.map((p) => {
                           const code = (p.police_station_place_id ?? "").trim();
                           const url = (p.location_link ?? "").trim() || null;
 
-                          // ★追加：許可証が必要な時だけ申請できる
+                          // ★許可証が必要 かつ 認識コードあり のときだけ申請OK
                           const canApplyPermit = (p.permit_required === true) && !!code;
 
-
                           return (
-                            <div className="mt-3 space-y-3 text-sm">
-                              <div>
-                                <div className="font-semibold">
-                                  {code ? `認識コード：${code} / ` : ""}{p.serial}. {p.label}
+                            <div key={p.id} className="rounded-lg border bg-white p-3 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="font-semibold text-sm">
+                                  {code ? `認識コード：${code} / ` : ""}
+                                  {p.serial}. {p.label}
+                                </div>
+
+                                {p.permit_required === true ? (
+                                  <Button
+                                    onClick={async () => {
+                                      // その行を選択してから既存の送信関数を使う（流用）
+                                      setParkingSelectedId(p.id);
+                                      await (async () => { void applyParkingPermit(); })();
+                                    }}
+                                    disabled={parkingSending || !canApplyPermit}
+                                    className="bg-amber-500 text-white hover:opacity-90"
+                                    title={!code ? "認識コード（police_station_place_id）が未設定です" : ""}
+                                  >
+                                    {parkingSending ? "送信中..." : "許可証申請"}
+                                  </Button>
+                                ) : (
+                                  <div className="rounded-md border px-2 py-1 text-xs text-gray-600">
+                                    許可証不要
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <div className="font-semibold">向き</div>
+                                  <div>{p.parking_orientation ?? "—"}</div>
+                                </div>
+
+                                <div>
+                                  <div className="font-semibold">備考</div>
+                                  <div className="whitespace-pre-wrap">{p.remarks ?? "—"}</div>
                                 </div>
                               </div>
 
-                              <div>
-                                <div className="font-semibold">向き</div>
-                                <div>{p.parking_orientation ?? "—"}</div>
-                              </div>
-
-                              <div>
-                                <div className="font-semibold">備考</div>
-                                <div className="whitespace-pre-wrap">{p.remarks ?? "—"}</div>
-                              </div>
-
-                              <div>
+                              <div className="mt-3 text-sm">
                                 <div className="font-semibold">地図</div>
                                 {!url ? (
                                   <div className="text-gray-600">未登録</div>
@@ -1211,7 +1207,11 @@ export default function ShiftCard({
                                     <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
                                       画像を別タブで開く
                                     </a>
-                                    <img src={url} alt="地図" className="mt-2 max-h-[360px] w-full rounded border object-contain" />
+                                    <img
+                                      src={url}
+                                      alt="地図"
+                                      className="mt-2 max-h-[360px] w-full rounded border object-contain"
+                                    />
                                   </div>
                                 ) : (
                                   <div className="mt-1">
@@ -1221,33 +1221,18 @@ export default function ShiftCard({
                                   </div>
                                 )}
                               </div>
-
-                              <div className="flex justify-end gap-2 pt-2">
-                                <Button variant="outline" onClick={() => setParkingOpen(false)}>
-                                  閉じる
-                                </Button>
-
-                                {p.permit_required === true ? (
-                                  <Button
-                                    onClick={() => { void applyParkingPermit(); }}
-                                    disabled={parkingSending || !parkingSelectedId || !canApplyPermit}
-                                    className="bg-amber-500 text-white hover:opacity-90"
-                                    title={!code ? "認識コード（police_station_place_id）が未設定です" : ""}
-                                  >
-                                    {parkingSending ? "送信中..." : "許可証申請"}
-                                  </Button>
-                                ) : (
-                                  <div className="rounded-md border px-3 py-2 text-xs text-gray-600">
-                                    この駐車場所は「許可証不要」です
-                                  </div>
-                                )}
-
-                              </div>
                             </div>
                           );
-                        })()}
-                      </>
+                        })}
+
+                        <div className="flex justify-end pt-2">
+                          <Button variant="outline" onClick={() => setParkingOpen(false)}>
+                            閉じる
+                          </Button>
+                        </div>
+                      </div>
                     )}
+
                   </>
                 )}
               </DialogContent>
