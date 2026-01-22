@@ -242,13 +242,16 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
           page-break-after: always;
           break-after: page;
           overflow: hidden;
-
-           /* ★追加：テーブル途中で改ページさせない（フッタ/合計欄が次ページへ飛ぶのを防ぐ） */
-  table, thead, tbody, tfoot, tr, th, td{
+ }
+            .sheet table,
+  .sheet thead,
+  .sheet tbody,
+  .sheet tfoot,
+  .sheet tr{
     break-inside: avoid;
     page-break-inside: avoid;
-        }
-      }
+  }
+}
 
       .sheet-inner{
         padding: 2mm 4mm 4mm 4mm;

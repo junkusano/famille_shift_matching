@@ -1,7 +1,7 @@
 // src/app/portal/jisseki/print/bulk/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
 import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
@@ -13,6 +13,8 @@ export default function BulkPrintPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [didAutoPrint, setDidAutoPrint] = useState(false);
+    const sheetRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
 
     useEffect(() => {
         const run = async () => {
@@ -247,6 +249,32 @@ export default function BulkPrintPage() {
         void run();
     }, []);
 
+    useLayoutEffect(() => {
+        if (loading || error) return;
+        if (datas.length === 0) return;
+
+        const next: Record<string, number> = {};
+
+        for (const d of datas) {
+            const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+            const inner = sheetRefs.current[key];
+            if (!inner) continue;
+
+            const sheet = inner.closest(".sheet") as HTMLDivElement | null;
+            if (!sheet) continue;
+
+            const available = sheet.clientHeight; // A4相当(px)
+            const needed = inner.scrollHeight;    // 中身高さ(px)
+
+            const reserve = 24; // 少し余白
+            const scale = needed > 0 ? Math.min(1, (available - reserve) / needed) : 1;
+
+            next[key] = Number.isFinite(scale) ? scale : 1;
+        }
+
+        setScaleMap(next);
+    }, [loading, error, datas]);
+
     useEffect(() => {
         // データが揃ったら一度だけ印刷ダイアログを出す
         if (loading) return;
@@ -276,7 +304,7 @@ export default function BulkPrintPage() {
 
     return (
         <div className="print-root">
-            <JissekiPrintGlobalStyles mode="single" />
+            <JissekiPrintGlobalStyles mode="bulk" />
 
             {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
@@ -291,15 +319,21 @@ export default function BulkPrintPage() {
 
             {/* ★印刷対象は print-only に集約（単票と同じ発想） */}
             <div className="print-only">
-                {datas.map((d, idx) => {
+                {datas.map((d) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
+                    const scale = scaleMap[key] ?? 1;
 
                     return (
-                        <div
-                            key={key}
-                            className={`print-page ${idx === 0 ? "" : "page-break"}`}
-                        >
-                            <JissekiPrintBody data={d} />
+                        <div key={key} className="sheet">
+                            <div
+                                className="sheet-inner"
+                                ref={(el) => {
+                                    sheetRefs.current[key] = el;
+                                }}
+                                style={{ transform: `scale(${scale})` }}
+                            >
+                                <JissekiPrintBody data={d} />
+                            </div>
                         </div>
                     );
                 })}
