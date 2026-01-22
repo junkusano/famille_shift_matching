@@ -266,7 +266,7 @@ export default function BulkPrintPage() {
             const available = sheet.clientHeight; // A4相当(px)
             const needed = inner.scrollHeight;    // 中身高さ(px)
 
-            const reserve = 24; // 少し余白
+            const reserve = 48; // 少し余白
             const scale = needed > 0 ? Math.min(1, (available - reserve) / needed) : 1;
 
             next[key] = Number.isFinite(scale) ? scale : 1;
@@ -323,6 +323,12 @@ export default function BulkPrintPage() {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
                     const scale = scaleMap[key] ?? 1;
 
+                    const style: React.CSSProperties = {
+                        zoom: scale,                 // ★ここは「zoom: scale」
+                        transform: "none",
+                        transformOrigin: "top left",
+                    };
+
                     return (
                         <div key={key} className="sheet">
                             <div
@@ -330,7 +336,7 @@ export default function BulkPrintPage() {
                                 ref={(el) => {
                                     sheetRefs.current[key] = el;
                                 }}
-                                style={{ transform: `scale(${scale})` }}
+                                style={style}
                             >
                                 <JissekiPrintBody data={d} />
                             </div>
