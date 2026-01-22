@@ -262,10 +262,20 @@ const DisabilityCheckPage: React.FC = () => {
 
       // 念のためクライアント側でも district → client_name で昇順
       rows.sort((a, b) => {
-        const da = (a.district ?? "");
-        const db = (b.district ?? "");
-        const byDistrict = da.localeCompare(db, "ja");
-        if (byDistrict !== 0) return byDistrict;
+        // ★追加：春日井→名古屋市→その他 の順に並べたい
+        const areaRank = (d?: string | null) => {
+          const s = (d ?? "").trim();
+          if (s.includes("春日井")) return 0;
+          if (s.includes("名古屋")) return 1;
+          return 2;
+        };
+
+        const ra = areaRank(a.district);
+        const rb = areaRank(b.district);
+        if (ra !== rb) return ra - rb;
+
+        // ★同じエリア内では「あいうえお順」
+        // ※本来は「よびがな」でソートしたいが、このRowにはよびがなが無いので client_name で代替
         return (a.client_name ?? "").localeCompare(b.client_name ?? "", "ja");
       });
 
