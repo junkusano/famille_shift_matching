@@ -223,7 +223,11 @@ export default function JissekiPrintPage() {
                     const totalPages = pages.length;
 
                     return pages.map((p, idx) => (
-                        <div key={`${p.formType}-${idx}`} className={idx === 0 ? "print-page" : "print-page page-break"}>
+                        <div
+                            key={`${p.formType}-${idx}`}
+                            className={idx === 0 ? "print-page" : "print-page page-break"}
+                            style={{ width: "100%" }}
+                        >
                             {p.formType === "TAKINO" && (
                                 <TakinokyoForm
                                     data={data}
@@ -1128,9 +1132,9 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     const sumSanteiHours = sumPlanHours;
 
     return (
-        <div className="formBox p-2">
+        <div className="formBox p-2" style={{ width: "100%", boxSizing: "border-box" }}>
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
                 <div style={{ flex: 1 }} className="small">
                     令和7年12月分
                 </div>
