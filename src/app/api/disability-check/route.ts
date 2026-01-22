@@ -24,6 +24,7 @@ type ViewRow = {
   year_month: string;
   kaipoke_servicek: string;
   client_name: string | null;
+  client_yomi: string | null; // ★追加：よびがな（DB/view側に列が必要）
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
@@ -162,6 +163,7 @@ export async function POST(req: NextRequest) {
           "year_month",
           "kaipoke_servicek",
           "client_name",
+          "client_yomi", // ★追加
           "ido_jukyusyasho",
           "is_checked",
           "district",
@@ -282,6 +284,48 @@ export async function POST(req: NextRequest) {
         ...r,
         is_submitted: submitted,
       };
+    });
+
+    // ★追加：春日井→名古屋市→その他、同エリア内は よびがな順（無ければ氏名で代替）
+    const norm = (s: string) =>
+      (s ?? "")
+        .normalize("NFKC")       // 全角半角などを揃える
+        .replace(/[\s　]+/g, "") // 半角/全角スペース除去
+        .trim();
+
+    const kanaKey = (s: string) =>
+      norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+        String.fromCharCode(ch.charCodeAt(0) - 0x60) // カタカナ→ひらがな
+      );
+
+    const jaCollator = new Intl.Collator("ja", {
+      usage: "sort",
+      sensitivity: "base",
+      ignorePunctuation: true,
+      numeric: false,
+    });
+
+    const areaRank = (d?: string | null) => {
+      const s = norm(d ?? "");
+      if (s.includes("春日井")) return 0;
+      if (s.includes("名古屋")) return 1;
+      return 2;
+    };
+
+    merged.sort((a: ViewRow, b: ViewRow) => {
+      const ra = areaRank(a.district);
+      const rb = areaRank(b.district);
+      if (ra !== rb) return ra - rb;
+
+      // ★本命：よびがな（client_yomi）優先。無ければ client_name を使う
+      const ak = kanaKey(a.client_yomi ?? a.client_name ?? "");
+      const bk = kanaKey(b.client_yomi ?? b.client_name ?? "");
+
+      const byName = jaCollator.compare(ak, bk);
+      if (byName !== 0) return byName;
+
+      // 安定化
+      return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
     });
 
     return NextResponse.json(merged);

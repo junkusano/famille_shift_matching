@@ -260,26 +260,32 @@ const DisabilityCheckPage: React.FC = () => {
       if (!res.ok) throw new Error("failed");
       const rows: Row[] = await res.json();
 
-      // ★追加：五十音順を安定させるための比較器（ひらがな化＋Intl.Collator）
-      const kanaKey = (s: string) =>
+      // ★追加：五十音順比較のための正規化
+      const norm = (s: string) =>
         (s ?? "")
-          .trim()
-          // カタカナ → ひらがな（全角範囲のみ）
-          .replace(/[\u30A1-\u30F6]/g, (ch) =>
-            String.fromCharCode(ch.charCodeAt(0) - 0x60)
-          );
+          .normalize("NFKC")          // 全角半角などを揃える
+          .replace(/[\s　]+/g, "")    // 半角/全角スペース除去
+          .trim();
 
+      // ★追加：カタカナ→ひらがな（全角範囲）
+      // ※NFKC後なので半角カナの揺れも減ります
+      const kanaKey = (s: string) =>
+        norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+          String.fromCharCode(ch.charCodeAt(0) - 0x60)
+        );
+
+      // ★追加：日本語の並び替えを明示
       const jaCollator = new Intl.Collator("ja", {
         usage: "sort",
-        sensitivity: "base",      // 濁点/大小などを過度に区別しない
+        sensitivity: "base",
         ignorePunctuation: true,
         numeric: false,
       });
 
-      // 念のためクライアント側でも district → 「五十音順キー」 で昇順
+      // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
       rows.sort((a, b) => {
         const areaRank = (d?: string | null) => {
-          const s = (d ?? "").trim();
+          const s = norm(d ?? "");
           if (s.includes("春日井")) return 0;
           if (s.includes("名古屋")) return 1;
           return 2;
@@ -292,12 +298,11 @@ const DisabilityCheckPage: React.FC = () => {
         const ak = kanaKey(a.client_name ?? "");
         const bk = kanaKey(b.client_name ?? "");
 
-        // ★五十音順比較（例：いとう「あ」< いとう「さ」、いな「が」< いの「う」）
         const byName = jaCollator.compare(ak, bk);
         if (byName !== 0) return byName;
 
-        // ★同キーの場合の安定化（同名があるときに順序が揺れないように）
-        return (a.kaipoke_cs_id ?? "").localeCompare(b.kaipoke_cs_id ?? "");
+        // 同名安定化
+        return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
       });
 
       setRecords(rows);
