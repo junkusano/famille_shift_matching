@@ -1,12 +1,6 @@
 // =============================================================
 // src/app/api/cm/rpa/kaipoke/staff-info/route.ts
 // RPA スタッフ情報 API
-//
-// POST /api/cm/rpa/kaipoke/staff-info
-//   - カイポケスタッフID（staff_member_internal_id）を
-//     usersテーブルのkaipoke_user_idに設定する
-//   - login_id（カイポケログインID）でuser_idをマッチング
-//   - service_type が 'kyotaku' または 'both' のユーザーのみ対象
 // =============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,41 +8,21 @@ import { createLogger } from '@/lib/common/logger';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { validateApiKey } from '@/lib/cm/rpa/auth';
 
-// =============================================================
-// Logger
-// =============================================================
-
 const logger = createLogger('cm/api/rpa/kaipoke/staff-info');
 
-// =============================================================
-// 型定義
-// =============================================================
-
-/**
- * リクエストボディ
- */
 type RequestBody = {
   record: {
-    /** カイポケスタッフID（内部ID） */
     staff_member_internal_id: string;
-    /** カイポケログインID */
     login_id: string;
   };
 };
 
-/**
- * APIレスポンス
- */
 type ApiResponse = {
   success: boolean;
   updated: number;
   skipped: number;
   error?: string;
 };
-
-// =============================================================
-// POST /api/cm/rpa/kaipoke/staff-info
-// =============================================================
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
   try {
@@ -101,12 +75,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     });
 
     // 4. usersテーブルを更新
-    // user_id = login_id かつ service_type が 'kyotaku' または 'both' のレコードを更新
     const { data, error } = await supabaseAdmin
       .from('users')
       .update({
         kaipoke_user_id: staff_member_internal_id,
-        updated_at: new Date().toISOString(),
       })
       .eq('user_id', login_id)
       .in('service_type', ['kyotaku', 'both'])
