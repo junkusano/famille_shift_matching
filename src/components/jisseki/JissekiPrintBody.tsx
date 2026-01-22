@@ -561,17 +561,15 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                         <td>&nbsp;</td>
 
                                         {/* 備考 ← ここに担当者名 */}
-                                        <td className="small biko-td">
-                                            <div
-                                                className="biko-box"
+                                        <td className="biko-td">
+                                            <span
+                                                className="fit-text"
                                                 ref={(el) => {
                                                     if (el) fitRefs?.current.push(el);
                                                 }}
                                             >
-                                                <div className="biko-line">
-                                                    {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                                </div>
-                                            </div>
+                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                            </span>
                                         </td>
                                     </tr>
                                 );
@@ -1032,17 +1030,15 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                                     <td>&nbsp;</td>
 
                                     {/* 備考：担当者名（staffNames があれば表示） */}
-                                    <td className="small biko-td">
-                                        <div
-                                            className="biko-box"
+                                    <td className="biko-td">
+                                        <span
+                                            className="fit-text"
                                             ref={(el) => {
                                                 if (el) fitRefs?.current.push(el);
                                             }}
                                         >
-                                            <div className="biko-line">
-                                                {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
-                                            </div>
-                                        </div>
+                                            {(r.staffNames?.filter(Boolean).join("／")) || "\u00A0"}
+                                        </span>
                                     </td>
                                 </tr>
                             );
@@ -1832,17 +1828,15 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
                                         <td className="center">&nbsp;</td>
 
                                         {/* 19 備考（担当者名） */}
-                                        <td className="small biko-td">
-                                            <div
-                                                className="biko-box"
+                                        <td className="biko-td">
+                                            <span
+                                                className="fit-text"
                                                 ref={(el) => {
                                                     if (el) fitRefs?.current.push(el);
                                                 }}
                                             >
-                                                <div className="biko-line">
-                                                    {(staffMemo && staffMemo.trim()) ? staffMemo : "\u00A0"}
-                                                </div>
-                                            </div>
+                                                {staffMemo || "\u00A0"}
+                                            </span>
                                         </td>
                                     </tr>
                                 );
