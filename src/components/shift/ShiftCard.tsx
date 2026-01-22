@@ -988,7 +988,15 @@ export default function ShiftCard({
             {hasActiveParking && (
               <button
                 type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                className="
+                  inline-flex items-center gap-1
+                  rounded-md px-2 py-1 text-xs font-semibold
+                  bg-emerald-100 text-emerald-800
+                  border border-emerald-200
+                  hover:bg-emerald-200
+                  active:scale-[0.98]
+                  shadow-sm hover:shadow
+          "
                 onClick={() => { void openParkingDialog(); }}
                 title="駐車情報（許可証申請）"
               >
@@ -1172,6 +1180,10 @@ export default function ShiftCard({
                           const code = (p.police_station_place_id ?? "").trim();
                           const url = (p.location_link ?? "").trim() || null;
 
+                          // ★追加：許可証が必要な時だけ申請できる
+                          const canApplyPermit = (p.permit_required === true) && !!code;
+
+
                           return (
                             <div className="mt-3 space-y-3 text-sm">
                               <div>
@@ -1215,13 +1227,21 @@ export default function ShiftCard({
                                   閉じる
                                 </Button>
 
-                                <Button
-                                  onClick={() => { void applyParkingPermit(); }}
-                                  disabled={parkingSending || !parkingSelectedId}
-                                  className="bg-amber-500 text-white hover:opacity-90"
-                                >
-                                  {parkingSending ? "送信中..." : "許可証申請"}
-                                </Button>
+                                {p.permit_required === true ? (
+                                  <Button
+                                    onClick={() => { void applyParkingPermit(); }}
+                                    disabled={parkingSending || !parkingSelectedId || !canApplyPermit}
+                                    className="bg-amber-500 text-white hover:opacity-90"
+                                    title={!code ? "認識コード（police_station_place_id）が未設定です" : ""}
+                                  >
+                                    {parkingSending ? "送信中..." : "許可証申請"}
+                                  </Button>
+                                ) : (
+                                  <div className="rounded-md border px-3 py-2 text-xs text-gray-600">
+                                    この駐車場所は「許可証不要」です
+                                  </div>
+                                )}
+
                               </div>
                             </div>
                           );
