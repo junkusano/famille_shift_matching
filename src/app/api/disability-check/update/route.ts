@@ -42,19 +42,36 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    // ★追加：system_role を確認
-    const { data: me, error: meErr } = await supabaseAdmin
-      .from("user_entry_united_view")
+    // ★修正：system_role を確認（single優先→fallback）
+    const { data: me1, error: me1Err } = await supabaseAdmin
+      .from("user_entry_united_view_single")
       .select("system_role")
       .eq("auth_user_id", authUserId)
       .maybeSingle();
 
-    if (meErr) {
-      console.error("[disability-check] role fetch error", meErr);
+    if (me1Err) {
+      console.error("[disability-check] role fetch error (single)", me1Err);
       return NextResponse.json({ error: "role_fetch_failed" }, { status: 500 });
     }
 
-    const role = String(me?.system_role ?? "").trim().toLowerCase();
+    let systemRole: string | null = me1?.system_role ?? null;
+
+    if (!systemRole) {
+      const { data: me2, error: me2Err } = await supabaseAdmin
+        .from("user_entry_united_view")
+        .select("system_role")
+        .eq("auth_user_id", authUserId)
+        .maybeSingle();
+
+      if (me2Err) {
+        console.error("[disability-check] role fetch error (view)", me2Err);
+        return NextResponse.json({ error: "role_fetch_failed" }, { status: 500 });
+      }
+
+      systemRole = me2?.system_role ?? null;
+    }
+
+    const role = String(systemRole ?? "").trim().toLowerCase();
     const isAdmin = role === "admin" || role === "super_admin";
     const isManager = isAdmin || role.includes("manager");
 
@@ -62,7 +79,10 @@ export async function PUT(req: NextRequest) {
     // ※ handleCheckChange は { check: boolean, ... } を送る前提
     const isCheckUpdate = typeof check === "boolean";
     if (isCheckUpdate && !isManager) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      return NextResponse.json(
+        { error: "forbidden", detail: "manager_only", role },
+        { status: 403 }
+      );
     }
 
     // どの項目を更新するかを組み立てる
