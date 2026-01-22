@@ -24,7 +24,6 @@ type ViewRow = {
   year_month: string;
   kaipoke_servicek: string;
   client_name: string | null;
-  client_yomi: string | null; // ★追加：よびがな（DB/view側に列が必要）
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
@@ -163,7 +162,6 @@ export async function POST(req: NextRequest) {
           "year_month",
           "kaipoke_servicek",
           "client_name",
-          "client_yomi", // ★追加
           "ido_jukyusyasho",
           "is_checked",
           "district",
@@ -216,37 +214,39 @@ export async function POST(req: NextRequest) {
       new Set((sscRows ?? []).map((r) => String(r.service_code ?? "").trim()).filter(Boolean))
     );
 
-    // ★追加：対象月の範囲（[monthStart, monthEndExclusive)）を作る
-    const monthStart = `${yearMonth}-01`; // yearMonth は Body.yearMonth（例: "2026-01"）
+    // 設定が空なら「何も出さない」（誤表示防止）
+    if (allowedServiceCodes.length === 0) {
+      return NextResponse.json([], { status: 200 });
+    }
 
-    const [yy, mm] = yearMonth.split("-").map(Number);
-    const nextY = mm === 12 ? yy + 1 : yy;
-    const nextM = mm === 12 ? 1 : mm + 1;
+    // 2) 対象月の範囲を作る（YYYY-MM-01 〜 次月1日未満）
+    const monthStart = `${yearMonth}-01`;
+    const [yStr, mStr] = yearMonth.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const nextY = m === 12 ? y + 1 : y;
+    const nextM = m === 12 ? 1 : m + 1;
     const monthEndExclusive = `${String(nextY).padStart(4, "0")}-${String(nextM).padStart(2, "0")}-01`;
 
-    // 設定が空なら service_code 絞り込みはスキップ（全件ゼロ化を防ぐ）
-    if (allowedServiceCodes.length === 0) {
-      console.warn("[disability-check] shift_service_code is empty. skip service_code filter.");
-    } else {
-      // 3) 対象月に「許可service_code」で入っている利用者を抽出
-      const { data: shiftRows, error: shiftErr } = await supabaseAdmin
-        .from("shift")
-        .select("kaipoke_cs_id, service_code, shift_start_date")
-        .gte("shift_start_date", monthStart)
-        .lt("shift_start_date", monthEndExclusive)
-        .in("service_code", allowedServiceCodes);
+    // 3) 対象月に「許可service_code」で入っている利用者を抽出
+    const { data: shiftRows, error: shiftErr } = await supabaseAdmin
+      .from("shift")
+      .select("kaipoke_cs_id, service_code, shift_start_date")
+      .gte("shift_start_date", monthStart)
+      .lt("shift_start_date", monthEndExclusive)
+      .in("service_code", allowedServiceCodes);
 
-      if (shiftErr) throw shiftErr;
+    if (shiftErr) throw shiftErr;
 
-      const allowedCsIdSet = new Set(
-        (shiftRows ?? [])
-          .map((r) => (r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : ""))
-          .filter(Boolean)
-      );
+    const allowedCsIdSet = new Set(
+      (shiftRows ?? [])
+        .map((r) => (r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : ""))
+        .filter(Boolean)
+    );
 
-      // 4) disability_check_view の結果を「許可利用者」のみに絞る
-      rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
-    }
+    // 4) disability_check_view の結果を「許可利用者」のみに絞る
+    rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
+
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
 
     let dcQuery = supabaseAdmin
@@ -282,48 +282,6 @@ export async function POST(req: NextRequest) {
         ...r,
         is_submitted: submitted,
       };
-    });
-
-    // ★追加：春日井→名古屋市→その他、同エリア内は よびがな順（無ければ氏名で代替）
-    const norm = (s: string) =>
-      (s ?? "")
-        .normalize("NFKC")       // 全角半角などを揃える
-        .replace(/[\s　]+/g, "") // 半角/全角スペース除去
-        .trim();
-
-    const kanaKey = (s: string) =>
-      norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
-        String.fromCharCode(ch.charCodeAt(0) - 0x60) // カタカナ→ひらがな
-      );
-
-    const jaCollator = new Intl.Collator("ja", {
-      usage: "sort",
-      sensitivity: "base",
-      ignorePunctuation: true,
-      numeric: false,
-    });
-
-    const areaRank = (d?: string | null) => {
-      const s = norm(d ?? "");
-      if (s.includes("春日井")) return 0;
-      if (s.includes("名古屋")) return 1;
-      return 2;
-    };
-
-    merged.sort((a: ViewRow, b: ViewRow) => {
-      const ra = areaRank(a.district);
-      const rb = areaRank(b.district);
-      if (ra !== rb) return ra - rb;
-
-      // ★本命：よびがな（client_yomi）優先。無ければ client_name を使う
-      const ak = kanaKey(a.client_yomi ?? a.client_name ?? "");
-      const bk = kanaKey(b.client_yomi ?? b.client_name ?? "");
-
-      const byName = jaCollator.compare(ak, bk);
-      if (byName !== 0) return byName;
-
-      // 安定化
-      return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
     });
 
     return NextResponse.json(merged);
