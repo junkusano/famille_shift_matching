@@ -161,10 +161,16 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         }
 
         .print-only .p-6,
-        .print-only .page-break {
-          width: 100% !important;
-          box-sizing: border-box !important;
-        }
+.print-only .page-break {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ★追加：実績記録票ごとに必ず改ページさせる */
+.print-only .page-break{
+  page-break-before: always !important; /* 旧仕様（Chrome安定） */
+  break-before: page !important;        /* 新仕様 */
+}
 
           /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
   .print-only .print-page{
