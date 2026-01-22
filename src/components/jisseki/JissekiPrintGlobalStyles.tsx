@@ -215,7 +215,7 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         --bulk-bottom-reserve: 20px;
       }
 
-      @page { size: A4; margin: 3mm; }
+      @page { size: A4; margin: 0mm; }
 
       .print-root { background: #eee; padding: 12px; }
 
@@ -231,35 +231,43 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
       }
 
       @media print {
+       /* 単票と同じ：帳票以外を不可視化（余計なDOMが白紙ページ原因になりやすい） */
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
+
+  /* 画面用の余白を印刷では消す */
+  .print-root { padding: 0 !important; background: #fff !important; }
         .sheet{
-          width: 100% !important;
-          height: 297mm !important;
-          min-height: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
 
-          margin: 0 !important;
-          box-shadow: none !important;
+    /* 1帳票=1ページ */
+    page-break-after: always;
+    break-after: page;
 
-          page-break-after: always;
-          break-after: page;
-          overflow: hidden;
- }
-            .sheet table,
-  .sheet thead,
-  .sheet tbody,
-  .sheet tfoot,
-  .sheet tr{
-    break-inside: avoid;
-    page-break-inside: avoid;
+    overflow: hidden;
   }
+
+  /* 最後のsheetの後ろに「余計な白紙」を作らない */
+  .sheet:last-child{
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* テーブル要素への一括 break-inside:avoid は、
+     ブラウザによっては「無理やり次ページに押し出す」→白紙発生の原因になるので削除 */
 }
 
       .sheet-inner{
-        padding: 2mm 4mm 4mm 4mm;
-        box-sizing: border-box;
-        transform-origin: top left;
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
+  width: 210mm;
+  height: 297mm;
+  padding: 0mm 3mm 1mm 3mm; /* single の print-only と揃える（左右対称） */
+  box-sizing: border-box;
+
+  /* transform は使わないので不要 */
+}
       ` : ""}
     `}</style>
   );

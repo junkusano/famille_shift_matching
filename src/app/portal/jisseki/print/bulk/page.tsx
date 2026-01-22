@@ -1,7 +1,7 @@
 // src/app/portal/jisseki/print/bulk/page.tsx
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import JissekiPrintBody, { type PrintPayload } from "@/components/jisseki/JissekiPrintBody";
 import JissekiPrintGlobalStyles from "@/components/jisseki/JissekiPrintGlobalStyles";
@@ -13,8 +13,6 @@ export default function BulkPrintPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [didAutoPrint, setDidAutoPrint] = useState(false);
-    const sheetRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [scaleMap, setScaleMap] = useState<Record<string, number>>({});
 
     useEffect(() => {
         const run = async () => {
@@ -249,32 +247,6 @@ export default function BulkPrintPage() {
         void run();
     }, []);
 
-    useLayoutEffect(() => {
-        if (loading || error) return;
-        if (datas.length === 0) return;
-
-        const next: Record<string, number> = {};
-
-        for (const d of datas) {
-            const key = `${d.client.kaipoke_cs_id}-${d.month}`;
-            const inner = sheetRefs.current[key];
-            if (!inner) continue;
-
-            const sheet = inner.closest(".sheet") as HTMLDivElement | null;
-            if (!sheet) continue;
-
-            const available = sheet.clientHeight; // A4相当(px)
-            const needed = inner.scrollHeight;    // 中身高さ(px)
-
-            const reserve = 48; // 少し余白
-            const scale = needed > 0 ? Math.min(1, (available - reserve) / needed) : 1;
-
-            next[key] = Number.isFinite(scale) ? scale : 1;
-        }
-
-        setScaleMap(next);
-    }, [loading, error, datas]);
-
     useEffect(() => {
         // データが揃ったら一度だけ印刷ダイアログを出す
         if (loading) return;
@@ -321,23 +293,10 @@ export default function BulkPrintPage() {
             <div className="print-only">
                 {datas.map((d) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
-                    const scale = scaleMap[key] ?? 1;
-
-                    const style: React.CSSProperties = {
-                        zoom: scale,                 // ★ここは「zoom: scale」
-                        transform: "none",
-                        transformOrigin: "top left",
-                    };
 
                     return (
                         <div key={key} className="sheet">
-                            <div
-                                className="sheet-inner"
-                                ref={(el) => {
-                                    sheetRefs.current[key] = el;
-                                }}
-                                style={style}
-                            >
+                            <div className="sheet-inner">
                                 <JissekiPrintBody data={d} />
                             </div>
                         </div>
