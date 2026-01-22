@@ -42,6 +42,28 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         overflow: hidden;
       }
 
+       /* ===== ★追加：bulk は 1行を少し低くして 1枚に収める ===== */
+      ${mode === "bulk" ? `
+        @media print {
+          /* 明細行を詰める（ここが効いて2枚目が解消される） */
+          :root{ --row-2line: 7.0mm; }
+
+          /* 表全体も少し詰める */
+          .grid th, .grid td{
+            font-size: 10px !important;
+            line-height: 1.05 !important;
+            padding: 1px 2px !important;
+          }
+          .detail-row > td{
+            padding: 0px 1px !important;
+            font-size: 10px !important;
+          }
+
+          /* 外枠（formBox）の余白も少し縮める */
+          .formBox{ padding: 2mm !important; }
+        }
+      ` : ""}
+
       .center { text-align: center; }
       .right { text-align: right; }
       .small { font-size: 10px; }
