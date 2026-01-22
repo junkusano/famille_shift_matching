@@ -224,7 +224,7 @@ ${mode === "bulk" ? `
       @media screen {
         .print-only{
           width: 210mm;
-          min-height: 297mm;
+          min-height: 295mm;
           margin: 0 auto;
           background: #fff;
         }
@@ -254,7 +254,7 @@ ${mode === "bulk" ? `
       @media screen {
         .sheet{
           width: 210mm;
-          height: 297mm;
+          height: 295mm;
           margin: 0 auto 12px auto;
           background: #fff;
           box-shadow: 0 0 6px rgba(0,0,0,0.15);
@@ -273,7 +273,7 @@ ${mode === "bulk" ? `
     width: 210mm !important;
         /* ★固定heightをやめる（クリップ原因） */
     height: auto !important;
-    min-height: 297mm !important;
+    min-height: 295mm !important;
 
     margin: 0 auto !important;
     box-shadow: none !important;
@@ -305,7 +305,7 @@ ${mode === "bulk" ? `
   width: 210mm;
    /* ★固定heightをやめる */
   height: auto;
-  min-height: 297mm;
+  min-height: 295mm;
 
   /* 単票と同じ左右対称・下に少し余白 */
   padding: 0mm 3mm 2mm 3mm;
