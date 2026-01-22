@@ -42,27 +42,37 @@ export default function JissekiPrintGlobalStyles({ mode }: Props) {
         overflow: hidden;
       }
 
-       /* ===== ★追加：bulk は 1行を少し低くして 1枚に収める ===== */
-      ${mode === "bulk" ? `
-        @media print {
-          /* 明細行を詰める（ここが効いて2枚目が解消される） */
-          :root{ --row-2line: 7.0mm; }
+       /* ===== ★bulk は印刷時だけ“あと数mm”詰める（1枚化の決定打） ===== */
+${mode === "bulk" ? `
+  @media print {
+    /* ★最重要：明細行高をさらに詰める */
+    :root{ --row-2line: 6.3mm; } /* 7.0mm → 6.3mm */
 
-          /* 表全体も少し詰める */
-          .grid th, .grid td{
-            font-size: 10px !important;
-            line-height: 1.05 !important;
-            padding: 1px 2px !important;
-          }
-          .detail-row > td{
-            padding: 0px 1px !important;
-            font-size: 10px !important;
-          }
+    /* 表全体（見出し含む）も僅かに詰める */
+    .grid th, .grid td{
+      font-size: 10px !important;
+      line-height: 1.00 !important;
+      padding: 1px 2px !important;
+    }
+    .detail-row > td{
+      padding: 0px 1px !important;
+      font-size: 10px !important;
+      line-height: 1.00 !important;
+    }
 
-          /* 外枠（formBox）の余白も少し縮める */
-          .formBox{ padding: 2mm !important; }
-        }
-      ` : ""}
+    /* ★Tailwind の mt-2 が縦を押し出すので bulk 印刷時だけ縮める */
+    .mt-2{ margin-top: 2px !important; } /* 0.5rem(約8px) → 2px */
+
+    /* 10桁枠の高さも僅かに縮める（上部ヘッダが数px下がる） */
+    .digits10{ height: 10px !important; } /* 12px → 10px */
+
+    /* 外枠（formBox）の余白をもう一段縮める */
+    .formBox{ padding: 1.5mm !important; } /* 2mm → 1.5mm */
+
+    /* タイトルも僅かに縮める（必要な帳票だけ効く） */
+    .title{ font-size: 11px !important; }
+  }
+` : ""}
 
       .center { text-align: center; }
       .right { text-align: right; }

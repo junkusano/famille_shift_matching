@@ -90,7 +90,7 @@ export function JissekiPrintSheetStyles() {
       .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
       .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
 
-      :root { --row-2line: 12.0mm; }
+      :root { --row-2line: 10.8mm; }
       .detail-row > td { height: var(--row-2line); padding: 2px 3px; line-height: 1.05; vertical-align: middle; overflow: hidden; }
 
       .center { text-align: center; }
