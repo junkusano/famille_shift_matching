@@ -261,6 +261,62 @@ const DisabilityCheckPage: React.FC = () => {
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
 
+  // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
+  const uniqueFilteredRecords = useMemo(() => {
+    const pickBetter = (a: Row, b: Row) => {
+      // サービスが「全て」の時だけ、どれを代表にするか決める
+      // 優先：障害 > 移動支援 > その他
+      const rankSvc = (svc: string) => {
+        if (svc === "障害") return 0;
+        if (svc === "移動支援") return 1;
+        return 2;
+      };
+
+      const ra = rankSvc(a.kaipoke_servicek ?? "");
+      const rb = rankSvc(b.kaipoke_servicek ?? "");
+      if (ra !== rb) return ra < rb ? a : b;
+
+      // 次に、回収済を優先（任意：見せたい方針に合わせて）
+      const ca = a.is_checked ? 0 : 1;
+      const cb = b.is_checked ? 0 : 1;
+      if (ca !== cb) return ca < cb ? a : b;
+
+      // 最後は安定化：year_month が新しい方（同一月なら同じ）
+      const ya = a.year_month ?? "";
+      const yb = b.year_month ?? "";
+      if (ya !== yb) return ya > yb ? a : b;
+
+      return a;
+    };
+
+    const map = new Map<string, Row>();
+
+    for (const r of filteredRecords) {
+      const id = normCsId(r.kaipoke_cs_id);
+      if (!id) continue;
+
+      const prev = map.get(id);
+      if (!prev) {
+        map.set(id, r);
+      } else {
+        map.set(id, pickBetter(prev, r));
+      }
+    }
+
+    // 既存の並び順（地区→かな→ID）を維持するため、元の filteredRecords の順序に寄せる
+    // ＝ map の値を “filteredRecords の順に” 取り出す
+    const seen = new Set<string>();
+    const out: Row[] = [];
+    for (const r of filteredRecords) {
+      const id = normCsId(r.kaipoke_cs_id);
+      if (!id || seen.has(id)) continue;
+      const v = map.get(id);
+      if (v) out.push(v);
+      seen.add(id);
+    }
+    return out;
+  }, [filteredRecords]);
+
   // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
   const bulkClientIds = useMemo(() => {
     const set = new Set<string>();
@@ -903,7 +959,7 @@ const DisabilityCheckPage: React.FC = () => {
         </thead>
         <tbody>
           {filteredRecords.map((r) => {
-            const key = `${r.kaipoke_cs_id}-${r.year_month}-${r.kaipoke_servicek}`;
+            const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
                 <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
@@ -987,7 +1043,7 @@ const DisabilityCheckPage: React.FC = () => {
               </tr>
             );
           })}
-          {records.length === 0 && (
+          {uniqueFilteredRecords.length === 0 && (
             <tr>
               <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
