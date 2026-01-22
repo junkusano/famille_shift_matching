@@ -957,7 +957,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -1259,7 +1259,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
                         {/* ヘッダと明細の間の余白（PDFの見た目寄せ） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* ===== 明細テーブル見出し（PDFの列構造） ===== */}
@@ -1665,7 +1665,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
 
                         {/* ヘッダと明細の間の余白（見た目調整） */}
                         <tr>
-                            <td colSpan={14} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={14} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================

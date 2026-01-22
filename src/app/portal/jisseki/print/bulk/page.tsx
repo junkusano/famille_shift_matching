@@ -293,13 +293,11 @@ export default function BulkPrintPage() {
             <div className="print-only">
                 {datas.map((d) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
-
                     return (
-                        <div key={key} className="sheet">
-                            <div className="sheet-inner">
-                                <JissekiPrintBody data={d} />
-                            </div>
-                        </div>
+                        <JissekiPrintBody
+                            key={key}
+                            data={d}
+                        />
                     );
                 })}
             </div>
