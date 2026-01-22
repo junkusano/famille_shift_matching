@@ -58,6 +58,23 @@ type StaffRow = {
   staff_03_attend_flg?: boolean | null;
 };
 
+// ★ 追加：駐車場所
+type ParkingPlace = {
+  id: string;
+  serial: number;
+  label: string;
+  location_link: string | null;
+  parking_orientation: string | null;
+  remarks: string | null;
+  permit_required: boolean | null;
+  police_station_place_id: string | null;
+};
+
+// ★ 追加：cs_idごとの駐車情報キャッシュ（チラつき防止）
+const parkingCache = new Map<string, ParkingPlace[]>();
+const parkingPromiseCache = new Map<string, Promise<ParkingPlace[]>>();
+
+
 
 const formatName = (r?: StaffRow) =>
   r ? `${r.last_name_kanji ?? ""} ${r.first_name_kanji ?? ""}`.trim() || r.user_id : "—";
@@ -218,6 +235,64 @@ function pickBooleanish(obj: unknown, keys: readonly string[]): boolean | undefi
   return undefined;
 }
 
+// ★ 追加：拡張子で画像扱いするか
+function isImageUrl(u?: string | null) {
+  if (!u) return false;
+  const s = u.toLowerCase().split("?")[0];
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif"].some(ext => s.endsWith(ext));
+}
+
+// ★ 追加：駐車場所を取得（API経由）
+async function fetchActiveParkingPlaces(csId: string, accessToken?: string) {
+  // キャッシュ優先
+  if (parkingCache.has(csId)) return parkingCache.get(csId)!;
+
+  // 進行中Promiseがあれば待つ
+  const inflight = parkingPromiseCache.get(csId);
+  if (inflight) return await inflight;
+
+  const p = (async () => {
+    const res = await fetch(`/api/parking/cs_places/by-client?cs_id=${encodeURIComponent(csId)}`, {
+      method: "GET",
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      cache: "no-store",
+    });
+
+    const json: unknown = await res.json();
+    if (
+      !res.ok ||
+      typeof json !== "object" ||
+      json === null ||
+      !("ok" in json) ||
+      (json as { ok: unknown }).ok !== true
+    ) {
+      const msg =
+        typeof json === "object" && json !== null && "message" in json
+          ? String((json as { message?: unknown }).message ?? "fetch parking failed")
+          : "fetch parking failed";
+      throw new Error(msg);
+    }
+
+    const rows =
+      "rows" in json && Array.isArray((json as { rows?: unknown }).rows)
+        ? ((json as { rows: ParkingPlace[] }).rows ?? [])
+        : [];
+
+    parkingCache.set(csId, rows);
+    return rows;
+  })();
+
+  parkingPromiseCache.set(csId, p);
+
+  try {
+    return await p;
+  } finally {
+    parkingPromiseCache.delete(csId);
+  }
+}
+
 // unknown オブジェクトから安全に string を取得
 const getString = (obj: unknown, key: string): string | undefined => {
   if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
@@ -275,6 +350,16 @@ export default function ShiftCard({
 
   // 他の useEffect 群の近くに追加
   const [staffMap, setStaffMap] = useState<Record<string, StaffRow>>({});
+
+  // ★ 追加：駐車情報UI
+  const [parkingOpen, setParkingOpen] = useState(false);
+  const [parkingPlaces, setParkingPlaces] = useState<ParkingPlace[]>([]);
+  const [parkingSelectedId, setParkingSelectedId] = useState<string>("");
+  const [parkingLoading, setParkingLoading] = useState(false);
+  const [parkingError, setParkingError] = useState<string | null>(null);
+  const [parkingSending, setParkingSending] = useState(false);
+  const [hasActiveParking, setHasActiveParking] = useState<boolean>(false);
+
 
   useEffect(() => {
     if (!(mode === "view" || mode === "reject")) { setStaffMap({}); return; }
@@ -669,6 +754,25 @@ export default function ShiftCard({
     */
   }, [mode, shiftIdStr, recordStatus, isPastStart, recordBtnColorCls]);
 
+  // ★ 追加：rejectモードのときだけ、is_active 駐車情報があるか先読み
+  useEffect(() => {
+    if (mode !== "reject") return;
+    if (!csId) { setHasActiveParking(false); return; }
+
+    (async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const rows = await fetchActiveParkingPlaces(csId, accessToken);
+        setHasActiveParking(rows.length > 0);
+      } catch {
+        // 取れない時は出さない（reject画面を壊さない）
+        setHasActiveParking(false);
+      }
+    })();
+  }, [mode, csId]);
+
   // components/shift/ShiftCard.tsx で return の直前に
   if (mode === "request") {
     const cs = csId ?? "";
@@ -758,9 +862,9 @@ export default function ShiftCard({
   const sp = pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"));
 
   const kpl =
-  (kaipokeInfo?.kodoengo_plan_link && kaipokeInfo.kodoengo_plan_link.trim()) ?
-    kaipokeInfo.kodoengo_plan_link :
-    (getString(shift, "kodoengo_plan_link") ?? "");
+    (kaipokeInfo?.kodoengo_plan_link && kaipokeInfo.kodoengo_plan_link.trim()) ?
+      kaipokeInfo.kodoengo_plan_link :
+      (getString(shift, "kodoengo_plan_link") ?? "");
 
   const ymFromDate = (d?: string | null) =>
     (typeof d === "string" && d.length >= 7) ? d.slice(0, 7) : "";
@@ -769,6 +873,78 @@ export default function ShiftCard({
     (cs && ym)
       ? `/portal/shift-view?client=${encodeURIComponent(cs)}&date=${encodeURIComponent(ym)}-01`
       : "#";
+
+
+
+  // ★ 追加：駐車ダイアログを開く（必要なら取得）
+  const openParkingDialog = async () => {
+    if (!csId) return;
+    setParkingError(null);
+    setParkingOpen(true);
+
+    // 既に state に入ってるならそのまま
+    if (parkingPlaces.length > 0) return;
+
+    setParkingLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const rows = await fetchActiveParkingPlaces(csId, accessToken);
+      setParkingPlaces(rows);
+      const firstId = rows[0]?.id ?? "";
+      setParkingSelectedId(firstId);
+    } catch (e) {
+      setParkingError(e instanceof Error ? e.message : "駐車情報の取得に失敗しました");
+    } finally {
+      setParkingLoading(false);
+    }
+  };
+
+  // ★ 追加：許可証申請（LW送信）
+  const applyParkingPermit = async () => {
+    if (!parkingSelectedId) return;
+    setParkingError(null);
+    setParkingSending(true);
+
+    try {
+      const ok = window.confirm("「許可証申請」メッセージを送信します。よろしいですか？");
+      if (!ok) return;
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch(`/api/parking/permit-apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ parking_cs_place_id: parkingSelectedId }),
+      });
+
+      const json: unknown = await res.json();
+      if (
+        !res.ok ||
+        typeof json !== "object" ||
+        json === null ||
+        !("ok" in json) ||
+        (json as { ok: unknown }).ok !== true
+      ) {
+        const msg =
+          typeof json === "object" && json !== null && "message" in json
+            ? String((json as { message?: unknown }).message ?? "apply failed")
+            : "apply failed";
+        throw new Error(msg);
+      }
+
+      alert("送信しました。");
+    } catch (e) {
+      setParkingError(e instanceof Error ? e.message : "送信に失敗しました");
+    } finally {
+      setParkingSending(false);
+    }
+  };
 
 
   /* ------- Render ------- */
@@ -807,6 +983,19 @@ export default function ShiftCard({
               </a>
             ) : "—"}
             {postal && <span className="ml-2">（{postal}）</span>}
+
+            {/* ★ 追加：駐車マーク（is_activeがある時だけ） */}
+            {hasActiveParking && (
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                onClick={() => { void openParkingDialog(); }}
+                title="駐車情報（許可証申請）"
+              >
+                🚗 駐車
+              </button>
+            )}
+
           </div>
         ) : (
           <>
@@ -930,6 +1119,123 @@ export default function ShiftCard({
               </DialogContent>
             </DialogPortal>
           </Dialog>
+          {/* ★ 追加：駐車情報ダイアログ */}
+          <Dialog open={parkingOpen} onOpenChange={setParkingOpen}>
+            <DialogPortal>
+              <DialogOverlay className="overlay-avoid-sidebar" />
+              <DialogContent className="z-[110] w-[calc(100vw-32px)] sm:max-w-[640px] sm:mx-auto ml-4 mr-0">
+                <DialogTitle>駐車情報</DialogTitle>
+                <DialogDescription>
+                  駐車場所の地図・向き・備考を確認し、必要なら許可証申請を送信します。
+                </DialogDescription>
+
+                {parkingError && (
+                  <div className="mt-2 rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-800">
+                    {parkingError}
+                  </div>
+                )}
+
+                {parkingLoading ? (
+                  <div className="mt-3 text-sm text-gray-600">読み込み中...</div>
+                ) : (
+                  <>
+                    {parkingPlaces.length === 0 ? (
+                      <div className="mt-3 text-sm text-gray-600">有効な駐車情報（is_active=true）がありません。</div>
+                    ) : (
+                      <>
+                        {/* 複数ある場合の選択 */}
+                        {parkingPlaces.length > 1 && (
+                          <div className="mt-3">
+                            <label className="text-sm font-medium">駐車場所</label>
+                            <select
+                              className="mt-1 w-full rounded-md border p-2 text-sm"
+                              value={parkingSelectedId}
+                              onChange={(e) => setParkingSelectedId(e.target.value)}
+                            >
+                              {parkingPlaces.map((p) => {
+                                const code = (p.police_station_place_id ?? "").trim();
+                                const head = code ? `${code} / ` : "";
+                                return (
+                                  <option key={p.id} value={p.id}>
+                                    {head}{p.serial}. {p.label}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        )}
+
+                        {(() => {
+                          const p = parkingPlaces.find(x => x.id === parkingSelectedId) ?? parkingPlaces[0];
+                          if (!p) return null;
+
+                          const code = (p.police_station_place_id ?? "").trim();
+                          const url = (p.location_link ?? "").trim() || null;
+
+                          return (
+                            <div className="mt-3 space-y-3 text-sm">
+                              <div>
+                                <div className="font-semibold">
+                                  {code ? `認識コード：${code} / ` : ""}{p.serial}. {p.label}
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold">向き</div>
+                                <div>{p.parking_orientation ?? "—"}</div>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold">備考</div>
+                                <div className="whitespace-pre-wrap">{p.remarks ?? "—"}</div>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold">地図</div>
+                                {!url ? (
+                                  <div className="text-gray-600">未登録</div>
+                                ) : isImageUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      画像を別タブで開く
+                                    </a>
+                                    <img src={url} alt="地図" className="mt-2 max-h-[360px] w-full rounded border object-contain" />
+                                  </div>
+                                ) : (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図を開く
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-2">
+                                <Button variant="outline" onClick={() => setParkingOpen(false)}>
+                                  閉じる
+                                </Button>
+
+                                <Button
+                                  onClick={() => { void applyParkingPermit(); }}
+                                  disabled={parkingSending || !parkingSelectedId}
+                                  className="bg-amber-500 text-white hover:opacity-90"
+                                >
+                                  {parkingSending ? "送信中..." : "許可証申請"}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </>
+                )}
+              </DialogContent>
+            </DialogPortal>
+          </Dialog>
+
+
+
           {(mode === "reject" || mode === "view") && (
             <Button
               asChild
@@ -953,7 +1259,7 @@ export default function ShiftCard({
                 staff03UserId={shift.staff_03_user_id ?? ""}
                 staff02AttendFlg={shift.staff_02_attend_flg ?? ""}
                 staff03AttendFlg={shift.staff_03_attend_flg ?? ""}
-                judoIdo={getJudoIdoStr(shift)} 
+                judoIdo={getJudoIdoStr(shift)}
               />
             </Button>
           )}
