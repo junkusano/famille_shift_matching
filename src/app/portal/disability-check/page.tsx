@@ -56,6 +56,46 @@ const buildYearMonthOptions = (): string[] => {
 };
 
 const DisabilityCheckPage: React.FC = () => {
+  // ★共通：五十音順比較のための正規化（IDも名前もここを通す）
+  const norm = (s: string) =>
+    (s ?? "")
+      .normalize("NFKC")
+      .replace(/[\s　]+/g, "")
+      .trim();
+
+  // ★カタカナ→ひらがな
+  const kanaKey = (s: string) =>
+    norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0x60)
+    );
+
+  // ★日本語ソート
+  const jaCollator = useMemo(
+    () =>
+      new Intl.Collator("ja", {
+        usage: "sort",
+        sensitivity: "base",
+        ignorePunctuation: true,
+        numeric: false,
+      }),
+    []
+  );
+
+  // ★地域ランク（表示とSelectを揃える）
+  const areaRank = (d?: string | null) => {
+    const s = norm(d ?? "");
+    if (s.includes("春日井")) return 0;
+    if (s.includes("名古屋")) return 1;
+    return 2;
+  };
+
+  const areaLabel = (d?: string | null) => {
+    const r = areaRank(d);
+    if (r === 0) return "春日井市";
+    if (r === 1) return "名古屋市";
+    return "その他";
+  };
+
   // ① 初期フィルタ：前月 × 障害
   const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
   const [kaipokeServicek, setKaipokeServicek] = useState<string>(""); // （全て）
@@ -109,17 +149,73 @@ const DisabilityCheckPage: React.FC = () => {
   };
 
   // ② Selectbox 用の選択肢
-  const clientOptions = useMemo(() => {
-    const map = new Map<string, string>(); // kaipoke_cs_id -> client_name
+  type ClientOption = {
+    id: string;
+    name: string;
+    kana: string;
+    district: string | null;
+    group: string; // "春日井市" | "名古屋市" | "その他"
+  };
+
+  type ClientGroup = { label: string; options: ClientOption[] };
+
+  const clientGroups = useMemo<ClientGroup[]>(() => {
+    // ★同一IDを1件にする：IDは必ず正規化してキーにする
+    const map = new Map<string, ClientOption>(); // normId -> option
+
     records.forEach((r) => {
-      if (r.kaipoke_cs_id && r.client_name) {
-        map.set(r.kaipoke_cs_id, r.client_name);
-      }
+      const id = norm(r.kaipoke_cs_id);
+      if (!id) return;
+
+      const name = (r.client_name ?? "").trim();
+      if (!name) return;
+
+      // kana が無ければ name を代用（既にAPIで client_kana が返ってくる前提）
+      const kana = (r.client_kana ?? r.client_name ?? "").toString();
+
+      // 既に登録済みならスキップ（＝同一IDは1件）
+      // ※もし「より良い情報（kanaあり等）で上書きしたい」ならここを条件分岐してください
+      if (map.has(id)) return;
+
+      map.set(id, {
+        id,
+        name,
+        kana,
+        district: r.district ?? null,
+        group: areaLabel(r.district),
+      });
     });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
-  }, [records]);
+
+    const all = Array.from(map.values());
+
+    // グループ分け
+    const groups: Record<string, ClientOption[]> = {
+      春日井市: [],
+      名古屋市: [],
+      その他: [],
+    };
+
+    all.forEach((o) => {
+      (groups[o.group] ?? groups["その他"]).push(o);
+    });
+
+    // 各グループ内を「かな優先の五十音順」
+    const sortByKana = (a: ClientOption, b: ClientOption) => {
+      const ak = kanaKey(a.kana);
+      const bk = kanaKey(b.kana);
+      const by = jaCollator.compare(ak, bk);
+      if (by !== 0) return by;
+      return jaCollator.compare(norm(a.id), norm(b.id));
+    };
+
+    const result: ClientGroup[] = [
+      { label: "春日井市", options: groups["春日井市"].sort(sortByKana) },
+      { label: "名古屋市", options: groups["名古屋市"].sort(sortByKana) },
+      { label: "その他", options: groups["その他"].sort(sortByKana) },
+    ].filter((g) => g.options.length > 0); // 空グループは非表示
+
+    return result;
+  }, [records, jaCollator]);
 
   const staffOptions = useMemo(() => {
     const map = new Map<string, string>(); // id -> name
@@ -715,10 +811,14 @@ const DisabilityCheckPage: React.FC = () => {
             style={{ width: 180 }}
           >
             <option value="">（全て）</option>
-            {clientOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {clientGroups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
