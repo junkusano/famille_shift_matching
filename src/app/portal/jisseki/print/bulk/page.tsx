@@ -276,28 +276,25 @@ export default function BulkPrintPage() {
 
     return (
         <div className="print-root">
-            <JissekiPrintGlobalStyles mode="bulk" />
+            {/* bulk でも /print と同じ見た目・余白に寄せる */}
+            <JissekiPrintGlobalStyles mode="single" />
 
-            {/* ★画面用の印刷ボタン（Ctrl+P不要） */}
             <div className="no-print p-3 border-b flex items-center gap-2 bg-white">
                 <div className="font-semibold">実績記録 一括印刷</div>
-                <button
-                    className="ml-auto px-3 py-2 border rounded"
-                    onClick={() => window.print()}
-                >
+                <button className="ml-auto px-3 py-2 border rounded" onClick={() => window.print()}>
                     印刷
                 </button>
             </div>
 
-            {/* ★印刷対象は print-only に集約（単票と同じ発想） */}
+            {/* 印刷対象 */}
             <div className="print-only">
-                {datas.map((d) => {
+                {datas.map((d, i) => {
                     const key = `${d.client.kaipoke_cs_id}-${d.month}`;
                     return (
-                        <JissekiPrintBody
-                            key={key}
-                            data={d}
-                        />
+                        <div key={key} className={i === 0 ? "" : "page-break"}>
+                            {/* ★重要：print-only を二重にしない */}
+                            <JissekiPrintBody data={d} wrapPrintOnly={false} />
+                        </div>
                     );
                 })}
             </div>

@@ -403,7 +403,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
 
                         {/* ヘッダと明細の間の余白（PDF見た目調整） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", padding: 0, height: "6px" }} />
+                            <td colSpan={17} style={{ border: "none", padding: 0, height: "2px" }} />
                         </tr>
 
                         {/* =========================
@@ -768,7 +768,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                         })()}
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", paddingTop: "6px" }}>
+                            <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
                                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                                     <div style={{ width: "40mm" }}>
                                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
