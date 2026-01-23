@@ -355,6 +355,7 @@ export default function ShiftCard({
   const [parkingOpen, setParkingOpen] = useState(false);
   const [parkingPlaces, setParkingPlaces] = useState<ParkingPlace[]>([]);
   const [parkingSelectedId, setParkingSelectedId] = useState<string>("");
+  void parkingSelectedId;
   const [parkingLoading, setParkingLoading] = useState(false);
   const [parkingError, setParkingError] = useState<string | null>(null);
   const [parkingSending, setParkingSending] = useState(false);
@@ -902,8 +903,8 @@ export default function ShiftCard({
   };
 
   // ★ 追加：許可証申請（LW送信）
-  const applyParkingPermit = async () => {
-    if (!parkingSelectedId) return;
+  const applyParkingPermit = async (placeId: string) => {
+    if (!placeId) return;
     setParkingError(null);
     setParkingSending(true);
 
@@ -920,7 +921,7 @@ export default function ShiftCard({
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ parking_cs_place_id: parkingSelectedId }),
+        body: JSON.stringify({ parking_cs_place_id: placeId }),
       });
 
       const json: unknown = await res.json();
@@ -945,7 +946,6 @@ export default function ShiftCard({
       setParkingSending(false);
     }
   };
-
 
   /* ------- Render ------- */
   return (
@@ -1155,8 +1155,8 @@ export default function ShiftCard({
                           const code = (p.police_station_place_id ?? "").trim();
                           const url = (p.location_link ?? "").trim() || null;
 
-                          // ★許可証が必要 かつ 認識コードあり のときだけ申請OK
-                          const canApplyPermit = (p.permit_required === true) && !!code;
+                          // ★許可証が必要 のときだけ申請OK
+                          //const canApplyPermit = (p.permit_required === true);
 
                           return (
                             <div key={p.id} className="rounded-lg border bg-white p-3 shadow-sm">
@@ -1168,14 +1168,9 @@ export default function ShiftCard({
 
                                 {p.permit_required === true ? (
                                   <Button
-                                    onClick={async () => {
-                                      // その行を選択してから既存の送信関数を使う（流用）
-                                      setParkingSelectedId(p.id);
-                                      await (async () => { void applyParkingPermit(); })();
-                                    }}
-                                    disabled={parkingSending || !canApplyPermit}
+                                    onClick={() => { void applyParkingPermit(p.id); }}
+                                    disabled={parkingSending}
                                     className="bg-amber-500 text-white hover:opacity-90"
-                                    title={!code ? "認識コード（police_station_place_id）が未設定です" : ""}
                                   >
                                     {parkingSending ? "送信中..." : "許可証申請"}
                                   </Button>
@@ -1238,9 +1233,6 @@ export default function ShiftCard({
               </DialogContent>
             </DialogPortal>
           </Dialog>
-
-
-
           {(mode === "reject" || mode === "view") && (
             <Button
               asChild
