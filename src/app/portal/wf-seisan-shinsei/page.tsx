@@ -23,6 +23,11 @@ type WfRequestListItem = {
 
 type WfPayload = Record<string, unknown>;
 
+type ClientOption = {
+    kaipoke_cs_id: string;
+    client_name: string | null;
+};
+
 type WfRequest = {
     id: string;
     request_type_id: string;
@@ -109,6 +114,17 @@ async function apiFetch(path: string, init?: RequestInit) {
 }
 
 export default function WfSeisanShinseiPage() {
+    // コインパーキング申請フォーム用
+    const [cpDate, setCpDate] = useState<string>("");
+    const [cpAmount, setCpAmount] = useState<string>(""); // 入力は文字列→保存時に数値化
+    const [cpMemo, setCpMemo] = useState<string>("");
+    const [cpKaipokeCsId, setCpKaipokeCsId] = useState<string>("");
+    const [cpClientName, setCpClientName] = useState<string>("");
+
+    // 利用者候補
+    const [clients, setClients] = useState<ClientOption[]>([]);
+    const [clientQuery, setClientQuery] = useState<string>("");
+
     // 左ペイン
     const [types, setTypes] = useState<RequestType[]>([]);
     const [list, setList] = useState<WfRequestListItem[]>([]);
@@ -170,6 +186,21 @@ export default function WfSeisanShinseiPage() {
         };
         run();
     }, []);
+
+    useEffect(() => {
+        const run = async () => {
+            const { data, error } = await supabase
+                .from("cs_kaipoke_info")
+                .select("kaipoke_cs_id, client_name")
+                .neq("kaipoke_cs_id", "99999999")
+                .order("client_name", { ascending: true })
+                .limit(2000);
+
+            if (!error) setClients((data ?? []) as ClientOption[]);
+        };
+        run();
+    }, []);
+
 
     // 一覧ロード
     const loadList = async () => {
@@ -262,22 +293,41 @@ export default function WfSeisanShinseiPage() {
     const saveDraft = async () => {
         if (!selectedId) return;
         try {
-            let payloadObj: Record<string, unknown> = {};
-            try {
-                payloadObj = JSON.parse(editPayloadText || "{}");
-            } catch {
-                alert("payload(JSON)の形式が不正です");
+            const amountNum =
+                cpAmount.trim() === "" ? null : Number(cpAmount.replace(/,/g, ""));
+
+            if (amountNum !== null && Number.isNaN(amountNum)) {
+                alert("金額が数値ではありません");
                 return;
             }
+            if (!cpDate.trim()) {
+                alert("利用日を入力してください");
+                return;
+            }
+
+            // 利用者名は候補から引く（手入力しない）
+            const selectedClient = clients.find((c) => c.kaipoke_cs_id === cpKaipokeCsId);
+            const clientName = selectedClient?.client_name ?? cpClientName ?? "";
+
+            const payload: Record<string, unknown> = {
+                template: "expense",
+                expense_kind: "coin_parking",
+                date: cpDate.trim(),
+                amount: amountNum, // null許容（あとで修正したいなら空もOKにする）
+                memo: cpMemo.trim(),
+                kaipoke_cs_id: cpKaipokeCsId.trim() || null,
+                client_name: clientName || null,
+            };
 
             await apiFetch(`/api/wf-requests/${selectedId}`, {
                 method: "PATCH",
                 body: JSON.stringify({
-                    title: editTitle,
-                    body: editBody,
-                    payload: payloadObj,
+                    title: editTitle,        // 件名は自由（例：コインパーキング）
+                    body: editBody,          // 本文も自由
+                    payload,
                 }),
             });
+
             await loadList();
             await loadDetail(selectedId);
             alert("保存しました");
@@ -329,6 +379,18 @@ export default function WfSeisanShinseiPage() {
             alert(msg);
         }
     };
+
+    const filteredClients = useMemo(() => {
+        const q = clientQuery.trim().toLowerCase();
+        if (!q) return clients.slice(0, 100);
+        return clients
+            .filter((c) => {
+                const name = (c.client_name ?? "").toLowerCase();
+                return c.kaipoke_cs_id.includes(q) || name.includes(q);
+            })
+            .slice(0, 100);
+    }, [clients, clientQuery]);
+
 
     // 添付アップロード（Storageへ → wf_request_attachmentへinsert）
     const onUploadAttachment = async (file: File | null) => {
@@ -495,7 +557,83 @@ export default function WfSeisanShinseiPage() {
                                     </div>
 
                                     <div className="mt-3">
-                                        <div className="text-xs text-gray-600 mb-1">payload（JSON）</div>
+                                        <div className="mt-3 border rounded p-3">
+                                            <div className="font-semibold text-sm">コインパーキング申請</div>
+
+                                            <div className="mt-3 grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <div className="text-xs text-gray-600 mb-1">利用日</div>
+                                                    <input
+                                                        type="date"
+                                                        className="w-full border rounded px-2 py-1"
+                                                        value={cpDate}
+                                                        onChange={(e) => setCpDate(e.target.value)}
+                                                        disabled={!canEdit}
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-xs text-gray-600 mb-1">金額（円）</div>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        className="w-full border rounded px-2 py-1"
+                                                        placeholder="例：1200"
+                                                        value={cpAmount}
+                                                        onChange={(e) => setCpAmount(e.target.value)}
+                                                        disabled={!canEdit}
+                                                    />
+                                                    <div className="mt-1 text-xs text-gray-500">※あとから修正できます</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-3">
+                                                <div className="text-xs text-gray-600 mb-1">同行利用者（任意）</div>
+                                                <input
+                                                    className="w-full border rounded px-2 py-1 text-sm"
+                                                    placeholder="利用者名 / kaipoke_cs_id で検索"
+                                                    value={clientQuery}
+                                                    onChange={(e) => setClientQuery(e.target.value)}
+                                                    disabled={!canEdit}
+                                                />
+                                                <select
+                                                    className="w-full border rounded px-2 py-1 text-sm mt-2"
+                                                    value={cpKaipokeCsId}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value;
+                                                        setCpKaipokeCsId(v);
+                                                        const hit = clients.find((c) => c.kaipoke_cs_id === v);
+                                                        setCpClientName(hit?.client_name ?? "");
+                                                    }}
+                                                    disabled={!canEdit}
+                                                >
+                                                    <option value="">（未選択）</option>
+                                                    {filteredClients.map((c) => (
+                                                        <option key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+                                                            {(c.client_name ?? "(名称未設定)")}（{c.kaipoke_cs_id}）
+                                                        </option>
+                                                    ))}
+                                                </select>
+
+                                                {cpKaipokeCsId && (
+                                                    <div className="mt-1 text-xs text-gray-600">
+                                                        選択中：{cpClientName || "(名称未設定)"}（{cpKaipokeCsId}）
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-3">
+                                                <div className="text-xs text-gray-600 mb-1">理由/メモ</div>
+                                                <textarea
+                                                    className="w-full border rounded px-2 py-1"
+                                                    rows={3}
+                                                    value={cpMemo}
+                                                    onChange={(e) => setCpMemo(e.target.value)}
+                                                    disabled={!canEdit}
+                                                />
+                                            </div>
+                                        </div>
+
                                         <textarea
                                             className="w-full border rounded px-2 py-1 font-mono text-xs"
                                             rows={10}
