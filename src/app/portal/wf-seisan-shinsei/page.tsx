@@ -143,7 +143,6 @@ export default function WfSeisanShinseiPage() {
     // 編集用
     const [editTitle, setEditTitle] = useState("");
     const [editBody, setEditBody] = useState("");
-    const [editPayloadText, setEditPayloadText] = useState<string>("{}");
 
     // 承認者（提出時）
     const [candidates, setCandidates] = useState<ApproverCandidate[]>([]);
@@ -213,7 +212,7 @@ export default function WfSeisanShinseiPage() {
             const r = await apiFetch(`/api/wf-requests?${qs.toString()}`);
             setList((r.data ?? []) as WfRequestListItem[]);
         } catch (e: unknown) {
-            setDetailError(e instanceof Error ? e.message : String(e));
+            setListError(e instanceof Error ? e.message : String(e));
         } finally {
             setListLoading(false);
         }
@@ -233,10 +232,28 @@ export default function WfSeisanShinseiPage() {
             const d = r.data as DetailResponse;
             setDetail(d);
             setSelectedId(id);
-
             setEditTitle(d.request.title ?? "");
             setEditBody(d.request.body ?? "");
-            setEditPayloadText(JSON.stringify(d.request.payload ?? {}, null, 2));
+
+            // payload からコインパーキングフォームを復元
+            const p = (d.request.payload ?? {}) as Record<string, unknown>;
+            const kind = String(p["expense_kind"] ?? "");
+
+            if (kind === "coin_parking") {
+                setCpDate(String(p["date"] ?? ""));
+                const amt = p["amount"];
+                setCpAmount(typeof amt === "number" ? String(amt) : String(amt ?? ""));
+                setCpMemo(String(p["memo"] ?? ""));
+                setCpKaipokeCsId(String(p["kaipoke_cs_id"] ?? ""));
+                setCpClientName(String(p["client_name"] ?? ""));
+            } else {
+                // 初期化（別種の申請に切り替えたとき用）
+                setCpDate("");
+                setCpAmount("");
+                setCpMemo("");
+                setCpKaipokeCsId("");
+                setCpClientName("");
+            }
 
             // 既にstepがあればそこから承認者候補を初期化（再提出想定）
             const approverIds = (d.steps ?? [])
@@ -557,6 +574,7 @@ export default function WfSeisanShinseiPage() {
                                     </div>
 
                                     <div className="mt-3">
+                                        {detail.request.request_type?.code === "expense" && (
                                         <div className="mt-3 border rounded p-3">
                                             <div className="font-semibold text-sm">コインパーキング申請</div>
 
@@ -633,17 +651,7 @@ export default function WfSeisanShinseiPage() {
                                                 />
                                             </div>
                                         </div>
-
-                                        <textarea
-                                            className="w-full border rounded px-2 py-1 font-mono text-xs"
-                                            rows={10}
-                                            value={editPayloadText}
-                                            onChange={(e) => setEditPayloadText(e.target.value)}
-                                            disabled={!canEdit}
-                                        />
-                                        <div className="mt-1 text-xs text-gray-500">
-                                            経費なら例：{"{ \"amount\": 1200, \"date\": \"2026-01-23\", \"memo\": \"コインパ\" }"}
-                                        </div>
+                                        )}
                                     </div>
 
                                     <div className="mt-4 flex gap-2">
