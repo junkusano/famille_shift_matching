@@ -100,6 +100,29 @@ function fmt(dt: string | null | undefined) {
     }
 }
 
+function toErrorMessage(e: unknown): string {
+    if (!e) return "Unknown error";
+    if (e instanceof Error) return e.message;
+
+    // よくある形：{ message: "..." }
+    const anyE = e as any;
+    if (typeof anyE.message === "string") return anyE.message;
+
+    // Supabase系でありがち：{ error: { message: "..." } }
+    if (typeof anyE.error?.message === "string") return anyE.error.message;
+
+    // fetchで返ってきたJSONを投げてるケース：{ msg: "..."} とか
+    if (typeof anyE.msg === "string") return anyE.msg;
+
+    // 最後の手段：中身を見える化
+    try {
+        return JSON.stringify(e);
+    } catch {
+        return String(e);
+    }
+}
+
+
 async function apiFetch(path: string, init?: RequestInit) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -186,8 +209,8 @@ export default function WfSeisanShinseiPage() {
         form.append("filename", `${Date.now()}_${file.name}`);
 
         const res = await fetch("/api/upload", { method: "POST", body: form });
-        if (!res.ok) throw new Error(`upload failed: ${res.status}`);
-        const json: { url?: string; mimeType?: string } = await res.json();
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message ?? `upload failed: ${res.status}`);
 
         const lower = file.name.toLowerCase();
         const guessed =
@@ -237,7 +260,7 @@ export default function WfSeisanShinseiPage() {
             const r = await apiFetch(`/api/wf-requests?${qs.toString()}`);
             setList((r.data ?? []) as WfRequestListItem[]);
         } catch (e: unknown) {
-            setListError(e instanceof Error ? e.message : String(e));
+            alert(toErrorMessage(e));
         } finally {
             setListLoading(false);
         }
@@ -292,7 +315,7 @@ export default function WfSeisanShinseiPage() {
                 .map((s) => s.approver_user_id);
             setSelectedApprovers(approverIds);
         } catch (e: unknown) {
-            setDetailError(e instanceof Error ? e.message : String(e));
+            alert(toErrorMessage(e));
         } finally {
             setDetailLoading(false);
         }
@@ -331,8 +354,7 @@ export default function WfSeisanShinseiPage() {
             await loadList();
             await loadDetail(created.id);
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -378,8 +400,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("保存しました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -399,8 +420,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("提出しました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -421,8 +441,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert(action === "approve" ? "承認しました" : "差戻ししました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -466,7 +485,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("添付を追加しました");
         } catch (e: unknown) {
-            alert(e instanceof Error ? e.message : String(e));
+            alert(toErrorMessage(e));
         } finally {
             setAttachUploading(false);
         }
