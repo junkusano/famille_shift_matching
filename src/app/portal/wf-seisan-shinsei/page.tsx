@@ -1,7 +1,10 @@
+//portal/wf-seisan-shinsei/page.tsx
+
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Button } from "@/components/ui/button";
 
 type RequestType = {
     id: string;
@@ -25,8 +28,10 @@ type WfPayload = Record<string, unknown>;
 
 type ClientOption = {
     kaipoke_cs_id: string;
-    client_name: string | null;
+    name: string;
+    kana: string | null;
 };
+
 
 type WfRequest = {
     id: string;
@@ -119,11 +124,11 @@ export default function WfSeisanShinseiPage() {
     const [cpAmount, setCpAmount] = useState<string>(""); // 入力は文字列→保存時に数値化
     const [cpMemo, setCpMemo] = useState<string>("");
     const [cpKaipokeCsId, setCpKaipokeCsId] = useState<string>("");
-    const [cpClientName, setCpClientName] = useState<string>("");
+    //const [cpClientName, setCpClientName] = useState<string>("");
 
     // 利用者候補
     const [clients, setClients] = useState<ClientOption[]>([]);
-    const [clientQuery, setClientQuery] = useState<string>("");
+    //const [clientQuery, setClientQuery] = useState<string>("");
 
     // 左ペイン
     const [types, setTypes] = useState<RequestType[]>([]);
@@ -142,7 +147,7 @@ export default function WfSeisanShinseiPage() {
 
     // 編集用
     const [editTitle, setEditTitle] = useState("");
-    const [editBody, setEditBody] = useState("");
+    //const [editBody, setEditBody] = useState("");
 
     // 承認者（提出時）
     const [candidates, setCandidates] = useState<ApproverCandidate[]>([]);
@@ -154,7 +159,6 @@ export default function WfSeisanShinseiPage() {
     const [attachUploading, setAttachUploading] = useState(false);
 
     const canEdit = detail?.perms?.canEdit ?? (detail?.request?.status !== "completed");
-    const isAdmin = detail?.perms?.isAdmin ?? false;
 
     const selectedTypeLabel = useMemo(() => {
         const code = detail?.request?.request_type?.code;
@@ -190,10 +194,10 @@ export default function WfSeisanShinseiPage() {
         const run = async () => {
             const { data, error } = await supabase
                 .from("cs_kaipoke_info")
-                .select("kaipoke_cs_id, client_name")
-                .neq("kaipoke_cs_id", "99999999")
-                .order("client_name", { ascending: true })
-                .limit(2000);
+                .select("kaipoke_cs_id, name, kana")
+                .eq("is_active", true)
+                .order("kana", { ascending: true })
+                .limit(5000);
 
             if (!error) setClients((data ?? []) as ClientOption[]);
         };
@@ -233,7 +237,14 @@ export default function WfSeisanShinseiPage() {
             setDetail(d);
             setSelectedId(id);
             setEditTitle(d.request.title ?? "");
-            setEditBody(d.request.body ?? "");
+            setCpMemo(d.request.body ?? ""); // ★経緯・理由は body から復元
+
+            // 互換（過去データが payload.memo で入ってた場合だけ救う）
+            if (!(d.request.body ?? "").trim()) {
+                const p = (d.request.payload ?? {}) as Record<string, unknown>;
+                const legacyMemo = String(p["memo"] ?? "").trim();
+                if (legacyMemo) setCpMemo(legacyMemo);
+            }
 
             // payload からコインパーキングフォームを復元
             const p = (d.request.payload ?? {}) as Record<string, unknown>;
@@ -243,16 +254,14 @@ export default function WfSeisanShinseiPage() {
                 setCpDate(String(p["date"] ?? ""));
                 const amt = p["amount"];
                 setCpAmount(typeof amt === "number" ? String(amt) : String(amt ?? ""));
-                setCpMemo(String(p["memo"] ?? ""));
                 setCpKaipokeCsId(String(p["kaipoke_cs_id"] ?? ""));
-                setCpClientName(String(p["client_name"] ?? ""));
+                // memo は payload ではなく body（cpMemo）に一本化したのでここでは触らない
             } else {
-                // 初期化（別種の申請に切り替えたとき用）
                 setCpDate("");
                 setCpAmount("");
-                setCpMemo("");
                 setCpKaipokeCsId("");
-                setCpClientName("");
+                // cpMemo は body を表示するので、ここではクリアしない（別種にしても理由は残してOKなら）
+                // クリアしたいなら setCpMemo("") をここに入れる
             }
 
             // 既にstepがあればそこから承認者候補を初期化（再提出想定）
@@ -324,14 +333,13 @@ export default function WfSeisanShinseiPage() {
 
             // 利用者名は候補から引く（手入力しない）
             const selectedClient = clients.find((c) => c.kaipoke_cs_id === cpKaipokeCsId);
-            const clientName = selectedClient?.client_name ?? cpClientName ?? "";
+            const clientName = selectedClient?.name ?? "";
 
             const payload: Record<string, unknown> = {
                 template: "expense",
                 expense_kind: "coin_parking",
                 date: cpDate.trim(),
-                amount: amountNum, // null許容（あとで修正したいなら空もOKにする）
-                memo: cpMemo.trim(),
+                amount: amountNum,
                 kaipoke_cs_id: cpKaipokeCsId.trim() || null,
                 client_name: clientName || null,
             };
@@ -339,8 +347,8 @@ export default function WfSeisanShinseiPage() {
             await apiFetch(`/api/wf-requests/${selectedId}`, {
                 method: "PATCH",
                 body: JSON.stringify({
-                    title: editTitle,        // 件名は自由（例：コインパーキング）
-                    body: editBody,          // 本文も自由
+                    title: editTitle,
+                    body: cpMemo.trim(), // ★ここに一本化
                     payload,
                 }),
             });
@@ -396,18 +404,6 @@ export default function WfSeisanShinseiPage() {
             alert(msg);
         }
     };
-
-    const filteredClients = useMemo(() => {
-        const q = clientQuery.trim().toLowerCase();
-        if (!q) return clients.slice(0, 100);
-        return clients
-            .filter((c) => {
-                const name = (c.client_name ?? "").toLowerCase();
-                return c.kaipoke_cs_id.includes(q) || name.includes(q);
-            })
-            .slice(0, 100);
-    }, [clients, clientQuery]);
-
 
     // 添付アップロード（Storageへ → wf_request_attachmentへinsert）
     const onUploadAttachment = async (file: File | null) => {
@@ -547,6 +543,7 @@ export default function WfSeisanShinseiPage() {
                     {selectedId && detail && (
                         <div className="p-4 max-w-[1100px]">
                             <div className="flex items-start gap-3">
+                                {/* 左：フォーム */}
                                 <div className="flex-1">
                                     <div className="text-xs text-gray-600">
                                         種別：{selectedTypeLabel || detail.request.request_type?.label || ""} / 状態：{detail.request.status}
@@ -563,132 +560,126 @@ export default function WfSeisanShinseiPage() {
                                     </div>
 
                                     <div className="mt-3">
-                                        <div className="text-xs text-gray-600 mb-1">本文</div>
-                                        <textarea
-                                            className="w-full border rounded px-2 py-1"
-                                            rows={5}
-                                            value={editBody}
-                                            onChange={(e) => setEditBody(e.target.value)}
-                                            disabled={!canEdit}
-                                        />
-                                    </div>
-
-                                    <div className="mt-3">
                                         {detail.request.request_type?.code === "expense" && (
-                                        <div className="mt-3 border rounded p-3">
-                                            <div className="font-semibold text-sm">コインパーキング申請</div>
+                                            <div className="mt-3 border rounded p-3">
+                                                <div className="font-semibold text-sm">コインパーキング申請</div>
 
-                                            <div className="mt-3 grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <div className="text-xs text-gray-600 mb-1">利用日</div>
-                                                    <input
-                                                        type="date"
-                                                        className="w-full border rounded px-2 py-1"
-                                                        value={cpDate}
-                                                        onChange={(e) => setCpDate(e.target.value)}
-                                                        disabled={!canEdit}
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <div className="text-xs text-gray-600 mb-1">金額（円）</div>
-                                                    <input
-                                                        type="text"
-                                                        inputMode="numeric"
-                                                        className="w-full border rounded px-2 py-1"
-                                                        placeholder="例：1200"
-                                                        value={cpAmount}
-                                                        onChange={(e) => setCpAmount(e.target.value)}
-                                                        disabled={!canEdit}
-                                                    />
-                                                    <div className="mt-1 text-xs text-gray-500">※あとから修正できます</div>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-3">
-                                                <div className="text-xs text-gray-600 mb-1">同行利用者（任意）</div>
-                                                <input
-                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                    placeholder="利用者名 / kaipoke_cs_id で検索"
-                                                    value={clientQuery}
-                                                    onChange={(e) => setClientQuery(e.target.value)}
-                                                    disabled={!canEdit}
-                                                />
-                                                <select
-                                                    className="w-full border rounded px-2 py-1 text-sm mt-2"
-                                                    value={cpKaipokeCsId}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        setCpKaipokeCsId(v);
-                                                        const hit = clients.find((c) => c.kaipoke_cs_id === v);
-                                                        setCpClientName(hit?.client_name ?? "");
-                                                    }}
-                                                    disabled={!canEdit}
-                                                >
-                                                    <option value="">（未選択）</option>
-                                                    {filteredClients.map((c) => (
-                                                        <option key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
-                                                            {(c.client_name ?? "(名称未設定)")}（{c.kaipoke_cs_id}）
-                                                        </option>
-                                                    ))}
-                                                </select>
-
-                                                {cpKaipokeCsId && (
-                                                    <div className="mt-1 text-xs text-gray-600">
-                                                        選択中：{cpClientName || "(名称未設定)"}（{cpKaipokeCsId}）
+                                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <div className="text-xs text-gray-600 mb-1">利用日</div>
+                                                        <input
+                                                            type="date"
+                                                            className="w-full border rounded px-2 py-1"
+                                                            value={cpDate}
+                                                            onChange={(e) => setCpDate(e.target.value)}
+                                                            disabled={!canEdit}
+                                                        />
                                                     </div>
-                                                )}
-                                            </div>
 
-                                            <div className="mt-3">
-                                                <div className="text-xs text-gray-600 mb-1">理由/メモ</div>
-                                                <textarea
-                                                    className="w-full border rounded px-2 py-1"
-                                                    rows={3}
-                                                    value={cpMemo}
-                                                    onChange={(e) => setCpMemo(e.target.value)}
-                                                    disabled={!canEdit}
-                                                />
+                                                    <div>
+                                                        <div className="text-xs text-gray-600 mb-1">金額（円）</div>
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            className="w-full border rounded px-2 py-1"
+                                                            placeholder="例：1200"
+                                                            value={cpAmount}
+                                                            onChange={(e) => setCpAmount(e.target.value)}
+                                                            disabled={!canEdit}
+                                                        />
+                                                        <div className="mt-1 text-xs text-gray-500">※あとから修正できます</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3">
+                                                    <div className="text-xs text-gray-600 mb-1">利用者（任意）</div>
+                                                    <select
+                                                        className="w-full border rounded px-2 py-1 text-sm"
+                                                        value={cpKaipokeCsId}
+                                                        onChange={(e) => setCpKaipokeCsId(e.target.value)}
+                                                        disabled={!canEdit}
+                                                    >
+                                                        <option value="">（未選択）</option>
+                                                        {clients.map((c) => (
+                                                            <option key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+                                                                {(c.kana ?? "")} {c.name}（{c.kaipoke_cs_id}）
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="mt-3">
+                                                    <div className="text-xs text-gray-600 mb-1">経緯・理由</div>
+                                                    <textarea
+                                                        className="w-full border rounded px-2 py-1"
+                                                        rows={3}
+                                                        value={cpMemo}
+                                                        onChange={(e) => setCpMemo(e.target.value)}
+                                                        disabled={!canEdit}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
                                         )}
                                     </div>
 
-                                    <div className="mt-4 flex gap-2">
-                                        <button className="px-3 py-1 border rounded" onClick={saveDraft} disabled={!canEdit}>
-                                            保存
-                                        </button>
-                                        <button
-                                            className="px-3 py-1 border rounded"
-                                            onClick={submitRequest}
-                                            disabled={detail.request.status === "completed"}
-                                            title="承認者を選択して提出"
-                                        >
-                                            提出
-                                        </button>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <Button onClick={saveDraft} disabled={!canEdit}>下書き保存</Button>
+                                        <Button onClick={submitRequest} disabled={detail.request.status === "completed"}>提出</Button>
+                                        <Button variant="outline" onClick={() => approveOrReject("approve")}>承認</Button>
+                                        <Button variant="destructive" onClick={() => approveOrReject("reject")}>差戻し</Button>
+                                    </div>
 
-                                        <div className="ml-auto flex gap-2">
-                                            <button
-                                                className="px-3 py-1 border rounded"
-                                                onClick={() => approveOrReject("approve")}
-                                                disabled={!isAdmin && detail.request.status !== "submitted"}
-                                                title="承認（承認者のみ）"
-                                            >
-                                                承認
-                                            </button>
-                                            <button
-                                                className="px-3 py-1 border rounded"
-                                                onClick={() => approveOrReject("reject")}
-                                                disabled={!isAdmin && detail.request.status !== "submitted"}
-                                                title="差戻し（承認者のみ）"
-                                            >
-                                                差戻し
-                                            </button>
+                                    {/* 添付：左の下に置く（見た目も自然） */}
+                                    <div className="mt-5 border rounded p-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="font-semibold text-sm">添付（後からレシートOK）</div>
+                                            <div className="text-xs text-gray-600">Storage bucket: {ATTACH_BUCKET}</div>
+                                            <div className="ml-auto flex items-center gap-2">
+                                                <select
+                                                    className="border rounded px-2 py-1 text-sm"
+                                                    value={attachKind}
+                                                    onChange={(e) => setAttachKind(e.target.value)}
+                                                >
+                                                    <option value="receipt">レシート</option>
+                                                    <option value="doc">書類</option>
+                                                    <option value="other">その他</option>
+                                                </select>
+
+                                                <label className="px-3 py-1 border rounded text-sm cursor-pointer">
+                                                    {attachUploading ? "アップロード中…" : "ファイル追加"}
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        disabled={attachUploading || !canEdit}
+                                                        onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 border rounded">
+                                            {(detail.attachments ?? []).length === 0 && (
+                                                <div className="p-2 text-xs text-gray-600">添付なし</div>
+                                            )}
+                                            {(detail.attachments ?? []).map((a) => (
+                                                <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="px-2 py-0.5 border rounded">{a.kind}</div>
+                                                        <div className="font-semibold">{a.file_name}</div>
+                                                        <div className="ml-auto text-gray-600">{fmt(a.created_at)}</div>
+                                                    </div>
+                                                    <div className="mt-1 text-gray-600 font-mono break-all">path: {a.file_path}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-2 text-xs text-gray-500">
+                                            ※ bucket名が違う場合は <span className="font-mono">NEXT_PUBLIC_WF_ATTACH_BUCKET</span> で上書きできます
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* 右上：承認者選択 + 履歴 */}
+                                {/* 右：承認者 */}
                                 <div className="w-[360px] border rounded p-3">
                                     <div className="font-semibold text-sm">承認者（提出用）</div>
                                     <div className="text-xs text-gray-600 mt-1">level_sort &lt; 4500000 の候補から選択</div>
@@ -774,53 +765,53 @@ export default function WfSeisanShinseiPage() {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* 添付 */}
-                            <div className="mt-5 border rounded p-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="font-semibold text-sm">添付（後からレシートOK）</div>
-                                    <div className="text-xs text-gray-600">Storage bucket: {ATTACH_BUCKET}</div>
-                                    <div className="ml-auto flex items-center gap-2">
-                                        <select className="border rounded px-2 py-1 text-sm" value={attachKind} onChange={(e) => setAttachKind(e.target.value)}>
-                                            <option value="receipt">レシート</option>
-                                            <option value="doc">書類</option>
-                                            <option value="other">その他</option>
-                                        </select>
-
-                                        <label className="px-3 py-1 border rounded text-sm cursor-pointer">
-                                            {attachUploading ? "アップロード中…" : "ファイル追加"}
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                disabled={attachUploading || !canEdit}
-                                                onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
-                                            />
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="mt-3 border rounded">
-                                    {(detail.attachments ?? []).length === 0 && (
-                                        <div className="p-2 text-xs text-gray-600">添付なし</div>
-                                    )}
-                                    {(detail.attachments ?? []).map((a) => (
-                                        <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
-                                            <div className="flex items-center gap-2">
-                                                <div className="px-2 py-0.5 border rounded">{a.kind}</div>
-                                                <div className="font-semibold">{a.file_name}</div>
-                                                <div className="ml-auto text-gray-600">{fmt(a.created_at)}</div>
-                                            </div>
-                                            <div className="mt-1 text-gray-600 font-mono break-all">path: {a.file_path}</div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="mt-2 text-xs text-gray-500">
-                                    ※ bucket名が違う場合は <span className="font-mono">NEXT_PUBLIC_WF_ATTACH_BUCKET</span> で上書きできます
-                                </div>
-                            </div>
                         </div>
                     )}
+
+                    {/* 添付 */}
+                    <div className="mt-5 border rounded p-3">
+                        <div className="flex items-center gap-3">
+                            <div className="font-semibold text-sm">添付（後からレシートOK）</div>
+                            <div className="text-xs text-gray-600">Storage bucket: {ATTACH_BUCKET}</div>
+                            <div className="ml-auto flex items-center gap-2">
+                                <select className="border rounded px-2 py-1 text-sm" value={attachKind} onChange={(e) => setAttachKind(e.target.value)}>
+                                    <option value="receipt">レシート</option>
+                                    <option value="doc">書類</option>
+                                    <option value="other">その他</option>
+                                </select>
+
+                                <label className="px-3 py-1 border rounded text-sm cursor-pointer">
+                                    {attachUploading ? "アップロード中…" : "ファイル追加"}
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        disabled={attachUploading || !canEdit}
+                                        onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="mt-3 border rounded">
+                            {(detail.attachments ?? []).length === 0 && (
+                                <div className="p-2 text-xs text-gray-600">添付なし</div>
+                            )}
+                            {(detail.attachments ?? []).map((a) => (
+                                <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <div className="px-2 py-0.5 border rounded">{a.kind}</div>
+                                        <div className="font-semibold">{a.file_name}</div>
+                                        <div className="ml-auto text-gray-600">{fmt(a.created_at)}</div>
+                                    </div>
+                                    <div className="mt-1 text-gray-600 font-mono break-all">path: {a.file_path}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-2 text-xs text-gray-500">
+                            ※ bucket名が違う場合は <span className="font-mono">NEXT_PUBLIC_WF_ATTACH_BUCKET</span> で上書きできます
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
