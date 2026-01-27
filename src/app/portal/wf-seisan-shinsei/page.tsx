@@ -87,8 +87,6 @@ type ApproverCandidate = {
     level_sort: number | null;
 };
 
-const ATTACH_BUCKET = process.env.NEXT_PUBLIC_WF_ATTACH_BUCKET ?? "wf_request_attachment";
-
 function fmt(dt: string | null | undefined) {
     if (!dt) return "";
     try {
