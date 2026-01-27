@@ -101,25 +101,50 @@ function fmt(dt: string | null | undefined) {
 }
 
 function toErrorMessage(e: unknown): string {
-    if (!e) return "Unknown error";
-    if (e instanceof Error) return e.message;
-
-    // よくある形：{ message: "..." }
-    const anyE = e as any;
-    if (typeof anyE.message === "string") return anyE.message;
-
-    // Supabase系でありがち：{ error: { message: "..." } }
-    if (typeof anyE.error?.message === "string") return anyE.error.message;
-
-    // fetchで返ってきたJSONを投げてるケース：{ msg: "..."} とか
-    if (typeof anyE.msg === "string") return anyE.msg;
-
-    // 最後の手段：中身を見える化
-    try {
-        return JSON.stringify(e);
-    } catch {
-        return String(e);
+    if (e instanceof Error) {
+        return e.message;
     }
+
+    if (typeof e === "object" && e !== null) {
+        // { message: string }
+        if (
+            "message" in e &&
+            typeof (e as { message?: unknown }).message === "string"
+        ) {
+            return (e as { message: string }).message;
+        }
+
+        // { error: { message: string } }
+        if (
+            "error" in e &&
+            typeof (e as { error?: unknown }).error === "object" &&
+            (e as { error: { message?: unknown } }).error !== null &&
+            typeof (e as { error: { message?: unknown } }).error.message === "string"
+        ) {
+            return (e as { error: { message: string } }).error.message;
+        }
+
+        // { msg: string }
+        if (
+            "msg" in e &&
+            typeof (e as { msg?: unknown }).msg === "string"
+        ) {
+            return (e as { msg: string }).msg;
+        }
+
+        // 最終手段：オブジェクトの中身を見せる
+        try {
+            return JSON.stringify(e);
+        } catch {
+            return "[object error]";
+        }
+    }
+
+    if (typeof e === "string") {
+        return e;
+    }
+
+    return "Unknown error";
 }
 
 
