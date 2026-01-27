@@ -767,51 +767,6 @@ export default function WfSeisanShinseiPage() {
                             </div>
                         </div>
                     )}
-
-                    {/* 添付 */}
-                    <div className="mt-5 border rounded p-3">
-                        <div className="flex items-center gap-3">
-                            <div className="font-semibold text-sm">添付（後からレシートOK）</div>
-                            <div className="text-xs text-gray-600">Storage bucket: {ATTACH_BUCKET}</div>
-                            <div className="ml-auto flex items-center gap-2">
-                                <select className="border rounded px-2 py-1 text-sm" value={attachKind} onChange={(e) => setAttachKind(e.target.value)}>
-                                    <option value="receipt">レシート</option>
-                                    <option value="doc">書類</option>
-                                    <option value="other">その他</option>
-                                </select>
-
-                                <label className="px-3 py-1 border rounded text-sm cursor-pointer">
-                                    {attachUploading ? "アップロード中…" : "ファイル追加"}
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        disabled={attachUploading || !canEdit}
-                                        onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
-                                    />
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="mt-3 border rounded">
-                            {(detail.attachments ?? []).length === 0 && (
-                                <div className="p-2 text-xs text-gray-600">添付なし</div>
-                            )}
-                            {(detail.attachments ?? []).map((a) => (
-                                <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <div className="px-2 py-0.5 border rounded">{a.kind}</div>
-                                        <div className="font-semibold">{a.file_name}</div>
-                                        <div className="ml-auto text-gray-600">{fmt(a.created_at)}</div>
-                                    </div>
-                                    <div className="mt-1 text-gray-600 font-mono break-all">path: {a.file_path}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-2 text-xs text-gray-500">
-                            ※ bucket名が違う場合は <span className="font-mono">NEXT_PUBLIC_WF_ATTACH_BUCKET</span> で上書きできます
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
