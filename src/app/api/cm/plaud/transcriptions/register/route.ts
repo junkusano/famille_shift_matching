@@ -16,6 +16,16 @@ import { requirePlaudAuth, isAuthError } from '@/lib/cm/plaud/auth';
 const logger = createLogger('cm/plaud/transcriptions/register');
 
 // =============================================================
+// CORS設定
+// =============================================================
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-plaud-account',
+};
+
+// =============================================================
 // 型定義
 // =============================================================
 
@@ -76,6 +86,14 @@ function validateRequestBody(
 }
 
 // =============================================================
+// OPTIONS: プリフライトリクエスト
+// =============================================================
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
+// =============================================================
 // POST: 録音登録
 // =============================================================
 
@@ -87,7 +105,12 @@ export async function POST(
     // 1. 認証チェック
     // ---------------------------------------------------------
     const auth = await requirePlaudAuth(request);
-    if (isAuthError(auth)) return auth;
+    if (isAuthError(auth)) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     const { userId } = auth;
 
@@ -101,7 +124,7 @@ export async function POST(
       logger.warn('リクエストボディのパースエラー');
       return NextResponse.json(
         { ok: false, error: 'Bad Request' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -111,7 +134,7 @@ export async function POST(
       logger.warn('バリデーションエラー', { error: errorResult.error });
       return NextResponse.json(
         { ok: false, error: `Validation error: ${errorResult.error}` },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -121,7 +144,7 @@ export async function POST(
     // 3. 既存レコード確認
     // ---------------------------------------------------------
     const { data: existing, error: selectError } = await supabaseAdmin
-      .from('cm_plaud_transcriptions')
+      .from('cm_plaud_mgmt_transcriptions')
       .select('id')
       .eq('plaud_uuid', plaud_uuid)
       .limit(1)
@@ -131,25 +154,28 @@ export async function POST(
       logger.error('既存レコード確認エラー', { error: selectError.message });
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
     // 既存レコードがある場合はスキップ
     if (existing) {
       logger.info('既存レコードのためスキップ', { plaud_uuid, id: existing.id });
-      return NextResponse.json({
-        ok: true,
-        result: 'exists',
-        id: existing.id,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          result: 'exists',
+          id: existing.id,
+        },
+        { headers: corsHeaders }
+      );
     }
 
     // ---------------------------------------------------------
     // 4. 新規登録
     // ---------------------------------------------------------
     const { data: inserted, error: insertError } = await supabaseAdmin
-      .from('cm_plaud_transcriptions')
+      .from('cm_plaud_mgmt_transcriptions')
       .insert({
         plaud_uuid,
         title,
@@ -165,7 +191,7 @@ export async function POST(
       logger.error('レコード登録エラー', { error: insertError?.message });
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -175,17 +201,20 @@ export async function POST(
       registered_by: userId,
     });
 
-    return NextResponse.json({
-      ok: true,
-      result: 'created',
-      id: inserted.id,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        result: 'created',
+        id: inserted.id,
+      },
+      { headers: corsHeaders }
+    );
 
   } catch (error) {
     logger.error('予期せぬエラー', error as Error);
     return NextResponse.json(
       { ok: false, error: 'Internal Server Error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

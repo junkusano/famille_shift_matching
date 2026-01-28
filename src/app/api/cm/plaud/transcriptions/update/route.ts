@@ -17,6 +17,16 @@ import { requirePlaudAuth, isAuthError } from '@/lib/cm/plaud/auth';
 const logger = createLogger('cm/plaud/transcriptions/update');
 
 // =============================================================
+// CORS設定
+// =============================================================
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-plaud-account',
+};
+
+// =============================================================
 // 定数
 // =============================================================
 
@@ -85,6 +95,14 @@ function validateRequestBody(
 }
 
 // =============================================================
+// OPTIONS: プリフライトリクエスト
+// =============================================================
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
+// =============================================================
 // POST: 文字起こし更新
 // =============================================================
 
@@ -96,7 +114,12 @@ export async function POST(
     // 1. 認証チェック
     // ---------------------------------------------------------
     const auth = await requirePlaudAuth(request);
-    if (isAuthError(auth)) return auth;
+    if (isAuthError(auth)) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     // ---------------------------------------------------------
     // 2. リクエストボディ取得・バリデーション
@@ -108,7 +131,7 @@ export async function POST(
       logger.warn('リクエストボディのパースエラー');
       return NextResponse.json(
         { ok: false, error: 'Bad Request' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -118,7 +141,7 @@ export async function POST(
       logger.warn('バリデーションエラー', { error: errorResult.error });
       return NextResponse.json(
         { ok: false, error: `Validation error: ${errorResult.error}` },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -128,7 +151,7 @@ export async function POST(
     // 3. レコード取得
     // ---------------------------------------------------------
     const { data: existing, error: selectError } = await supabaseAdmin
-      .from('cm_plaud_transcriptions')
+      .from('cm_plaud_mgmt_transcriptions')
       .select('id, retry_count, status')
       .eq('plaud_uuid', plaud_uuid)
       .limit(1)
@@ -138,7 +161,7 @@ export async function POST(
       logger.error('レコード取得エラー', { error: selectError.message });
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -146,7 +169,7 @@ export async function POST(
       logger.warn('レコードが見つからない', { plaud_uuid });
       return NextResponse.json(
         { ok: false, error: 'Record not found' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -158,7 +181,7 @@ export async function POST(
     // ---------------------------------------------------------
     if (success) {
       const { error: updateError } = await supabaseAdmin
-        .from('cm_plaud_transcriptions')
+        .from('cm_plaud_mgmt_transcriptions')
         .update({
           status: 'completed',
           transcript,
@@ -170,17 +193,20 @@ export async function POST(
         logger.error('レコード更新エラー（成功時）', { error: updateError.message });
         return NextResponse.json(
           { ok: false, error: 'Internal Server Error' },
-          { status: 500 }
+          { status: 500, headers: corsHeaders }
         );
       }
 
       logger.info('文字起こし取得成功', { plaud_uuid, id: recordId });
 
-      return NextResponse.json({
-        ok: true,
-        result: 'completed',
-        id: recordId,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          result: 'completed',
+          id: recordId,
+        },
+        { headers: corsHeaders }
+      );
     }
 
     // ---------------------------------------------------------
@@ -190,7 +216,7 @@ export async function POST(
     const newStatus = newRetryCount >= MAX_RETRY_COUNT ? 'failed' : 'approved';
 
     const { error: updateError } = await supabaseAdmin
-      .from('cm_plaud_transcriptions')
+      .from('cm_plaud_mgmt_transcriptions')
       .update({
         status: newStatus,
         retry_count: newRetryCount,
@@ -202,7 +228,7 @@ export async function POST(
       logger.error('レコード更新エラー（失敗時）', { error: updateError.message });
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -214,11 +240,14 @@ export async function POST(
         error_code,
       });
 
-      return NextResponse.json({
-        ok: true,
-        result: 'failed',
-        id: recordId,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          result: 'failed',
+          id: recordId,
+        },
+        { headers: corsHeaders }
+      );
     }
 
     logger.info('文字起こし取得失敗（リトライ継続）', {
@@ -228,18 +257,21 @@ export async function POST(
       error_code,
     });
 
-    return NextResponse.json({
-      ok: true,
-      result: 'retrying',
-      id: recordId,
-      retry_count: newRetryCount,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        result: 'retrying',
+        id: recordId,
+        retry_count: newRetryCount,
+      },
+      { headers: corsHeaders }
+    );
 
   } catch (error) {
     logger.error('予期せぬエラー', error as Error);
     return NextResponse.json(
       { ok: false, error: 'Internal Server Error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

@@ -16,6 +16,16 @@ import { requirePlaudAuth, isAuthError } from '@/lib/cm/plaud/auth';
 const logger = createLogger('cm/plaud/transcriptions/approved');
 
 // =============================================================
+// CORS設定
+// =============================================================
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-plaud-account',
+};
+
+// =============================================================
 // 型定義
 // =============================================================
 
@@ -39,6 +49,14 @@ type ApprovedErrorResponse = {
 type ApprovedResponse = ApprovedSuccessResponse | ApprovedErrorResponse;
 
 // =============================================================
+// OPTIONS: プリフライトリクエスト
+// =============================================================
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
+// =============================================================
 // GET: 承認済み一覧取得
 // =============================================================
 
@@ -50,13 +68,18 @@ export async function GET(
     // 1. 認証チェック
     // ---------------------------------------------------------
     const auth = await requirePlaudAuth(request);
-    if (isAuthError(auth)) return auth;
+    if (isAuthError(auth)) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401, headers: corsHeaders }
+      );
+    }
 
     // ---------------------------------------------------------
     // 2. 承認済みレコード取得
     // ---------------------------------------------------------
     const { data, error } = await supabaseAdmin
-      .from('cm_plaud_transcriptions')
+      .from('cm_plaud_mgmt_transcriptions')
       .select('id, plaud_uuid, retry_count')
       .eq('status', 'approved')
       .order('plaud_created_at', { ascending: true });
@@ -65,7 +88,7 @@ export async function GET(
       logger.error('レコード取得エラー', { error: error.message });
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -73,17 +96,20 @@ export async function GET(
 
     logger.info('承認済み一覧取得成功', { count: records.length });
 
-    return NextResponse.json({
-      ok: true,
-      records,
-      count: records.length,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        records,
+        count: records.length,
+      },
+      { headers: corsHeaders }
+    );
 
   } catch (error) {
     logger.error('予期せぬエラー', error as Error);
     return NextResponse.json(
       { ok: false, error: 'Internal Server Error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
