@@ -417,12 +417,6 @@ export async function syncLocalFaxPhonebookWithXml(): Promise<ActionResult<CmLoc
       return {
         ok: false,
         error: gasResult.error || "同期処理に失敗しました",
-        data: {
-          ok: false,
-          summary: gasResult.summary || { xmlOnly: 0, dbOnly: 0, different: 0, duration: 0 },
-          log: gasResult.log || [],
-          error: gasResult.error,
-        },
       };
     }
 

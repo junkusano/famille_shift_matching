@@ -352,3 +352,29 @@ export type CmPhonebookGasUpdateDeleteResponse = {
  * GAS API レスポンス（同期）
  */
 export type CmPhonebookGasSyncResponse = CmLocalFaxPhonebookSyncResult;
+
+// =============================================================
+// 管理画面用の型
+// =============================================================
+
+/**
+ * ローカルFAX電話帳検索フィルター（管理画面用）
+ * ※ CmLocalFaxPhonebookFilters とは異なるプロパティを持つ
+ */
+export type CmLocalFaxPhonebookSearchFilters = {
+  /** 事業所名（部分一致） */
+  name: string;
+  /** FAX番号（部分一致） */
+  faxNumber: string;
+  /** 無効データも表示 */
+  showInactive: boolean;
+};
+
+/**
+ * 管理画面用フィルターのデフォルト値
+ */
+export const CM_LOCAL_FAX_PHONEBOOK_SEARCH_DEFAULT_FILTERS: CmLocalFaxPhonebookSearchFilters = {
+  name: '',
+  faxNumber: '',
+  showInactive: false,
+};

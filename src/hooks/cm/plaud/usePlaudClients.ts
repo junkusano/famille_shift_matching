@@ -48,7 +48,7 @@ export function usePlaudClients(): UsePlaudClientsReturn {
         status: 'active',
       });
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 

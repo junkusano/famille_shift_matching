@@ -47,7 +47,7 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     try {
       const result = await getPlaudTemplates(activeOnly);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -72,7 +72,7 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     try {
       const result = await createPlaudTemplate(data);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -96,7 +96,7 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     try {
       const result = await updatePlaudTemplate(id, data);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -119,7 +119,7 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     try {
       const result = await deletePlaudTemplate(id);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 

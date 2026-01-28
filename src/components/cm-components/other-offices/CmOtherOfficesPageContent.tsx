@@ -121,7 +121,7 @@ export function CmOtherOfficesPageContent({
       try {
         const result = await updateOtherOfficeFaxProxy(id, faxProxy);
 
-        if (!result.ok) {
+        if (result.ok === false){
           setUpdateError(result.error);
           return false;
         }

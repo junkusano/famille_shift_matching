@@ -292,7 +292,7 @@ export default function CmPortalHome() {
         // Server Actionを呼び出し
         const result = await getAlerts();
 
-        if (!result.ok) {
+        if (result.ok === false){
           throw new Error(result.error);
         }
 

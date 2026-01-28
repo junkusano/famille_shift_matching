@@ -51,7 +51,7 @@ export const CM_PLAUD_STATUS_LABELS: Record<CmPlaudTranscriptionStatus, { label:
  */
 export type CmPlaudTranscription = {
   id: number;
-  plaud_id: string;
+  plaud_uuid: string;
   title: string;
   status: CmPlaudTranscriptionStatus;
   transcript: string | null;

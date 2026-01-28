@@ -31,7 +31,7 @@ export default async function CmClientsPage({ searchParams }: Props) {
     insurer,
   });
 
-  if (!result.ok) {
+  if (result.ok === false) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-slate-800">利用者情報一覧</h1>

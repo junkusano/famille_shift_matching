@@ -35,7 +35,7 @@ export default async function CmOtherOfficesPage({ searchParams }: Props) {
   });
 
   // エラー時
-  if (!result.ok) {
+  if (result.ok === false){
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-slate-800">他社事業所一覧</h1>

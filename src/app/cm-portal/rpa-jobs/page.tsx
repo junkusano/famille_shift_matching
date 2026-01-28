@@ -105,7 +105,7 @@ function CreateJobModal({
     }
 
     const result = await onCreate(selectedQueue, selectedJobType, payload);
-    if (result.ok) {
+    if (result.ok === true) {
       onClose();
       setSelectedQueue('');
       setSelectedJobType('');
@@ -435,7 +435,7 @@ export default function RpaJobsPage() {
   const handleCancelJob = async () => {
     if (!selectedJob) return;
     const result = await updateJobStatus(selectedJob.id, 'cancelled');
-    if (result.ok) {
+    if (result.ok === true) {
       handleCloseDetail();
     }
   };

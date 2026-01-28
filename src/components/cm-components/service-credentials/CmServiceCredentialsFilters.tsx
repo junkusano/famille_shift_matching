@@ -8,7 +8,7 @@
 import React from 'react';
 import { Search, RotateCcw } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
-import type { CmServiceCredentialsFilters } from '@/hooks/cm/useCmServiceCredentials';
+import type { CmServiceCredentialsFilters } from '@/types/cm/serviceCredentials';
 
 type Props = {
   filters: CmServiceCredentialsFilters;

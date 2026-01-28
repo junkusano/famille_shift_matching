@@ -154,7 +154,7 @@ export function CmAlertBatchPanel() {
       const result = await runAlertBatch(authData.user.id);
       setLastResult(result);
 
-      if (!result.ok) {
+      if (result.ok === false){
         setError(result.error);
       }
     } catch (err) {

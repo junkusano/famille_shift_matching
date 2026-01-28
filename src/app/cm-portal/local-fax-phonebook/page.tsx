@@ -32,7 +32,7 @@ export default async function CmLocalFaxPhonebookPage({ searchParams }: Props) {
   });
 
   // エラー時
-  if (!result.ok) {
+  if (result.ok === false){
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-slate-800">ローカルFAX電話帳</h1>

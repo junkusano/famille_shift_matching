@@ -8,7 +8,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
-import type { CmLocalFaxPhonebookFilters as FiltersType } from '@/hooks/cm/useCmLocalFaxPhonebook';
+import type { CmLocalFaxPhonebookSearchFilters as FiltersType } from '@/types/cm/localFaxPhonebook';
 
 type Props = {
   filters: FiltersType;

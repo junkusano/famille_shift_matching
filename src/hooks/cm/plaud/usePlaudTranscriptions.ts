@@ -84,7 +84,8 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     completed: 0,
     failed: 0,
   });
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  // lastSyncAtは現在未使用（将来の拡張用に保持）
+  const lastSyncAt: string | null = null;
   const [filters, setFilters] = useState<CmPlaudTranscriptionFilters>(
     CM_PLAUD_TRANSCRIPTION_DEFAULT_FILTERS
   );
@@ -104,7 +105,7 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
         status: filters.status !== 'all' ? filters.status : undefined,
       });
 
-      if (!result.ok) {
+      if (result.ok === false) {
         throw new Error(result.error);
       }
 
@@ -149,7 +150,7 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     try {
       const result = await executeTranscriptionAction(id, 'approve');
 
-      if (!result.ok) {
+      if (result.ok === false) {
         throw new Error(result.error);
       }
 
@@ -183,7 +184,7 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     try {
       const result = await executeTranscriptionAction(id, 'retry');
 
-      if (!result.ok) {
+      if (result.ok === false) {
         throw new Error(result.error);
       }
 
@@ -213,7 +214,7 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     try {
       const result = await updateTranscriptionClient(id, kaipokeCsId);
 
-      if (!result.ok) {
+      if (result.ok === false) {
         throw new Error(result.error);
       }
 

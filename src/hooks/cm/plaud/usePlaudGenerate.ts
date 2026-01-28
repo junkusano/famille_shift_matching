@@ -4,10 +4,7 @@
 // =============================================================
 
 import { useState, useCallback } from 'react';
-import {
-  generateWithTemplates,
-  type GenerateResultItem,
-} from '@/lib/cm/plaud/generate';
+import { generateWithTemplates } from '@/lib/cm/plaud/generate';
 
 // =============================================================
 // 型定義
@@ -46,7 +43,7 @@ export function usePlaudGenerate(): UsePlaudGenerateReturn {
     try {
       const result = await generateWithTemplates(transcript, templateIds);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 

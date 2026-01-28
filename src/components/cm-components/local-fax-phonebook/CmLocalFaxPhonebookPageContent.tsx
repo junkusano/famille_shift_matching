@@ -25,19 +25,13 @@ import type {
   CmLocalFaxPhonebookSyncResult,
   CmKaipokeOfficeInfo,
   CmLocalFaxPhonebookEntryWithKaipoke,
+  CmLocalFaxPhonebookSearchFilters,
 } from "@/types/cm/localFaxPhonebook";
-
-// フィルター型
-type FiltersType = {
-  name: string;
-  faxNumber: string;
-  showInactive: boolean;
-};
 
 type Props = {
   entries: CmLocalFaxPhonebookEntryWithKaipoke[];
   pagination: CmLocalFaxPhonebookPagination;
-  initialFilters: FiltersType;
+  initialFilters: CmLocalFaxPhonebookSearchFilters;
 };
 
 export function CmLocalFaxPhonebookPageContent({
@@ -53,7 +47,7 @@ export function CmLocalFaxPhonebookPageContent({
   const [entries, setEntries] = useState<CmLocalFaxPhonebookEntryWithKaipoke[]>(initialEntries);
 
   // ローカルのフィルター状態
-  const [filters, setFilters] = useState<FiltersType>(initialFilters);
+  const [filters, setFilters] = useState<CmLocalFaxPhonebookSearchFilters>(initialFilters);
 
   // 更新状態
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -114,7 +108,7 @@ export function CmLocalFaxPhonebookPageContent({
   );
 
   // フィルター変更
-  const handleFilterChange = useCallback((key: keyof FiltersType, value: string | boolean) => {
+  const handleFilterChange = useCallback((key: keyof CmLocalFaxPhonebookSearchFilters, value: string | boolean) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -130,7 +124,7 @@ export function CmLocalFaxPhonebookPageContent({
 
   // リセット
   const handleReset = useCallback(() => {
-    const defaultFilters: FiltersType = {
+    const defaultFilters: CmLocalFaxPhonebookSearchFilters = {
       name: "",
       faxNumber: "",
       showInactive: false,
@@ -169,7 +163,7 @@ export function CmLocalFaxPhonebookPageContent({
       setCheckingKaipoke(true);
       try {
         const result = await checkKaipokeByFaxNumber(faxNumber);
-        if (result.ok && result.data) {
+        if (result.ok === true && result.data) {
           setKaipokeCheckResult(result.data);
         } else {
           setKaipokeCheckResult([]);
@@ -223,20 +217,22 @@ export function CmLocalFaxPhonebookPageContent({
         if (editingEntry) {
           // 更新
           const result = await updateLocalFaxPhonebookEntry(editingEntry.id, data);
-          if (result.ok) {
+          if (result.ok === true) {
             setIsModalOpen(false);
             setEditingEntry(null);
             refresh();
+            return { ok: true };
           }
-          return { ok: result.ok, error: result.ok ? undefined : result.error };
+          return { ok: false, error: result.error };
         } else {
           // 新規作成
           const result = await createLocalFaxPhonebookEntry(data);
-          if (result.ok) {
+          if (result.ok === true) {
             setIsModalOpen(false);
             refresh();
+            return { ok: true };
           }
-          return { ok: result.ok, error: result.ok ? undefined : result.error };
+          return { ok: false, error: result.error };
         }
       } finally {
         setIsSaving(false);
@@ -257,7 +253,7 @@ export function CmLocalFaxPhonebookPageContent({
     setIsDeleting(true);
     try {
       const result = await deleteLocalFaxPhonebookEntry(deletingEntry.id);
-      if (result.ok) {
+      if (result.ok === true) {
         setIsDeleteModalOpen(false);
         setDeletingEntry(null);
         // ローカルステートから削除
@@ -277,7 +273,7 @@ export function CmLocalFaxPhonebookPageContent({
       setUpdateError(null);
       try {
         const result = await updateLocalFaxPhonebookEntry(id, { [field]: value });
-        if (!result.ok) {
+        if (result.ok === false){
           setUpdateError(result.error);
           return false;
         }
@@ -299,7 +295,7 @@ export function CmLocalFaxPhonebookPageContent({
     setSyncResult(null);
     try {
       const result = await syncLocalFaxPhonebookWithXml();
-      if (result.ok && result.data) {
+      if (result.ok === true && result.data) {
         setSyncResult(result.data);
         setIsSyncResultModalOpen(true);
         refresh();
@@ -308,7 +304,7 @@ export function CmLocalFaxPhonebookPageContent({
           ok: false,
           summary: { xmlOnly: 0, dbOnly: 0, different: 0, duration: 0 },
           log: [],
-          error: result.error,
+          error: result.ok === false ? result.error : "データの取得に失敗しました",
         });
         setIsSyncResultModalOpen(true);
       }

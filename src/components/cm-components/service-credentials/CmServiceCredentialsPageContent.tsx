@@ -121,10 +121,10 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
     // 完全なエントリを取得（Server Action）
     setIsLoadingEntry(true);
     const result = await fetchServiceCredential(entry.id);
-    if (result.ok && result.data) {
+    if (result.ok === true && result.data) {
       setFullEntry(result.data);
     } else {
-      setUpdateError(result.ok ? 'データ取得に失敗しました' : result.error);
+      setUpdateError(result.ok === false ? result.error : 'データ取得に失敗しました');
     }
     setIsLoadingEntry(false);
   };
@@ -141,21 +141,23 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
       if (editingEntry) {
         // 更新
         const result = await updateServiceCredential(editingEntry.id, data);
-        if (result.ok) {
+        if (result.ok === true) {
           setIsModalOpen(false);
           setEditingEntry(null);
           setFullEntry(null);
           refresh();
+          return { ok: true };
         }
-        return { ok: result.ok, error: result.ok ? undefined : result.error };
+        return { ok: false, error: result.error };
       } else {
         // 新規作成
         const result = await createServiceCredential(data);
-        if (result.ok) {
+        if (result.ok === true) {
           setIsModalOpen(false);
           refresh();
+          return { ok: true };
         }
-        return { ok: result.ok, error: result.ok ? undefined : result.error };
+        return { ok: false, error: result.error };
       }
     } finally {
       setIsSaving(false);
@@ -174,7 +176,7 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
     setIsDeleting(true);
     try {
       const result = await deleteServiceCredential(deletingEntry.id);
-      if (result.ok) {
+      if (result.ok === true) {
         setIsDeleteModalOpen(false);
         setDeletingEntry(null);
         refresh();

@@ -11,7 +11,6 @@ import {
   updatePlaudHistory,
   deletePlaudHistory,
   type PlaudHistory,
-  type PlaudHistoryPagination,
 } from '@/lib/cm/plaud/history';
 import {
   CmPlaudProcessHistoryWithDetails,
@@ -81,7 +80,7 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
         transcriptionId,
       });
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -113,7 +112,7 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
         output_text: data.output_text,
       });
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -143,7 +142,7 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
         output_text: data.output_text,
       });
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 
@@ -168,7 +167,7 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
     try {
       const result = await deletePlaudHistory(id);
 
-      if (!result.ok) {
+      if (result.ok === false){
         throw new Error(result.error);
       }
 

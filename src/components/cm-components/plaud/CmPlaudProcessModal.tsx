@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect} from 'react';
 import { X, Wand2, Check, Save, Loader2 } from 'lucide-react';
 import { usePlaudTemplates } from '@/hooks/cm/plaud/usePlaudTemplates';
 import { usePlaudGenerate } from '@/hooks/cm/plaud/usePlaudGenerate';

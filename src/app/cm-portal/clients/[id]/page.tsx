@@ -21,7 +21,7 @@ export default async function CmClientDetailPage({ params, searchParams }: Props
   const result = await getClientDetail(kaipokeCsId);
 
   // エラー時
-  if (!result.ok) {
+  if (result.ok === false) {
     return (
       <div className="space-y-6">
         <Link

@@ -181,7 +181,7 @@ export function CmServiceCredentialsModal({
       is_active: formData.is_active,
     });
 
-    if (result.ok) {
+    if (result.ok === true) {
       onClose();
     } else {
       setSubmitError(result.error || '保存に失敗しました');

@@ -6,14 +6,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, X, Save, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Save } from 'lucide-react';
 import { usePlaudTemplates } from '@/hooks/cm/plaud/usePlaudTemplates';
 import {
   CmPlaudProcessTemplate,
   CmPlaudTemplateCreateRequest,
   CmPlaudTemplateUpdateRequest,
 } from '@/types/cm/plaud';
-import { LoadingSpinner, ErrorMessage, EmptyState } from './CmPlaudCommon';
+import { LoadingSpinner, EmptyState } from './CmPlaudCommon';
 import styles from '@/styles/cm-styles/plaud/templateManager.module.css';
 
 // =============================================================

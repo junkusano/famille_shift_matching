@@ -78,3 +78,25 @@ export function getServiceLabel(serviceName: string): string {
   const predefined = CM_PREDEFINED_SERVICES.find(s => s.service_name === serviceName);
   return predefined?.label || serviceName;
 }
+
+// =============================================================
+// 管理画面用の型
+// =============================================================
+
+/**
+ * サービス認証情報検索フィルター（管理画面用）
+ */
+export type CmServiceCredentialsFilters = {
+  /** サービス名（部分一致） */
+  serviceName: string;
+  /** 無効データも表示 */
+  showInactive: boolean;
+};
+
+/**
+ * 管理画面用フィルターのデフォルト値
+ */
+export const CM_SERVICE_CREDENTIALS_DEFAULT_FILTERS: CmServiceCredentialsFilters = {
+  serviceName: '',
+  showInactive: false,
+};

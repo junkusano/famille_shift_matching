@@ -238,7 +238,7 @@ export function CmFaxDetailContent({
       if (addToExistingDocument) {
         const result = await addPagesToDocument(addToExistingDocument.id, [currentPageData!.id]);
 
-        if (result.ok) {
+        if (result.ok === true) {
           success('ページを書類に追加しました');
           goToNextUnassigned();
         } else {
@@ -247,7 +247,7 @@ export function CmFaxDetailContent({
       } else {
         const result = await saveDocument();
 
-        if (result.ok) {
+        if (result.ok === true) {
           success('書類を保存しました');
           goToNextUnassigned();
         } else {
@@ -275,7 +275,7 @@ export function CmFaxDetailContent({
 
       const result = await saveDocument();
 
-      if (result.ok) {
+      if (result.ok === true) {
         success('AI推定を適用して保存しました');
         goToNextUnassigned();
       } else {
@@ -323,7 +323,7 @@ export function CmFaxDetailContent({
     setIsSaving(true);
     try {
       const result = await removePageFromDocument(currentPageAssignment.id, currentPage);
-      if (result.ok) {
+      if (result.ok === true) {
         success('ページを書類から削除しました');
       } else {
         error(result.error || '削除に失敗しました');
@@ -608,7 +608,7 @@ export function CmFaxDetailContent({
         onSearch={searchOffices}
         onConfirm={async (officeId, registerFaxProxy) => {
           const result = await addOffice(officeId, registerFaxProxy);
-          if (result.ok) {
+          if (result.ok === true) {
             success('事業所を追加しました');
             setIsOfficeModalOpen(false);
           } else {

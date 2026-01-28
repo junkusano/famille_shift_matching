@@ -68,7 +68,7 @@ async function handler(req: NextRequest) {
       runType: "scheduled",
     });
 
-    if (result.ok) {
+    if (result.ok === true) {
       logger.info("スケジュールバッチ実行完了", {
         batchRunId: result.batchRunId,
         stats: result.stats,

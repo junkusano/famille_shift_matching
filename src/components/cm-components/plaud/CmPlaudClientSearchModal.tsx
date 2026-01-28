@@ -34,8 +34,6 @@ export const CmPlaudClientSearchModal: React.FC<CmPlaudClientSearchModalProps> =
 }) => {
   const {
     clients,
-    searchQuery,
-    setSearchQuery,
     search,
     isLoading,
     error,

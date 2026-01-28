@@ -9,7 +9,6 @@ import { createLogger } from "@/lib/common/logger";
 import type {
   CmClientInfo,
   CmPagination,
-  CmClientFilters,
 } from "@/types/cm/clients";
 
 const logger = createLogger("lib/cm/clients");

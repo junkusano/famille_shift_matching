@@ -913,7 +913,7 @@ export default function EntryDetailPage() {
 
         const resJson = await result.json();
 
-        if (result.ok) {
+        if (result.ok === true) {
             alert(`雇用契約書メールを ${entry.email} に送信しました。`);
         } else {
             alert(`メール送信に失敗しました: ${resJson.error}`);

@@ -26,7 +26,7 @@ export default async function CmServiceCredentialsPage({ searchParams }: Props) 
   });
 
   // エラー時
-  if (!result.ok) {
+  if (result.ok === false){
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-slate-800">サービス認証情報</h1>

@@ -68,7 +68,7 @@ export async function runAlertBatch(authUserId: string): Promise<RunAlertBatchRe
       triggeredBy: userData.user_id,
     });
 
-    if (result.ok) {
+    if (result.ok === true) {
       log.info("手動バッチ実行完了", {
         batchRunId: result.batchRunId,
         stats: result.stats,
