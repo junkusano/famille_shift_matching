@@ -1,0 +1,471 @@
+/* =============================================================
+   src/styles/cm-styles/plaud/transcriptionList.module.css
+   文字起こし一覧スタイル
+   ============================================================= */
+
+/* =============================================================
+   コンテナ
+   ============================================================= */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =============================================================
+   ステータスタブ
+   ============================================================= */
+
+.statusTabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusTab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.statusTab:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.statusTabActive {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.statusTabActive:hover {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.statusCount {
+  padding: 2px 8px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.statusTabActive .statusCount {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* =============================================================
+   検索・フィルター
+   ============================================================= */
+
+.searchArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.searchForm {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+  padding: 8px 12px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.searchForm:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.searchIcon {
+  color: #94a3b8;
+  margin-right: 8px;
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1e293b;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: #94a3b8;
+}
+
+.filterToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filterToggle:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.refreshButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refreshButton:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.refreshButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* =============================================================
+   フィルターパネル
+   ============================================================= */
+
+.filterPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  min-width: 60px;
+}
+
+.filterInput {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.filterInput:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.filterSeparator {
+  color: #94a3b8;
+}
+
+.filterResetButton {
+  margin-left: auto;
+  padding: 8px 16px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filterResetButton:hover {
+  background-color: #e2e8f0;
+}
+
+/* =============================================================
+   コンテンツ
+   ============================================================= */
+
+.content {
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* =============================================================
+   一覧
+   ============================================================= */
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.card:hover {
+  background-color: #f8fafc;
+}
+
+.card:last-child {
+  border-bottom: none;
+}
+
+/* =============================================================
+   カードヘッダー
+   ============================================================= */
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.clientBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background-color: #ede9fe;
+  border-radius: 4px;
+  color: #7c3aed;
+  font-size: 12px;
+}
+
+.clientClearButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 2px;
+  background: transparent;
+  border: none;
+  color: #7c3aed;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.clientClearButton:hover {
+  opacity: 1;
+}
+
+.date {
+  font-size: 13px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* =============================================================
+   リトライメッセージ
+   ============================================================= */
+
+.retryMessage {
+  padding: 8px 12px;
+  background-color: #fef3c7;
+  border-radius: 6px;
+  color: #b45309;
+  font-size: 13px;
+}
+
+/* =============================================================
+   カードアクション
+   ============================================================= */
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionButton:hover {
+  background-color: #e2e8f0;
+}
+
+.actionButtonPrimary {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.actionButtonPrimary:hover {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.actionButtonWarning {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+  color: #fff;
+}
+
+.actionButtonWarning:hover {
+  background-color: #d97706;
+  border-color: #d97706;
+}
+
+.actionButtonSuccess {
+  background-color: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+
+.actionButtonSuccess:hover {
+  background-color: #059669;
+  border-color: #059669;
+}
+
+/* =============================================================
+   レスポンシブ
+   ============================================================= */
+
+@media (max-width: 768px) {
+  .statusTabs {
+    gap: 6px;
+  }
+
+  .statusTab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .searchArea {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchForm {
+    max-width: none;
+  }
+
+  .filterToggle {
+    justify-content: center;
+  }
+
+  .refreshButton {
+    align-self: flex-end;
+  }
+
+  .card {
+    padding: 12px 16px;
+  }
+
+  .cardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .date {
+    font-size: 12px;
+  }
+
+  .cardActions {
+    width: 100%;
+  }
+
+  .actionButton {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .statusTabs {
+    gap: 4px;
+  }
+
+  .statusTab {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .title {
+    font-size: 14px;
+  }
+
+  .actionButton {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+}

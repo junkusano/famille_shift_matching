@@ -10,8 +10,8 @@
 'use client';
 
 import React, { Suspense } from 'react';
-import { useCmFax } from '@/hooks/cm/useCmFax';
-import { useCmUser } from '@/hooks/cm/useCmUser';
+import { useCmFax } from '@/hooks/cm/fax/useCmFax';
+import { useCmUser } from '@/hooks/cm/users/useCmUser';
 import { CmFaxFilters } from '@/components/cm-components/fax/CmFaxFilters';
 import { CmFaxStats } from '@/components/cm-components/fax/CmFaxStats';
 import { CmFaxTable } from '@/components/cm-components/fax/CmFaxTable';

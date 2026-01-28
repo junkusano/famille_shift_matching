@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { useCmRpaLogs } from '@/hooks/cm/useCmRpaLogs';
+import { useCmRpaLogs } from '@/hooks/cm/rpa/useCmRpaLogs';
 import { CmRpaLogFilters } from '@/components/cm-components/rpa/CmRpaLogFilters';
 import { CmRpaLogTable } from '@/components/cm-components/rpa/CmRpaLogTable';
 

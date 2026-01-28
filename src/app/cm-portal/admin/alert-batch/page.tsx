@@ -4,7 +4,7 @@
 "use client";
 
 import React from "react";
-import { useCmHasRole } from "@/hooks/cm/useCmUser";
+import { useCmHasRole } from "@/hooks/cm/users/useCmUser";
 import { CmAlertBatchPanel } from "@/components/cm-components/admin/CmAlertBatchPanel";
 
 export default function CmAlertBatchPage() {

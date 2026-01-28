@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { useCmUser } from '@/hooks/cm/useCmUser';
+import { useCmUser } from '@/hooks/cm/users/useCmUser';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 
 interface CmUserSectionProps {

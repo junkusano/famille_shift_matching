@@ -16,20 +16,14 @@ import {
   MapPin,
   Loader2,
 } from 'lucide-react';
+import { getAlerts, type CmAlertResponse, type CmAlertSummary } from '@/lib/cm/alerts/getAlerts';
 
 // =============================================================
 // 型定義
 // =============================================================
 
-/** アラート型（APIレスポンス） */
-type CmAlert = {
-  id: string;
-  kaipoke_cs_id: string;
-  client_name: string;
-  category: 'insurance' | 'no_manager';
-  alert_type: string;
-  severity: 'critical' | 'warning' | 'info';
-  status: string;
+/** アラート型（Server Actionから取得） */
+type CmAlert = CmAlertResponse & {
   details: {
     reference_id?: string;
     due_date?: string;
@@ -38,19 +32,6 @@ type CmAlert = {
     care_manager_kaipoke_id?: string;
     previous_manager_name?: string;
     previous_manager_status?: string;
-  };
-  created_at: string;
-  updated_at: string;
-};
-
-/** サマリー型（APIレスポンス） */
-type CmAlertSummary = {
-  total: number;
-  critical: number;
-  warning: number;
-  byCategory: {
-    insurance: { critical: number; warning: number };
-    no_manager: { critical: number; warning: number };
   };
 };
 
@@ -301,21 +282,22 @@ export default function CmPortalHome() {
   // カテゴリフィルタ
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
 
-  // アラート取得
+  // アラート取得（Server Action使用）
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         setAlertsLoading(true);
         setAlertsError(null);
 
-        const response = await fetch('/api/cm/alerts');
-        if (!response.ok) {
-          throw new Error('アラート取得に失敗しました');
+        // Server Actionを呼び出し
+        const result = await getAlerts();
+
+        if (!result.ok) {
+          throw new Error(result.error);
         }
 
-        const data = await response.json();
-        setAlerts(data.alerts ?? []);
-        setAlertSummary(data.summary ?? null);
+        setAlerts((result.alerts ?? []) as CmAlert[]);
+        setAlertSummary(result.summary ?? null);
       } catch (error) {
         console.error('アラート取得エラー:', error);
         setAlertsError(error instanceof Error ? error.message : 'エラーが発生しました');

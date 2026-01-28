@@ -13,8 +13,8 @@ import {
   AlertTriangle,
   FileText,
 } from "lucide-react";
-import { useCmAlertBatch } from "@/hooks/cm/useCmAlertBatch";
 import { supabase } from "@/lib/supabaseClient";
+import { runAlertBatch, type RunAlertBatchResult } from "@/lib/cm/alert-batch/actions";
 
 // ============================================================
 // 型定義
@@ -42,7 +42,12 @@ type AlertStats = {
 // ============================================================
 
 export function CmAlertBatchPanel() {
-  const { isRunning, lastResult, error, runBatch, clearResult } = useCmAlertBatch();
+  // バッチ実行状態
+  const [isRunning, setIsRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<RunAlertBatchResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // データ状態
   const [batchHistory, setBatchHistory] = useState<BatchRunRecord[]>([]);
   const [alertStats, setAlertStats] = useState<AlertStats[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -120,7 +125,7 @@ export function CmAlertBatchPanel() {
     }
   }, [lastResult, fetchBatchHistory, fetchAlertStats]);
 
-  // バッチ実行ハンドラ
+  // バッチ実行ハンドラ（Server Action使用）
   const handleRunBatch = async () => {
     if (isRunning) return;
     
@@ -131,10 +136,41 @@ export function CmAlertBatchPanel() {
       "通常は毎日06:00に自動実行されます。"
     );
     
-    if (confirmed) {
-      await runBatch();
+    if (!confirmed) return;
+
+    setIsRunning(true);
+    setError(null);
+
+    try {
+      // 認証ユーザーを取得
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        setError("認証されていません。再ログインしてください。");
+        setLastResult({ ok: false, error: "認証されていません。再ログインしてください。" });
+        return;
+      }
+
+      // Server Action を呼び出し
+      const result = await runAlertBatch(authData.user.id);
+      setLastResult(result);
+
+      if (!result.ok) {
+        setError(result.error);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "通信エラー";
+      setError(errorMessage);
+      setLastResult({ ok: false, error: errorMessage });
+    } finally {
+      setIsRunning(false);
     }
   };
+
+  // 結果をクリア
+  const clearResult = useCallback(() => {
+    setLastResult(null);
+    setError(null);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -214,7 +250,7 @@ export function CmAlertBatchPanel() {
               </div>
             )}
 
-            {!lastResult.ok && lastResult.error && (
+            {!lastResult.ok && 'error' in lastResult && lastResult.error && (
               <p className="mt-2 text-sm text-red-600">{lastResult.error}</p>
             )}
           </div>

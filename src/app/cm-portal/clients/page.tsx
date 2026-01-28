@@ -1,84 +1,55 @@
 // =============================================================
 // src/app/cm-portal/clients/page.tsx
-// 利用者情報一覧画面
+// 利用者情報一覧画面（Server Component）
 // =============================================================
 
-'use client';
+import { getClients } from '@/lib/cm/clients/getClients';
+import { CmClientsPageContent } from '@/components/cm-components/clients/CmClientsPageContent';
 
-import React from 'react';
-import { RefreshCw } from 'lucide-react';
-import { useCmClients } from '@/hooks/cm/useCmClients';
-import { CmClientFilters } from '@/components/cm-components/clients/CmClientFilters';
-import { CmClientTable } from '@/components/cm-components/clients/CmClientTable';
+type Props = {
+  searchParams: Promise<{
+    page?: string;
+    search?: string;
+    status?: string;
+    insurer?: string;
+  }>;
+};
 
-export default function CmClientsPage() {
-  const {
-    clients,
-    pagination,
-    loading,
-    error,
-    insurerOptions,
-    filters,
-    isFiltered,
-    handleFilterChange,
-    handleSearch,
-    handleReset,
-    handlePageChange,
-    refresh,
-  } = useCmClients();
+export default async function CmClientsPage({ searchParams }: Props) {
+  const params = await searchParams;
+  
+  const page = parseInt(params.page || '1', 10);
+  const search = params.search || '';
+  const status = params.status || 'active';
+  const insurer = params.insurer || '';
+
+  // Server側でデータ取得
+  const result = await getClients({
+    page,
+    search,
+    status,
+    insurer,
+  });
+
+  if (!result.ok) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-slate-800">利用者情報一覧</h1>
+        <p className="text-red-500 mt-4">{result.error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">利用者情報一覧</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            ケアマネジメント対象の利用者を管理します
-          </p>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          更新
-        </button>
-      </div>
-
-      {/* フィルター */}
-      <CmClientFilters
-        filters={filters}
-        insurerOptions={insurerOptions}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        onReset={handleReset}
-      />
-
-      {/* 件数表示 */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">
-            {pagination?.total ?? clients.length}
-          </span>{' '}
-          件
-        </span>
-        {isFiltered && (
-          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-medium">
-            フィルター適用中
-          </span>
-        )}
-      </div>
-
-      {/* テーブル */}
-      <CmClientTable
-        clients={clients}
-        pagination={pagination}
-        loading={loading}
-        error={error}
-        onPageChange={handlePageChange}
-      />
-    </div>
+    <CmClientsPageContent
+      clients={result.clients}
+      pagination={result.pagination}
+      insurerOptions={result.insurerOptions}
+      initialFilters={{
+        search,
+        status,
+        insurer,
+      }}
+    />
   );
 }

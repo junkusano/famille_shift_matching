@@ -1,68 +1,74 @@
 // =============================================================
 // src/app/cm-portal/audit/logs/page.tsx
-// システムログ管理画面
+// システムログ管理画面（Server Component）
 // =============================================================
 
-'use client';
+import { getAuditLogs } from "@/lib/cm/audit/getAuditLogs";
+import { CmAuditLogsPageContent } from "@/components/cm-components/audit/CmAuditLogsPageContent";
 
-import React from 'react';
-import { RefreshCw } from 'lucide-react';
-import { useCmAuditLogs } from '@/hooks/cm/useCmAuditLogs';
-import { CmAuditLogFilters } from '@/components/cm-components/audit/CmAuditLogFilters';
-import { CmAuditLogTable } from '@/components/cm-components/audit/CmAuditLogTable';
+type Props = {
+  searchParams: Promise<{
+    page?: string;
+    env?: string;
+    level?: string;
+    module?: string;
+    message?: string;
+    traceId?: string;
+    from?: string;
+    to?: string;
+  }>;
+};
 
-export default function CmAuditLogsPage() {
-  const {
-    logs,
-    pagination,
-    loading,
-    error,
-    filters,
-    handleFilterChange,
-    handleSearch,
-    handleReset,
-    handlePageChange,
-    refresh,
-  } = useCmAuditLogs();
+export default async function CmAuditLogsPage({ searchParams }: Props) {
+  const params = await searchParams;
+
+  const page = parseInt(params.page || "1", 10);
+  const env = params.env || "";
+  const level = params.level || "";
+  const moduleName = params.module || "";
+  const message = params.message || "";
+  const traceId = params.traceId || "";
+  const from = params.from || "";
+  const to = params.to || "";
+
+  // Server側でデータ取得
+  const result = await getAuditLogs({
+    page,
+    env,
+    level,
+    moduleName,
+    message,
+    traceId,
+    from,
+    to,
+  });
+
+  // エラー時
+  if (!result.ok) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-slate-800">システムログ</h1>
+        <p className="text-red-500 mt-4">{result.error}</p>
+      </div>
+    );
+  }
+
+  // 成功時
+  const { logs, pagination } = result;
 
   return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-            システムログ
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            warn / error レベルのログを確認できます
-          </p>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium shadow-sm"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          更新
-        </button>
-      </div>
-
-      {/* フィルター */}
-      <CmAuditLogFilters
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        onReset={handleReset}
-      />
-
-      {/* テーブル */}
-      <CmAuditLogTable
-        logs={logs}
-        pagination={pagination}
-        loading={loading}
-        error={error}
-        onPageChange={handlePageChange}
-      />
-    </div>
+    <CmAuditLogsPageContent
+      logs={logs}
+      pagination={pagination}
+      initialFilters={{
+        env,
+        level,
+        moduleName,
+        message,
+        traceId,
+        from,
+        to,
+      }}
+    />
   );
 }

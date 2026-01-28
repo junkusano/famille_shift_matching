@@ -12,7 +12,7 @@
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
-import { useCmFaxDetail } from '@/hooks/cm/useCmFaxDetail';
+import { useCmFaxDetail } from '@/hooks/cm/fax/useCmFaxDetail';
 import { CmFaxDetailContent } from '@/components/cm-components/fax/CmFaxDetailContent';
 
 export default function CmFaxDetailPage() {

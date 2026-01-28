@@ -1,94 +1,63 @@
 // =============================================================
 // src/app/cm-portal/other-offices/page.tsx
-// 他社事業所一覧画面
+// 他社事業所一覧画面（Server Component）
 // =============================================================
 
-'use client';
+import { getOtherOffices } from "@/lib/cm/other-offices/getOtherOffices";
+import { CmOtherOfficesPageContent } from "@/components/cm-components/other-offices/CmOtherOfficesPageContent";
 
-import React from 'react';
-import { RefreshCw } from 'lucide-react';
-import { useCmOtherOffices } from '@/hooks/cm/useCmOtherOffices';
-import { CmOtherOfficeFilters } from '@/components/cm-components/other-offices/CmOtherOfficeFilters';
-import { CmOtherOfficeTable } from '@/components/cm-components/other-offices/CmOtherOfficeTable';
+type Props = {
+  searchParams: Promise<{
+    page?: string;
+    serviceType?: string;
+    officeName?: string;
+    officeNumber?: string;
+    faxNumber?: string;
+  }>;
+};
 
-export default function CmOtherOfficesPage() {
-  const {
-    offices,
-    pagination,
-    loading,
-    error,
-    serviceTypeOptions,
-    filters,
-    isFiltered,
-    updatingId,
-    updateError,
-    handleFilterChange,
-    handleSearch,
-    handleReset,
-    handlePageChange,
-    refresh,
-    updateFaxProxy,
-    clearUpdateError,
-  } = useCmOtherOffices();
+export default async function CmOtherOfficesPage({ searchParams }: Props) {
+  const params = await searchParams;
+
+  const page = parseInt(params.page || "1", 10);
+  const serviceType = params.serviceType || "";
+  const officeName = params.officeName || "";
+  const officeNumber = params.officeNumber || "";
+  const faxNumber = params.faxNumber || "";
+
+  // Server側でデータ取得
+  const result = await getOtherOffices({
+    page,
+    serviceType,
+    officeName,
+    officeNumber,
+    faxNumber,
+  });
+
+  // エラー時
+  if (!result.ok) {
+    return (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-slate-800">他社事業所一覧</h1>
+        <p className="text-red-500 mt-4">{result.error}</p>
+      </div>
+    );
+  }
+
+  // 成功時
+  const { offices, serviceTypes, pagination } = result;
 
   return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
-            他社事業所一覧
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            カイポケから取得した他社事業所情報を管理します
-          </p>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium shadow-sm"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          更新
-        </button>
-      </div>
-
-      {/* フィルター */}
-      <CmOtherOfficeFilters
-        filters={filters}
-        serviceTypeOptions={serviceTypeOptions}
-        onFilterChange={handleFilterChange}
-        onSearch={handleSearch}
-        onReset={handleReset}
-      />
-
-      {/* 件数表示 */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">
-            {pagination?.total.toLocaleString() ?? offices.length}
-          </span>{' '}
-          件
-        </span>
-        {isFiltered && (
-          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-medium">
-            フィルター適用中
-          </span>
-        )}
-      </div>
-
-      {/* テーブル */}
-      <CmOtherOfficeTable
-        offices={offices}
-        pagination={pagination}
-        loading={loading}
-        error={error}
-        updatingId={updatingId}
-        updateError={updateError}
-        onPageChange={handlePageChange}
-        onUpdateFaxProxy={updateFaxProxy}
-        onClearUpdateError={clearUpdateError}
-      />
-    </div>
+    <CmOtherOfficesPageContent
+      offices={offices}
+      serviceTypeOptions={serviceTypes}
+      pagination={pagination}
+      initialFilters={{
+        serviceType,
+        officeName,
+        officeNumber,
+        faxNumber,
+      }}
+    />
   );
 }

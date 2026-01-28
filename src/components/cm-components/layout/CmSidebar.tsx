@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
-import { useCmHasRole, useCmIsBoth } from '@/hooks/cm/useCmUser';
+import { useCmHasRole, useCmIsBoth } from '@/hooks/cm/users/useCmUser';
 
 type CmMenuItem = {
   id: string;

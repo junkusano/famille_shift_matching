@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useCmRpaJobs } from '@/hooks/cm/useCmRpaJobs';
+import { useCmRpaJobs } from '@/hooks/cm/rpa/useCmRpaJobs';
 import type { CmJob, CmJobWithProgress, CmJobItem } from '@/types/cm/jobs';
 
 // =============================================================
