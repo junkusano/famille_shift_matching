@@ -87,8 +87,6 @@ type ApproverCandidate = {
     level_sort: number | null;
 };
 
-const ATTACH_BUCKET = process.env.NEXT_PUBLIC_WF_ATTACH_BUCKET ?? "wf_request_attachment";
-
 function fmt(dt: string | null | undefined) {
     if (!dt) return "";
     try {
@@ -101,6 +99,54 @@ function fmt(dt: string | null | undefined) {
         return String(dt);
     }
 }
+
+function toErrorMessage(e: unknown): string {
+    if (e instanceof Error) {
+        return e.message;
+    }
+
+    if (typeof e === "object" && e !== null) {
+        // { message: string }
+        if (
+            "message" in e &&
+            typeof (e as { message?: unknown }).message === "string"
+        ) {
+            return (e as { message: string }).message;
+        }
+
+        // { error: { message: string } }
+        if (
+            "error" in e &&
+            typeof (e as { error?: unknown }).error === "object" &&
+            (e as { error: { message?: unknown } }).error !== null &&
+            typeof (e as { error: { message?: unknown } }).error.message === "string"
+        ) {
+            return (e as { error: { message: string } }).error.message;
+        }
+
+        // { msg: string }
+        if (
+            "msg" in e &&
+            typeof (e as { msg?: unknown }).msg === "string"
+        ) {
+            return (e as { msg: string }).msg;
+        }
+
+        // 最終手段：オブジェクトの中身を見せる
+        try {
+            return JSON.stringify(e);
+        } catch {
+            return "[object error]";
+        }
+    }
+
+    if (typeof e === "string") {
+        return e;
+    }
+
+    return "Unknown error";
+}
+
 
 async function apiFetch(path: string, init?: RequestInit) {
     const { data } = await supabase.auth.getSession();
@@ -181,6 +227,29 @@ export default function WfSeisanShinseiPage() {
             .slice(0, 50);
     }, [candidates, candidateQuery]);
 
+    // ★追加：DocUploader と同じ /api/upload（Google Drive）アップロード
+    const uploadFileViaApi = async (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("filename", `${Date.now()}_${file.name}`);
+
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.message ?? `upload failed: ${res.status}`);
+
+        const lower = file.name.toLowerCase();
+        const guessed =
+            lower.endsWith(".pdf") ? "application/pdf" :
+                lower.endsWith(".png") ? "image/png" :
+                    (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) ? "image/jpeg" :
+                        null;
+
+        const mimeType = (file.type || json.mimeType || guessed || null) as string | null;
+        if (!json.url) throw new Error("upload response missing url");
+        return { url: json.url, mimeType };
+    };
+
+
     // 初期ロード：申請タイプ
     useEffect(() => {
         const run = async () => {
@@ -216,7 +285,7 @@ export default function WfSeisanShinseiPage() {
             const r = await apiFetch(`/api/wf-requests?${qs.toString()}`);
             setList((r.data ?? []) as WfRequestListItem[]);
         } catch (e: unknown) {
-            setListError(e instanceof Error ? e.message : String(e));
+            alert(toErrorMessage(e));
         } finally {
             setListLoading(false);
         }
@@ -271,7 +340,7 @@ export default function WfSeisanShinseiPage() {
                 .map((s) => s.approver_user_id);
             setSelectedApprovers(approverIds);
         } catch (e: unknown) {
-            setDetailError(e instanceof Error ? e.message : String(e));
+            alert(toErrorMessage(e));
         } finally {
             setDetailLoading(false);
         }
@@ -310,8 +379,7 @@ export default function WfSeisanShinseiPage() {
             await loadList();
             await loadDetail(created.id);
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -357,8 +425,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("保存しました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -378,8 +445,7 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("提出しました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
@@ -400,18 +466,17 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert(action === "approve" ? "承認しました" : "差戻ししました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         }
     };
 
-    // 添付アップロード（Storageへ → wf_request_attachmentへinsert）
+    // 添付アップロード（Google Driveへ → wf_request_attachmentへinsert）
     const onUploadAttachment = async (file: File | null) => {
         if (!file || !selectedId) return;
 
         setAttachUploading(true);
         try {
-            // user_id は DB側で必要なので取得
+            // user_id は DB側で必要なので取得（ここはそのまま）
             const { data: sess } = await supabase.auth.getSession();
             const authUid = sess.session?.user?.id;
             if (!authUid) throw new Error("ログイン情報が取得できません");
@@ -426,24 +491,15 @@ export default function WfSeisanShinseiPage() {
             const myUserId = u?.user_id;
             if (!myUserId) throw new Error("ユーザーが見つかりません");
 
-            // Storage path
-            const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
-            const safeExt = ext ? `.${ext}` : "";
-            const path = `wf/${selectedId}/${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
+            // ★ここが差分：/api/upload（Google Drive）
+            const { url, mimeType } = await uploadFileViaApi(file);
 
-            // upload
-            const up = await supabase.storage.from(ATTACH_BUCKET).upload(path, file, {
-                contentType: file.type || undefined,
-                upsert: false,
-            });
-            if (up.error) throw up.error;
-
-            // insert attachment row
+            // ★file_path には Drive URL
             const { error: insErr } = await supabase.from("wf_request_attachment").insert({
                 request_id: selectedId,
                 file_name: file.name,
-                file_path: path,
-                mime_type: file.type || null,
+                file_path: url,
+                mime_type: mimeType,
                 file_size: file.size || null,
                 kind: attachKind,
                 uploaded_by_user_id: myUserId,
@@ -454,11 +510,16 @@ export default function WfSeisanShinseiPage() {
             await loadDetail(selectedId);
             alert("添付を追加しました");
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            alert(msg);
+            alert(toErrorMessage(e));
         } finally {
             setAttachUploading(false);
         }
+    };
+
+    const extractFileId = (u?: string | null) => {
+        if (!u) return null;
+        const m = u.match(/(?:\/d\/|[?&]id=)([-\w]{25,})/);
+        return m ? m[1] : null;
     };
 
     return (
@@ -633,7 +694,7 @@ export default function WfSeisanShinseiPage() {
                                     <div className="mt-5 border rounded p-3">
                                         <div className="flex items-center gap-3">
                                             <div className="font-semibold text-sm">添付（後からレシートOK）</div>
-                                            <div className="text-xs text-gray-600">Storage bucket: {ATTACH_BUCKET}</div>
+                                            <div className="text-xs text-gray-600">Google Drive にアップロードします</div>
                                             <div className="ml-auto flex items-center gap-2">
                                                 <select
                                                     className="border rounded px-2 py-1 text-sm"
@@ -658,23 +719,23 @@ export default function WfSeisanShinseiPage() {
                                         </div>
 
                                         <div className="mt-3 border rounded">
-                                            {(detail.attachments ?? []).length === 0 && (
-                                                <div className="p-2 text-xs text-gray-600">添付なし</div>
-                                            )}
-                                            {(detail.attachments ?? []).map((a) => (
-                                                <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="px-2 py-0.5 border rounded">{a.kind}</div>
-                                                        <div className="font-semibold">{a.file_name}</div>
-                                                        <div className="ml-auto text-gray-600">{fmt(a.created_at)}</div>
-                                                    </div>
-                                                    <div className="mt-1 text-gray-600 font-mono break-all">path: {a.file_path}</div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                            {(detail.attachments ?? []).map((a) => {
+                                                const fileId = extractFileId(a.file_path);
+                                                const openUrl = fileId
+                                                    ? `https://drive.google.com/file/d/${fileId}/view`
+                                                    : a.file_path;
 
-                                        <div className="mt-2 text-xs text-gray-500">
-                                            ※ bucket名が違う場合は <span className="font-mono">NEXT_PUBLIC_WF_ATTACH_BUCKET</span> で上書きできます
+                                                return (
+                                                    <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
+                                                        ...
+                                                        <div className="mt-1">
+                                                            <a className="text-blue-600 underline" href={openUrl} target="_blank" rel="noreferrer">
+                                                                添付を開く
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
