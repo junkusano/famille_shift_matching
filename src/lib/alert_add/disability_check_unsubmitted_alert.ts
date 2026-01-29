@@ -32,6 +32,17 @@ export type DisabilityCheckDailyAlertResult = {
         targetYearMonth: string;
     };
 };
+/**
+ * ★追加：テスト用の実行オプション
+ * modeで「回収だけ」「提出だけ」を切り替え可能
+ * targetKaipokeCsIdで1件だけに絞れる
+ */
+export type DisabilityCheckAlertArgs = {
+    dryRun?: boolean;
+    mode?: "all" | "collectedOnly" | "submittedOnly";
+    targetKaipokeCsId?: string; // テスト用に1件へ絞る
+    forceDay15Rule?: boolean;   // 15日条件を無視してテストしたい時
+};
 
 function pad2(n: number) {
     return String(n).padStart(2, "0");
@@ -162,7 +173,10 @@ async function runSubmittedUncheckLineworksOnly(
  * ※ここでは shift_record_unfinished_check と同様に visible_roles=["manager"] で作成し、
  *   message に担当者名を含めてマネージャーが判断できる形にします。
  */
-async function runCollectedUncheckHpAlertOnly(): Promise<{
+async function runCollectedUncheckHpAlertOnly(
+    args: { targetKaipokeCsId?: string; forceDay15Rule?: boolean } = {},
+): Promise<{
+
     scanned: number;
     created: number;
     updated: number;
@@ -175,7 +189,7 @@ async function runCollectedUncheckHpAlertOnly(): Promise<{
     const targetYm = ymNow(now);
 
     // 15日未満は何もしない（アラートを出さない）
-    if (day < 15) {
+    if (day < 15 && !args.forceDay15Rule) {
         return {
             scanned: 0,
             created: 0,
@@ -185,13 +199,17 @@ async function runCollectedUncheckHpAlertOnly(): Promise<{
         };
     }
 
-    const { data, error } = await supabaseAdmin
+    let q = supabaseAdmin
         .from("disability_check")
-        .select(
-            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
-        )
+        .select("id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check")
         .eq("year_month", targetYm)
         .eq("is_checked", false);
+
+    if (args?.targetKaipokeCsId) {
+        q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
+    }
+
+    const { data, error } = await q;
 
     if (error) {
         throw new Error(`disability_check select failed: ${error.message}`);
@@ -246,10 +264,20 @@ async function runCollectedUncheckHpAlertOnly(): Promise<{
  * ★cronから呼ぶ統合関数（1日1回でA+Bを回す）
  */
 export async function runDisabilityCheckDailyAlerts(
-    args: { dryRun: boolean } = { dryRun: false },
+    args: DisabilityCheckAlertArgs = {},
 ): Promise<DisabilityCheckDailyAlertResult> {
-    const submitted = await runSubmittedUncheckLineworksOnly(args);
-    const collected = await runCollectedUncheckHpAlertOnly();
+    const dryRun = args.dryRun ?? false;
+    const mode = args.mode ?? "all";
+
+    const submitted =
+        mode === "collectedOnly"
+            ? { scanned: 0, notified: 0, errors: 0, dryRun, targetYearMonths: { from: "", to: "" } }
+            : await runSubmittedUncheckLineworksOnly({ dryRun });
+
+    const collected =
+        mode === "submittedOnly"
+            ? { scanned: 0, created: 0, updated: 0, skippedBecauseDay: false, targetYearMonth: "" }
+            : await runCollectedUncheckHpAlertOnly({ targetKaipokeCsId: args.targetKaipokeCsId });
 
     return { submitted, collected };
 }
