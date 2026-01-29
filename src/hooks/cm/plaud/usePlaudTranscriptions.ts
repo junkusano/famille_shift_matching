@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import {
   getPlaudTranscriptionList,
   executeTranscriptionAction,
@@ -70,6 +71,24 @@ function toTranscription(t: PlaudTranscription): CmPlaudTranscription {
 }
 
 // =============================================================
+// ★ 追加: 認証ユーザーID取得ヘルパー
+// =============================================================
+
+async function getAuthUserId(): Promise<string | null> {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user) {
+      console.error('認証情報取得失敗:', authError?.message);
+      return null;
+    }
+    return authData.user.id;
+  } catch (error) {
+    console.error('getAuthUserId エラー:', error);
+    return null;
+  }
+}
+
+// =============================================================
 // フック本体
 // =============================================================
 
@@ -99,10 +118,17 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     setError(null);
 
     try {
+      // ★ 追加: 認証ユーザーIDを取得
+      const authUserId = await getAuthUserId();
+      if (!authUserId) {
+        throw new Error('認証情報を取得できませんでした。再度ログインしてください。');
+      }
+
       const result = await getPlaudTranscriptionList({
         page,
         limit: 20,
         status: filters.status !== 'all' ? filters.status : undefined,
+        authUserId, // ★ 追加
       });
 
       if (result.ok === false) {
@@ -115,7 +141,10 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
 
       // カウント取得（別途全件取得してカウント）
       // 注意: 効率化のため、本番環境では専用のカウントAPIを用意することを推奨
-      const allResult = await getPlaudTranscriptionList({ limit: 1000 });
+      const allResult = await getPlaudTranscriptionList({
+        limit: 1000,
+        authUserId, // ★ 追加
+      });
       if (allResult.ok && allResult.data) {
         const all = allResult.data.transcriptions;
         setCounts({
@@ -148,7 +177,14 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // 承認
   const approve = useCallback(async (id: number): Promise<boolean> => {
     try {
-      const result = await executeTranscriptionAction(id, 'approve');
+      // ★ 追加: 認証ユーザーIDを取得
+      const authUserId = await getAuthUserId();
+      if (!authUserId) {
+        console.error('認証情報取得失敗');
+        return false;
+      }
+
+      const result = await executeTranscriptionAction(id, 'approve', authUserId);
 
       if (result.ok === false) {
         throw new Error(result.error);
@@ -182,7 +218,14 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // リトライ
   const retry = useCallback(async (id: number): Promise<boolean> => {
     try {
-      const result = await executeTranscriptionAction(id, 'retry');
+      // ★ 追加: 認証ユーザーIDを取得
+      const authUserId = await getAuthUserId();
+      if (!authUserId) {
+        console.error('認証情報取得失敗');
+        return false;
+      }
+
+      const result = await executeTranscriptionAction(id, 'retry', authUserId);
 
       if (result.ok === false) {
         throw new Error(result.error);
@@ -212,7 +255,14 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // 利用者紐付け更新
   const updateClientHandler = useCallback(async (id: number, kaipokeCsId: string | null): Promise<boolean> => {
     try {
-      const result = await updateTranscriptionClient(id, kaipokeCsId);
+      // ★ 追加: 認証ユーザーIDを取得
+      const authUserId = await getAuthUserId();
+      if (!authUserId) {
+        console.error('認証情報取得失敗');
+        return false;
+      }
+
+      const result = await updateTranscriptionClient(id, kaipokeCsId, authUserId);
 
       if (result.ok === false) {
         throw new Error(result.error);
