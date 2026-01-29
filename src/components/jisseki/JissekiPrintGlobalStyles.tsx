@@ -297,18 +297,17 @@ ${mode === "bulk" ? `
   .print-root { padding: 0 !important; background: #fff !important; }
         .sheet{
     width: 210mm !important;
-        /* ★固定heightをやめる（クリップ原因） */
-    height: auto !important;
-    min-height: 295mm !important;
+      /* ★固定height/min-heightを両方やめる（白紙ページ対策） */
+  height: auto !important;
+  min-height: auto !important;
 
-    margin: 0 auto !important;
-    box-shadow: none !important;
+  margin: 0 auto !important;
+  box-shadow: none !important;
 
-    page-break-after: always;
-    break-after: page;
+  page-break-after: always;
+  break-after: page;
 
-    /* ★下部を切らない */
-    overflow: visible !important;
+  overflow: visible !important;
   }
 
   .sheet:last-child{
@@ -316,12 +315,6 @@ ${mode === "bulk" ? `
     break-after: auto !important;
   }
 }
-
-  /* 最後のsheetの後ろに「余計な白紙」を作らない */
-  .sheet:last-child{
-    page-break-after: auto !important;
-    break-after: auto !important;
-  }
 
   /* テーブル要素への一括 break-inside:avoid は、
      ブラウザによっては「無理やり次ページに押し出す」→白紙発生の原因になるので削除 */
