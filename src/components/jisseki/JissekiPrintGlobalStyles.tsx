@@ -179,23 +179,71 @@ ${mode === "bulk" ? `
       /* ----- single: /portal/jisseki/print ----- */
       ${mode === "single" ? `
       @media print {
-        /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */
-        body * { visibility: hidden !important; }
-        .print-only, .print-only * { visibility: visible !important; }
+  /* ✅白紙ページ対策：レイアウトを発生させる要素を作らない */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+  }
 
-        /* 左右対称の余白＋中央寄せ */
-        .print-only{
-          position: relative;
-          margin: 0 auto;
-          width: 210mm;
-          padding: 0mm 3mm 1mm 3mm;
-          box-sizing: border-box;
-        }
+  /* まず全部見えなくする（ただし layout は残るので↓で print-only を absolute にする） */
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
 
-        .print-only .p-6,
-.print-only .page-break {
+  /* ✅最重要：print-only を「レイアウトから外す」＝他DOMが白紙を作れない */
+  .print-only{
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+
+    margin: 0 !important;
+    width: 210mm !important;
+    padding: 0mm 3mm 1mm 3mm !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ✅PC/Androidでも必ず1枚に収める（iOSでやった圧縮を全ブラウザに適用） */
+  :root{ --row-2line: 6.9mm; }
+  .formBox{ padding: 1.5mm !important; }
+  .mt-2{ margin-top: 2px !important; }
+  .digits10{ height: 10px !important; }
+  .title{ font-size: 10.5px !important; }
+  .grid th, .grid td{
+    font-size: 9.5px !important;
+    line-height: 1.00 !important;
+    padding: 1px 2px !important;
+  }
+  .detail-row > td{
+    padding: 0px 1px !important;
+    font-size: 9.5px !important;
+    line-height: 1.00 !important;
+  }
+
+  /* ページ分割指定 */
+  .print-only .page-break{
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .print-only .print-page{
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex;
+    justify-content: center;
+  }
+
+  .print-only .print-page > .formBox{
+    width: 204mm !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box !important;
+  }
+    
+ .print-only .p-6,
+ .print-only .page-break {
   width: 100% !important;
   box-sizing: border-box !important;
+  }
 }
 
 /* ★追加：実績記録票ごとに必ず改ページさせる */
