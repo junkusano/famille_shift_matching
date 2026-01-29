@@ -219,6 +219,35 @@ ${mode === "bulk" ? `
     margin-right: auto !important;
     box-sizing: border-box !important;
   }
+
+  /* =========================================================
++          ★iOS（Safari）印刷対策：必ず1枚に収めるための“保険”
++          - iOSは印刷時の実効領域がPCより僅かに小さくなりやすい
++          - その差分を 2〜4% の縮小＋数px詰めで吸収する
++         ========================================================= */
++       @supports (-webkit-touch-callout: none) {
++         /* 1) ページ全体を少しだけ縮小（これが一番効く） */
++         .print-only{
++           transform: scale(0.97);
++           transform-origin: top center;
++         }
++
++         /* 2) 縦方向も少し詰める（さらに安全側） */
++         :root{ --row-2line: 7.6mm; }   /* 8.2mm → 7.6mm */
++         .mt-2{ margin-top: 2px !important; } /* 0.5rem(約8px) → 2px */
++         .digits10{ height: 10px !important; } /* 12px → 10px */
++         .title{ font-size: 11px !important; } /* 12pxより少し小さく */
++         .grid th, .grid td{
++           font-size: 10px !important;
++           line-height: 1.00 !important;
++           padding: 1px 2px !important;
++         }
++         .detail-row > td{
++           padding: 0px 1px !important;
++           font-size: 10px !important;
++           line-height: 1.00 !important;
++         }
++       }
       }
 
       @media screen {
