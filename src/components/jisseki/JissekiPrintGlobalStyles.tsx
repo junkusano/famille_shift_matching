@@ -191,27 +191,6 @@ ${mode === "bulk" ? `
           padding: 0mm 3mm 1mm 3mm;
           box-sizing: border-box;
         }
-          /* =========================
-   PC/Androidでも必ず1枚に収める
-   （iOSで成功した圧縮を全ブラウザへ）
-   ========================= */
-.print-only{ zoom: 0.85 !important; } /* ★最重要：PC/Androidで効かせる */
-
-:root{ --row-2line: 6.9mm; } /* 8.2mm × 0.85 ≒ 6.97mm */
-.formBox{ padding: 1.5mm !important; }
-.mt-2{ margin-top: 2px !important; }
-.digits10{ height: 10px !important; }
-.title{ font-size: 10.5px !important; }
-.grid th, .grid td{
-  font-size: 9.5px !important;
-  line-height: 1.00 !important;
-  padding: 1px 2px !important;
-}
-.detail-row > td{
-  padding: 0px 1px !important;
-  font-size: 9.5px !important;
-  line-height: 1.00 !important;
-}
 
         .print-only .p-6,
 .print-only .page-break {
@@ -242,13 +221,31 @@ ${mode === "bulk" ? `
   }
 
 /* =========================
-   iOS Safari 印刷：文字サイズ補正だけ
-   （縮小は全ブラウザ共通に移動）
+   iOS Safari 印刷：サイズ調整85%をCSSで再現
    ========================= */
 @supports (-webkit-touch-callout: none) {
   html, body { -webkit-text-size-adjust: 100% !important; }
-}
 
+  /* ★レイアウト計算に効く縮小（transformではなくzoom） */
+  .print-only{ zoom: 0.85 !important; }
+
+  /* ★保険：縦方向も詰める（= 85%相当） */
+  :root{ --row-2line: 6.9mm; } /* 8.2mm × 0.85 ≒ 6.97mm */
+  .formBox{ padding: 1.5mm !important; }
+  .mt-2{ margin-top: 2px !important; }
+  .digits10{ height: 10px !important; }
+  .title{ font-size: 10.5px !important; }
+  .grid th, .grid td{
+    font-size: 9.5px !important;
+    line-height: 1.00 !important;
+    padding: 1px 2px !important;
+  }
+  .detail-row > td{
+    padding: 0px 1px !important;
+    font-size: 9.5px !important;
+    line-height: 1.00 !important;
+  }
+}
 
       @media screen {
         .print-only{
