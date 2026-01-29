@@ -320,13 +320,11 @@ ${mode === "bulk" ? `
      ブラウザによっては「無理やり次ページに押し出す」→白紙発生の原因になるので削除 */
 }
 
-      .sheet-inner{
+   .sheet-inner{
   width: 210mm;
-   /* ★固定heightをやめる */
   height: auto;
-  min-height: 295mm;
+  min-height: auto; /* ★白紙/押し出し対策 */
 
-  /* 単票と同じ左右対称・下に少し余白 */
   padding: 0mm 3mm 2mm 3mm;
   box-sizing: border-box;
 }

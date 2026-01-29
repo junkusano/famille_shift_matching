@@ -64,62 +64,6 @@ const ROWS_PER_PAGE = {
     IDOU: 25,
 } as const;
 
-// ★ここに page.tsx の <style jsx global> を「そのまま」移す
-export function JissekiPrintSheetStyles() {
-    return (
-        <style jsx global>{`
-      @page { size: A4; margin: 3mm; }
-      @media print {
-        .no-print { display: none !important; }
-        .page-break { page-break-before: always; }
-        .print-only .p-6 { padding: 0 !important; }
-        .print-only .p-6, .print-only .page-break { width: 100% !important; box-sizing: border-box !important; }
-        body { margin: 0 !important; }
-        body * { visibility: hidden !important; }
-        .print-only, .print-only * { visibility: visible !important; }
-        .print-only { position: absolute; top: 0; left: 0; width: 100% !important; min-height: 297mm; padding: 2mm 4mm; box-sizing: border-box; }
-      }
-      @media screen {
-        .print-only { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; }
-        .screen-only { display: block; }
-      }
-
-      /* ★帳票用 罫線・レイアウト（page.tsx からそのまま） */
-      .formBox { border: none !important; }
-      .box { border: 1px solid #000; }
-      .grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
-      .grid th, .grid td { border: 1px solid #000; padding: 2px 4px; font-size: 11px; line-height: 1.2; vertical-align: middle; }
-
-      :root { --row-2line: 10.8mm; }
-      .detail-row > td { height: var(--row-2line); padding: 2px 3px; line-height: 1.05; vertical-align: middle; overflow: hidden; }
-
-      .center { text-align: center; }
-      .right { text-align: right; }
-      .small { font-size: 10px; }
-      .title { font-size: 14px; font-weight: 700; text-align: center; }
-      .ido-grid { width: 100% !important; max-width: 100% !important; }
-
-      .digits10 { display: grid; grid-template-columns: repeat(10, 1fr); height: 12px; }
-      .digitCell { display: flex; align-items: center; justify-content: center; }
-      .digitCell + .digitCell { border-left: 1px solid #000; }
-
-      .diag {
-        position: relative;
-        background: linear-gradient(to bottom left,
-          transparent calc(50% - 0.5px),
-          #000 calc(50% - 0.5px),
-          #000 calc(50% + 0.5px),
-          transparent calc(50% + 0.5px));
-      }
-      .vtext { writing-mode: vertical-rl; text-orientation: upright; line-height: 1; padding: 0 !important; }
-
-      .biko-td { padding: 0 !important; overflow: hidden; height: var(--row-2line); }
-      .biko-box { box-sizing: border-box; height: 100%; padding: 2px 3px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; gap: 1px; }
-      .biko-line { line-height: 1.05; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
-    `}</style>
-    );
-}
-
 // page.tsx にあった DigitBoxes10 を移植
 function DigitBoxes10({ value }: { value: string }) {
     const v = (value ?? "").replace(/\D/g, "").slice(0, 10).padEnd(10, " ");
@@ -278,14 +222,7 @@ export default function JissekiPrintBody({
             ))}
         </>
     );
-
-    return (
-        <>
-            <JissekiPrintSheetStyles />
-            {wrapPrintOnly ? <div className="print-only">{content}</div> : content}
-        </>
-    );
-
+    return wrapPrintOnly ? <div className="print-only">{content}</div> : content;
 }
 
 // ↓↓↓ ここから下に page.tsx にあった各 Form 関数を「そのまま」移植 ↓↓↓
