@@ -101,7 +101,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ① 初期フィルタ：前月 × 障害
   const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
-  const [kaipokeServicek, setKaipokeServicek] = useState<string>(""); // （全て）
+  const [kaipokeServicek, setKaipokeServicek] = useState<string>("移動支援"); // ★デフォルトを移動支援に
   // ③ Districtは未選択（全件）
   const [districts, setDistricts] = useState<string[]>([]);
 
@@ -958,7 +958,7 @@ const DisabilityCheckPage: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredRecords.map((r) => {
+          {uniqueFilteredRecords.map((r) => {
             const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
