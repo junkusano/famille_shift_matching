@@ -22,6 +22,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   const pathMap: Record<string, string> = {
     '/cm-portal': 'ホーム',
     '/cm-portal/fax': 'FAX受信一覧',
+    '/cm-portal/plaud': '文字起こし管理', // ★ 追加
     '/cm-portal/clients': '利用者一覧',
     '/cm-portal/clients/insurance': '被保険者証',
     '/cm-portal/clients/subsidy': '公費・減額',
