@@ -136,6 +136,7 @@ const CmMenuStructure: CmMenuGroup[] = [
     roles: ['admin', 'manager'],
     items: [
       { id: 'rpa-jobs', label: 'ジョブ登録', path: '/cm-portal/rpa-jobs' },
+      { id: 'rpa-schedules', label: '定期スケジュール', path: '/cm-portal/rpa-jobs/schedules' },
       { id: 'rpa-logs', label: 'ログ', path: '/cm-portal/rpa-logs' },
     ],
   },

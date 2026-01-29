@@ -43,6 +43,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/notifications/reminders': '業務リマインド',
     '/cm-portal/notifications/history': '通知履歴',
     '/cm-portal/rpa-jobs': 'RPAジョブ登録',
+    '/cm-portal/rpa-jobs/schedules': '定期スケジュール',
     '/cm-portal/rpa-logs': 'RPAログ',
     '/cm-portal/rpa/status': '実行状況',
     '/cm-portal/rpa/queue': '実行キュー',
