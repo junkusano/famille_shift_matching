@@ -1,11 +1,19 @@
 // =============================================================
 // src/hooks/cm/rpa/useCmRpaJobs.ts
-// RPA ジョブ管理の状態管理・API呼び出し
+// RPA ジョブ管理の状態管理・Server Actions呼び出し
 // =============================================================
 
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import {
+  getJobMaster,
+  getJobs,
+  getJobDetail,
+  createJob as createJobAction,
+  updateJob as updateJobAction,
+  type UpdateJobParams,
+} from '@/lib/cm/rpa-jobs/actions';
 import type {
   CmJobWithProgress,
   CmJob,
@@ -91,23 +99,15 @@ export function useCmRpaJobs() {
     setMasterState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const res = await fetch('/api/cm/rpa-internal/jobs/master', {
-        credentials: 'include',
-      });
-      const data = await res.json();
+      const result = await getJobMaster();
 
-      if (!data.ok) {
-        setMasterState((prev) => ({
-          ...prev,
-          loading: false,
-          error: data.error || 'マスタ取得エラー',
-        }));
-        return;
+      if (result.ok === false) {
+        throw new Error(result.error);
       }
 
       setMasterState({
-        queues: data.queues || [],
-        jobTypes: data.jobTypes || [],
+        queues: result.queues,
+        jobTypes: result.jobTypes,
         loading: false,
         error: null,
       });
@@ -127,28 +127,19 @@ export function useCmRpaJobs() {
     setListState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const params = new URLSearchParams();
-      if (filters.queue) params.set('queue', filters.queue);
-      if (filters.status) params.set('status', filters.status);
-      params.set('limit', '50');
-
-      const res = await fetch(`/api/cm/rpa-internal/jobs?${params.toString()}`, {
-        credentials: 'include',
+      const result = await getJobs({
+        queue: filters.queue || undefined,
+        status: filters.status || undefined,
+        limit: 50,
       });
-      const data = await res.json();
 
-      if (!data.ok) {
-        setListState((prev) => ({
-          ...prev,
-          loading: false,
-          error: data.error || 'ジョブ取得エラー',
-        }));
-        return;
+      if (result.ok === false) {
+        throw new Error(result.error);
       }
 
       setListState({
-        jobs: data.jobs || [],
-        total: data.total || 0,
+        jobs: result.jobs,
+        total: result.total,
         loading: false,
         error: null,
       });
@@ -168,24 +159,16 @@ export function useCmRpaJobs() {
     setDetailState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const res = await fetch(`/api/cm/rpa-internal/jobs/${jobId}`, {
-        credentials: 'include',
-      });
-      const data = await res.json();
+      const result = await getJobDetail(jobId);
 
-      if (!data.ok) {
-        setDetailState((prev) => ({
-          ...prev,
-          loading: false,
-          error: data.error || 'ジョブ詳細取得エラー',
-        }));
-        return;
+      if (result.ok === false) {
+        throw new Error(result.error);
       }
 
       setDetailState({
-        job: data.job || null,
-        items: data.items || [],
-        progress: data.progress || null,
+        job: result.job,
+        items: result.items,
+        progress: result.progress,
         loading: false,
         error: null,
       });
@@ -210,22 +193,20 @@ export function useCmRpaJobs() {
       setCreating(true);
 
       try {
-        const res = await fetch('/api/cm/rpa-internal/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ queue, job_type: jobType, payload }),
+        const result = await createJobAction({
+          queue,
+          job_type: jobType,
+          payload,
         });
-        const data = await res.json();
 
-        if (!data.ok) {
-          return { ok: false, error: data.error || 'ジョブ作成エラー' };
+        if (result.ok === false) {
+          return { ok: false, error: result.error };
         }
 
         // 一覧を再取得
         await fetchJobs();
 
-        return { ok: true, job: data.job };
+        return { ok: true, job: result.job };
       } catch (e) {
         return {
           ok: false,
@@ -250,19 +231,17 @@ export function useCmRpaJobs() {
       setUpdating(true);
 
       try {
-        const body: Record<string, unknown> = { status };
-        if (errorMessage) body.error_message = errorMessage;
+        const params: UpdateJobParams = {
+          status: status as UpdateJobParams['status'],
+        };
+        if (errorMessage) {
+          params.error_message = errorMessage;
+        }
 
-        const res = await fetch(`/api/cm/rpa-internal/jobs/${jobId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
+        const result = await updateJobAction(jobId, params);
 
-        if (!data.ok) {
-          return { ok: false, error: data.error || 'ジョブ更新エラー' };
+        if (result.ok === false) {
+          return { ok: false, error: result.error };
         }
 
         // 一覧を再取得
