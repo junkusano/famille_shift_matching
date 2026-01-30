@@ -7,6 +7,8 @@ import { getScheduledJobTypes } from '@/lib/cm/scheduled-jobs/getScheduledJobTyp
 import { getAvailableJobTypes } from '@/lib/cm/scheduled-jobs/getAvailableJobTypes';
 import { CmSchedulesPageContent } from '@/components/cm-components/rpa-jobs/schedules/CmSchedulesPageContent';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SchedulesPage() {
   // Server側でデータ取得
   const [scheduledResult, availableResult] = await Promise.all([
