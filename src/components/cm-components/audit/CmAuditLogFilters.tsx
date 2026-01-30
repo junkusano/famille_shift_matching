@@ -8,6 +8,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
+import { CmDateTimeLocalInput } from '@/components/cm-components/common/CmDateTimeLocalInput';
 import type { CmAuditLogFilters as CmAuditLogFiltersType } from '@/types/cm/auditLogs';
 
 type Props = {
@@ -106,11 +107,9 @@ export function CmAuditLogFilters({
           <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1.5">
             開始日時
           </label>
-          <input
-            type="datetime-local"
+          <CmDateTimeLocalInput
             value={filters.from}
-            onChange={(e) => onFilterChange('from', e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-colors"
+            onChange={(utcValue) => onFilterChange('from', utcValue)}
           />
         </div>
 
@@ -119,11 +118,9 @@ export function CmAuditLogFilters({
           <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1.5">
             終了日時
           </label>
-          <input
-            type="datetime-local"
+          <CmDateTimeLocalInput
             value={filters.to}
-            onChange={(e) => onFilterChange('to', e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-colors"
+            onChange={(utcValue) => onFilterChange('to', utcValue)}
           />
         </div>
 
