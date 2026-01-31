@@ -374,8 +374,8 @@ export default function WfSeisanShinseiPage() {
             const d = r.data as DetailResponse;
             setDetail(d);
             setSelectedId(id);
-            setTitleTouched(false);
             const rawTitle = (d.request.title ?? "").trim();
+            setTitleTouched(!!rawTitle); // ★タイトルが入ってたら自動更新しない
             const baseDefault = d.request.request_type?.code === "expense" ? "コインパーキング申請" : "";
             setEditTitle(rawTitle || baseDefault);
 
