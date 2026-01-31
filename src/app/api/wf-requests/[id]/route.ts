@@ -94,10 +94,11 @@ async function readUser(req: NextRequest) {
 /**
  * GET /api/wf-requests/:id
  */
-type RouteCtx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(req: NextRequest, { params }: RouteCtx) {
-  const { id } = params;
+export async function GET(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
 
@@ -152,8 +153,8 @@ export async function GET(req: NextRequest, { params }: RouteCtx) {
 /**
  * PATCH /api/wf-requests/:id
  */
-export async function PATCH(req: NextRequest, { params }: RouteCtx) {
-  const { id } = params;
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
 
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
@@ -191,8 +192,8 @@ export async function PATCH(req: NextRequest, { params }: RouteCtx) {
 }
 
 // ★追加：DELETE /api/wf-requests/:id
-export async function DELETE(req: NextRequest, { params }: RouteCtx) {
-  const { id } = params;
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
 
