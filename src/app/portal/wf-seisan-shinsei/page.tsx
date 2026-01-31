@@ -647,9 +647,9 @@ export default function WfSeisanShinseiPage() {
                 </div>
             </div>
 
-            <div className="flex" style={{ height: "calc(100vh - 56px)" }}>
+            <div className="flex flex-col md:flex-row overflow-x-hidden" style={{ height: "calc(100vh - 56px)" }}>
                 {/* 左：一覧 */}
-                <div className="w-[380px] border-r overflow-auto">
+                <div className="w-full md:w-[380px] md:border-r border-b md:border-b-0 overflow-auto">
                     {listLoading && <div className="p-3 text-sm">読み込み中…</div>}
                     {listError && <div className="p-3 text-sm text-red-600">{listError}</div>}
 
@@ -693,7 +693,7 @@ export default function WfSeisanShinseiPage() {
 
                     {selectedId && detail && (
                         <div className="p-4 max-w-[1100px]">
-                            <div className="flex items-start gap-3">
+                            <div className="flex flex-col md:flex-row items-stretch md:items-start gap-3">
                                 {/* 左：フォーム */}
                                 <div className={`flex-1 rounded p-3 ${statusPanelClass(detail.request.status)}`}>
                                     <div className="text-xs text-gray-600">
@@ -844,7 +844,7 @@ export default function WfSeisanShinseiPage() {
                                 </div>
 
                                 {/* 右：承認者 */}
-                                <div className="w-[360px] border rounded p-3">
+                                <div className="w-full md:w-[360px] border rounded p-3">
                                     <div className="font-semibold text-sm">承認者（提出用）</div>
                                     <div className="text-xs text-gray-600 mt-1">level_sort &lt; 4500000 の候補から選択</div>
 
