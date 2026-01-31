@@ -191,19 +191,19 @@ function statusPanelClass(status: string) {
 }
 
 async function apiFetch(path: string, init?: RequestInit) {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  const headers = new Headers(init?.headers ?? {});
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  headers.set("Content-Type", "application/json");
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const headers = new Headers(init?.headers ?? {});
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    headers.set("Content-Type", "application/json");
 
-  const res = await fetch(path, { ...init, headers });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = json?.message ?? `API error: ${res.status}`;
-    throw new Error(msg);
-  }
-  return json;
+    const res = await fetch(path, { ...init, headers });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const msg = json?.message ?? `API error: ${res.status}`;
+        throw new Error(msg);
+    }
+    return json;
 }
 
 export default function WfSeisanShinseiPage() {
@@ -789,20 +789,6 @@ export default function WfSeisanShinseiPage() {
                                         )}
                                     </div>
 
-                                    <div className="mt-4 flex flex-wrap gap-2">
-                                        <Button onClick={saveDraft} disabled={!canEdit}>下書き保存</Button>
-                                        <Button onClick={submitRequest} disabled={detail.request.status === "completed"}>提出</Button>
-                                        <Button variant="outline" onClick={() => approveOrReject("approve")}>承認</Button>
-                                        <Button variant="destructive" onClick={() => approveOrReject("reject")}>差戻し</Button>
-                                        <Button
-                                            variant="destructive"
-                                            onClick={deleteRequest}
-                                            disabled={!detail || detail.request.status !== "draft"}
-                                        >
-                                            削除
-                                        </Button>
-                                    </div>
-
                                     {/* 添付：左の下に置く（見た目も自然） */}
                                     <div className="mt-5 border rounded p-3">
                                         <div className="flex items-center gap-3">
@@ -919,6 +905,14 @@ export default function WfSeisanShinseiPage() {
                                         <div className="mt-1 text-xs text-gray-500">候補一覧からダブルクリックで追加</div>
                                     </div>
 
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <Button onClick={saveDraft} disabled={!canEdit}>下書き保存</Button>
+                                        <Button onClick={submitRequest} disabled={detail.request.status === "completed"}>提出</Button>
+                                        <Button onClick={() => approveOrReject("approve")} className="bg-green-600 text-white hover:bg-green-700">承認</Button>
+                                        <Button variant="destructive" onClick={() => approveOrReject("reject")}>差戻し</Button>
+                                        <Button variant="destructive" onClick={deleteRequest} disabled={!detail || detail.request.status !== "draft"}>削除</Button>
+                                    </div>
+                                    
                                     <div className="mt-4 font-semibold text-sm">承認履歴</div>
                                     <div className="mt-2 border rounded">
                                         {(detail.steps ?? []).length === 0 && <div className="p-2 text-xs text-gray-600">なし</div>}
