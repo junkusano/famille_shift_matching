@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
       created_at,
       updated_at,
       submitted_at,
+      applicant_user_id,
       request_type:wf_request_type ( id, code, label )
     `
     )

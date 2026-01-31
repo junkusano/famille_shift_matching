@@ -672,7 +672,7 @@ export default function WfSeisanShinseiPage() {
                                     </div>
                                     <div className="mt-1 font-semibold text-sm">{x.title?.trim() || "(無題)"}</div>
                                     <div className="mt-1 text-xs text-gray-600">
-                                        申請者：{x.applicant?.name ?? x.applicant_user_id}
+                                        申請者：{x.applicant?.name ?? x.applicant_user_id ?? "（不明）"}
                                     </div>
                                     <div className="mt-1 text-xs text-gray-600">
                                         作成：{fmt(x.created_at)} / 更新：{fmt(x.updated_at)}
