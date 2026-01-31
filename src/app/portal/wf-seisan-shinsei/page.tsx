@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 
@@ -191,19 +191,19 @@ function statusPanelClass(status: string) {
 }
 
 async function apiFetch(path: string, init?: RequestInit) {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    const headers = new Headers(init?.headers ?? {});
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    headers.set("Content-Type", "application/json");
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const headers = new Headers(init?.headers ?? {});
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Content-Type", "application/json");
 
-    const res = await fetch(path, { ...init, headers });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        const msg = json?.message ?? `API error: ${res.status}`;
-        throw new Error(msg);
-    }
-    return json;
+  const res = await fetch(path, { ...init, headers });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = json?.message ?? `API error: ${res.status}`;
+    throw new Error(msg);
+  }
+  return json;
 }
 
 export default function WfSeisanShinseiPage() {
@@ -213,6 +213,8 @@ export default function WfSeisanShinseiPage() {
     const [cpMemo, setCpMemo] = useState<string>("");
     const [cpKaipokeCsId, setCpKaipokeCsId] = useState<string>("");
     //const [cpClientName, setCpClientName] = useState<string>("");
+
+    const detailTopRef = useRef<HTMLDivElement | null>(null);
 
     // 利用者候補
     const [clients, setClients] = useState<ClientOption[]>([]);
@@ -412,6 +414,13 @@ export default function WfSeisanShinseiPage() {
                 .sort((a, b) => a.step_no - b.step_no)
                 .map((s) => s.approver_user_id);
             setSelectedApprovers(approverIds);
+
+            // ★スマホでは詳細へスクロール
+            if (window.innerWidth < 768) {
+                setTimeout(() => {
+                    detailTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 0);
+            }
         } catch (e: unknown) {
             alert(toErrorMessage(e));
         } finally {
@@ -647,9 +656,9 @@ export default function WfSeisanShinseiPage() {
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row overflow-x-hidden" style={{ height: "calc(100vh - 56px)" }}>
+            <div className="flex flex-col md:flex-row overflow-x-hidden md:h-[calc(100vh-56px)]">
                 {/* 左：一覧 */}
-                <div className="w-full md:w-[380px] md:border-r border-b md:border-b-0 overflow-auto">
+                <div className="w-full md:w-[380px] md:border-r border-b md:border-b-0 md:overflow-auto">
                     {listLoading && <div className="p-3 text-sm">読み込み中…</div>}
                     {listError && <div className="p-3 text-sm text-red-600">{listError}</div>}
 
@@ -685,7 +694,8 @@ export default function WfSeisanShinseiPage() {
                 </div>
 
                 {/* 右：詳細 */}
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 md:overflow-auto overflow-x-hidden">
+                    <div ref={detailTopRef} />
                     {!selectedId && <div className="p-6 text-sm text-gray-600">左から申請を選択するか「＋ 新規」を押してください。</div>}
 
                     {selectedId && detailLoading && <div className="p-6 text-sm">読み込み中…</div>}
