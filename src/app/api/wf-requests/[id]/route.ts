@@ -194,3 +194,57 @@ export async function PATCH(
 
   return json({ data });
 }
+
+// ★追加：DELETE /api/wf-requests/:id
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const user = await readUser(req);
+  if (!user) return json({ message: "Unauthorized" }, 401);
+
+  const { myUserId, isAdmin } = await getMyUserIdAndAdmin(user.id);
+  if (!myUserId) return json({ message: "User not found" }, 401);
+
+  const id = params.id;
+
+  // 対象取得
+  const { data: r, error: rErr } = await supabaseAdmin
+    .from("wf_request")
+    .select("id, applicant_user_id, status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (rErr) return json({ message: rErr.message }, 500);
+  if (!r) return json({ message: "Not found" }, 404);
+
+  // 権限
+  const canDelete = isAdmin || r.applicant_user_id === myUserId;
+  if (!canDelete) return json({ message: "Forbidden" }, 403);
+
+  // draftのみ許可（運用的に安全）
+  if (r.status !== "draft") {
+    return json({ message: "Only draft can be deleted" }, 400);
+  }
+
+  // ぶら下がり削除（CASCADEが無くても安全）
+  const { error: aErr } = await supabaseAdmin
+    .from("wf_request_attachment")
+    .delete()
+    .eq("request_id", id);
+  if (aErr) return json({ message: aErr.message }, 500);
+
+  const { error: sErr } = await supabaseAdmin
+    .from("wf_approval_step")
+    .delete()
+    .eq("request_id", id);
+  if (sErr) return json({ message: sErr.message }, 500);
+
+  const { error: dErr } = await supabaseAdmin
+    .from("wf_request")
+    .delete()
+    .eq("id", id);
+  if (dErr) return json({ message: dErr.message }, 500);
+
+  return json({ ok: true });
+}

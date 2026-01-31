@@ -14,6 +14,12 @@ type RequestType = {
     is_active: boolean;
 };
 
+type ApplicantLite = {
+    user_id: string;
+    name: string;      // 表示名（例：山田 太郎）
+    org?: string | null;
+};
+
 type WfRequestListItem = {
     id: string;
     status: string;
@@ -22,6 +28,8 @@ type WfRequestListItem = {
     updated_at: string;
     submitted_at: string | null;
     request_type: { id: string; code: string; label: string } | null;
+    applicant_user_id: string;        // ★追加
+    applicant?: ApplicantLite | null; // ★追加
 };
 
 type WfPayload = Record<string, unknown>;
@@ -47,6 +55,7 @@ type WfRequest = {
     created_at: string;
     updated_at: string;
     request_type?: { id: string; code: string; label: string; is_general: boolean } | null;
+    applicant?: ApplicantLite | null; // ★追加（詳細にも出す）
 };
 
 type ApprovalStep = {
@@ -147,6 +156,39 @@ function toErrorMessage(e: unknown): string {
     return "Unknown error";
 }
 
+function statusBadgeClass(status: string) {
+    switch (status) {
+        case "draft":
+            return "bg-gray-100 text-gray-800 border-gray-300";
+        case "submitted":
+            return "bg-blue-100 text-blue-800 border-blue-300";
+        case "approved":
+            return "bg-green-100 text-green-800 border-green-300";
+        case "rejected":
+            return "bg-red-100 text-red-800 border-red-300";
+        case "completed":
+            return "bg-purple-100 text-purple-800 border-purple-300";
+        default:
+            return "bg-gray-100 text-gray-800 border-gray-300";
+    }
+}
+
+function statusPanelClass(status: string) {
+    switch (status) {
+        case "draft":
+            return "bg-gray-50";
+        case "submitted":
+            return "bg-blue-50";
+        case "approved":
+            return "bg-green-50";
+        case "rejected":
+            return "bg-red-50";
+        case "completed":
+            return "bg-purple-50";
+        default:
+            return "bg-white";
+    }
+}
 
 async function apiFetch(path: string, init?: RequestInit) {
     const { data } = await supabase.auth.getSession();
@@ -195,10 +237,37 @@ export default function WfSeisanShinseiPage() {
     const [editTitle, setEditTitle] = useState("");
     //const [editBody, setEditBody] = useState("");
 
+    const [titleTouched, setTitleTouched] = useState(false);
+
     // 承認者（提出時）
     const [candidates, setCandidates] = useState<ApproverCandidate[]>([]);
     const [candidateQuery, setCandidateQuery] = useState("");
     const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]);
+
+    const deleteRequest = async () => {
+        if (!selectedId) return;
+        if (!window.confirm("この下書きを削除します。よろしいですか？")) return;
+
+        try {
+            await apiFetch(`/api/wf-requests/${selectedId}`, { method: "DELETE" });
+            setDetail(null);
+            setSelectedId(null);
+
+            setEditTitle("");
+            setTitleTouched(false);
+            setCpDate("");
+            setCpAmount("");
+            setCpMemo("");
+            setCpKaipokeCsId("");
+            setSelectedApprovers([]);
+
+            await loadList();
+
+            alert("削除しました");
+        } catch (e: unknown) {
+            alert(toErrorMessage(e));
+        }
+    };
 
     // 添付
     const [attachKind, setAttachKind] = useState("receipt");
@@ -305,7 +374,11 @@ export default function WfSeisanShinseiPage() {
             const d = r.data as DetailResponse;
             setDetail(d);
             setSelectedId(id);
-            setEditTitle(d.request.title ?? "");
+            setTitleTouched(false);
+            const rawTitle = (d.request.title ?? "").trim();
+            const baseDefault = d.request.request_type?.code === "expense" ? "コインパーキング申請" : "";
+            setEditTitle(rawTitle || baseDefault);
+
             setCpMemo(d.request.body ?? ""); // ★経緯・理由は body から復元
 
             // 互換（過去データが payload.memo で入ってた場合だけ救う）
@@ -428,6 +501,17 @@ export default function WfSeisanShinseiPage() {
             alert(toErrorMessage(e));
         }
     };
+
+    useEffect(() => {
+        if (!detail) return;
+        if (detail.request.request_type?.code !== "expense") return;
+        if (titleTouched) return;
+
+        const selectedClient = clients.find((c) => c.kaipoke_cs_id === cpKaipokeCsId);
+        const clientName = selectedClient?.name?.trim();
+        const base = "コインパーキング申請";
+        setEditTitle(clientName ? `${base}（${clientName}）` : base);
+    }, [cpKaipokeCsId, clients, detail, titleTouched]);
 
     // 提出（submit）
     const submitRequest = async () => {
@@ -581,13 +665,19 @@ export default function WfSeisanShinseiPage() {
                                     onClick={() => loadDetail(x.id)}
                                 >
                                     <div className="flex items-center gap-2">
-                                        <div className="text-xs px-2 py-0.5 border rounded">{x.status}</div>
+                                        <div className={`text-xs px-2 py-0.5 border rounded ${statusBadgeClass(x.status)}`}>
+                                            {x.status}
+                                        </div>
                                         <div className="text-xs text-gray-600">{x.request_type?.label ?? ""}</div>
                                     </div>
                                     <div className="mt-1 font-semibold text-sm">{x.title?.trim() || "(無題)"}</div>
                                     <div className="mt-1 text-xs text-gray-600">
+                                        申請者：{x.applicant?.name ?? x.applicant_user_id}
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-600">
                                         作成：{fmt(x.created_at)} / 更新：{fmt(x.updated_at)}
                                     </div>
+
                                 </div>
                             );
                         })}
@@ -605,17 +695,23 @@ export default function WfSeisanShinseiPage() {
                         <div className="p-4 max-w-[1100px]">
                             <div className="flex items-start gap-3">
                                 {/* 左：フォーム */}
-                                <div className="flex-1">
+                                <div className={`flex-1 rounded p-3 ${statusPanelClass(detail.request.status)}`}>
                                     <div className="text-xs text-gray-600">
                                         種別：{selectedTypeLabel || detail.request.request_type?.label || ""} / 状態：{detail.request.status}
                                     </div>
-
+                                    <div className="text-xs text-gray-600 mt-1">
+                                        申請者：{detail.request.applicant?.name ?? detail.request.applicant_user_id}
+                                        {detail.request.applicant?.org ? `（${detail.request.applicant.org}）` : ""}
+                                    </div>
                                     <div className="mt-2">
                                         <div className="text-xs text-gray-600 mb-1">件名</div>
                                         <input
                                             className="w-full border rounded px-2 py-1"
                                             value={editTitle}
-                                            onChange={(e) => setEditTitle(e.target.value)}
+                                            onChange={(e) => {
+                                                setTitleTouched(true);
+                                                setEditTitle(e.target.value);
+                                            }}
                                             disabled={!canEdit}
                                         />
                                     </div>
@@ -688,6 +784,13 @@ export default function WfSeisanShinseiPage() {
                                         <Button onClick={submitRequest} disabled={detail.request.status === "completed"}>提出</Button>
                                         <Button variant="outline" onClick={() => approveOrReject("approve")}>承認</Button>
                                         <Button variant="destructive" onClick={() => approveOrReject("reject")}>差戻し</Button>
+                                        <Button
+                                            variant="destructive"
+                                            onClick={deleteRequest}
+                                            disabled={!detail || detail.request.status !== "draft"}
+                                        >
+                                            削除
+                                        </Button>
                                     </div>
 
                                     {/* 添付：左の下に置く（見た目も自然） */}
@@ -830,6 +933,6 @@ export default function WfSeisanShinseiPage() {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
