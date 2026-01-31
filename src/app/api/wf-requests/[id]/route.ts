@@ -94,12 +94,10 @@ async function readUser(req: NextRequest) {
 /**
  * GET /api/wf-requests/:id
  */
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const { id } = await ctx.params;
+type RouteCtx = { params: { id: string } };
 
+export async function GET(req: NextRequest, { params }: RouteCtx) {
+  const { id } = params;
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
 
@@ -154,11 +152,8 @@ export async function GET(
 /**
  * PATCH /api/wf-requests/:id
  */
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const { id } = await ctx.params;
+export async function PATCH(req: NextRequest, { params }: RouteCtx) {
+  const { id } = params;
 
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
@@ -196,17 +191,13 @@ export async function PATCH(
 }
 
 // ★追加：DELETE /api/wf-requests/:id
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, { params }: RouteCtx) {
+  const { id } = params;
   const user = await readUser(req);
   if (!user) return json({ message: "Unauthorized" }, 401);
 
   const { myUserId, isAdmin } = await getMyUserIdAndAdmin(user.id);
   if (!myUserId) return json({ message: "User not found" }, 401);
-
-  const id = params.id;
 
   // 対象取得
   const { data: r, error: rErr } = await supabaseAdmin
