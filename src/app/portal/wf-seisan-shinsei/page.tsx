@@ -245,6 +245,7 @@ export default function WfSeisanShinseiPage() {
     const [candidates, setCandidates] = useState<ApproverCandidate[]>([]);
     const [candidateQuery, setCandidateQuery] = useState("");
     const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]);
+    const [pickedApproverId, setPickedApproverId] = useState<string>("");
 
     const deleteRequest = async () => {
         if (!selectedId) return;
@@ -297,6 +298,15 @@ export default function WfSeisanShinseiPage() {
             })
             .slice(0, 50);
     }, [candidates, candidateQuery]);
+
+    // ★追加：候補→選択中に追加
+    const addPickedApprover = () => {
+        const v = pickedApproverId;
+        if (!v) return;
+        if (!selectedApprovers.includes(v)) {
+            setSelectedApprovers([...selectedApprovers, v]);
+        }
+    };
 
     // ★追加：DocUploader と同じ /api/upload（Google Drive）アップロード
     const uploadFileViaApi = async (file: File) => {
@@ -857,11 +867,8 @@ export default function WfSeisanShinseiPage() {
                                         <select
                                             className="flex-1 border rounded px-2 py-1 text-sm"
                                             size={6}
-                                            onDoubleClick={(e) => {
-                                                const v = (e.target as HTMLSelectElement).value;
-                                                if (!v) return;
-                                                if (!selectedApprovers.includes(v)) setSelectedApprovers([...selectedApprovers, v]);
-                                            }}
+                                            value={pickedApproverId}
+                                            onChange={(e) => setPickedApproverId(e.target.value)}
                                         >
                                             {filteredCandidates.map((c) => {
                                                 const name = `${c.last_name_kanji ?? ""}${c.first_name_kanji ?? ""}`.trim() || c.user_id;
@@ -873,16 +880,28 @@ export default function WfSeisanShinseiPage() {
                                                 );
                                             })}
                                         </select>
-
                                         <div className="flex flex-col gap-2">
                                             <button
                                                 className="px-2 py-1 border rounded text-sm"
-                                                onClick={() => setSelectedApprovers([])}
+                                                onClick={addPickedApprover}
+                                                disabled={!pickedApproverId}
+                                                title="選択中の候補を追加"
+                                            >
+                                                追加 →
+                                            </button>
+
+                                            <button
+                                                className="px-2 py-1 border rounded text-sm"
+                                                onClick={() => {
+                                                    setSelectedApprovers([]);
+                                                    setPickedApproverId("");
+                                                }}
                                                 title="選択クリア"
                                             >
                                                 クリア
                                             </button>
                                         </div>
+
                                     </div>
 
                                     <div className="mt-2">
@@ -912,7 +931,7 @@ export default function WfSeisanShinseiPage() {
                                         <Button variant="destructive" onClick={() => approveOrReject("reject")}>差戻し</Button>
                                         <Button variant="destructive" onClick={deleteRequest} disabled={!detail || detail.request.status !== "draft"}>削除</Button>
                                     </div>
-                                    
+
                                     <div className="mt-4 font-semibold text-sm">承認履歴</div>
                                     <div className="mt-2 border rounded">
                                         {(detail.steps ?? []).length === 0 && <div className="p-2 text-xs text-gray-600">なし</div>}
