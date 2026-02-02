@@ -288,7 +288,7 @@ export async function runShiftStaffCheck(opts: {
                 if (shiftMs - refMs >= thresholdMs) {
                     const who = staffMention(u);
                     alertLines.push(
-                       `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`
+                        `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`
                     );
                 }
             }
@@ -309,7 +309,8 @@ export async function runShiftStaffCheck(opts: {
                 .from("shift_csinfo_roster_view")
                 .select("shift_date, start_at, client_name, kaipoke_cs_id")
                 .gte("shift_date", pastStart)
-                .lte("shift_date", yesterday);
+                .lte("shift_date", yesterday)
+                .not("kaipoke_cs_id", "like", "99999999%"); // ✅ ①除外
 
             if (pastErr) throw pastErr;
 
@@ -402,13 +403,19 @@ export async function runShiftStaffCheck(opts: {
                             alert2Dedupe.add(k);
 
                             alertLines.push(
-                                `・${yyyymmddSlash(date)} ${exp}　${clientDisp} 様　直近1か月の同じ曜日のシフト（${wdJa} ${exp}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）${more}`
-                            );
+                                `・${yyyymmddSlash(date)} ${exp}　${clientDisp}　直近1か月の同じ曜日のシフト（${wdJa} ${exp}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）${more}`);
                         }
                     }
                 }
             }
         }
+
+        // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
+        alertLines.sort((a, b) => {
+            const da = (a.match(/・(\d{4}\/\d{2}\/\d{2})/)?.[1] ?? "");
+            const db = (b.match(/・(\d{4}\/\d{2}\/\d{2})/)?.[1] ?? "");
+            return da.localeCompare(db);
+        });
 
         result.alerts = alertLines.length;
 
