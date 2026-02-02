@@ -2293,8 +2293,8 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                         {/* ページ数（PDF右下の「1枚中1枚」相当） */}
                         <tr>
                             <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
-                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                                    <div style={{ width: "40mm" }}>
+                                <div style={{ display: "flex" }}>
+                                    <div style={{ width: "40mm", marginLeft: "auto" }}>
                                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
                                             <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
                                             <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
