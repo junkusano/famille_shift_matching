@@ -219,22 +219,33 @@ ${mode === "bulk" ? `
      「page-break」ではなく「print-page」に改ページを持たせる
      ========================= */
 
-  /* 各帳票(=print-page)の後ろで改ページ */
-  .print-only .print-page{
-    width: 100% !important;
-    box-sizing: border-box !important;
-    display: flex;
-    justify-content: center;
+  /* ✅ 空白ページが出ない方式：
+   「後ろに改ページ」をやめて、
+   「2ページ目以降だけ前に改ページ（break-before）」にする
+*/
 
-    page-break-after: always;
-    break-after: page;
-  }
+/* print-page 自体は中央寄せだけ。改ページ(after)はさせない */
+.print-only .print-page{
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: flex;
+  justify-content: center;
 
-  /* ★最後の帳票は改ページしない → 空白ページが出なくなる */
-  .print-only .print-page:last-child{
-    page-break-after: auto !important;
-    break-after: auto !important;
-  }
+  page-break-after: auto !important;
+  break-after: auto !important;
+}
+
+/* 2枚目以降の print-page の“手前”で改ページする */
+.print-only .print-page + .print-page{
+  page-break-before: always !important;
+  break-before: page !important;
+}
+
+/* 念のため：page-break クラスを使っていても強制改ページさせない */
+.print-only .page-break{
+  page-break-before: auto !important;
+  break-before: auto !important;
+}
 
   /* 帳票本体を中央寄せ固定幅 */
   .print-only .print-page > .formBox{
