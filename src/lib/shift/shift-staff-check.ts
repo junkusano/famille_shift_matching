@@ -75,10 +75,13 @@ function staffName(u?: UserRow | null) {
 
 // 既存コードと同様、mentionは <m userId="xxx">さん 形式に寄せる
 function staffMention(u?: UserRow | null) {
-  const lw = (u?.lw_userid ?? "").trim();
-  if (!lw) return staffName(u);
-  return `<m userId="${lw}">さん`;
+  // LINEWORKSのチャンネル所属が保証できないため、mentionは使わない
+  // （mentionすると「Mentioned user does not exist in the channel」で送信が失敗する）
+  const name = staffName(u);
+  const uid = (u?.user_id ?? "").trim();
+  return uid ? `${name}（${uid}）` : name;
 }
+
 
 function findPrevMs(sorted: number[], target: number) {
   // target より「小さい」最大値
