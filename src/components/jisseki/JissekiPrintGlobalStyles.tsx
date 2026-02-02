@@ -190,6 +190,16 @@ ${mode === "bulk" ? `
           width: 210mm;
           padding: 0mm 3mm 1mm 3mm;
           box-sizing: border-box;
+
+          /* ★IDOU（移動支援）だけ、右下のページ数と表が重ならないように下余白を確保 */
+  .idou-sheet{
+    padding-bottom: 12mm !important;  /* ページ数ブロック分の逃げ */
+  }
+
+  /* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */
+  .idou-sheet .mt-2{
+    margin-top: 2px !important; /* mt-2(約8px) → 2px */
+  }
         }
 
         .print-only .p-6,
