@@ -238,11 +238,17 @@ ${mode === "bulk" ? `
   break-before: page !important;
 }
 
-/* ★本命：最後に残った .page-break を確実に消す */
-.print-only .page-break:last-of-type{
+/* ★本命：末尾にだけ残る .page-break を消す（1枚のときの空白ページ対策） */
+.print-only > .page-break:last-child{
   display: none !important;
   page-break-before: auto !important;
   break-before: auto !important;
+}
+
+/* 念のため：印刷末尾の空白ページを作る要因を潰す */
+.print-only > :last-child{
+  page-break-after: auto !important;
+  break-after: auto !important;
 }
 
   /* 帳票本体を中央寄せ固定幅 */
