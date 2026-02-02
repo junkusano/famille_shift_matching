@@ -88,6 +88,18 @@ function DigitBoxes10({ value }: { value: string }) {
     );
 }
 
+// YYYY-MM → 「令和〇年〇月」
+function formatReiwaYearMonth(yyyyMm: string) {
+    const m = /^\s*(\d{4})-(\d{1,2})\s*$/.exec(yyyyMm ?? "");
+    if (!m) return "";
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+
+    const reiwaYear = Math.max(1, year - 2018);
+    return `令和${reiwaYear}年${month}月`;
+}
+
 export default function JissekiPrintPage() {
     const sp = useSearchParams();
     const kaipoke_cs_id = sp.get("kaipoke_cs_id") ?? "";
@@ -284,7 +296,19 @@ export default function JissekiPrintPage() {
 function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
-            <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
+                </div>
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    居宅介護サービス提供実績記録票（様式１）
+                </div>
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
+                </div>
+            </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
             <div className="mt-2">
