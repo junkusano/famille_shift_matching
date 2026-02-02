@@ -811,13 +811,13 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }} className="small">
-                    {data.month}分
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
+                <div className="title" style={{ flex: "2 1 0%" }}>
                     行動援護サービス提供実績記録票
                 </div>
-                <div style={{ flex: 1 }} className="small right">
+                <div className="small right" style={{ flex: "1 1 0%" }}>
                     （様式２）
                 </div>
             </div>
@@ -1109,15 +1109,17 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     return (
         <div className="formBox p-2">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
-            <div style={{ display: "flex", alignItems: "flex-end", width: "100%" }}>
-                <div style={{ flex: 1 }} className="small">
-                    令和7年12月分
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
-                    同行援護サービス提供実績記録票
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    同行援護サービス提供実績記録票（様式19）
                 </div>
-                <div style={{ flex: 1 }} className="small right">
-                    （様式19）
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
                 </div>
             </div>
 
@@ -1510,13 +1512,13 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: For
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }} className="small">
-                    {data.month}分
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
+                <div className="title" style={{ flex: "2 1 0%" }}>
                     重度訪問介護サービス提供実績記録票
                 </div>
-                <div style={{ flex: 1 }} className="small right">
+                <div className="small right" style={{ flex: "1 1 0%" }}>
                     （様式３－１）
                 </div>
             </div>
@@ -1959,8 +1961,19 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
 
     return (
         <div className="formBox p-2">
-            <div className="title">移動支援　サービス提供実績記録票（様式３）</div>
-            <div style={{ display: "none" }}>{data.client.client_name}</div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
+                </div>
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    移動支援サービス提供実績記録票（様式３）
+                </div>
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
+                </div>
+            </div>
 
             {/* ★統合：ヘッダ＋明細を “1つの table” にする（横幅ズレ防止） */}
             <div className="mt-2">
