@@ -292,7 +292,7 @@ export async function runShiftStaffCheck(opts: {
     result.sent = true;
 
     return result;
-  } catch (e: any) {
+  } catch (e) {
     result.ok = false;
     result.errors = [
       {
