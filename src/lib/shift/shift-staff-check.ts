@@ -287,64 +287,71 @@ export async function runShiftStaffCheck(opts: {
         }
 
         // ------------------------------
-        // （ロジック2）直近1か月の「曜日＋開始時刻」パターンと、今日以降の差分チェック
+        // （ロジック2）直近1か月の「曜日＋開始時刻」パターンと、今日以降の差分チェック（差分方式）
         // ------------------------------
         {
             const PATTERN_DAYS = 30;
-            const MIN_OCC = 2; // 直近1か月で2回以上出るものだけ「期待パターン」とする
+            const MIN_OCC = 2; // 直近1か月で2回以上のパターンのみ採用（ノイズ抑制）
 
             const pastStart = addDays(today, -PATTERN_DAYS);
             const yesterday = addDays(today, -1);
 
-            // 直近1か月（過去30日）を取得（今日以降は混ぜない）
+            // 直近1か月（過去30日）
             const { data: pastRaw, error: pastErr } = await supabaseAdmin
                 .from("shift_csinfo_roster_view")
-                .select("shift_id, shift_date, start_at, client_name, kaipoke_cs_id")
+                .select("shift_date, start_at, client_name, kaipoke_cs_id")
                 .gte("shift_date", pastStart)
                 .lte("shift_date", yesterday);
 
             if (pastErr) throw pastErr;
 
-            type PastRow = Pick<RosterRow, "shift_id" | "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
-
+            type PastRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
             const past = (pastRaw as PastRow[]) ?? [];
 
-            // key: clientKey|weekday|HH:mm  -> count
-            const patternCount = new Map<string, number>();
+            // 利用者表示名
             const clientNameMap = new Map<string, string>();
+
+            // 過去の頻出パターン集計: clientKey|weekday|HH:mm -> count
+            const patternCount = new Map<string, number>();
 
             for (const r of past) {
                 const clientKey = (r.kaipoke_cs_id ?? "").trim() || (r.client_name ?? "").trim();
                 if (!clientKey) continue;
 
+                clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
+
                 const wd = weekdayIndexJst(r.shift_date);
                 const st = hhmm(r.start_at);
-
-                clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
 
                 const key = `${clientKey}|${wd}|${st}`;
                 patternCount.set(key, (patternCount.get(key) ?? 0) + 1);
             }
 
-            // 期待パターン抽出（MIN_OCC以上）
-            const expectedPatterns: Array<{ clientKey: string; weekday: number; startHHmm: string }> = [];
+            // expectedByClientWeekday: clientKey|weekday -> Set<HH:mm>
+            const expectedByClientWeekday = new Map<string, Set<string>>();
             for (const [k, c] of patternCount.entries()) {
                 if (c < MIN_OCC) continue;
                 const [clientKey, wdStr, st] = k.split("|");
-                expectedPatterns.push({ clientKey, weekday: Number(wdStr), startHHmm: st });
+                const wkKey = `${clientKey}|${wdStr}`;
+                if (!expectedByClientWeekday.has(wkKey)) expectedByClientWeekday.set(wkKey, new Set());
+                expectedByClientWeekday.get(wkKey)!.add(st);
             }
 
-            if (expectedPatterns.length > 0) {
-                // 今日以降のシフトを「利用者×日付」でまとめる
+            if (expectedByClientWeekday.size === 0) {
+                // 期待パターンが作れないなら何もしない
+            } else {
+                // 今日以降（upcoming）を、利用者×日付にまとめる
                 type UpRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
                 const up = (upcomingRaw as UpRow[]) ?? [];
 
-                // map: clientKey -> date -> set(HH:mm)
+                // map: clientKey -> date -> Set<HH:mm>
                 const upMap = new Map<string, Map<string, Set<string>>>();
 
                 for (const r of up) {
                     const clientKey = (r.kaipoke_cs_id ?? "").trim() || (r.client_name ?? "").trim();
                     if (!clientKey) continue;
+
+                    clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
 
                     const date = r.shift_date;
                     const st = hhmm(r.start_at);
@@ -353,42 +360,43 @@ export async function runShiftStaffCheck(opts: {
                     const dateMap = upMap.get(clientKey)!;
                     if (!dateMap.has(date)) dateMap.set(date, new Set());
                     dateMap.get(date)!.add(st);
-
-                    clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
                 }
 
-                // 日付を today〜endDate で総当たり
+                // 差分チェック：upMap に存在する「実際の未来日」だけをチェックする（総当たりしない）
                 const alert2Dedupe = new Set<string>();
 
-                for (const p of expectedPatterns) {
-                    const clientDisp = clientNameMap.get(p.clientKey) ?? p.clientKey;
+                for (const [clientKey, dateMap] of upMap.entries()) {
+                    for (const [date, startsSet] of dateMap.entries()) {
+                        const wd = weekdayIndexJst(date);
+                        const wkKey = `${clientKey}|${wd}`;
 
-                    let cur = today;
-                    while (cur <= endDate) {
-                        const wd = weekdayIndexJst(cur);
-                        if (wd === p.weekday) {
-                            const dateMap = upMap.get(p.clientKey);
-                            const starts = dateMap?.get(cur) ?? null;
+                        const expectedSet = expectedByClientWeekday.get(wkKey);
+                        if (!expectedSet || expectedSet.size === 0) continue; // 期待値なし
 
-                            const hasExpected = starts ? starts.has(p.startHHmm) : false;
+                        // 期待される開始時刻が、その日に1つも無いか？
+                        const hasAnyExpected = Array.from(expectedSet).some((t) => startsSet.has(t));
+                        if (hasAnyExpected) continue;
 
-                            if (!hasExpected) {
-                                const key = `${p.clientKey}|${cur}|${p.startHHmm}`;
-                                if (!alert2Dedupe.has(key)) {
-                                    alert2Dedupe.add(key);
+                        // 期待される各時刻について「その日には無い」ことを知らせる（ただし上限抑制のため最大2件）
+                        const expectedList = Array.from(expectedSet).sort();
+                        const actualList = Array.from(startsSet).sort();
+                        const clientDisp = clientNameMap.get(clientKey) ?? clientKey;
 
-                                    const actual = starts ? Array.from(starts).sort().join(", ") : "なし";
-                                    const wdJa = WEEKDAY_JA[p.weekday];
+                        const wdJa = WEEKDAY_JA[wd];
 
-                                    // 例文に寄せた文言
-                                    alertLines.push(
-                                        `・${yyyymmddSlash(cur)} ${p.startHHmm}　${clientDisp} 様　直近1か月の同じ曜日のシフト（${wdJa} ${p.startHHmm}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actual}）`
-                                    );
-                                }
-                            }
+                        // 期待が多いとまた長くなるので、代表2件だけ出す
+                        const show = expectedList.slice(0, 2);
+                        const more = expectedList.length > 2 ? ` 他${expectedList.length - 2}件` : "";
+
+                        for (const exp of show) {
+                            const k = `${clientKey}|${date}|${exp}`;
+                            if (alert2Dedupe.has(k)) continue;
+                            alert2Dedupe.add(k);
+
+                            alertLines.push(
+                                `・${yyyymmddSlash(date)} ${exp}　${clientDisp} 様　直近1か月の同じ曜日のシフト（${wdJa} ${exp}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）${more}`
+                            );
                         }
-
-                        cur = addDays(cur, 1);
                     }
                 }
             }
@@ -423,8 +431,34 @@ export async function runShiftStaffCheck(opts: {
         }
 
         const accessToken = await getAccessToken();
-        await sendLWBotMessage(FIXED_CHANNEL_ID, message, accessToken);
+
+        // LINEWORKSの本文上限に当たりやすいので分割送信する
+        const LIMIT = 1800; // 安全側（実上限より少し小さく）
+        const parts: string[] = [];
+
+        let current = header;
+        for (const line of body.split("\n")) {
+            // 1行追加すると超えるなら、いったん確定
+            if ((current + line + "\n").length > LIMIT) {
+                parts.push(current.trimEnd());
+                current = header + line + "\n";
+            } else {
+                current += line + "\n";
+            }
+        }
+        if (current.trim().length > 0) parts.push(current.trimEnd());
+
+        // 最大でも数通に抑えたいので、念のため上限
+        const MAX_PARTS = 5;
+        const sendParts = parts.slice(0, MAX_PARTS);
+
+        for (let i = 0; i < sendParts.length; i++) {
+            const suffix = sendParts.length > 1 ? `\n\n（${i + 1}/${sendParts.length}）` : "";
+            await sendLWBotMessage(FIXED_CHANNEL_ID, sendParts[i] + suffix, accessToken);
+        }
+
         result.sent = true;
+
 
         return result;
     } catch (e) {
