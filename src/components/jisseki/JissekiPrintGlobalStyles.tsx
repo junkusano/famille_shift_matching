@@ -220,10 +220,16 @@ ${mode === "bulk" ? `
   box-sizing: border-box !important;
 }
 
-/* ★追加：実績記録票ごとに必ず改ページさせる */
+/* ★実績記録票ごとに改ページ */
 .print-only .page-break{
   page-break-before: always !important; /* 旧仕様（Chrome安定） */
   break-before: page !important;        /* 新仕様 */
+}
+
+/* ★追加：最後の改ページは無効（1枚のとき空白ページが出るのを防ぐ） */
+.print-only .page-break:last-child{
+  page-break-before: auto !important;
+  break-before: auto !important;
 }
 
           /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
