@@ -79,8 +79,14 @@ function staffMention(u?: UserRow | null) {
     // （mentionすると「Mentioned user does not exist in the channel」で送信が失敗する）
     const name = staffName(u);
     const uid = (u?.user_id ?? "").trim();
-    return uid ? `${name}（${uid}）` : name;
+    return uid ? `${name}さん（${uid}）` : `${name}さん`;
 }
+
+function clientDisplay(name: string) {
+    const n = (name ?? "").trim() || "（利用者名不明）";
+    return n.endsWith("様") ? n : `${n}様`;
+}
+
 
 function hhmm(startAt: string | null | undefined) {
     return (startAt ?? "00:00").split(":").slice(0, 2).join(":");
@@ -127,7 +133,8 @@ export async function runShiftStaffCheck(opts: {
 } = {}): Promise<ShiftStaffCheckResult> {
     const now = opts.now ?? new Date();
     const dryRun = opts.dryRun ?? false;
-    const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 21;
+    //const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 21;
+    const daysAhead = 15; // 要望：今日〜直近15日以内に固定
     const inactiveDays = Number.isFinite(opts.inactiveDays) ? (opts.inactiveDays as number) : 15;
 
     const result: ShiftStaffCheckResult = {
@@ -148,6 +155,7 @@ export async function runShiftStaffCheck(opts: {
             .select("shift_id, shift_date, start_at, staff_id_1, staff_id_2, staff_id_3, client_name, kaipoke_cs_id")
             .gte("shift_date", today)
             .lte("shift_date", endDate)
+            .not("kaipoke_cs_id", "like", "99999999%") // ✅ ①除外
             .order("shift_date", { ascending: true })
             .order("start_at", { ascending: true });
 
@@ -255,7 +263,7 @@ export async function runShiftStaffCheck(opts: {
             const shiftMs = parseShiftStartMs(r.shift_date, r.start_at);
             const startHHmm = hhmm(r.start_at);
             const dateDisp = yyyymmddSlash(r.shift_date);
-            const clientName = (r.client_name ?? "").trim() || "（利用者名不明）";
+            const clientName = clientDisplay(r.client_name ?? "");
 
             const staffCols = [r.staff_id_1, r.staff_id_2, r.staff_id_3];
             for (const sidRaw of staffCols) {
@@ -280,7 +288,7 @@ export async function runShiftStaffCheck(opts: {
                 if (shiftMs - refMs >= thresholdMs) {
                     const who = staffMention(u);
                     alertLines.push(
-                        `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`
+                       `・${dateDisp} ${startHHmm}　${clientName} のシフトに ${who} が入っていますが、直近${inactiveDays}日はシフト勤務がありません。正しいシフトか確認をしてください。`
                     );
                 }
             }
@@ -410,7 +418,7 @@ export async function runShiftStaffCheck(opts: {
         }
 
         const header =
-            `【シフトチェック（2種）】\n` +
+            `【★★★シフト漏れチェック】確認放置しないこと\n` +
             `対象: ${today}〜${endDate}\n` +
             `① 直近${inactiveDays}日シフトなしスタッフが未来シフト入り\n` +
             `② 直近1か月の「曜日＋開始時刻」パターン差分\n\n`;
