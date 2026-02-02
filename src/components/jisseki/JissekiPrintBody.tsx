@@ -76,6 +76,20 @@ function DigitBoxes10({ value }: { value: string }) {
     );
 }
 
+// YYYY-MM → 「令和〇年〇月」
+function formatReiwaYearMonth(yyyyMm: string) {
+    const m = /^\s*(\d{4})-(\d{1,2})\s*$/.exec(yyyyMm ?? "");
+    if (!m) return "";
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+
+    // 令和元年 = 2019年（2019/05/01〜）
+    // ※2019年4月以前は平成ですが、帳票要件が「令和」固定なので、ここでは 2019年は令和1年として扱います。
+    const reiwaYear = Math.max(1, year - 2018);
+    return `令和${reiwaYear}年${month}月`;
+}
+
 // ★これが「帳票を描く本体」：page.tsx の print-only の中身を移植して export
 export default function JissekiPrintBody({
     data,
@@ -229,7 +243,21 @@ export default function JissekiPrintBody({
 function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
-            <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
+            {/* タイトル行：左に「令和〇年〇月」、中央に帳票名 */}
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
+                </div>
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    居宅介護サービス提供実績記録票（様式１）
+                </div>
+
+                {/* 右側は他帳票と高さ合わせ用（必要なら将来ページ数等を表示可） */}
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
+                </div>
+            </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
             <div className="mt-2">
