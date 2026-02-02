@@ -160,6 +160,7 @@ const CmMenuStructure: CmMenuGroup[] = [
       { id: 'service-credentials', label: 'サービス認証情報', path: '/cm-portal/service-credentials' },
       { id: 'alert-batch', label: 'アラートバッチ', path: '/cm-portal/admin/alert-batch' },
       { id: 'system-logs', label: 'システムログ', path: '/cm-portal/audit/logs' },
+      { id: 'digisigner-webhook-logs', label: 'DigiSigner Webhook', path: '/cm-portal/digisigner-webhook-logs' },
     ],
   },
   {
