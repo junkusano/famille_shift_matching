@@ -61,7 +61,7 @@ const ROWS_PER_PAGE = {
     KODO: 25,
     DOKO: 25,
     JYUHO: 25,
-    IDOU: 25,
+    IDOU: 24,
 } as const;
 
 // page.tsx にあった DigitBoxes10 を移植
@@ -2294,7 +2294,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
                 </table>
             </div>
 
-            <div style={{ position: "absolute", bottom: "6mm", right: "2mm" }}>
+            <div style={{ position: "absolute", bottom: "2mm", right: "2mm" }}>
                 <div style={{ width: "40mm" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
                         <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>

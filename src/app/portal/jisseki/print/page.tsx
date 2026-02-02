@@ -74,7 +74,7 @@ const ROWS_PER_PAGE = {
     KODO: 25,   // 31 → 25（-6）
     DOKO: 25,   // 31 → 25（-6）
     JYUHO: 25,  // 31 → 25（-6）
-    IDOU: 25,   // 31 → 25（-6）
+    IDOU: 24,   // 31 → 25（-6）
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -2314,7 +2314,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </table>
             </div>
 
-            <div style={{ position: "absolute", bottom: "6mm", right: "2mm" }}>
+            <div style={{ position: "absolute", bottom: "2mm", right: "2mm" }}>
                 <div style={{ width: "40mm" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
                         <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
