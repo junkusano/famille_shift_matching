@@ -209,22 +209,19 @@ ${mode === "bulk" ? `
     margin-right: auto !important;
     box-sizing: border-box !important;
   }
+
   .print-only .doko-sheet table{
     margin-left: auto !important;
     margin-right: auto !important;
   }
 
-  /* =========================
-     ✅ 空白ページ対策（ここが本命）
-     「page-break」ではなく「print-page」に改ページを持たせる
-     ========================= */
+/* =========================
+   ✅ 空白ページ対策（安定版）
+   - 改ページは page-break 要素で制御
+   - 最後に残る page-break は消す
+   ========================= */
 
-  /* ✅ 空白ページが出ない方式：
-   「後ろに改ページ」をやめて、
-   「2ページ目以降だけ前に改ページ（break-before）」にする
-*/
-
-/* print-page 自体は中央寄せだけ。改ページ(after)はさせない */
+/* print-page は中央寄せだけ（改ページはしない） */
 .print-only .print-page{
   width: 100% !important;
   box-sizing: border-box !important;
@@ -235,14 +232,15 @@ ${mode === "bulk" ? `
   break-after: auto !important;
 }
 
-/* 2枚目以降の print-page の“手前”で改ページする */
-.print-only .print-page + .print-page{
+/* ページの間にある .page-break だけで改ページ */
+.print-only .page-break{
   page-break-before: always !important;
   break-before: page !important;
 }
 
-/* 念のため：page-break クラスを使っていても強制改ページさせない */
-.print-only .page-break{
+/* ★本命：最後に残った .page-break を確実に消す */
+.print-only .page-break:last-of-type{
+  display: none !important;
   page-break-before: auto !important;
   break-before: auto !important;
 }
@@ -253,12 +251,6 @@ ${mode === "bulk" ? `
     margin-left: auto !important;
     margin-right: auto !important;
     box-sizing: border-box !important;
-  }
-
-  /* ✅ 重要：page-break の強制改ページは無効化（空白ページ原因になりやすい） */
-  .print-only .page-break{
-    page-break-before: auto !important;
-    break-before: auto !important;
   }
 }
 
