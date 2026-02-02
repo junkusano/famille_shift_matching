@@ -2310,11 +2310,15 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td>
                             <td className="diag">&nbsp;</td>
                         </tr>
-                        {/* ページ数（PDF右下の「1枚中1枚」相当） */}
+                        {/* ページ数：最後の2列（サービス提供者名／利用者確認欄）の下に配置 */}
                         <tr>
-                            <td colSpan={17} style={{ border: "none", paddingTop: "2px" }}>
-                                <div style={{ display: "flex" }}>
-                                    <div style={{ width: "40mm", marginLeft: "auto" }}>
+                            {/* 左側17列は空（線なし） */}
+                            <td colSpan={17} style={{ border: "none", padding: 0 }}>&nbsp;</td>
+
+                            {/* 右側2列の下にページ数ブロック */}
+                            <td colSpan={2} style={{ border: "none", padding: "2px 0 0 0" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <div style={{ width: "40mm" }}>
                                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
                                             <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
                                             <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
