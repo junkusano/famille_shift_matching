@@ -74,7 +74,7 @@ const ROWS_PER_PAGE = {
     KODO: 25,   // 31 → 25（-6）
     DOKO: 25,   // 31 → 25（-6）
     JYUHO: 25,  // 31 → 25（-6）
-    IDOU: 25,   // 31 → 25（-6）
+    IDOU: 24,   // 31 → 25（-6）
 } as const;
 
 function DigitBoxes10({ value }: { value: string }) {
@@ -86,6 +86,18 @@ function DigitBoxes10({ value }: { value: string }) {
             ))}
         </div>
     );
+}
+
+// YYYY-MM → 「令和〇年〇月」
+function formatReiwaYearMonth(yyyyMm: string) {
+    const m = /^\s*(\d{4})-(\d{1,2})\s*$/.exec(yyyyMm ?? "");
+    if (!m) return "";
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+
+    const reiwaYear = Math.max(1, year - 2018);
+    return `令和${reiwaYear}年${month}月`;
 }
 
 export default function JissekiPrintPage() {
@@ -284,7 +296,19 @@ export default function JissekiPrintPage() {
 function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormProps) {
     return (
         <div className="formBox p-2">
-            <div className="title">居宅介護サービス提供実績記録票（様式１）</div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
+                </div>
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    居宅介護サービス提供実績記録票（様式１）
+                </div>
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
+                </div>
+            </div>
 
             {/* ★ズレ防止：ヘッダ＋明細を 1つの table に統合 */}
             <div className="mt-2">
@@ -839,13 +863,13 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         <div className="formBox p-2">
             {/* タイトル行（PDF寄せ：左右に小枠がある体裁） */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }} className="small">
-                    {data.month}分
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
+                <div className="title" style={{ flex: "2 1 0%" }}>
                     行動援護サービス提供実績記録票
                 </div>
-                <div style={{ flex: 1 }} className="small right">
+                <div className="small right" style={{ flex: "1 1 0%" }}>
                     （様式２）
                 </div>
             </div>
@@ -1131,14 +1155,16 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         <div className="formBox p-2">
             {/* タイトル行（PDFは右上に(様式19)表記） */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }} className="small">
-                    令和7年12月分
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
-                    同行援護サービス提供実績記録票
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    同行援護サービス提供実績記録票（様式19）
                 </div>
-                <div style={{ flex: 1 }} className="small right">
-                    （様式19）
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
                 </div>
             </div>
 
@@ -1524,13 +1550,13 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
         <div className="formBox p-2">
             {/* タイトル（PDF寄せ：左右に小枠がある体裁） */}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }} className="small">
-                    {data.month}分
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
                 </div>
-                <div style={{ flex: 2 }} className="title">
+                <div className="title" style={{ flex: "2 1 0%" }}>
                     重度訪問介護サービス提供実績記録票
                 </div>
-                <div style={{ flex: 1 }} className="small right">
+                <div className="small right" style={{ flex: "1 1 0%" }}>
                     （様式３－１）
                 </div>
             </div>
@@ -1963,9 +1989,20 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     }, 0);
 
     return (
-        <div className="formBox p-2">
-            <div className="title">移動支援　サービス提供実績記録票（様式３）</div>
-            <div style={{ display: "none" }}>{data.client.client_name}</div>
+        <div className="formBox p-2" style={{ position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <div className="small" style={{ flex: "1 1 0%" }}>
+                    {formatReiwaYearMonth(data.month)}
+                </div>
+
+                <div className="title" style={{ flex: "2 1 0%" }}>
+                    移動支援サービス提供実績記録票（様式３）
+                </div>
+
+                <div className="small right" style={{ flex: "1 1 0%" }}>
+                    &nbsp;
+                </div>
+            </div>
 
             {/* ★統合：ヘッダ＋明細を “1つの table” にする（横幅ズレ防止） */}
             <div className="mt-2">
@@ -2273,19 +2310,27 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                             <td className="diag">&nbsp;</td>
                             <td className="diag">&nbsp;</td>
                         </tr>
+                        {/* ページ数：最後の2列（サービス提供者名／利用者確認欄）の下に配置 */}
+                        <tr>
+                            {/* 左側17列は空（線なし） */}
+                            <td colSpan={17} style={{ border: "none", padding: 0 }}>&nbsp;</td>
+
+                            {/* 右側2列の下にページ数ブロック */}
+                            <td colSpan={2} style={{ border: "none", padding: "2px 0 0 0" }}>
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <div style={{ width: "40mm" }}>
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
+                                            <div className="center" style={{ border: "1px solid #000" }}>枚</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
-            </div>
-
-            <div className="mt-1" style={{ display: "flex", justifyContent: "flex-end" }}>
-                <div style={{ width: "40mm" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
-                        <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
-                        <div className="center" style={{ border: "1px solid #000" }}>枚中</div>
-                        <div className="center" style={{ border: "1px solid #000" }}>{totalPages}</div>
-                        <div className="center" style={{ border: "1px solid #000" }}>枚</div>
-                    </div>
-                </div>
             </div>
         </div>
     );
