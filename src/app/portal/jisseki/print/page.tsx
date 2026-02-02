@@ -1989,7 +1989,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     }, 0);
 
     return (
-        <div className="formBox p-2">
+        <div className="formBox p-2" style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
@@ -2314,7 +2314,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                 </table>
             </div>
 
-            <div className="mt-1" style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ position: "absolute", top: "2mm", right: "2mm" }}>
                 <div style={{ width: "40mm" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
                         <div className="center" style={{ border: "1px solid #000" }}>{pageNo}</div>
