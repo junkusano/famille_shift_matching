@@ -12,12 +12,13 @@ import { CmClientDetailTabs } from '@/components/cm-components/clients/CmClientD
 import { CmClientBasicInfoTab } from '@/components/cm-components/clients/CmClientBasicInfoTab';
 import { CmClientInsuranceTab } from '@/components/cm-components/clients/CmClientInsuranceTab';
 import { CmClientDocumentsTab } from '@/components/cm-components/clients/CmClientDocumentsTab';
+import { CmClientContractsTab } from '@/components/cm-components/clients/CmClientContractsTab';
 import { CmClientDisabledTab } from '@/components/cm-components/clients/CmClientDisabledTab';
 import { cmSortInsurances, cmIsInsuranceValid } from '@/lib/cm/utils';
 import type { CmClientDetail, CmTabId } from '@/types/cm/clientDetail';
 
 /** 有効なタブID */
-const VALID_TABS: CmTabId[] = ['basic', 'insurance', 'documents', 'public', 'address', 'calculation', 'reduction', 'life'];
+const VALID_TABS: CmTabId[] = ['basic', 'insurance', 'documents', 'contracts', 'public', 'address', 'calculation', 'reduction', 'life'];
 
 type Props = {
   client: CmClientDetail;
@@ -106,6 +107,8 @@ export function CmClientDetailPageContent({ client, initialTab }: Props) {
         );
       case 'documents':
         return <CmClientDocumentsTab documents={client.documents} />;
+      case 'contracts':
+        return <CmClientContractsTab kaipokeCsId={client.kaipoke_cs_id} />;
       default:
         return <CmClientDisabledTab />;
     }

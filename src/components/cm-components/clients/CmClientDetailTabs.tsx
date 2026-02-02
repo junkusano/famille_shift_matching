@@ -15,6 +15,7 @@ import {
   MapPin,
   Heart,
   FolderOpen,
+  FileSignature,
 } from 'lucide-react';
 import { CM_TABS, type CmTabId } from '@/types/cm/clientDetail';
 
@@ -27,6 +28,7 @@ const iconMap = {
   MapPin,
   Heart,
   FolderOpen,
+  FileSignature,
 } as const;
 
 type Props = {

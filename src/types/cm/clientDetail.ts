@@ -112,6 +112,7 @@ export const CM_TABS = [
   { id: 'address', label: '住所地特例情報', icon: 'MapPin', disabled: true },
   { id: 'life', label: 'LIFE設定', icon: 'Heart', disabled: true },
   { id: 'documents', label: '書類管理', icon: 'FolderOpen' },
+  { id: 'contracts', label: '契約', icon: 'FileSignature' },
 ] as const;
 
 export type CmTabId = typeof CM_TABS[number]['id'];
