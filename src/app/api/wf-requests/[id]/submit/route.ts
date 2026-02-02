@@ -92,7 +92,7 @@ export async function POST(
     // 申請を取得
     const { data: r, error: rErr } = await supabaseAdmin
         .from("wf_request")
-        .select("id, applicant_user_id, status, title, request_type_id")
+        .select("id, applicant_user_id, status, title, request_type_id, payload")
         .eq("id", id)
         .maybeSingle();
 
@@ -166,7 +166,26 @@ export async function POST(
             (applicantView?.last_name_kanji ?? "") + " " + (applicantView?.first_name_kanji ?? "");
 
         const typeLabel = rt?.label ?? "申請";
-        const title = (r.title ?? "").trim() || "(無題)";
+        const rawTitle = (r.title ?? "").trim();
+
+        const p = (r.payload ?? {}) as Record<string, unknown>;
+        const clientName = String(p["client_name"] ?? "").trim();
+        const expenseKind = String(p["expense_kind"] ?? "").trim();
+
+        let title = rawTitle;
+        if (!title) {
+            // コインパーキングなら利用者名から件名生成
+            if (expenseKind === "coin_parking") {
+                title = clientName ? `コインパーキング申請（${clientName}）` : "コインパーキング申請";
+            } else {
+                // それ以外は種別名から生成
+                title = rt?.label ? `${rt.label}申請` : "申請";
+            }
+
+            // ★ついでにDBも埋める（任意だが強く推奨）
+            await supabaseAdmin.from("wf_request").update({ title }).eq("id", id);
+        }
+
 
         const text =
             `【精算・申請】提出しました\n` +
