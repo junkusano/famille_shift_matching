@@ -178,81 +178,78 @@ ${mode === "bulk" ? `
 
       /* ----- single: /portal/jisseki/print ----- */
       ${mode === "single" ? `
-      @media print {
-        /* 印刷時は帳票だけ可視化（白紙化の原因になりやすいので必ず print 内に） */
-        body * { visibility: hidden !important; }
-        .print-only, .print-only * { visibility: visible !important; }
+     @media print {
+  /* 印刷時は帳票だけ可視化 */
+  body * { visibility: hidden !important; }
+  .print-only, .print-only * { visibility: visible !important; }
 
-        /* 左右対称の余白＋中央寄せ */
-        .print-only{
-          position: relative;
-          margin: 0 auto;
-          width: 210mm;
-          padding: 0mm 3mm 1mm 3mm;
-          box-sizing: border-box;
+  /* 左右対称の余白＋中央寄せ */
+  .print-only{
+    position: relative;
+    margin: 0 auto;
+    width: 210mm;
+    padding: 0mm 3mm 1mm 3mm;
+    box-sizing: border-box;
+  }
 
-          /* ★IDOU（移動支援）だけ、右下のページ数と表が重ならないように下余白を確保 */
-.print-only .idou-sheet{
-  padding-bottom: 12mm !important;  /* ページ数ブロック分の逃げ */
-}
+  /* ★IDOU（移動支援）だけ下余白確保 */
+  .print-only .idou-sheet{
+    padding-bottom: 12mm !important;
+  }
 
-/* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */
-.print-only .idou-sheet .mt-2{
-  margin-top: 2px !important; /* mt-2(約8px) → 2px */
-}
+  /* ★IDOUの上余白を詰める */
+  .print-only .idou-sheet .mt-2{
+    margin-top: 2px !important;
+  }
 
-  /* ★同行援護（様式19）だけ、用紙幅 204mm で必ず中央寄せ */
-  .doko-sheet{
+  /* ★同行援護（様式19）だけ中央寄せ */
+  .print-only .doko-sheet{
+    width: 204mm !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box !important;
+  }
+  .print-only .doko-sheet table{
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* =========================
+     ✅ 空白ページ対策（ここが本命）
+     「page-break」ではなく「print-page」に改ページを持たせる
+     ========================= */
+
+  /* 各帳票(=print-page)の後ろで改ページ */
+  .print-only .print-page{
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex;
+    justify-content: center;
+
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* ★最後の帳票は改ページしない → 空白ページが出なくなる */
+  .print-only .print-page:last-child{
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* 帳票本体を中央寄せ固定幅 */
+  .print-only .print-page > .formBox{
     width: 204mm !important;
     margin-left: auto !important;
     margin-right: auto !important;
     box-sizing: border-box !important;
   }
 
-  /* ★同行援護の表も念のため中央寄せ */
-  .doko-sheet table{
-    margin-left: auto !important;
-    margin-right: auto !important;
+  /* ✅ 重要：page-break の強制改ページは無効化（空白ページ原因になりやすい） */
+  .print-only .page-break{
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
-        .print-only .p-6,
-.print-only .page-break {
-  width: 100% !important;
-  box-sizing: border-box !important;
 }
-
-/* ★実績記録票ごとに改ページ */
-.print-only .page-break{
-  page-break-before: always !important; /* 旧仕様（Chrome安定） */
-  break-before: page !important;        /* 新仕様 */
-}
-
-/* ★追加：最後の改ページは無効（1枚のとき空白ページが出るのを防ぐ） */
-.print-only .page-break:last-child{
-  page-break-before: auto !important;
-  break-before: auto !important;
-}
-
-/* ★保険：最後の印刷ページの後ろに空白ページを作らせない */
-.print-only .print-page:last-child{
-  page-break-after: auto !important;
-  break-after: auto !important;
-}
-
-          /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
-  .print-only .print-page{
-    width: 100% !important;
-    box-sizing: border-box !important;
-    display: flex;
-    justify-content: center;
-  }
-
-    /* ★修正：帳票本体は“印刷可能幅(mm)”で固定し、左右autoで中央寄せ */
-  .print-only .print-page > .formBox{
-    width: 204mm !important;            /* 210mm - 左右3mmパディング×2 = 204mm */
-    margin-left: auto !important;
-    margin-right: auto !important;
-    box-sizing: border-box !important;
-  }
 
 /* =========================
    iOS Safari 印刷：サイズ調整85%をCSSで再現
