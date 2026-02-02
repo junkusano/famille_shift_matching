@@ -201,7 +201,19 @@ ${mode === "bulk" ? `
     margin-top: 2px !important; /* mt-2(約8px) → 2px */
   }
         }
+  /* ★同行援護（様式19）だけ、用紙幅 204mm で必ず中央寄せ */
+  .doko-sheet{
+    width: 204mm !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box !important;
+  }
 
+  /* ★同行援護の表も念のため中央寄せ */
+  .doko-sheet table{
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
         .print-only .p-6,
 .print-only .page-break {
   width: 100% !important;
