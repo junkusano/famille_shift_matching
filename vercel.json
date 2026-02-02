@@ -25,6 +25,10 @@
       "schedule": "4 2,8 * * *"
     },
     {
+      "path": "/api/cron/shift-staff-check",
+      "schedule": "6 2,8 * * *"
+    },
+    {
       "path": "/api/cron/user_ojt",
       "schedule": "4 11 * * *"
     },

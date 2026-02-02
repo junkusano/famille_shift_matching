@@ -186,7 +186,6 @@ export async function POST(
             await supabaseAdmin.from("wf_request").update({ title }).eq("id", id);
         }
 
-
         const text =
             `【精算・申請】提出しました\n` +
             `種別：${typeLabel}\n` +
