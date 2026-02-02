@@ -192,15 +192,15 @@ ${mode === "bulk" ? `
           box-sizing: border-box;
 
           /* ★IDOU（移動支援）だけ、右下のページ数と表が重ならないように下余白を確保 */
-  .idou-sheet{
-    padding-bottom: 12mm !important;  /* ページ数ブロック分の逃げ */
-  }
+.print-only .idou-sheet{
+  padding-bottom: 12mm !important;  /* ページ数ブロック分の逃げ */
+}
 
-  /* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */
-  .idou-sheet .mt-2{
-    margin-top: 2px !important; /* mt-2(約8px) → 2px */
-  }
-        }
+/* ★IDOUの上余白を詰めて全体を上に寄せる（1枚維持のため） */
+.print-only .idou-sheet .mt-2{
+  margin-top: 2px !important; /* mt-2(約8px) → 2px */
+}
+
   /* ★同行援護（様式19）だけ、用紙幅 204mm で必ず中央寄せ */
   .doko-sheet{
     width: 204mm !important;
@@ -230,6 +230,12 @@ ${mode === "bulk" ? `
 .print-only .page-break:last-child{
   page-break-before: auto !important;
   break-before: auto !important;
+}
+
+/* ★保険：最後の印刷ページの後ろに空白ページを作らせない */
+.print-only .print-page:last-child{
+  page-break-after: auto !important;
+  break-after: auto !important;
 }
 
           /* ★追加：print-page を常にページ幅いっぱいにし、帳票を中央へ */
