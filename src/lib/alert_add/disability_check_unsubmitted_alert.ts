@@ -165,15 +165,18 @@ async function loadUserNameMap(userIds: string[]): Promise<Map<string, string>> 
 
     const { data, error } = await supabaseAdmin
         .from("users")
-        .select("user_id, name")
+        .select("user_id, full_name")
         .in("user_id", userIds);
 
     if (error) throw error;
 
     const map = new Map<string, string>();
     for (const r of data ?? []) {
-        if (r.user_id && r.name) {
-            map.set(String(r.user_id), String(r.name));
+        const id = (r as { user_id?: unknown }).user_id;
+        const nm = (r as { full_name?: unknown }).full_name;
+
+        if (typeof id === "string" && typeof nm === "string" && nm.trim()) {
+            map.set(id, nm);
         }
     }
     return map;
