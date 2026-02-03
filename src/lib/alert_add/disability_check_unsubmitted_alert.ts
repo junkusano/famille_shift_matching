@@ -57,9 +57,8 @@ type LineworksRoomRow = {
 
 type CsInfo = {
     kaipoke_cs_id: string;
-    //client_name: string | null;
-    orgunitid: string | null;
-    orgunitname: string | null;
+    name: string | null;
+    orgunitid: string | null; // cs_kaipoke_info.asigned_org を入れる
 };
 
 type OrgRow = {
@@ -120,27 +119,38 @@ async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
     return roomId;
 }
 
-async function loadCsInfoMap(csIds: string[]): Promise<Map<string, CsInfo>> {
+type CsInfoRaw = {
+    kaipoke_cs_id: string | null;
+    name: string | null;
+    asigned_org: string | null;
+};
+
+async function loadCsInfoMap(csIds: string[]) {
+    if (!csIds.length) return new Map<string, CsInfo>();
+
     const { data, error } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id, orgunitid, orgunitname")
+        .select("kaipoke_cs_id, name, asigned_org")
         .in("kaipoke_cs_id", csIds);
 
     if (error) throw error;
 
     const map = new Map<string, CsInfo>();
-    for (const r of (data ?? []) as unknown[]) {
-        const row = r as Partial<CsInfo>;
-        const csId = String(row.kaipoke_cs_id ?? "");
-        if (!csId) continue;
 
-        map.set(csId, {
-            kaipoke_cs_id: csId,
-            //client_name: row.client_name == null ? null : String(row.client_name),
-            orgunitid: row.orgunitid == null ? null : String(row.orgunitid),
-            orgunitname: row.orgunitname == null ? null : String(row.orgunitname),
+    // ★ここで data を安全に CsInfoRaw[] として扱う
+    const rows = (data ?? []) as CsInfoRaw[];
+
+    for (const r of rows) {
+        const id = r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : "";
+        if (!id) continue;
+
+        map.set(id, {
+            kaipoke_cs_id: id,
+            name: r.name ? String(r.name) : null,
+            orgunitid: r.asigned_org ? String(r.asigned_org) : null,
         });
     }
+
     return map;
 }
 
@@ -155,19 +165,16 @@ async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
     if (error) throw error;
 
     const map = new Map<string, OrgRow>();
-    for (const r of (data ?? []) as unknown[]) {
-        const row = r as Partial<OrgRow>;
-        const orgId = String(row.orgunitid ?? "");
-        if (!orgId) continue;
-
-        map.set(orgId, {
-            orgunitid: orgId,
-            orgunitname: String(row.orgunitname ?? ""),
-            mgr_user_id: row.mgr_user_id == null ? null : String(row.mgr_user_id),
+    for (const r of (data ?? []) as OrgRow[]) {
+        map.set(String(r.orgunitid), {
+            orgunitid: String(r.orgunitid),
+            orgunitname: String(r.orgunitname ?? ""),
+            mgr_user_id: r.mgr_user_id ? String(r.mgr_user_id) : null,
         });
     }
     return map;
 }
+
 
 /**
  * A) 提出（application_check）未チェック → 10日以降のみ / 当月のみ / チーム別にLINEWORKS送信
@@ -254,17 +261,14 @@ async function runSubmittedUncheckLineworksOnly(args: {
     const token = await getAccessToken();
 
     for (const [orgunitid, items] of byOrg) {
-        const orgName =
-            orgMap.get(orgunitid)?.orgunitname ||
-            csMap.get(String(items[0].kaipoke_cs_id))?.orgunitname ||
-            "";
+        const orgName = orgMap.get(orgunitid)?.orgunitname || "";
 
         try {
             const roomId = await resolveLineworksRoomIdForOrg(orgName);
 
             const lines = items.map((it) => {
-                //const cs = csMap.get(String(it.kaipoke_cs_id));
-                const client = `CS:${it.kaipoke_cs_id}`;
+                const cs = csMap.get(String(it.kaipoke_cs_id));
+                const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
                 const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
                 return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
             });
@@ -382,7 +386,7 @@ async function runCollectedUncheckManagerAlert(args: {
         const mgr = org?.mgr_user_id ? String(org.mgr_user_id) : "";
         if (!mgr) continue;
 
-        const orgName = org?.orgunitname || cs?.orgunitname || "";
+        const orgName = orgMap.get(orgunitid)?.orgunitname || "";
 
         const cur = byMgr.get(mgr);
         if (!cur) byMgr.set(mgr, { orgName, items: [r] });
@@ -395,8 +399,8 @@ async function runCollectedUncheckManagerAlert(args: {
 
     for (const [mgrUserId, pack] of byMgr) {
         const lines = pack.items.map((it) => {
-            //const cs = csMap.get(String(it.kaipoke_cs_id));
-            const client = `CS:${it.kaipoke_cs_id}`;
+            const cs = csMap.get(String(it.kaipoke_cs_id));
+            const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
             const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
             return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
         });
