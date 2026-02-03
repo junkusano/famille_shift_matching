@@ -88,25 +88,64 @@ function toErrorMessage(e: unknown): string {
  * 利用者名 + 「情報連携」を含むグループへ送る（groups_lw を参照）
  * groups_lw.group_id を sendLWBotMessage の宛先（channelId相当）として使う
  */
+/**
+ * 利用者名 +「情報連携」を含む groups_lw を見つけ、
+ * その group_id から group_lw_channel_view で channel_id を引いて返す
+ * （LINEWORKS送信先は channel_id）
+ */
 async function resolveLineworksChannelIdForClient(clientName: string): Promise<string> {
-    const name = (clientName ?? "").trim();
-    if (!name) throw new Error("clientName is empty");
+    const rawName = (clientName ?? "").trim();
+    if (!rawName) throw new Error("clientName is empty");
 
-    const { data, error } = await supabaseAdmin
+    // 空白揺れ対策（半角/全角スペースを除去）
+    const key = rawName.replace(/[\s　]+/g, "");
+
+    // 1) groups_lw から「情報連携」グループ候補を取る（JS側で正規化マッチ）
+    const { data: gData, error: gErr } = await supabaseAdmin
         .from("groups_lw")
         .select("group_id, group_name")
         .eq("is_active", true)
         .ilike("group_name", "%情報連携%")
-        .ilike("group_name", `%${name}%`)
-        .limit(1);
+        .limit(2000);
 
-    if (error) throw new Error(`groups_lw select failed: ${error.message}`);
+    if (gErr) throw new Error(`groups_lw select failed: ${gErr.message}`);
 
-    const groupId = String((data ?? [])[0]?.group_id ?? "").trim();
+    const groups = (gData ?? []) as Array<{ group_id: string; group_name: string }>;
+
+    const normalize = (s: string) => s.replace(/[\s　]+/g, "");
+
+    const hit = groups.find((r) => {
+        const n = normalize(r.group_name ?? "");
+        if (!n) return false;
+
+        // 誤爆除外（必要なら追加）
+        if (n.includes("不使用") || n.includes("使わない") || n.includes("（つかわない）")) return false;
+
+        return n.includes(key);
+    });
+
+    const groupId = String(hit?.group_id ?? "").trim();
     if (!groupId) {
-        throw new Error(`LINEWORKS group_id not found in groups_lw. group_name includes "情報連携" and clientName="${name}"`);
+        throw new Error(
+            `LINEWORKS group_id not found in groups_lw. group_name includes "情報連携" and clientName="${rawName}"`,
+        );
     }
-    return groupId;
+
+    // 2) group_id から LINEWORKS送信用の channel_id を引く（ここが今回の修正点）
+    const { data: cData, error: cErr } = await supabaseAdmin
+        .from("group_lw_channel_view")
+        .select("channel_id, group_id")
+        .eq("group_id", groupId)
+        .maybeSingle();
+
+    if (cErr) throw new Error(`group_lw_channel_view select failed: ${cErr.message}`);
+
+    const channelId = String(cData?.channel_id ?? "").trim();
+    if (!channelId) {
+        throw new Error(`LINEWORKS channel_id not found in group_lw_channel_view for group_id="${groupId}"`);
+    }
+
+    return channelId;
 }
 
 type CsInfoRaw = {
