@@ -160,24 +160,34 @@ function formatYmJa(ym: string): string {
     return `${y}年${Number(m)}月`;
 }
 
-async function loadUserNameMap(userIds: string[]): Promise<Map<string, string>> {
+type StaffNameRaw = {
+    user_id: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+};
+
+async function loadStaffNameMap(userIds: string[]): Promise<Map<string, string>> {
     if (!userIds.length) return new Map();
 
     const { data, error } = await supabaseAdmin
-        .from("users")
-        .select("user_id, full_name")
+        .from("user_entry_united_view_single")
+        .select("user_id, last_name_kanji, first_name_kanji")
         .in("user_id", userIds);
 
     if (error) throw error;
 
-    const map = new Map<string, string>();
-    for (const r of data ?? []) {
-        const id = (r as { user_id?: unknown }).user_id;
-        const nm = (r as { full_name?: unknown }).full_name;
+    const rows = (data ?? []) as StaffNameRaw[];
 
-        if (typeof id === "string" && typeof nm === "string" && nm.trim()) {
-            map.set(id, nm);
-        }
+    const map = new Map<string, string>();
+    for (const r of rows) {
+        const id = r.user_id ? String(r.user_id) : "";
+        if (!id) continue;
+
+        const last = r.last_name_kanji ? String(r.last_name_kanji) : "";
+        const first = r.first_name_kanji ? String(r.first_name_kanji) : "";
+        const full = `${last}${first}`.trim();
+
+        if (full) map.set(id, full);
     }
     return map;
 }
@@ -437,7 +447,7 @@ async function runCollectedUncheckManagerAlert(args: {
             ),
         );
 
-        const staffNameMap = await loadUserNameMap(staffIds);
+        const staffNameMap = await loadStaffNameMap(staffIds);
         const lines = pack.items.map((it) => {
             const cs = csMap.get(String(it.kaipoke_cs_id));
             const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
@@ -445,9 +455,19 @@ async function runCollectedUncheckManagerAlert(args: {
             const staffId = it.asigned_jisseki_staff;
             const staffName = staffId ? staffNameMap.get(staffId) : null;
 
-            const staffLabel = staffId && staffName
-                ? `[${staffName}さん](https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(it.kaipoke_servicek)}&user_id=${staffId})`
-                : "（担当未設定）";
+            const staffUrl =
+                staffId
+                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
+                        it.kaipoke_servicek,
+                    )}&user_id=${encodeURIComponent(staffId)}`
+                    : "";
+
+            const staffLabel =
+                staffId && staffName
+                    ? `${staffName}さん ${staffUrl}`
+                    : staffId
+                        ? `${staffId}さん ${staffUrl}`
+                        : "（担当未設定）";
 
             return `${client} [${it.kaipoke_servicek}] 担当:${staffLabel}`;
         });
