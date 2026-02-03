@@ -24,17 +24,14 @@ export async function GET(req: NextRequest) {
         }
 
         // 任意：submittedOnly / collectedOnly / all
-        const modeRaw = (url.searchParams.get("mode") ?? "collectedOnly") as
-            | "all"
-            | "collectedOnly"
-            | "submittedOnly";
+        const modeRaw: "collectedOnly" = "collectedOnly"; // ★回収のみ（LINEWORKSは走らない）
 
         // 任意：dryRun（デフォルト true）
-        const dryRun = (url.searchParams.get("dryRun") ?? "true") !== "false";
+        const dryRun = false; // ★HP上にアラートを実際に作成する（テスト後に必ず true に戻す）
 
         // 任意：日付条件を無視してテスト
-        const forceDay10Rule = url.searchParams.get("forceDay10Rule") === "true";
-        const forceDay15Rule = url.searchParams.get("forceDay15Rule") === "true";
+        const forceDay10Rule = false; // ★提出側は使わない（安全のため固定）
+        const forceDay15Rule = true; // ★日付条件を無視して必ず回収チェックを実行
 
         const result = await runDisabilityCheckDailyAlerts({
             dryRun,
