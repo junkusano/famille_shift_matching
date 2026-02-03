@@ -1,267 +1,449 @@
 // src/lib/alert_add/disability_check_unsubmitted_alert.ts
-// disability_check の提出未チェック → LINEWORKS通知のみ
-// disability_check の回収未チェック → 15日以降のみHPアラート（manager向け）
+// disability_check の提出未チェック → 10日以降のみ LINEWORKS（チーム別、「情報連携」+グループ名の部屋）
+// disability_check の回収未チェック → 15日以降のみ mgr_user_id 宛てにアラートログ
 
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert"; // ★追加
+import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
+import { getAccessToken } from "@/lib/getAccessToken";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 
 type DisabilityCheckRow = {
     id: string;
     kaipoke_cs_id: string;
     kaipoke_servicek: "障害" | "移動支援";
-    year_month: string; // 'YYYY-MM'
+    year_month: string; // "YYYY-MM"
     is_checked: boolean; // 回収
-    asigned_jisseki_staff: string | null; // 実績記録者
+    asigned_jisseki_staff: string | null; // 実績担当
     application_check: boolean | null; // 提出
 };
 
-// ★戻り値を拡張（HPアラート作成件数を追加）
 export type DisabilityCheckDailyAlertResult = {
     submitted: {
+        enabled: boolean;
         scanned: number;
-        notified: number;
+        targetRows: number;
+        sentRooms: number;
+        sentRows: number;
         errors: number;
         dryRun: boolean;
-        targetYearMonths: { from: string; to: string };
+        targetYearMonth: string;
+        skippedBecauseDay: boolean;
     };
     collected: {
+        enabled: boolean;
         scanned: number;
-        created: number;
-        updated: number;
-        skippedBecauseDay: boolean;
+        targetRows: number;
+        alertManagers: number;
+        alertRows: number;
+        errors: number;
+        dryRun: boolean;
         targetYearMonth: string;
+        skippedBecauseDay: boolean;
     };
 };
-/**
- * ★追加：テスト用の実行オプション
- * modeで「回収だけ」「提出だけ」を切り替え可能
- * targetKaipokeCsIdで1件だけに絞れる
- */
+
 export type DisabilityCheckAlertArgs = {
     dryRun?: boolean;
     mode?: "all" | "collectedOnly" | "submittedOnly";
     targetKaipokeCsId?: string; // テスト用に1件へ絞る
-    forceDay15Rule?: boolean;   // 15日条件を無視してテストしたい時
+    forceDay10Rule?: boolean; // 10日条件を無視してテスト
+    forceDay15Rule?: boolean; // 15日条件を無視してテスト
+};
+
+type LineworksRoomRow = {
+    room_id: string;
+    room_name: string;
+};
+
+type CsInfo = {
+    kaipoke_cs_id: string;
+    client_name: string | null;
+    orgunitid: string | null;
+    orgunitname: string | null;
+};
+
+type OrgRow = {
+    orgunitid: string;
+    orgunitname: string;
+    mgr_user_id: string | null;
 };
 
 function pad2(n: number) {
     return String(n).padStart(2, "0");
 }
 
-function ymMinusMonths(base: Date, monthsBack: number): string {
-    const d = new Date(base.getFullYear(), base.getMonth(), 1);
-    d.setMonth(d.getMonth() - monthsBack);
+function ymNow(d: Date): string {
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
-function ymNow(base: Date): string {
-    return `${base.getFullYear()}-${pad2(base.getMonth() + 1)}`;
-}
-
-/**
- * LINEWORKSへテキスト送信（既存のまま）
- */
-async function sendLineworksTextMessage(text: string): Promise<void> {
-    const accessToken = process.env.LINEWORKS_BOT_ACCESS_TOKEN;
-    const botNo = process.env.LINEWORKS_BOT_NO;
-    const roomId = process.env.LINEWORKS_ROOM_ID;
-
-    if (!accessToken || !botNo || !roomId) {
-        throw new Error(
-            "LINEWORKS env missing: require LINEWORKS_BOT_ACCESS_TOKEN, LINEWORKS_BOT_NO, LINEWORKS_ROOM_ID",
-        );
-    }
-
-    const url = `https://www.worksapis.com/v1.0/bots/${encodeURIComponent(
-        botNo,
-    )}/rooms/${encodeURIComponent(roomId)}/messages`;
-
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            content: { type: "text", text },
-        }),
-    });
-
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(
-            `LINEWORKS send failed: ${res.status} ${res.statusText} body=${body}`,
-        );
+function toErrorMessage(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === "string") return e;
+    try {
+        return JSON.stringify(e);
+    } catch {
+        return "unknown error";
     }
 }
 
 /**
- * A) 提出（application_check）未チェック → LINEWORKSのみ
- * ここは「HPアラートは絶対に作らない」ので、ensureSystemAlert は呼びません。
+ * LINEWORKS: 「情報連携」+「グループ名(orgName)」を含む部屋IDを解決する
  */
-async function runSubmittedUncheckLineworksOnly(
-    args: { dryRun: boolean },
-) {
-    const now = new Date();
-    const toYm = ymNow(now);
-    const fromYm = ymMinusMonths(now, 2);
-
+async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
     const { data, error } = await supabaseAdmin
-        .from("disability_check")
-        .select(
-            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
-        )
-        .gte("year_month", fromYm)
-        .lte("year_month", toYm)
-        .or("application_check.is.null,application_check.eq.false");
+        .from("lineworks_rooms")
+        .select("room_id, room_name")
+        .ilike("room_name", `%情報連携%`)
+        .ilike("room_name", `%${orgName}%`)
+        .limit(1);
 
     if (error) {
-        throw new Error(`disability_check select failed: ${error.message}`);
+        throw new Error(
+            `LINEWORKS room resolve failed. Replace resolveLineworksRoomIdForOrg with existing implementation. error=${error.message}`,
+        );
     }
 
-    const rows = (data ?? []) as DisabilityCheckRow[];
-
-    if (!rows.length) {
-        return {
-            scanned: 0,
-            notified: 0,
-            errors: 0,
-            dryRun: args.dryRun,
-            targetYearMonths: { from: fromYm, to: toYm },
-        };
-    }
-
-    const lines: string[] = [];
-    for (const r of rows) {
-        const staff = r.asigned_jisseki_staff ? ` 担当:${r.asigned_jisseki_staff}` : "";
-        lines.push(`・${r.year_month} ${r.kaipoke_servicek} CS:${r.kaipoke_cs_id}${staff}`);
-    }
-
-    const message =
-        [
-            "【提出未チェックアラート】disability_check で「提出」が未チェックのデータがあります。",
-            `対象月: ${fromYm} 〜 ${toYm}`,
-            "",
-            ...lines,
-        ].join("\n");
-
-    let notified = 0;
-    let errorsCount = 0;
-
-    if (!args.dryRun) {
-        try {
-            await sendLineworksTextMessage(message);
-            notified = 1;
-        } catch (e) {
-            errorsCount++;
-            console.error("[disability_check_submitted] LINEWORKS send error", e);
+    const row: LineworksRoomRow | undefined = (data ?? [])[0]
+        ? {
+            room_id: String((data ?? [])[0]?.room_id ?? ""),
+            room_name: String((data ?? [])[0]?.room_name ?? ""),
         }
+        : undefined;
+
+    const roomId = row?.room_id ? String(row.room_id) : "";
+    if (!roomId) {
+        throw new Error(
+            `LINEWORKS room not found for org="${orgName}". Need a room including "情報連携" and org name.`,
+        );
     }
 
-    return {
-        scanned: rows.length,
-        notified,
-        errors: errorsCount,
-        dryRun: args.dryRun,
-        targetYearMonths: { from: fromYm, to: toYm },
-    };
+    return roomId;
+}
+
+async function loadCsInfoMap(csIds: string[]): Promise<Map<string, CsInfo>> {
+    const { data, error } = await supabaseAdmin
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id, client_name, orgunitid, orgunitname")
+        .in("kaipoke_cs_id", csIds);
+
+    if (error) throw error;
+
+    const map = new Map<string, CsInfo>();
+    for (const r of (data ?? []) as unknown[]) {
+        const row = r as Partial<CsInfo>;
+        const csId = String(row.kaipoke_cs_id ?? "");
+        if (!csId) continue;
+
+        map.set(csId, {
+            kaipoke_cs_id: csId,
+            client_name: row.client_name == null ? null : String(row.client_name),
+            orgunitid: row.orgunitid == null ? null : String(row.orgunitid),
+            orgunitname: row.orgunitname == null ? null : String(row.orgunitname),
+        });
+    }
+    return map;
+}
+
+async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
+    if (!orgIds.length) return new Map<string, OrgRow>();
+
+    const { data, error } = await supabaseAdmin
+        .from("orgs")
+        .select("orgunitid, orgunitname, mgr_user_id")
+        .in("orgunitid", orgIds);
+
+    if (error) throw error;
+
+    const map = new Map<string, OrgRow>();
+    for (const r of (data ?? []) as unknown[]) {
+        const row = r as Partial<OrgRow>;
+        const orgId = String(row.orgunitid ?? "");
+        if (!orgId) continue;
+
+        map.set(orgId, {
+            orgunitid: orgId,
+            orgunitname: String(row.orgunitname ?? ""),
+            mgr_user_id: row.mgr_user_id == null ? null : String(row.mgr_user_id),
+        });
+    }
+    return map;
 }
 
 /**
- * B) 回収（is_checked）未チェック → 毎月15日以降ならHPアラートを作成
- * 対象：本来は「実績記録者の所属チームのチームマネージャー」
- * ※ここでは shift_record_unfinished_check と同様に visible_roles=["manager"] で作成し、
- *   message に担当者名を含めてマネージャーが判断できる形にします。
+ * A) 提出（application_check）未チェック → 10日以降のみ / 当月のみ / チーム別にLINEWORKS送信
  */
-async function runCollectedUncheckHpAlertOnly(
-    args: { targetKaipokeCsId?: string; forceDay15Rule?: boolean } = {},
-): Promise<{
-
-    scanned: number;
-    created: number;
-    updated: number;
-    skippedBecauseDay: boolean;
-    targetYearMonth: string;
-}> {
+async function runSubmittedUncheckLineworksOnly(args: {
+    dryRun: boolean;
+    targetKaipokeCsId?: string;
+    forceDay10Rule?: boolean;
+}): Promise<DisabilityCheckDailyAlertResult["submitted"]> {
     const now = new Date();
     const day = now.getDate();
-
     const targetYm = ymNow(now);
 
-    // 15日未満は何もしない（アラートを出さない）
-    if (day < 15 && !args.forceDay15Rule) {
+    if (day < 10 && !args.forceDay10Rule) {
         return {
+            enabled: true,
             scanned: 0,
-            created: 0,
-            updated: 0,
-            skippedBecauseDay: true,
+            targetRows: 0,
+            sentRooms: 0,
+            sentRows: 0,
+            errors: 0,
+            dryRun: args.dryRun,
             targetYearMonth: targetYm,
+            skippedBecauseDay: true,
         };
     }
 
     let q = supabaseAdmin
         .from("disability_check")
-        .select("id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check")
+        .select(
+            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
+        )
         .eq("year_month", targetYm)
-        .eq("is_checked", false);
+        .or("application_check.is.null,application_check.eq.false");
 
-    if (args?.targetKaipokeCsId) {
-        q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
-    }
+    if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
 
     const { data, error } = await q;
+    if (error) throw new Error(`disability_check select failed: ${error.message}`);
 
-    if (error) {
-        throw new Error(`disability_check select failed: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as DisabilityCheckRow[];
+    const rows: DisabilityCheckRow[] = (data ?? []) as unknown as DisabilityCheckRow[];
+    const scanned = rows.length;
 
     if (!rows.length) {
         return {
-            scanned: 0,
-            created: 0,
-            updated: 0,
-            skippedBecauseDay: false,
+            enabled: true,
+            scanned,
+            targetRows: 0,
+            sentRooms: 0,
+            sentRows: 0,
+            errors: 0,
+            dryRun: args.dryRun,
             targetYearMonth: targetYm,
+            skippedBecauseDay: false,
         };
     }
 
-    let created = 0;
-    let updated = 0;
+    const csIds = Array.from(new Set(rows.map((r) => String(r.kaipoke_cs_id))));
+    const csMap = await loadCsInfoMap(csIds);
 
+    const orgIds = Array.from(
+        new Set(
+            csIds
+                .map((id) => csMap.get(id)?.orgunitid ?? "")
+                .filter((v): v is string => !!v),
+        ),
+    );
+
+    const orgMap = await loadOrgMap(orgIds);
+
+    // orgunitid ごとにまとめる
+    const byOrg = new Map<string, DisabilityCheckRow[]>();
     for (const r of rows) {
-        const staff = r.asigned_jisseki_staff ?? "（担当未設定）";
+        const cs = csMap.get(String(r.kaipoke_cs_id));
+        const orgunitid = cs?.orgunitid ? String(cs.orgunitid) : "";
+        if (!orgunitid) continue;
+        byOrg.set(orgunitid, [...(byOrg.get(orgunitid) ?? []), r]);
+    }
 
-        // HPアラート文言（AlertBarがHTMLを描画できる前提ならリンクも入れられます）
-        // 今回はリンク先が不明なので、まずはテキストだけにしています。
-        const message =
-            `【回収未チェック】${r.year_month} ${r.kaipoke_servicek} CS:${r.kaipoke_cs_id} / 実績記録者:${staff} の回収チェックが未完了です。`;
+    let sentRooms = 0;
+    let sentRows = 0;
+    let errors = 0;
 
-        // ensureSystemAlert の dedupe 用に shift_id を使っているため、
-        // disability_check の id を文字列で流用して重複作成を防ぎます。
-        const res = await ensureSystemAlert({
-            message,
-            visible_roles: ["manager"], // ★マネージャ向け（スタッフには出さない）
-            kaipoke_cs_id: r.kaipoke_cs_id,
-            shift_id: `disability_check:${r.id}`, // ★重複防止キーとして流用
-        });
+    const token = await getAccessToken();
 
-        if (res.created) created++;
-        else updated++;
+    for (const [orgunitid, items] of byOrg) {
+        const orgName =
+            orgMap.get(orgunitid)?.orgunitname ||
+            csMap.get(String(items[0].kaipoke_cs_id))?.orgunitname ||
+            "";
+
+        try {
+            const roomId = await resolveLineworksRoomIdForOrg(orgName);
+
+            const lines = items.map((it) => {
+                const cs = csMap.get(String(it.kaipoke_cs_id));
+                const client = cs?.client_name ? `${cs.client_name}様` : `CS:${it.kaipoke_cs_id}`;
+                const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
+                return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
+            });
+
+            const message =
+                `【実績：提出未チェック】${targetYm}\n` +
+                `チーム: ${orgName}\n` +
+                `（月10日以降：提出チェックが未入力のもの）\n\n` +
+                lines.join("\n");
+
+            if (!args.dryRun) {
+                await sendLWBotMessage(token, roomId, message);
+            }
+
+            sentRooms += 1;
+            sentRows += items.length;
+        } catch (e: unknown) {
+            errors += 1;
+            console.error("[disability_check_submitted] LINEWORKS send error", {
+                orgunitid,
+                error: toErrorMessage(e),
+            });
+        }
     }
 
     return {
-        scanned: rows.length,
-        created,
-        updated,
-        skippedBecauseDay: false,
+        enabled: true,
+        scanned,
+        targetRows: rows.length,
+        sentRooms,
+        sentRows,
+        errors,
+        dryRun: args.dryRun,
         targetYearMonth: targetYm,
+        skippedBecauseDay: false,
     };
 }
 
 /**
- * ★cronから呼ぶ統合関数（1日1回でA+Bを回す）
+ * B) 回収（is_checked）未チェック → 15日以降のみ / 当月のみ / mgr_user_id 宛てにアラート作成
+ */
+async function runCollectedUncheckManagerAlert(args: {
+    dryRun: boolean;
+    targetKaipokeCsId?: string;
+    forceDay15Rule?: boolean;
+}): Promise<DisabilityCheckDailyAlertResult["collected"]> {
+    const now = new Date();
+    const day = now.getDate();
+    const targetYm = ymNow(now);
+
+    if (day < 15 && !args.forceDay15Rule) {
+        return {
+            enabled: true,
+            scanned: 0,
+            targetRows: 0,
+            alertManagers: 0,
+            alertRows: 0,
+            errors: 0,
+            dryRun: args.dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: true,
+        };
+    }
+
+    let q = supabaseAdmin
+        .from("disability_check")
+        .select(
+            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
+        )
+        .eq("year_month", targetYm)
+        .neq("is_checked", true);
+
+    if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
+
+    const { data, error } = await q;
+    if (error) throw new Error(`disability_check select failed: ${error.message}`);
+
+    const rows: DisabilityCheckRow[] = (data ?? []) as unknown as DisabilityCheckRow[];
+    const scanned = rows.length;
+
+    if (!rows.length) {
+        return {
+            enabled: true,
+            scanned,
+            targetRows: 0,
+            alertManagers: 0,
+            alertRows: 0,
+            errors: 0,
+            dryRun: args.dryRun,
+            targetYearMonth: targetYm,
+            skippedBecauseDay: false,
+        };
+    }
+
+    const csIds = Array.from(new Set(rows.map((r) => String(r.kaipoke_cs_id))));
+    const csMap = await loadCsInfoMap(csIds);
+
+    const orgIds = Array.from(
+        new Set(
+            csIds
+                .map((id) => csMap.get(id)?.orgunitid ?? "")
+                .filter((v): v is string => !!v),
+        ),
+    );
+    const orgMap = await loadOrgMap(orgIds);
+
+    const byMgr = new Map<string, { orgName: string; items: DisabilityCheckRow[] }>();
+
+    for (const r of rows) {
+        const cs = csMap.get(String(r.kaipoke_cs_id));
+        const orgunitid = cs?.orgunitid ? String(cs.orgunitid) : "";
+        if (!orgunitid) continue;
+
+        const org = orgMap.get(orgunitid);
+        const mgr = org?.mgr_user_id ? String(org.mgr_user_id) : "";
+        if (!mgr) continue;
+
+        const orgName = org?.orgunitname || cs?.orgunitname || "";
+
+        const cur = byMgr.get(mgr);
+        if (!cur) byMgr.set(mgr, { orgName, items: [r] });
+        else cur.items.push(r);
+    }
+
+    let alertManagers = 0;
+    let alertRows = 0;
+    let errors = 0;
+
+    for (const [mgrUserId, pack] of byMgr) {
+        const lines = pack.items.map((it) => {
+            const cs = csMap.get(String(it.kaipoke_cs_id));
+            const client = cs?.client_name ? `${cs.client_name}様` : `CS:${it.kaipoke_cs_id}`;
+            const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
+            return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
+        });
+
+        const message =
+            `【実績：回収未チェック】${targetYm}\n` +
+            `チーム: ${pack.orgName}\n` +
+            `（月15日以降：回収チェックが未入力のもの）\n\n` +
+            lines.join("\n");
+
+        try {
+            if (!args.dryRun) {
+                const payload: EnsureAlertParams = {
+                    user_id: mgrUserId,
+                    message,
+                    // shift_id が EnsureAlertParams に存在するなら残してOK。エラーになるなら次の行も消してください。
+                    shift_id: `disability_check:collect:${targetYm}:${mgrUserId}`,
+                };
+                await ensureSystemAlert(payload);
+            }
+
+            alertManagers += 1;
+            alertRows += pack.items.length;
+        } catch (e: unknown) {
+            errors += 1;
+            console.error("[disability_check_collected] ensureSystemAlert error", {
+                mgrUserId,
+                error: toErrorMessage(e),
+            });
+        }
+    }
+
+    return {
+        enabled: true,
+        scanned,
+        targetRows: rows.length,
+        alertManagers,
+        alertRows,
+        errors,
+        dryRun: args.dryRun,
+        targetYearMonth: targetYm,
+        skippedBecauseDay: false,
+    };
+}
+
+/**
+ * cronから呼ぶ統合関数（1日1回で提出/回収を回す）
  */
 export async function runDisabilityCheckDailyAlerts(
     args: DisabilityCheckAlertArgs = {},
@@ -271,13 +453,41 @@ export async function runDisabilityCheckDailyAlerts(
 
     const submitted =
         mode === "collectedOnly"
-            ? { scanned: 0, notified: 0, errors: 0, dryRun, targetYearMonths: { from: "", to: "" } }
-            : await runSubmittedUncheckLineworksOnly({ dryRun });
+            ? {
+                enabled: true,
+                scanned: 0,
+                targetRows: 0,
+                sentRooms: 0,
+                sentRows: 0,
+                errors: 0,
+                dryRun,
+                targetYearMonth: "",
+                skippedBecauseDay: false,
+            }
+            : await runSubmittedUncheckLineworksOnly({
+                dryRun,
+                targetKaipokeCsId: args.targetKaipokeCsId,
+                forceDay10Rule: args.forceDay10Rule,
+            });
 
     const collected =
         mode === "submittedOnly"
-            ? { scanned: 0, created: 0, updated: 0, skippedBecauseDay: false, targetYearMonth: "" }
-            : await runCollectedUncheckHpAlertOnly({ targetKaipokeCsId: args.targetKaipokeCsId });
+            ? {
+                enabled: true,
+                scanned: 0,
+                targetRows: 0,
+                alertManagers: 0,
+                alertRows: 0,
+                errors: 0,
+                dryRun,
+                targetYearMonth: "",
+                skippedBecauseDay: false,
+            }
+            : await runCollectedUncheckManagerAlert({
+                dryRun,
+                targetKaipokeCsId: args.targetKaipokeCsId,
+                forceDay15Rule: args.forceDay15Rule,
+            });
 
     return { submitted, collected };
 }

@@ -67,6 +67,10 @@
     {
       "path": "/api/cron/cm/scheduled-jobs",
       "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/disability-check-record-check-test",
+      "schedule": "10 10 * * *"
     }
   ]
 }

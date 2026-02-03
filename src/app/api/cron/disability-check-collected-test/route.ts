@@ -1,3 +1,4 @@
+// 例: src/app/api/cron/disability-check-record-check-test/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
 import { runDisabilityCheckDailyAlerts } from "@/lib/alert_add/disability_check_unsubmitted_alert";
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
 
         const url = new URL(req.url);
 
-        // 必須：テストしたい kaipoke_cs_id を1件指定
+        // 必須：1件テスト用
         const kaipoke_cs_id = url.searchParams.get("kaipoke_cs_id") ?? "";
         if (!kaipoke_cs_id) {
             return NextResponse.json(
@@ -19,26 +20,46 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // 任意：15日条件を無視してテストする（true のときだけ）
-        const force = url.searchParams.get("force") === "true";
+        // 任意：submittedOnly / collectedOnly / all
+        const modeRaw = (url.searchParams.get("mode") ?? "collectedOnly") as
+            | "all"
+            | "collectedOnly"
+            | "submittedOnly";
 
-        // ★回収のみ、1件のみ、LINEWORKSなし
+        // 任意：dryRun（デフォルト true）
+        const dryRun = (url.searchParams.get("dryRun") ?? "true") !== "false";
+
+        // 任意：日付条件を無視してテスト
+        const forceDay10Rule = url.searchParams.get("forceDay10Rule") === "true";
+        const forceDay15Rule = url.searchParams.get("forceDay15Rule") === "true";
+
         const result = await runDisabilityCheckDailyAlerts({
-            dryRun: true,              // 念のため（LINEWORKS側が動かないように）
-            mode: "collectedOnly",     // 回収だけ
+            dryRun,
+            mode: modeRaw,
             targetKaipokeCsId: kaipoke_cs_id,
-            // force を使う場合は lib 側の runCollected... に反映している前提
-            // まだ対応してないなら、まずは15日以降にテスト or libに force対応を入れてください
+            forceDay10Rule,
+            forceDay15Rule,
         });
 
         return NextResponse.json({
             ok: true,
-            source: "cron/disability-check-collected-test",
-            force,
+            source: "cron/disability-check-record-check-test",
+            args: { kaipoke_cs_id, mode: modeRaw, dryRun, forceDay10Rule, forceDay15Rule },
             ...result,
         });
-    } catch (e) {
-        console.error("[cron][disability-check-collected-test] error", e);
-        return NextResponse.json({ ok: false }, { status: 500 });
+    } catch (e: unknown) {
+        console.error("[cron][disability-check-record-check-test] error", e);
+
+        const message =
+            e instanceof Error
+                ? e.message
+                : typeof e === "string"
+                    ? e
+                    : "unknown error";
+
+        return NextResponse.json(
+            { ok: false, error: message },
+            { status: 500 },
+        );
     }
 }
