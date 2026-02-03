@@ -81,52 +81,24 @@ function toErrorMessage(e: unknown): string {
 }
 
 /**
- * LINEWORKS: 「情報連携」+「グループ名(orgName)」を含む部屋IDを解決する
+ * shift_record_check と同じ方式：
+ * group_lw_channel_view から「情報連携」かつ「チーム名(orgName)」の channel_id を取る
  */
-type EnvVarRow = { key_name: string | null; value: string | null };
-
-async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
-    // env_variables の key 例（想定）:
-    // - LINEWORKS_ROOM_ID_情報連携_チーム鬼滅
-    // - LINEWORKS_ROOM_情報連携_チーム鬼滅
-    // - LINEWORKS_ROOM_ID_チーム鬼滅_情報連携
-    //
-    // value に room_id（LINEWORKSの部屋ID）が入っている前提
-
+async function resolveLineworksChannelIdForOrg(orgName: string): Promise<string> {
     const { data, error } = await supabaseAdmin
-        .from("env_variables")
-        .select("key_name, value")
-        .ilike("key_name", "%LINEWORKS%")
-        .ilike("key_name", "%情報連携%")
-        .ilike("key_name", `%${orgName}%`);
+        .from("group_lw_channel_view")
+        .select("group_account, channel_id, group_type")
+        .ilike("group_type", "%情報連携%")
+        .eq("group_account", orgName)
+        .maybeSingle();
 
-    if (error) {
-        throw new Error(`env_variables select failed: ${error.message}`);
+    if (error) throw new Error(`group_lw_channel_view select failed: ${error.message}`);
+
+    const channelId = String(data?.channel_id ?? "").trim();
+    if (!channelId) {
+        throw new Error(`LINEWORKS channel_id not found. group_type contains "情報連携" and group_account="${orgName}"`);
     }
-
-    const rows = (data ?? []) as EnvVarRow[];
-
-    // 候補を優先順で拾う（keyの揺れに強くする）
-    const pick = (patterns: string[]) =>
-        rows.find((r) => {
-            const k = (r.key_name ?? "").toUpperCase();
-            return patterns.some((p) => k.includes(p));
-        });
-
-    const candidate =
-        pick(["LINEWORKS_ROOM_ID"]) ??
-        pick(["LINEWORKS_ROOM"]) ??
-        rows[0];
-
-    const roomId = (candidate?.value ?? "").trim();
-
-    if (!roomId) {
-        throw new Error(
-            `LINEWORKS room id not found in env_variables. org="${orgName}" (key should include "LINEWORKS", "情報連携", orgName)`,
-        );
-    }
-
-    return roomId;
+    return channelId;
 }
 
 type CsInfoRaw = {
@@ -313,7 +285,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
         const orgName = orgMap.get(orgunitid)?.orgunitname || "";
 
         try {
-            const roomId = await resolveLineworksRoomIdForOrg(orgName);
+            const channelId = await resolveLineworksChannelIdForOrg(orgName);
 
             // 担当者名（漢字）を引く（回収アラートと同じ作りに寄せる）
             const staffIds = Array.from(
@@ -360,7 +332,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 lines.join("\n");
 
             if (!args.dryRun) {
-                await sendLWBotMessage(token, roomId, message);
+                await sendLWBotMessage(channelId, message, token);
             }
 
             sentRooms += 1;
