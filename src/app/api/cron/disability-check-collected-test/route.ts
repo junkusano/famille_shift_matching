@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         }
 
         // 任意：submittedOnly / collectedOnly / all
-        const modeRaw: "collectedOnly" = "collectedOnly"; // ★回収のみ（LINEWORKSは走らない）
+        const modeRaw = "collectedOnly" as const;
 
         // 任意：dryRun（デフォルト true）
         const dryRun = false; // ★HP上にアラートを実際に作成する（テスト後に必ず true に戻す）
