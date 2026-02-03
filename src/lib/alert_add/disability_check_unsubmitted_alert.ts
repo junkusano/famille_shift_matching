@@ -305,17 +305,48 @@ async function runSubmittedUncheckLineworksOnly(args: {
         try {
             const roomId = await resolveLineworksRoomIdForOrg(orgName);
 
+            // 担当者名（漢字）を引く（回収アラートと同じ作りに寄せる）
+            const staffIds = Array.from(
+                new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)),
+            );
+            const staffNameMap = await loadStaffNameMap(staffIds);
+
             const lines = items.map((it) => {
                 const cs = csMap.get(String(it.kaipoke_cs_id));
                 const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
-                const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
-                return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
+
+                const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
+                const staffName = staffId ? staffNameMap.get(staffId) : null;
+
+                const staffUrl =
+                    staffId
+                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
+                            it.kaipoke_servicek,
+                        )}&user_id=${encodeURIComponent(staffId)}`
+                        : "";
+
+                const staffLabel =
+                    staffId && staffName
+                        ? `${staffName}さん ${staffUrl}`
+                        : staffId
+                            ? `${staffId}さん ${staffUrl}`
+                            : "（担当未設定）";
+
+                // ★「-」は付けない（要望フォーマットに合わせる）
+                return `${client} [${it.kaipoke_servicek}] 担当:${staffLabel}`;
             });
 
+            // ★タイトルも要望通り（提出でも「回収未チェック」文言に揃える）
+            // 先頭にメンション（検証は1件想定なので items[0] を使う）
+            const first = items[0];
+            const firstStaffId = first?.asigned_jisseki_staff ? String(first.asigned_jisseki_staff) : "";
+            const firstStaffName = firstStaffId ? staffNameMap.get(firstStaffId) : null;
+            const mentionLine = firstStaffName ? `@${firstStaffName}さん\n` : "";
+
             const message =
-                `【実績：提出未チェック】${targetYm}\n` +
-                `チーム: ${orgName}\n` +
-                `（月10日以降：提出チェックが未入力のもの）\n\n` +
+                `${mentionLine}` +
+                `【${formatYmJa(targetYm)}　実績記録：提出未チェック】\n` +
+                `チーム: ${orgName}\n\n` +
                 lines.join("\n");
 
             if (!args.dryRun) {
