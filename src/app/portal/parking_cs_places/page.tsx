@@ -175,7 +175,7 @@ export default function ParkingCsPlacesPage() {
                 parking_orientation?: string | null;
                 permit_required?: boolean | null;
                 remarks?: string | null;
-                is_active?: boolean; 
+                is_active?: boolean;
             };
 
             const payload: PatchBody = {};
@@ -187,7 +187,7 @@ export default function ParkingCsPlacesPage() {
             if ("parking_orientation" in patch) payload.parking_orientation = patch.parking_orientation ?? null;
             if ("permit_required" in patch) payload.permit_required = patch.permit_required ?? null;
             if ("remarks" in patch) payload.remarks = patch.remarks ?? null;
-            if ("is_active" in patch) payload.is_active = !!patch.is_active; 
+            if ("is_active" in patch) payload.is_active = !!patch.is_active;
 
             const res = await fetch(`/api/parking/cs_places/${encodeURIComponent(id)}`, {
                 method: "PATCH",
@@ -514,8 +514,8 @@ export default function ParkingCsPlacesPage() {
                                                 </button>
                                                 <button
                                                     className={`w-full rounded-md px-3 py-2 text-sm ${dirty && !isMember
-                                                            ? "bg-blue-600 text-white hover:opacity-90"
-                                                            : "border text-gray-500"
+                                                        ? "bg-blue-600 text-white hover:opacity-90"
+                                                        : "border text-gray-500"
                                                         }`}
                                                     disabled={isMember || !dirty || savingId === r.id}
                                                     title={isMember ? "-" : ""}
@@ -549,6 +549,36 @@ export default function ParkingCsPlacesPage() {
                     <li>このページで「春日井1 / 春日井2 …」を付与して、申請書・スタッフの共通認識コードにする。</li>
                 </ul>
             </div>
+
+            {/* =========================
+   中区大作戦（運用マップ）
+   ========================= */}
+            <div className="mt-8 p-4 border rounded bg-yellow-50">
+                <h3 className="text-lg font-bold mb-2">
+                    中区大作戦
+                </h3>
+
+                <p className="text-sm text-gray-700 mb-4">
+                    コインパーキングを極力使わずに、サービスに行ける様にしていきましょう。
+                </p>
+
+                <div className="border rounded overflow-hidden bg-white">
+                    <img
+                        src="/nakaku_map.png"
+                        alt="中区大作戦マップ"
+                        width={1200}
+                        height={1800}
+                        className="w-full h-auto"
+                    />
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500">
+                    ※ 本マップは暫定運用図です。現地状況により利用可否が変わる場合があります。
+                </p>
+            </div>
+
         </div>
+
+
     );
 }
