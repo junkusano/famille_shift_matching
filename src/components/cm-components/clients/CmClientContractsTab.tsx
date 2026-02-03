@@ -13,6 +13,7 @@ import {
   Plus,
   Loader2,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
 import { getContracts } from '@/lib/cm/contracts/getContracts';
@@ -128,28 +129,42 @@ function ConsentStatusCard({
   if (consent) {
     return (
       <CmCard title="電子契約同意状況">
-        <div className="flex items-center gap-6 flex-wrap">
-          {consent.consent_electronic && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-6 flex-wrap">
+            {consent.consent_electronic && (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-green-700">電子契約同意済み</p>
+                  <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-green-700">電子契約同意済み</p>
-                <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
+            )}
+            {consent.consent_recording && (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <Mic className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-green-700">録音同意済み</p>
+                  <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
+                </div>
               </div>
-            </div>
-          )}
-          {consent.consent_recording && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <Mic className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-green-700">録音同意済み</p>
-                <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
-              </div>
-            </div>
+            )}
+          </div>
+          {/* PDF表示リンク */}
+          {consent.gdrive_file_url && (
+            <a
+              href={consent.gdrive_file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+            >
+              <FileText className="w-4 h-4" />
+              同意書PDFを表示
+            </a>
           )}
         </div>
       </CmCard>
@@ -169,7 +184,7 @@ function ConsentStatusCard({
           </div>
         </div>
         <a
-          href={`/cm-portal/clients/${kaipokeCsId}?tab=contracts&action=consent`}
+          href={`/cm-portal/clients/${kaipokeCsId}/consent`}
           className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           同意を取得する →
