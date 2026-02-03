@@ -70,7 +70,7 @@
     },
     {
       "path": "/api/cron/disability-check-collected-test",
-      "schedule": "10 10 * * *"
+      "schedule": "10 10 20 * *"
     }
   ]
 }
