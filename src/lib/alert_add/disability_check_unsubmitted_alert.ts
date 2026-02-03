@@ -57,7 +57,7 @@ type LineworksRoomRow = {
 
 type CsInfo = {
     kaipoke_cs_id: string;
-    client_name: string | null;
+    //client_name: string | null;
     orgunitid: string | null;
     orgunitname: string | null;
 };
@@ -123,7 +123,7 @@ async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
 async function loadCsInfoMap(csIds: string[]): Promise<Map<string, CsInfo>> {
     const { data, error } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id, client_name, orgunitid, orgunitname")
+        .select("kaipoke_cs_id, orgunitid, orgunitname")
         .in("kaipoke_cs_id", csIds);
 
     if (error) throw error;
@@ -136,7 +136,7 @@ async function loadCsInfoMap(csIds: string[]): Promise<Map<string, CsInfo>> {
 
         map.set(csId, {
             kaipoke_cs_id: csId,
-            client_name: row.client_name == null ? null : String(row.client_name),
+            //client_name: row.client_name == null ? null : String(row.client_name),
             orgunitid: row.orgunitid == null ? null : String(row.orgunitid),
             orgunitname: row.orgunitname == null ? null : String(row.orgunitname),
         });
@@ -263,8 +263,8 @@ async function runSubmittedUncheckLineworksOnly(args: {
             const roomId = await resolveLineworksRoomIdForOrg(orgName);
 
             const lines = items.map((it) => {
-                const cs = csMap.get(String(it.kaipoke_cs_id));
-                const client = cs?.client_name ? `${cs.client_name}様` : `CS:${it.kaipoke_cs_id}`;
+                //const cs = csMap.get(String(it.kaipoke_cs_id));
+                const client = `CS:${it.kaipoke_cs_id}`;
                 const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
                 return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
             });
@@ -395,8 +395,8 @@ async function runCollectedUncheckManagerAlert(args: {
 
     for (const [mgrUserId, pack] of byMgr) {
         const lines = pack.items.map((it) => {
-            const cs = csMap.get(String(it.kaipoke_cs_id));
-            const client = cs?.client_name ? `${cs.client_name}様` : `CS:${it.kaipoke_cs_id}`;
+            //const cs = csMap.get(String(it.kaipoke_cs_id));
+            const client = `CS:${it.kaipoke_cs_id}`;
             const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
             return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
         });
