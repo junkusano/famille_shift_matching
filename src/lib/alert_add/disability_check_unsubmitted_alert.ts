@@ -154,6 +154,31 @@ async function loadCsInfoMap(csIds: string[]) {
     return map;
 }
 
+function formatYmJa(ym: string): string {
+    // "2026-01" → "2026年1月"
+    const [y, m] = ym.split("-");
+    return `${y}年${Number(m)}月`;
+}
+
+async function loadUserNameMap(userIds: string[]): Promise<Map<string, string>> {
+    if (!userIds.length) return new Map();
+
+    const { data, error } = await supabaseAdmin
+        .from("users")
+        .select("user_id, name")
+        .in("user_id", userIds);
+
+    if (error) throw error;
+
+    const map = new Map<string, string>();
+    for (const r of data ?? []) {
+        if (r.user_id && r.name) {
+            map.set(String(r.user_id), String(r.name));
+        }
+    }
+    return map;
+}
+
 async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
     if (!orgIds.length) return new Map<string, OrgRow>();
 
@@ -186,7 +211,8 @@ async function runSubmittedUncheckLineworksOnly(args: {
 }): Promise<DisabilityCheckDailyAlertResult["submitted"]> {
     const now = new Date();
     const day = now.getDate();
-    const targetYm = ymNow(now);
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const targetYm = ymNow(prev);
 
     if (day < 10 && !args.forceDay10Rule) {
         return {
@@ -317,7 +343,8 @@ async function runCollectedUncheckManagerAlert(args: {
 }): Promise<DisabilityCheckDailyAlertResult["collected"]> {
     const now = new Date();
     const day = now.getDate();
-    const targetYm = ymNow(now);
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const targetYm = ymNow(prev);
 
     if (day < 15 && !args.forceDay15Rule) {
         return {
@@ -398,17 +425,33 @@ async function runCollectedUncheckManagerAlert(args: {
     let errors = 0;
 
     for (const [mgrUserId, pack] of byMgr) {
+
+        const staffIds = Array.from(
+            new Set(
+                pack.items
+                    .map((it) => it.asigned_jisseki_staff)
+                    .filter((v): v is string => !!v),
+            ),
+        );
+
+        const staffNameMap = await loadUserNameMap(staffIds);
         const lines = pack.items.map((it) => {
             const cs = csMap.get(String(it.kaipoke_cs_id));
             const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
-            const staff = it.asigned_jisseki_staff ? `${it.asigned_jisseki_staff}さん` : "（担当未設定）";
-            return `- ${client} [${it.kaipoke_servicek}] 担当:${staff}`;
+
+            const staffId = it.asigned_jisseki_staff;
+            const staffName = staffId ? staffNameMap.get(staffId) : null;
+
+            const staffLabel = staffId && staffName
+                ? `[${staffName}さん](https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(it.kaipoke_servicek)}&user_id=${staffId})`
+                : "（担当未設定）";
+
+            return `${client} [${it.kaipoke_servicek}] 担当:${staffLabel}`;
         });
 
         const message =
-            `【実績：回収未チェック】${targetYm}\n` +
-            `チーム: ${pack.orgName}\n` +
-            `（月15日以降：回収チェックが未入力のもの）\n\n` +
+            `【${formatYmJa(targetYm)}　実績記録：回収未チェック】\n` +
+            `チーム: ${pack.orgName}\n\n` +
             lines.join("\n");
 
         try {
