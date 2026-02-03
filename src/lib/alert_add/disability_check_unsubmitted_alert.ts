@@ -88,16 +88,36 @@ async function resolveLineworksChannelIdForOrg(orgName: string): Promise<string>
     const { data, error } = await supabaseAdmin
         .from("group_lw_channel_view")
         .select("group_account, channel_id, group_type")
-        .ilike("group_type", "%情報連携%")
-        .eq("group_account", orgName)
-        .maybeSingle();
+        .ilike("group_type", "%情報連携%");
 
     if (error) throw new Error(`group_lw_channel_view select failed: ${error.message}`);
 
-    const channelId = String(data?.channel_id ?? "").trim();
+    const rows = (data ?? []) as Array<{
+        group_account: string | null;
+        channel_id: string | null;
+        group_type: string | null;
+    }>;
+
+    // 「情報連携」グループの中から、group_account に orgName を含むものを探す（完全一致をやめる）
+    const hit = rows.find((r) => {
+        const account = (r.group_account ?? "").trim();
+        return account.includes(orgName);
+    });
+
+    const channelId = String(hit?.channel_id ?? "").trim();
+
     if (!channelId) {
-        throw new Error(`LINEWORKS channel_id not found. group_type contains "情報連携" and group_account="${orgName}"`);
+        // デバッグ：候補の group_account を少し出す（ログで確認用）
+        console.error("[resolveLineworksChannelIdForOrg] not found", {
+            orgName,
+            sampleAccounts: rows.slice(0, 20).map((r) => r.group_account),
+        });
+
+        throw new Error(
+            `LINEWORKS channel_id not found. group_type contains "情報連携" and group_account includes "${orgName}"`,
+        );
     }
+
     return channelId;
 }
 
