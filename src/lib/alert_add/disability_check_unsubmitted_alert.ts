@@ -50,11 +50,6 @@ export type DisabilityCheckAlertArgs = {
     forceDay15Rule?: boolean; // 15日条件を無視してテスト
 };
 
-type LineworksRoomRow = {
-    room_id: string;
-    room_name: string;
-};
-
 type CsInfo = {
     kaipoke_cs_id: string;
     name: string | null;
@@ -88,31 +83,46 @@ function toErrorMessage(e: unknown): string {
 /**
  * LINEWORKS: 「情報連携」+「グループ名(orgName)」を含む部屋IDを解決する
  */
+type EnvVarRow = { key: string | null; value: string | null };
+
 async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
+    // env_variables の key 例（想定）:
+    // - LINEWORKS_ROOM_ID_情報連携_チーム鬼滅
+    // - LINEWORKS_ROOM_情報連携_チーム鬼滅
+    // - LINEWORKS_ROOM_ID_チーム鬼滅_情報連携
+    //
+    // value に room_id（LINEWORKSの部屋ID）が入っている前提
+
     const { data, error } = await supabaseAdmin
-        .from("lineworks_rooms")
-        .select("room_id, room_name")
-        .ilike("room_name", `%情報連携%`)
-        .ilike("room_name", `%${orgName}%`)
-        .limit(1);
+        .from("env_variables")
+        .select("key, value")
+        .ilike("key", "%LINEWORKS%")
+        .ilike("key", "%情報連携%")
+        .ilike("key", `%${orgName}%`);
 
     if (error) {
-        throw new Error(
-            `LINEWORKS room resolve failed. Replace resolveLineworksRoomIdForOrg with existing implementation. error=${error.message}`,
-        );
+        throw new Error(`env_variables select failed: ${error.message}`);
     }
 
-    const row: LineworksRoomRow | undefined = (data ?? [])[0]
-        ? {
-            room_id: String((data ?? [])[0]?.room_id ?? ""),
-            room_name: String((data ?? [])[0]?.room_name ?? ""),
-        }
-        : undefined;
+    const rows = (data ?? []) as EnvVarRow[];
 
-    const roomId = row?.room_id ? String(row.room_id) : "";
+    // 候補を優先順で拾う（keyの揺れに強くする）
+    const pick = (patterns: string[]) =>
+        rows.find((r) => {
+            const k = (r.key ?? "").toUpperCase();
+            return patterns.some((p) => k.includes(p));
+        });
+
+    const candidate =
+        pick(["LINEWORKS_ROOM_ID"]) ??
+        pick(["LINEWORKS_ROOM"]) ??
+        rows[0];
+
+    const roomId = (candidate?.value ?? "").trim();
+
     if (!roomId) {
         throw new Error(
-            `LINEWORKS room not found for org="${orgName}". Need a room including "情報連携" and org name.`,
+            `LINEWORKS room id not found in env_variables. org="${orgName}" (key should include "LINEWORKS", "情報連携", orgName)`,
         );
     }
 
