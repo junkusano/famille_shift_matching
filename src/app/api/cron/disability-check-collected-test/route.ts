@@ -12,10 +12,13 @@ export async function GET(req: NextRequest) {
         const url = new URL(req.url);
 
         // 必須：1件テスト用
-        const kaipoke_cs_id = url.searchParams.get("kaipoke_cs_id") ?? "";
+        const qp = url.searchParams.get("kaipoke_cs_id");
+        const envId = process.env.DISABILITY_CHECK_TEST_KAIPOKE_CS_ID;
+        const kaipoke_cs_id = (qp && qp.trim()) || (envId && envId.trim()) || "";
+
         if (!kaipoke_cs_id) {
             return NextResponse.json(
-                { ok: false, error: "kaipoke_cs_id is required" },
+                { ok: false, error: "kaipoke_cs_id is required (query or env DISABILITY_CHECK_TEST_KAIPOKE_CS_ID)" },
                 { status: 400 },
             );
         }
