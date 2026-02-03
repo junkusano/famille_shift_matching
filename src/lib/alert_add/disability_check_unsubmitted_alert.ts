@@ -84,41 +84,29 @@ function toErrorMessage(e: unknown): string {
  * shift_record_check と同じ方式：
  * group_lw_channel_view から「情報連携」かつ「チーム名(orgName)」の channel_id を取る
  */
-async function resolveLineworksChannelIdForOrg(orgName: string): Promise<string> {
+/**
+ * 利用者名 + 「情報連携」を含むグループへ送る（groups_lw を参照）
+ * groups_lw.group_id を sendLWBotMessage の宛先（channelId相当）として使う
+ */
+async function resolveLineworksChannelIdForClient(clientName: string): Promise<string> {
+    const name = (clientName ?? "").trim();
+    if (!name) throw new Error("clientName is empty");
+
     const { data, error } = await supabaseAdmin
-        .from("group_lw_channel_view")
-        .select("group_account, channel_id, group_type")
-        .ilike("group_type", "%情報連携%");
+        .from("groups_lw")
+        .select("group_id, group_name")
+        .eq("is_active", true)
+        .ilike("group_name", "%情報連携%")
+        .ilike("group_name", `%${name}%`)
+        .limit(1);
 
-    if (error) throw new Error(`group_lw_channel_view select failed: ${error.message}`);
+    if (error) throw new Error(`groups_lw select failed: ${error.message}`);
 
-    const rows = (data ?? []) as Array<{
-        group_account: string | null;
-        channel_id: string | null;
-        group_type: string | null;
-    }>;
-
-    // 「情報連携」グループの中から、group_account に orgName を含むものを探す（完全一致をやめる）
-    const hit = rows.find((r) => {
-        const account = (r.group_account ?? "").trim();
-        return account.includes(orgName);
-    });
-
-    const channelId = String(hit?.channel_id ?? "").trim();
-
-    if (!channelId) {
-        // デバッグ：候補の group_account を少し出す（ログで確認用）
-        console.error("[resolveLineworksChannelIdForOrg] not found", {
-            orgName,
-            sampleAccounts: rows.slice(0, 20).map((r) => r.group_account),
-        });
-
-        throw new Error(
-            `LINEWORKS channel_id not found. group_type contains "情報連携" and group_account includes "${orgName}"`,
-        );
+    const groupId = String((data ?? [])[0]?.group_id ?? "").trim();
+    if (!groupId) {
+        throw new Error(`LINEWORKS group_id not found in groups_lw. group_name includes "情報連携" and clientName="${name}"`);
     }
-
-    return channelId;
+    return groupId;
 }
 
 type CsInfoRaw = {
@@ -305,7 +293,10 @@ async function runSubmittedUncheckLineworksOnly(args: {
         const orgName = orgMap.get(orgunitid)?.orgunitname || "";
 
         try {
-            const channelId = await resolveLineworksChannelIdForOrg(orgName);
+            // 代表の利用者名で「情報連携」グループを解決（1件テストなら items[0] でOK）
+            const firstCs = csMap.get(String(items[0]?.kaipoke_cs_id ?? ""));
+            const clientName = firstCs?.name ? String(firstCs.name) : "";
+            const channelId = await resolveLineworksChannelIdForClient(clientName);
 
             // 担当者名（漢字）を引く（回収アラートと同じ作りに寄せる）
             const staffIds = Array.from(
