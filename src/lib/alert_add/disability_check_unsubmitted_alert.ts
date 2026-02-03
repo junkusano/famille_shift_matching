@@ -83,7 +83,7 @@ function toErrorMessage(e: unknown): string {
 /**
  * LINEWORKS: 「情報連携」+「グループ名(orgName)」を含む部屋IDを解決する
  */
-type EnvVarRow = { key: string | null; value: string | null };
+type EnvVarRow = { key_name: string | null; value: string | null };
 
 async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
     // env_variables の key 例（想定）:
@@ -95,10 +95,10 @@ async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
 
     const { data, error } = await supabaseAdmin
         .from("env_variables")
-        .select("key, value")
-        .ilike("key", "%LINEWORKS%")
-        .ilike("key", "%情報連携%")
-        .ilike("key", `%${orgName}%`);
+        .select("key_name, value")
+        .ilike("key_name", "%LINEWORKS%")
+        .ilike("key_name", "%情報連携%")
+        .ilike("key_name", `%${orgName}%`);
 
     if (error) {
         throw new Error(`env_variables select failed: ${error.message}`);
@@ -109,7 +109,7 @@ async function resolveLineworksRoomIdForOrg(orgName: string): Promise<string> {
     // 候補を優先順で拾う（keyの揺れに強くする）
     const pick = (patterns: string[]) =>
         rows.find((r) => {
-            const k = (r.key ?? "").toUpperCase();
+            const k = (r.key_name ?? "").toUpperCase();
             return patterns.some((p) => k.includes(p));
         });
 
