@@ -8,8 +8,11 @@ function json(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: { core_id: string } }) {
-  const core_id = ctx.params.core_id;
+// ★重要：あなたのビルド生成型が「params は Promise」を期待しているので合わせる
+type Ctx = { params: Promise<{ core_id: string }> };
+
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { core_id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
 
   const { data, error } = await supabaseAdmin
@@ -26,8 +29,8 @@ export async function PATCH(req: NextRequest, ctx: { params: { core_id: string }
   return json(data);
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: { core_id: string } }) {
-  const core_id = ctx.params.core_id;
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  const { core_id } = await ctx.params;
 
   const { error } = await supabaseAdmin
     .from("spot_offer_template_unified")
