@@ -58,6 +58,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/admin/alert-batch': 'アラートバッチ',
     '/cm-portal/service-credentials': 'サービス認証情報',
     '/cm-portal/digisigner-webhook-logs': 'DigiSigner Webhookログ',
+    '/cm-portal/master/contract-templates': '契約書テンプレート',
   };
 
   const breadcrumbs: CmBreadcrumb[] = [

@@ -9,14 +9,14 @@
 //   4. DBに登録（cm_contract_consents）
 // =============================================================
 
-"use server";
+'use server';
 
-import { supabaseAdmin } from "@/lib/supabase/service";
-import { createLogger } from "@/lib/common/logger";
-import { generateConsentPdf } from "./generateConsentPdf";
-import { uploadConsentPdfToDrive } from "./googleDrive";
+import { supabaseAdmin } from '@/lib/supabase/service';
+import { createLogger } from '@/lib/common/logger';
+import { generateConsentPdf } from './generateConsentPdf';
+import { uploadConsentPdfToDrive } from './googleDrive';
 
-const logger = createLogger("lib/cm/contracts/uploadConsentPdf");
+const logger = createLogger('lib/cm/contracts/uploadConsentPdf');
 
 // =============================================================
 // Types
@@ -37,8 +37,16 @@ export type UploadConsentPdfParams = {
   staffName: string;
 
   // 署名者情報
-  signerType: "self" | "proxy";
+  signerType: 'self' | 'proxy';
   proxyName?: string;
+
+  // 新カラム（マスタコード + その他テキスト）
+  proxyRelationshipCode?: string;
+  proxyRelationshipOther?: string;
+  proxyReasonCode?: string;
+  proxyReasonOther?: string;
+
+  // 後方互換（PDF表示用の表示文字列）
   proxyRelationship?: string;
   proxyReason?: string;
 
@@ -79,6 +87,10 @@ export async function uploadConsentPdf(
     staffName,
     signerType,
     proxyName,
+    proxyRelationshipCode,
+    proxyRelationshipOther,
+    proxyReasonCode,
+    proxyReasonOther,
     proxyRelationship,
     proxyReason,
     signatureBase64,
@@ -91,22 +103,22 @@ export async function uploadConsentPdf(
     // バリデーション
     // ---------------------------------------------------------
     if (!kaipokeCsId || !staffId || !clientName) {
-      return { ok: false, error: "必須項目が不足しています" };
+      return { ok: false, error: '必須項目が不足しています' };
     }
 
     if (!consentElectronic) {
-      return { ok: false, error: "電子契約への同意が必要です" };
+      return { ok: false, error: '電子契約への同意が必要です' };
     }
 
-    if (signerType === "proxy" && !proxyName) {
-      return { ok: false, error: "代理人氏名は必須です" };
+    if (signerType === 'proxy' && !proxyName) {
+      return { ok: false, error: '代理人氏名は必須です' };
     }
 
     if (!signatureBase64) {
-      return { ok: false, error: "署名が必要です" };
+      return { ok: false, error: '署名が必要です' };
     }
 
-    logger.info("同意書PDF処理開始", {
+    logger.info('同意書PDF処理開始', {
       kaipokeCsId,
       signerType,
     });
@@ -128,6 +140,7 @@ export async function uploadConsentPdf(
       staffName,
       signerType,
       proxyName,
+      // PDF表示用には表示文字列を使用
       proxyRelationship,
       proxyReason,
       signatureBase64,
@@ -135,11 +148,11 @@ export async function uploadConsentPdf(
     });
 
     if (pdfResult.ok === false) {
-      logger.error("PDF生成失敗", { error: pdfResult.error });
+      logger.error('PDF生成失敗', { error: pdfResult.error });
       return { ok: false, error: `PDF生成エラー: ${pdfResult.error}` };
     }
 
-    logger.info("PDF生成完了", {
+    logger.info('PDF生成完了', {
       kaipokeCsId,
       size: pdfResult.data.buffer.length,
     });
@@ -155,13 +168,13 @@ export async function uploadConsentPdf(
     );
 
     if (uploadResult.ok === false) {
-      logger.error("Google Driveアップロード失敗", { error: uploadResult.error });
+      logger.error('Google Driveアップロード失敗', { error: uploadResult.error });
       return { ok: false, error: `アップロードエラー: ${uploadResult.error}` };
     }
 
     const { fileId, fileUrl, filePath } = uploadResult.data;
 
-    logger.info("Google Driveアップロード完了", {
+    logger.info('Google Driveアップロード完了', {
       kaipokeCsId,
       fileId,
     });
@@ -170,15 +183,21 @@ export async function uploadConsentPdf(
     // 3. DBに登録
     // ---------------------------------------------------------
     const { data: consentData, error: consentError } = await supabaseAdmin
-      .from("cm_contract_consents")
+      .from('cm_contract_consents')
       .insert({
         kaipoke_cs_id: kaipokeCsId,
         consent_electronic: consentElectronic,
         consent_recording: consentRecording,
         signer_type: signerType,
-        proxy_name: signerType === "proxy" ? proxyName : null,
-        proxy_relationship: signerType === "proxy" ? proxyRelationship : null,
-        proxy_reason: signerType === "proxy" ? proxyReason : null,
+        proxy_name: signerType === 'proxy' ? proxyName : null,
+        // 後方互換（表示用文字列）
+        proxy_relationship: signerType === 'proxy' ? proxyRelationship : null,
+        proxy_reason: signerType === 'proxy' ? proxyReason : null,
+        // 新カラム（マスタコード + その他テキスト）
+        proxy_relationship_code: signerType === 'proxy' ? proxyRelationshipCode : null,
+        proxy_relationship_other: signerType === 'proxy' ? proxyRelationshipOther || null : null,
+        proxy_reason_code: signerType === 'proxy' ? proxyReasonCode : null,
+        proxy_reason_other: signerType === 'proxy' ? proxyReasonOther || null : null,
         staff_id: staffId,
         gdrive_file_id: fileId,
         gdrive_file_url: fileUrl,
@@ -187,17 +206,17 @@ export async function uploadConsentPdf(
         ip_address: ipAddress ?? null,
         user_agent: userAgent ?? null,
       })
-      .select("id")
+      .select('id')
       .single();
 
     if (consentError) {
-      logger.error("同意レコード登録エラー", { message: consentError.message });
+      logger.error('同意レコード登録エラー', { message: consentError.message });
       // Note: Google Driveにはアップロード済みだが、DBエラーの場合
       // 孤立ファイルが残る可能性がある（手動対応が必要）
       return { ok: false, error: `DB登録エラー: ${consentError.message}` };
     }
 
-    logger.info("同意レコード登録完了", {
+    logger.info('同意レコード登録完了', {
       consentId: consentData.id,
       kaipokeCsId,
     });
@@ -215,8 +234,8 @@ export async function uploadConsentPdf(
       },
     };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    logger.error("予期せぬエラー", { error: message });
-    return { ok: false, error: "サーバーエラーが発生しました" };
+    const message = e instanceof Error ? e.message : '不明なエラー';
+    logger.error('同意書PDF処理例外', { error: message });
+    return { ok: false, error: message };
   }
 }

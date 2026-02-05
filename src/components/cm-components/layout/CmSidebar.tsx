@@ -149,6 +149,7 @@ const CmMenuStructure: CmMenuGroup[] = [
       { id: 'offices', label: '事業所', path: '/cm-portal/master/offices' },
       { id: 'care-managers', label: 'ケアマネ', path: '/cm-portal/master/care-managers' },
       { id: 'services', label: '独自サービス', path: '/cm-portal/master/services' },
+      { id: 'contract-templates', label: '契約書テンプレート', path: '/cm-portal/master/contract-templates' },
     ],
   },
   {

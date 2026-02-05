@@ -9,7 +9,7 @@ module.exports = {
   },
   
   transpilePackages: ['react-pdf'],
-  serverExternalPackages: ['canvas'],
+  serverExternalPackages: ['canvas', 'pdfkit'],
 
   webpack: (config) => {
     config.resolve.alias.canvas = false;

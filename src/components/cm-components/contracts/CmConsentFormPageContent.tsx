@@ -5,31 +5,24 @@
 // 機能:
 //   - 電子契約・録音同意のチェックボックス
 //   - 立会職員（説明者）セレクト
-//   - 署名者種別（本人 / 代筆）
-//   - 代筆者情報入力（代筆時のみ表示）
+//   - 署名者種別（本人 / 代理人）
+//   - 代理人情報入力（続柄・理由はマスタから選択、「その他」入力対応）
 //   - Canvas手書き署名
 //   - uploadConsentPdf で PDF生成 → GDriveアップロード → DB登録
 // =============================================================
 
 'use client';
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-} from 'react';
-import {
-  Loader2,
-  AlertCircle,
-  User,
-  Eraser,
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Loader2, AlertCircle, User, Eraser } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
 import { useRouter } from 'next/navigation';
 import { getStaffList } from '@/lib/cm/contracts/getStaffList';
 import type { CmStaffOption } from '@/lib/cm/contracts/getStaffList';
 import { uploadConsentPdf } from '@/lib/cm/contracts/uploadConsentPdf';
+import { getSelectOptionsMultiple } from '@/lib/cm/master/getSelectOptions';
+import type { CmSelectOption } from '@/types/cm/selectOptions';
+import { getSelectDisplayValue } from '@/types/cm/selectOptions';
 
 // =============================================================
 // Types
@@ -42,21 +35,6 @@ type Props = {
 };
 
 type SignerType = 'self' | 'proxy';
-
-const PROXY_RELATIONSHIP_OPTIONS = [
-  '配偶者',
-  '長男',
-  '長女',
-  '次男',
-  '次女',
-  'その他',
-] as const;
-
-const PROXY_REASON_OPTIONS = [
-  '身体的理由により署名困難',
-  '認知機能の低下により署名困難',
-  'その他',
-] as const;
 
 // =============================================================
 // Component
@@ -75,20 +53,11 @@ export function CmConsentFormPageContent({
   const [staffList, setStaffList] = useState<CmStaffOption[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const result = await getStaffList();
-        if (result.ok === true) {
-          setStaffList(result.data);
-        }
-      } catch {
-        // ログのみ。ドロップダウンが空になるが致命的ではない
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // ---------------------------------------------------------
+  // 選択肢マスタ
+  // ---------------------------------------------------------
+  const [relationshipOptions, setRelationshipOptions] = useState<CmSelectOption[]>([]);
+  const [proxyReasonOptions, setProxyReasonOptions] = useState<CmSelectOption[]>([]);
 
   // ---------------------------------------------------------
   // フォーム状態
@@ -98,8 +67,17 @@ export function CmConsentFormPageContent({
   const [staffId, setStaffId] = useState('');
   const [signerType, setSignerType] = useState<SignerType>('self');
   const [proxyName, setProxyName] = useState('');
-  const [proxyRelationship, setProxyRelationship] = useState('');
-  const [proxyReason, setProxyReason] = useState('');
+  const [proxyRelationshipCode, setProxyRelationshipCode] = useState('');
+  const [proxyRelationshipOther, setProxyRelationshipOther] = useState('');
+  const [proxyReasonCode, setProxyReasonCode] = useState('');
+  const [proxyReasonOther, setProxyReasonOther] = useState('');
+
+  // ---------------------------------------------------------
+  // 署名Canvas
+  // ---------------------------------------------------------
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
 
   // ---------------------------------------------------------
   // 送信状態
@@ -108,164 +86,152 @@ export function CmConsentFormPageContent({
   const [error, setError] = useState<string | null>(null);
 
   // ---------------------------------------------------------
-  // Canvas 署名
+  // 選択肢が「その他」かどうか
   // ---------------------------------------------------------
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false);
+  const isRelationshipOther = useCallback(() => {
+    const opt = relationshipOptions.find((o) => o.code === proxyRelationshipCode);
+    return opt?.requires_input ?? false;
+  }, [relationshipOptions, proxyRelationshipCode]);
 
-  /**
-   * Canvas初期化
-   * - 高DPIディスプレイ対応で内部サイズを拡大
-   * - ctx.scale()は使わず、座標変換はgetCanvasCoordsで行う
-   */
-  const initCanvas = useCallback(() => {
+  const isProxyReasonOther = useCallback(() => {
+    const opt = proxyReasonOptions.find((o) => o.code === proxyReasonCode);
+    return opt?.requires_input ?? false;
+  }, [proxyReasonOptions, proxyReasonCode]);
+
+  // ---------------------------------------------------------
+  // 初期データ取得
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [staffResult, optionsResult] = await Promise.all([
+          getStaffList(),
+          getSelectOptionsMultiple(['relationship', 'proxy_reason']),
+        ]);
+
+        if (staffResult.ok) {
+          setStaffList(staffResult.data);
+        }
+
+        if (optionsResult.ok) {
+          setRelationshipOptions(optionsResult.data.relationship || []);
+          setProxyReasonOptions(optionsResult.data.proxy_reason || []);
+        }
+      } catch (e) {
+        console.error('初期データ取得エラー', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // ---------------------------------------------------------
+  // Canvas 初期化
+  // ---------------------------------------------------------
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    // 内部サイズを表示サイズ × DPR に設定
+    // 高解像度対応
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    // 背景を白に
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, rect.width, rect.height);
 
-    // ctx.scale()は使わない（座標変換はgetCanvasCoordsで行う）
-    ctx.strokeStyle = '#1e3a5f';
-    ctx.lineWidth = 2 * dpr; // DPR分だけ太くする
+    // 線のスタイル
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-  }, []);
+  }, [loading]);
 
-  useEffect(() => {
-    initCanvas();
-    // ウィンドウリサイズ時にCanvasを再初期化
-    window.addEventListener('resize', initCanvas);
-    return () => window.removeEventListener('resize', initCanvas);
-  }, [initCanvas]);
+  // ---------------------------------------------------------
+  // 描画イベント
+  // ---------------------------------------------------------
+  const getCoordinates = (
+    e: React.MouseEvent | React.TouchEvent
+  ): { x: number; y: number } | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
 
-  /**
-   * マウス/タッチ座標をCanvas内部座標に変換
-   * 参考: https://note.affi-sapo-sv.com/js-canvas-click-coordinate.php
-   *
-   * 表示サイズ（CSS）と内部サイズ（canvas.width/height）の比率を
-   * 毎回計算して変換することで、DPRやリサイズに対応
-   */
-  const getCanvasCoords = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return { x: 0, y: 0 };
-
-      const rect = canvas.getBoundingClientRect();
-
-      // 表示サイズと内部サイズの比率を計算
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-
-      let clientX: number;
-      let clientY: number;
-
-      if ('touches' in e) {
-        const touch = e.touches[0];
-        clientX = touch.clientX;
-        clientY = touch.clientY;
-      } else {
-        clientX = (e as React.MouseEvent).clientX;
-        clientY = (e as React.MouseEvent).clientY;
-      }
-
-      // ブラウザ上の座標をCanvas内部座標に変換
+    const rect = canvas.getBoundingClientRect();
+    if ('touches' in e) {
+      const touch = e.touches[0];
       return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY,
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
       };
-    },
-    []
-  );
+    }
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
 
-  const handlePointerDown = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault();
-      setIsDrawing(true);
-      setHasSignature(true);
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const coords = getCoordinates(e);
+    if (!coords) return;
 
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!ctx) return;
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
 
-      const { x, y } = getCanvasCoords(e);
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    },
-    [getCanvasCoords]
-  );
+    ctx.beginPath();
+    ctx.moveTo(coords.x, coords.y);
+    setIsDrawing(true);
+  };
 
-  const handlePointerMove = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      if (!isDrawing) return;
-      e.preventDefault();
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+    e.preventDefault();
 
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!ctx) return;
+    const coords = getCoordinates(e);
+    if (!coords) return;
 
-      const { x, y } = getCanvasCoords(e);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-    },
-    [isDrawing, getCanvasCoords]
-  );
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
 
-  const handlePointerUp = useCallback(() => {
+    ctx.lineTo(coords.x, coords.y);
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawing = () => {
     setIsDrawing(false);
-  }, []);
+  };
 
-  /**
-   * 署名クリア
-   * - 内部サイズ全体をクリア
-   */
-  const clearCanvas = useCallback(() => {
+  const clearSignature = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // 内部サイズ全体をクリア（canvas.width/heightを使用）
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // クリア後に線のスタイルを再設定
-    const dpr = window.devicePixelRatio || 1;
-    ctx.strokeStyle = '#1e3a5f';
-    ctx.lineWidth = 2 * dpr;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
+    const rect = canvas.getBoundingClientRect();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, rect.width, rect.height);
     setHasSignature(false);
-  }, []);
+  };
 
+  // ---------------------------------------------------------
+  // 署名画像取得
+  // ---------------------------------------------------------
   const getSignatureBase64 = useCallback((): string | null => {
+    if (!hasSignature) return null;
     const canvas = canvasRef.current;
-    if (!canvas || !hasSignature) return null;
-    
-    // 白背景付きのJPEG出力（透明部分を白に変換）
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return canvas.toDataURL('image/png');
-    
-    // 白背景を描画
-    tempCtx.fillStyle = '#ffffff';
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-    // 署名を上に重ねる
-    tempCtx.drawImage(canvas, 0, 0);
-    
-    // JPEG形式で出力（80%品質）
-    return tempCanvas.toDataURL('image/jpeg', 0.8);
+    if (!canvas) return null;
+    return canvas.toDataURL('image/png');
   }, [hasSignature]);
 
   // ---------------------------------------------------------
@@ -282,11 +248,19 @@ export function CmConsentFormPageContent({
       if (!proxyName.trim()) {
         return '代筆者氏名を入力してください';
       }
-      if (!proxyRelationship) {
+      if (!proxyRelationshipCode) {
         return '本人との関係を選択してください';
       }
-      if (!proxyReason) {
+      // 「その他」選択時は入力必須
+      if (isRelationshipOther() && !proxyRelationshipOther.trim()) {
+        return '本人との関係（その他）を入力してください';
+      }
+      if (!proxyReasonCode) {
         return '代筆理由を選択してください';
+      }
+      // 「その他」選択時は入力必須
+      if (isProxyReasonOther() && !proxyReasonOther.trim()) {
+        return '代筆理由（その他）を入力してください';
       }
     }
     if (!hasSignature) {
@@ -298,9 +272,13 @@ export function CmConsentFormPageContent({
     staffId,
     signerType,
     proxyName,
-    proxyRelationship,
-    proxyReason,
+    proxyRelationshipCode,
+    proxyRelationshipOther,
+    proxyReasonCode,
+    proxyReasonOther,
     hasSignature,
+    isRelationshipOther,
+    isProxyReasonOther,
   ]);
 
   // ---------------------------------------------------------
@@ -328,6 +306,25 @@ export function CmConsentFormPageContent({
       const selectedStaff = staffList.find((s) => s.user_id === staffId);
       const staffName = selectedStaff?.display_name || '';
 
+      // 表示用の値を生成
+      const relationshipDisplay =
+        signerType === 'proxy'
+          ? getSelectDisplayValue(
+              proxyRelationshipCode,
+              proxyRelationshipOther,
+              relationshipOptions
+            )
+          : undefined;
+
+      const reasonDisplay =
+        signerType === 'proxy'
+          ? getSelectDisplayValue(
+              proxyReasonCode,
+              proxyReasonOther,
+              proxyReasonOptions
+            )
+          : undefined;
+
       // PDF生成 → GDriveアップロード → DB登録 を一括実行
       const result = await uploadConsentPdf({
         kaipokeCsId,
@@ -339,8 +336,17 @@ export function CmConsentFormPageContent({
         staffName,
         signerType,
         proxyName: signerType === 'proxy' ? proxyName.trim() : undefined,
-        proxyRelationship: signerType === 'proxy' ? proxyRelationship : undefined,
-        proxyReason: signerType === 'proxy' ? proxyReason : undefined,
+        // 新カラム
+        proxyRelationshipCode:
+          signerType === 'proxy' ? proxyRelationshipCode : undefined,
+        proxyRelationshipOther:
+          signerType === 'proxy' ? proxyRelationshipOther.trim() || undefined : undefined,
+        proxyReasonCode: signerType === 'proxy' ? proxyReasonCode : undefined,
+        proxyReasonOther:
+          signerType === 'proxy' ? proxyReasonOther.trim() || undefined : undefined,
+        // PDF表示用（後方互換）
+        proxyRelationship: relationshipDisplay,
+        proxyReason: reasonDisplay,
         signatureBase64,
       });
 
@@ -356,6 +362,30 @@ export function CmConsentFormPageContent({
       setError('同意の登録に失敗しました');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 続柄変更時の処理
+  // ---------------------------------------------------------
+  const handleRelationshipChange = (code: string) => {
+    setProxyRelationshipCode(code);
+    // 「その他」以外を選んだらその他テキストをクリア
+    const opt = relationshipOptions.find((o) => o.code === code);
+    if (!opt?.requires_input) {
+      setProxyRelationshipOther('');
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 理由変更時の処理
+  // ---------------------------------------------------------
+  const handleReasonChange = (code: string) => {
+    setProxyReasonCode(code);
+    // 「その他」以外を選んだらその他テキストをクリア
+    const opt = proxyReasonOptions.find((o) => o.code === code);
+    if (!opt?.requires_input) {
+      setProxyReasonOther('');
     }
   };
 
@@ -391,9 +421,7 @@ export function CmConsentFormPageContent({
             <button
               type="button"
               onClick={() =>
-                router.push(
-                  `/cm-portal/clients/${kaipokeCsId}?tab=contracts`
-                )
+                router.push(`/cm-portal/clients/${kaipokeCsId}?tab=contracts`)
               }
               className="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
             >
@@ -429,9 +457,7 @@ export function CmConsentFormPageContent({
               <User className="w-5 h-5 text-blue-700" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-800">
-                {clientName}
-              </p>
+              <p className="text-sm font-medium text-slate-800">{clientName}</p>
               {clientAddress && (
                 <p className="text-xs text-slate-500">{clientAddress}</p>
               )}
@@ -486,8 +512,7 @@ export function CmConsentFormPageContent({
           {/* 立会職員 */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              立会職員（説明者）{' '}
-              <span className="text-red-500">*</span>
+              立会職員（説明者） <span className="text-red-500">*</span>
             </label>
             <select
               value={staffId}
@@ -529,22 +554,19 @@ export function CmConsentFormPageContent({
                   onChange={() => setSignerType('proxy')}
                   className="w-4 h-4 accent-blue-600"
                 />
-                <span className="text-sm text-slate-700">代筆</span>
+                <span className="text-sm text-slate-700">代理人</span>
               </label>
             </div>
           </div>
 
-          {/* 代筆者情報 */}
+          {/* 代理人情報 */}
           {signerType === 'proxy' && (
             <div className="bg-amber-50 rounded-lg p-4 space-y-4 border border-amber-200">
-              <p className="text-sm font-medium text-amber-800">
-                代筆者情報
-              </p>
+              <p className="text-sm font-medium text-amber-800">代理人情報</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-700 mb-1">
-                    代筆者氏名{' '}
-                    <span className="text-red-500">*</span>
+                    代理人氏名 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -556,39 +578,58 @@ export function CmConsentFormPageContent({
                 </div>
                 <div>
                   <label className="block text-xs text-slate-700 mb-1">
-                    本人との関係{' '}
-                    <span className="text-red-500">*</span>
+                    本人との関係 <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={proxyRelationship}
-                    onChange={(e) => setProxyRelationship(e.target.value)}
+                    value={proxyRelationshipCode}
+                    onChange={(e) => handleRelationshipChange(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">選択</option>
-                    {PROXY_RELATIONSHIP_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
+                    {relationshipOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
+                  {/* 「その他」選択時の入力欄 */}
+                  {isRelationshipOther() && (
+                    <input
+                      type="text"
+                      value={proxyRelationshipOther}
+                      onChange={(e) => setProxyRelationshipOther(e.target.value)}
+                      placeholder="具体的に入力してください"
+                      className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  )}
                 </div>
               </div>
               <div>
                 <label className="block text-xs text-slate-700 mb-1">
-                  代筆理由 <span className="text-red-500">*</span>
+                  代理署名の理由 <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={proxyReason}
-                  onChange={(e) => setProxyReason(e.target.value)}
+                  value={proxyReasonCode}
+                  onChange={(e) => handleReasonChange(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">選択</option>
-                  {PROXY_REASON_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+                  {proxyReasonOptions.map((opt) => (
+                    <option key={opt.code} value={opt.code}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
+                {/* 「その他」選択時の入力欄 */}
+                {isProxyReasonOther() && (
+                  <input
+                    type="text"
+                    value={proxyReasonOther}
+                    onChange={(e) => setProxyReasonOther(e.target.value)}
+                    placeholder="具体的に入力してください"
+                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -596,47 +637,40 @@ export function CmConsentFormPageContent({
           {/* 署名 Canvas */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-slate-800">
-                署名（手書き）
-              </span>
+              <label className="block text-sm font-medium text-slate-700">
+                署名 <span className="text-red-500">*</span>
+              </label>
               <button
                 type="button"
-                onClick={clearCanvas}
-                className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-600 transition-colors"
+                onClick={clearSignature}
+                className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
               >
-                <Eraser className="w-3.5 h-3.5" />
+                <Eraser className="w-4 h-4" />
                 クリア
               </button>
             </div>
-            <div className="relative border-2 border-dashed border-slate-300 rounded-lg bg-slate-50"
-              style={{ height: '140px' }}
-            >
+            <div className="border border-slate-300 rounded-lg overflow-hidden bg-white">
               <canvas
                 ref={canvasRef}
-                className="w-full h-full cursor-crosshair"
-                style={{ touchAction: 'none' }}
-                onMouseDown={handlePointerDown}
-                onMouseMove={handlePointerMove}
-                onMouseUp={handlePointerUp}
-                onMouseLeave={handlePointerUp}
-                onTouchStart={handlePointerDown}
-                onTouchMove={handlePointerMove}
-                onTouchEnd={handlePointerUp}
+                className="w-full touch-none cursor-crosshair"
+                style={{ height: '150px' }}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
               />
-              {!hasSignature && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center text-slate-400">
-                    <p className="text-2xl">✍</p>
-                    <p className="text-sm mt-1">ここに署名してください</p>
-                  </div>
-                </div>
-              )}
             </div>
+            <p className="text-xs text-slate-500 mt-2">
+              上の欄に指またはマウスで署名してください
+            </p>
           </div>
 
           {/* エラー表示 */}
           {error && (
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
             </div>

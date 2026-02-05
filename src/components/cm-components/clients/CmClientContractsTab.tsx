@@ -55,11 +55,11 @@ export function CmClientContractsTab({ kaipokeCsId }: Props) {
 
       const result = await getContracts(kaipokeCsId);
 
-      if (result.ok === true) {
+      if (result.ok === false) {
+        setError(result.error || '契約情報の取得に失敗しました');
+      } else {
         setConsent(result.data.consent);
         setContracts(result.data.contracts);
-      } else {
-        setError(result.error || '契約情報の取得に失敗しました');
       }
     } catch {
       setError('契約情報の取得に失敗しました');
@@ -212,7 +212,7 @@ function ContractListCard({
       title="契約一覧"
       headerRight={
         <a
-          href={`/cm-portal/clients/${kaipokeCsId}?tab=contracts&action=create`}
+          href={`/cm-portal/clients/${kaipokeCsId}/contracts/create`}
           className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
