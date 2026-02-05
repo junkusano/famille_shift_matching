@@ -11,6 +11,11 @@ module.exports = {
   transpilePackages: ['react-pdf'],
   serverExternalPackages: ['canvas', 'pdfkit'],
 
+  // Vercel Serverless環境でpublic/fontsをLambdaバンドルに含める
+  outputFileTracingIncludes: {
+    '/**': ['./public/fonts/**/*'],
+  },
+
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;
