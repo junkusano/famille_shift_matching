@@ -69,8 +69,8 @@
       "schedule": "30 15 * * *"
     },
     {
-      "path": "/api/cron/disability-check-collected-test",
-      "schedule": "10 10 20 * *"
+      "path": "/api/cron/disability-check-record-check",
+      "schedule": "13 4 * * *"
     }
   ]
 }
