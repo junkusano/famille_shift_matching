@@ -23,15 +23,15 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // 任意：submittedOnly / collectedOnly / all
-        const modeRaw = "submittedOnly" as const;
+        // ★統合：提出＋回収を両方
+        const modeRaw = "all" as const;
 
         // 任意：dryRun（デフォルト true）
         const dryRun = false; // ★HP上にアラートを実際に作成する（テスト後に必ず true に戻す）
 
-        // 任意：日付条件を無視してテスト
-        const forceDay10Rule = true; // ★日付条件を無視して提出チェックをテスト
-        const forceDay15Rule = false; // ★提出テストでは回収を絶対動かさない
+        // ★テスト：日付条件を無視して両方必ず動かす
+        const forceDay10Rule = true; // 提出
+        const forceDay15Rule = true; // 回収
 
         const result = await runDisabilityCheckDailyAlerts({
             dryRun,
