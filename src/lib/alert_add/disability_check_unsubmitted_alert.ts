@@ -537,7 +537,9 @@ async function runCollectedUncheckManagerAlert(args: {
 
             // ★リンク先：kaipoke-info-detail（cs_kaipoke_info.id）
             const detailUrl = csInfo?.cs_uuid
-                ? `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${csInfo.cs_uuid}`
+                ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
+                    it.kaipoke_servicek,
+                )}&user_id=${encodeURIComponent(staffId)}`
                 : "";
 
             return detailUrl
