@@ -189,34 +189,43 @@ function formatYmJa(ym: string): string {
     return `${y}年${Number(m)}月`;
 }
 
-type StaffNameRaw = {
+type StaffInfoRaw = {
     user_id: string | null;
+    lw_userid: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
 };
 
-async function loadStaffNameMap(userIds: string[]): Promise<Map<string, string>> {
+type StaffInfo = {
+    name: string;
+    lw_userid: string | null;
+};
+
+async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInfo>> {
     if (!userIds.length) return new Map();
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, last_name_kanji, first_name_kanji")
+        .select("user_id, lw_userid, last_name_kanji, first_name_kanji")
         .in("user_id", userIds);
 
     if (error) throw error;
 
-    const rows = (data ?? []) as StaffNameRaw[];
+    const rows = (data ?? []) as StaffInfoRaw[];
 
-    const map = new Map<string, string>();
+    const map = new Map<string, StaffInfo>();
     for (const r of rows) {
         const id = r.user_id ? String(r.user_id) : "";
         if (!id) continue;
 
         const last = r.last_name_kanji ? String(r.last_name_kanji) : "";
         const first = r.first_name_kanji ? String(r.first_name_kanji) : "";
-        const full = `${last}${first}`.trim();
+        const name = `${last}${first}`.trim() || id;
 
-        if (full) map.set(id, full);
+        map.set(id, {
+            name,
+            lw_userid: r.lw_userid ? String(r.lw_userid) : null,
+        });
     }
     return map;
 }
@@ -341,14 +350,15 @@ async function runSubmittedUncheckLineworksOnly(args: {
             const staffIds = Array.from(
                 new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)),
             );
-            const staffNameMap = await loadStaffNameMap(staffIds);
+            const staffInfoMap = await loadStaffInfoMap(staffIds);
 
             const lines = items.map((it) => {
                 const cs = csMap.get(String(it.kaipoke_cs_id));
                 const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
 
                 const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
-                const staffName = staffId ? staffNameMap.get(staffId) : null;
+                const staff = staffId ? staffInfoMap.get(staffId) : null;
+                const staffName = staff?.name ?? null;
 
                 const staffUrl =
                     staffId
@@ -372,8 +382,10 @@ async function runSubmittedUncheckLineworksOnly(args: {
             // 先頭にメンション（検証は1件想定なので items[0] を使う）
             const first = items[0];
             const firstStaffId = first?.asigned_jisseki_staff ? String(first.asigned_jisseki_staff) : "";
-            const firstStaffName = firstStaffId ? staffNameMap.get(firstStaffId) : null;
-            const mentionLine = firstStaffName ? `@${firstStaffName}さん\n` : "";
+            const firstStaff = firstStaffId ? staffInfoMap.get(firstStaffId) : null;
+            const mentionLine = firstStaff?.lw_userid
+                ? `<m userId="${firstStaff.lw_userid}">さん\n`
+                : "";
 
             const message =
                 `${mentionLine}` +
@@ -510,13 +522,14 @@ async function runCollectedUncheckManagerAlert(args: {
             ),
         );
 
-        const staffNameMap = await loadStaffNameMap(staffIds);
+        const staffInfoMap = await loadStaffInfoMap(staffIds);
         const lines = pack.items.map((it) => {
             const cs = csMap.get(String(it.kaipoke_cs_id));
             const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
 
             const staffId = it.asigned_jisseki_staff;
-            const staffName = staffId ? staffNameMap.get(staffId) : null;
+            const staff = staffId ? staffInfoMap.get(staffId) : null;
+            const staffName = staff?.name ?? null;
 
             const staffUrl =
                 staffId
