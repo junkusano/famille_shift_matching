@@ -51,6 +51,7 @@ export type DisabilityCheckAlertArgs = {
 };
 
 type CsInfo = {
+    cs_uuid: string;
     kaipoke_cs_id: string;
     name: string | null;
     orgunitid: string | null; // cs_kaipoke_info.asigned_org を入れる
@@ -149,6 +150,7 @@ async function resolveLineworksChannelIdForClient(clientName: string): Promise<s
 }
 
 type CsInfoRaw = {
+    id: string | null;
     kaipoke_cs_id: string | null;
     name: string | null;
     asigned_org: string | null;
@@ -159,7 +161,7 @@ async function loadCsInfoMap(csIds: string[]) {
 
     const { data, error } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id, name, asigned_org")
+        .select("id, kaipoke_cs_id, name, asigned_org")
         .in("kaipoke_cs_id", csIds);
 
     if (error) throw error;
@@ -173,7 +175,11 @@ async function loadCsInfoMap(csIds: string[]) {
         const id = r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : "";
         if (!id) continue;
 
+        const csUuid = r.id ? String(r.id) : "";
+        if (!csUuid) continue;
+
         map.set(id, {
+            cs_uuid: csUuid,
             kaipoke_cs_id: id,
             name: r.name ? String(r.name) : null,
             orgunitid: r.asigned_org ? String(r.asigned_org) : null,
@@ -351,31 +357,15 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)),
             );
             const staffInfoMap = await loadStaffInfoMap(staffIds);
-
             const lines = items.map((it) => {
-                const cs = csMap.get(String(it.kaipoke_cs_id));
-                const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
+                const csInfo = csMap.get(String(it.kaipoke_cs_id));
+                const clientName = csInfo?.name ? `${csInfo.name}様` : `CS:${it.kaipoke_cs_id}`;
 
                 const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
-                const staff = staffId ? staffInfoMap.get(staffId) : null;
-                const staffName = staff?.name ?? null;
+                const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
+                const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
 
-                const staffUrl =
-                    staffId
-                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                            it.kaipoke_servicek,
-                        )}&user_id=${encodeURIComponent(staffId)}`
-                        : "";
-
-                const staffLabel =
-                    staffId && staffName
-                        ? `${staffName}さん ${staffUrl}`
-                        : staffId
-                            ? `${staffId}さん ${staffUrl}`
-                            : "（担当未設定）";
-
-                // ★「-」は付けない（要望フォーマットに合わせる）
-                return `${client} [${it.kaipoke_servicek}] 担当:${staffLabel}`;
+                return `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
             });
 
             // ★タイトルも要望通り（提出でも「回収未チェック」文言に揃える）
@@ -389,7 +379,9 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
             const message =
                 `${mentionLine}` +
-                `【${formatYmJa(targetYm)}　実績記録：提出未チェック】\n` +
+                `【実績記録 未チェック】 提出 〈${formatYmJa(targetYm)}分〉\n` +
+                `提出チェックが、10日以降で未完了の状態です。\n` +
+                `至急ご確認ください。\n\n` +
                 `チーム: ${orgName}\n\n` +
                 lines.join("\n");
 
@@ -549,7 +541,9 @@ async function runCollectedUncheckManagerAlert(args: {
         });
 
         const message =
-            `【${formatYmJa(targetYm)}　実績記録：回収未チェック】\n` +
+            `【実績記録 未チェック】 回収 〈${formatYmJa(targetYm)}分〉\n` +
+            `回収チェックが、15日以降で未完了の状態です。\n` +
+            `至急ご確認ください。\n\n` +
             `チーム: ${pack.orgName}\n\n` +
             lines.join("\n");
 
