@@ -364,8 +364,17 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
                 const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
                 const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
+                // ★提出は LINEWORKS なのでURLをそのまま付ける（担当者IDで自動生成）
+                const staffUrl =
+                    staffId
+                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
+                            it.kaipoke_servicek,
+                        )}&user_id=${encodeURIComponent(staffId)}`
+                        : "";
 
-                return `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
+                const labelText = `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
+
+                return staffUrl ? `${labelText} ${staffUrl}` : labelText;
             });
 
             // ★タイトルも要望通り（提出でも「回収未チェック」文言に揃える）
@@ -516,28 +525,24 @@ async function runCollectedUncheckManagerAlert(args: {
 
         const staffInfoMap = await loadStaffInfoMap(staffIds);
         const lines = pack.items.map((it) => {
-            const cs = csMap.get(String(it.kaipoke_cs_id));
-            const client = cs?.name ? `${cs.name}様` : `CS:${it.kaipoke_cs_id}`;
+            const csInfo = csMap.get(String(it.kaipoke_cs_id));
+            const clientName = csInfo?.name ? `${csInfo.name}様` : `CS:${it.kaipoke_cs_id}`;
 
-            const staffId = it.asigned_jisseki_staff;
-            const staff = staffId ? staffInfoMap.get(staffId) : null;
-            const staffName = staff?.name ?? null;
+            const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
+            const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
+            const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
 
-            const staffUrl =
-                staffId
-                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                        it.kaipoke_servicek,
-                    )}&user_id=${encodeURIComponent(staffId)}`
-                    : "";
+            // ★リンク表示文字列（ここが「服部 雪美様」の代わりに出る部分）
+            const labelText = `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
 
-            const staffLabel =
-                staffId && staffName
-                    ? `${staffName}さん ${staffUrl}`
-                    : staffId
-                        ? `${staffId}さん ${staffUrl}`
-                        : "（担当未設定）";
+            // ★リンク先：kaipoke-info-detail（cs_kaipoke_info.id）
+            const detailUrl = csInfo?.cs_uuid
+                ? `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${csInfo.cs_uuid}`
+                : "";
 
-            return `${client} [${it.kaipoke_servicek}] 担当:${staffLabel}`;
+            return detailUrl
+                ? `<a href="${detailUrl}">${labelText}</a>`
+                : labelText;
         });
 
         const message =
