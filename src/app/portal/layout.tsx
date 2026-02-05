@@ -81,6 +81,7 @@ function NavLinks({ role }: { role: string | null }) {
         <>
           <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>  
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
+          <li><Link href="/portal/spot-offer-template" className="text-blue-300 hover:underline">スポット募集管理</Link></li>
           <li><Link href="/portal/taimee-emp" className="text-blue-300 hover:underline">タイミーリスト</Link></li>
           <li><Link href="/portal/orgIcons" className="text-blue-300 hover:underline">組織アイコン設定</Link></li>
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者情報</Link></li>
