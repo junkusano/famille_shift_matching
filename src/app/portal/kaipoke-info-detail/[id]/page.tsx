@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { ParkingPlace } from "@/types/parking-places";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import type { AssessmentServiceKind } from "@/types/assessment";
 
 
 /** -----------------------------
@@ -59,7 +60,6 @@ function toDateInputValueFromIso(iso: string) {
         return '';
     }
 }
-
 
 /** -----------------------------
  *  型定義
@@ -176,6 +176,13 @@ export default function KaipokeInfoDetailPage() {
 
     const [faxOptions, setFaxOptions] = useState<FaxOption[]>([]);
 
+    // client.service_kind が入ってる前提。無ければ "障害"
+    const client = row;
+    const sk = ((): AssessmentServiceKind => {
+        const v = String(client?.service_kind ?? "").trim();
+        if (v === "障害" || v === "移動支援" || v === "要支援" || v === "要介護") return v;
+        return "障害";
+    })();
 
     const fetchData = async () => {
         const { data, error } = await supabase
@@ -652,6 +659,12 @@ export default function KaipokeInfoDetailPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-xl font-bold">CS詳細</h1>
                 <div className="flex items-center gap-2">
+                    <Link
+                        className="inline-flex items-center rounded border px-3 py-1 bg-white hover:bg-gray-50"
+                        href={`/portal/assessment?client_id=${encodeURIComponent(client.kaipoke_cs_id)}&service_kind=${encodeURIComponent(sk)}`}
+                    >
+                        アセスメントへ
+                    </Link>
                     <button
                         className="px-4 py-2 border rounded shadow hover:bg-gray-50"
                         onClick={handleSaveAll}
@@ -1034,8 +1047,8 @@ export default function KaipokeInfoDetailPage() {
                                 {/* ② 許可証必要・不要 */}
                                 <span
                                     className={`text-xs px-2 py-1 rounded border ${place.permit_required
-                                            ? "bg-red-50 text-red-700 border-red-200"
-                                            : "bg-green-50 text-green-700 border-green-200"
+                                        ? "bg-red-50 text-red-700 border-red-200"
+                                        : "bg-green-50 text-green-700 border-green-200"
                                         }`}
                                 >
                                     {place.permit_required ? "許可証：必要" : "許可証：不要"}
