@@ -61,6 +61,15 @@ function toDateInputValueFromIso(iso: string) {
     }
 }
 
+
+function normalizeSvc(v: string | null | undefined): AssessmentServiceKind {
+    const s = (v ?? "").trim();
+    if (s.includes("移動")) return "移動支援";
+    if (s.includes("要介護")) return "要介護";
+    if (s.includes("要支援")) return "要支援";
+    return "障害";
+}
+
 /** -----------------------------
  *  型定義
  *  ----------------------------- */
@@ -183,6 +192,7 @@ export default function KaipokeInfoDetailPage() {
         if (v === "障害" || v === "移動支援" || v === "要支援" || v === "要介護") return v;
         return "障害";
     })();
+    void sk;
 
     const fetchData = async () => {
         const { data, error } = await supabase
@@ -660,10 +670,12 @@ export default function KaipokeInfoDetailPage() {
                 <h1 className="text-xl font-bold">CS詳細</h1>
                 <div className="flex items-center gap-2">
                     <Link
-                        className="inline-flex items-center rounded border px-3 py-1 bg-white hover:bg-gray-50"
-                        href={`/portal/assessment?client_id=${encodeURIComponent(client.kaipoke_cs_id)}&service_kind=${encodeURIComponent(sk)}`}
+                        className="border rounded px-3 py-1 bg-blue-600 text-white"
+                        href={`/portal/assessment?client_id=${encodeURIComponent(row.kaipoke_cs_id)}&service_kind=${encodeURIComponent(
+                            normalizeSvc(row.service_kind)
+                        )}`}
                     >
-                        アセスメントへ
+                        アセスメント
                     </Link>
                     <button
                         className="px-4 py-2 border rounded shadow hover:bg-gray-50"
