@@ -4,14 +4,19 @@
 //
 // 機能:
 //   - 利用者情報（DB自動入力）
-//   - 署名者区分（本人 / 代理人）
-//   - 代理人情報（続柄・理由はマスタから選択、「その他」入力対応）
+//   - 署名者区分（本人 / 代筆 / 代理人）
+//   - 代筆者情報（続柄・理由はマスタから選択、「その他」入力対応）
+//   - 代理人情報（続柄はマスタから選択、代理の根拠はテキスト入力）
 //   - 後見人確認（任意）
 //   - 契約日・担当者
 //   - 書類プレビュー
 //
 // 変更履歴:
 //   2026-02-05: officeInfo型を拡張（運営法人名・代表者名・管理者名を追加）
+//   2026-02-06: v2マイグレーション
+//     - 署名者区分: 'self' | 'proxy' → 'self' | 'scribe' | 'agent'
+//     - proxy_* → scribe_*/agent_* フィールド分割
+//     - タグ置換: {{代理人氏名}}, {{代理人続柄}}, {{代理の根拠}} 追加
 // =============================================================
 
 'use client';
@@ -86,7 +91,7 @@ export function CmContractCreateStep2({
 
   // 選択肢マスタ
   const [relationshipOptions, setRelationshipOptions] = useState<CmSelectOption[]>([]);
-  const [proxyReasonOptions, setProxyReasonOptions] = useState<CmSelectOption[]>([]);
+  const [scribeReasonOptions, setScribeReasonOptions] = useState<CmSelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
 
   // ---------------------------------------------------------
@@ -98,7 +103,7 @@ export function CmContractCreateStep2({
         const result = await getSelectOptionsMultiple(['relationship', 'proxy_reason']);
         if (result.ok) {
           setRelationshipOptions(result.data.relationship || []);
-          setProxyReasonOptions(result.data.proxy_reason || []);
+          setScribeReasonOptions(result.data.proxy_reason || []);
         }
       } catch (e) {
         console.error('選択肢マスタ読み込みエラー', e);
@@ -130,31 +135,65 @@ export function CmContractCreateStep2({
       newData.careManagerName = staff?.name || '';
     }
 
-    // 署名者区分が本人に変わったら代理人情報をクリア
-    if (field === 'signerType' && value === 'self') {
-      newData.proxyName = '';
-      newData.proxyRelationshipCode = '';
-      newData.proxyRelationshipOther = '';
-      newData.proxyReasonCode = '';
-      newData.proxyReasonOther = '';
-      newData.proxyAddress = '';
-      newData.proxyPhone = '';
-      newData.emergencyPhone = '';
-    }
-
-    // 続柄が「その他」以外に変わったらその他テキストをクリア
-    if (field === 'proxyRelationshipCode') {
-      const opt = relationshipOptions.find((o) => o.code === value);
-      if (!opt?.requires_input) {
-        newData.proxyRelationshipOther = '';
+    // 署名者区分が変わったら他の区分の情報をクリア
+    if (field === 'signerType') {
+      if (value === 'self') {
+        // 本人 → 代筆・代理人の両方をクリア
+        newData.scribeName = '';
+        newData.scribeRelationshipCode = '';
+        newData.scribeRelationshipOther = '';
+        newData.scribeReasonCode = '';
+        newData.scribeReasonOther = '';
+        newData.scribeAddress = '';
+        newData.scribePhone = '';
+        newData.agentName = '';
+        newData.agentRelationshipCode = '';
+        newData.agentRelationshipOther = '';
+        newData.agentAuthority = '';
+        newData.agentAddress = '';
+        newData.agentPhone = '';
+        newData.emergencyPhone = '';
+      } else if (value === 'scribe') {
+        // 代筆 → 代理人情報をクリア
+        newData.agentName = '';
+        newData.agentRelationshipCode = '';
+        newData.agentRelationshipOther = '';
+        newData.agentAuthority = '';
+        newData.agentAddress = '';
+        newData.agentPhone = '';
+      } else if (value === 'agent') {
+        // 代理人 → 代筆情報をクリア
+        newData.scribeName = '';
+        newData.scribeRelationshipCode = '';
+        newData.scribeRelationshipOther = '';
+        newData.scribeReasonCode = '';
+        newData.scribeReasonOther = '';
+        newData.scribeAddress = '';
+        newData.scribePhone = '';
       }
     }
 
-    // 理由が「その他」以外に変わったらその他テキストをクリア
-    if (field === 'proxyReasonCode') {
-      const opt = proxyReasonOptions.find((o) => o.code === value);
+    // 代筆者続柄が「その他」以外に変わったらその他テキストをクリア
+    if (field === 'scribeRelationshipCode') {
+      const opt = relationshipOptions.find((o) => o.code === value);
       if (!opt?.requires_input) {
-        newData.proxyReasonOther = '';
+        newData.scribeRelationshipOther = '';
+      }
+    }
+
+    // 代筆理由が「その他」以外に変わったらその他テキストをクリア
+    if (field === 'scribeReasonCode') {
+      const opt = scribeReasonOptions.find((o) => o.code === value);
+      if (!opt?.requires_input) {
+        newData.scribeReasonOther = '';
+      }
+    }
+
+    // 代理人続柄が「その他」以外に変わったらその他テキストをクリア
+    if (field === 'agentRelationshipCode') {
+      const opt = relationshipOptions.find((o) => o.code === value);
+      if (!opt?.requires_input) {
+        newData.agentRelationshipOther = '';
       }
     }
 
@@ -172,31 +211,44 @@ export function CmContractCreateStep2({
   // ---------------------------------------------------------
   // 選択肢が「その他」かどうか
   // ---------------------------------------------------------
-  const isRelationshipOther = useCallback(() => {
-    const opt = relationshipOptions.find((o) => o.code === data.proxyRelationshipCode);
+  const isScribeRelationshipOther = useCallback(() => {
+    const opt = relationshipOptions.find((o) => o.code === data.scribeRelationshipCode);
     return opt?.requires_input ?? false;
-  }, [relationshipOptions, data.proxyRelationshipCode]);
+  }, [relationshipOptions, data.scribeRelationshipCode]);
 
-  const isProxyReasonOther = useCallback(() => {
-    const opt = proxyReasonOptions.find((o) => o.code === data.proxyReasonCode);
+  const isScribeReasonOther = useCallback(() => {
+    const opt = scribeReasonOptions.find((o) => o.code === data.scribeReasonCode);
     return opt?.requires_input ?? false;
-  }, [proxyReasonOptions, data.proxyReasonCode]);
+  }, [scribeReasonOptions, data.scribeReasonCode]);
+
+  const isAgentRelationshipOther = useCallback(() => {
+    const opt = relationshipOptions.find((o) => o.code === data.agentRelationshipCode);
+    return opt?.requires_input ?? false;
+  }, [relationshipOptions, data.agentRelationshipCode]);
 
   // ---------------------------------------------------------
   // バリデーション
   // ---------------------------------------------------------
+  const isScribeValid =
+    data.scribeName.trim() !== '' &&
+    data.scribeRelationshipCode !== '' &&
+    data.scribeReasonCode !== '' &&
+    (!isScribeRelationshipOther() || data.scribeRelationshipOther.trim() !== '') &&
+    (!isScribeReasonOther() || data.scribeReasonOther.trim() !== '');
+
+  const isAgentValid =
+    data.agentName.trim() !== '' &&
+    data.agentRelationshipCode !== '' &&
+    data.agentAuthority.trim() !== '' &&
+    (!isAgentRelationshipOther() || data.agentRelationshipOther.trim() !== '');
+
   const isValid =
     data.clientName.trim() !== '' &&
     data.contractDate !== '' &&
     data.staffId !== '' &&
-    // 代理人の場合は追加バリデーション
     (data.signerType === 'self' ||
-      (data.proxyName.trim() !== '' &&
-        data.proxyRelationshipCode !== '' &&
-        data.proxyReasonCode !== '' &&
-        // 「その他」選択時は入力必須
-        (!isRelationshipOther() || data.proxyRelationshipOther.trim() !== '') &&
-        (!isProxyReasonOther() || data.proxyReasonOther.trim() !== '')));
+      (data.signerType === 'scribe' && isScribeValid) ||
+      (data.signerType === 'agent' && isAgentValid));
 
   // ---------------------------------------------------------
   // 選択された書類
@@ -215,18 +267,23 @@ export function CmContractCreateStep2({
       return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
     };
 
-    // 続柄の表示値
-    const relationshipDisplay = getSelectDisplayValue(
-      data.proxyRelationshipCode,
-      data.proxyRelationshipOther,
+    // 代筆者の続柄・理由の表示値
+    const scribeRelationshipDisplay = getSelectDisplayValue(
+      data.scribeRelationshipCode,
+      data.scribeRelationshipOther,
       relationshipOptions
     );
+    const scribeReasonDisplay = getSelectDisplayValue(
+      data.scribeReasonCode,
+      data.scribeReasonOther,
+      scribeReasonOptions
+    );
 
-    // 理由の表示値
-    const reasonDisplay = getSelectDisplayValue(
-      data.proxyReasonCode,
-      data.proxyReasonOther,
-      proxyReasonOptions
+    // 代理人の続柄の表示値
+    const agentRelationshipDisplay = getSelectDisplayValue(
+      data.agentRelationshipCode,
+      data.agentRelationshipOther,
+      relationshipOptions
     );
 
     // 事業所情報のフォールバック
@@ -245,12 +302,20 @@ export function CmContractCreateStep2({
       '{{利用者住所}}': data.clientAddress,
       '{{利用者電話}}': data.clientPhone,
       '{{利用者FAX}}': data.clientFax,
-      '{{代筆者氏名}}': data.proxyName,
-      '{{代筆者続柄}}': relationshipDisplay,
-      '{{代筆理由}}': reasonDisplay,
-      '{{代筆者住所}}': data.proxyAddress,
-      '{{代筆者電話}}': data.proxyPhone,
+      // 代筆者タグ
+      '{{代筆者氏名}}': data.scribeName,
+      '{{代筆者続柄}}': scribeRelationshipDisplay,
+      '{{代筆理由}}': scribeReasonDisplay,
+      '{{代筆者住所}}': data.scribeAddress,
+      '{{代筆者電話}}': data.scribePhone,
       '{{代筆者FAX}}': '',
+      // 代理人タグ
+      '{{代理人氏名}}': data.agentName,
+      '{{代理人続柄}}': agentRelationshipDisplay,
+      '{{代理の根拠}}': data.agentAuthority,
+      '{{代理人住所}}': data.agentAddress,
+      '{{代理人電話}}': data.agentPhone,
+      // 共通
       '{{緊急連絡先電話}}': data.emergencyPhone,
       '{{契約日}}': formatDate(data.contractDate),
       '{{同意日}}': formatDate(data.contractDate),
@@ -269,7 +334,7 @@ export function CmContractCreateStep2({
       '{{代表者名}}': office.representative_name,
       '{{管理者名}}': office.manager_name,
     };
-  }, [data, officeInfo, relationshipOptions, proxyReasonOptions]);
+  }, [data, officeInfo, relationshipOptions, scribeReasonOptions]);
 
   // ---------------------------------------------------------
   // プレビュー読み込み
@@ -443,18 +508,164 @@ export function CmContractCreateStep2({
                   <input
                     type="radio"
                     name="signerType"
-                    value="proxy"
-                    checked={data.signerType === 'proxy'}
-                    onChange={() => handleChange('signerType', 'proxy')}
+                    value="scribe"
+                    checked={data.signerType === 'scribe'}
+                    onChange={() => handleChange('signerType', 'scribe')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-700">代筆</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="signerType"
+                    value="agent"
+                    checked={data.signerType === 'agent'}
+                    onChange={() => handleChange('signerType', 'agent')}
                     className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-700">代理人</span>
                 </label>
               </div>
 
-              {/* 代理人情報（代理人選択時のみ表示） */}
-              {data.signerType === 'proxy' && (
+              {/* 代筆者情報（代筆選択時のみ表示） */}
+              {data.signerType === 'scribe' && (
                 <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    本人に判断能力はあるが、身体的理由で署名できない場合に代筆者が署名します。
+                  </p>
+                  {loadingOptions ? (
+                    <p className="text-sm text-slate-500">選択肢を読み込み中...</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">
+                            代筆者氏名 <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={data.scribeName}
+                            onChange={(e) => handleChange('scribeName', e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">
+                            本人との関係 <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={data.scribeRelationshipCode}
+                            onChange={(e) =>
+                              handleChange('scribeRelationshipCode', e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">選択してください</option>
+                            {relationshipOptions.map((opt) => (
+                              <option key={opt.code} value={opt.code}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {isScribeRelationshipOther() && (
+                            <input
+                              type="text"
+                              value={data.scribeRelationshipOther}
+                              onChange={(e) =>
+                                handleChange('scribeRelationshipOther', e.target.value)
+                              }
+                              placeholder="具体的に入力してください"
+                              className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">
+                          代筆理由 <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={data.scribeReasonCode}
+                          onChange={(e) =>
+                            handleChange('scribeReasonCode', e.target.value)
+                          }
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">選択してください</option>
+                          {scribeReasonOptions.map((opt) => (
+                            <option key={opt.code} value={opt.code}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        {isScribeReasonOther() && (
+                          <input
+                            type="text"
+                            value={data.scribeReasonOther}
+                            onChange={(e) =>
+                              handleChange('scribeReasonOther', e.target.value)
+                            }
+                            placeholder="具体的に入力してください"
+                            className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs text-slate-500 mb-1">
+                            代筆者住所
+                          </label>
+                          <input
+                            type="text"
+                            value={data.scribeAddress}
+                            onChange={(e) =>
+                              handleChange('scribeAddress', e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">
+                            代筆者電話番号
+                          </label>
+                          <input
+                            type="text"
+                            value={data.scribePhone}
+                            onChange={(e) =>
+                              handleChange('scribePhone', e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">
+                            緊急連絡先電話番号
+                          </label>
+                          <input
+                            type="text"
+                            value={data.emergencyPhone}
+                            onChange={(e) =>
+                              handleChange('emergencyPhone', e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* 代理人情報（代理人選択時のみ表示） */}
+              {data.signerType === 'agent' && (
+                <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
+                  <p className="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg p-3">
+                    本人に代わって契約の意思決定を行う代理人です。
+                    法定代理人には登記事項証明書、任意代理人には委任状の確認が必要です。
+                  </p>
                   {loadingOptions ? (
                     <p className="text-sm text-slate-500">選択肢を読み込み中...</p>
                   ) : (
@@ -466,8 +677,8 @@ export function CmContractCreateStep2({
                           </label>
                           <input
                             type="text"
-                            value={data.proxyName}
-                            onChange={(e) => handleChange('proxyName', e.target.value)}
+                            value={data.agentName}
+                            onChange={(e) => handleChange('agentName', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
@@ -476,9 +687,9 @@ export function CmContractCreateStep2({
                             本人との関係 <span className="text-red-500">*</span>
                           </label>
                           <select
-                            value={data.proxyRelationshipCode}
+                            value={data.agentRelationshipCode}
                             onChange={(e) =>
-                              handleChange('proxyRelationshipCode', e.target.value)
+                              handleChange('agentRelationshipCode', e.target.value)
                             }
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           >
@@ -489,13 +700,12 @@ export function CmContractCreateStep2({
                               </option>
                             ))}
                           </select>
-                          {/* 「その他」選択時の入力欄 */}
-                          {isRelationshipOther() && (
+                          {isAgentRelationshipOther() && (
                             <input
                               type="text"
-                              value={data.proxyRelationshipOther}
+                              value={data.agentRelationshipOther}
                               onChange={(e) =>
-                                handleChange('proxyRelationshipOther', e.target.value)
+                                handleChange('agentRelationshipOther', e.target.value)
                               }
                               placeholder="具体的に入力してください"
                               className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -506,34 +716,17 @@ export function CmContractCreateStep2({
 
                       <div>
                         <label className="block text-xs text-slate-500 mb-1">
-                          代理署名の理由 <span className="text-red-500">*</span>
+                          代理の根拠 <span className="text-red-500">*</span>
                         </label>
-                        <select
-                          value={data.proxyReasonCode}
+                        <input
+                          type="text"
+                          value={data.agentAuthority}
                           onChange={(e) =>
-                            handleChange('proxyReasonCode', e.target.value)
+                            handleChange('agentAuthority', e.target.value)
                           }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">選択してください</option>
-                          {proxyReasonOptions.map((opt) => (
-                            <option key={opt.code} value={opt.code}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        {/* 「その他」選択時の入力欄 */}
-                        {isProxyReasonOther() && (
-                          <input
-                            type="text"
-                            value={data.proxyReasonOther}
-                            onChange={(e) =>
-                              handleChange('proxyReasonOther', e.target.value)
-                            }
-                            placeholder="具体的に入力してください"
-                            className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        )}
+                          placeholder="例: 成年後見人（登記事項証明書により確認）、委任状に基づく任意代理人"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -543,9 +736,9 @@ export function CmContractCreateStep2({
                           </label>
                           <input
                             type="text"
-                            value={data.proxyAddress}
+                            value={data.agentAddress}
                             onChange={(e) =>
-                              handleChange('proxyAddress', e.target.value)
+                              handleChange('agentAddress', e.target.value)
                             }
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
@@ -556,9 +749,9 @@ export function CmContractCreateStep2({
                           </label>
                           <input
                             type="text"
-                            value={data.proxyPhone}
+                            value={data.agentPhone}
                             onChange={(e) =>
-                              handleChange('proxyPhone', e.target.value)
+                              handleChange('agentPhone', e.target.value)
                             }
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />

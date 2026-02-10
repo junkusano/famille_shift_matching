@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   getPlaudTranscriptionList,
   executeTranscriptionAction,
+  executeBulkTranscriptionAction,
   updateTranscriptionClient,
   type PlaudTranscription,
 } from '@/lib/cm/plaud/transcriptions';
@@ -30,6 +31,11 @@ type StatusCounts = {
   failed: number;
 };
 
+type BulkApproveResult = {
+  success: number[];
+  failed: number[];
+};
+
 type UsePlaudTranscriptionsReturn = {
   transcriptions: CmPlaudTranscription[];
   pagination: CmPlaudPagination | null;
@@ -44,6 +50,7 @@ type UsePlaudTranscriptionsReturn = {
   error: string | null;
   refresh: () => Promise<void>;
   approve: (id: number) => Promise<boolean>;
+  approveBulk: (ids: number[]) => Promise<BulkApproveResult>;
   reject: (id: number) => Promise<boolean>;
   retry: (id: number) => Promise<boolean>;
   updateClient: (id: number, kaipokeCsId: string | null) => Promise<boolean>;
@@ -128,7 +135,10 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
         page,
         limit: 20,
         status: filters.status !== 'all' ? filters.status : undefined,
-        authUserId, // ★ 追加
+        authUserId,
+        // ★ 追加: 日付フィルターをサーバーに渡す
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
       });
 
       if (result.ok === false) {
@@ -140,10 +150,13 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
       setPagination(data.pagination);
 
       // カウント取得（別途全件取得してカウント）
+      // ★ カウント取得時にも日付フィルターを適用
       // 注意: 効率化のため、本番環境では専用のカウントAPIを用意することを推奨
       const allResult = await getPlaudTranscriptionList({
         limit: 1000,
-        authUserId, // ★ 追加
+        authUserId,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
       });
       if (allResult.ok && allResult.data) {
         const all = allResult.data.transcriptions;
@@ -206,6 +219,57 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     } catch (err) {
       console.error('approve error:', err);
       return false;
+    }
+  }, []);
+
+  // ★ 一括承認
+  const approveBulk = useCallback(async (ids: number[]): Promise<BulkApproveResult> => {
+    const resultObj: BulkApproveResult = { success: [], failed: [] };
+
+    if (ids.length === 0) return resultObj;
+
+    try {
+      const authUserId = await getAuthUserId();
+      if (!authUserId) {
+        console.error('認証情報取得失敗');
+        return { success: [], failed: ids };
+      }
+
+      const result = await executeBulkTranscriptionAction(ids, 'approve', authUserId);
+
+      if (result.ok === false) {
+        console.error('一括承認エラー:', result.error);
+        return { success: [], failed: ids };
+      }
+
+      const { successIds, failedIds } = result.data!;
+
+      // ローカルステートを更新（成功したもののみ）
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds);
+        setTranscriptions((prev) =>
+          prev.map((t) =>
+            successSet.has(t.id) ? { ...t, status: 'approved' as const } : t
+          )
+        );
+
+        // カウント更新
+        setCounts((prev) => ({
+          ...prev,
+          pending: prev.pending - successIds.length,
+          approved: prev.approved + successIds.length,
+        }));
+      }
+
+      // 失敗があればアラート
+      if (failedIds.length > 0) {
+        alert(`${successIds.length}件を承認しました。${failedIds.length}件は承認できませんでした。`);
+      }
+
+      return { success: successIds, failed: failedIds };
+    } catch (err) {
+      console.error('approveBulk error:', err);
+      return { success: [], failed: ids };
     }
   }, []);
 
@@ -298,6 +362,7 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     error,
     refresh: fetchData,
     approve,
+    approveBulk,
     reject,
     retry,
     updateClient: updateClientHandler,

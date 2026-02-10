@@ -46,8 +46,10 @@ export type CmContractTemplateListItem = {
 
 /**
  * タグカテゴリ
+ *
+ * v2変更: 'proxy' → 'scribe'（代筆者）+ 'agent'（代理人）に分割
  */
-export type CmTagCategory = 'client' | 'family' | 'proxy' | 'contract' | 'staff' | 'office';
+export type CmTagCategory = 'client' | 'family' | 'scribe' | 'agent' | 'contract' | 'staff' | 'office';
 
 /**
  * タグ定義
@@ -69,7 +71,8 @@ export type CmContractTagDefinition = {
 export const CM_TAG_CATEGORY_LABELS: Record<CmTagCategory, string> = {
   client: '利用者情報',
   family: '家族情報',
-  proxy: '代筆者情報',
+  scribe: '代筆者情報',
+  agent: '代理人情報',
   contract: '契約情報',
   staff: '担当者情報',
   office: '事業所情報',
@@ -100,13 +103,26 @@ export const CM_CONTRACT_TAGS: CmContractTagDefinition[] = [
   // =============================================================
   // 代筆者情報（ステップ2で入力）
   // =============================================================
-  { tag: '{{代筆者氏名}}', label: '代筆者氏名', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{代筆者続柄}}', label: '代筆者続柄', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{代筆理由}}', label: '代筆理由', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{代筆者住所}}', label: '代筆者住所', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{代筆者電話}}', label: '代筆者電話', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{代筆者FAX}}', label: '代筆者FAX', category: 'proxy', source: 'input', inputType: 'text' },
-  { tag: '{{緊急連絡先電話}}', label: '緊急連絡先電話', category: 'proxy', source: 'input', inputType: 'text' },
+  { tag: '{{代筆者氏名}}', label: '代筆者氏名', category: 'scribe', source: 'input', inputType: 'text' },
+  { tag: '{{代筆者続柄}}', label: '代筆者続柄', category: 'scribe', source: 'input', inputType: 'text' },
+  { tag: '{{代筆理由}}', label: '代筆理由', category: 'scribe', source: 'input', inputType: 'text' },
+  { tag: '{{代筆者住所}}', label: '代筆者住所', category: 'scribe', source: 'input', inputType: 'text' },
+  { tag: '{{代筆者電話}}', label: '代筆者電話', category: 'scribe', source: 'input', inputType: 'text' },
+  { tag: '{{代筆者FAX}}', label: '代筆者FAX', category: 'scribe', source: 'input', inputType: 'text' },
+
+  // =============================================================
+  // 代理人情報（ステップ2で入力）
+  // =============================================================
+  { tag: '{{代理人氏名}}', label: '代理人氏名', category: 'agent', source: 'input', inputType: 'text' },
+  { tag: '{{代理人続柄}}', label: '代理人続柄', category: 'agent', source: 'input', inputType: 'text' },
+  { tag: '{{代理の根拠}}', label: '代理の根拠', category: 'agent', source: 'input', inputType: 'text' },
+  { tag: '{{代理人住所}}', label: '代理人住所', category: 'agent', source: 'input', inputType: 'text' },
+  { tag: '{{代理人電話}}', label: '代理人電話', category: 'agent', source: 'input', inputType: 'text' },
+
+  // =============================================================
+  // 共通（代筆者・代理人共通で使用する可能性）
+  // =============================================================
+  { tag: '{{緊急連絡先電話}}', label: '緊急連絡先電話', category: 'scribe', source: 'input', inputType: 'text' },
 
   // =============================================================
   // 契約情報（ステップ2で入力）
@@ -134,6 +150,8 @@ export const CM_CONTRACT_TAGS: CmContractTagDefinition[] = [
 
 // =============================================================
 // DigiSignerタグ
+//
+// v2変更: proxy_signer → scribe にリネーム、agent 追加
 // =============================================================
 
 export type CmDigiSignerTag = {
@@ -143,13 +161,16 @@ export type CmDigiSignerTag = {
 };
 
 export const CM_DIGISIGNER_TAGS: CmDigiSignerTag[] = [
-  // 利用者
+  // 利用者（本人署名）
   { tag: '[s:signer                    ]', label: '署名欄（利用者）', role: 'signer' },
   { tag: '[d:signer          ]', label: '日付欄（利用者）', role: 'signer' },
   { tag: '[c:signer]', label: 'チェック欄（利用者）', role: 'signer' },
   // 代筆者
-  { tag: '[s:proxy_signer                    ]', label: '署名欄（代筆者）', role: 'proxy_signer' },
-  { tag: '[d:proxy_signer          ]', label: '日付欄（代筆者）', role: 'proxy_signer' },
+  { tag: '[s:scribe                    ]', label: '署名欄（代筆者）', role: 'scribe' },
+  { tag: '[d:scribe          ]', label: '日付欄（代筆者）', role: 'scribe' },
+  // 代理人
+  { tag: '[s:agent                    ]', label: '署名欄（代理人）', role: 'agent' },
+  { tag: '[d:agent          ]', label: '日付欄（代理人）', role: 'agent' },
   // 家族
   { tag: '[s:family                    ]', label: '署名欄（家族）', role: 'family' },
   { tag: '[d:family          ]', label: '日付欄（家族）', role: 'family' },
@@ -176,7 +197,8 @@ export function getTagsByCategory(): Record<CmTagCategory, CmContractTagDefiniti
   const result: Record<CmTagCategory, CmContractTagDefinition[]> = {
     client: [],
     family: [],
-    proxy: [],
+    scribe: [],
+    agent: [],
     contract: [],
     staff: [],
     office: [],

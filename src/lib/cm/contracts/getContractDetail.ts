@@ -1,6 +1,11 @@
 // =============================================================
 // src/lib/cm/contracts/getContractDetail.ts
 // 契約詳細取得（Server Action — Client Componentから呼び出し可能）
+//
+// v2変更:
+//   - cm_contract_document_signers 子テーブルJOIN
+//   - consent: proxy_* → scribe_*/agent_*/guardian_*
+//   - documents: signing_url/signed_at 削除、紙契約カラム追加
 // =============================================================
 
 "use server";
@@ -10,6 +15,7 @@ import { createLogger } from "@/lib/common/logger";
 import type {
   CmContractDetailData,
   CmContractDocument,
+  CmContractDocumentSigner,
   CmContractConsent,
 } from "@/types/cm/contract";
 
@@ -69,6 +75,37 @@ export async function getContractDetail(
     }
 
     // ---------------------------------------------------------
+    // 署名者一覧取得（子テーブル）
+    //    v2新規: cm_contract_document_signers を一括取得して書類に紐付け
+    // ---------------------------------------------------------
+    const documentIds = (documents ?? []).map((d) => d.id);
+    const signersMap = new Map<string, CmContractDocumentSigner[]>();
+
+    if (documentIds.length > 0) {
+      const { data: signersData, error: signersError } = await supabaseAdmin
+        .from("cm_contract_document_signers")
+        .select("*")
+        .in("document_id", documentIds)
+        .order("sort_order", { ascending: true });
+
+      if (signersError) {
+        logger.warn("署名者取得エラー", { message: signersError.message });
+      } else {
+        for (const signer of signersData ?? []) {
+          const existing = signersMap.get(signer.document_id) ?? [];
+          existing.push(signer as CmContractDocumentSigner);
+          signersMap.set(signer.document_id, existing);
+        }
+      }
+    }
+
+    // 書類に署名者を紐付け
+    const documentsWithSigners: CmContractDocument[] = (documents ?? []).map((doc) => ({
+      ...doc,
+      signers: signersMap.get(doc.id) ?? [],
+    })) as CmContractDocument[];
+
+    // ---------------------------------------------------------
     // 同意情報取得（紐付けがあれば）
     // ---------------------------------------------------------
     let consent: CmContractConsent | null = null;
@@ -121,7 +158,8 @@ export async function getContractDetail(
 
     logger.info("契約詳細取得完了", {
       contractId,
-      documentCount: documents?.length ?? 0,
+      documentCount: documentsWithSigners.length,
+      totalSigners: Array.from(signersMap.values()).reduce((sum, s) => sum + s.length, 0),
     });
 
     return {
@@ -148,12 +186,12 @@ export async function getContractDetail(
           completed_at: contract.completed_at,
           created_at: contract.created_at,
           updated_at: contract.updated_at,
-          document_count: documents?.length ?? 0,
+          document_count: documentsWithSigners.length,
           client_name: clientData?.name ?? null,
           client_kana: clientData?.kana ?? null,
           notes: contract.notes,
         },
-        documents: (documents ?? []) as CmContractDocument[],
+        documents: documentsWithSigners,
         consent,
         plaudRecording,
       },

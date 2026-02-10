@@ -10,12 +10,16 @@
 //        （cm_rpa_credentials.digisigner.webhook_token と照合）
 //   層2: DB整合性チェック（書類存在確認 + ステータス遷移の妥当性）
 //
-// 処理:
-//   1. トークン検証 → 不一致なら即 401
-//   2. ペイロードを cm_contract_webhook_logs に記録
-//   3. cm_contract_documents.signing_status を更新
-//   4. 全書類が signed なら cm_contracts.status を signed に更新
-//   5. "DIGISIGNER_EVENT_ACCEPTED" をテキストで返却
+// v2変更:
+//   - cm_contract_document_signers 子テーブルベースに書き換え
+//   - 処理フロー:
+//     1. トークン検証 → 不一致なら即 401
+//     2. ペイロードを cm_contract_webhook_logs に記録
+//     3. 署名完了イベント処理:
+//        a. cm_contract_document_signers の該当署名者を signed に更新
+//        b. 同一書類の全署名者が signed なら書類を signed に更新（all_signed_at 記録）
+//        c. 同一契約の全書類が signed なら契約を signed に更新
+//     4. "DIGISIGNER_EVENT_ACCEPTED" をテキストで返却
 // =============================================================
 
 import { NextRequest } from "next/server";
@@ -120,7 +124,16 @@ export async function POST(request: NextRequest) {
 }
 
 // =============================================================
-// 署名完了処理
+// 署名完了処理（v2: 子テーブルベース）
+//
+// signature_request_completed イベントは、DigiSignerの署名リクエスト内の
+// 全署名者が署名を完了した時点で発火される。
+//
+// 処理フロー:
+//   1. digisigner_document_id で親書類を特定
+//   2. 子テーブルの全署名者を signed に一括更新
+//   3. 親書類の signing_status を signed に更新（all_signed_at 記録）
+//   4. 同一契約の全書類が signed なら契約を signed に更新
 // =============================================================
 
 async function processSignatureCompleted(documentId: string) {
@@ -146,7 +159,7 @@ async function processSignatureCompleted(documentId: string) {
   // -------------------------------------------------------
   // 層2-b: ステータス遷移の妥当性チェック
   //   signing → signed のみ許可
-  //   draft や signed からの更新は無視
+  //   pending（まだ送信されていない）や signed（既に完了）からの更新は無視
   // -------------------------------------------------------
   if (doc.signing_status !== "signing") {
     logger.warn("不正なステータス遷移を拒否", {
@@ -157,12 +170,67 @@ async function processSignatureCompleted(documentId: string) {
     return;
   }
 
-  // 書類の signing_status を signed に更新
+  const now = new Date().toISOString();
+
+  // -------------------------------------------------------
+  // Step 1: 子テーブルの全署名者を signed に一括更新
+  //
+  // signature_request_completed は全署名者完了で発火されるため、
+  // 該当書類の全署名者を一括で signed にする
+  // -------------------------------------------------------
+  const { data: updatedSigners, error: signersUpdateError } = await supabaseAdmin
+    .from("cm_contract_document_signers")
+    .update({
+      signing_status: "signed",
+      signed_at: now,
+    })
+    .eq("document_id", doc.id)
+    .neq("signing_status", "signed")  // 冪等性: 既に signed の署名者はスキップ
+    .select("id, role");
+
+  if (signersUpdateError) {
+    logger.error("署名者ステータス一括更新エラー", {
+      message: signersUpdateError.message,
+      docId: doc.id,
+    });
+    return;
+  }
+
+  logger.info("署名者ステータス一括更新完了", {
+    docId: doc.id,
+    updatedCount: updatedSigners?.length ?? 0,
+  });
+
+  // -------------------------------------------------------
+  // Step 2: 全署名者が signed か検証（安全確認）
+  // -------------------------------------------------------
+  const { data: allSigners } = await supabaseAdmin
+    .from("cm_contract_document_signers")
+    .select("id, signing_status")
+    .eq("document_id", doc.id);
+
+  const allSignersSigned = (allSigners ?? []).every(
+    (s) => s.signing_status === "signed"
+  );
+
+  if (!allSignersSigned) {
+    // signature_request_completed なのに未完了の署名者がいる場合
+    // ログを残すが書類ステータスは更新しない
+    logger.warn("全署名者が signed でないため書類更新をスキップ", {
+      docId: doc.id,
+      signerStatuses: (allSigners ?? []).map((s) => s.signing_status),
+    });
+    return;
+  }
+
+  // -------------------------------------------------------
+  // Step 3: 親書類の signing_status を signed に更新
+  // -------------------------------------------------------
   const { error: updateDocError } = await supabaseAdmin
     .from("cm_contract_documents")
     .update({
       signing_status: "signed",
-      signed_at: new Date().toISOString(),
+      all_signed_at: now,
     })
     .eq("id", doc.id);
 
@@ -175,17 +243,19 @@ async function processSignatureCompleted(documentId: string) {
 
   logger.info("書類ステータス更新完了", { docId: doc.id });
 
-  // 同じ契約の全書類が signed か確認
+  // -------------------------------------------------------
+  // Step 4: 同じ契約の全書類が signed か確認 → 契約ステータス更新
+  // -------------------------------------------------------
   const { data: allDocs } = await supabaseAdmin
     .from("cm_contract_documents")
     .select("id, signing_status")
     .eq("contract_id", doc.contract_id);
 
-  const allSigned = (allDocs ?? []).every(
+  const allDocsSigned = (allDocs ?? []).every(
     (d) => d.signing_status === "signed"
   );
 
-  if (allSigned) {
+  if (allDocsSigned) {
     // 契約側も signing → signed のみ許可
     const { data: contract } = await supabaseAdmin
       .from("cm_contracts")
@@ -205,7 +275,7 @@ async function processSignatureCompleted(documentId: string) {
       .from("cm_contracts")
       .update({
         status: "signed",
-        signed_at: new Date().toISOString(),
+        signed_at: now,
       })
       .eq("id", doc.contract_id);
 
@@ -220,12 +290,14 @@ async function processSignatureCompleted(documentId: string) {
     }
   }
 
+  // -------------------------------------------------------
   // Webhookログの processing_status を更新
+  // -------------------------------------------------------
   await supabaseAdmin
     .from("cm_contract_webhook_logs")
     .update({
       processing_status: "processed",
-      processed_at: new Date().toISOString(),
+      processed_at: now,
     })
     .eq("digisigner_document_id", documentId)
     .eq("processing_status", "received");

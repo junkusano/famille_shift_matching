@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -66,6 +66,7 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
     error,
     refresh,
     approve,
+    approveBulk,
     retry,
     updateClient,
   } = usePlaudTranscriptions();
@@ -75,6 +76,76 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
 
   // 利用者検索モーダル
   const [clientSearchTarget, setClientSearchTarget] = useState<CmPlaudTranscription | null>(null);
+
+  // ★ 複数選択状態
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // ★ 一括承認処理中
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
+
+  // ★ ページ切り替え・フィルター変更時に選択をクリア
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, filters]);
+
+  // ★ 現在表示中のpendingアイテムのID一覧
+  const pendingIds = transcriptions
+    .filter((t) => t.status === 'pending')
+    .map((t) => t.id);
+
+  // ★ 全選択状態の判定
+  const isAllSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.has(id));
+  const isPartialSelected = pendingIds.some((id) => selectedIds.has(id)) && !isAllSelected;
+
+  // ★ チェックボックス: 個別トグル
+  const handleToggleSelect = useCallback((id: number, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // ★ チェックボックス: 全選択/全解除
+  const handleToggleAll = useCallback(() => {
+    if (isAllSelected) {
+      // 全解除
+      setSelectedIds(new Set());
+    } else {
+      // 表示中のpendingをすべて選択
+      setSelectedIds(new Set(pendingIds));
+    }
+  }, [isAllSelected, pendingIds]);
+
+  // ★ 一括承認
+  const handleBulkApprove = useCallback(async () => {
+    const ids = Array.from(selectedIds).filter((id) =>
+      transcriptions.some((t) => t.id === id && t.status === 'pending')
+    );
+
+    if (ids.length === 0) return;
+
+    const message = `${ids.length}件を一括承認しますか？\n\n承認すると、次回のChrome拡張実行時に文字起こしデータが取得されます。`;
+    if (!window.confirm(message)) return;
+
+    setIsBulkApproving(true);
+    try {
+      await approveBulk(ids);
+      setSelectedIds(new Set());
+    } finally {
+      setIsBulkApproving(false);
+    }
+  }, [selectedIds, transcriptions, approveBulk]);
+
+  // ★ 選択中のpending件数
+  const selectedPendingCount = Array.from(selectedIds).filter((id) =>
+    transcriptions.some((t) => t.id === id && t.status === 'pending')
+  ).length;
 
   // ステータスフィルター変更
   const handleStatusFilter = (status: CmPlaudTranscriptionStatus | 'all') => {
@@ -208,6 +279,33 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
         </div>
       )}
 
+      {/* ★ 一括承認バー（選択中のみ表示） */}
+      {selectedPendingCount > 0 && (
+        <div className={styles.bulkActionBar}>
+          <span className={styles.bulkActionText}>
+            {selectedPendingCount}件選択中
+          </span>
+          <button
+            className={styles.bulkApproveButton}
+            onClick={handleBulkApprove}
+            disabled={isBulkApproving}
+          >
+            {isBulkApproving ? (
+              <RefreshCw size={16} className={styles.spinning} />
+            ) : (
+              <CheckCircle size={16} />
+            )}
+            {isBulkApproving ? '承認中...' : '一括承認'}
+          </button>
+          <button
+            className={styles.bulkCancelButton}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            選択解除
+          </button>
+        </div>
+      )}
+
       {/* コンテンツ */}
       <div className={styles.content}>
         {isLoading ? (
@@ -221,96 +319,138 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
           />
         ) : (
           <>
+            {/* ★ リストヘッダー */}
+            <div className={styles.listHeader}>
+              <div className={styles.listHeaderCheckbox}>
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={isAllSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isPartialSelected;
+                  }}
+                  onChange={handleToggleAll}
+                  disabled={pendingIds.length === 0}
+                  title={pendingIds.length === 0 ? '承認待ちのデータがありません' : '待機中をすべて選択'}
+                />
+              </div>
+              <div className={styles.listHeaderTitle}>タイトル</div>
+              <div className={styles.listHeaderDate}>Plaud録音日時</div>
+            </div>
+
             {/* 一覧 */}
             <div className={styles.list}>
-              {transcriptions.map((item) => (
-                <div
-                  key={item.id}
-                  className={styles.card}
-                  onClick={() => onOpenDetail(item)}
-                >
-                  {/* カードヘッダー */}
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cardTitle}>
-                      <span className={styles.title}>{item.title}</span>
-                      <StatusBadge status={item.status} />
-                      {item.client_name && (
-                        <span className={styles.clientBadge}>
-                          <User size={12} />
-                          {item.client_name}
-                          <button
-                            className={styles.clientClearButton}
-                            onClick={(e) => handleClientClear(item, e)}
-                            title="利用者を解除"
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
+              {transcriptions.map((item) => {
+                const isPending = item.status === 'pending';
+                const isSelected = selectedIds.has(item.id);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`${styles.card} ${isSelected ? styles.cardSelected : ''}`}
+                    onClick={() => onOpenDetail(item)}
+                  >
+                    {/* ★ チェックボックス */}
+                    <div className={styles.cardCheckbox}>
+                      {isPending ? (
+                        <input
+                          type="checkbox"
+                          className={styles.checkbox}
+                          checked={isSelected}
+                          onChange={(e) => handleToggleSelect(item.id, e)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className={styles.checkboxPlaceholder} />
                       )}
                     </div>
-                    <span className={styles.date}>
-                      {formatDate(item.plaud_created_at)}
-                    </span>
-                  </div>
 
-                  {/* リトライメッセージ */}
-                  {item.status === 'approved' && item.retry_count > 0 && (
-                    <div className={styles.retryMessage}>
-                      ⚠️ {getCmPlaudRetryMessage(item.retry_count)}
+                    {/* カード本体 */}
+                    <div className={styles.cardBody}>
+                      {/* カードヘッダー */}
+                      <div className={styles.cardHeader}>
+                        <div className={styles.cardTitle}>
+                          <span className={styles.title}>{item.title}</span>
+                          <StatusBadge status={item.status} />
+                          {item.client_name && (
+                            <span className={styles.clientBadge}>
+                              <User size={12} />
+                              {item.client_name}
+                              <button
+                                className={styles.clientClearButton}
+                                onClick={(e) => handleClientClear(item, e)}
+                                title="利用者を解除"
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                        <span className={styles.date}>
+                          {formatDate(item.plaud_created_at)}
+                        </span>
+                      </div>
+
+                      {/* リトライメッセージ */}
+                      {item.status === 'approved' && item.retry_count > 0 && (
+                        <div className={styles.retryMessage}>
+                          ⚠️ {getCmPlaudRetryMessage(item.retry_count)}
+                        </div>
+                      )}
+
+                      {/* カードアクション */}
+                      <div className={styles.cardActions}>
+                        {/* 利用者紐付け */}
+                        <button
+                          className={styles.actionButton}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClientSearchTarget(item);
+                          }}
+                          title="利用者を紐付け"
+                        >
+                          <User size={16} />
+                          {item.client_name ? '変更' : '紐付け'}
+                        </button>
+
+                        {/* ステータス別アクション */}
+                        {item.status === 'pending' && (
+                          <button
+                            className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
+                            onClick={(e) => handleApprove(item, e)}
+                          >
+                            <CheckCircle size={16} />
+                            承認
+                          </button>
+                        )}
+
+                        {item.status === 'failed' && (
+                          <button
+                            className={`${styles.actionButton} ${styles.actionButtonWarning}`}
+                            onClick={(e) => handleRetry(item, e)}
+                          >
+                            <RefreshCw size={16} />
+                            リトライ
+                          </button>
+                        )}
+
+                        {item.status === 'completed' && item.transcript && (
+                          <button
+                            className={`${styles.actionButton} ${styles.actionButtonSuccess}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenProcess(item);
+                            }}
+                          >
+                            <Wand2 size={16} />
+                            二次利用
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-
-                  {/* カードアクション */}
-                  <div className={styles.cardActions}>
-                    {/* 利用者紐付け */}
-                    <button
-                      className={styles.actionButton}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setClientSearchTarget(item);
-                      }}
-                      title="利用者を紐付け"
-                    >
-                      <User size={16} />
-                      {item.client_name ? '変更' : '紐付け'}
-                    </button>
-
-                    {/* ステータス別アクション */}
-                    {item.status === 'pending' && (
-                      <button
-                        className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
-                        onClick={(e) => handleApprove(item, e)}
-                      >
-                        <CheckCircle size={16} />
-                        承認
-                      </button>
-                    )}
-
-                    {item.status === 'failed' && (
-                      <button
-                        className={`${styles.actionButton} ${styles.actionButtonWarning}`}
-                        onClick={(e) => handleRetry(item, e)}
-                      >
-                        <RefreshCw size={16} />
-                        リトライ
-                      </button>
-                    )}
-
-                    {item.status === 'completed' && item.transcript && (
-                      <button
-                        className={`${styles.actionButton} ${styles.actionButtonSuccess}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenProcess(item);
-                        }}
-                      >
-                        <Wand2 size={16} />
-                        二次利用
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* ページネーション */}

@@ -118,13 +118,16 @@ export async function getPlaudTranscription(
 // =============================================================
 // 文字起こし一覧取得（管理画面用）
 // ★ 修正: authUserId パラメータ追加、ログインユーザーのデータのみ取得
+// ★ 追加: dateFrom / dateTo による plaud_created_at 日付絞り込み
 // =============================================================
 
 export type PlaudTranscriptionListParams = {
   page?: number;
   limit?: number;
   status?: string;
-  authUserId: string; // ★ 追加: 必須パラメータ
+  authUserId: string;
+  dateFrom?: string; // ★ 追加: 'YYYY-MM-DD' 形式
+  dateTo?: string;   // ★ 追加: 'YYYY-MM-DD' 形式
 };
 
 export type PlaudTranscriptionPagination = {
@@ -144,6 +147,8 @@ export async function getPlaudTranscriptionList(
     const limit = params.limit ?? 20;
     const status = params.status;
     const authUserId = params.authUserId;
+    const dateFrom = params.dateFrom;
+    const dateTo = params.dateTo;
 
     // ★ auth_user_id から user_id を取得
     const userId = await getUserIdFromAuthUserId(authUserId);
@@ -152,7 +157,7 @@ export async function getPlaudTranscriptionList(
       return { ok: false, error: "認証情報を取得できませんでした。再度ログインしてください。" };
     }
 
-    logger.info("文字起こし一覧取得開始", { page, limit, status, userId });
+    logger.info("文字起こし一覧取得開始", { page, limit, status, dateFrom, dateTo, userId });
 
     // クエリ構築
     let query = supabaseAdmin
@@ -163,6 +168,14 @@ export async function getPlaudTranscriptionList(
 
     if (status) {
       query = query.eq("status", status);
+    }
+
+    // ★ 追加: 日付フィルター（plaud_created_at で絞り込み）
+    if (dateFrom) {
+      query = query.gte("plaud_created_at", `${dateFrom}T00:00:00`);
+    }
+    if (dateTo) {
+      query = query.lte("plaud_created_at", `${dateTo}T23:59:59`);
     }
 
     // ページネーション
@@ -305,6 +318,105 @@ export async function executeTranscriptionAction(
     return { ok: true, data: updated as PlaudTranscription };
   } catch (error) {
     logger.error("予期せぬエラー", error as Error);
+    return { ok: false, error: "サーバーエラーが発生しました" };
+  }
+}
+
+// =============================================================
+// ★ 追加: 一括アクション実行（承認・リトライ）
+// =============================================================
+
+type BulkActionResult = {
+  successIds: number[];
+  failedIds: number[];
+};
+
+export async function executeBulkTranscriptionAction(
+  ids: number[],
+  action: "approve" | "retry",
+  authUserId: string
+): Promise<ActionResult<BulkActionResult>> {
+  try {
+    if (!["approve", "retry"].includes(action)) {
+      return { ok: false, error: "無効なアクションです" };
+    }
+
+    if (ids.length === 0) {
+      return { ok: true, data: { successIds: [], failedIds: [] } };
+    }
+
+    // ★ auth_user_id から user_id を取得
+    const userId = await getUserIdFromAuthUserId(authUserId);
+    if (!userId) {
+      return { ok: false, error: "認証情報を取得できませんでした" };
+    }
+
+    logger.info("一括アクション実行開始", { ids, action, userId });
+
+    const expectedStatus = action === "approve" ? "pending" : "failed";
+
+    // 対象データの一括取得（ログインユーザーのデータのみ）
+    const { data: targets, error: fetchError } = await supabaseAdmin
+      .from("cm_plaud_mgmt_transcriptions")
+      .select("id, status")
+      .in("id", ids)
+      .eq("registered_by", userId)
+      .eq("status", expectedStatus);
+
+    if (fetchError) {
+      logger.error("一括取得エラー", { message: fetchError.message });
+      return { ok: false, error: "データの取得に失敗しました" };
+    }
+
+    const validIds = (targets ?? []).map((t) => t.id);
+    const invalidIds = ids.filter((id) => !validIds.includes(id));
+
+    if (validIds.length === 0) {
+      return {
+        ok: true,
+        data: { successIds: [], failedIds: ids },
+      };
+    }
+
+    // 更新データ構築
+    const updateData: Record<string, unknown> = {
+      status: "approved",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (action === "retry") {
+      updateData.retry_count = 0;
+    }
+
+    // 一括更新
+    const { error: updateError } = await supabaseAdmin
+      .from("cm_plaud_mgmt_transcriptions")
+      .update(updateData)
+      .in("id", validIds)
+      .eq("registered_by", userId);
+
+    if (updateError) {
+      logger.error("一括更新エラー", { message: updateError.message });
+      return { ok: false, error: "一括更新に失敗しました" };
+    }
+
+    logger.info("一括アクション実行完了", {
+      action,
+      successCount: validIds.length,
+      failedCount: invalidIds.length,
+    });
+
+    revalidatePath("/cm-portal/plaud");
+
+    return {
+      ok: true,
+      data: {
+        successIds: validIds,
+        failedIds: invalidIds,
+      },
+    };
+  } catch (error) {
+    logger.error("一括アクション予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
 }

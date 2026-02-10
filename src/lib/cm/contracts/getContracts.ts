@@ -1,6 +1,13 @@
 // =============================================================
 // src/lib/cm/contracts/getContracts.ts
 // 契約一覧取得（Server Action — Client Componentから呼び出し可能）
+//
+// 変更履歴:
+//   2026-02-06: v2マイグレーション
+//     - 変更なし（型追従のみ）
+//     - consent: select("*") のため scribe_*/agent_*/guardian_* は自動取得
+//     - CmContractConsent 型は Phase 1 で更新済み
+//     - CmContractListItem は signed_at を cm_contracts から取得（変更不要）
 // =============================================================
 
 "use server";

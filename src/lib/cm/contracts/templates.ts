@@ -4,6 +4,14 @@
 //
 // DBテーブルは作らず、コード内で固定定義
 // テンプレート追加時はこのファイルを更新
+//
+// v2変更:
+//   - signers フィールドはテンプレートHTMLに含まれる
+//     DigiSigner Text Tags のロール一覧を表す
+//   - 実際の署名リクエスト時のロール決定は
+//     createContract.ts の getDigiSignerRoles() で動的に行われる
+//   - 'proxy_signer' ロールは 'scribe'/'agent' に置換済み
+//     （テンプレートHTML内のText Tagsも要更新）
 // =============================================================
 
 import type {
@@ -17,6 +25,17 @@ import type { CmContractTemplateCode } from '@/types/cm/contractTemplate';
 
 /**
  * 契約書テンプレート一覧
+ *
+ * signers: テンプレートHTMLに含まれる DigiSigner Text Tags のロール名
+ *   - 'signer': 利用者本人
+ *   - 'scribe': 代筆者（旧 proxy_signer）
+ *   - 'agent':  代理人（v2新規）
+ *   - 'family': 家族
+ *   - 'care_manager_1': ケアマネージャー
+ *
+ * NOTE: 署名リクエスト作成時、signerType に応じて
+ *       signer/scribe/agent のいずれかが選択される。
+ *       family, care_manager_1 は将来の複数署名者対応で使用。
  */
 export const CONTRACT_DOCUMENT_TEMPLATES: CmDocumentTemplate[] = [
   {
@@ -38,7 +57,7 @@ export const CONTRACT_DOCUMENT_TEMPLATES: CmDocumentTemplate[] = [
     name: '個人情報使用同意書',
     isRequired: true,
     sortOrder: 3,
-    signers: ['signer'],
+    signers: ['signer', 'family'],  // 利用者 + 家族
   },
   {
     code: 'fee-table',

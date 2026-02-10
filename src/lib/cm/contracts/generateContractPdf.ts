@@ -9,6 +9,13 @@
 //
 // 依存: pdfkit, cheerio
 // フォント: NotoSansJP-Regular.ttf（public/fonts/）
+//
+// 変更履歴:
+//   2026-02-06: v2マイグレーション
+//     - proxy-note CSS クラス → scribe-note, agent-note にも対応
+//     - 注記: タグ置換自体は createContract.ts 側で処理済み
+//       {{代筆者氏名}}, {{代筆者続柄}}, {{代筆理由}} 等（既存）
+//       {{代理人氏名}}, {{代理人続柄}}, {{代理の根拠}} 等（新規）
 // =============================================================
 
 import PDFDocument from 'pdfkit';
@@ -261,7 +268,8 @@ function renderParagraph(
   // フォントサイズ
   let fontSize: number = FONT_SIZE.body;
   if (hasKi) fontSize = 14;
-  if (classes.includes('note') || classes.includes('proxy-note')) fontSize = FONT_SIZE.note;
+  // proxy-note, scribe-note, agent-note いずれも注記スタイル
+  if (classes.includes('note') || isSignerNoteClass(classes)) fontSize = FONT_SIZE.note;
 
   // インデント
   let leftMargin = PAGE_MARGIN;
@@ -365,8 +373,8 @@ function renderSectionBox(
     } else if (childClasses.includes('staff-block')) {
       // 職員ブロック
       renderStaffBlock(doc, $, $child, boxLeft + boxPadding, innerWidth);
-    } else if (childClasses.includes('proxy-note')) {
-      // 代筆注記
+    } else if (isSignerNoteClass(childClasses)) {
+      // 代筆注記 / 代理人注記（proxy-note, scribe-note, agent-note）
       const noteText = $child.text().trim();
       doc.fontSize(FONT_SIZE.note).fillColor('#666666')
         .text(noteText, boxLeft + boxPadding, undefined, { width: innerWidth });
@@ -606,6 +614,16 @@ function renderNote(
 // =============================================================
 // ユーティリティ
 // =============================================================
+
+/**
+ * 署名者注記クラスかどうかを判定
+ * proxy-note（後方互換）, scribe-note, agent-note のいずれかに該当
+ */
+function isSignerNoteClass(classes: string[]): boolean {
+  return classes.includes('proxy-note')
+    || classes.includes('scribe-note')
+    || classes.includes('agent-note');
+}
 
 /**
  * 要素からテキストを取得（子要素のテキストも含む）

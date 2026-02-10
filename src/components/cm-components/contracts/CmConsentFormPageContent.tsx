@@ -5,8 +5,9 @@
 // 機能:
 //   - 電子契約・録音同意のチェックボックス
 //   - 立会職員（説明者）セレクト
-//   - 署名者種別（本人 / 代理人）
-//   - 代理人情報入力（続柄・理由はマスタから選択、「その他」入力対応）
+//   - 署名者種別（本人 / 代筆 / 代理人）
+//   - 代筆者情報入力（氏名・続柄・代筆理由、マスタ選択＋「その他」対応）
+//   - 代理人情報入力（氏名・続柄・代理の根拠）
 //   - Canvas手書き署名
 //   - uploadConsentPdf で PDF生成 → GDriveアップロード → DB登録
 // =============================================================
@@ -34,7 +35,7 @@ type Props = {
   clientAddress: string;
 };
 
-type SignerType = 'self' | 'proxy';
+type SignerType = 'self' | 'scribe' | 'agent';
 
 // =============================================================
 // Component
@@ -57,7 +58,7 @@ export function CmConsentFormPageContent({
   // 選択肢マスタ
   // ---------------------------------------------------------
   const [relationshipOptions, setRelationshipOptions] = useState<CmSelectOption[]>([]);
-  const [proxyReasonOptions, setProxyReasonOptions] = useState<CmSelectOption[]>([]);
+  const [scribeReasonOptions, setScribeReasonOptions] = useState<CmSelectOption[]>([]);
 
   // ---------------------------------------------------------
   // フォーム状態
@@ -66,11 +67,19 @@ export function CmConsentFormPageContent({
   const [consentRecording, setConsentRecording] = useState(false);
   const [staffId, setStaffId] = useState('');
   const [signerType, setSignerType] = useState<SignerType>('self');
-  const [proxyName, setProxyName] = useState('');
-  const [proxyRelationshipCode, setProxyRelationshipCode] = useState('');
-  const [proxyRelationshipOther, setProxyRelationshipOther] = useState('');
-  const [proxyReasonCode, setProxyReasonCode] = useState('');
-  const [proxyReasonOther, setProxyReasonOther] = useState('');
+
+  // 代筆者情報（signerType === 'scribe'）
+  const [scribeName, setScribeName] = useState('');
+  const [scribeRelationshipCode, setScribeRelationshipCode] = useState('');
+  const [scribeRelationshipOther, setScribeRelationshipOther] = useState('');
+  const [scribeReasonCode, setScribeReasonCode] = useState('');
+  const [scribeReasonOther, setScribeReasonOther] = useState('');
+
+  // 代理人情報（signerType === 'agent'）
+  const [agentName, setAgentName] = useState('');
+  const [agentRelationshipCode, setAgentRelationshipCode] = useState('');
+  const [agentRelationshipOther, setAgentRelationshipOther] = useState('');
+  const [agentAuthority, setAgentAuthority] = useState('');
 
   // ---------------------------------------------------------
   // 署名Canvas
@@ -88,15 +97,20 @@ export function CmConsentFormPageContent({
   // ---------------------------------------------------------
   // 選択肢が「その他」かどうか
   // ---------------------------------------------------------
-  const isRelationshipOther = useCallback(() => {
-    const opt = relationshipOptions.find((o) => o.code === proxyRelationshipCode);
+  const isScribeRelationshipOther = useCallback(() => {
+    const opt = relationshipOptions.find((o) => o.code === scribeRelationshipCode);
     return opt?.requires_input ?? false;
-  }, [relationshipOptions, proxyRelationshipCode]);
+  }, [relationshipOptions, scribeRelationshipCode]);
 
-  const isProxyReasonOther = useCallback(() => {
-    const opt = proxyReasonOptions.find((o) => o.code === proxyReasonCode);
+  const isScribeReasonOther = useCallback(() => {
+    const opt = scribeReasonOptions.find((o) => o.code === scribeReasonCode);
     return opt?.requires_input ?? false;
-  }, [proxyReasonOptions, proxyReasonCode]);
+  }, [scribeReasonOptions, scribeReasonCode]);
+
+  const isAgentRelationshipOther = useCallback(() => {
+    const opt = relationshipOptions.find((o) => o.code === agentRelationshipCode);
+    return opt?.requires_input ?? false;
+  }, [relationshipOptions, agentRelationshipCode]);
 
   // ---------------------------------------------------------
   // 初期データ取得
@@ -115,7 +129,7 @@ export function CmConsentFormPageContent({
 
         if (optionsResult.ok) {
           setRelationshipOptions(optionsResult.data.relationship || []);
-          setProxyReasonOptions(optionsResult.data.proxy_reason || []);
+          setScribeReasonOptions(optionsResult.data.proxy_reason || []);
         }
       } catch (e) {
         console.error('初期データ取得エラー', e);
@@ -244,25 +258,42 @@ export function CmConsentFormPageContent({
     if (!staffId) {
       return '立会職員を選択してください';
     }
-    if (signerType === 'proxy') {
-      if (!proxyName.trim()) {
+
+    // 代筆者バリデーション
+    if (signerType === 'scribe') {
+      if (!scribeName.trim()) {
         return '代筆者氏名を入力してください';
       }
-      if (!proxyRelationshipCode) {
+      if (!scribeRelationshipCode) {
         return '本人との関係を選択してください';
       }
-      // 「その他」選択時は入力必須
-      if (isRelationshipOther() && !proxyRelationshipOther.trim()) {
+      if (isScribeRelationshipOther() && !scribeRelationshipOther.trim()) {
         return '本人との関係（その他）を入力してください';
       }
-      if (!proxyReasonCode) {
+      if (!scribeReasonCode) {
         return '代筆理由を選択してください';
       }
-      // 「その他」選択時は入力必須
-      if (isProxyReasonOther() && !proxyReasonOther.trim()) {
+      if (isScribeReasonOther() && !scribeReasonOther.trim()) {
         return '代筆理由（その他）を入力してください';
       }
     }
+
+    // 代理人バリデーション
+    if (signerType === 'agent') {
+      if (!agentName.trim()) {
+        return '代理人氏名を入力してください';
+      }
+      if (!agentRelationshipCode) {
+        return '本人との関係を選択してください';
+      }
+      if (isAgentRelationshipOther() && !agentRelationshipOther.trim()) {
+        return '本人との関係（その他）を入力してください';
+      }
+      if (!agentAuthority.trim()) {
+        return '代理の根拠を入力してください';
+      }
+    }
+
     if (!hasSignature) {
       return '署名を入力してください';
     }
@@ -271,14 +302,19 @@ export function CmConsentFormPageContent({
     consentElectronic,
     staffId,
     signerType,
-    proxyName,
-    proxyRelationshipCode,
-    proxyRelationshipOther,
-    proxyReasonCode,
-    proxyReasonOther,
+    scribeName,
+    scribeRelationshipCode,
+    scribeRelationshipOther,
+    scribeReasonCode,
+    scribeReasonOther,
+    agentName,
+    agentRelationshipCode,
+    agentRelationshipOther,
+    agentAuthority,
     hasSignature,
-    isRelationshipOther,
-    isProxyReasonOther,
+    isScribeRelationshipOther,
+    isScribeReasonOther,
+    isAgentRelationshipOther,
   ]);
 
   // ---------------------------------------------------------
@@ -307,21 +343,30 @@ export function CmConsentFormPageContent({
       const staffName = selectedStaff?.display_name || '';
 
       // 表示用の値を生成
-      const relationshipDisplay =
-        signerType === 'proxy'
+      const scribeRelationshipDisplay =
+        signerType === 'scribe'
           ? getSelectDisplayValue(
-              proxyRelationshipCode,
-              proxyRelationshipOther,
+              scribeRelationshipCode,
+              scribeRelationshipOther,
               relationshipOptions
             )
           : undefined;
 
-      const reasonDisplay =
-        signerType === 'proxy'
+      const scribeReasonDisplay =
+        signerType === 'scribe'
           ? getSelectDisplayValue(
-              proxyReasonCode,
-              proxyReasonOther,
-              proxyReasonOptions
+              scribeReasonCode,
+              scribeReasonOther,
+              scribeReasonOptions
+            )
+          : undefined;
+
+      const agentRelationshipDisplay =
+        signerType === 'agent'
+          ? getSelectDisplayValue(
+              agentRelationshipCode,
+              agentRelationshipOther,
+              relationshipOptions
             )
           : undefined;
 
@@ -335,18 +380,27 @@ export function CmConsentFormPageContent({
         staffId,
         staffName,
         signerType,
-        proxyName: signerType === 'proxy' ? proxyName.trim() : undefined,
-        // 新カラム
-        proxyRelationshipCode:
-          signerType === 'proxy' ? proxyRelationshipCode : undefined,
-        proxyRelationshipOther:
-          signerType === 'proxy' ? proxyRelationshipOther.trim() || undefined : undefined,
-        proxyReasonCode: signerType === 'proxy' ? proxyReasonCode : undefined,
-        proxyReasonOther:
-          signerType === 'proxy' ? proxyReasonOther.trim() || undefined : undefined,
-        // PDF表示用（後方互換）
-        proxyRelationship: relationshipDisplay,
-        proxyReason: reasonDisplay,
+        // 代筆者情報
+        scribeName: signerType === 'scribe' ? scribeName.trim() : undefined,
+        scribeRelationshipCode:
+          signerType === 'scribe' ? scribeRelationshipCode : undefined,
+        scribeRelationshipOther:
+          signerType === 'scribe' ? scribeRelationshipOther.trim() || undefined : undefined,
+        scribeReasonCode: signerType === 'scribe' ? scribeReasonCode : undefined,
+        scribeReasonOther:
+          signerType === 'scribe' ? scribeReasonOther.trim() || undefined : undefined,
+        // 代筆者 PDF表示用
+        scribeRelationship: scribeRelationshipDisplay,
+        scribeReason: scribeReasonDisplay,
+        // 代理人情報
+        agentName: signerType === 'agent' ? agentName.trim() : undefined,
+        agentRelationshipCode:
+          signerType === 'agent' ? agentRelationshipCode : undefined,
+        agentRelationshipOther:
+          signerType === 'agent' ? agentRelationshipOther.trim() || undefined : undefined,
+        // 代理人 PDF表示用
+        agentRelationship: agentRelationshipDisplay,
+        agentAuthority: signerType === 'agent' ? agentAuthority.trim() : undefined,
         signatureBase64,
       });
 
@@ -366,26 +420,35 @@ export function CmConsentFormPageContent({
   };
 
   // ---------------------------------------------------------
-  // 続柄変更時の処理
+  // 代筆者 続柄変更時の処理
   // ---------------------------------------------------------
-  const handleRelationshipChange = (code: string) => {
-    setProxyRelationshipCode(code);
-    // 「その他」以外を選んだらその他テキストをクリア
+  const handleScribeRelationshipChange = (code: string) => {
+    setScribeRelationshipCode(code);
     const opt = relationshipOptions.find((o) => o.code === code);
     if (!opt?.requires_input) {
-      setProxyRelationshipOther('');
+      setScribeRelationshipOther('');
     }
   };
 
   // ---------------------------------------------------------
-  // 理由変更時の処理
+  // 代筆者 理由変更時の処理
   // ---------------------------------------------------------
-  const handleReasonChange = (code: string) => {
-    setProxyReasonCode(code);
-    // 「その他」以外を選んだらその他テキストをクリア
-    const opt = proxyReasonOptions.find((o) => o.code === code);
+  const handleScribeReasonChange = (code: string) => {
+    setScribeReasonCode(code);
+    const opt = scribeReasonOptions.find((o) => o.code === code);
     if (!opt?.requires_input) {
-      setProxyReasonOther('');
+      setScribeReasonOther('');
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 代理人 続柄変更時の処理
+  // ---------------------------------------------------------
+  const handleAgentRelationshipChange = (code: string) => {
+    setAgentRelationshipCode(code);
+    const opt = relationshipOptions.find((o) => o.code === code);
+    if (!opt?.requires_input) {
+      setAgentRelationshipOther('');
     }
   };
 
@@ -549,9 +612,20 @@ export function CmConsentFormPageContent({
                 <input
                   type="radio"
                   name="signer-type"
-                  value="proxy"
-                  checked={signerType === 'proxy'}
-                  onChange={() => setSignerType('proxy')}
+                  value="scribe"
+                  checked={signerType === 'scribe'}
+                  onChange={() => setSignerType('scribe')}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <span className="text-sm text-slate-700">代筆</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="signer-type"
+                  value="agent"
+                  checked={signerType === 'agent'}
+                  onChange={() => setSignerType('agent')}
                   className="w-4 h-4 accent-blue-600"
                 />
                 <span className="text-sm text-slate-700">代理人</span>
@@ -559,19 +633,19 @@ export function CmConsentFormPageContent({
             </div>
           </div>
 
-          {/* 代理人情報 */}
-          {signerType === 'proxy' && (
+          {/* 代筆者情報 */}
+          {signerType === 'scribe' && (
             <div className="bg-amber-50 rounded-lg p-4 space-y-4 border border-amber-200">
-              <p className="text-sm font-medium text-amber-800">代理人情報</p>
+              <p className="text-sm font-medium text-amber-800">代筆者情報</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-700 mb-1">
-                    代理人氏名 <span className="text-red-500">*</span>
+                    代筆者氏名 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    value={proxyName}
-                    onChange={(e) => setProxyName(e.target.value)}
+                    value={scribeName}
+                    onChange={(e) => setScribeName(e.target.value)}
                     placeholder="氏名を入力"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -581,8 +655,8 @@ export function CmConsentFormPageContent({
                     本人との関係 <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={proxyRelationshipCode}
-                    onChange={(e) => handleRelationshipChange(e.target.value)}
+                    value={scribeRelationshipCode}
+                    onChange={(e) => handleScribeRelationshipChange(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">選択</option>
@@ -593,11 +667,11 @@ export function CmConsentFormPageContent({
                     ))}
                   </select>
                   {/* 「その他」選択時の入力欄 */}
-                  {isRelationshipOther() && (
+                  {isScribeRelationshipOther() && (
                     <input
                       type="text"
-                      value={proxyRelationshipOther}
-                      onChange={(e) => setProxyRelationshipOther(e.target.value)}
+                      value={scribeRelationshipOther}
+                      onChange={(e) => setScribeRelationshipOther(e.target.value)}
                       placeholder="具体的に入力してください"
                       className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -606,30 +680,90 @@ export function CmConsentFormPageContent({
               </div>
               <div>
                 <label className="block text-xs text-slate-700 mb-1">
-                  代理署名の理由 <span className="text-red-500">*</span>
+                  代筆の理由 <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={proxyReasonCode}
-                  onChange={(e) => handleReasonChange(e.target.value)}
+                  value={scribeReasonCode}
+                  onChange={(e) => handleScribeReasonChange(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">選択</option>
-                  {proxyReasonOptions.map((opt) => (
+                  {scribeReasonOptions.map((opt) => (
                     <option key={opt.code} value={opt.code}>
                       {opt.label}
                     </option>
                   ))}
                 </select>
                 {/* 「その他」選択時の入力欄 */}
-                {isProxyReasonOther() && (
+                {isScribeReasonOther() && (
                   <input
                     type="text"
-                    value={proxyReasonOther}
-                    onChange={(e) => setProxyReasonOther(e.target.value)}
+                    value={scribeReasonOther}
+                    onChange={(e) => setScribeReasonOther(e.target.value)}
                     placeholder="具体的に入力してください"
                     className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 代理人情報 */}
+          {signerType === 'agent' && (
+            <div className="bg-purple-50 rounded-lg p-4 space-y-4 border border-purple-200">
+              <p className="text-sm font-medium text-purple-800">代理人情報</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-700 mb-1">
+                    代理人氏名 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={agentName}
+                    onChange={(e) => setAgentName(e.target.value)}
+                    placeholder="氏名を入力"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-700 mb-1">
+                    本人との関係 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={agentRelationshipCode}
+                    onChange={(e) => handleAgentRelationshipChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">選択</option>
+                    {relationshipOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  {/* 「その他」選択時の入力欄 */}
+                  {isAgentRelationshipOther() && (
+                    <input
+                      type="text"
+                      value={agentRelationshipOther}
+                      onChange={(e) => setAgentRelationshipOther(e.target.value)}
+                      placeholder="具体的に入力してください"
+                      className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-700 mb-1">
+                  代理の根拠 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={agentAuthority}
+                  onChange={(e) => setAgentAuthority(e.target.value)}
+                  placeholder="成年後見人、任意後見人、法定代理人 等"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                />
               </div>
             </div>
           )}

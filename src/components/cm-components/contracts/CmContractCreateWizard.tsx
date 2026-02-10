@@ -8,6 +8,7 @@
 //
 // 変更履歴:
 //   2026-02-05: officeInfo の型を拡張（運営法人名・代表者名・管理者名を追加）
+//   2026-02-09: v2 step2Data proxy* → scribe*/agent* 3分類対応
 // =============================================================
 
 'use client';
@@ -72,14 +73,21 @@ export function CmContractCreateWizard({ kaipokeCsId }: Props) {
     clientFax: '',
     // 署名者区分
     signerType: 'self',
+    // 代筆者情報
+    scribeName: '',
+    scribeRelationshipCode: '',
+    scribeRelationshipOther: '',
+    scribeReasonCode: '',
+    scribeReasonOther: '',
+    scribeAddress: '',
+    scribePhone: '',
     // 代理人情報
-    proxyName: '',
-    proxyRelationshipCode: '',
-    proxyRelationshipOther: '',
-    proxyReasonCode: '',
-    proxyReasonOther: '',
-    proxyAddress: '',
-    proxyPhone: '',
+    agentName: '',
+    agentRelationshipCode: '',
+    agentRelationshipOther: '',
+    agentAuthority: '',
+    agentAddress: '',
+    agentPhone: '',
     emergencyPhone: '',
     // 後見人確認
     hasGuardian: false,

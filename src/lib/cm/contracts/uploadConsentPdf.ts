@@ -7,6 +7,8 @@
 //   2. PDF生成
 //   3. Google Driveにアップロード
 //   4. DBに登録（cm_contract_consents）
+//
+// v2変更: proxy_* → scribe_*/agent_* フィールド名変更
 // =============================================================
 
 'use server';
@@ -36,19 +38,26 @@ export type UploadConsentPdfParams = {
   staffId: string;
   staffName: string;
 
-  // 署名者情報
-  signerType: 'self' | 'proxy';
-  proxyName?: string;
+  // 署名者情報（v2: 3分類対応）
+  signerType: 'self' | 'scribe' | 'agent';
 
-  // 新カラム（マスタコード + その他テキスト）
-  proxyRelationshipCode?: string;
-  proxyRelationshipOther?: string;
-  proxyReasonCode?: string;
-  proxyReasonOther?: string;
+  // 代筆者情報（signerType === 'scribe' の場合）
+  scribeName?: string;
+  scribeRelationshipCode?: string;
+  scribeRelationshipOther?: string;
+  scribeReasonCode?: string;
+  scribeReasonOther?: string;
+  // PDF表示用の表示文字列
+  scribeRelationship?: string;
+  scribeReason?: string;
 
-  // 後方互換（PDF表示用の表示文字列）
-  proxyRelationship?: string;
-  proxyReason?: string;
+  // 代理人情報（signerType === 'agent' の場合）
+  agentName?: string;
+  agentRelationshipCode?: string;
+  agentRelationshipOther?: string;
+  agentAuthority?: string;
+  // PDF表示用の表示文字列
+  agentRelationship?: string;
 
   // 署名画像（Base64）
   signatureBase64: string;
@@ -86,13 +95,21 @@ export async function uploadConsentPdf(
     staffId,
     staffName,
     signerType,
-    proxyName,
-    proxyRelationshipCode,
-    proxyRelationshipOther,
-    proxyReasonCode,
-    proxyReasonOther,
-    proxyRelationship,
-    proxyReason,
+    // 代筆者
+    scribeName,
+    scribeRelationshipCode,
+    scribeRelationshipOther,
+    scribeReasonCode,
+    scribeReasonOther,
+    scribeRelationship,
+    scribeReason,
+    // 代理人
+    agentName,
+    agentRelationshipCode,
+    agentRelationshipOther,
+    agentAuthority,
+    agentRelationship,
+    // 共通
     signatureBase64,
     ipAddress,
     userAgent,
@@ -110,7 +127,11 @@ export async function uploadConsentPdf(
       return { ok: false, error: '電子契約への同意が必要です' };
     }
 
-    if (signerType === 'proxy' && !proxyName) {
+    if (signerType === 'scribe' && !scribeName) {
+      return { ok: false, error: '代筆者氏名は必須です' };
+    }
+
+    if (signerType === 'agent' && !agentName) {
       return { ok: false, error: '代理人氏名は必須です' };
     }
 
@@ -129,7 +150,7 @@ export async function uploadConsentPdf(
     const consentedAt = new Date();
 
     // ---------------------------------------------------------
-    // 1. PDF生成
+    // 1. PDF生成（v2: 3分類対応の引数）
     // ---------------------------------------------------------
     const pdfResult = await generateConsentPdf({
       clientName,
@@ -139,10 +160,14 @@ export async function uploadConsentPdf(
       consentRecording,
       staffName,
       signerType,
-      proxyName,
-      // PDF表示用には表示文字列を使用
-      proxyRelationship,
-      proxyReason,
+      // 代筆者（PDF表示用の表示文字列を使用）
+      scribeName,
+      scribeRelationship,
+      scribeReason,
+      // 代理人
+      agentName,
+      agentRelationship,
+      agentAuthority,
       signatureBase64,
       consentedAt,
     });
@@ -180,7 +205,7 @@ export async function uploadConsentPdf(
     });
 
     // ---------------------------------------------------------
-    // 3. DBに登録
+    // 3. DBに登録（v2: proxy_* → scribe_*/agent_* カラム名変更）
     // ---------------------------------------------------------
     const { data: consentData, error: consentError } = await supabaseAdmin
       .from('cm_contract_consents')
@@ -189,15 +214,18 @@ export async function uploadConsentPdf(
         consent_electronic: consentElectronic,
         consent_recording: consentRecording,
         signer_type: signerType,
-        proxy_name: signerType === 'proxy' ? proxyName : null,
-        // 後方互換（表示用文字列）
-        proxy_relationship: signerType === 'proxy' ? proxyRelationship : null,
-        proxy_reason: signerType === 'proxy' ? proxyReason : null,
-        // 新カラム（マスタコード + その他テキスト）
-        proxy_relationship_code: signerType === 'proxy' ? proxyRelationshipCode : null,
-        proxy_relationship_other: signerType === 'proxy' ? proxyRelationshipOther || null : null,
-        proxy_reason_code: signerType === 'proxy' ? proxyReasonCode : null,
-        proxy_reason_other: signerType === 'proxy' ? proxyReasonOther || null : null,
+        // 代筆者情報
+        scribe_name: signerType === 'scribe' ? scribeName : null,
+        scribe_relationship_code: signerType === 'scribe' ? scribeRelationshipCode : null,
+        scribe_relationship_other: signerType === 'scribe' ? scribeRelationshipOther || null : null,
+        scribe_reason_code: signerType === 'scribe' ? scribeReasonCode : null,
+        scribe_reason_other: signerType === 'scribe' ? scribeReasonOther || null : null,
+        // 代理人情報
+        agent_name: signerType === 'agent' ? agentName : null,
+        agent_relationship_code: signerType === 'agent' ? agentRelationshipCode : null,
+        agent_relationship_other: signerType === 'agent' ? agentRelationshipOther || null : null,
+        agent_authority: signerType === 'agent' ? agentAuthority : null,
+        // ファイル情報
         staff_id: staffId,
         gdrive_file_id: fileId,
         gdrive_file_url: fileUrl,

@@ -30,10 +30,18 @@ export type CreateConsentParams = {
   kaipoke_cs_id: string;
   consent_electronic: boolean;
   consent_recording: boolean;
-  signer_type: "self" | "proxy";
-  proxy_name?: string;
-  proxy_relationship?: string;
-  proxy_reason?: string;
+  signer_type: "self" | "scribe" | "agent";
+
+  // 代筆者情報（signer_type === 'scribe' の場合）
+  scribe_name?: string;
+  scribe_relationship?: string;
+  scribe_reason?: string;
+
+  // 代理人情報（signer_type === 'agent' の場合）
+  agent_name?: string;
+  agent_relationship?: string;
+  agent_authority?: string;
+
   signature_image_base64?: string;
   staff_id: string;
   ip_address?: string;
@@ -49,9 +57,12 @@ export async function createConsent(
       consent_electronic,
       consent_recording,
       signer_type,
-      proxy_name,
-      proxy_relationship,
-      proxy_reason,
+      scribe_name,
+      scribe_relationship,
+      scribe_reason,
+      agent_name,
+      agent_relationship,
+      agent_authority,
       staff_id,
       ip_address,
       user_agent,
@@ -62,7 +73,11 @@ export async function createConsent(
       return { ok: false, error: "必須項目が不足しています" };
     }
 
-    if (signer_type === "proxy" && !proxy_name) {
+    if (signer_type === "scribe" && !scribe_name) {
+      return { ok: false, error: "代筆者氏名は必須です" };
+    }
+
+    if (signer_type === "agent" && !agent_name) {
       return { ok: false, error: "代理人氏名は必須です" };
     }
 
@@ -83,9 +98,14 @@ export async function createConsent(
         consent_electronic: consent_electronic ?? false,
         consent_recording: consent_recording ?? false,
         signer_type,
-        proxy_name: signer_type === "proxy" ? proxy_name : null,
-        proxy_relationship: signer_type === "proxy" ? proxy_relationship : null,
-        proxy_reason: signer_type === "proxy" ? proxy_reason : null,
+        // 代筆者情報
+        scribe_name: signer_type === "scribe" ? scribe_name : null,
+        scribe_relationship_code: signer_type === "scribe" ? scribe_relationship : null,
+        scribe_reason_code: signer_type === "scribe" ? scribe_reason : null,
+        // 代理人情報
+        agent_name: signer_type === "agent" ? agent_name : null,
+        agent_relationship_code: signer_type === "agent" ? agent_relationship : null,
+        agent_authority: signer_type === "agent" ? agent_authority : null,
         gdrive_file_id: gdriveFileId,
         gdrive_file_url: gdriveFileUrl,
         gdrive_file_path: gdriveFilePath,

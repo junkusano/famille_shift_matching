@@ -4,6 +4,8 @@
 //
 // pdf-lib + @pdf-lib/fontkit を使用
 // 日本語フォント: Noto Sans JP（public/fonts/NotoSansJP-Regular.ttf）
+//
+// v2変更: signerType 3分類（self/scribe/agent）、表示ロジック分離
 // =============================================================
 
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -61,11 +63,18 @@ export type ConsentPdfData = {
   // 立会職員
   staffName: string;
 
-  // 署名者情報
-  signerType: "self" | "proxy";
-  proxyName?: string;
-  proxyRelationship?: string;
-  proxyReason?: string;
+  // 署名者情報（v2: 3分類対応）
+  signerType: "self" | "scribe" | "agent";
+
+  // 代筆者情報（signerType === 'scribe' の場合）
+  scribeName?: string;
+  scribeRelationship?: string;
+  scribeReason?: string;
+
+  // 代理人情報（signerType === 'agent' の場合）
+  agentName?: string;
+  agentRelationship?: string;
+  agentAuthority?: string;
 
   // 署名画像（Base64）
   signatureBase64: string;
@@ -269,25 +278,31 @@ export async function generateConsentPdf(
     y -= 30;
 
     // ---------------------------------------------------------
-    // 署名者情報
+    // 署名者情報（v2: 3分類対応）
     // ---------------------------------------------------------
     y = drawSection(page, notoSansJp, "署名者", y);
     y -= 5;
 
-    const signerText = data.signerType === "self" ? "本人" : "代筆";
+    const signerTypeLabel =
+      data.signerType === "self" ? "本人" :
+      data.signerType === "scribe" ? "代筆" :
+      "代理人";
+
+    const isNonSelf = data.signerType === "scribe" || data.signerType === "agent";
+    const detailBoxHeight = isNonSelf ? 80 : 30;
+
     page.drawRectangle({
       x: MARGIN_LEFT,
-      y: y - (data.signerType === "proxy" ? 80 : 30),
+      y: y - detailBoxHeight,
       width: PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT,
-      height: data.signerType === "proxy" ? 80 : 30,
-      color:
-        data.signerType === "proxy"
-          ? rgb(1, 0.98, 0.94) // 薄いオレンジ
-          : rgb(0.96, 0.96, 0.96),
+      height: detailBoxHeight,
+      color: isNonSelf
+        ? rgb(1, 0.98, 0.94) // 薄いオレンジ
+        : rgb(0.96, 0.96, 0.96),
     });
 
     y -= 20;
-    page.drawText(`署名者: ${signerText}`, {
+    page.drawText(`署名者: ${signerTypeLabel}`, {
       x: MARGIN_LEFT + 15,
       y,
       size: 12,
@@ -295,9 +310,10 @@ export async function generateConsentPdf(
       color: COLOR_TEXT,
     });
 
-    if (data.signerType === "proxy") {
+    if (data.signerType === "scribe") {
+      // 代筆者詳細
       y -= 20;
-      page.drawText(`代筆者氏名: ${data.proxyName || ""}`, {
+      page.drawText(`代筆者氏名: ${data.scribeName || ""}`, {
         x: MARGIN_LEFT + 15,
         y,
         size: 11,
@@ -307,7 +323,31 @@ export async function generateConsentPdf(
 
       y -= 18;
       page.drawText(
-        `本人との関係: ${data.proxyRelationship || ""}　　代筆理由: ${data.proxyReason || ""}`,
+        `本人との関係: ${data.scribeRelationship || ""}　　代筆理由: ${data.scribeReason || ""}`,
+        {
+          x: MARGIN_LEFT + 15,
+          y,
+          size: 10,
+          font: notoSansJp,
+          color: COLOR_GRAY,
+        }
+      );
+
+      y -= 30;
+    } else if (data.signerType === "agent") {
+      // 代理人詳細
+      y -= 20;
+      page.drawText(`代理人氏名: ${data.agentName || ""}`, {
+        x: MARGIN_LEFT + 15,
+        y,
+        size: 11,
+        font: notoSansJp,
+        color: COLOR_TEXT,
+      });
+
+      y -= 18;
+      page.drawText(
+        `本人との関係: ${data.agentRelationship || ""}　　代理の根拠: ${data.agentAuthority || ""}`,
         {
           x: MARGIN_LEFT + 15,
           y,

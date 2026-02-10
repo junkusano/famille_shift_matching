@@ -4,7 +4,9 @@
 //
 // 処理フロー:
 //   1. PDF アップロード → document_id 取得
-//   2. 署名リクエスト作成（Text Tags使用）→ signature_request_id + signing_url 取得
+//   2. 署名リクエスト作成（Text Tags使用）→ signature_request_id + signers 取得
+//
+// v2変更: 複数署名者ロール対応（signer/scribe/agent/family/care_manager_1）
 // =============================================================
 
 import { createLogger } from '@/lib/common/logger';
@@ -132,21 +134,29 @@ export async function uploadPdfToDigiSigner(
 
 /**
  * Text Tags を使用した署名リクエストを作成
- * 
+ *
+ * v2変更: 単一 signerRole → signerRoles 配列で複数署名者を一括登録
+ *
  * @param documentId アップロード済みドキュメントID
- * @param signerRole 署名者ロール（Text Tagsで使用したロール名）
+ * @param signerRoles 署名者ロール配列（Text Tagsで使用したロール名の配列）
  */
 export async function createSignatureRequest(
   documentId: string,
-  signerRole: string = 'signer'
+  signerRoles: string[] = ['signer']
 ): Promise<DigiSignerSignatureRequestResult> {
   try {
-    logger.info('DigiSigner 署名リクエスト作成開始', { documentId, signerRole });
+    logger.info('DigiSigner 署名リクエスト作成開始', { documentId, signerRoles });
 
     const credentials = await getDigiSignerCredentials();
     if (!credentials) {
       return { ok: false, error: 'DigiSigner認証情報が取得できません' };
     }
+
+    // 署名者配列を構築（ロールごとにダミーメールを割り当て）
+    const signers = signerRoles.map((role, index) => ({
+      email: `signer${index + 1}@example.local`,
+      role,
+    }));
 
     const requestBody = {
       embedded: true,          // 埋め込みモード（メール送信なし）
@@ -156,12 +166,7 @@ export async function createSignatureRequest(
       documents: [
         {
           document_id: documentId,
-          signers: [
-            {
-              email: 'signer@example.local',  // ダミーメール（形式チェック用）
-              role: signerRole,
-            },
-          ],
+          signers,
         },
       ],
     };
@@ -186,17 +191,34 @@ export async function createSignatureRequest(
 
     const result = await response.json();
 
-    // 署名URLを抽出
-    const signingUrl = result.documents?.[0]?.signers?.[0]?.sign_document_url;
-    
-    if (!result.signature_request_id || !signingUrl) {
-      logger.error('DigiSigner 署名情報が不足', { result });
-      return { ok: false, error: '署名URLが取得できません' };
+    if (!result.signature_request_id) {
+      logger.error('DigiSigner signature_request_id が不足', { result });
+      return { ok: false, error: '署名リクエストIDが取得できません' };
+    }
+
+    // 各署名者の署名URLを抽出（ロールと対応付け）
+    const responseSigners = result.documents?.[0]?.signers;
+    if (!responseSigners || responseSigners.length === 0) {
+      logger.error('DigiSigner 署名者情報が不足', { result });
+      return { ok: false, error: '署名者URLが取得できません' };
+    }
+
+    const resultSigners: { role: string; signingUrl: string }[] = [];
+    for (let i = 0; i < signerRoles.length; i++) {
+      const responseSigner = responseSigners[i];
+      if (!responseSigner?.sign_document_url) {
+        logger.error('DigiSigner 署名URLが不足', { index: i, role: signerRoles[i] });
+        return { ok: false, error: `署名者 ${signerRoles[i]} のURLが取得できません` };
+      }
+      resultSigners.push({
+        role: signerRoles[i],
+        signingUrl: responseSigner.sign_document_url,
+      });
     }
 
     logger.info('DigiSigner 署名リクエスト作成完了', {
       signatureRequestId: result.signature_request_id,
-      signingUrl,
+      signerCount: resultSigners.length,
     });
 
     return {
@@ -204,7 +226,7 @@ export async function createSignatureRequest(
       data: {
         documentId,
         signatureRequestId: result.signature_request_id,
-        signingUrl,
+        signers: resultSigners,
       },
     };
   } catch (e) {
@@ -219,11 +241,13 @@ export async function createSignatureRequest(
 
 /**
  * PDFアップロードから署名リクエスト作成まで一括処理
+ *
+ * v2変更: signerRole（単一）→ signerRoles（配列）
  */
 export async function uploadAndCreateSignatureRequest(
   pdfBuffer: Buffer,
   fileName: string,
-  signerRole: string = 'signer'
+  signerRoles: string[] = ['signer']
 ): Promise<DigiSignerSignatureRequestResult> {
   // 1. アップロード
   const uploadResult = await uploadPdfToDigiSigner(pdfBuffer, fileName);
@@ -232,7 +256,7 @@ export async function uploadAndCreateSignatureRequest(
   }
 
   // 2. 署名リクエスト作成
-  return createSignatureRequest(uploadResult.documentId, signerRole);
+  return createSignatureRequest(uploadResult.documentId, signerRoles);
 }
 
 // =============================================================

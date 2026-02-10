@@ -1,6 +1,8 @@
-// =============================================================
 // src/components/cm-components/contracts/CmContractDetailPageContent.tsx
 // 契約詳細 - メインコンテンツ
+//
+// 変更履歴:
+//   2026-02-09: v2 signing→署名中ラベル、signers配列表示、consent scribe/agent対応、紙契約URL対応
 // =============================================================
 
 'use client';
@@ -15,6 +17,7 @@ import {
   Mic,
   ExternalLink,
   ShieldCheck,
+  Users,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
@@ -22,12 +25,25 @@ import type {
   CmContractDetailData,
   CmContractStatus,
   CmDocumentSigningStatus,
+  CmContractDocumentSigner,
 } from '@/types/cm/contract';
 import {
   CM_CONTRACT_STATUS_LABELS,
   CM_CONTRACT_STATUS_COLORS,
   CM_CONTRACT_TYPE_LABELS,
 } from '@/types/cm/contract';
+
+// =============================================================
+// ロールの日本語ラベル
+// =============================================================
+
+const SIGNER_ROLE_LABELS: Record<string, string> = {
+  signer: '利用者（本人）',
+  scribe: '代筆者',
+  agent: '代理人',
+  family: '家族',
+  care_manager_1: 'ケアマネージャー',
+};
 
 // =============================================================
 // Types
@@ -94,6 +110,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
   const statusLabel = CM_CONTRACT_STATUS_LABELS[status] ?? contract.status;
   const statusColor = CM_CONTRACT_STATUS_COLORS[status] ?? { bg: 'bg-slate-100', text: 'text-slate-600' };
   const typeLabel = CM_CONTRACT_TYPE_LABELS[contract.contract_type] ?? contract.contract_type;
+  const isPaper = contract.signing_method === 'paper';
 
   return (
     <div className="space-y-6">
@@ -105,7 +122,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
               {contract.client_name || ''} の契約
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              {typeLabel} ・ {contract.signing_method === 'paper' ? '紙契約' : '電子契約'}
+              {typeLabel} ・ {isPaper ? '紙契約' : '電子契約'}
             </p>
           </div>
           <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${statusColor.bg} ${statusColor.text}`}>
@@ -120,7 +137,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
           <InfoRow label="契約日" value={formatDate(contract.contract_date)} />
           <InfoRow label="担当職員" value={contract.staff_name || '—'} />
           <InfoRow label="契約種別" value={typeLabel} />
-          <InfoRow label="契約方式" value={contract.signing_method === 'paper' ? '紙' : '電子'} />
+          <InfoRow label="契約方式" value={isPaper ? '紙' : '電子'} />
           <InfoRow label="作成日時" value={formatDateTime(contract.created_at)} />
           {contract.signed_at && <InfoRow label="署名完了日時" value={formatDateTime(contract.signed_at)} />}
           {contract.completed_at && <InfoRow label="完了日時" value={formatDateTime(contract.completed_at)} />}
@@ -143,7 +160,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
                 <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
                   <th className="px-6 py-3 font-medium">書類名</th>
                   <th className="px-6 py-3 font-medium">署名状態</th>
-                  <th className="px-6 py-3 font-medium">DigiSigner</th>
+                  <th className="px-6 py-3 font-medium">署名者</th>
                   <th className="px-6 py-3 font-medium">Google Drive</th>
                 </tr>
               </thead>
@@ -160,22 +177,41 @@ export function CmContractDetailPageContent({ contractId }: Props) {
                       <SigningStatusBadge status={doc.signing_status} />
                     </td>
                     <td className="px-6 py-4">
-                      {doc.signing_url ? (
-                        <a href={doc.signing_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
-                          <ExternalLink className="w-3 h-3" />署名URL
-                        </a>
+                      {doc.signers && doc.signers.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {doc.signers.map((signer) => (
+                            <SignerRow key={signer.id} signer={signer} />
+                          ))}
+                        </div>
                       ) : (
                         <span className="text-slate-400 text-xs">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      {doc.gdrive_file_url ? (
-                        <a href={doc.gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
-                          <ExternalLink className="w-3 h-3" />Drive で開く
-                        </a>
-                      ) : (
-                        <span className="text-slate-400 text-xs">—</span>
-                      )}
+                      <div className="space-y-1">
+                        {/* 電子契約: DigiSigner署名済みPDF */}
+                        {doc.gdrive_file_url && (
+                          <a href={doc.gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
+                            <ExternalLink className="w-3 h-3" />Drive で開く
+                          </a>
+                        )}
+                        {/* 紙契約: 未署名PDF */}
+                        {doc.unsigned_gdrive_file_url && (
+                          <a href={doc.unsigned_gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-800 text-xs">
+                            <ExternalLink className="w-3 h-3" />未署名PDF
+                          </a>
+                        )}
+                        {/* 紙契約: 署名済みPDF */}
+                        {doc.signed_gdrive_file_url && (
+                          <a href={doc.signed_gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs">
+                            <ExternalLink className="w-3 h-3" />署名済みPDF
+                          </a>
+                        )}
+                        {/* いずれもない場合 */}
+                        {!doc.gdrive_file_url && !doc.unsigned_gdrive_file_url && !doc.signed_gdrive_file_url && (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -243,8 +279,10 @@ export function CmContractDetailPageContent({ contractId }: Props) {
             <div className="text-sm space-y-1">
               <p className="text-slate-700">
                 署名者: <span className="font-medium">
-                  {consent.signer_type === 'proxy'
-                    ? `代理人 (${consent.proxy_name} / ${consent.proxy_relationship})`
+                  {consent.signer_type === 'scribe'
+                    ? `代筆 (${consent.scribe_name || '—'})`
+                    : consent.signer_type === 'agent'
+                    ? `代理人 (${consent.agent_name || '—'})`
                     : '本人'}
                 </span>
               </p>
@@ -278,7 +316,7 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 function SigningStatusBadge({ status }: { status: CmDocumentSigningStatus }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     pending:  { bg: 'bg-slate-100',  text: 'text-slate-600',  label: '未送信' },
-    sent:     { bg: 'bg-amber-100',  text: 'text-amber-700',  label: '送信済' },
+    signing:  { bg: 'bg-amber-100',  text: 'text-amber-700',  label: '署名中' },
     signed:   { bg: 'bg-green-100',  text: 'text-green-700',  label: '署名済' },
     declined: { bg: 'bg-red-100',    text: 'text-red-700',    label: '辞退' },
   };
@@ -287,6 +325,28 @@ function SigningStatusBadge({ status }: { status: CmDocumentSigningStatus }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text}`}>
       {c.label}
     </span>
+  );
+}
+
+/** 署名者1行の表示 */
+function SignerRow({ signer }: { signer: CmContractDocumentSigner }) {
+  const roleLabel = SIGNER_ROLE_LABELS[signer.role] ?? signer.role;
+  return (
+    <div className="flex items-center gap-2">
+      <Users className="w-3 h-3 text-slate-400 flex-shrink-0" />
+      <span className="text-xs text-slate-500">{roleLabel}</span>
+      <SigningStatusBadge status={signer.signing_status} />
+      {signer.signing_url && (
+        <a
+          href={signer.signing_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 text-xs"
+        >
+          <ExternalLink className="w-3 h-3" />署名
+        </a>
+      )}
+    </div>
   );
 }
 

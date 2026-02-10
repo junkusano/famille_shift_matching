@@ -4,12 +4,19 @@
 //
 // 処理フロー:
 //   1. cm_contracts にレコード作成（status: draft）
-//   2. DBからHTMLテンプレート取得
-//   3. タグ置換（利用者情報・事業所情報等）
-//   4. HTML → pdfkit PDF生成（DigiSigner Text Tags対応）
-//   5. DigiSignerにアップロード＆署名リクエスト作成
-//   6. cm_contract_documents にレコード作成
-//   7. 結果返却
+//   2. cm_contract_form_data にフォームデータ保存
+//   3. DBからHTMLテンプレート取得
+//   4. タグ置換（利用者情報・事業所情報等）
+//   5. HTML → pdfkit PDF生成（DigiSigner Text Tags対応）
+//   6. DigiSignerにアップロード＆署名リクエスト作成
+//   7. cm_contract_documents にレコード作成（1レコード）
+//   8. cm_contract_document_signers に署名者レコード作成
+//   9. 結果返却
+//
+// v2変更:
+//   - proxy_* → scribe_*/agent_* フィールド名変更
+//   - DigiSigner 複数署名者ロール対応
+//   - cm_contract_document_signers 子テーブル追加
 // =============================================================
 
 'use server';
@@ -46,6 +53,31 @@ export type CreateContractActionResult =
   | { ok: false; error: string };
 
 // =============================================================
+// 署名者ロール決定
+// =============================================================
+
+/**
+ * signerType に応じた DigiSigner 署名者ロール配列を返す
+ *
+ * - self:   ['signer']        本人が署名
+ * - scribe: ['scribe']        代筆者が署名（本人の意思あり）
+ * - agent:  ['agent']         代理人が署名
+ *
+ * NOTE: family, care_manager_1 は privacy-consent 等で
+ *       テンプレート側の signers 定義に含まれる場合に追加される
+ */
+function getDigiSignerRoles(signerType: string): string[] {
+  switch (signerType) {
+    case 'scribe':
+      return ['scribe'];
+    case 'agent':
+      return ['agent'];
+    default:
+      return ['signer'];
+  }
+}
+
+// =============================================================
 // 契約作成（メイン）
 // =============================================================
 
@@ -62,6 +94,7 @@ export async function createContractWithDocuments(
     logger.info('契約作成開始', {
       kaipokeCsId,
       templates: step1.selectedTemplates,
+      signerType: step2.signerType,
     });
 
     // ---------------------------------------------------------
@@ -87,6 +120,57 @@ export async function createContractWithDocuments(
 
     const contractId = contract.id;
     logger.info('契約レコード作成完了', { contractId });
+
+    // ---------------------------------------------------------
+    // 1.5. cm_contract_form_data にフォームデータ保存
+    // ---------------------------------------------------------
+    const { error: formDataError } = await supabaseAdmin
+      .from('cm_contract_form_data')
+      .insert({
+        contract_id: contractId,
+        client_name: step2.clientName,
+        client_address: step2.clientAddress,
+        client_phone: step2.clientPhone,
+        client_fax: step2.clientFax,
+        signer_type: step2.signerType,
+        // 代筆者情報
+        scribe_name: step2.signerType === 'scribe' ? step2.scribeName : null,
+        scribe_relationship_code: step2.signerType === 'scribe' ? step2.scribeRelationshipCode : null,
+        scribe_relationship_other: step2.signerType === 'scribe' ? step2.scribeRelationshipOther || null : null,
+        scribe_reason_code: step2.signerType === 'scribe' ? step2.scribeReasonCode : null,
+        scribe_reason_other: step2.signerType === 'scribe' ? step2.scribeReasonOther || null : null,
+        scribe_address: step2.signerType === 'scribe' ? step2.scribeAddress : null,
+        scribe_phone: step2.signerType === 'scribe' ? step2.scribePhone : null,
+        // 代理人情報
+        agent_name: step2.signerType === 'agent' ? step2.agentName : null,
+        agent_relationship_code: step2.signerType === 'agent' ? step2.agentRelationshipCode : null,
+        agent_relationship_other: step2.signerType === 'agent' ? step2.agentRelationshipOther || null : null,
+        agent_authority: step2.signerType === 'agent' ? step2.agentAuthority : null,
+        agent_address: step2.signerType === 'agent' ? step2.agentAddress : null,
+        agent_phone: step2.signerType === 'agent' ? step2.agentPhone : null,
+        emergency_phone: step2.emergencyPhone || null,
+        // 後見人
+        has_guardian: step2.hasGuardian,
+        guardian_type: step2.guardianType || null,
+        guardian_confirmed: step2.guardianConfirmed,
+        guardian_document_checked: step2.guardianDocumentChecked,
+        guardian_notes: step2.guardianNotes || null,
+        // 契約日程
+        contract_date: step2.contractDate || null,
+        contract_start_date: step2.contractStartDate || null,
+        contract_end_date: step2.contractEndDate || null,
+        // 担当者
+        staff_id: step2.staffId,
+        staff_name: step2.staffName || null,
+        care_manager_id: step2.careManagerId || null,
+        care_manager_name: step2.careManagerName || null,
+        care_manager_phone: step2.careManagerPhone || null,
+        care_manager_period: step2.careManagerPeriod || null,
+      });
+
+    if (formDataError) {
+      logger.warn('フォームデータ保存エラー（契約作成は継続）', { message: formDataError.message });
+    }
 
     // ---------------------------------------------------------
     // 2. 職員名・事業所情報・選択肢マスタを取得
@@ -116,7 +200,8 @@ export async function createContractWithDocuments(
     };
 
     // ---------------------------------------------------------
-    // 3. タグ置換マップを作成（Step2のgetTagReplacementsと同じ）
+    // 3. タグ置換マップを作成
+    //    v2変更: proxy_* → scribe_*/agent_* タグ対応
     // ---------------------------------------------------------
     const formatDate = (dateStr: string): string => {
       if (!dateStr) return '';
@@ -125,27 +210,52 @@ export async function createContractWithDocuments(
       return `${year}年${month}月${day}日`;
     };
 
+    // 代筆者タグの値（signerType が scribe の場合のみ有効）
+    const scribeRelationshipDisplay = getDisplayValue(
+      step2.scribeRelationshipCode, step2.scribeRelationshipOther, relationshipOptions
+    );
+    const scribeReasonDisplay = getDisplayValue(
+      step2.scribeReasonCode, step2.scribeReasonOther, proxyReasonOptions
+    );
+
+    // 代理人タグの値（signerType が agent の場合のみ有効）
+    const agentRelationshipDisplay = getDisplayValue(
+      step2.agentRelationshipCode, step2.agentRelationshipOther, relationshipOptions
+    );
+
     const tagReplacements: Record<string, string> = {
+      // 利用者情報
       '{{利用者氏名}}': step2.clientName,
       '{{利用者住所}}': step2.clientAddress,
       '{{利用者電話}}': step2.clientPhone,
       '{{利用者FAX}}': step2.clientFax,
-      '{{代筆者氏名}}': step2.proxyName,
-      '{{代筆者続柄}}': getDisplayValue(step2.proxyRelationshipCode, step2.proxyRelationshipOther, relationshipOptions),
-      '{{代筆理由}}': getDisplayValue(step2.proxyReasonCode, step2.proxyReasonOther, proxyReasonOptions),
-      '{{代筆者住所}}': step2.proxyAddress,
-      '{{代筆者電話}}': step2.proxyPhone,
+      // 代筆者情報
+      '{{代筆者氏名}}': step2.signerType === 'scribe' ? step2.scribeName : '',
+      '{{代筆者続柄}}': step2.signerType === 'scribe' ? scribeRelationshipDisplay : '',
+      '{{代筆理由}}': step2.signerType === 'scribe' ? scribeReasonDisplay : '',
+      '{{代筆者住所}}': step2.signerType === 'scribe' ? step2.scribeAddress : '',
+      '{{代筆者電話}}': step2.signerType === 'scribe' ? step2.scribePhone : '',
       '{{代筆者FAX}}': '',
+      // 代理人情報
+      '{{代理人氏名}}': step2.signerType === 'agent' ? step2.agentName : '',
+      '{{代理人続柄}}': step2.signerType === 'agent' ? agentRelationshipDisplay : '',
+      '{{代理の根拠}}': step2.signerType === 'agent' ? step2.agentAuthority : '',
+      '{{代理人住所}}': step2.signerType === 'agent' ? step2.agentAddress : '',
+      '{{代理人電話}}': step2.signerType === 'agent' ? step2.agentPhone : '',
+      // 共通
       '{{緊急連絡先電話}}': step2.emergencyPhone,
+      // 契約情報
       '{{契約日}}': formatDate(step2.contractDate),
       '{{同意日}}': formatDate(step2.contractDate),
       '{{説明日}}': formatDate(step2.contractDate),
       '{{契約開始日}}': formatDate(step2.contractStartDate),
       '{{契約終了日}}': formatDate(step2.contractEndDate),
+      // 担当者情報
       '{{説明者氏名}}': step2.staffName || staffName || '（担当者）',
       '{{担当者氏名}}': step2.careManagerName,
       '{{担当者電話}}': step2.careManagerPhone,
       '{{担当期間}}': step2.careManagerPeriod,
+      // 事業所情報
       '{{事業所名}}': office?.name ?? '',
       '{{事業所住所}}': office ? `〒${office.postal_code || ''} ${office.address}` : '',
       '{{事業所電話}}': office?.phone ?? '',
@@ -206,11 +316,14 @@ export async function createContractWithDocuments(
 
     // ---------------------------------------------------------
     // 6. DigiSignerにアップロード＆署名リクエスト作成
+    //    v2変更: signerType に応じた署名者ロール配列を渡す
     // ---------------------------------------------------------
+    const signerRoles = getDigiSignerRoles(step2.signerType);
+
     const digiResult = await uploadAndCreateSignatureRequest(
       pdfResult.buffer,
       pdfResult.fileName,
-      'signer'
+      signerRoles
     );
 
     if (digiResult.ok === false) {
@@ -221,8 +334,9 @@ export async function createContractWithDocuments(
 
     // ---------------------------------------------------------
     // 7. cm_contract_documents にレコード作成（1レコード）
+    //    v2変更: signing_url カラム削除（子テーブルに移行）
     // ---------------------------------------------------------
-    const { error: docError } = await supabaseAdmin
+    const { data: docData, error: docError } = await supabaseAdmin
       .from('cm_contract_documents')
       .insert({
         contract_id: contractId,
@@ -230,23 +344,49 @@ export async function createContractWithDocuments(
         document_name: `契約書類一式（${templateNames.join('・')}）`,
         digisigner_document_id: digiResult.data.documentId,
         digisigner_signature_request_id: digiResult.data.signatureRequestId,
-        signing_url: digiResult.data.signingUrl,
         signing_status: 'pending',
         sort_order: 0,
-      });
+      })
+      .select('id')
+      .single();
 
-    if (docError) {
-      logger.error('書類レコード作成エラー', { message: docError.message });
+    if (docError || !docData) {
+      logger.error('書類レコード作成エラー', { message: docError?.message });
       await supabaseAdmin.from('cm_contracts').delete().eq('id', contractId);
       return { ok: false, error: '書類レコードの作成に失敗しました' };
     }
 
     // ---------------------------------------------------------
-    // 8. 結果を返却
+    // 8. cm_contract_document_signers に署名者レコード作成
+    //    v2新規: 子テーブルに各署名者のURL・ステータスを保存
+    // ---------------------------------------------------------
+    const signerInserts = digiResult.data.signers.map((signer, index) => ({
+      document_id: docData.id,
+      role: signer.role,
+      signing_url: signer.signingUrl,
+      signing_status: 'pending',
+      sort_order: index,
+    }));
+
+    const { error: signersError } = await supabaseAdmin
+      .from('cm_contract_document_signers')
+      .insert(signerInserts);
+
+    if (signersError) {
+      logger.error('署名者レコード作成エラー', { message: signersError.message });
+      // 書類レコードは作成済みなので、ロールバックは書類も含めて行う
+      await supabaseAdmin.from('cm_contract_documents').delete().eq('id', docData.id);
+      await supabaseAdmin.from('cm_contracts').delete().eq('id', contractId);
+      return { ok: false, error: '署名者レコードの作成に失敗しました' };
+    }
+
+    // ---------------------------------------------------------
+    // 9. 結果を返却
     // ---------------------------------------------------------
     logger.info('契約作成完了', {
       contractId,
       documentCount: templateCodes.length,
+      signerCount: digiResult.data.signers.length,
     });
 
     return {
@@ -257,7 +397,7 @@ export async function createContractWithDocuments(
           documentType: 'combined' as CmDocumentTemplateCode,
           documentName: '契約書類一式',
           digisignerDocumentId: digiResult.data.documentId,
-          signingUrl: digiResult.data.signingUrl,
+          signers: digiResult.data.signers,
         }],
       },
     };

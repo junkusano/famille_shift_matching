@@ -1,6 +1,8 @@
-// =============================================================
 // src/components/cm-components/contracts/CmContractCreateStep3.tsx
 // 契約作成ウィザード Step3 - PDF生成・DigiSigner送信
+//
+// 変更履歴:
+//   2026-02-09: v2 署名URL表示を signers 配列対応に変更
 // =============================================================
 
 'use client';
@@ -15,6 +17,18 @@ import type {
   CmContractCreateWizardData,
   CmCreateContractResult,
 } from '@/types/cm/contractCreate';
+
+// =============================================================
+// ロールの日本語ラベル
+// =============================================================
+
+const SIGNER_ROLE_LABELS: Record<string, string> = {
+  signer: '利用者（本人）',
+  scribe: '代筆者',
+  agent: '代理人',
+  family: '家族',
+  care_manager_1: 'ケアマネージャー',
+};
 
 // =============================================================
 // Types
@@ -233,22 +247,31 @@ export function CmContractCreateStep3({
                   </div>
                 </div>
 
-                {/* 署名URL一覧 */}
+                {/* 署名URL一覧（v2: signers配列） */}
                 <div className="bg-slate-50 rounded-lg p-4">
                   <h4 className="font-medium text-slate-800 mb-3">署名URL</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {result.documents.map((doc) => (
-                      <div key={doc.digisignerDocumentId} className="text-sm">
-                        <p className="text-slate-600 mb-1">{doc.documentName}</p>
-                        <a
-                          href={doc.signingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs break-all"
-                        >
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                          {doc.signingUrl}
-                        </a>
+                      <div key={doc.digisignerDocumentId}>
+                        <p className="text-sm text-slate-600 mb-2">{doc.documentName}</p>
+                        <div className="space-y-1.5 pl-3 border-l-2 border-slate-200">
+                          {doc.signers.map((signer, idx) => (
+                            <div key={idx} className="text-sm">
+                              <span className="text-xs text-slate-500 mr-2">
+                                {SIGNER_ROLE_LABELS[signer.role] ?? signer.role}:
+                              </span>
+                              <a
+                                href={signer.signingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs break-all"
+                              >
+                                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                {signer.signingUrl}
+                              </a>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
