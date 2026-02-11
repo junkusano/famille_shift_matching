@@ -295,22 +295,28 @@ export async function runShiftStaffCheck(opts: {
         }
 
         // ------------------------------
-        // （ロジック2）直近1か月の「曜日＋開始時刻」パターンと、今日以降の差分チェック（差分方式）
+        // （ロジック2）直近1か月の「曜日＋開始時刻」代表パターンと、今日以降の差分チェック（代表1つ方式）
+        //  - 利用者×曜日ごとに「最頻の開始時刻」を1つ決める（MIN_OCC以上）
+        //  - 未来の同じ曜日の日に、その開始時刻が存在しない場合だけ通知する
         // ------------------------------
         {
             const PATTERN_DAYS = 30;
-            const MIN_OCC = 2; // 直近1か月で2回以上のパターンのみ採用（ノイズ抑制）
+            const MIN_OCC = 2; // 直近1か月で2回以上のパターンのみ採用
+
+            // 「その日シフトが無い」も通知するか？
+            // 量が多いので、要望どおり “通常の同曜日同時刻が存在しない” に絞るなら false 推奨
+            const ALERT_IF_NO_SHIFT = false;
 
             const pastStart = addDays(today, -PATTERN_DAYS);
             const yesterday = addDays(today, -1);
 
-            // 直近1か月（過去30日）
+            // 直近1か月（過去30日） ※ 99999999%除外
             const { data: pastRaw, error: pastErr } = await supabaseAdmin
                 .from("shift_csinfo_roster_view")
                 .select("shift_date, start_at, client_name, kaipoke_cs_id")
                 .gte("shift_date", pastStart)
                 .lte("shift_date", yesterday)
-                .not("kaipoke_cs_id", "like", "99999999%"); // ✅ ①除外
+                .not("kaipoke_cs_id", "like", "99999999%");
 
             if (pastErr) throw pastErr;
 
@@ -320,8 +326,8 @@ export async function runShiftStaffCheck(opts: {
             // 利用者表示名
             const clientNameMap = new Map<string, string>();
 
-            // 過去の頻出パターン集計: clientKey|weekday|HH:mm -> count
-            const patternCount = new Map<string, number>();
+            // count: (clientKey|weekday|HH:mm) -> count
+            const cnt = new Map<string, number>();
 
             for (const r of past) {
                 const clientKey = (r.kaipoke_cs_id ?? "").trim() || (r.client_name ?? "").trim();
@@ -331,33 +337,38 @@ export async function runShiftStaffCheck(opts: {
 
                 const wd = weekdayIndexJst(r.shift_date);
                 const st = hhmm(r.start_at);
-
                 const key = `${clientKey}|${wd}|${st}`;
-                patternCount.set(key, (patternCount.get(key) ?? 0) + 1);
+                cnt.set(key, (cnt.get(key) ?? 0) + 1);
             }
 
-            // expectedByClientWeekday: clientKey|weekday -> Set<HH:mm>
-            const expectedByClientWeekday = new Map<string, Set<string>>();
-            for (const [k, c] of patternCount.entries()) {
+            // representative: (clientKey|weekday) -> { time, count }
+            const rep = new Map<string, { time: string; count: number }>();
+
+            for (const [k, c] of cnt.entries()) {
                 if (c < MIN_OCC) continue;
                 const [clientKey, wdStr, st] = k.split("|");
                 const wkKey = `${clientKey}|${wdStr}`;
-                if (!expectedByClientWeekday.has(wkKey)) expectedByClientWeekday.set(wkKey, new Set());
-                expectedByClientWeekday.get(wkKey)!.add(st);
+                const cur = rep.get(wkKey);
+                if (!cur || c > cur.count) {
+                    rep.set(wkKey, { time: st, count: c });
+                }
             }
 
-            if (expectedByClientWeekday.size === 0) {
-                // 期待パターンが作れないなら何もしない
+            if (rep.size === 0) {
+                // 代表パターンが作れないなら何もしない
             } else {
-                // 今日以降（upcoming）を、利用者×日付にまとめる
+                // 未来（upcoming）を 利用者×日付 にまとめる
                 type UpRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
                 const up = (upcomingRaw as UpRow[]) ?? [];
 
-                // map: clientKey -> date -> Set<HH:mm>
                 const upMap = new Map<string, Map<string, Set<string>>>();
 
                 for (const r of up) {
-                    const clientKey = (r.kaipoke_cs_id ?? "").trim() || (r.client_name ?? "").trim();
+                    // ※ 99999999%除外（念のため二重）
+                    const csid = (r.kaipoke_cs_id ?? "").trim();
+                    if (csid.startsWith("99999999")) continue;
+
+                    const clientKey = csid || (r.client_name ?? "").trim();
                     if (!clientKey) continue;
 
                     clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
@@ -371,44 +382,40 @@ export async function runShiftStaffCheck(opts: {
                     dateMap.get(date)!.add(st);
                 }
 
-                // 差分チェック：upMap に存在する「実際の未来日」だけをチェックする（総当たりしない）
                 const alert2Dedupe = new Set<string>();
 
+                // 未来の実データがある日だけチェック（総当たりしない）
                 for (const [clientKey, dateMap] of upMap.entries()) {
                     for (const [date, startsSet] of dateMap.entries()) {
                         const wd = weekdayIndexJst(date);
                         const wkKey = `${clientKey}|${wd}`;
+                        const r = rep.get(wkKey);
+                        if (!r) continue; // その曜日の代表パターン無し
 
-                        const expectedSet = expectedByClientWeekday.get(wkKey);
-                        if (!expectedSet || expectedSet.size === 0) continue; // 期待値なし
+                        const expected = r.time;
+                        const hasExpected = startsSet.has(expected);
 
-                        // 期待される開始時刻が、その日に1つも無いか？
-                        const hasAnyExpected = Array.from(expectedSet).some((t) => startsSet.has(t));
-                        if (hasAnyExpected) continue;
+                        if (hasExpected) continue;
 
-                        // 期待される各時刻について「その日には無い」ことを知らせる（ただし上限抑制のため最大2件）
-                        const expectedList = Array.from(expectedSet).sort();
+                        // 「その日が無シフト」も通知するか制御
+                        if (!ALERT_IF_NO_SHIFT && startsSet.size === 0) continue;
+
+                        const k = `${clientKey}|${date}|${expected}`;
+                        if (alert2Dedupe.has(k)) continue;
+                        alert2Dedupe.add(k);
+
                         const actualList = Array.from(startsSet).sort();
-                        const clientDisp = clientNameMap.get(clientKey) ?? clientKey;
-
+                        const clientDisp = clientDisplay(clientNameMap.get(clientKey) ?? clientKey);
                         const wdJa = WEEKDAY_JA[wd];
 
-                        // 期待が多いとまた長くなるので、代表2件だけ出す
-                        const show = expectedList.slice(0, 2);
-                        const more = expectedList.length > 2 ? ` 他${expectedList.length - 2}件` : "";
-
-                        for (const exp of show) {
-                            const k = `${clientKey}|${date}|${exp}`;
-                            if (alert2Dedupe.has(k)) continue;
-                            alert2Dedupe.add(k);
-
-                            alertLines.push(
-                                `・${yyyymmddSlash(date)} ${exp}　${clientDisp}　直近1か月の同じ曜日のシフト（${wdJa} ${exp}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）${more}`);
-                        }
+                        alertLines.push(
+                            `・${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同じ曜日のシフト（${wdJa} ${expected}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）`
+                        );
                     }
                 }
             }
         }
+
 
         // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
         alertLines.sort((a, b) => {
