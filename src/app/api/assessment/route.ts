@@ -43,15 +43,15 @@ export async function GET(req: NextRequest) {
         await getUserFromBearer(req);
 
         const { searchParams } = new URL(req.url);
-        const client_id = (searchParams.get("client_id") ?? "").trim();
+        const clientInfoId = String(searchParams.get("client_info_id") ?? "").trim();
         const service_kind = (searchParams.get("service_kind") ?? "").trim() as AssessmentServiceKind;
 
-        if (!client_id) return json({ ok: true, data: [] });
+        if (!clientInfoId) return json({ ok: true, data: [] });
 
         const { data, error } = await supabaseAdmin
             .from("assessments_records")
             .select("*")
-            .eq("client_id", client_id)
+            .eq("client_info_id", clientInfoId)
             .eq("service_kind", service_kind)
             .eq("is_deleted", false)
             .order("assessed_on", { ascending: false });

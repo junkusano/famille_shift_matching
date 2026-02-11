@@ -110,10 +110,39 @@ export function getDefaultAssessmentContent(serviceKind: AssessmentServiceKind):
             },
 
             // TODO: カイポケ項目を追記して完成
-            { key: "health", title: "健康管理 シート", printTarget: true, rows: [] },
-            { key: "money", title: "金銭管理 シート", printTarget: true, rows: [] },
-            { key: "crisis", title: "危機管理 シート", printTarget: true, rows: [] },
-            { key: "behavior", title: "行動障害 シート", printTarget: true, rows: [] },
+            { key: "health", title: "健康管理 シート", printTarget: true, 
+                rows: [
+                    row("health_01", "不調を訴える事ができる"),
+                    row("health_02", "服用支援の必要性がある"),
+                    row("health_03", "定期通院している"),
+                    row("health_04", "通院支援の必要性がある"),
+                    row("health_01", "不通院支援の必要性がある"),
+                    row("health_02", "生活のリズムは安定している"),
+                    row("health_03", "発作を起こす可能性がある"),
+                ]  
+            },
+            { key: "money", title: "金銭管理 シート", printTarget: true, rows: [
+                row("health_01", "買物をする事ができる"),
+                    row("health_02", "お金の計算ができる"),
+                    row("health_03", "適切なお金の管理・利用ができる"),
+                    row("health_04", "小遣い帳をつけている"),
+                    row("health_01", "計画的に支出できる"),
+                    row("health_02", "悪質商法等に適切な対応ができる"),
+            ] },
+            { key: "crisis", title: "危機管理 シート", printTarget: true, rows: [
+                row("health_01", "車道に飛び出す事がある"),
+                    row("health_02", "信号や公共のサインを無視する事がある"),
+                    row("health_03", "危険に対する判断ができる"),
+                    row("health_04", "災害時に自力で避難する事ができる"),
+                    row("health_01", "避難経路を理解している"),
+            ] },
+            { key: "behavior", title: "行動障害 シート", printTarget: true, rows: [
+                row("health_01", "人を傷つけたり、物を破壊する事がある"),
+                    row("health_02", "自分自身を傷つける事がある"),
+                    row("health_03", "同じ事を繰り返す事がある"),
+                    row("health_04", "誤飲してしまう事がある"),
+                    row("health_01", "反社会的な行動をとる事がある"),
+            ] },
         ],
     };
 }

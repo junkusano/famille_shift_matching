@@ -82,7 +82,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 return;
             }
             const bearer = await getBearer();
-            const url = `/api/assessment?client_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(
+            const url = `/api/assessment?client_info_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(
                 serviceKind
             )}`;
             const res = await fetch(url, { headers: bearer ? { Authorization: bearer } : {} });
