@@ -69,27 +69,39 @@ export async function POST(req: NextRequest) {
         const { author_user_id, author_name } = await getAuthor(req);
 
         const body = await req.json();
-        const client_id = String(body.client_id ?? "").trim(); // == cs_kaipoke_info.kaipoke_cs_id
-        const service_kind = String(body.service_kind ?? "").trim() as AssessmentServiceKind;
+        const kaipoke_cs_id = String(body.client_id ?? "").trim(); // フロントは client_id に kaipoke_cs_id を入れて送ってくる前提
+        const service_kind = String(body.service_kind ?? "").trim();
         const content = body.content ?? {};
 
-        if (!client_id) throw new Error("client_id が空です");
-        if (!service_kind) throw new Error("service_kind が空です");
+        if (!kaipoke_cs_id) return json({ ok: false, error: "client_id is required" }, 400);
+        if (!service_kind) return json({ ok: false, error: "service_kind is required" }, 400);
+
+        // cs_kaipoke_info から client_info_id を特定
+        const { data: cli, error: cliErr } = await supabaseAdmin
+            .from("cs_kaipoke_info")
+            .select("id, kaipoke_cs_id")
+            .eq("kaipoke_cs_id", kaipoke_cs_id)
+            .maybeSingle();
+
+        if (cliErr) throw cliErr;
+        if (!cli?.id) return json({ ok: false, error: "client not found" }, 404);
 
         const { data, error } = await supabaseAdmin
             .from("assessments_records")
             .insert({
-                client_id,
+                client_info_id: cli.id,
+                kaipoke_cs_id: cli.kaipoke_cs_id,
                 service_kind,
-                author_user_id,
-                author_name, // 初期値はログインユーザー
                 content,
+                author_user_id,
+                author_name,
             })
             .select("*")
             .single();
 
         if (error) throw error;
         return json({ ok: true, data });
+
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return json({ ok: false, error: msg }, 500);
