@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
         const { data, error } = await supabaseAdmin
             .from("assessments_records")
             .select("*")
-            .eq("client_info_id", clientInfoId)
+            .eq("kaipoke_cs_id", clientInfoId)
             .eq("service_kind", service_kind)
             .eq("is_deleted", false)
             .order("assessed_on", { ascending: false });

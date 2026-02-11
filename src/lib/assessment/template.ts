@@ -108,8 +108,6 @@ export function getDefaultAssessmentContent(serviceKind: AssessmentServiceKind):
                     row("relation_06", "予定変更の受容ができる"),
                 ],
             },
-
-            // TODO: カイポケ項目を追記して完成
             { key: "health", title: "健康管理 シート", printTarget: true, 
                 rows: [
                     row("health_01", "不調を訴える事ができる"),
