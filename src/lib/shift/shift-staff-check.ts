@@ -148,6 +148,7 @@ export async function runShiftStaffCheck(opts: {
     try {
         const today = toIsoDateJst(now);
         const endDate = addDaysIsoDate(today, daysAhead);
+        const tomorrow = addDaysIsoDate(today, 1); // ← ★これを追加
 
         // 1) これからのシフト（対象期間）
         const { data: upcomingRaw, error: upcomingErr } = await supabaseAdmin
@@ -385,19 +386,22 @@ export async function runShiftStaffCheck(opts: {
                 const alert2Dedupe = new Set<string>();
 
                 // 未来の実データがある日だけチェック（総当たりしない）
+                const targetDates = new Set([today, tomorrow]);
+
                 for (const [clientKey, dateMap] of upMap.entries()) {
                     for (const [date, startsSet] of dateMap.entries()) {
+                        if (!targetDates.has(date)) continue; // ✅ ②は今日＋明日だけ
+
                         const wd = weekdayIndexJst(date);
                         const wkKey = `${clientKey}|${wd}`;
                         const r = rep.get(wkKey);
-                        if (!r) continue; // その曜日の代表パターン無し
+                        if (!r) continue;
 
                         const expected = r.time;
                         const hasExpected = startsSet.has(expected);
-
                         if (hasExpected) continue;
 
-                        // 「その日が無シフト」も通知するか制御
+                        // その日が無シフトも通知するか（今は false の想定）
                         if (!ALERT_IF_NO_SHIFT && startsSet.size === 0) continue;
 
                         const k = `${clientKey}|${date}|${expected}`;
@@ -415,7 +419,6 @@ export async function runShiftStaffCheck(opts: {
                 }
             }
         }
-
 
         // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
         alertLines.sort((a, b) => {
