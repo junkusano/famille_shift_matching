@@ -370,7 +370,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
             const mentionLines = staffIds
                 .map((sid) => staffInfoMap.get(sid)?.lw_userid)
                 .filter((v): v is string => !!v)
-                .map((lw) => `<m userId="${lw}">さん</m>`)
+                .map((lw) => `<m userId="${lw}">さん`)
                 .join("\n");
 
             const lines = items.map((it) => {
@@ -392,8 +392,8 @@ async function runSubmittedUncheckLineworksOnly(args: {
             const message =
                 (mentionLines ? `${mentionLines}\n` : "") +
                 `【実績記録 未チェック】 提出 〈${formatYmJa(targetYm)}分〉\n` +
-                `提出チェックが、10日以降で未完了の状態です。\n` +
-                `至急ご確認ください。\n\n` +
+                `提出チェックが、完了していません。\n` +
+                `至急、利用者様から実績記録票をいただき、事業所へ提出（郵送もしくは持参）してください。\n\n` +
                 `チーム: ${orgName}\n\n` +
                 lines.join("\n");
 
