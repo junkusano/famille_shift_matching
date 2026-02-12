@@ -32,6 +32,7 @@ export type AssessmentRecord = {
     author_user_id: string;
     author_name: string;
     content: AssessmentContent;
+    kaipoke_cs_id?: string | null;
     created_at: string;
     updated_at: string;
 };
