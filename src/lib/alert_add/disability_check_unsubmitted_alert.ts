@@ -391,9 +391,10 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
             const message =
                 (mentionLines ? `${mentionLines}\n` : "") +
-                `【実績記録 未チェック】 提出 〈${formatYmJa(targetYm)}分〉\n` +
+                `【実績記録 未提出】 〈${formatYmJa(targetYm)}分〉\n` +
                 `提出チェックが、完了していません。\n` +
                 `至急、利用者様から実績記録票をいただき、事業所へ提出（郵送もしくは持参）してください。\n\n` +
+                `完了しましたら、実績記録の「提出」にチェックをしてください。\n\n` +
                 `チーム: ${orgName}\n\n` +
                 lines.join("\n");
 
