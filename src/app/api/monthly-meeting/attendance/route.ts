@@ -76,6 +76,29 @@ export async function GET(req: NextRequest) {
 
         if (error) throw error;
 
+        // ★追加：在籍従業員一覧（常に表示する用）※GETの中で取得する
+        const { data: staffData, error: staffErr } = await supabaseAdmin
+            .from("user_entry_united_view_single")
+            .select(
+                "user_id,last_name_kanji,first_name_kanji,last_name_kana,first_name_kana,orgunitname,org_order_num,roster_sort,status,end_at,resign_date_latest",
+            )
+            .is("end_at", null)
+            .is("resign_date_latest", null)
+            .neq("status", "removed_from_lineworks_kaipoke")
+            .order("org_order_num", { ascending: true, nullsFirst: false })
+            .order("roster_sort", { ascending: true, nullsFirst: false })
+            .order("last_name_kana", { ascending: true, nullsFirst: false })
+            .order("first_name_kana", { ascending: true, nullsFirst: false });
+
+        if (staffErr) throw staffErr;
+
+        const staff = (staffData ?? []).map((r: any) => ({
+            user_id: String(r.user_id ?? ""),
+            user_name: `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || String(r.user_id ?? ""),
+            orgunitname: r.orgunitname ?? null,
+            status: r.status ?? null,
+        }));
+
         const rows = (data ?? []).map((r) => ({
             target_month: r.target_month,
             user_id: r.user_id,
@@ -88,7 +111,8 @@ export async function GET(req: NextRequest) {
             user_name: r.users?.user_id ?? null, // ここを users.name 等に差し替え可
         }));
 
-        return json({ ok: true, ym, rows });
+        return json({ ok: true, ym, rows, staff });
+
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return json({ ok: false, error: msg }, 500);
