@@ -3,20 +3,13 @@
 // RPA ジョブアイテム一括登録 API
 // =============================================================
 
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { createLogger } from '@/lib/common/logger';
-import { validateApiKey } from '@/lib/cm/rpa/auth';
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { cmRpaApiHandlerWithContext } from "@/lib/cm/rpa/cmRpaApiHandler";
 import type {
   CmCreateJobItemsRequest,
   CmCreateJobItemsResponse,
-} from '@/types/cm/jobs';
-
-// =============================================================
-// Logger
-// =============================================================
-
-const logger = createLogger('cm/api/rpa/jobs/[id]/items');
+} from "@/types/cm/jobs";
 
 // =============================================================
 // 定数
@@ -41,45 +34,60 @@ type CreateItemsValidationResult =
   | { valid: true; data: CmCreateJobItemsRequest }
   | { valid: false; error: string };
 
-function validateCreateItemsRequest(body: unknown): CreateItemsValidationResult {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'リクエストボディが不正です' };
+function cmValidateCreateItemsRequest(
+  body: unknown
+): CreateItemsValidationResult {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "リクエストボディが不正です" };
   }
 
   const req = body as Record<string, unknown>;
 
   // items（必須）
   if (!req.items || !Array.isArray(req.items)) {
-    return { valid: false, error: 'items 配列は必須です' };
+    return { valid: false, error: "items 配列は必須です" };
   }
 
   // 件数チェック
   if (req.items.length === 0) {
-    return { valid: false, error: 'items は1件以上必要です' };
+    return { valid: false, error: "items は1件以上必要です" };
   }
 
   if (req.items.length > MAX_ITEMS_PER_REQUEST) {
-    return { valid: false, error: `items は ${MAX_ITEMS_PER_REQUEST} 件以下にしてください` };
+    return {
+      valid: false,
+      error: `items は ${MAX_ITEMS_PER_REQUEST} 件以下にしてください`,
+    };
   }
 
   // 各アイテムのバリデーション
-  const validatedItems: CmCreateJobItemsRequest['items'] = [];
+  const validatedItems: CmCreateJobItemsRequest["items"] = [];
 
   for (let i = 0; i < req.items.length; i++) {
     const item = req.items[i] as Record<string, unknown>;
 
-    if (!item || typeof item !== 'object') {
+    if (!item || typeof item !== "object") {
       return { valid: false, error: `items[${i}] が不正です` };
     }
 
     // target_id（必須）
-    if (typeof item.target_id !== 'string' || item.target_id.trim() === '') {
-      return { valid: false, error: `items[${i}].target_id は必須です（空文字不可）` };
+    if (typeof item.target_id !== "string" || item.target_id.trim() === "") {
+      return {
+        valid: false,
+        error: `items[${i}].target_id は必須です（空文字不可）`,
+      };
     }
 
     // target_name（オプション）
-    if (item.target_name !== undefined && item.target_name !== null && typeof item.target_name !== 'string') {
-      return { valid: false, error: `items[${i}].target_name は文字列または null です` };
+    if (
+      item.target_name !== undefined &&
+      item.target_name !== null &&
+      typeof item.target_name !== "string"
+    ) {
+      return {
+        valid: false,
+        error: `items[${i}].target_name は文字列または null です`,
+      };
     }
 
     validatedItems.push({
@@ -98,44 +106,36 @@ function validateCreateItemsRequest(body: unknown): CreateItemsValidationResult 
 // POST /api/cm/rpa/jobs/:id/items - アイテム一括登録
 // =============================================================
 
-export async function POST(
-  request: NextRequest,
-  context: RouteContext
-): Promise<NextResponse<CmCreateJobItemsResponse>> {
-  try {
-    // 1. APIキー認証
-    const isValid = await validateApiKey(request);
-    if (!isValid) {
-      return NextResponse.json(
-        { ok: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // 2. パラメータ取得
+export const POST = cmRpaApiHandlerWithContext<
+  CmCreateJobItemsResponse,
+  RouteContext
+>(
+  "cm/api/rpa/jobs/[id]/items",
+  async (request, context, logger) => {
+    // パラメータ取得
     const { id } = await context.params;
     const jobId = parseInt(id, 10);
 
     if (isNaN(jobId)) {
       return NextResponse.json(
-        { ok: false, error: '無効なジョブIDです' },
+        { ok: false, error: "無効なジョブIDです" },
         { status: 400 }
       );
     }
 
-    // 3. リクエストボディ取得
+    // リクエストボディ取得
     let body: unknown;
     try {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { ok: false, error: 'リクエストボディのパースに失敗しました' },
+        { ok: false, error: "リクエストボディのパースに失敗しました" },
         { status: 400 }
       );
     }
 
-    // 4. バリデーション
-    const validation = validateCreateItemsRequest(body);
+    // バリデーション
+    const validation = cmValidateCreateItemsRequest(body);
     if (!validation.valid) {
       const errorResult = validation as { valid: false; error: string };
       return NextResponse.json(
@@ -146,70 +146,65 @@ export async function POST(
 
     const { items } = validation.data;
 
-    logger.info('アイテム一括登録開始', { jobId, itemCount: items.length });
+    logger.info("アイテム一括登録開始", { jobId, itemCount: items.length });
 
-    // 5. ジョブ存在チェック
+    // ジョブ存在チェック
     const { data: job, error: jobError } = await supabaseAdmin
-      .from('cm_jobs')
-      .select('id, status')
-      .eq('id', jobId)
+      .from("cm_jobs")
+      .select("id, status")
+      .eq("id", jobId)
       .single();
 
     if (jobError || !job) {
       return NextResponse.json(
-        { ok: false, error: 'ジョブが見つかりません' },
+        { ok: false, error: "ジョブが見つかりません" },
         { status: 404 }
       );
     }
 
-    // 6. ジョブのステータスチェック（completed/failed/cancelled のジョブには追加不可）
-    if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+    // ジョブのステータスチェック
+    if (["completed", "failed", "cancelled"].includes(job.status)) {
       return NextResponse.json(
-        { ok: false, error: `ステータスが ${job.status} のジョブにはアイテムを追加できません` },
+        {
+          ok: false,
+          error: `ステータスが ${job.status} のジョブにはアイテムを追加できません`,
+        },
         { status: 400 }
       );
     }
 
-    // 7. アイテムデータ作成
+    // アイテムデータ作成
     const records = items.map((item) => ({
       job_id: jobId,
       target_id: item.target_id,
       target_name: item.target_name ?? null,
-      status: 'pending' as const,
+      status: "pending" as const,
     }));
 
-    // 8. upsert で重複を許容（job_id + target_id が重複した場合は無視）
+    // upsert で重複を許容（job_id + target_id が重複した場合は無視）
     const { error: upsertError } = await supabaseAdmin
-      .from('cm_job_items')
+      .from("cm_job_items")
       .upsert(records, {
-        onConflict: 'job_id,target_id',
+        onConflict: "job_id,target_id",
         ignoreDuplicates: true,
       });
 
     if (upsertError) {
-      logger.error('アイテム登録エラー', {
+      logger.error("アイテム登録エラー", undefined, {
         message: upsertError.message,
         code: upsertError.code,
       });
       return NextResponse.json(
-        { ok: false, error: 'アイテムの登録に失敗しました' },
+        { ok: false, error: "アイテムの登録に失敗しました" },
         { status: 500 }
       );
     }
 
-    logger.info('アイテム一括登録完了', { jobId, count: items.length });
+    logger.info("アイテム一括登録完了", { jobId, count: items.length });
 
-    // 9. 成功レスポンス
     return NextResponse.json({
       ok: true,
       count: items.length,
     });
-
-  } catch (error) {
-    logger.error('アイテム登録例外', error as Error);
-    return NextResponse.json(
-      { ok: false, error: '予期せぬエラーが発生しました' },
-      { status: 500 }
-    );
   }
-}
+);

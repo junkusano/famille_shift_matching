@@ -43,6 +43,7 @@ import styles from '@/styles/cm-styles/plaud/transcriptionList.module.css';
 type CmPlaudTranscriptionListProps = {
   onOpenDetail: (item: CmPlaudTranscription) => void;
   onOpenProcess: (item: CmPlaudTranscription) => void;
+  refreshKey?: number;
 };
 
 // =============================================================
@@ -52,6 +53,7 @@ type CmPlaudTranscriptionListProps = {
 export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> = ({
   onOpenDetail,
   onOpenProcess,
+  refreshKey,
 }) => {
   const {
     transcriptions,
@@ -70,6 +72,14 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
     retry,
     updateClient,
   } = usePlaudTranscriptions();
+
+  // refreshKeyが変わったら一覧を再取得
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   // フィルター展開状態
   const [isFilterOpen, setIsFilterOpen] = useState(false);

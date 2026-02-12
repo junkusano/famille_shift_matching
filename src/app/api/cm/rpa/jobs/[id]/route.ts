@@ -3,30 +3,14 @@
 // RPA ジョブ詳細 API（取得・更新）
 // =============================================================
 
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { createLogger } from '@/lib/common/logger';
-import { validateApiKey } from '@/lib/cm/rpa/auth';
+import { NextResponse } from "next/server";
+import { cmRpaApiHandlerWithContext } from "@/lib/cm/rpa/cmRpaApiHandler";
+import { getJobDetail, updateJob, type UpdateJobParams } from "@/lib/cm/rpa-jobs/actions";
 import type {
-  CmJob,
-  CmJobItem,
-  CmJobStatus,
   CmJobDetailResponse,
   CmUpdateJobResponse,
-  CmUpdateJobRequest,
-} from '@/types/cm/jobs';
-
-// =============================================================
-// Logger
-// =============================================================
-
-const logger = createLogger('cm/api/rpa/jobs/[id]');
-
-// =============================================================
-// 定数
-// =============================================================
-
-const VALID_STATUSES: readonly CmJobStatus[] = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
+  CmJobStatus,
+} from "@/types/cm/jobs";
 
 // =============================================================
 // 型定義
@@ -40,56 +24,69 @@ type RouteContext = {
 // バリデーション
 // =============================================================
 
+const VALID_STATUSES: readonly CmJobStatus[] = [
+  "pending",
+  "processing",
+  "completed",
+  "failed",
+  "cancelled",
+];
+
 type UpdateJobValidationResult =
-  | { valid: true; data: CmUpdateJobRequest }
+  | { valid: true; data: UpdateJobParams }
   | { valid: false; error: string };
 
-function validateUpdateJobRequest(body: unknown): UpdateJobValidationResult {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'リクエストボディが不正です' };
+/**
+ * ジョブ更新リクエストのバリデーション
+ * API Route 固有の入力検証（HTTPリクエストの body → UpdateJobParams への変換）
+ */
+function cmValidateUpdateJobRequest(body: unknown): UpdateJobValidationResult {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "リクエストボディが不正です" };
   }
 
   const req = body as Record<string, unknown>;
-  const updates: CmUpdateJobRequest = {};
+  const updates: UpdateJobParams = {};
 
   // status（オプション）
   if (req.status !== undefined) {
-    if (typeof req.status !== 'string') {
-      return { valid: false, error: 'status は文字列です' };
+    if (typeof req.status !== "string") {
+      return { valid: false, error: "status は文字列です" };
     }
     if (!VALID_STATUSES.includes(req.status as CmJobStatus)) {
-      return { valid: false, error: `status は ${VALID_STATUSES.join(', ')} のいずれかです` };
+      return {
+        valid: false,
+        error: `status は ${VALID_STATUSES.join(", ")} のいずれかです`,
+      };
     }
     updates.status = req.status as CmJobStatus;
   }
 
   // progress_message（オプション）
   if (req.progress_message !== undefined) {
-    if (req.progress_message !== null && typeof req.progress_message !== 'string') {
-      return { valid: false, error: 'progress_message は文字列または null です' };
+    if (
+      req.progress_message !== null &&
+      typeof req.progress_message !== "string"
+    ) {
+      return { valid: false, error: "progress_message は文字列または null です" };
     }
     updates.progress_message = req.progress_message as string;
   }
 
   // error_message（オプション）
   if (req.error_message !== undefined) {
-    if (req.error_message !== null && typeof req.error_message !== 'string') {
-      return { valid: false, error: 'error_message は文字列または null です' };
+    if (
+      req.error_message !== null &&
+      typeof req.error_message !== "string"
+    ) {
+      return { valid: false, error: "error_message は文字列または null です" };
     }
     updates.error_message = req.error_message as string;
   }
 
-  // result（オプション）
-  if (req.result !== undefined) {
-    if (req.result !== null && typeof req.result !== 'object') {
-      return { valid: false, error: 'result はオブジェクトまたは null です' };
-    }
-    updates.result = req.result as Record<string, unknown>;
-  }
-
   // 更新項目が1つもない場合
   if (Object.keys(updates).length === 0) {
-    return { valid: false, error: '更新する項目がありません' };
+    return { valid: false, error: "更新する項目がありません" };
   }
 
   return { valid: true, data: updates };
@@ -99,146 +96,66 @@ function validateUpdateJobRequest(body: unknown): UpdateJobValidationResult {
 // GET /api/cm/rpa/jobs/:id - ジョブ詳細取得
 // =============================================================
 
-export async function GET(
-  request: NextRequest,
-  context: RouteContext
-): Promise<NextResponse<CmJobDetailResponse>> {
-  try {
-    // 1. APIキー認証
-    const isValid = await validateApiKey(request);
-    if (!isValid) {
-      return NextResponse.json(
-        { ok: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+export const GET = cmRpaApiHandlerWithContext<CmJobDetailResponse, RouteContext>(
+  "cm/api/rpa/jobs/[id]",
+  async (request, context, logger) => {
+    void request;
 
-    // 2. パラメータ取得
     const { id } = await context.params;
     const jobId = parseInt(id, 10);
 
     if (isNaN(jobId)) {
       return NextResponse.json(
-        { ok: false, error: '無効なジョブIDです' },
+        { ok: false, error: "無効なジョブIDです" },
         { status: 400 }
       );
     }
 
-    logger.info('ジョブ詳細取得', { jobId });
+    logger.info("ジョブ詳細取得", { jobId });
 
-    // 3. ジョブ取得
-    const { data: job, error: jobError } = await supabaseAdmin
-      .from('cm_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .single();
+    const result = await getJobDetail(jobId);
 
-    if (jobError) {
-      if (jobError.code === 'PGRST116') {
-        return NextResponse.json(
-          { ok: false, error: 'ジョブが見つかりません' },
-          { status: 404 }
-        );
-      }
-      logger.error('ジョブ取得エラー', {
-        message: jobError.message,
-        code: jobError.code,
-      });
-      return NextResponse.json(
-        { ok: false, error: 'ジョブの取得に失敗しました' },
-        { status: 500 }
-      );
+    if (result.ok === false) {
+      const status = result.error === "ジョブが見つかりません" ? 404 : 500;
+      return NextResponse.json(result, { status });
     }
 
-    // 4. アイテム取得
-    const { data: items, error: itemsError } = await supabaseAdmin
-      .from('cm_job_items')
-      .select('*')
-      .eq('job_id', jobId)
-      .order('id', { ascending: true });
+    logger.info("ジョブ詳細取得完了", { jobId, itemCount: result.items.length });
 
-    if (itemsError) {
-      logger.warn('アイテム取得エラー', {
-        message: itemsError.message,
-        code: itemsError.code,
-      });
-    }
-
-    // 5. 進捗計算
-    const itemList = items || [];
-    const total = itemList.length;
-    const completed = itemList.filter((i) => i.status === 'completed').length;
-    const failed = itemList.filter((i) => i.status === 'failed').length;
-    const pending = itemList.filter((i) => i.status === 'pending').length;
-    const percent = total > 0 ? Math.round((completed / total) * 1000) / 10 : 0;
-
-    logger.info('ジョブ詳細取得完了', { jobId, itemCount: total });
-
-    // 6. 成功レスポンス
-    return NextResponse.json({
-      ok: true,
-      job: job as CmJob,
-      items: itemList as CmJobItem[],
-      progress: {
-        total,
-        completed,
-        failed,
-        pending,
-        percent,
-      },
-    });
-
-  } catch (error) {
-    logger.error('ジョブ詳細取得例外', error as Error);
-    return NextResponse.json(
-      { ok: false, error: '予期せぬエラーが発生しました' },
-      { status: 500 }
-    );
+    return NextResponse.json(result);
   }
-}
+);
 
 // =============================================================
 // PUT /api/cm/rpa/jobs/:id - ジョブ更新
 // =============================================================
 
-export async function PUT(
-  request: NextRequest,
-  context: RouteContext
-): Promise<NextResponse<CmUpdateJobResponse>> {
-  try {
-    // 1. APIキー認証
-    const isValid = await validateApiKey(request);
-    if (!isValid) {
-      return NextResponse.json(
-        { ok: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // 2. パラメータ取得
+export const PUT = cmRpaApiHandlerWithContext<CmUpdateJobResponse, RouteContext>(
+  "cm/api/rpa/jobs/[id]",
+  async (request, context, logger) => {
     const { id } = await context.params;
     const jobId = parseInt(id, 10);
 
     if (isNaN(jobId)) {
       return NextResponse.json(
-        { ok: false, error: '無効なジョブIDです' },
+        { ok: false, error: "無効なジョブIDです" },
         { status: 400 }
       );
     }
 
-    // 3. リクエストボディ取得
+    // リクエストボディ取得
     let body: unknown;
     try {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { ok: false, error: 'リクエストボディのパースに失敗しました' },
+        { ok: false, error: "リクエストボディのパースに失敗しました" },
         { status: 400 }
       );
     }
 
-    // 4. バリデーション
-    const validation = validateUpdateJobRequest(body);
+    // バリデーション（HTTP 入力 → UpdateJobParams への変換）
+    const validation = cmValidateUpdateJobRequest(body);
     if (!validation.valid) {
       const errorResult = validation as { valid: false; error: string };
       return NextResponse.json(
@@ -247,46 +164,18 @@ export async function PUT(
       );
     }
 
-    logger.info('ジョブ更新開始', { jobId, updates: validation.data });
+    logger.info("ジョブ更新開始", { jobId, updates: validation.data });
 
-    // 5. 更新実行
-    const { data: updatedJob, error: updateError } = await supabaseAdmin
-      .from('cm_jobs')
-      .update(validation.data)
-      .eq('id', jobId)
-      .select()
-      .single();
+    // DB更新は updateJob に委譲
+    const result = await updateJob(jobId, validation.data);
 
-    if (updateError) {
-      if (updateError.code === 'PGRST116') {
-        return NextResponse.json(
-          { ok: false, error: 'ジョブが見つかりません' },
-          { status: 404 }
-        );
-      }
-      logger.error('ジョブ更新エラー', {
-        message: updateError.message,
-        code: updateError.code,
-      });
-      return NextResponse.json(
-        { ok: false, error: 'ジョブの更新に失敗しました' },
-        { status: 500 }
-      );
+    if (result.ok === false) {
+      const status = result.error === "ジョブが見つかりません" ? 404 : 500;
+      return NextResponse.json(result, { status });
     }
 
-    logger.info('ジョブ更新完了', { jobId, status: updatedJob.status });
+    logger.info("ジョブ更新完了", { jobId, status: result.job.status });
 
-    // 6. 成功レスポンス
-    return NextResponse.json({
-      ok: true,
-      job: updatedJob as CmJob,
-    });
-
-  } catch (error) {
-    logger.error('ジョブ更新例外', error as Error);
-    return NextResponse.json(
-      { ok: false, error: '予期せぬエラーが発生しました' },
-      { status: 500 }
-    );
+    return NextResponse.json(result);
   }
-}
+);

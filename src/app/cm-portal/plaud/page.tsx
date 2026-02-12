@@ -2,10 +2,14 @@
 // src/app/cm-portal/plaud/page.tsx
 // Plaud文字起こし管理画面
 // =============================================================
+// ★ 修正: 利用者紐付け後のUI更新対応
+//   - refreshKey で一覧のリフレッシュをトリガー
+//   - onItemUpdated で detailTarget を最新に保つ
+// =============================================================
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FileText, History, Settings } from 'lucide-react';
 import { CmPlaudTranscriptionList } from '@/components/cm-components/plaud/CmPlaudTranscriptionList';
 import { CmPlaudHistoryList } from '@/components/cm-components/plaud/CmPlaudHistoryList';
@@ -51,6 +55,17 @@ export default function CmPlaudPage() {
   // 二次利用モーダル
   const [processTarget, setProcessTarget] = useState<CmPlaudTranscription | null>(null);
 
+  // ★ 追加: 一覧リフレッシュ用キー（インクリメントで一覧に再取得を通知）
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // ★ 追加: モーダルから利用者紐付け更新通知を受け取るハンドラ
+  const handleItemUpdated = useCallback((updatedItem: CmPlaudTranscription) => {
+    // detailTarget を最新データに更新（モーダル再オープン時にも反映）
+    setDetailTarget(updatedItem);
+    // 一覧のリフレッシュをトリガー
+    setRefreshKey((prev) => prev + 1);
+  }, []);
+
   return (
     <div className={styles.container}>
       {/* ページヘッダー */}
@@ -86,6 +101,7 @@ export default function CmPlaudPage() {
           <CmPlaudTranscriptionList
             onOpenDetail={(item) => setDetailTarget(item)}
             onOpenProcess={(item) => setProcessTarget(item)}
+            refreshKey={refreshKey}  // ★ 追加
           />
         )}
         {activeTab === 'history' && <CmPlaudHistoryList />}
@@ -101,6 +117,7 @@ export default function CmPlaudPage() {
           setDetailTarget(null);
           setProcessTarget(item);
         }}
+        onItemUpdated={handleItemUpdated}  // ★ 追加
       />
 
       {/* 二次利用モーダル */}

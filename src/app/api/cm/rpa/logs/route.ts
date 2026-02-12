@@ -3,98 +3,86 @@
 // RPA ログ API（保存 + 取得）
 // =============================================================
 
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/service';
-import type { CmRpaLogRequest, CmRpaLogsApiResponse } from '@/types/cm/rpa';
-import type { CmRpaLogsListResponse } from '@/types/cm/rpaLogs';
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { createLogger } from "@/lib/common/logger";
+import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
+import type { CmRpaLogRequest, CmRpaLogsApiResponse } from "@/types/cm/rpa";
+import type { CmRpaLogsListResponse } from "@/types/cm/rpaLogs";
 
 // =============================================================
-// APIキー認証
+// Logger（GET 用。POST は cmRpaApiHandler 経由で取得）
 // =============================================================
 
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const apiKey = request.headers.get('x-api-key');
-  
-  if (!apiKey) {
-    return false;
-  }
+const logger = createLogger("cm/api/rpa/logs");
 
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
+// =============================================================
+// バリデーション定数
+// =============================================================
 
-  if (error || !data) {
-    return false;
-  }
-
-  return true;
-}
+const VALID_LEVELS = ["info", "warn", "error", "debug"] as const;
+const VALID_ENVS = ["production", "preview", "development"] as const;
 
 // =============================================================
 // バリデーション
 // =============================================================
 
-const VALID_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
-const VALID_ENVS = ['production', 'preview', 'development'] as const;
-
 type ValidationResult =
   | { valid: true; data: CmRpaLogRequest }
   | { valid: false; error: string };
 
-function validateLogRequest(body: unknown): ValidationResult {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'リクエストボディが不正です' };
+function cmValidateLogRequest(body: unknown): ValidationResult {
+  if (!body || typeof body !== "object") {
+    return { valid: false, error: "リクエストボディが不正です" };
   }
 
   const req = body as Record<string, unknown>;
 
   // 必須フィールド
-  if (typeof req.timestamp !== 'string') {
-    return { valid: false, error: 'timestamp は必須です（ISO 8601形式）' };
+  if (typeof req.timestamp !== "string") {
+    return { valid: false, error: "timestamp は必須です（ISO 8601形式）" };
   }
-  if (!VALID_LEVELS.includes(req.level as typeof VALID_LEVELS[number])) {
-    return { valid: false, error: 'level は info/warn/error/debug のいずれかです' };
+  if (!VALID_LEVELS.includes(req.level as (typeof VALID_LEVELS)[number])) {
+    return {
+      valid: false,
+      error: "level は info/warn/error/debug のいずれかです",
+    };
   }
-  if (!VALID_ENVS.includes(req.env as typeof VALID_ENVS[number])) {
-    return { valid: false, error: 'env は production/preview/development のいずれかです' };
+  if (!VALID_ENVS.includes(req.env as (typeof VALID_ENVS)[number])) {
+    return {
+      valid: false,
+      error: "env は production/preview/development のいずれかです",
+    };
   }
-  if (typeof req.module !== 'string' || req.module.length === 0) {
-    return { valid: false, error: 'module は必須です' };
+  if (typeof req.module !== "string" || req.module.length === 0) {
+    return { valid: false, error: "module は必須です" };
   }
-  if (typeof req.message !== 'string' || req.message.length === 0) {
-    return { valid: false, error: 'message は必須です' };
+  if (typeof req.message !== "string" || req.message.length === 0) {
+    return { valid: false, error: "message は必須です" };
   }
 
   // オプションフィールドの型チェック
-  if (req.action !== undefined && req.action !== null && typeof req.action !== 'string') {
-    return { valid: false, error: 'action は文字列または null です' };
+  if (
+    req.action !== undefined &&
+    req.action !== null &&
+    typeof req.action !== "string"
+  ) {
+    return { valid: false, error: "action は文字列です" };
   }
-  if (req.trace_id !== undefined && req.trace_id !== null && typeof req.trace_id !== 'string') {
-    return { valid: false, error: 'trace_id は文字列または null です' };
-  }
-  if (req.context !== undefined && req.context !== null && typeof req.context !== 'object') {
-    return { valid: false, error: 'context はオブジェクトまたは null です' };
-  }
-  if (req.error_name !== undefined && req.error_name !== null && typeof req.error_name !== 'string') {
-    return { valid: false, error: 'error_name は文字列または null です' };
-  }
-  if (req.error_message !== undefined && req.error_message !== null && typeof req.error_message !== 'string') {
-    return { valid: false, error: 'error_message は文字列または null です' };
-  }
-  if (req.error_stack !== undefined && req.error_stack !== null && typeof req.error_stack !== 'string') {
-    return { valid: false, error: 'error_stack は文字列または null です' };
+  if (
+    req.trace_id !== undefined &&
+    req.trace_id !== null &&
+    typeof req.trace_id !== "string"
+  ) {
+    return { valid: false, error: "trace_id は文字列です" };
   }
 
   return {
     valid: true,
     data: {
       timestamp: req.timestamp as string,
-      level: req.level as CmRpaLogRequest['level'],
-      env: req.env as CmRpaLogRequest['env'],
+      level: req.level as CmRpaLogRequest["level"],
+      env: req.env as CmRpaLogRequest["env"],
       module: req.module as string,
       action: (req.action as string) ?? null,
       message: req.message as string,
@@ -108,71 +96,76 @@ function validateLogRequest(body: unknown): ValidationResult {
 }
 
 // =============================================================
-// GET /api/cm/rpa/logs - ログ一覧取得
+// GET /api/cm/rpa/logs - ログ一覧取得（管理画面用、API キー認証なし）
 // =============================================================
 
-export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsListResponse>> {
+export async function GET(
+  request: NextRequest
+): Promise<NextResponse<CmRpaLogsListResponse>> {
   try {
     const { searchParams } = new URL(request.url);
 
     // クエリパラメータ取得
-    const env = searchParams.get('env');
-    const level = searchParams.get('level');
-    const moduleName = searchParams.get('module');
-    const message = searchParams.get('message');
-    const traceId = searchParams.get('traceId');
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const env = searchParams.get("env");
+    const level = searchParams.get("level");
+    const moduleName = searchParams.get("module");
+    const message = searchParams.get("message");
+    const traceId = searchParams.get("traceId");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = 50;
     const offset = (page - 1) * limit;
 
     // クエリ構築
     let query = supabaseAdmin
-      .from('cm_rpa_logs')
-      .select('*', { count: 'exact' });
+      .from("cm_rpa_logs")
+      .select("*", { count: "exact" });
 
     // フィルター適用
-    if (env && VALID_ENVS.includes(env as typeof VALID_ENVS[number])) {
-      query = query.eq('env', env);
+    if (env && VALID_ENVS.includes(env as (typeof VALID_ENVS)[number])) {
+      query = query.eq("env", env);
     }
 
-    if (level && VALID_LEVELS.includes(level as typeof VALID_LEVELS[number])) {
-      query = query.eq('level', level);
+    if (
+      level &&
+      VALID_LEVELS.includes(level as (typeof VALID_LEVELS)[number])
+    ) {
+      query = query.eq("level", level);
     }
 
     if (moduleName) {
-      query = query.ilike('module', `%${moduleName}%`);
+      query = query.ilike("module", `%${moduleName}%`);
     }
 
     if (message) {
-      query = query.ilike('message', `%${message}%`);
+      query = query.ilike("message", `%${message}%`);
     }
 
     if (traceId) {
-      query = query.eq('trace_id', traceId);
+      query = query.eq("trace_id", traceId);
     }
 
     if (from) {
-      query = query.gte('timestamp', from);
+      query = query.gte("timestamp", from);
     }
 
     if (to) {
-      query = query.lte('timestamp', to);
+      query = query.lte("timestamp", to);
     }
 
     // ソート・ページネーション
     query = query
-      .order('timestamp', { ascending: false })
+      .order("timestamp", { ascending: false })
       .range(offset, offset + limit - 1);
 
     // 実行
     const { data: logs, error, count } = await query;
 
     if (error) {
-      console.error('[RPA logs] DB query error:', error);
+      logger.error("ログ取得エラー", undefined, { message: error.message });
       return NextResponse.json(
-        { ok: false, error: 'ログ取得に失敗しました' },
+        { ok: false, error: "ログ取得に失敗しました" },
         { status: 500 }
       );
     }
@@ -193,42 +186,34 @@ export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsL
       },
     });
   } catch (error) {
-    console.error('[RPA logs] Unexpected error:', error);
+    logger.error("ログ取得例外", error as Error);
     return NextResponse.json(
-      { ok: false, error: '予期せぬエラーが発生しました' },
+      { ok: false, error: "予期せぬエラーが発生しました" },
       { status: 500 }
     );
   }
 }
 
 // =============================================================
-// POST /api/cm/rpa/logs - ログ保存
+// POST /api/cm/rpa/logs - ログ保存（外部RPA用、API キー認証あり）
 // =============================================================
 
-export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogsApiResponse>> {
-  try {
-    // 1. APIキー認証
-    const isValid = await validateApiKey(request);
-    if (!isValid) {
-      return NextResponse.json(
-        { ok: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // 2. リクエストボディ取得
+export const POST = cmRpaApiHandler<CmRpaLogsApiResponse>(
+  "cm/api/rpa/logs",
+  async (request, handlerLogger) => {
+    // リクエストボディ取得
     let body: unknown;
     try {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { ok: false, error: 'リクエストボディのパースに失敗しました' },
+        { ok: false, error: "リクエストボディのパースに失敗しました" },
         { status: 400 }
       );
     }
 
-    // 3. バリデーション
-    const validation = validateLogRequest(body);
+    // バリデーション
+    const validation = cmValidateLogRequest(body);
     if (!validation.valid) {
       const errorResult = validation as { valid: false; error: string };
       return NextResponse.json(
@@ -237,10 +222,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogs
       );
     }
 
-    // 4. DB保存
+    // DB保存
     const logData = validation.data;
     const { error: insertError } = await supabaseAdmin
-      .from('cm_rpa_logs')
+      .from("cm_rpa_logs")
       .insert({
         timestamp: logData.timestamp,
         level: logData.level,
@@ -256,21 +241,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogs
       });
 
     if (insertError) {
-      console.error('[RPA logs] DB insert error:', insertError);
+      handlerLogger.error("ログ保存エラー", undefined, {
+        message: insertError.message,
+      });
       return NextResponse.json(
-        { ok: false, error: 'ログの保存に失敗しました' },
+        { ok: false, error: "ログの保存に失敗しました" },
         { status: 500 }
       );
     }
 
-    // 5. 成功レスポンス
     return NextResponse.json({ ok: true });
-
-  } catch (error) {
-    console.error('[RPA logs] Unexpected error:', error);
-    return NextResponse.json(
-      { ok: false, error: '予期せぬエラーが発生しました' },
-      { status: 500 }
-    );
   }
-}
+);

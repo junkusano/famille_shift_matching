@@ -9,24 +9,14 @@
 //   - service_type が 'kyotaku' または 'both' のユーザーのみ対象
 // =============================================================
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createLogger } from '@/lib/common/logger';
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { validateApiKey } from '@/lib/cm/rpa/auth';
-
-// =============================================================
-// Logger
-// =============================================================
-
-const logger = createLogger('cm/api/rpa/kaipoke/staff-info');
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
 
 // =============================================================
 // 型定義
 // =============================================================
 
-/**
- * リクエストボディ
- */
 type RequestBody = {
   record: {
     /** カイポケスタッフID（内部ID） */
@@ -36,9 +26,6 @@ type RequestBody = {
   };
 };
 
-/**
- * APIレスポンス
- */
 type ApiResponse = {
   ok: boolean;
   updated: number;
@@ -50,69 +37,70 @@ type ApiResponse = {
 // POST /api/cm/rpa/kaipoke/staff-info
 // =============================================================
 
-export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
-  try {
-    // 1. 認証
-    if (!(await validateApiKey(request))) {
-      return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // 2. リクエストボディ取得
+export const POST = cmRpaApiHandler<ApiResponse>(
+  "cm/api/rpa/kaipoke/staff-info",
+  async (request, logger) => {
+    // リクエストボディ取得
     let body: RequestBody;
     try {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'Invalid JSON' },
+        { ok: false, updated: 0, skipped: 0, error: "Invalid JSON" },
         { status: 400 }
       );
     }
 
-    // 3. バリデーション
+    // バリデーション
     if (!body.record) {
       return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'record is required' },
+        { ok: false, updated: 0, skipped: 0, error: "record is required" },
         { status: 400 }
       );
     }
 
     const { staff_member_internal_id, login_id } = body.record;
 
-    if (!staff_member_internal_id || typeof staff_member_internal_id !== 'string') {
+    if (
+      !staff_member_internal_id ||
+      typeof staff_member_internal_id !== "string"
+    ) {
       return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'staff_member_internal_id is required' },
+        {
+          ok: false,
+          updated: 0,
+          skipped: 0,
+          error: "staff_member_internal_id is required",
+        },
         { status: 400 }
       );
     }
 
-    if (!login_id || typeof login_id !== 'string') {
+    if (!login_id || typeof login_id !== "string") {
       return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'login_id is required' },
+        { ok: false, updated: 0, skipped: 0, error: "login_id is required" },
         { status: 400 }
       );
     }
 
-    logger.info('スタッフ情報更新開始', {
+    logger.info("スタッフ情報更新開始", {
       staff_member_internal_id,
       login_id,
     });
 
-    // 4. usersテーブルを更新
+    // usersテーブルを更新
     // user_id = login_id かつ service_type が 'kyotaku' または 'both' のレコードを更新
     const { data, error } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update({
         kaipoke_user_id: staff_member_internal_id,
       })
-      .eq('user_id', login_id)
-      .in('service_type', ['kyotaku', 'both'])
-      .select('user_id');
+      .eq("user_id", login_id)
+      .in("service_type", ["kyotaku", "both"])
+      .select("user_id");
 
     if (error) {
-      logger.error('スタッフ情報更新エラー', {
+      logger.error("スタッフ情報更新エラー", undefined, {
         error: error.message,
         code: error.code,
         details: error.details,
@@ -121,7 +109,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         login_id,
       });
       return NextResponse.json(
-        { ok: false, updated: 0, skipped: 0, error: 'Database error' },
+        { ok: false, updated: 0, skipped: 0, error: "Database error" },
         { status: 500 }
       );
     }
@@ -130,31 +118,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     const skippedCount = updatedCount === 0 ? 1 : 0;
 
     if (updatedCount > 0) {
-      logger.info('スタッフ情報更新完了', {
+      logger.info("スタッフ情報更新完了", {
         staff_member_internal_id,
         login_id,
         updated: updatedCount,
       });
     } else {
-      logger.info('スタッフ情報更新対象なし', {
+      logger.info("スタッフ情報更新対象なし", {
         staff_member_internal_id,
         login_id,
       });
     }
 
-    // 5. レスポンス
     return NextResponse.json({
       ok: true,
       updated: updatedCount,
       skipped: skippedCount,
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('スタッフ情報更新例外', { error: errorMessage });
-
-    return NextResponse.json(
-      { ok: false, updated: 0, skipped: 0, error: 'Internal server error' },
-      { status: 500 }
-    );
   }
-}
+);

@@ -75,13 +75,16 @@ export async function GET(
       );
     }
 
+    const { userId } = auth;
+
     // ---------------------------------------------------------
-    // 2. 承認済みレコード取得
+    // 2. 承認済みレコード取得（ログインユーザーのデータのみ）
     // ---------------------------------------------------------
     const { data, error } = await supabaseAdmin
       .from('cm_plaud_mgmt_transcriptions')
       .select('id, plaud_uuid, retry_count')
       .eq('status', 'approved')
+      .eq('registered_by', userId)
       .order('plaud_created_at', { ascending: true });
 
     if (error) {
@@ -94,7 +97,7 @@ export async function GET(
 
     const records: ApprovedRecord[] = data ?? [];
 
-    logger.info('承認済み一覧取得成功', { count: records.length });
+    logger.info('承認済み一覧取得成功', { count: records.length, userId });
 
     return NextResponse.json(
       {

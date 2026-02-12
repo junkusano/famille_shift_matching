@@ -3,21 +3,18 @@
 // RPA サービス利用情報 API（バルク）
 // =============================================================
 
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/service';
-import { validateApiKey } from '@/lib/cm/rpa/auth';
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
+import {
+  cmMarkJobItemCompleted,
+  cmMarkJobItemFailed,
+  type CmJobItemRef,
+} from "@/lib/cm/rpa/cmRpaJobItemHelper";
 
-// -------------------------------------------------------------
+// =============================================================
 // 型定義
-// -------------------------------------------------------------
-
-/**
- * _job パラメータ
- */
-type JobParam = {
-  job_id: number;
-  target_id: string;
-};
+// =============================================================
 
 type ServiceUsageRecord = {
   plan_achievement_details_id: string;
@@ -98,7 +95,7 @@ type ServiceUsageRecord = {
 
 type BulkRequest = {
   records: ServiceUsageRecord[];
-  _job?: JobParam;
+  _job?: CmJobItemRef;
 };
 
 type BulkResponse = {
@@ -108,117 +105,94 @@ type BulkResponse = {
   error?: string;
 };
 
-// -------------------------------------------------------------
-// ジョブアイテム更新ヘルパー
-// -------------------------------------------------------------
+// =============================================================
+// POST /api/cm/rpa/kaipoke/service-usage
+// =============================================================
 
-async function markJobItemCompleted(jobParam: JobParam): Promise<void> {
-  try {
-    await supabaseAdmin
-      .from('cm_job_items')
-      .update({
-        status: 'completed',
-        processed_at: new Date().toISOString(),
-      })
-      .eq('job_id', jobParam.job_id)
-      .eq('target_id', jobParam.target_id);
-  } catch (e) {
-    console.error('[service-usage] ジョブアイテム更新エラー:', e);
-  }
-}
-
-async function markJobItemFailed(jobParam: JobParam, errorMessage: string): Promise<void> {
-  try {
-    await supabaseAdmin
-      .from('cm_job_items')
-      .update({
-        status: 'failed',
-        error_message: errorMessage,
-        processed_at: new Date().toISOString(),
-      })
-      .eq('job_id', jobParam.job_id)
-      .eq('target_id', jobParam.target_id);
-  } catch (e) {
-    console.error('[service-usage] ジョブアイテム更新エラー:', e);
-  }
-}
-
-// -------------------------------------------------------------
-// POST ハンドラ
-// -------------------------------------------------------------
-
-export async function POST(request: NextRequest): Promise<NextResponse<BulkResponse>> {
-  // _job パラメータを保持（エラー時のジョブアイテム更新用）
-  let jobParam: JobParam | undefined;
-
-  try {
-    // 1. 認証
-    if (!(await validateApiKey(request))) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // 2. リクエストボディ取得
+export const POST = cmRpaApiHandler<BulkResponse>(
+  "cm/api/rpa/kaipoke/service-usage",
+  async (request, logger) => {
+    // リクエストボディ取得
     let body: BulkRequest;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Invalid JSON" },
+        { status: 400 }
+      );
     }
 
-    // _job パラメータを抽出
-    const { records, _job } = body;
-    jobParam = _job;
+    const { records, _job: jobParam } = body;
 
-    // 3. バリデーション
+    // バリデーション
     if (!records || !Array.isArray(records)) {
-      return NextResponse.json({ ok: false, error: 'records array is required' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "records array is required" },
+        { status: 400 }
+      );
     }
 
     if (records.length === 0) {
-      // 空配列の場合も成功扱い（_job があれば完了にする）
       if (jobParam) {
-        await markJobItemCompleted(jobParam);
+        await cmMarkJobItemCompleted(jobParam);
       }
       return NextResponse.json({ ok: true, success: 0, fail: 0 });
     }
 
     // plan_achievement_details_id が必須
-    const invalidRecords = records.filter((r) => !r.plan_achievement_details_id);
+    const invalidRecords = records.filter(
+      (r) => !r.plan_achievement_details_id
+    );
     if (invalidRecords.length > 0) {
-      // バリデーションエラーは失敗扱い
       if (jobParam) {
-        await markJobItemFailed(jobParam, `${invalidRecords.length} records missing plan_achievement_details_id`);
+        await cmMarkJobItemFailed(
+          jobParam,
+          `${invalidRecords.length} records missing plan_achievement_details_id`
+        );
       }
       return NextResponse.json(
-        { ok: false, error: `${invalidRecords.length} records missing plan_achievement_details_id` },
+        {
+          ok: false,
+          error: `${invalidRecords.length} records missing plan_achievement_details_id`,
+        },
         { status: 400 }
       );
     }
 
-    // 4. updated_at を追加
+    // updated_at を追加
     const now = new Date().toISOString();
     const recordsWithTimestamp = records.map((r) => ({
       ...r,
       updated_at: now,
     }));
 
-    // 5. バルク upsert
+    // バルク upsert
     const { error: upsertError } = await supabaseAdmin
-      .from('cm_kaipoke_service_usage')
-      .upsert(recordsWithTimestamp, { onConflict: 'plan_achievement_details_id' });
+      .from("cm_kaipoke_service_usage")
+      .upsert(recordsWithTimestamp, {
+        onConflict: "plan_achievement_details_id",
+      });
 
     if (upsertError) {
-      console.error('[RPA service-usage] DB upsert error:', upsertError);
-      // DB エラー時は失敗扱い
+      logger.error("DB upsert エラー", undefined, {
+        message: upsertError.message,
+      });
       if (jobParam) {
-        await markJobItemFailed(jobParam, `DB保存エラー: ${upsertError.message}`);
+        await cmMarkJobItemFailed(
+          jobParam,
+          `DB保存エラー: ${upsertError.message}`
+        );
       }
-      return NextResponse.json({ ok: false, error: '保存に失敗しました' }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: "保存に失敗しました" },
+        { status: 500 }
+      );
     }
 
-    // 6. 成功時：_job があればアイテムを完了にする
+    // 成功時：_job があればアイテムを完了にする
     if (jobParam) {
-      await markJobItemCompleted(jobParam);
+      await cmMarkJobItemCompleted(jobParam);
     }
 
     return NextResponse.json({
@@ -226,14 +200,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<BulkRespo
       success: records.length,
       fail: 0,
     });
-
-  } catch (error) {
-    console.error('[RPA service-usage] Unexpected error:', error);
-    // 予期せぬエラー時も _job があれば失敗にする
-    if (jobParam) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      await markJobItemFailed(jobParam, errorMsg);
-    }
-    return NextResponse.json({ ok: false, error: '予期せぬエラーが発生しました' }, { status: 500 });
   }
-}
+);
