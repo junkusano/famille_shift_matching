@@ -7,14 +7,21 @@ import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSys
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 
-type DisabilityCheckRow = {
-    id: string;
+type DisabilityCheckViewRow = {
     kaipoke_cs_id: string;
     kaipoke_servicek: "障害" | "移動支援";
     year_month: string; // "YYYY-MM"
-    is_checked: boolean; // 回収
-    asigned_jisseki_staff: string | null; // 実績担当
-    application_check: boolean | null; // 提出
+
+    client_name: string | null;
+    is_checked: boolean | null; // 回収（viewは集計なのでnullもありえる）
+
+    asigned_jisseki_staff_id: string | null;      // 担当者ID（URL user_id と一致）
+    asigned_jisseki_staff_name: string | null;    // 担当者名（表示用）
+
+    asigned_org_id: string | null;                // チームID（回収アラートのmgr解決用）
+    asigned_org_name: string | null;              // チーム名（本文用）
+
+    application_check: boolean | null;            // 提出（今回 view に追加済み）
 };
 
 export type DisabilityCheckDailyAlertResult = {
@@ -48,13 +55,6 @@ export type DisabilityCheckAlertArgs = {
     targetKaipokeCsId?: string; // テスト用に1件へ絞る
     forceDay10Rule?: boolean; // 10日条件を無視してテスト
     forceDay15Rule?: boolean; // 15日条件を無視してテスト
-};
-
-type CsInfo = {
-    cs_uuid: string;
-    kaipoke_cs_id: string;
-    name: string | null;
-    orgunitid: string | null; // cs_kaipoke_info.asigned_org を入れる
 };
 
 type OrgRow = {
@@ -161,46 +161,6 @@ async function resolveLineworksChannelIdForClientCached(
     return resolveChannelIdFromGroupId(groupId, channelCache);
 }
 
-type CsInfoRaw = {
-    id: string | null;
-    kaipoke_cs_id: string | null;
-    name: string | null;
-    asigned_org: string | null;
-};
-
-async function loadCsInfoMap(csIds: string[]) {
-    if (!csIds.length) return new Map<string, CsInfo>();
-
-    const { data, error } = await supabaseAdmin
-        .from("cs_kaipoke_info")
-        .select("id, kaipoke_cs_id, name, asigned_org")
-        .in("kaipoke_cs_id", csIds);
-
-    if (error) throw error;
-
-    const map = new Map<string, CsInfo>();
-
-    // ★ここで data を安全に CsInfoRaw[] として扱う
-    const rows = (data ?? []) as CsInfoRaw[];
-
-    for (const r of rows) {
-        const id = r.kaipoke_cs_id ? String(r.kaipoke_cs_id) : "";
-        if (!id) continue;
-
-        const csUuid = r.id ? String(r.id) : "";
-        if (!csUuid) continue;
-
-        map.set(id, {
-            cs_uuid: csUuid,
-            kaipoke_cs_id: id,
-            name: r.name ? String(r.name) : null,
-            orgunitid: r.asigned_org ? String(r.asigned_org) : null,
-        });
-    }
-
-    return map;
-}
-
 function formatYmJa(ym: string): string {
     // "2026-01" → "2026年1月"
     const [y, m] = ym.split("-");
@@ -298,17 +258,27 @@ async function runSubmittedUncheckLineworksOnly(args: {
     }
 
     let q = supabaseAdmin
-        .from("disability_check")
-        .select("id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check")
+        .from("disability_check_view")
+        .select(
+            [
+                "kaipoke_cs_id",
+                "kaipoke_servicek",
+                "year_month",
+                "client_name",
+                "asigned_org_name",
+                "asigned_jisseki_staff_id",
+                "asigned_jisseki_staff_name",
+                "application_check",
+            ].join(",")
+        )
         .eq("year_month", targetYm)
-        .or("application_check.is.null,application_check.eq.false");
+        .eq("application_check", false);
 
     if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
 
     const { data, error } = await q;
     if (error) throw new Error(`disability_check select failed: ${error.message}`);
-
-    const rows: DisabilityCheckRow[] = (data ?? []) as unknown as DisabilityCheckRow[];
+    const rows: DisabilityCheckViewRow[] = (data ?? []) as unknown as DisabilityCheckViewRow[];
     const scanned = rows.length;
 
     if (!rows.length) {
@@ -325,21 +295,12 @@ async function runSubmittedUncheckLineworksOnly(args: {
         };
     }
 
-    // 利用者情報/チーム情報を準備
-    const csIds = Array.from(new Set(rows.map((r) => String(r.kaipoke_cs_id))));
-    const csMap = await loadCsInfoMap(csIds);
-
-    const orgIds = Array.from(
-        new Set(csIds.map((id) => csMap.get(id)?.orgunitid ?? "").filter((v): v is string => !!v))
-    );
-    const orgMap = await loadOrgMap(orgIds);
-
     // ★送信先グループ候補を1回だけ取得（「情報連携」）
     const infoRenkeiGroups = await loadActiveInfoRenkeiGroups();
     const channelCache = new Map<string, string>();
 
     // ★利用者(kaipoke_cs_id)ごとにまとめる（ここが最重要）
-    const byClient = new Map<string, DisabilityCheckRow[]>();
+    const byClient = new Map<string, DisabilityCheckViewRow[]>();
     for (const r of rows) {
         const id = String(r.kaipoke_cs_id ?? "").trim();
         if (!id) continue;
@@ -354,17 +315,19 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
     for (const [kaipokeCsId, items] of byClient) {
         try {
-            const cs = csMap.get(kaipokeCsId);
-            const clientName = cs?.name ? String(cs.name) : "";
-            if (!clientName) throw new Error(`client name not found for kaipoke_cs_id="${kaipokeCsId}"`);
+            const first = items[0];
+            const clientName = (first?.client_name ?? "").trim();
+            if (!clientName) throw new Error(`client_name is empty for kaipoke_cs_id="${kaipokeCsId}"`);
 
-            const orgName = cs?.orgunitid ? orgMap.get(String(cs.orgunitid))?.orgunitname ?? "" : "";
+            const orgName = (first?.asigned_org_name ?? "").trim();
 
-            // ★この利用者の「情報連携」グループへ送る
             const channelId = await resolveLineworksChannelIdForClientCached(clientName, infoRenkeiGroups, channelCache);
 
             // 担当者メンション（同一利用者内で複数担当があり得るのでユニーク）
-            const staffIds = Array.from(new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)));
+            const staffIds = Array.from(
+                new Set(items.map((it) => String(it.asigned_jisseki_staff_id ?? "")).filter(Boolean))
+            );
+
             const staffInfoMap = await loadStaffInfoMap(staffIds);
 
             const mentionLines = staffIds
@@ -374,9 +337,12 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 .join("\n");
 
             const lines = items.map((it) => {
-                const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
-                const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
-                const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
+                const staffId = String(it.asigned_jisseki_staff_id ?? "").trim();
+                const staffName =
+                    (it.asigned_jisseki_staff_name ?? "").trim() ||
+                    staffInfoMap.get(staffId)?.name ||
+                    staffId ||
+                    "（担当未設定）";
 
                 const staffUrl =
                     staffId
@@ -454,19 +420,29 @@ async function runCollectedUncheckManagerAlert(args: {
     }
 
     let q = supabaseAdmin
-        .from("disability_check")
+        .from("disability_check_view")
         .select(
-            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
+            [
+                "kaipoke_cs_id",
+                "kaipoke_servicek",
+                "year_month",
+                "client_name",
+                "is_checked",
+                "asigned_org_id",
+                "asigned_org_name",
+                "asigned_jisseki_staff_id",
+                "asigned_jisseki_staff_name",
+            ].join(",")
         )
         .eq("year_month", targetYm)
-        .neq("is_checked", true);
+        .eq("is_checked", false);
 
     if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
 
     const { data, error } = await q;
     if (error) throw new Error(`disability_check select failed: ${error.message}`);
 
-    const rows: DisabilityCheckRow[] = (data ?? []) as unknown as DisabilityCheckRow[];
+    const rows: DisabilityCheckViewRow[] = (data ?? []) as unknown as DisabilityCheckViewRow[];
     const scanned = rows.length;
 
     if (!rows.length) {
@@ -483,30 +459,20 @@ async function runCollectedUncheckManagerAlert(args: {
         };
     }
 
-    const csIds = Array.from(new Set(rows.map((r) => String(r.kaipoke_cs_id))));
-    const csMap = await loadCsInfoMap(csIds);
-
-    const orgIds = Array.from(
-        new Set(
-            csIds
-                .map((id) => csMap.get(id)?.orgunitid ?? "")
-                .filter((v): v is string => !!v),
-        ),
-    );
+    const orgIds = Array.from(new Set(rows.map((r) => String(r.asigned_org_id ?? "")).filter(Boolean)));
     const orgMap = await loadOrgMap(orgIds);
 
-    const byMgr = new Map<string, { orgName: string; items: DisabilityCheckRow[] }>();
+    const byMgr = new Map<string, { orgName: string; items: DisabilityCheckViewRow[] }>();
 
     for (const r of rows) {
-        const cs = csMap.get(String(r.kaipoke_cs_id));
-        const orgunitid = cs?.orgunitid ? String(cs.orgunitid) : "";
+        const orgunitid = String(r.asigned_org_id ?? "").trim();
         if (!orgunitid) continue;
 
         const org = orgMap.get(orgunitid);
         const mgr = org?.mgr_user_id ? String(org.mgr_user_id) : "";
         if (!mgr) continue;
 
-        const orgName = orgMap.get(orgunitid)?.orgunitname || "";
+        const orgName = (r.asigned_org_name ?? org?.orgunitname ?? "").trim();
 
         const cur = byMgr.get(mgr);
         if (!cur) byMgr.set(mgr, { orgName, items: [r] });
@@ -520,35 +486,31 @@ async function runCollectedUncheckManagerAlert(args: {
     for (const [mgrUserId, pack] of byMgr) {
 
         const staffIds = Array.from(
-            new Set(
-                pack.items
-                    .map((it) => it.asigned_jisseki_staff)
-                    .filter((v): v is string => !!v),
-            ),
+            new Set(pack.items.map((it) => String(it.asigned_jisseki_staff_id ?? "")).filter(Boolean))
         );
-
         const staffInfoMap = await loadStaffInfoMap(staffIds);
+
         const lines = pack.items.map((it) => {
-            const csInfo = csMap.get(String(it.kaipoke_cs_id));
-            const clientName = csInfo?.name ? `${csInfo.name}様` : `CS:${it.kaipoke_cs_id}`;
+            const clientNameRaw = (it.client_name ?? "").trim();
+            const clientName = clientNameRaw ? `${clientNameRaw}様` : `CS:${it.kaipoke_cs_id}`;
 
-            const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
-            const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
-            const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
+            const staffId = String(it.asigned_jisseki_staff_id ?? "").trim();
+            const staffName =
+                (it.asigned_jisseki_staff_name ?? "").trim() ||
+                staffInfoMap.get(staffId)?.name ||
+                staffId ||
+                "（担当未設定）";
 
-            // ★リンク表示文字列（ここが「服部 雪美様」の代わりに出る部分）
             const labelText = `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
 
-            // ★リンク先：kaipoke-info-detail（cs_kaipoke_info.id）
-            const detailUrl = csInfo?.cs_uuid
-                ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                    it.kaipoke_servicek,
-                )}&user_id=${encodeURIComponent(staffId)}`
-                : "";
+            const detailUrl =
+                staffId
+                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
+                        it.kaipoke_servicek
+                    )}&user_id=${encodeURIComponent(staffId)}`
+                    : "";
 
-            return detailUrl
-                ? `<a href="${detailUrl}">${labelText}</a>`
-                : labelText;
+            return detailUrl ? `<a href="${detailUrl}">${labelText}</a>` : labelText;
         });
 
         const message =
