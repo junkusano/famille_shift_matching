@@ -346,9 +346,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
                 const staffUrl =
                     staffId
-                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                            it.kaipoke_servicek
-                        )}&user_id=${encodeURIComponent(staffId)}`
+                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
                         : "";
 
                 const labelText = `${clientName}様 [${it.kaipoke_servicek}] 担当:${staffName}さん`;
@@ -505,9 +503,7 @@ async function runCollectedUncheckManagerAlert(args: {
 
             const detailUrl =
                 staffId
-                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                        it.kaipoke_servicek
-                    )}&user_id=${encodeURIComponent(staffId)}`
+                    ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
                     : "";
 
             return detailUrl ? `<a href="${detailUrl}">${labelText}</a>` : labelText;
