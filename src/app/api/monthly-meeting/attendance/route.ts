@@ -48,6 +48,21 @@ type AttendanceRowDb = {
     users: { user_id: string | null } | null;
 };
 
+type StaffRowDb = {
+    user_id: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+    orgunitname: string | null;
+    status: string | null;
+};
+
+type StaffDto = {
+    user_id: string;
+    user_name: string;
+    orgunitname: string | null;
+    status: string | null;
+};
+
 export async function GET(req: NextRequest) {
     try {
         await readMyRole(req);
@@ -79,25 +94,29 @@ export async function GET(req: NextRequest) {
         // ★追加：在籍従業員一覧（常に表示する用）※GETの中で取得する
         const { data: staffData, error: staffErr } = await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select(
-                "user_id,last_name_kanji,first_name_kanji,last_name_kana,first_name_kana,orgunitname,org_order_num,roster_sort,status,end_at,resign_date_latest",
-            )
+            .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status")
             .is("end_at", null)
             .is("resign_date_latest", null)
             .neq("status", "removed_from_lineworks_kaipoke")
             .order("org_order_num", { ascending: true, nullsFirst: false })
             .order("roster_sort", { ascending: true, nullsFirst: false })
             .order("last_name_kana", { ascending: true, nullsFirst: false })
-            .order("first_name_kana", { ascending: true, nullsFirst: false });
+            .order("first_name_kana", { ascending: true, nullsFirst: false })
+            .returns<StaffRowDb[]>();
 
         if (staffErr) throw staffErr;
 
-        const staff = (staffData ?? []).map((r: any) => ({
-            user_id: String(r.user_id ?? ""),
-            user_name: `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || String(r.user_id ?? ""),
-            orgunitname: r.orgunitname ?? null,
-            status: r.status ?? null,
-        }));
+        const staff: StaffDto[] = (staffData ?? []).map((r) => {
+            const userId = (r.user_id ?? "").trim();
+            const name = `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim();
+
+            return {
+                user_id: userId,
+                user_name: name || userId,
+                orgunitname: r.orgunitname ?? null,
+                status: r.status ?? null,
+            };
+        });
 
         const rows = (data ?? []).map((r) => ({
             target_month: r.target_month,
