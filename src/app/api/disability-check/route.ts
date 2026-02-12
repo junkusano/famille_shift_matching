@@ -12,13 +12,6 @@ type Body = {
   kaipoke_cs_id?: string | null;   // 利用者（kaipoke_cs_id）
 };
 
-type DisabilityCheckRow = {
-  kaipoke_cs_id: string;
-  year_month: string;
-  kaipoke_servicek: string;
-  application_check: boolean | null;
-};
-
 type ViewRow = {
   kaipoke_cs_id: string;
   year_month: string;
@@ -32,6 +25,7 @@ type ViewRow = {
   asigned_jisseki_staff_name: string | null;
   asigned_org_id: string | null;
   asigned_org_name: string | null;
+  application_check: boolean | null; // ★追加（viewに追加した提出）
 };
 
 type CsKanaRow = {
@@ -175,6 +169,7 @@ export async function POST(req: NextRequest) {
           "asigned_jisseki_staff_name",
           "asigned_org_id",
           "asigned_org_name",
+          "application_check", // ★追加
         ].join(",")
       )
       .eq("year_month", yearMonth);
@@ -272,39 +267,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let dcQuery = supabaseAdmin
-      .from("disability_check")
-      .select("kaipoke_cs_id,year_month,kaipoke_servicek,application_check")
-      .eq("year_month", yearMonth);
-
-    if (kaipokeServicek) {
-      dcQuery = dcQuery.eq("kaipoke_servicek", kaipokeServicek);
-    }
-
-    if (targetCsIds.length > 0) {
-      dcQuery = dcQuery.in("kaipoke_cs_id", targetCsIds);
-    }
-
-    const { data: dcRows, error: dcError } = await dcQuery;
-    if (dcError) throw dcError;
-
-
-    // ③ (cs_id,年月,サービス種別) → application_check のマップを作成
-    const submittedMap = new Map<string, boolean | null>();
-    (dcRows ?? []).forEach((r) => {
-      const row = r as DisabilityCheckRow;
-      const key = `${row.kaipoke_cs_id}__${row.year_month}__${row.kaipoke_servicek}`;
-      submittedMap.set(key, row.application_check);
-    });
-
     const merged = rows.map((r: ViewRow) => {
-      const key = `${r.kaipoke_cs_id}__${r.year_month}__${r.kaipoke_servicek}`;
-      const submitted = submittedMap.get(key) ?? null;
-
       return {
         ...r,
-        client_kana: kanaMap.get(String(r.kaipoke_cs_id)) ?? null, // ★追加
-        is_submitted: submitted,
+        client_kana: kanaMap.get(String(r.kaipoke_cs_id)) ?? null,
+        is_submitted: r.application_check ?? null, // ★viewの列をそのまま使う
       };
     });
 
