@@ -1,0 +1,169 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+
+export const dynamic = "force-dynamic";
+
+function json(data: unknown, status = 200) {
+    return NextResponse.json(data, { status });
+}
+
+function ymToMonthStartStr(ym: string) {
+    const m = /^(\d{4})-(\d{2})$/.exec(ym);
+    if (!m) throw new Error(`invalid ym: ${ym}`);
+    return `${m[1]}-${m[2]}-01`;
+}
+
+type UserRoleRow = { user_id: string | null; system_role: string | null };
+
+async function readMyRole(req: NextRequest) {
+    const { user } = await getUserFromBearer(req);
+    if (!user) throw new Error("unauthorized");
+
+    const { data: u, error } = await supabaseAdmin
+        .from("users")
+        .select("user_id, system_role")
+        .eq("auth_user_id", user.id)
+        .maybeSingle<UserRoleRow>();
+
+    if (error) throw error;
+    return { myUserId: String(u?.user_id ?? ""), role: String(u?.system_role ?? "") };
+}
+
+/** ====== type guards ====== */
+function isRecord(v: unknown): v is Record<string, unknown> {
+    return typeof v === "object" && v !== null;
+}
+
+/** ====== GET: DB row type ====== */
+type AttendanceRowDb = {
+    target_month: string;
+    user_id: string;
+    required: boolean;
+    attended_regular: boolean | null;
+    attended_extra: boolean | null;
+    minutes_url: string | null;
+    staff_comment: string | null;
+    manager_checked: boolean | null;
+    users: { user_id: string | null } | null;
+};
+
+export async function GET(req: NextRequest) {
+    try {
+        await readMyRole(req);
+
+        const ym = req.nextUrl.searchParams.get("ym") ?? "";
+        if (!ym) return json({ ok: false, error: "ym is required" }, 400);
+
+        const monthStart = ymToMonthStartStr(ym);
+
+        const { data, error } = await supabaseAdmin
+            .from("monthly_meeting_attendance")
+            .select(`
+        target_month,
+        user_id,
+        required,
+        attended_regular,
+        attended_extra,
+        minutes_url,
+        staff_comment,
+        manager_checked,
+        users:users(user_id)
+      `)
+            .eq("target_month", monthStart)
+            .order("user_id", { ascending: true })
+            .returns<AttendanceRowDb[]>();
+
+        if (error) throw error;
+
+        const rows = (data ?? []).map((r) => ({
+            target_month: r.target_month,
+            user_id: r.user_id,
+            required: r.required,
+            attended_regular: r.attended_regular,
+            attended_extra: r.attended_extra,
+            minutes_url: r.minutes_url,
+            staff_comment: r.staff_comment,
+            manager_checked: r.manager_checked,
+            user_name: r.users?.user_id ?? null, // ここを users.name 等に差し替え可
+        }));
+
+        return json({ ok: true, ym, rows });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ ok: false, error: msg }, 500);
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const { myUserId, role } = await readMyRole(req);
+
+        const body: unknown = await req.json();
+        if (!isRecord(body)) return json({ ok: false, error: "invalid body" }, 400);
+
+        const target_month = typeof body.target_month === "string" ? body.target_month : "";
+        const user_id = typeof body.user_id === "string" ? body.user_id : "";
+
+        if (!target_month || !user_id) {
+            return json({ ok: false, error: "target_month and user_id required" }, 400);
+        }
+
+        // 更新したい項目（来たものだけ更新）
+        const patch: Record<string, unknown> = {};
+        const nowIso = new Date().toISOString();
+
+        // 本人コメント：本人のみ
+        if ("staff_comment" in body) {
+            if (myUserId !== user_id) throw new Error("forbidden: only self can update staff_comment");
+            patch.staff_comment = body.staff_comment == null ? null : String(body.staff_comment);
+        }
+
+        // 参加チェック＆議事録URL：FULLのみ
+        const hasAttend =
+            ("attended_regular" in body) || ("attended_extra" in body) || ("minutes_url" in body);
+
+        if (hasAttend) {
+            if (role !== "FULL") throw new Error("forbidden: FULL only can update attendance fields");
+
+            if ("attended_regular" in body) {
+                patch.attended_regular = body.attended_regular == null ? null : Boolean(body.attended_regular);
+            }
+            if ("attended_extra" in body) {
+                patch.attended_extra = body.attended_extra == null ? null : Boolean(body.attended_extra);
+            }
+            if ("minutes_url" in body) {
+                patch.minutes_url = body.minutes_url == null ? null : String(body.minutes_url);
+            }
+        }
+
+        // 確認：MANAGERのみ
+        if ("manager_checked" in body) {
+            if (role !== "MANAGER") throw new Error("forbidden: MANAGER only can update manager_checked");
+
+            const v = body.manager_checked == null ? null : Boolean(body.manager_checked);
+            patch.manager_checked = v;
+            patch.manager_checked_at = v == null ? null : nowIso;
+            patch.manager_checked_by = v == null ? null : myUserId;
+        }
+
+        if (!Object.keys(patch).length) {
+            return json({ ok: false, error: "no updatable fields in body" }, 400);
+        }
+
+        patch.updated_at = nowIso;
+
+        const { error } = await supabaseAdmin
+            .from("monthly_meeting_attendance")
+            .update(patch)
+            .eq("target_month", target_month)
+            .eq("user_id", user_id);
+
+        if (error) throw error;
+
+        return json({ ok: true });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ ok: false, error: msg }, 500);
+    }
+}

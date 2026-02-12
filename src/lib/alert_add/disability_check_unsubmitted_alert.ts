@@ -1,5 +1,5 @@
 // src/lib/alert_add/disability_check_unsubmitted_alert.ts
-// disability_check の提出未チェック → 10日以降のみ LINEWORKS（チーム別、「情報連携」+グループ名の部屋）
+// disability_check の提出未チェック → 10日以降のみ LINEWORKS（利用者別：利用者名 + 「情報連携」グループへ送信）
 // disability_check の回収未チェック → 15日以降のみ mgr_user_id 宛てにアラートログ
 
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -94,45 +94,47 @@ function toErrorMessage(e: unknown): string {
  * その group_id から group_lw_channel_view で channel_id を引いて返す
  * （LINEWORKS送信先は channel_id）
  */
-async function resolveLineworksChannelIdForClient(clientName: string): Promise<string> {
-    const rawName = (clientName ?? "").trim();
-    if (!rawName) throw new Error("clientName is empty");
+type LwGroupRow = { group_id: string; group_name: string };
 
-    // 空白揺れ対策（半角/全角スペースを除去）
-    const key = rawName.replace(/[\s　]+/g, "");
-
-    // 1) groups_lw から「情報連携」グループ候補を取る（JS側で正規化マッチ）
-    const { data: gData, error: gErr } = await supabaseAdmin
+async function loadActiveInfoRenkeiGroups(): Promise<LwGroupRow[]> {
+    const { data, error } = await supabaseAdmin
         .from("groups_lw")
         .select("group_id, group_name")
         .eq("is_active", true)
         .ilike("group_name", "%情報連携%")
-        .limit(2000);
+        .limit(5000);
 
-    if (gErr) throw new Error(`groups_lw select failed: ${gErr.message}`);
+    if (error) throw new Error(`groups_lw select failed: ${error.message}`);
+    return (data ?? []) as LwGroupRow[];
+}
 
-    const groups = (gData ?? []) as Array<{ group_id: string; group_name: string }>;
+function findGroupIdForClientName(clientName: string, groups: LwGroupRow[]): string {
+    const rawName = (clientName ?? "").trim();
+    if (!rawName) throw new Error("clientName is empty");
 
+    const key = rawName.replace(/[\s　]+/g, "");
     const normalize = (s: string) => s.replace(/[\s　]+/g, "");
 
     const hit = groups.find((r) => {
         const n = normalize(r.group_name ?? "");
         if (!n) return false;
-
-        // 誤爆除外（必要なら追加）
         if (n.includes("不使用") || n.includes("使わない") || n.includes("（つかわない）")) return false;
-
         return n.includes(key);
     });
 
     const groupId = String(hit?.group_id ?? "").trim();
     if (!groupId) {
         throw new Error(
-            `LINEWORKS group_id not found in groups_lw. group_name includes "情報連携" and clientName="${rawName}"`,
+            `LINEWORKS group_id not found. group_name includes "情報連携" and clientName="${rawName}"`
         );
     }
+    return groupId;
+}
 
-    // 2) group_id から LINEWORKS送信用の channel_id を引く（ここが今回の修正点）
+async function resolveChannelIdFromGroupId(groupId: string, cache: Map<string, string>): Promise<string> {
+    const cached = cache.get(groupId);
+    if (cached) return cached;
+
     const { data: cData, error: cErr } = await supabaseAdmin
         .from("group_lw_channel_view")
         .select("channel_id, group_id")
@@ -146,7 +148,17 @@ async function resolveLineworksChannelIdForClient(clientName: string): Promise<s
         throw new Error(`LINEWORKS channel_id not found in group_lw_channel_view for group_id="${groupId}"`);
     }
 
+    cache.set(groupId, channelId);
     return channelId;
+}
+
+async function resolveLineworksChannelIdForClientCached(
+    clientName: string,
+    groups: LwGroupRow[],
+    channelCache: Map<string, string>
+): Promise<string> {
+    const groupId = findGroupIdForClientName(clientName, groups);
+    return resolveChannelIdFromGroupId(groupId, channelCache);
 }
 
 type CsInfoRaw = {
@@ -287,9 +299,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
     let q = supabaseAdmin
         .from("disability_check")
-        .select(
-            "id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check",
-        )
+        .select("id, kaipoke_cs_id, kaipoke_servicek, year_month, is_checked, asigned_jisseki_staff, application_check")
         .eq("year_month", targetYm)
         .or("application_check.is.null,application_check.eq.false");
 
@@ -315,26 +325,25 @@ async function runSubmittedUncheckLineworksOnly(args: {
         };
     }
 
+    // 利用者情報/チーム情報を準備
     const csIds = Array.from(new Set(rows.map((r) => String(r.kaipoke_cs_id))));
     const csMap = await loadCsInfoMap(csIds);
 
     const orgIds = Array.from(
-        new Set(
-            csIds
-                .map((id) => csMap.get(id)?.orgunitid ?? "")
-                .filter((v): v is string => !!v),
-        ),
+        new Set(csIds.map((id) => csMap.get(id)?.orgunitid ?? "").filter((v): v is string => !!v))
     );
-
     const orgMap = await loadOrgMap(orgIds);
 
-    // orgunitid ごとにまとめる
-    const byOrg = new Map<string, DisabilityCheckRow[]>();
+    // ★送信先グループ候補を1回だけ取得（「情報連携」）
+    const infoRenkeiGroups = await loadActiveInfoRenkeiGroups();
+    const channelCache = new Map<string, string>();
+
+    // ★利用者(kaipoke_cs_id)ごとにまとめる（ここが最重要）
+    const byClient = new Map<string, DisabilityCheckRow[]>();
     for (const r of rows) {
-        const cs = csMap.get(String(r.kaipoke_cs_id));
-        const orgunitid = cs?.orgunitid ? String(cs.orgunitid) : "";
-        if (!orgunitid) continue;
-        byOrg.set(orgunitid, [...(byOrg.get(orgunitid) ?? []), r]);
+        const id = String(r.kaipoke_cs_id ?? "").trim();
+        if (!id) continue;
+        byClient.set(id, [...(byClient.get(id) ?? []), r]);
     }
 
     let sentRooms = 0;
@@ -343,51 +352,45 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
     const token = await getAccessToken();
 
-    for (const [orgunitid, items] of byOrg) {
-        const orgName = orgMap.get(orgunitid)?.orgunitname || "";
-
+    for (const [kaipokeCsId, items] of byClient) {
         try {
-            // 代表の利用者名で「情報連携」グループを解決（1件テストなら items[0] でOK）
-            const firstCs = csMap.get(String(items[0]?.kaipoke_cs_id ?? ""));
-            const clientName = firstCs?.name ? String(firstCs.name) : "";
-            const channelId = await resolveLineworksChannelIdForClient(clientName);
+            const cs = csMap.get(kaipokeCsId);
+            const clientName = cs?.name ? String(cs.name) : "";
+            if (!clientName) throw new Error(`client name not found for kaipoke_cs_id="${kaipokeCsId}"`);
 
-            // 担当者名（漢字）を引く（回収アラートと同じ作りに寄せる）
-            const staffIds = Array.from(
-                new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)),
-            );
+            const orgName = cs?.orgunitid ? orgMap.get(String(cs.orgunitid))?.orgunitname ?? "" : "";
+
+            // ★この利用者の「情報連携」グループへ送る
+            const channelId = await resolveLineworksChannelIdForClientCached(clientName, infoRenkeiGroups, channelCache);
+
+            // 担当者メンション（同一利用者内で複数担当があり得るのでユニーク）
+            const staffIds = Array.from(new Set(items.map((it) => it.asigned_jisseki_staff).filter((v): v is string => !!v)));
             const staffInfoMap = await loadStaffInfoMap(staffIds);
-            const lines = items.map((it) => {
-                const csInfo = csMap.get(String(it.kaipoke_cs_id));
-                const clientName = csInfo?.name ? `${csInfo.name}様` : `CS:${it.kaipoke_cs_id}`;
 
+            const mentionLines = staffIds
+                .map((sid) => staffInfoMap.get(sid)?.lw_userid)
+                .filter((v): v is string => !!v)
+                .map((lw) => `<m userId="${lw}">さん</m>`)
+                .join("\n");
+
+            const lines = items.map((it) => {
                 const staffId = it.asigned_jisseki_staff ? String(it.asigned_jisseki_staff) : "";
                 const staffInfo = staffId ? staffInfoMap.get(staffId) : null;
                 const staffName = staffInfo?.name ? staffInfo.name : staffId ? staffId : "（担当未設定）";
-                // ★提出は LINEWORKS なのでURLをそのまま付ける（担当者IDで自動生成）
+
                 const staffUrl =
                     staffId
                         ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&svc=${encodeURIComponent(
-                            it.kaipoke_servicek,
+                            it.kaipoke_servicek
                         )}&user_id=${encodeURIComponent(staffId)}`
                         : "";
 
-                const labelText = `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
-
+                const labelText = `${clientName}様 [${it.kaipoke_servicek}] 担当:${staffName}さん`;
                 return staffUrl ? `${labelText} ${staffUrl}` : labelText;
             });
 
-            // ★タイトルも要望通り（提出でも「回収未チェック」文言に揃える）
-            // 先頭にメンション（検証は1件想定なので items[0] を使う）
-            const first = items[0];
-            const firstStaffId = first?.asigned_jisseki_staff ? String(first.asigned_jisseki_staff) : "";
-            const firstStaff = firstStaffId ? staffInfoMap.get(firstStaffId) : null;
-            const mentionLine = firstStaff?.lw_userid
-                ? `<m userId="${firstStaff.lw_userid}">さん\n`
-                : "";
-
             const message =
-                `${mentionLine}` +
+                (mentionLines ? `${mentionLines}\n` : "") +
                 `【実績記録 未チェック】 提出 〈${formatYmJa(targetYm)}分〉\n` +
                 `提出チェックが、10日以降で未完了の状態です。\n` +
                 `至急ご確認ください。\n\n` +
@@ -398,12 +401,12 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 await sendLWBotMessage(channelId, message, token);
             }
 
-            sentRooms += 1;
-            sentRows += items.length;
+            sentRooms += 1;          // 送った「利用者グループ」数
+            sentRows += items.length; // 対象行数（障害/移動支援など）
         } catch (e: unknown) {
             errors += 1;
             console.error("[disability_check_submitted] LINEWORKS send error", {
-                orgunitid,
+                kaipokeCsId,
                 error: toErrorMessage(e),
             });
         }

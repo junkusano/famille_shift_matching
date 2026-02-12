@@ -2,13 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron/auth";
 import { runDisabilityCheckDailyAlerts } from "@/lib/alert_add/disability_check_unsubmitted_alert";
+import { refreshDisabilityCheckJissekiStaff } from "@/lib/disabilityCheckJisseki";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
     try {
         assertCronAuth(req);
-
+        await refreshDisabilityCheckJissekiStaff(); // ★追加（送信前に同期）
         const result = await runDisabilityCheckDailyAlerts({
             dryRun: false,
             mode: "all", // ★提出＋回収どちらも
