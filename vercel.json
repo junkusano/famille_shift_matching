@@ -71,6 +71,10 @@
     {
       "path": "/api/cron/disability-check-daily",
       "schedule": "13 4 * * *"
+    },
+    {
+      "path": "/api/cron/disability-check-collected-test",
+      "schedule": "0 22 * * *"
     }
   ]
 }
