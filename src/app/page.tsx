@@ -79,7 +79,7 @@ export default function Home() {
           </div>
           <div className="bg-white p-6 rounded shadow space-y-2">
             <h2 className="text-xl font-semibold text-famille">高い時給水準</h2>
-            <p>身体介護なら時給2,330円〜。正当な評価と報酬で、やりがいも安心も。
+            <p>身体介護なら時給2,430円〜。正当な評価と報酬で、やりがいも安心も。
               <span className="mr-1">📌</span>契約社員処遇詳細は
               <a
                 href="https://www.shi-on.net/column/20240831005"
