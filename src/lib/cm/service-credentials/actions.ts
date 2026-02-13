@@ -3,8 +3,8 @@
 // サービス認証情報 Server Actions（CRUD操作）
 //
 // セキュリティ:
-//   全アクションで requireCmSession() による認証・認可を実施。
-//   - Cookie セッションからログインユーザーを取得（認証）
+//   全アクションで requireCmSession(token) による認証・認可を実施。
+//   - クライアントから渡された access_token を検証（認証）
 //   - service_type が kyotaku or both であることを確認（認可）
 //   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
@@ -54,9 +54,6 @@ const MAX_LABEL_LENGTH = 200;
 
 /**
  * credentials オブジェクトの構造を検証する
- * - キー数の上限チェック
- * - 値の型・長さチェック
- * - ネスト禁止（フラットなオブジェクトのみ許可）
  */
 function validateCredentialsStructure(
   credentials: Record<string, unknown>
@@ -74,17 +71,14 @@ function validateCredentialsStructure(
   for (const key of keys) {
     const value = credentials[key];
 
-    // null / undefined は許容（空値として扱う）
     if (value === null || value === undefined) {
       continue;
     }
 
-    // 文字列・数値・真偽値のみ許可（ネストしたオブジェクト/配列は拒否）
     if (typeof value === "object") {
       return `認証情報の値にオブジェクトや配列は使用できません（キー: ${key}）`;
     }
 
-    // 文字列の長さチェック
     if (typeof value === "string" && value.length > MAX_CREDENTIAL_VALUE_LENGTH) {
       return `認証情報の値が長すぎます（キー: ${key}、上限: ${MAX_CREDENTIAL_VALUE_LENGTH}文字）`;
     }
@@ -95,7 +89,6 @@ function validateCredentialsStructure(
 
 /**
  * CmAuthError を ActionResult に変換するヘルパー
- * 予期しないエラーは再 throw する
  */
 function handleActionError(error: unknown, context: string): ActionResult<never> {
   if (error instanceof CmAuthError) {
@@ -110,11 +103,11 @@ function handleActionError(error: unknown, context: string): ActionResult<never>
 // =============================================================
 
 export async function fetchServiceCredential(
-  id: number
+  id: number,
+  token: string
 ): Promise<ActionResult<CmServiceCredential>> {
   try {
-    // --- 認証・認可 ---
-    const auth = await requireCmSession();
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
@@ -146,15 +139,17 @@ export async function fetchServiceCredential(
 // 新規作成
 // =============================================================
 
-export async function createServiceCredential(data: {
-  service_name: string;
-  label?: string | null;
-  credentials: Record<string, unknown>;
-  is_active?: boolean;
-}): Promise<ActionResult<CmServiceCredential>> {
+export async function createServiceCredential(
+  data: {
+    service_name: string;
+    label?: string | null;
+    credentials: Record<string, unknown>;
+    is_active?: boolean;
+  },
+  token: string
+): Promise<ActionResult<CmServiceCredential>> {
   try {
-    // --- 認証・認可 ---
-    const auth = await requireCmSession();
+    const auth = await requireCmSession(token);
 
     const { service_name, label, credentials, is_active } = data;
 
@@ -214,10 +209,7 @@ export async function createServiceCredential(data: {
       return { ok: false, error: "データベースへの登録に失敗しました" };
     }
 
-    // キャッシュをクリア
     clearCredentialsCache(service_name.trim());
-
-    // ページを再検証
     revalidatePath("/cm-portal/service-credentials");
 
     logger.info("サービス認証情報新規作成完了", {
@@ -242,11 +234,11 @@ export async function updateServiceCredential(
     label?: string | null;
     credentials?: Record<string, unknown>;
     is_active?: boolean;
-  }
+  },
+  token: string
 ): Promise<ActionResult<CmServiceCredential>> {
   try {
-    // --- 認証・認可 ---
-    const auth = await requireCmSession();
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
@@ -339,13 +331,11 @@ export async function updateServiceCredential(
       return { ok: false, error: "更新に失敗しました" };
     }
 
-    // キャッシュをクリア（旧サービス名と新サービス名の両方）
     clearCredentialsCache(existing.service_name);
     if (service_name && service_name.trim() !== existing.service_name) {
       clearCredentialsCache(service_name.trim());
     }
 
-    // ページを再検証
     revalidatePath("/cm-portal/service-credentials");
 
     logger.info("サービス認証情報更新完了", { id, userId: auth.userId });
@@ -360,10 +350,12 @@ export async function updateServiceCredential(
 // 削除
 // =============================================================
 
-export async function deleteServiceCredential(id: number): Promise<ActionResult> {
+export async function deleteServiceCredential(
+  id: number,
+  token: string
+): Promise<ActionResult> {
   try {
-    // --- 認証・認可 ---
-    const auth = await requireCmSession();
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
@@ -371,7 +363,6 @@ export async function deleteServiceCredential(id: number): Promise<ActionResult>
 
     logger.info("サービス認証情報削除", { id, userId: auth.userId });
 
-    // 既存レコードを取得（キャッシュクリア用）
     const { data: existing } = await supabaseAdmin
       .from("cm_rpa_credentials")
       .select("service_name")
@@ -388,12 +379,10 @@ export async function deleteServiceCredential(id: number): Promise<ActionResult>
       return { ok: false, error: "削除に失敗しました" };
     }
 
-    // キャッシュをクリア
     if (existing) {
       clearCredentialsCache(existing.service_name);
     }
 
-    // ページを再検証
     revalidatePath("/cm-portal/service-credentials");
 
     logger.info("サービス認証情報削除完了", { id, userId: auth.userId });

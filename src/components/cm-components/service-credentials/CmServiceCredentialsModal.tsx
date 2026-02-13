@@ -295,23 +295,27 @@ export function CmServiceCredentialsModal({
                   </label>
                   <div className="space-y-2">
                     {credentialItems.map((item, index) => (
-                      <div key={index} className="flex items-center gap-2">
+                      <div
+                        key={index}
+                        className="grid items-center gap-2"
+                        style={{ gridTemplateColumns: '7rem auto 1fr auto' }}
+                      >
                         <input
                           type="text"
                           value={item.key}
                           onChange={(e) => handleCredentialChange(index, 'key', e.target.value)}
-                          className="w-1/3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                          className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
                           placeholder="キー"
                         />
-                        <span className="text-slate-400">:</span>
+                        <span className="text-slate-400 text-center">:</span>
                         <input
                           type="text"
                           value={item.value}
                           onChange={(e) => handleCredentialChange(index, 'value', e.target.value)}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                           placeholder="値"
                         />
-                        {credentialItems.length > 1 && (
+                        {credentialItems.length > 1 ? (
                           <button
                             type="button"
                             onClick={() => handleRemoveCredential(index)}
@@ -319,6 +323,8 @@ export function CmServiceCredentialsModal({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                        ) : (
+                          <div />
                         )}
                       </div>
                     ))}

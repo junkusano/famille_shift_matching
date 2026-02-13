@@ -18,6 +18,7 @@ import {
   updateServiceCredential,
   deleteServiceCredential,
 } from '@/lib/cm/service-credentials/actions';
+import { supabase } from '@/lib/supabaseClient';
 import type {
   CmServiceCredential,
   CmServiceCredentialMasked,
@@ -33,6 +34,12 @@ type Props = {
   entries: CmServiceCredentialMasked[];
   initialFilters: Filters;
 };
+
+/** Supabase セッションから access_token を取得 */
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 export function CmServiceCredentialsPageContent({ entries, initialFilters }: Props) {
   const router = useRouter();
@@ -120,7 +127,8 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
 
     // 完全なエントリを取得（Server Action）
     setIsLoadingEntry(true);
-    const result = await fetchServiceCredential(entry.id);
+    const token = await getAccessToken();
+    const result = await fetchServiceCredential(entry.id, token);
     if (result.ok === true && result.data) {
       setFullEntry(result.data);
     } else {
@@ -138,9 +146,10 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
   }): Promise<{ ok: boolean; error?: string }> => {
     setIsSaving(true);
     try {
+      const token = await getAccessToken();
       if (editingEntry) {
         // 更新
-        const result = await updateServiceCredential(editingEntry.id, data);
+        const result = await updateServiceCredential(editingEntry.id, data, token);
         if (result.ok === true) {
           setIsModalOpen(false);
           setEditingEntry(null);
@@ -151,7 +160,7 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
         return { ok: false, error: result.error };
       } else {
         // 新規作成
-        const result = await createServiceCredential(data);
+        const result = await createServiceCredential(data, token);
         if (result.ok === true) {
           setIsModalOpen(false);
           refresh();
@@ -175,7 +184,8 @@ export function CmServiceCredentialsPageContent({ entries, initialFilters }: Pro
     if (!deletingEntry) return;
     setIsDeleting(true);
     try {
-      const result = await deleteServiceCredential(deletingEntry.id);
+      const token = await getAccessToken();
+      const result = await deleteServiceCredential(deletingEntry.id, token);
       if (result.ok === true) {
         setIsDeleteModalOpen(false);
         setDeletingEntry(null);

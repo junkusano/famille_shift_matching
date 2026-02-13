@@ -1,24 +1,16 @@
 // =============================================================
 // src/lib/cm/auth/requireCmSession.ts
-// CM用 Server Actions 認証・認可ヘルパー（Cookieセッション版）
+// CM用 Server Actions 認証・認可ヘルパー
 //
-// verifyRequest.ts は Bearer トークン用（API Route向け）。
-// こちらは Server Actions / Server Components 向けに
-// Cookie セッションからユーザーを取得し、CM権限を検証する。
-//
-// 設計:
-//   成功時 → CmSessionInfo を返す
-//   失敗時 → CmAuthError を throw する
-//
-//   Server Actions の既存 try-catch 内で呼び出すことで、
-//   認証エラーを自然にハンドリングできる。
+// クライアントから渡された access_token を検証し、
+// CM権限（service_type: kyotaku or both）を確認する。
 //
 // 使い方:
 //   import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 //
-//   export async function someServerAction() {
+//   export async function someServerAction(token: string) {
 //     try {
-//       const auth = await requireCmSession();
+//       const auth = await requireCmSession(token);
 //       // auth.userId, auth.authUserId, auth.serviceType が使える
 //     } catch (error) {
 //       if (error instanceof CmAuthError) {
@@ -31,8 +23,6 @@
 
 import "server-only";
 
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 
@@ -53,9 +43,6 @@ const CM_ALLOWED_SERVICE_TYPES = ["kyotaku", "both"];
 
 /**
  * CM認証・認可エラー
- *
- * 通常の Error と区別するために専用クラスを用意。
- * catch 側で `error instanceof CmAuthError` で判定できる。
  */
 export class CmAuthError extends Error {
   constructor(message: string) {
@@ -85,30 +72,35 @@ export type CmSessionInfo = {
 // =============================================================
 
 /**
- * Server Actions / Server Components 用の CM認証・認可
+ * Server Actions 用の CM認証・認可
  *
- * 1. Cookie セッションからログインユーザーを取得（認証）
+ * 1. クライアントから渡されたトークンを supabaseAdmin で検証（認証）
  * 2. users テーブルで service_type が kyotaku or both であることを確認（認可）
  *
+ * @param token クライアントから渡された Supabase access_token
  * @returns ユーザー情報（CmSessionInfo）
  * @throws CmAuthError 認証・認可に失敗した場合
  */
-export async function requireCmSession(): Promise<CmSessionInfo> {
+export async function requireCmSession(token: string): Promise<CmSessionInfo> {
   // ---------------------------------------------------------
-  // 1. Cookie セッションからユーザーを取得
+  // 1. トークン検証
   // ---------------------------------------------------------
-  const supabase = createRouteHandlerClient({ cookies });
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  if (!token) {
+    logger.warn("セッション認証失敗", { error: "トークンなし" });
+    throw new CmAuthError("ログインしてください");
+  }
 
-  if (authError || !user) {
+  const { data: authData, error: authError } =
+    await supabaseAdmin.auth.getUser(token);
+
+  if (authError || !authData?.user) {
     logger.warn("セッション認証失敗", {
       error: authError?.message ?? "ユーザー未取得",
     });
     throw new CmAuthError("ログインしてください");
   }
+
+  const user = authData.user;
 
   // ---------------------------------------------------------
   // 2. users テーブルから user_id, service_type を取得
