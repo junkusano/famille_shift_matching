@@ -45,6 +45,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
     const [detail, setDetail] = useState<AssessmentRecord | null>(null);
     const [saving, setSaving] = useState(false);
+    const [generating, setGenerating] = useState(false);
 
     const selectedFromList = useMemo(
         () => list.find((r) => r.assessment_id === selectedId) ?? null,
@@ -136,6 +137,79 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             syncQuery(clientId, serviceKind, rec.assessment_id);
         }
     }
+
+    async function autoGenerate() {
+        if (!clientId) return;
+
+        setGenerating(true);
+        try {
+            // 1) 対象ID確定（なければ新規作成）
+            let id = detail?.assessment_id ?? null;
+
+            if (!id) {
+                // 既存の createNew と同じ処理を内包（createNew()自体をawaitしてもOKだが、
+                // その場合は selectedId/detail の更新タイミングの影響を受ける）
+                const bearer = await getBearer();
+                const res = await fetch(`/api/assessment`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(bearer ? { Authorization: bearer } : {}),
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        service_kind: serviceKind,
+                        content: getDefaultAssessmentContent(serviceKind),
+                    }),
+                });
+
+                const j = await res.json();
+                if (!j?.ok || !j?.data?.assessment_id) {
+                    window.alert(`新規作成に失敗: ${j?.error ?? "unknown error"}`);
+                    return;
+                }
+
+                const rec: AssessmentRecord = j.data;
+                id = rec.assessment_id;
+
+                setList((prev) => [rec, ...prev]);
+                setSelectedId(rec.assessment_id);
+                setDetail(rec);
+                syncQuery(clientId, serviceKind, rec.assessment_id);
+            }
+
+            // 2) 自動生成API
+            const bearer = await getBearer();
+            const res2 = await fetch(`/api/assessment/${id}/auto-generate`, {
+                method: "POST",
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j2 = await res2.json();
+
+            // 必須資料不足: 400 + missing_doc_names
+            if (!res2.ok && Array.isArray(j2?.missing_doc_names)) {
+                window.alert(
+                    `自動生成できません（必須資料不足）:\n` +
+                    j2.missing_doc_names.map((x: string) => `- ${x}`).join("\n") +
+                    `\n\ncs_docsに資料を登録してから再実行してください。`
+                );
+                return;
+            }
+
+            if (!j2?.ok || !j2?.data) {
+                window.alert(`自動生成に失敗: ${j2?.error ?? "unknown error"}`);
+                return;
+            }
+
+            // 反映
+            setDetail(j2.data);
+            setList((prev) => prev.map((r) => (r.assessment_id === j2.data.assessment_id ? j2.data : r)));
+        } finally {
+            setGenerating(false);
+        }
+    }
+
 
     async function save() {
         if (!detail) return;
@@ -286,6 +360,27 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 >
                     新規作成
                 </button>
+
+                <button
+                    className="border rounded px-3 py-1 bg-blue-600 text-white disabled:opacity-40"
+                    disabled={!clientId || generating}
+                    onClick={autoGenerate}
+                    title="cs_docs（必須: 基本情報(ステップ２）, サービス等利用計画）と直近1か月の訪問記録を元に自動入力します"
+                >
+                    {generating ? "自動生成中..." : "アセスメント自動生成"}
+                </button>
+
+                {detail?.kaipoke_cs_id ? (
+                    <Link
+                        className="text-blue-600 underline"
+                        href={`/portal/cs_docs?kaipoke_cs_id=${encodeURIComponent(String(detail.kaipoke_cs_id))}`}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        元資料(cs_docs)を開く
+                    </Link>
+                ) : null}
+
 
                 {detail?.assessment_id ? (
                     <Link

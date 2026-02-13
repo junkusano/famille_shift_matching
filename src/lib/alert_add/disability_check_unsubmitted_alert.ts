@@ -336,21 +336,34 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 .map((lw) => `<m userId="${lw}">さん`)
                 .join("\n");
 
-            const lines = items.map((it) => {
+            // ★同一利用者内で「担当者ごと」にサービス区分を集約して 1行にする
+            const byStaff = new Map<string, Set<string>>();
+
+            for (const it of items) {
                 const staffId = String(it.asigned_jisseki_staff_id ?? "").trim();
+                if (!staffId) continue;
+
+                const set = byStaff.get(staffId) ?? new Set<string>();
+                set.add(String(it.kaipoke_servicek)); // "障害" | "移動支援"
+                byStaff.set(staffId, set);
+            }
+
+            const lines = Array.from(byStaff.entries()).map(([staffId, svcSet]) => {
                 const staffName =
-                    (it.asigned_jisseki_staff_name ?? "").trim() ||
+                    (items.find(x => String(x.asigned_jisseki_staff_id ?? "").trim() === staffId)?.asigned_jisseki_staff_name ?? "").trim() ||
                     staffInfoMap.get(staffId)?.name ||
                     staffId ||
                     "（担当未設定）";
 
-                const staffUrl =
-                    staffId
-                        ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
-                        : "";
+                const svcLabel = Array.from(svcSet).join("/"); // 例: "移動支援/障害"
 
-                const labelText = `${clientName}様 [${it.kaipoke_servicek}] 担当:${staffName}さん`;
-                return staffUrl ? `${labelText} ${staffUrl}` : labelText;
+                // ★svc を入れない（＝常に「全て」初期表示にしたい）
+                const staffUrl = `https://myfamille.shi-on.net/portal/disability-check?ym=${encodeURIComponent(
+                    targetYm
+                )}&user_id=${encodeURIComponent(staffId)}`;
+
+                const labelText = `${clientName}様 [${svcLabel}] 担当:${staffName}さん`;
+                return `${labelText} ${staffUrl}`;
             });
 
             const message =
