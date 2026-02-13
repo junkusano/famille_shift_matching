@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { cmCalculateAge } from '@/lib/cm/utils';
 import type { CmClientDetail } from '@/types/cm/clientDetail';
+import styles from '@/styles/cm-styles/clients/detailHeader.module.css';
 
 type Props = {
   client: CmClientDetail;
@@ -20,39 +21,27 @@ type Props = {
 export function CmClientDetailHeader({ client, loading, onRefresh }: Props) {
   const router = useRouter();
   const age = cmCalculateAge(client.birth_date);
+  const isActive = client.client_status === '利用中';
 
   const handleBack = () => {
     router.push('/cm-portal/clients');
   };
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleBack}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
+    <div className={styles.header}>
+      <div className={styles.headerLeft}>
+        <button onClick={handleBack} className={styles.backButton}>
+          <ArrowLeft className={styles.backIcon} />
         </button>
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{client.name}</h1>
-            <span
-              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                client.client_status === '利用中'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  client.client_status === '利用中' ? 'bg-green-500' : 'bg-slate-400'
-                }`}
-              />
+          <div className={styles.nameRow}>
+            <h1 className={styles.clientName}>{client.name}</h1>
+            <span className={isActive ? styles.statusBadgeActive : styles.statusBadgeInactive}>
+              <span className={isActive ? styles.statusDotActive : styles.statusDotInactive} />
               {client.client_status ?? '不明'}
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className={styles.subInfo}>
             {client.kana} {age && `・ ${age}歳`} {client.gender && `・ ${client.gender}`}
           </p>
         </div>
@@ -60,9 +49,9 @@ export function CmClientDetailHeader({ client, loading, onRefresh }: Props) {
       <button
         onClick={onRefresh}
         disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        className={styles.refreshButton}
       >
-        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        <RefreshCw className={loading ? styles.refreshIconSpin : styles.refreshIcon} />
         更新
       </button>
     </div>

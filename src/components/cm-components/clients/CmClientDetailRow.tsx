@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import styles from '@/styles/cm-styles/clients/detailRow.module.css';
 
 type Props = {
   label: string;
@@ -26,17 +27,17 @@ export function CmClientDetailRow({
 }: Props) {
   return (
     <div>
-      <dt className="text-xs font-medium text-slate-500 mb-1">{label}</dt>
-      <dd className={`text-sm text-slate-800 ${mono ? 'font-mono' : ''}`}>
+      <dt className={styles.label}>{label}</dt>
+      <dd className={mono ? styles.valueMono : styles.value}>
         {link && value ? (
-          <a href={link} className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+          <a href={link} className={styles.link}>
             {icon}
             {value}
           </a>
         ) : (
           value ?? '-'
         )}
-        {subValue && <span className="text-slate-500 ml-2">({subValue})</span>}
+        {subValue && <span className={styles.subValue}>({subValue})</span>}
       </dd>
     </div>
   );

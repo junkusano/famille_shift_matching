@@ -1,0 +1,37 @@
+/* =============================================================
+   src/styles/cm-styles/clients/detailRow.module.css
+   詳細表示の共通行スタイル
+   ============================================================= */
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.valueMono {
+  composes: value;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}
+
+.link {
+  color: #2563eb;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.link:hover {
+  color: #1d4ed8;
+}
+
+.subValue {
+  color: #64748b;
+  margin-left: 8px;
+}

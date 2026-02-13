@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
 import { getContracts } from '@/lib/cm/contracts/getContracts';
+import { updateContract } from '@/lib/cm/contracts/actions';
+import { CmContractPlaudSelectModal } from '@/components/cm-components/contracts/CmContractPlaudSelectModal';
 import type {
   CmContractListItem,
   CmContractConsent,
@@ -24,8 +26,8 @@ import type {
 } from '@/types/cm/contract';
 import {
   CM_CONTRACT_STATUS_LABELS,
-  CM_CONTRACT_STATUS_COLORS,
 } from '@/types/cm/contract';
+import styles from '@/styles/cm-styles/clients/contractsTab.module.css';
 
 // =============================================================
 // Types
@@ -33,6 +35,19 @@ import {
 
 type Props = {
   kaipokeCsId: string;
+};
+
+// =============================================================
+// ステータスカラーマップ（CSS Module用インラインスタイル）
+// =============================================================
+
+const STATUS_STYLE_MAP: Record<string, React.CSSProperties> = {
+  draft:     { backgroundColor: '#f1f5f9', color: '#475569' },
+  pending:   { backgroundColor: '#fef3c7', color: '#b45309' },
+  sent:      { backgroundColor: '#dbeafe', color: '#1d4ed8' },
+  signed:    { backgroundColor: '#d1fae5', color: '#065f46' },
+  completed: { backgroundColor: '#dcfce7', color: '#15803d' },
+  cancelled: { backgroundColor: '#fef2f2', color: '#b91c1c' },
 };
 
 // =============================================================
@@ -78,9 +93,9 @@ export function CmClientContractsTab({ kaipokeCsId }: Props) {
   if (loading) {
     return (
       <CmCard>
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-          <span className="ml-2 text-slate-500">読み込み中...</span>
+        <div className={styles.loadingContainer}>
+          <Loader2 className={styles.loadingSpinner} />
+          <span className={styles.loadingText}>読み込み中...</span>
         </div>
       </CmCard>
     );
@@ -92,8 +107,8 @@ export function CmClientContractsTab({ kaipokeCsId }: Props) {
   if (error) {
     return (
       <CmCard>
-        <div className="flex items-center gap-2 text-red-600 py-8 justify-center">
-          <AlertCircle className="w-5 h-5" />
+        <div className={styles.errorContainer}>
+          <AlertCircle className={styles.errorIcon} />
           <span>{error}</span>
         </div>
       </CmCard>
@@ -104,12 +119,13 @@ export function CmClientContractsTab({ kaipokeCsId }: Props) {
   // レンダリング
   // ---------------------------------------------------------
   return (
-    <div className="space-y-6">
+    <div className={styles.container}>
       <ConsentStatusCard consent={consent} kaipokeCsId={kaipokeCsId} />
       <ContractListCard
         contracts={contracts}
         kaipokeCsId={kaipokeCsId}
         hasConsent={!!consent}
+        onContractsChange={setContracts}
       />
     </div>
   );
@@ -129,27 +145,27 @@ function ConsentStatusCard({
   if (consent) {
     return (
       <CmCard title="電子契約同意状況">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-6 flex-wrap">
+        <div className={styles.consentContent}>
+          <div className={styles.consentItems}>
             {consent.consent_electronic && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <div className={styles.consentItem}>
+                <div className={styles.consentIconWrapper}>
+                  <CheckCircle2 className={styles.consentIcon} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-green-700">電子契約同意済み</p>
-                  <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
+                  <p className={styles.consentLabel}>電子契約同意済み</p>
+                  <p className={styles.consentDate}>{formatDateTime(consent.consented_at)}</p>
                 </div>
               </div>
             )}
             {consent.consent_recording && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                  <Mic className="w-5 h-5 text-green-600" />
+              <div className={styles.consentItem}>
+                <div className={styles.consentIconWrapper}>
+                  <Mic className={styles.consentIcon} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-green-700">録音同意済み</p>
-                  <p className="text-xs text-slate-500">{formatDateTime(consent.consented_at)}</p>
+                  <p className={styles.consentLabel}>録音同意済み</p>
+                  <p className={styles.consentDate}>{formatDateTime(consent.consented_at)}</p>
                 </div>
               </div>
             )}
@@ -160,9 +176,9 @@ function ConsentStatusCard({
               href={consent.gdrive_file_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+              className={styles.consentPdfLink}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className={styles.consentPdfIcon} />
               同意書PDFを表示
             </a>
           )}
@@ -173,19 +189,19 @@ function ConsentStatusCard({
 
   return (
     <CmCard title="電子契約同意状況">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
+      <div className={styles.unconsentedContent}>
+        <div className={styles.unconsentedItem}>
+          <div className={styles.unconsentedIconWrapper}>
+            <AlertTriangle className={styles.unconsentedIcon} />
           </div>
           <div>
-            <p className="text-sm font-medium text-amber-700">未同意</p>
-            <p className="text-xs text-slate-500">署名前に同意の取得が必要です</p>
+            <p className={styles.unconsentedLabel}>未同意</p>
+            <p className={styles.unconsentedHint}>署名前に同意の取得が必要です</p>
           </div>
         </div>
         <a
           href={`/cm-portal/clients/${kaipokeCsId}/consent`}
-          className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className={styles.consentButton}
         >
           同意を取得する →
         </a>
@@ -202,56 +218,119 @@ function ContractListCard({
   contracts,
   kaipokeCsId,
   hasConsent,
+  onContractsChange,
 }: {
   contracts: CmContractListItem[];
   kaipokeCsId: string;
   hasConsent: boolean;
+  onContractsChange: (contracts: CmContractListItem[]) => void;
 }) {
-  return (
-    <CmCard
-      title="契約一覧"
-      headerRight={
-        <a
-          href={`/cm-portal/clients/${kaipokeCsId}/contracts/create`}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          契約書類を作成
-        </a>
+  // ---------------------------------------------------------
+  // 録音選択モーダル state
+  // ---------------------------------------------------------
+  const [plaudModalTarget, setPlaudModalTarget] = useState<CmContractListItem | null>(null);
+  const [plaudLinkSubmitting, setPlaudLinkSubmitting] = useState(false);
+
+  // ---------------------------------------------------------
+  // 録音紐付けハンドラ
+  // ---------------------------------------------------------
+  const handlePlaudSelect = useCallback(async (recordingId: number | null) => {
+    if (!plaudModalTarget) return;
+
+    try {
+      setPlaudLinkSubmitting(true);
+
+      const result = await updateContract({
+        contractId: plaudModalTarget.id,
+        plaud_recording_id: recordingId,
+      });
+
+      if (result.ok === false) {
+        const errorMessage = 'error' in result ? result.error : '更新に失敗しました';
+        alert('録音の紐付けに失敗しました: ' + errorMessage);
+        return;
       }
-      noPadding
-    >
-      {contracts.length === 0 ? (
-        <div className="text-center py-12 px-6">
-          <p className="text-slate-500">契約がありません</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 font-medium">作成日</th>
-                <th className="px-6 py-3 font-medium">書類</th>
-                <th className="px-6 py-3 font-medium">状態</th>
-                <th className="px-6 py-3 font-medium">本人確認</th>
-                <th className="px-6 py-3 font-medium">録音</th>
-                <th className="px-6 py-3 font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contracts.map((contract) => (
-                <ContractRow
-                  key={contract.id}
-                  contract={contract}
-                  kaipokeCsId={kaipokeCsId}
-                  hasConsent={hasConsent}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </CmCard>
+
+      // ローカルステートを更新
+      onContractsChange(
+        contracts.map((c) =>
+          c.id === plaudModalTarget.id
+            ? { ...c, plaud_recording_id: recordingId }
+            : c
+        )
+      );
+
+      setPlaudModalTarget(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert('録音の紐付けに失敗しました: ' + msg);
+    } finally {
+      setPlaudLinkSubmitting(false);
+    }
+  }, [plaudModalTarget, contracts, onContractsChange]);
+
+  return (
+    <>
+      <CmCard
+        title="契約一覧"
+        headerRight={
+          <a
+            href={`/cm-portal/clients/${kaipokeCsId}/contracts/create`}
+            className={styles.createButton}
+          >
+            <Plus className={styles.createButtonIcon} />
+            契約書類を作成
+          </a>
+        }
+        noPadding
+      >
+        {contracts.length === 0 ? (
+          <div className={styles.emptyContainer}>
+            <p className={styles.emptyText}>契約がありません</p>
+          </div>
+        ) : (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr className={styles.tableHead}>
+                  <th className={styles.tableHeadCell}>作成日</th>
+                  <th className={styles.tableHeadCell}>書類</th>
+                  <th className={styles.tableHeadCell}>状態</th>
+                  <th className={styles.tableHeadCell}>本人確認</th>
+                  <th className={styles.tableHeadCell}>録音</th>
+                  <th className={styles.tableHeadCell}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contracts.map((contract) => (
+                  <ContractRow
+                    key={contract.id}
+                    contract={contract}
+                    kaipokeCsId={kaipokeCsId}
+                    hasConsent={hasConsent}
+                    onPlaudLink={setPlaudModalTarget}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CmCard>
+
+      {/* 録音選択モーダル */}
+      <CmContractPlaudSelectModal
+        isOpen={plaudModalTarget !== null}
+        onClose={() => {
+          if (!plaudLinkSubmitting) {
+            setPlaudModalTarget(null);
+          }
+        }}
+        onSelect={handlePlaudSelect}
+        kaipokeCsId={kaipokeCsId}
+        currentRecordingId={plaudModalTarget?.plaud_recording_id ?? null}
+        submitting={plaudLinkSubmitting}
+      />
+    </>
   );
 }
 
@@ -263,69 +342,74 @@ function ContractRow({
   contract,
   kaipokeCsId,
   hasConsent,
+  onPlaudLink,
 }: {
   contract: CmContractListItem;
   kaipokeCsId: string;
   hasConsent: boolean;
+  onPlaudLink: (contract: CmContractListItem) => void;
 }) {
   const status = contract.status as CmContractStatus;
   const statusLabel = CM_CONTRACT_STATUS_LABELS[status] ?? status;
-  const statusColor = CM_CONTRACT_STATUS_COLORS[status] ?? {
-    bg: 'bg-slate-100',
-    text: 'text-slate-600',
-  };
+  const statusStyle = STATUS_STYLE_MAP[status] ?? { backgroundColor: '#f1f5f9', color: '#475569' };
 
   const hasVerification = !!contract.verification_method_id;
   const hasPlaud = !!contract.plaud_recording_id;
   const canStartSigning = status === 'draft';
 
   return (
-    <tr className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors">
-      <td className="px-6 py-4 text-slate-700">{formatDate(contract.created_at)}</td>
-      <td className="px-6 py-4 text-slate-600">{contract.document_count}点</td>
-      <td className="px-6 py-4">
-        <span
-          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusColor.bg} ${statusColor.text}`}
-        >
+    <tr className={styles.contractRow}>
+      <td className={styles.cellDate}>{formatDate(contract.created_at)}</td>
+      <td className={styles.cellDocCount}>{contract.document_count}点</td>
+      <td className={styles.cell}>
+        <span className={styles.statusBadge} style={statusStyle}>
           {statusLabel}
         </span>
       </td>
-      <td className="px-6 py-4">
+      <td className={styles.cell}>
         {hasVerification ? (
-          <span className="text-green-600 text-sm">✓ 入力済</span>
+          <span className={styles.verificationDone}>✓ 入力済</span>
         ) : (
-          <span className="text-slate-400 text-sm">未入力</span>
+          <span className={styles.verificationNone}>未入力</span>
         )}
       </td>
-      <td className="px-6 py-4">
+      <td className={styles.cell}>
         {hasPlaud ? (
-          <span className="text-green-600 text-sm">✓ 紐付済</span>
+          <button
+            type="button"
+            className={styles.plaudLinked}
+            onClick={() => onPlaudLink(contract)}
+            title="録音の紐付けを変更"
+          >
+            ✓ 紐付済
+          </button>
         ) : (
-          <span className="text-slate-400 text-sm">未登録</span>
+          <button
+            type="button"
+            className={styles.plaudUnlinked}
+            onClick={() => onPlaudLink(contract)}
+            title="録音を紐付ける"
+          >
+            紐付け
+          </button>
         )}
       </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          {canStartSigning && (
-            <a
-              href={`/cm-portal/clients/${kaipokeCsId}/contracts/${contract.id}/sign`}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                hasConsent
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-amber-500 text-white hover:bg-amber-600'
-              }`}
-              title={hasConsent ? '署名を開始' : '同意未取得（署名は開始できます）'}
-            >
-              署名開始
-            </a>
-          )}
+      <td className={styles.actionCell}>
+        {canStartSigning && (
           <a
-            href={`/cm-portal/clients/${kaipokeCsId}/contracts/${contract.id}`}
-            className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+            href={`/cm-portal/clients/${kaipokeCsId}/contracts/${contract.id}/sign`}
+            className={hasConsent ? styles.signButtonConsented : styles.signButtonUnconsented}
+            title={hasConsent ? '署名を開始' : '同意未取得（署名は開始できます）'}
           >
-            詳細
+            署名開始
           </a>
-        </div>
+        )}
+        <a
+          href={`/cm-portal/clients/${kaipokeCsId}/contracts/${contract.id}`}
+          className={styles.detailLink}
+        >
+          詳細
+        </a>
       </td>
     </tr>
   );

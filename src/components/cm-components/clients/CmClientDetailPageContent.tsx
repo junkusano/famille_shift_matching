@@ -16,6 +16,7 @@ import { CmClientContractsTab } from '@/components/cm-components/clients/CmClien
 import { CmClientDisabledTab } from '@/components/cm-components/clients/CmClientDisabledTab';
 import { cmSortInsurances, cmIsInsuranceValid } from '@/lib/cm/utils';
 import type { CmClientDetail, CmTabId } from '@/types/cm/clientDetail';
+import styles from '@/styles/cm-styles/clients/detailPage.module.css';
 
 /** 有効なタブID */
 const VALID_TABS: CmTabId[] = ['basic', 'insurance', 'documents', 'contracts', 'public', 'address', 'calculation', 'reduction', 'life'];
@@ -118,7 +119,7 @@ export function CmClientDetailPageContent({ client, initialTab }: Props) {
   // レンダリング
   // ---------------------------------------------------------
   return (
-    <div className="space-y-6">
+    <div className={styles.container}>
       {/* ヘッダー */}
       <CmClientDetailHeader
         client={client}

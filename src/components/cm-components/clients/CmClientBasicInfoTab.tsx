@@ -11,6 +11,7 @@ import { CmCard } from '@/components/cm-components';
 import { CmClientDetailRow } from './CmClientDetailRow';
 import { cmFormatAddress, cmCalculateAge } from '@/lib/cm/utils';
 import type { CmClientDetail } from '@/types/cm/clientDetail';
+import styles from '@/styles/cm-styles/clients/basicInfoTab.module.css';
 
 type Props = {
   client: CmClientDetail;
@@ -28,10 +29,10 @@ export function CmClientBasicInfoTab({ client }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className={styles.grid}>
       {/* 基本情報 */}
       <CmCard title="基本情報">
-        <dl className="space-y-4">
+        <dl className={styles.definitionList}>
           <CmClientDetailRow label="氏名" value={client.name} />
           <CmClientDetailRow label="氏名（カナ）" value={client.kana} />
           <CmClientDetailRow label="性別" value={client.gender} />
@@ -48,21 +49,21 @@ export function CmClientBasicInfoTab({ client }: Props) {
 
       {/* 住所・連絡先 */}
       <CmCard title="住所・連絡先">
-        <dl className="space-y-4">
+        <dl className={styles.definitionList}>
           <CmClientDetailRow
             label="郵便番号"
             value={client.postal_code ? `〒${client.postal_code}` : null}
           />
           <div>
-            <dt className="text-xs font-medium text-slate-500 mb-1">住所</dt>
-            <dd className="text-sm text-slate-800">
+            <dt className={styles.addressLabel}>住所</dt>
+            <dd className={styles.addressValue}>
               {fullAddress || '-'}
               {fullAddress && (
                 <button
                   onClick={() => openMap(fullAddress)}
-                  className="ml-2 text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 text-xs"
+                  className={styles.mapLink}
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLink className={styles.mapIcon} />
                   地図
                 </button>
               )}
@@ -72,20 +73,20 @@ export function CmClientBasicInfoTab({ client }: Props) {
             label="電話番号1"
             value={client.phone_01}
             link={client.phone_01 ? `tel:${client.phone_01}` : undefined}
-            icon={<Phone className="w-3 h-3" />}
+            icon={<Phone className={styles.mapIcon} />}
           />
           <CmClientDetailRow
             label="電話番号2"
             value={client.phone_02}
             link={client.phone_02 ? `tel:${client.phone_02}` : undefined}
-            icon={<Phone className="w-3 h-3" />}
+            icon={<Phone className={styles.mapIcon} />}
           />
         </dl>
       </CmCard>
 
       {/* 備考 */}
-      <CmCard title="備考" className="lg:col-span-2">
-        <div className="text-sm text-slate-800 whitespace-pre-wrap">
+      <CmCard title="備考" className={styles.fullWidth}>
+        <div className={styles.remarks}>
           {client.biko || '（備考なし）'}
         </div>
       </CmCard>

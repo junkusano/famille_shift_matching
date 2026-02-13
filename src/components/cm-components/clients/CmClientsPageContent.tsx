@@ -11,6 +11,7 @@ import { RefreshCw } from 'lucide-react';
 import { CmClientFilters } from '@/components/cm-components/clients/CmClientFilters';
 import { CmClientTable } from '@/components/cm-components/clients/CmClientTable';
 import type { CmClientInfo, CmPagination, CmClientFilters as CmClientFiltersType } from '@/types/cm/clients';
+import styles from '@/styles/cm-styles/clients/clientsPage.module.css';
 
 type Props = {
   clients: CmClientInfo[];
@@ -98,21 +99,21 @@ export function CmClientsPageContent({
     filters.insurer !== '';
 
   return (
-    <div className="space-y-6">
+    <div className={styles.container}>
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
+      <div className={styles.pageHeader}>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">利用者情報一覧</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className={styles.pageTitle}>利用者情報一覧</h1>
+          <p className={styles.pageDescription}>
             ケアマネジメント対象の利用者を管理します
           </p>
         </div>
         <button
           onClick={refresh}
           disabled={isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className={styles.refreshButton}
         >
-          <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw className={isPending ? styles.refreshIconSpin : styles.refreshIcon} />
           更新
         </button>
       </div>
@@ -127,22 +128,15 @@ export function CmClientsPageContent({
       />
 
       {/* 件数表示 */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">
-            {pagination.total}
-          </span>{' '}
-          件
+      <div className={styles.countRow}>
+        <span className={styles.countText}>
+          <span className={styles.countNumber}>{pagination.total}</span> 件
         </span>
         {isFiltered && (
-          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-medium">
-            フィルター適用中
-          </span>
+          <span className={styles.filterBadge}>フィルター適用中</span>
         )}
         {isPending && (
-          <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-medium">
-            読み込み中...
-          </span>
+          <span className={styles.loadingBadge}>読み込み中...</span>
         )}
       </div>
 

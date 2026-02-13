@@ -1,0 +1,409 @@
+/* =============================================================
+   src/styles/cm-styles/clients/contractsTab.module.css
+   利用者詳細 - 契約タブスタイル
+   ============================================================= */
+
+/* =============================================================
+   レイアウト
+   ============================================================= */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* =============================================================
+   ローディング・エラー
+   ============================================================= */
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.loadingSpinner {
+  width: 24px;
+  height: 24px;
+  color: #94a3b8;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  margin-left: 8px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.errorContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc2626;
+  padding: 32px 0;
+  justify-content: center;
+}
+
+.errorIcon {
+  width: 20px;
+  height: 20px;
+}
+
+/* =============================================================
+   同意状況カード
+   ============================================================= */
+
+.consentContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.consentItems {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.consentItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.consentIconWrapper {
+  width: 40px;
+  height: 40px;
+  background-color: #dcfce7;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.consentIcon {
+  width: 20px;
+  height: 20px;
+  color: #16a34a;
+}
+
+.consentLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #15803d;
+}
+
+.consentDate {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.consentPdfLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.consentPdfLink:hover {
+  color: #1e40af;
+  background-color: #eff6ff;
+}
+
+.consentPdfIcon {
+  width: 16px;
+  height: 16px;
+}
+
+/* =============================================================
+   未同意カード
+   ============================================================= */
+
+.unconsentedContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.unconsentedItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.unconsentedIconWrapper {
+  width: 40px;
+  height: 40px;
+  background-color: #fef3c7;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.unconsentedIcon {
+  width: 20px;
+  height: 20px;
+  color: #d97706;
+}
+
+.unconsentedLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #b45309;
+}
+
+.unconsentedHint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.consentButton {
+  padding: 10px 20px;
+  background-color: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.consentButton:hover {
+  background-color: #1d4ed8;
+}
+
+/* =============================================================
+   契約一覧ヘッダーボタン
+   ============================================================= */
+
+.createButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.createButton:hover {
+  background-color: #1d4ed8;
+}
+
+.createButtonIcon {
+  width: 16px;
+  height: 16px;
+}
+
+/* =============================================================
+   空状態
+   ============================================================= */
+
+.emptyContainer {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.emptyText {
+  color: #64748b;
+}
+
+/* =============================================================
+   テーブル
+   ============================================================= */
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  font-size: 14px;
+}
+
+.tableHead {
+  text-align: left;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.tableHeadCell {
+  padding: 12px 24px;
+  font-weight: 500;
+}
+
+/* =============================================================
+   契約行
+   ============================================================= */
+
+.contractRow {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s;
+}
+
+.contractRow:last-child {
+  border-bottom: none;
+}
+
+.contractRow:hover {
+  background-color: #f8fafc;
+}
+
+.cell {
+  padding: 16px 24px;
+}
+
+.cellDate {
+  composes: cell;
+  color: #334155;
+}
+
+.cellDocCount {
+  composes: cell;
+  color: #475569;
+}
+
+/* =============================================================
+   ステータスバッジ
+   ============================================================= */
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* =============================================================
+   本人確認
+   ============================================================= */
+
+.verificationDone {
+  color: #16a34a;
+  font-size: 14px;
+}
+
+.verificationNone {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* =============================================================
+   録音紐付けボタン
+   ============================================================= */
+
+.plaudLinked {
+  color: #16a34a;
+  font-size: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.plaudLinked:hover {
+  color: #15803d;
+  text-decoration: underline;
+}
+
+.plaudUnlinked {
+  color: #3b82f6;
+  font-size: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.plaudUnlinked:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* =============================================================
+   操作セル
+   ============================================================= */
+
+.actionCell {
+  composes: cell;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 署名開始ボタン（同意済み） */
+.signButtonConsented {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  background-color: #16a34a;
+  color: #fff;
+}
+
+.signButtonConsented:hover {
+  background-color: #15803d;
+}
+
+/* 署名開始ボタン（未同意） */
+.signButtonUnconsented {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  background-color: #f59e0b;
+  color: #fff;
+}
+
+.signButtonUnconsented:hover {
+  background-color: #d97706;
+}
+
+/* 詳細リンク */
+.detailLink {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2563eb;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.detailLink:hover {
+  color: #1e40af;
+  background-color: #eff6ff;
+}

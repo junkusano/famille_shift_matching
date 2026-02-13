@@ -8,16 +8,17 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
+import styles from '@/styles/cm-styles/clients/disabledTab.module.css';
 
 export function CmClientDisabledTab() {
   return (
     <CmCard>
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <AlertCircle className="w-8 h-8 text-slate-400" />
+      <div className={styles.container}>
+        <div className={styles.iconWrapper}>
+          <AlertCircle className={styles.icon} />
         </div>
-        <p className="text-slate-600 font-medium">この機能は準備中です</p>
-        <p className="text-sm text-slate-500 mt-2">
+        <p className={styles.title}>この機能は準備中です</p>
+        <p className={styles.description}>
           カイポケスクレイピング実装後に利用可能になります
         </p>
       </div>
