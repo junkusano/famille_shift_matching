@@ -279,10 +279,17 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
     const { data, error } = await q;
     if (error) throw new Error(`disability_check select failed: ${error.message}`);
-    const rows: DisabilityCheckViewRow[] = (data ?? []) as unknown as DisabilityCheckViewRow[];
-    const scanned = rows.length;
 
-    if (!rows.length) {
+    const rows = (data ?? []) as unknown as DisabilityCheckViewRow[];
+
+    // 最終ガード
+    const targetRows = rows.filter(
+        (r) => r.application_check === false
+    );
+
+    const scanned = targetRows.length;
+
+    if (!targetRows.length) {
         return {
             enabled: true,
             scanned,
