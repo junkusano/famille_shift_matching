@@ -169,10 +169,12 @@ export async function POST(req: NextRequest) {
           "asigned_jisseki_staff_name",
           "asigned_org_id",
           "asigned_org_name",
-          "application_check", // ★追加
+          "application_check",
         ].join(",")
       )
-      .eq("year_month", yearMonth);
+      .eq("year_month", yearMonth)
+      // ★ 必ずこの中に入れる
+      .in("kaipoke_servicek", ["障害", "移動支援"]);
 
     if (kaipokeServicek) query = query.eq("kaipoke_servicek", kaipokeServicek);
     if (districts.length > 0) query = query.in("district", districts);
