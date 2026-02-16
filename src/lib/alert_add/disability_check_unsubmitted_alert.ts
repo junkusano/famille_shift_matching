@@ -272,6 +272,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
             ].join(",")
         )
         .eq("year_month", targetYm)
+        .in("kaipoke_servicek", ["障害", "移動支援"])
         .eq("application_check", false);
 
     if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
@@ -446,6 +447,7 @@ async function runCollectedUncheckManagerAlert(args: {
             ].join(",")
         )
         .eq("year_month", targetYm)
+        .in("kaipoke_servicek", ["障害", "移動支援"])
         .eq("is_checked", false);
 
     if (args.targetKaipokeCsId) q = q.eq("kaipoke_cs_id", args.targetKaipokeCsId);
