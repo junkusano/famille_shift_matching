@@ -12,6 +12,7 @@ type Row = {
     staff_comment: string | null;
     manager_checked: boolean | null;
     user_name?: string | null;
+    full_name_kanji?: string | null;
 };
 
 function ymNowJst(): string {
@@ -71,6 +72,10 @@ function readRows(v: unknown): Row[] | undefined {
 
         const user_name = it.user_name === null ? null : readString(it.user_name) ?? undefined;
 
+        // ★追加
+        const full_name_kanji =
+            it.full_name_kanji === null ? null : readString(it.full_name_kanji) ?? undefined;
+
         rows.push({
             target_month,
             user_id,
@@ -81,6 +86,7 @@ function readRows(v: unknown): Row[] | undefined {
             staff_comment,
             manager_checked,
             user_name,
+            full_name_kanji,
         });
     }
 
@@ -208,7 +214,9 @@ export default function MonthlyMeetingCheckPage() {
                         <tbody>
                             {requiredRows.map((r) => (
                                 <tr key={`${r.target_month}-${r.user_id}`}>
-                                    <td className="border p-2">{r.user_name ?? r.user_id}</td>
+                                    <td className="border p-2">
+                                        {r.full_name_kanji ?? r.user_name ?? r.user_id}
+                                    </td>
                                     <td className="border p-2 text-center">
                                         {r.attended_regular === true ? "✅" : r.attended_regular === false ? "❌" : ""}
                                     </td>
