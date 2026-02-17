@@ -75,21 +75,58 @@ export async function GET(req: NextRequest) {
         const { data, error } = await supabaseAdmin
             .from("monthly_meeting_attendance")
             .select(`
-        target_month,
-        user_id,
-        required,
-        attended_regular,
-        attended_extra,
-        minutes_url,
-        staff_comment,
-        manager_checked,
-        users:users(user_id)
-      `)
+    target_month,
+    user_id,
+    required,
+    attended_regular,
+    attended_extra,
+    minutes_url,
+    staff_comment,
+    manager_checked,
+    users:users(user_id)
+  `)
             .eq("target_month", monthStart)
             .order("user_id", { ascending: true })
             .returns<AttendanceRowDb[]>();
 
         if (error) throw error;
+
+        // ★在籍従業員一覧を取得（最初に1回だけ）
+        const { data: staffData, error: staffErr } = await supabaseAdmin
+            .from("user_entry_united_view_single")
+            .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status")
+            .is("end_at", null)
+            .is("resign_date_latest", null)
+            .neq("status", "removed_from_lineworks_kaipoke")
+            .returns<StaffRowDb[]>();
+
+        if (staffErr) throw staffErr;
+
+        // ① すでに attendance に存在する user_id
+        const existingUserIds = new Set(
+            (data ?? []).map((r) => r.user_id)
+        );
+
+        // ③ monthly_meeting_attendance に無い人だけ作る
+        const toInsert = (staffData ?? [])
+            .map((s) => (s.user_id ?? "").trim())
+            .filter((uid) => uid && !existingUserIds.has(uid))
+            .map((uid) => ({
+                target_month: monthStart,
+                user_id: uid,
+                required: true,
+            }));
+
+        // ④ 1件でもあれば INSERT
+        if (toInsert.length > 0) {
+            const { error: insertErr } = await supabaseAdmin
+                .from("monthly_meeting_attendance")
+                .insert(toInsert);
+
+            if (insertErr) throw insertErr;
+        }
+
+        /* ===== ここまで追加 ===== */
 
         // ===== 追加①：その月のシフトに入っている user_id を取得 =====
         const monthEnd = new Date(monthStart);
@@ -112,21 +149,6 @@ export async function GET(req: NextRequest) {
         }
 
         const shiftUserIds = Array.from(shiftUserIdSet);
-
-        // ★追加：在籍従業員一覧（常に表示する用）※GETの中で取得する
-        const { data: staffData, error: staffErr } = await supabaseAdmin
-            .from("user_entry_united_view_single")
-            .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status")
-            .is("end_at", null)
-            .is("resign_date_latest", null)
-            .neq("status", "removed_from_lineworks_kaipoke")
-            .order("org_order_num", { ascending: true, nullsFirst: false })
-            .order("roster_sort", { ascending: true, nullsFirst: false })
-            .order("last_name_kana", { ascending: true, nullsFirst: false })
-            .order("first_name_kana", { ascending: true, nullsFirst: false })
-            .returns<StaffRowDb[]>();
-
-        if (staffErr) throw staffErr;
 
         const staff: StaffDto[] = (staffData ?? []).map((r) => {
             const userId = (r.user_id ?? "").trim();
