@@ -91,6 +91,28 @@ export async function GET(req: NextRequest) {
 
         if (error) throw error;
 
+        // ===== 追加①：その月のシフトに入っている user_id を取得 =====
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+        const { data: shifts, error: shiftErr } = await supabaseAdmin
+            .from("shift")
+            .select("staff_01_user_id, staff_02_user_id, staff_03_user_id, shift_start_date")
+            .gte("shift_start_date", monthStart)
+            .lt("shift_start_date", monthEnd.toISOString().slice(0, 10));
+
+        if (shiftErr) throw shiftErr;
+
+        const shiftUserIdSet = new Set<string>();
+
+        for (const s of shifts ?? []) {
+            if (s.staff_01_user_id) shiftUserIdSet.add(s.staff_01_user_id);
+            if (s.staff_02_user_id) shiftUserIdSet.add(s.staff_02_user_id);
+            if (s.staff_03_user_id) shiftUserIdSet.add(s.staff_03_user_id);
+        }
+
+        const shiftUserIds = Array.from(shiftUserIdSet);
+
         // ★追加：在籍従業員一覧（常に表示する用）※GETの中で取得する
         const { data: staffData, error: staffErr } = await supabaseAdmin
             .from("user_entry_united_view_single")
@@ -118,17 +140,27 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        const rows = (data ?? []).map((r) => ({
-            target_month: r.target_month,
-            user_id: r.user_id,
-            required: r.required,
-            attended_regular: r.attended_regular,
-            attended_extra: r.attended_extra,
-            minutes_url: r.minutes_url,
-            staff_comment: r.staff_comment,
-            manager_checked: r.manager_checked,
-            user_name: r.users?.user_id ?? null, // ここを users.name 等に差し替え可
-        }));
+        // ===== 追加②：attendance を user_id で引けるようにする =====
+        const attendanceMap = new Map(
+            (data ?? []).map((r) => [r.user_id, r])
+        );
+
+        // ===== 変更③：シフトに入っている人を必ず表示する =====
+        const rows = shiftUserIds.map((userId) => {
+            const r = attendanceMap.get(userId);
+
+            return {
+                target_month: monthStart,
+                user_id: userId,
+                required: true,
+                attended_regular: r?.attended_regular ?? null,
+                attended_extra: r?.attended_extra ?? null,
+                minutes_url: r?.minutes_url ?? null,
+                staff_comment: r?.staff_comment ?? null,
+                manager_checked: r?.manager_checked ?? null,
+                user_name: null, // フロントで staff から補完
+            };
+        });
 
         return json({ ok: true, ym, rows, staff });
 
