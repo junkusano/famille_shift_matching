@@ -7,9 +7,9 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { normalizeFaxNumber } from "@/lib/cm/faxNumberUtils";
+import { cmFindKaipokeOfficesByFaxBatch } from "@/lib/cm/local-fax-phonebook/cmKaipokeMatchByFax";
 import type {
   CmLocalFaxPhonebookPagination,
-  CmKaipokeOfficeInfo,
   CmLocalFaxPhonebookEntryWithKaipoke,
 } from "@/types/cm/localFaxPhonebook";
 
@@ -30,72 +30,23 @@ export type GetLocalFaxPhonebookParams = {
   showInactive?: boolean;
 };
 
-export type GetLocalFaxPhonebookResult = {
-  ok: true;
-  entries: CmLocalFaxPhonebookEntryWithKaipoke[];
-  pagination: CmLocalFaxPhonebookPagination;
-} | {
-  ok: false;
-  error: string;
-};
-
-// =============================================================
-// カイポケ登録情報を取得するヘルパー関数
-// =============================================================
-
-async function getKaipokeInfoByFaxNumbers(
-  faxNumbersNormalized: string[]
-): Promise<Map<string, CmKaipokeOfficeInfo[]>> {
-  const result = new Map<string, CmKaipokeOfficeInfo[]>();
-
-  if (faxNumbersNormalized.length === 0) {
-    return result;
-  }
-
-  const { data: kaipokeOffices, error } = await supabaseAdmin
-    .from("cm_kaipoke_other_office")
-    .select("id, office_name, service_type, office_number, fax, fax_proxy")
-    .not("fax", "is", null);
-
-  if (error) {
-    logger.error("カイポケ事業所取得エラー", error);
-    return result;
-  }
-
-  // FAX番号ごとにマッチする事業所をグルーピング
-  for (const office of kaipokeOffices || []) {
-    const officeFaxNormalized = office.fax ? normalizeFaxNumber(office.fax) : null;
-    const officeProxyNormalized = office.fax_proxy ? normalizeFaxNumber(office.fax_proxy) : null;
-
-    for (const targetFax of faxNumbersNormalized) {
-      if (
-        (officeFaxNormalized && officeFaxNormalized === targetFax) ||
-        (officeProxyNormalized && officeProxyNormalized === targetFax)
-      ) {
-        const info: CmKaipokeOfficeInfo = {
-          id: office.id,
-          office_name: office.office_name,
-          service_type: office.service_type,
-          office_number: office.office_number,
-        };
-
-        if (!result.has(targetFax)) {
-          result.set(targetFax, []);
-        }
-        result.get(targetFax)!.push(info);
-      }
+export type GetLocalFaxPhonebookResult =
+  | {
+      ok: true;
+      entries: CmLocalFaxPhonebookEntryWithKaipoke[];
+      pagination: CmLocalFaxPhonebookPagination;
     }
-  }
-
-  return result;
-}
+  | {
+      ok: false;
+      error: string;
+    };
 
 // =============================================================
 // 一覧取得
 // =============================================================
 
 export async function getLocalFaxPhonebook(
-  params: GetLocalFaxPhonebookParams = {}
+  params: GetLocalFaxPhonebookParams = {},
 ): Promise<GetLocalFaxPhonebookResult> {
   const {
     page = 1,
@@ -122,12 +73,10 @@ export async function getLocalFaxPhonebook(
     }
 
     if (name) {
-      // 事業所名または読み仮名で部分一致検索
       query = query.or(`name.ilike.%${name}%,name_kana.ilike.%${name}%`);
     }
 
     if (faxNumber) {
-      // FAX番号検索（正規化して比較）
       const normalized = normalizeFaxNumber(faxNumber);
       if (normalized) {
         query = query.or(`fax_number.ilike.%${faxNumber}%,fax_number_normalized.ilike.%${normalized}%`);
@@ -152,12 +101,12 @@ export async function getLocalFaxPhonebook(
       return { ok: false, error: "データ取得に失敗しました" };
     }
 
-    // カイポケ登録情報を取得
+    // カイポケ登録情報を取得（共通モジュール使用）
     const faxNumbersNormalized = (entries || [])
       .map((e) => e.fax_number_normalized)
       .filter((fax): fax is string => fax !== null && fax !== "");
 
-    const kaipokeMap = await getKaipokeInfoByFaxNumbers(faxNumbersNormalized);
+    const kaipokeMap = await cmFindKaipokeOfficesByFaxBatch(faxNumbersNormalized);
 
     // エントリにカイポケ情報を付加
     const entriesWithKaipoke: CmLocalFaxPhonebookEntryWithKaipoke[] = (entries || []).map((entry) => {

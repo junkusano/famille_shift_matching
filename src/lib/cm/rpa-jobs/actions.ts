@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import type {
   CmJobQueue,
   CmJobTypemaster,
@@ -75,8 +76,12 @@ export type UpdateJobResult =
 // getJobMaster - マスタ取得
 // =============================================================
 
-export async function getJobMaster(queueCode?: string): Promise<GetJobMasterResult> {
+export async function getJobMaster(queueCode?: string, token?: string): Promise<GetJobMasterResult> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     logger.info("マスタ取得", { queueCode });
 
     // キュー一覧取得
@@ -116,6 +121,9 @@ export async function getJobMaster(queueCode?: string): Promise<GetJobMasterResu
       jobTypes: (jobTypes || []) as CmJobTypemaster[],
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("マスタ取得例外", error as Error);
     return { ok: false, error: "予期せぬエラーが発生しました" };
   }
@@ -125,8 +133,12 @@ export async function getJobMaster(queueCode?: string): Promise<GetJobMasterResu
 // getJobs - ジョブ一覧取得
 // =============================================================
 
-export async function getJobs(params: GetJobsParams = {}): Promise<GetJobsResult> {
+export async function getJobs(params: GetJobsParams = {}, token?: string): Promise<GetJobsResult> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     const {
       queue,
       status,
@@ -169,6 +181,9 @@ export async function getJobs(params: GetJobsParams = {}): Promise<GetJobsResult
       total: count || 0,
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("ジョブ一覧取得例外", error as Error);
     return { ok: false, error: "予期せぬエラーが発生しました" };
   }
@@ -178,8 +193,12 @@ export async function getJobs(params: GetJobsParams = {}): Promise<GetJobsResult
 // getJobDetail - ジョブ詳細取得
 // =============================================================
 
-export async function getJobDetail(jobId: number): Promise<GetJobDetailResult> {
+export async function getJobDetail(jobId: number, token?: string): Promise<GetJobDetailResult> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     if (isNaN(jobId) || jobId <= 0) {
       return { ok: false, error: "無効なジョブIDです" };
     }
@@ -231,6 +250,9 @@ export async function getJobDetail(jobId: number): Promise<GetJobDetailResult> {
       progress,
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("ジョブ詳細取得例外", error as Error);
     return { ok: false, error: "予期せぬエラーが発生しました" };
   }
@@ -240,8 +262,11 @@ export async function getJobDetail(jobId: number): Promise<GetJobDetailResult> {
 // createJob - ジョブ作成
 // =============================================================
 
-export async function createJob(params: CreateJobParams): Promise<CreateJobResult> {
+export async function createJob(params: CreateJobParams, token?: string): Promise<CreateJobResult> {
   try {
+    // API Route からは認証済みで token なしで呼ばれる
+    const auth = token ? await requireCmSession(token) : null;
+
     const { queue, job_type, payload = {} } = params;
 
     // バリデーション
@@ -252,7 +277,7 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobResul
       return { ok: false, error: "job_type は必須です" };
     }
 
-    logger.info("ジョブ作成開始", { queue, job_type });
+    logger.info("ジョブ作成開始", { queue, job_type, userId: auth?.userId });
 
     // マスタ存在チェック
     const { data: queueData } = await supabaseAdmin
@@ -318,10 +343,13 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobResul
       return { ok: false, error: "ジョブの作成に失敗しました" };
     }
 
-    logger.info("ジョブ作成完了", { jobId: newJob.id });
+    logger.info("ジョブ作成完了", { jobId: newJob.id, userId: auth?.userId });
 
     return { ok: true, job: newJob as CmJob };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("ジョブ作成例外", error as Error);
     return { ok: false, error: "予期せぬエラーが発生しました" };
   }
@@ -333,9 +361,13 @@ export async function createJob(params: CreateJobParams): Promise<CreateJobResul
 
 export async function updateJob(
   jobId: number,
-  params: UpdateJobParams
+  params: UpdateJobParams,
+  token?: string,
 ): Promise<UpdateJobResult> {
   try {
+    // API Route からは認証済みで token なしで呼ばれる
+    const auth = token ? await requireCmSession(token) : null;
+
     if (isNaN(jobId) || jobId <= 0) {
       return { ok: false, error: "無効なジョブIDです" };
     }
@@ -362,7 +394,7 @@ export async function updateJob(
       return { ok: false, error: "更新する項目がありません" };
     }
 
-    logger.info("ジョブ更新開始", { jobId, updates });
+    logger.info("ジョブ更新開始", { jobId, updates, userId: auth?.userId });
 
     // 更新実行
     const { data: updatedJob, error: updateError } = await supabaseAdmin
@@ -381,10 +413,13 @@ export async function updateJob(
       return { ok: false, error: "ジョブが見つかりません" };
     }
 
-    logger.info("ジョブ更新完了", { jobId });
+    logger.info("ジョブ更新完了", { jobId, userId: auth?.userId });
 
     return { ok: true, job: updatedJob as CmJob };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("ジョブ更新例外", error as Error);
     return { ok: false, error: "予期せぬエラーが発生しました" };
   }

@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type {
   CmContractTemplate,
   CmContractTemplateListItem,
@@ -24,11 +25,31 @@ export type ActionResult<T = void> =
   | { ok: false; error: string };
 
 // =============================================================
-// テンプレート一覧取得
+// 共通: エラーハンドリング
 // =============================================================
 
-export async function getTemplateList(): Promise<ActionResult<CmContractTemplateListItem[]>> {
+function handleActionError(
+  error: unknown,
+  fallbackMessage: string,
+): { ok: false; error: string } {
+  if (error instanceof CmAuthError) {
+    return { ok: false, error: error.message };
+  }
+  logger.error(fallbackMessage, error as Error);
+  return { ok: false, error: 'サーバーエラーが発生しました' };
+}
+
+// =============================================================
+// テンプレート一覧取得
+// ※ Server Component (page.tsx) からも呼ばれるため token はオプション
+// =============================================================
+
+export async function getTemplateList(token?: string): Promise<ActionResult<CmContractTemplateListItem[]>> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     logger.debug('テンプレート一覧取得開始');
 
     const { data, error } = await supabaseAdmin
@@ -38,7 +59,7 @@ export async function getTemplateList(): Promise<ActionResult<CmContractTemplate
 
     if (error) {
       logger.error('テンプレート一覧取得エラー', { message: error.message });
-      return { ok: false, error: error.message };
+      return { ok: false, error: 'テンプレート一覧の取得に失敗しました' };
     }
 
     // updated_byから名前を取得
@@ -81,20 +102,25 @@ export async function getTemplateList(): Promise<ActionResult<CmContractTemplate
 
     logger.debug('テンプレート一覧取得完了', { count: result.length });
     return { ok: true, data: result };
-  } catch (e) {
-    logger.error('予期せぬエラー', e as Error);
-    return { ok: false, error: 'サーバーエラーが発生しました' };
+  } catch (error) {
+    return handleActionError(error, 'テンプレート一覧取得エラー');
   }
 }
 
 // =============================================================
 // テンプレート詳細取得（コードで）
+// ※ createContract.ts 内部からも呼ばれるため token はオプション
 // =============================================================
 
 export async function getTemplateByCode(
-  code: CmContractTemplateCode
+  code: CmContractTemplateCode,
+  token?: string,
 ): Promise<ActionResult<CmContractTemplate>> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     logger.debug('テンプレート取得開始', { code });
 
     const { data, error } = await supabaseAdmin
@@ -110,42 +136,42 @@ export async function getTemplateByCode(
 
     logger.debug('テンプレート取得完了', { code });
     return { ok: true, data: data as CmContractTemplate };
-  } catch (e) {
-    logger.error('予期せぬエラー', e as Error);
-    return { ok: false, error: 'サーバーエラーが発生しました' };
+  } catch (error) {
+    return handleActionError(error, 'テンプレート取得エラー');
   }
 }
 
 // =============================================================
-// テンプレート更新
+// テンプレート更新（書き込み操作 → token 必須）
 // =============================================================
 
 export async function updateTemplate(
   code: CmContractTemplateCode,
   htmlContent: string,
-  updatedBy: string
+  token?: string,
 ): Promise<ActionResult> {
   try {
-    logger.info('テンプレート更新開始', { code, updatedBy });
+    const auth = token ? await requireCmSession(token) : null;
+
+    logger.info('テンプレート更新開始', { code, userId: auth?.userId });
 
     const { error } = await supabaseAdmin
       .from('cm_contract_templates')
       .update({ 
         html_content: htmlContent,
-        updated_by: updatedBy,
+        updated_by: auth?.userId,
       })
       .eq('code', code);
 
     if (error) {
       logger.error('テンプレート更新エラー', { code, message: error.message });
-      return { ok: false, error: error.message };
+      return { ok: false, error: '更新に失敗しました' };
     }
 
-    logger.info('テンプレート更新完了', { code });
+    logger.info('テンプレート更新完了', { code, userId: auth?.userId });
     return { ok: true };
-  } catch (e) {
-    logger.error('予期せぬエラー', e as Error);
-    return { ok: false, error: 'サーバーエラーが発生しました' };
+  } catch (error) {
+    return handleActionError(error, 'テンプレート更新エラー');
   }
 }
 
@@ -153,8 +179,12 @@ export async function updateTemplate(
 // 有効なテンプレート一覧取得（契約作成用）
 // =============================================================
 
-export async function getActiveTemplates(): Promise<ActionResult<CmContractTemplateListItem[]>> {
+export async function getActiveTemplates(token?: string): Promise<ActionResult<CmContractTemplateListItem[]>> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('cm_contract_templates')
       .select('id, code, name, is_required, sort_order, is_active, updated_at, updated_by')
@@ -162,22 +192,21 @@ export async function getActiveTemplates(): Promise<ActionResult<CmContractTempl
       .order('sort_order', { ascending: true });
 
     if (error) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: 'テンプレートの取得に失敗しました' };
     }
 
     return { ok: true, data: (data ?? []) as CmContractTemplateListItem[] };
-  } catch (e) {
-    logger.error('予期せぬエラー', e as Error);
-    return { ok: false, error: 'サーバーエラーが発生しました' };
+  } catch (error) {
+    return handleActionError(error, 'テンプレート一覧取得エラー');
   }
 }
 
 // =============================================================
-// テンプレートHTML取得（PDF生成用）
+// テンプレートHTML取得（PDF生成用 — 内部専用）
 // =============================================================
 
 export async function getTemplateHtml(
-  code: CmContractTemplateCode
+  code: CmContractTemplateCode,
 ): Promise<string | null> {
   try {
     const { data } = await supabaseAdmin

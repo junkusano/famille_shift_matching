@@ -8,6 +8,7 @@
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type {
   CmScheduledJobType,
   CmScheduleRunResult,
@@ -21,10 +22,13 @@ const logger = createLogger('lib/cm/scheduled-jobs/runScheduleAction');
  * 指定されたジョブタイプのスケジュールを手動実行
  */
 export async function executeSingleSchedule(
-  jobTypeId: number
+  jobTypeId: number,
+  token?: string,
 ): Promise<ExecuteSingleScheduleResult> {
   try {
-    logger.info('手動実行開始', { jobTypeId });
+    const auth = token ? await requireCmSession(token) : null;
+
+    logger.info('手動実行開始', { jobTypeId, userId: auth?.userId });
 
     // ジョブタイプを取得
     const { data: jobType, error: fetchError } = await supabaseAdmin
@@ -49,13 +53,16 @@ export async function executeSingleSchedule(
 
     const result = await executeScheduleInternal(
       jobType as CmScheduledJobType,
-      'manual'
+      'manual',
     );
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
 
     return { ok: true, result };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error('手動実行エラー', error as Error);
     return { ok: false, error: '実行中にエラーが発生しました' };
   }
@@ -67,7 +74,7 @@ export async function executeSingleSchedule(
 
 async function executeScheduleInternal(
   jobType: CmScheduledJobType,
-  triggeredBy: CmScheduledJobTrigger
+  triggeredBy: CmScheduledJobTrigger,
 ): Promise<CmScheduleRunResult> {
   const startedAt = new Date().toISOString();
 
@@ -92,7 +99,7 @@ async function executeScheduleInternal(
     if (jobType.schedule_cancel_pending) {
       result.cancelled_job_ids = await cancelPendingJobs(
         jobType.queue_code,
-        jobType.code
+        jobType.code,
       );
     }
 
@@ -120,6 +127,7 @@ async function executeScheduleInternal(
 
     logger.info('スケジュール実行成功', {
       job_type_id: jobType.id,
+      cancelledCount: result.cancelled_job_ids.length,
       createdJobId: result.created_job_id,
     });
 
@@ -148,7 +156,7 @@ async function executeScheduleInternal(
 
 async function cancelPendingJobs(
   queueCode: string,
-  jobTypeCode: string
+  jobTypeCode: string,
 ): Promise<number[]> {
   const { data: pendingJobs, error: fetchError } = await supabaseAdmin
     .from('cm_jobs')
@@ -177,7 +185,7 @@ async function cancelPendingJobs(
 }
 
 function resolvePayload(
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Record<string, unknown> {
   const resolved = { ...payload };
   const now = new Date();
@@ -203,7 +211,7 @@ async function recordRun(
   jobTypeId: number,
   result: CmScheduleRunResult,
   startedAt: string,
-  triggeredBy: CmScheduledJobTrigger
+  triggeredBy: CmScheduledJobTrigger,
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from('cm_scheduled_job_runs')
@@ -225,7 +233,7 @@ async function recordRun(
 
 async function updateLastRun(
   jobTypeId: number,
-  result: CmScheduleRunResult
+  result: CmScheduleRunResult,
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from('cm_job_types')

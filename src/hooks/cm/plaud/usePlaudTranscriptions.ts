@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   getPlaudTranscriptionList,
   executeTranscriptionAction,
-  executeBulkTranscriptionAction,
   updateTranscriptionClient,
   type PlaudTranscription,
 } from '@/lib/cm/plaud/transcriptions';
@@ -31,11 +30,6 @@ type StatusCounts = {
   failed: number;
 };
 
-type BulkApproveResult = {
-  success: number[];
-  failed: number[];
-};
-
 type UsePlaudTranscriptionsReturn = {
   transcriptions: CmPlaudTranscription[];
   pagination: CmPlaudPagination | null;
@@ -50,7 +44,7 @@ type UsePlaudTranscriptionsReturn = {
   error: string | null;
   refresh: () => Promise<void>;
   approve: (id: number) => Promise<boolean>;
-  approveBulk: (ids: number[]) => Promise<BulkApproveResult>;
+  approveBulk: (ids: number[]) => Promise<boolean>;
   reject: (id: number) => Promise<boolean>;
   retry: (id: number) => Promise<boolean>;
   updateClient: (id: number, kaipokeCsId: string | null) => Promise<boolean>;
@@ -78,21 +72,12 @@ function toTranscription(t: PlaudTranscription): CmPlaudTranscription {
 }
 
 // =============================================================
-// ★ 追加: 認証ユーザーID取得ヘルパー
+// トークン取得ヘルパー
 // =============================================================
 
-async function getAuthUserId(): Promise<string | null> {
-  try {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData?.user) {
-      console.error('認証情報取得失敗:', authError?.message);
-      return null;
-    }
-    return authData.user.id;
-  } catch (error) {
-    console.error('getAuthUserId エラー:', error);
-    return null;
-  }
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
 }
 
 // =============================================================
@@ -110,10 +95,9 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     completed: 0,
     failed: 0,
   });
-  // lastSyncAtは現在未使用（将来の拡張用に保持）
   const lastSyncAt: string | null = null;
   const [filters, setFilters] = useState<CmPlaudTranscriptionFilters>(
-    CM_PLAUD_TRANSCRIPTION_DEFAULT_FILTERS
+    CM_PLAUD_TRANSCRIPTION_DEFAULT_FILTERS,
   );
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -125,20 +109,13 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     setError(null);
 
     try {
-      // ★ 追加: 認証ユーザーIDを取得
-      const authUserId = await getAuthUserId();
-      if (!authUserId) {
-        throw new Error('認証情報を取得できませんでした。再度ログインしてください。');
-      }
+      const token = await getAccessToken();
 
       const result = await getPlaudTranscriptionList({
         page,
         limit: 20,
         status: filters.status !== 'all' ? filters.status : undefined,
-        authUserId,
-        // ★ 追加: 日付フィルターをサーバーに渡す
-        dateFrom: filters.dateFrom || undefined,
-        dateTo: filters.dateTo || undefined,
+        token,
       });
 
       if (result.ok === false) {
@@ -149,14 +126,10 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
       setTranscriptions(data.transcriptions.map(toTranscription));
       setPagination(data.pagination);
 
-      // カウント取得（別途全件取得してカウント）
-      // ★ カウント取得時にも日付フィルターを適用
-      // 注意: 効率化のため、本番環境では専用のカウントAPIを用意することを推奨
+      // カウント取得
       const allResult = await getPlaudTranscriptionList({
         limit: 1000,
-        authUserId,
-        dateFrom: filters.dateFrom || undefined,
-        dateTo: filters.dateTo || undefined,
+        token,
       });
       if (allResult.ok && allResult.data) {
         const all = allResult.data.transcriptions;
@@ -190,25 +163,17 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // 承認
   const approve = useCallback(async (id: number): Promise<boolean> => {
     try {
-      // ★ 追加: 認証ユーザーIDを取得
-      const authUserId = await getAuthUserId();
-      if (!authUserId) {
-        console.error('認証情報取得失敗');
-        return false;
-      }
-
-      const result = await executeTranscriptionAction(id, 'approve', authUserId);
+      const token = await getAccessToken();
+      const result = await executeTranscriptionAction(id, 'approve', token);
 
       if (result.ok === false) {
         throw new Error(result.error);
       }
 
-      // ローカルステートを更新
       setTranscriptions((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status: 'approved' as const } : t))
+        prev.map((t) => (t.id === id ? { ...t, status: 'approved' as const } : t)),
       );
 
-      // カウント更新
       setCounts((prev) => ({
         ...prev,
         pending: prev.pending - 1,
@@ -222,58 +187,42 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
     }
   }, []);
 
-  // ★ 一括承認
-  const approveBulk = useCallback(async (ids: number[]): Promise<BulkApproveResult> => {
-    const resultObj: BulkApproveResult = { success: [], failed: [] };
-
-    if (ids.length === 0) return resultObj;
-
+  // 一括承認
+  const approveBulk = useCallback(async (ids: number[]): Promise<boolean> => {
     try {
-      const authUserId = await getAuthUserId();
-      if (!authUserId) {
-        console.error('認証情報取得失敗');
-        return { success: [], failed: ids };
+      const token = await getAccessToken();
+      let successCount = 0;
+
+      for (const id of ids) {
+        const result = await executeTranscriptionAction(id, 'approve', token);
+        if (result.ok) {
+          successCount++;
+        }
       }
 
-      const result = await executeBulkTranscriptionAction(ids, 'approve', authUserId);
-
-      if (result.ok === false) {
-        console.error('一括承認エラー:', result.error);
-        return { success: [], failed: ids };
-      }
-
-      const { successIds, failedIds } = result.data!;
-
-      // ローカルステートを更新（成功したもののみ）
-      if (successIds.length > 0) {
-        const successSet = new Set(successIds);
+      if (successCount > 0) {
+        // ローカルステートを更新
         setTranscriptions((prev) =>
           prev.map((t) =>
-            successSet.has(t.id) ? { ...t, status: 'approved' as const } : t
-          )
+            ids.includes(t.id) ? { ...t, status: 'approved' as const } : t,
+          ),
         );
 
-        // カウント更新
         setCounts((prev) => ({
           ...prev,
-          pending: prev.pending - successIds.length,
-          approved: prev.approved + successIds.length,
+          pending: prev.pending - successCount,
+          approved: prev.approved + successCount,
         }));
       }
 
-      // 失敗があればアラート
-      if (failedIds.length > 0) {
-        alert(`${successIds.length}件を承認しました。${failedIds.length}件は承認できませんでした。`);
-      }
-
-      return { success: successIds, failed: failedIds };
+      return successCount === ids.length;
     } catch (err) {
       console.error('approveBulk error:', err);
-      return { success: [], failed: ids };
+      return false;
     }
   }, []);
 
-  // 却下（pending に戻す - 現在未実装）
+  // 却下（現在未実装）
   const reject = useCallback(async (id: number): Promise<boolean> => {
     console.warn('reject is not implemented yet', id);
     return false;
@@ -282,27 +231,19 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // リトライ
   const retry = useCallback(async (id: number): Promise<boolean> => {
     try {
-      // ★ 追加: 認証ユーザーIDを取得
-      const authUserId = await getAuthUserId();
-      if (!authUserId) {
-        console.error('認証情報取得失敗');
-        return false;
-      }
-
-      const result = await executeTranscriptionAction(id, 'retry', authUserId);
+      const token = await getAccessToken();
+      const result = await executeTranscriptionAction(id, 'retry', token);
 
       if (result.ok === false) {
         throw new Error(result.error);
       }
 
-      // ローカルステートを更新
       setTranscriptions((prev) =>
         prev.map((t) =>
-          t.id === id ? { ...t, status: 'approved' as const, retry_count: 0 } : t
-        )
+          t.id === id ? { ...t, status: 'approved' as const, retry_count: 0 } : t,
+        ),
       );
 
-      // カウント更新
       setCounts((prev) => ({
         ...prev,
         failed: prev.failed - 1,
@@ -319,26 +260,19 @@ export function usePlaudTranscriptions(): UsePlaudTranscriptionsReturn {
   // 利用者紐付け更新
   const updateClientHandler = useCallback(async (id: number, kaipokeCsId: string | null): Promise<boolean> => {
     try {
-      // ★ 追加: 認証ユーザーIDを取得
-      const authUserId = await getAuthUserId();
-      if (!authUserId) {
-        console.error('認証情報取得失敗');
-        return false;
-      }
-
-      const result = await updateTranscriptionClient(id, kaipokeCsId, authUserId);
+      const token = await getAccessToken();
+      const result = await updateTranscriptionClient(id, kaipokeCsId, token);
 
       if (result.ok === false) {
         throw new Error(result.error);
       }
 
-      // ローカルステートも更新
       setTranscriptions((prev) =>
         prev.map((t) =>
           t.id === id
             ? { ...t, kaipoke_cs_id: kaipokeCsId, client_name: result.data?.client_name ?? null }
-            : t
-        )
+            : t,
+        ),
       );
 
       return true;

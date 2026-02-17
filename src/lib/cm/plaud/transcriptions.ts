@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
 
 const logger = createLogger("lib/cm/plaud/transcriptions");
@@ -31,103 +32,15 @@ export type PlaudTranscription = {
   client_name?: string | null;
 };
 
-export type ActionResult<T = void> = {
-  ok: true;
-  data?: T;
-} | {
-  ok: false;
-  error: string;
-};
-
-// =============================================================
-// ★ 追加: auth_user_id から user_id を取得するヘルパー
-// =============================================================
-
-async function getUserIdFromAuthUserId(authUserId: string): Promise<string | null> {
-  try {
-    const { data: userData, error } = await supabaseAdmin
-      .from("users")
-      .select("user_id")
-      .eq("auth_user_id", authUserId)
-      .single();
-
-    if (error || !userData) {
-      logger.warn("ユーザー情報取得失敗", { authUserId, error: error?.message });
-      return null;
-    }
-
-    return userData.user_id;
-  } catch (error) {
-    logger.error("getUserIdFromAuthUserId エラー", error as Error);
-    return null;
-  }
-}
-
-// =============================================================
-// 文字起こし詳細取得
-// ★ 修正: authUserId パラメータ追加、ログインユーザーのデータのみ取得
-// =============================================================
-
-export async function getPlaudTranscription(
-  id: number,
-  authUserId: string
-): Promise<ActionResult<PlaudTranscription>> {
-  try {
-    // ★ auth_user_id から user_id を取得
-    const userId = await getUserIdFromAuthUserId(authUserId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした" };
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from("cm_plaud_mgmt_transcriptions")
-      .select("*")
-      .eq("id", id)
-      // ★ ログインユーザーのデータのみ取得
-      .eq("registered_by", userId)
-      .single();
-
-    if (error || !data) {
-      return { ok: false, error: "文字起こしデータが見つかりません" };
-    }
-
-    // 利用者名を取得
-    let clientName: string | null = null;
-    if (data.kaipoke_cs_id) {
-      const { data: client } = await supabaseAdmin
-        .from("cm_kaipoke_info")
-        .select("name")
-        .eq("kaipoke_cs_id", data.kaipoke_cs_id)
-        .single();
-      clientName = client?.name ?? null;
-    }
-
-    return {
-      ok: true,
-      data: {
-        ...data,
-        client_name: clientName,
-      } as PlaudTranscription,
-    };
-  } catch (error) {
-    logger.error("予期せぬエラー", error as Error);
-    return { ok: false, error: "サーバーエラーが発生しました" };
-  }
-}
-
-// =============================================================
-// 文字起こし一覧取得（管理画面用）
-// ★ 修正: authUserId パラメータ追加、ログインユーザーのデータのみ取得
-// ★ 追加: dateFrom / dateTo による plaud_created_at 日付絞り込み
-// =============================================================
+export type ActionResult<T = void> =
+  | { ok: true; data?: T }
+  | { ok: false; error: string };
 
 export type PlaudTranscriptionListParams = {
   page?: number;
   limit?: number;
   status?: string;
-  authUserId: string;
-  dateFrom?: string; // ★ 追加: 'YYYY-MM-DD' 形式
-  dateTo?: string;   // ★ 追加: 'YYYY-MM-DD' 形式
+  token: string;
 };
 
 export type PlaudTranscriptionPagination = {
@@ -139,43 +52,139 @@ export type PlaudTranscriptionPagination = {
   hasPrev: boolean;
 };
 
+// =============================================================
+// 共通: auth_user_id → user_id 変換
+//
+// requireCmSession が返す userId は Supabase auth UUID。
+// transcriptions の registered_by は users テーブルの user_id。
+// =============================================================
+
+async function resolveInternalUserId(authUserId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("user_id")
+    .eq("auth_user_id", authUserId)
+    .single();
+
+  if (error || !data) {
+    logger.warn("ユーザー情報取得失敗", { authUserId, error: error?.message });
+    return null;
+  }
+
+  return data.user_id;
+}
+
+// =============================================================
+// 共通: CmAuthError ハンドリング
+// =============================================================
+
+function handleActionError(
+  error: unknown,
+  fallbackMessage: string,
+): { ok: false; error: string } {
+  if (error instanceof CmAuthError) {
+    return { ok: false, error: error.message };
+  }
+  logger.error(fallbackMessage, error as Error);
+  return { ok: false, error: "サーバーエラーが発生しました" };
+}
+
+// =============================================================
+// 共通: 利用者名取得
+// =============================================================
+
+async function fetchClientName(kaipokeCsId: string | null): Promise<string | null> {
+  if (!kaipokeCsId) return null;
+
+  const { data: client } = await supabaseAdmin
+    .from("cm_kaipoke_info")
+    .select("name")
+    .eq("kaipoke_cs_id", kaipokeCsId)
+    .single();
+
+  return client?.name ?? null;
+}
+
+async function fetchClientNameMap(clientIds: string[]): Promise<Map<string, string>> {
+  if (clientIds.length === 0) return new Map();
+
+  const { data: clients } = await supabaseAdmin
+    .from("cm_kaipoke_info")
+    .select("kaipoke_cs_id, name")
+    .in("kaipoke_cs_id", clientIds);
+
+  return new Map(
+    (clients ?? []).map((c) => [c.kaipoke_cs_id, c.name]),
+  );
+}
+
+// =============================================================
+// 文字起こし詳細取得
+// =============================================================
+
+export async function getPlaudTranscription(
+  id: number,
+  token?: string,
+): Promise<ActionResult<PlaudTranscription>> {
+  try {
+    const auth = token ? await requireCmSession(token) : null;
+
+    const userId = await resolveInternalUserId(auth?.userId);
+    if (!userId) {
+      return { ok: false, error: "認証情報を取得できませんでした" };
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("cm_plaud_mgmt_transcriptions")
+      .select("*")
+      .eq("id", id)
+      .eq("registered_by", userId)
+      .single();
+
+    if (error || !data) {
+      return { ok: false, error: "文字起こしデータが見つかりません" };
+    }
+
+    const clientName = await fetchClientName(data.kaipoke_cs_id);
+
+    return {
+      ok: true,
+      data: { ...data, client_name: clientName } as PlaudTranscription,
+    };
+  } catch (error) {
+    return handleActionError(error, "文字起こし詳細取得エラー");
+  }
+}
+
+// =============================================================
+// 文字起こし一覧取得（管理画面用）
+// =============================================================
+
 export async function getPlaudTranscriptionList(
-  params: PlaudTranscriptionListParams
+  params: PlaudTranscriptionListParams,
 ): Promise<ActionResult<{ transcriptions: PlaudTranscription[]; pagination: PlaudTranscriptionPagination }>> {
   try {
+    const auth = await requireCmSession(params.token);
+
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const status = params.status;
-    const authUserId = params.authUserId;
-    const dateFrom = params.dateFrom;
-    const dateTo = params.dateTo;
 
-    // ★ auth_user_id から user_id を取得
-    const userId = await getUserIdFromAuthUserId(authUserId);
+    const userId = await resolveInternalUserId(auth?.userId);
     if (!userId) {
-      logger.warn("ログインユーザー情報が取得できません", { authUserId });
       return { ok: false, error: "認証情報を取得できませんでした。再度ログインしてください。" };
     }
 
-    logger.info("文字起こし一覧取得開始", { page, limit, status, dateFrom, dateTo, userId });
+    logger.info("文字起こし一覧取得開始", { page, limit, status, userId });
 
     // クエリ構築
     let query = supabaseAdmin
       .from("cm_plaud_mgmt_transcriptions")
       .select("*", { count: "exact" })
-      // ★ ログインユーザーのデータのみ取得
       .eq("registered_by", userId);
 
     if (status) {
       query = query.eq("status", status);
-    }
-
-    // ★ 追加: 日付フィルター（plaud_created_at で絞り込み）
-    if (dateFrom) {
-      query = query.gte("plaud_created_at", `${dateFrom}T00:00:00`);
-    }
-    if (dateTo) {
-      query = query.lte("plaud_created_at", `${dateTo}T23:59:59`);
     }
 
     // ページネーション
@@ -197,20 +206,10 @@ export async function getPlaudTranscriptionList(
     const clientIds = [...new Set(
       (transcriptionData ?? [])
         .map((t) => t.kaipoke_cs_id)
-        .filter((id): id is string => id !== null)
+        .filter((id): id is string => id !== null),
     )];
 
-    let clientMap = new Map<string, string>();
-    if (clientIds.length > 0) {
-      const { data: clients } = await supabaseAdmin
-        .from("cm_kaipoke_info")
-        .select("kaipoke_cs_id, name")
-        .in("kaipoke_cs_id", clientIds);
-
-      clientMap = new Map(
-        (clients ?? []).map((c) => [c.kaipoke_cs_id, c.name])
-      );
-    }
+    const clientMap = await fetchClientNameMap(clientIds);
 
     // 結果構築
     const transcriptions: PlaudTranscription[] = (transcriptionData ?? []).map((t) => ({
@@ -240,35 +239,34 @@ export async function getPlaudTranscriptionList(
       },
     };
   } catch (error) {
-    logger.error("予期せぬエラー", error as Error);
-    return { ok: false, error: "サーバーエラーが発生しました" };
+    return handleActionError(error, "文字起こし一覧取得エラー");
   }
 }
 
 // =============================================================
 // アクション実行（承認・リトライ）
-// ★ 修正: authUserId パラメータ追加、ログインユーザーのデータのみ操作可能
 // =============================================================
 
 export async function executeTranscriptionAction(
   id: number,
   action: "approve" | "retry",
-  authUserId: string
+  token?: string,
 ): Promise<ActionResult<PlaudTranscription>> {
   try {
+    const auth = token ? await requireCmSession(token) : null;
+
     if (!["approve", "retry"].includes(action)) {
       return { ok: false, error: "無効なアクションです" };
     }
 
-    // ★ auth_user_id から user_id を取得
-    const userId = await getUserIdFromAuthUserId(authUserId);
+    const userId = await resolveInternalUserId(auth?.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした" };
     }
 
     logger.info("アクション実行開始", { id, action, userId });
 
-    // 現在のデータ取得（★ ログインユーザーのデータのみ）
+    // 現在のデータ取得（ログインユーザーのデータのみ）
     const { data: current, error: fetchError } = await supabaseAdmin
       .from("cm_plaud_mgmt_transcriptions")
       .select("*")
@@ -311,136 +309,36 @@ export async function executeTranscriptionAction(
       return { ok: false, error: "更新に失敗しました" };
     }
 
-    logger.info("アクション実行完了", { id, action });
+    logger.info("アクション実行完了", { id, action, userId });
 
     revalidatePath("/cm-portal/plaud");
 
     return { ok: true, data: updated as PlaudTranscription };
   } catch (error) {
-    logger.error("予期せぬエラー", error as Error);
-    return { ok: false, error: "サーバーエラーが発生しました" };
-  }
-}
-
-// =============================================================
-// ★ 追加: 一括アクション実行（承認・リトライ）
-// =============================================================
-
-type BulkActionResult = {
-  successIds: number[];
-  failedIds: number[];
-};
-
-export async function executeBulkTranscriptionAction(
-  ids: number[],
-  action: "approve" | "retry",
-  authUserId: string
-): Promise<ActionResult<BulkActionResult>> {
-  try {
-    if (!["approve", "retry"].includes(action)) {
-      return { ok: false, error: "無効なアクションです" };
-    }
-
-    if (ids.length === 0) {
-      return { ok: true, data: { successIds: [], failedIds: [] } };
-    }
-
-    // ★ auth_user_id から user_id を取得
-    const userId = await getUserIdFromAuthUserId(authUserId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした" };
-    }
-
-    logger.info("一括アクション実行開始", { ids, action, userId });
-
-    const expectedStatus = action === "approve" ? "pending" : "failed";
-
-    // 対象データの一括取得（ログインユーザーのデータのみ）
-    const { data: targets, error: fetchError } = await supabaseAdmin
-      .from("cm_plaud_mgmt_transcriptions")
-      .select("id, status")
-      .in("id", ids)
-      .eq("registered_by", userId)
-      .eq("status", expectedStatus);
-
-    if (fetchError) {
-      logger.error("一括取得エラー", { message: fetchError.message });
-      return { ok: false, error: "データの取得に失敗しました" };
-    }
-
-    const validIds = (targets ?? []).map((t) => t.id);
-    const invalidIds = ids.filter((id) => !validIds.includes(id));
-
-    if (validIds.length === 0) {
-      return {
-        ok: true,
-        data: { successIds: [], failedIds: ids },
-      };
-    }
-
-    // 更新データ構築
-    const updateData: Record<string, unknown> = {
-      status: "approved",
-      updated_at: new Date().toISOString(),
-    };
-
-    if (action === "retry") {
-      updateData.retry_count = 0;
-    }
-
-    // 一括更新
-    const { error: updateError } = await supabaseAdmin
-      .from("cm_plaud_mgmt_transcriptions")
-      .update(updateData)
-      .in("id", validIds)
-      .eq("registered_by", userId);
-
-    if (updateError) {
-      logger.error("一括更新エラー", { message: updateError.message });
-      return { ok: false, error: "一括更新に失敗しました" };
-    }
-
-    logger.info("一括アクション実行完了", {
-      action,
-      successCount: validIds.length,
-      failedCount: invalidIds.length,
-    });
-
-    revalidatePath("/cm-portal/plaud");
-
-    return {
-      ok: true,
-      data: {
-        successIds: validIds,
-        failedIds: invalidIds,
-      },
-    };
-  } catch (error) {
-    logger.error("一括アクション予期せぬエラー", error as Error);
-    return { ok: false, error: "サーバーエラーが発生しました" };
+    return handleActionError(error, "アクション実行エラー");
   }
 }
 
 // =============================================================
 // 利用者紐付け更新
-// ★ 修正: authUserId パラメータ追加、ログインユーザーのデータのみ操作可能
 // =============================================================
 
 export async function updateTranscriptionClient(
   id: number,
   kaipokeCsId: string | null,
-  authUserId: string
+  token?: string,
 ): Promise<ActionResult<PlaudTranscription & { client_name: string | null }>> {
   try {
-    // ★ auth_user_id から user_id を取得
-    const userId = await getUserIdFromAuthUserId(authUserId);
+    const auth = token ? await requireCmSession(token) : null;
+
+    const userId = await resolveInternalUserId(auth?.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした" };
     }
 
     logger.info("利用者紐付け更新開始", { id, kaipoke_cs_id: kaipokeCsId, userId });
 
-    // 存在確認（★ ログインユーザーのデータのみ）
+    // 存在確認（ログインユーザーのデータのみ）
     const { data: current, error: fetchError } = await supabaseAdmin
       .from("cm_plaud_mgmt_transcriptions")
       .select("id")
@@ -469,18 +367,9 @@ export async function updateTranscriptionClient(
       return { ok: false, error: "更新に失敗しました" };
     }
 
-    // 利用者名を取得
-    let clientName: string | null = null;
-    if (kaipokeCsId) {
-      const { data: client } = await supabaseAdmin
-        .from("cm_kaipoke_info")
-        .select("name")
-        .eq("kaipoke_cs_id", kaipokeCsId)
-        .single();
-      clientName = client?.name ?? null;
-    }
+    const clientName = await fetchClientName(kaipokeCsId);
 
-    logger.info("利用者紐付け更新完了", { id, kaipoke_cs_id: kaipokeCsId });
+    logger.info("利用者紐付け更新完了", { id, kaipoke_cs_id: kaipokeCsId, userId });
 
     revalidatePath("/cm-portal/plaud");
 
@@ -492,7 +381,6 @@ export async function updateTranscriptionClient(
       } as PlaudTranscription & { client_name: string | null },
     };
   } catch (error) {
-    logger.error("予期せぬエラー", error as Error);
-    return { ok: false, error: "サーバーエラーが発生しました" };
+    return handleActionError(error, "利用者紐付け更新エラー");
   }
 }

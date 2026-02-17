@@ -8,6 +8,7 @@
 import React, { useState, useTransition, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Plus, Info, GripVertical, Play, History, Settings, X } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmScheduleTable } from './CmScheduleTable';
 import { CmAddScheduleModal } from './CmAddScheduleModal';
 import { CmEditScheduleModal } from './CmEditScheduleModal';
@@ -23,10 +24,27 @@ import {
 import { executeSingleSchedule } from '@/lib/cm/scheduled-jobs/runScheduleAction';
 import type { CmScheduledJobType, CmAvailableJobType } from '@/types/cm/scheduledJobs';
 
+// =============================================================
+// Types
+// =============================================================
+
 type Props = {
   scheduledJobTypes: CmScheduledJobType[];
   availableJobTypes: CmAvailableJobType[];
 };
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
+// =============================================================
+// Component
+// =============================================================
 
 export function CmSchedulesPageContent({
   scheduledJobTypes,
@@ -44,7 +62,6 @@ export function CmSchedulesPageContent({
   // ローカル状態（楽観的更新用）
   const [localJobTypes, setLocalJobTypes] = useState(scheduledJobTypes);
 
-  // scheduledJobTypes（props）が変更されたらlocalJobTypesも更新
   React.useEffect(() => {
     setLocalJobTypes(scheduledJobTypes);
   }, [scheduledJobTypes]);
@@ -58,17 +75,15 @@ export function CmSchedulesPageContent({
 
   // 並び順変更（ドラッグ後）
   const handleReorder = useCallback(async (newOrder: number[]) => {
-    // 楽観的更新
     const reordered = newOrder.map((id, index) => {
       const item = localJobTypes.find((jt) => jt.id === id);
       return item ? { ...item, schedule_order: index + 1 } : null;
     }).filter(Boolean) as CmScheduledJobType[];
     setLocalJobTypes(reordered);
 
-    // サーバー更新
-    const result = await reorderSchedules({ order: newOrder });
+    const token = await getAccessToken();
+    const result = await reorderSchedules({ order: newOrder }, token);
     if (result.ok === false) {
-      // 失敗時はリバート
       setLocalJobTypes(scheduledJobTypes);
       alert(`並び順の更新に失敗しました: ${result.error}`);
     }
@@ -78,16 +93,15 @@ export function CmSchedulesPageContent({
   const handleToggleActive = useCallback(async (jobType: CmScheduledJobType) => {
     const newValue = !jobType.is_scheduled;
     
-    // 楽観的更新
     setLocalJobTypes((prev) =>
       prev.map((jt) =>
-        jt.id === jobType.id ? { ...jt, is_scheduled: newValue } : jt
-      )
+        jt.id === jobType.id ? { ...jt, is_scheduled: newValue } : jt,
+      ),
     );
 
-    const result = await toggleScheduleActive(jobType.id, newValue);
+    const token = await getAccessToken();
+    const result = await toggleScheduleActive(jobType.id, newValue, token);
     if (result.ok === false) {
-      // 失敗時はリバート
       setLocalJobTypes(scheduledJobTypes);
       alert(`更新に失敗しました: ${result.error}`);
     } else {
@@ -101,7 +115,8 @@ export function CmSchedulesPageContent({
       return;
     }
 
-    const result = await executeSingleSchedule(jobType.id);
+    const token = await getAccessToken();
+    const result = await executeSingleSchedule(jobType.id, token);
     if (result.ok === true) {
       alert(`実行完了: ジョブ #${result.result.created_job_id} を作成しました`);
       refresh();
@@ -114,13 +129,14 @@ export function CmSchedulesPageContent({
   const handleAdd = useCallback(async (
     jobTypeId: number,
     payload: Record<string, unknown>,
-    cancelPending: boolean
+    cancelPending: boolean,
   ) => {
+    const token = await getAccessToken();
     const result = await addSchedule({
       jobTypeId,
       schedulePayload: payload,
       scheduleCancelPending: cancelPending,
-    });
+    }, token);
 
     if (result.ok === true) {
       setIsAddModalOpen(false);
@@ -135,14 +151,15 @@ export function CmSchedulesPageContent({
     jobTypeId: number,
     payload: Record<string, unknown>,
     cancelPending: boolean,
-    isScheduled: boolean
+    isScheduled: boolean,
   ) => {
+    const token = await getAccessToken();
     const result = await updateSchedule({
       jobTypeId,
       schedulePayload: payload,
       scheduleCancelPending: cancelPending,
       isScheduled,
-    });
+    }, token);
 
     if (result.ok === true) {
       setEditTarget(null);
@@ -154,7 +171,8 @@ export function CmSchedulesPageContent({
 
   // 除外
   const handleRemove = useCallback(async (jobTypeId: number) => {
-    const result = await removeSchedule(jobTypeId);
+    const token = await getAccessToken();
+    const result = await removeSchedule(jobTypeId, token);
 
     if (result.ok === true) {
       setRemoveTarget(null);

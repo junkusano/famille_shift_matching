@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 
 const logger = createLogger("lib/cm/clients/actions");
 
@@ -35,19 +36,25 @@ export type ActionResult<T = void> = {
 // 利用者検索（Client Componentから呼び出し可能）
 // =============================================================
 
-export async function searchClients(params: {
-  search: string;
-  status?: "active" | "inactive" | "all";
-  limit?: number;
-}): Promise<ActionResult<ClientSearchResult[]>> {
+export async function searchClients(
+  params: {
+    search: string;
+    status?: "active" | "inactive" | "all";
+    limit?: number;
+  },
+  token?: string,
+): Promise<ActionResult<ClientSearchResult[]>> {
   try {
+    // 認証・認可チェック
+    const auth = token ? await requireCmSession(token) : null;
+
     const { search, status = "active", limit = 50 } = params;
 
     if (!search.trim()) {
       return { ok: true, data: [] };
     }
 
-    logger.info("利用者検索開始", { search, status });
+    logger.info("利用者検索開始", { search, status, userId: auth?.userId });
 
     let query = supabaseAdmin
       .from("cm_kaipoke_info")
@@ -79,6 +86,9 @@ export async function searchClients(params: {
 
     return { ok: true, data: (data ?? []) as ClientSearchResult[] };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

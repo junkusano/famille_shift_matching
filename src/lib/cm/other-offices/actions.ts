@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
 import type { CmOtherOffice } from "@/types/cm/otherOffices";
 
@@ -30,9 +31,12 @@ export type ActionResult<T = void> = {
 
 export async function updateOtherOfficeFaxProxy(
   id: number,
-  faxProxy: string | null
+  faxProxy: string | null,
+  token?: string,
 ): Promise<ActionResult<CmOtherOffice>> {
   try {
+    const auth = token ? await requireCmSession(token) : null;
+
     // fax_proxy のバリデーション（nullまたは文字列のみ許可）
     if (faxProxy !== null && typeof faxProxy !== "string") {
       return { ok: false, error: "fax_proxy は文字列またはnullである必要があります" };
@@ -41,7 +45,7 @@ export async function updateOtherOfficeFaxProxy(
     // FAX番号の形式チェック（空文字はnullに変換）
     const normalizedFaxProxy = faxProxy === "" ? null : faxProxy;
 
-    logger.info("他社事業所FAX代行番号更新開始", { id, faxProxy: normalizedFaxProxy });
+    logger.info("他社事業所FAX代行番号更新開始", { id, faxProxy: normalizedFaxProxy, userId: auth?.userId });
 
     // 更新実行
     const { data: updatedOffice, error: updateError } = await supabaseAdmin
@@ -66,6 +70,7 @@ export async function updateOtherOfficeFaxProxy(
       id,
       office_name: updatedOffice.office_name,
       fax_proxy: normalizedFaxProxy,
+      userId: auth?.userId,
     });
 
     // ページを再検証
@@ -73,6 +78,9 @@ export async function updateOtherOfficeFaxProxy(
 
     return { ok: true, data: updatedOffice as CmOtherOffice };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("他社事業所更新予期せぬエラー", error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -82,8 +90,13 @@ export async function updateOtherOfficeFaxProxy(
 // 単一事業所の取得（必要に応じて使用）
 // =============================================================
 
-export async function getOtherOffice(id: number): Promise<ActionResult<CmOtherOffice>> {
+export async function getOtherOffice(
+  id: number,
+  token?: string,
+): Promise<ActionResult<CmOtherOffice>> {
   try {
+    if (token) { await requireCmSession(token); }
+
     const { data: office, error: queryError } = await supabaseAdmin
       .from("cm_kaipoke_other_office")
       .select("*")
@@ -100,6 +113,9 @@ export async function getOtherOffice(id: number): Promise<ActionResult<CmOtherOf
 
     return { ok: true, data: office as CmOtherOffice };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("他社事業所取得予期せぬエラー", error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

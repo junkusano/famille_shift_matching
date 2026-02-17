@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import {
   getJobMaster,
   getJobs,
@@ -55,6 +56,15 @@ type MasterState = {
 };
 
 // =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
+// =============================================================
 // Hook
 // =============================================================
 
@@ -99,7 +109,8 @@ export function useCmRpaJobs() {
     setMasterState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const result = await getJobMaster();
+      const token = await getAccessToken();
+      const result = await getJobMaster(undefined, token);
 
       if (result.ok === false) {
         throw new Error(result.error);
@@ -127,11 +138,12 @@ export function useCmRpaJobs() {
     setListState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
+      const token = await getAccessToken();
       const result = await getJobs({
         queue: filters.queue || undefined,
         status: filters.status || undefined,
         limit: 50,
-      });
+      }, token);
 
       if (result.ok === false) {
         throw new Error(result.error);
@@ -159,7 +171,8 @@ export function useCmRpaJobs() {
     setDetailState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const result = await getJobDetail(jobId);
+      const token = await getAccessToken();
+      const result = await getJobDetail(jobId, token);
 
       if (result.ok === false) {
         throw new Error(result.error);
@@ -188,16 +201,17 @@ export function useCmRpaJobs() {
     async (
       queue: string,
       jobType: string,
-      payload: Record<string, unknown> = {}
+      payload: Record<string, unknown> = {},
     ): Promise<{ ok: boolean; job?: CmJob; error?: string }> => {
       setCreating(true);
 
       try {
+        const token = await getAccessToken();
         const result = await createJobAction({
           queue,
           job_type: jobType,
           payload,
-        });
+        }, token);
 
         if (result.ok === false) {
           return { ok: false, error: result.error };
@@ -216,7 +230,7 @@ export function useCmRpaJobs() {
         setCreating(false);
       }
     },
-    [fetchJobs]
+    [fetchJobs],
   );
 
   // ---------------------------------------------------------
@@ -226,11 +240,12 @@ export function useCmRpaJobs() {
     async (
       jobId: number,
       status: string,
-      errorMessage?: string
+      errorMessage?: string,
     ): Promise<{ ok: boolean; error?: string }> => {
       setUpdating(true);
 
       try {
+        const token = await getAccessToken();
         const params: UpdateJobParams = {
           status: status as UpdateJobParams['status'],
         };
@@ -238,7 +253,7 @@ export function useCmRpaJobs() {
           params.error_message = errorMessage;
         }
 
-        const result = await updateJobAction(jobId, params);
+        const result = await updateJobAction(jobId, params, token);
 
         if (result.ok === false) {
           return { ok: false, error: result.error };
@@ -257,7 +272,7 @@ export function useCmRpaJobs() {
         setUpdating(false);
       }
     },
-    [fetchJobs]
+    [fetchJobs],
   );
 
   // ---------------------------------------------------------

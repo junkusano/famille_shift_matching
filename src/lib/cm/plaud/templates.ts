@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
 
 const logger = createLogger("lib/cm/plaud/templates");
@@ -42,10 +43,13 @@ export type ActionResult<T = void> = {
 // =============================================================
 
 export async function getPlaudTemplates(
-  activeOnly: boolean = true
+  activeOnly: boolean = true,
+  token?: string,
 ): Promise<ActionResult<PlaudTemplate[]>> {
   try {
-    logger.info("テンプレート一覧取得開始", { activeOnly });
+    const auth = token ? await requireCmSession(token) : null;
+
+    logger.info("テンプレート一覧取得開始", { activeOnly, userId: auth?.userId });
 
     let query = supabaseAdmin
       .from("cm_plaud_mgmt_templates")
@@ -67,6 +71,9 @@ export async function getPlaudTemplates(
 
     return { ok: true, data: (data ?? []) as PlaudTemplate[] };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -77,9 +84,12 @@ export async function getPlaudTemplates(
 // =============================================================
 
 export async function getPlaudTemplate(
-  id: number
+  id: number,
+  token?: string,
 ): Promise<ActionResult<PlaudTemplate>> {
   try {
+    if (token) { await requireCmSession(token); }
+
     const { data, error } = await supabaseAdmin
       .from("cm_plaud_mgmt_templates")
       .select("*")
@@ -92,6 +102,9 @@ export async function getPlaudTemplate(
 
     return { ok: true, data: data as PlaudTemplate };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -101,15 +114,20 @@ export async function getPlaudTemplate(
 // テンプレート作成
 // =============================================================
 
-export async function createPlaudTemplate(data: {
-  name: string;
-  description?: string | null;
-  system_prompt?: string | null;
-  user_prompt_template: string;
-  is_active?: boolean;
-  sort_order?: number;
-}): Promise<ActionResult<PlaudTemplate>> {
+export async function createPlaudTemplate(
+  data: {
+    name: string;
+    description?: string | null;
+    system_prompt?: string | null;
+    user_prompt_template: string;
+    is_active?: boolean;
+    sort_order?: number;
+  },
+  token?: string,
+): Promise<ActionResult<PlaudTemplate>> {
   try {
+    const auth = token ? await requireCmSession(token) : null;
+
     // バリデーション
     if (!data.name || typeof data.name !== "string" || data.name.trim() === "") {
       return { ok: false, error: "テンプレート名は必須です" };
@@ -119,7 +137,7 @@ export async function createPlaudTemplate(data: {
       return { ok: false, error: "ユーザープロンプトテンプレートは必須です" };
     }
 
-    logger.info("テンプレート作成開始", { name: data.name });
+    logger.info("テンプレート作成開始", { name: data.name, userId: auth?.userId });
 
     // sort_orderが指定されていない場合は最大値+1
     let sortOrder = data.sort_order;
@@ -156,12 +174,15 @@ export async function createPlaudTemplate(data: {
       return { ok: false, error: "テンプレートの作成に失敗しました" };
     }
 
-    logger.info("テンプレート作成完了", { id: created.id });
+    logger.info("テンプレート作成完了", { id: created.id, userId: auth?.userId });
 
     revalidatePath("/cm-portal/plaud");
 
     return { ok: true, data: created as PlaudTemplate };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -180,26 +201,15 @@ export async function updatePlaudTemplate(
     user_prompt_template?: string;
     is_active?: boolean;
     sort_order?: number;
-  }
+  },
+  token?: string,
 ): Promise<ActionResult<PlaudTemplate>> {
   try {
-    logger.info("テンプレート更新開始", { id });
+    const auth = token ? await requireCmSession(token) : null;
 
-    // 存在確認
-    const { data: existing, error: fetchError } = await supabaseAdmin
-      .from("cm_plaud_mgmt_templates")
-      .select("id")
-      .eq("id", id)
-      .single();
+    logger.info("テンプレート更新開始", { id, userId: auth?.userId });
 
-    if (fetchError || !existing) {
-      return { ok: false, error: "テンプレートが見つかりません" };
-    }
-
-    // 更新データ構築
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
+    const updateData: Record<string, unknown> = {};
 
     if (data.name !== undefined) {
       if (typeof data.name !== "string" || data.name.trim() === "") {
@@ -243,12 +253,15 @@ export async function updatePlaudTemplate(
       return { ok: false, error: "更新に失敗しました" };
     }
 
-    logger.info("テンプレート更新完了", { id });
+    logger.info("テンプレート更新完了", { id, userId: auth?.userId });
 
     revalidatePath("/cm-portal/plaud");
 
     return { ok: true, data: updated as PlaudTemplate };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -259,10 +272,13 @@ export async function updatePlaudTemplate(
 // =============================================================
 
 export async function deletePlaudTemplate(
-  id: number
+  id: number,
+  token?: string,
 ): Promise<ActionResult<{ deletedId: number }>> {
   try {
-    logger.info("テンプレート削除開始", { id });
+    const auth = token ? await requireCmSession(token) : null;
+
+    logger.info("テンプレート削除開始", { id, userId: auth?.userId });
 
     // 存在確認
     const { data: existing, error: fetchError } = await supabaseAdmin
@@ -286,12 +302,15 @@ export async function deletePlaudTemplate(
       return { ok: false, error: "削除に失敗しました" };
     }
 
-    logger.info("テンプレート削除完了", { id });
+    logger.info("テンプレート削除完了", { id, userId: auth?.userId });
 
     revalidatePath("/cm-portal/plaud");
 
     return { ok: true, data: { deletedId: id } };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

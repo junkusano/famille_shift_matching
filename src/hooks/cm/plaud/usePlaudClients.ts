@@ -5,7 +5,8 @@
 
 import { useState, useCallback } from 'react';
 import { searchClients } from '@/lib/cm/clients/actions';
-import { CmClient } from '@/types/cm/plaud';
+import { supabase } from '@/lib/supabaseClient';
+import type { CmClient } from '@/types/cm/plaud';
 
 // =============================================================
 // 型定義
@@ -20,6 +21,15 @@ type UsePlaudClientsReturn = {
   error: string | null;
   clear: () => void;
 };
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // =============================================================
 // フック本体
@@ -42,11 +52,17 @@ export function usePlaudClients(): UsePlaudClientsReturn {
     setError(null);
 
     try {
+      // トークン取得
+      const token = await getAccessToken();
+
       // searchClients Server Action を使用
-      const result = await searchClients({
-        search: query,
-        status: 'active',
-      });
+      const result = await searchClients(
+        {
+          search: query,
+          status: 'active',
+        },
+        token,
+      );
 
       if (result.ok === false){
         throw new Error(result.error);

@@ -7,6 +7,7 @@
 
 import { createLogger, generateTraceId } from "@/lib/common/logger";
 import { cmAlertBatchOrchestrator } from "@/lib/cm/alert-batch/orchestrator";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import type { CmBatchStats } from "@/types/cm/alert-batch";
 
@@ -29,40 +30,36 @@ export type RunAlertBatchResult = {
 // Server Action: アラートバッチを手動実行
 // =============================================================
 
-export async function runAlertBatch(authUserId: string): Promise<RunAlertBatchResult> {
+export async function runAlertBatch(token?: string): Promise<RunAlertBatchResult> {
   const traceId = generateTraceId();
   const log = logger.withTrace(traceId);
 
   try {
-    // 1. usersテーブルからuser_idとsystem_roleを取得
+    // トークン検証（認証・service_type チェック）
+    const auth = token ? await requireCmSession(token) : null;
+
+    // users テーブルから system_role を取得（認可チェック）
     const { data: userData, error: userError } = await supabaseAdmin
       .from("users")
-      .select("user_id, system_role, service_type")
-      .eq("auth_user_id", authUserId)
+      .select("user_id, system_role")
+      .eq("user_id", auth?.userId)
       .single();
 
     if (userError || !userData) {
-      log.warn("ユーザー情報取得失敗", { authUserId, error: userError?.message });
+      log.warn("ユーザー情報取得失敗", { userId: auth?.userId, error: userError?.message });
       return { ok: false, error: "ユーザー情報を取得できません" };
     }
 
-    // 2. service_type チェック（kyotaku or both のみ許可）
-    const allowedServiceTypes = ["kyotaku", "both"];
-    if (!allowedServiceTypes.includes(userData.service_type)) {
-      log.warn("サービスタイプエラー", { authUserId, serviceType: userData.service_type });
-      return { ok: false, error: "このサービスへのアクセス権限がありません" };
-    }
-
-    // 3. 権限チェック（admin, manager, senior_care_manager のみ許可）
+    // 権限チェック（admin, manager, senior_care_manager のみ許可）
     const allowedRoles = ["admin", "manager", "senior_care_manager"];
     if (!allowedRoles.includes(userData.system_role)) {
-      log.warn("権限エラー", { authUserId, role: userData.system_role });
+      log.warn("権限エラー", { userId: auth?.userId, role: userData.system_role });
       return { ok: false, error: "バッチ実行権限がありません" };
     }
 
     log.info("手動バッチ実行開始", { userId: userData.user_id, role: userData.system_role });
 
-    // 4. バッチ実行
+    // バッチ実行
     const result = await cmAlertBatchOrchestrator({
       runType: "manual",
       triggeredBy: userData.user_id,
@@ -89,7 +86,10 @@ export async function runAlertBatch(authUserId: string): Promise<RunAlertBatchRe
       };
     }
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     log.error("手動バッチ実行エラー", error as Error);
-    return { ok: false, error: "Internal Server Error" };
+    return { ok: false, error: "サーバーエラーが発生しました" };
   }
 }

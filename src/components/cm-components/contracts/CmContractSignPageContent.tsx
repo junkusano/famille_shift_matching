@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import {
   updateContract,
@@ -37,6 +38,15 @@ type Props = {
   kaipokeCsId: string;
   contractId: string;
 };
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // =============================================================
 // Component
@@ -65,10 +75,12 @@ export function CmContractSignPageContent({ kaipokeCsId, contractId }: Props) {
     try {
       setLoading(true);
 
+      const token = await getAccessToken();
+
       const [contractResult, methodsResult, docsResult] = await Promise.all([
         getContractDetail(contractId),
-        getVerificationMethods(),
-        getVerificationDocuments(),
+        getVerificationMethods(token),
+        getVerificationDocuments(token),
       ]);
 
       if (contractResult.ok === true) {
@@ -114,6 +126,8 @@ export function CmContractSignPageContent({ kaipokeCsId, contractId }: Props) {
       setSubmitting(true);
       setError(null);
 
+      const token = await getAccessToken();
+
       const result = await updateContract({
         contractId,
         status: 'signing',
@@ -122,7 +136,7 @@ export function CmContractSignPageContent({ kaipokeCsId, contractId }: Props) {
         verification_document_other:
           selectedDoc?.code === 'other' ? docOther.trim() : null,
         verification_at: new Date().toISOString(),
-      });
+      }, token);
 
       if (result.ok === true) {
         router.push(`/cm-portal/clients/${kaipokeCsId}/contracts/${contractId}`);
@@ -161,7 +175,7 @@ export function CmContractSignPageContent({ kaipokeCsId, contractId }: Props) {
     );
   }
 
-  const hasConsent = !!contractData.consent;
+  const hasConsent = !contractData.consent;
 
   // ---------------------------------------------------------
   // レンダリング

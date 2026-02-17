@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import type {
   CmVerificationMethod,
   CmVerificationDocument,
@@ -30,18 +31,10 @@ export type CreateConsentParams = {
   kaipoke_cs_id: string;
   consent_electronic: boolean;
   consent_recording: boolean;
-  signer_type: "self" | "scribe" | "agent";
-
-  // 代筆者情報（signer_type === 'scribe' の場合）
-  scribe_name?: string;
-  scribe_relationship?: string;
-  scribe_reason?: string;
-
-  // 代理人情報（signer_type === 'agent' の場合）
-  agent_name?: string;
-  agent_relationship?: string;
-  agent_authority?: string;
-
+  signer_type: "self" | "proxy";
+  proxy_name?: string;
+  proxy_relationship?: string;
+  proxy_reason?: string;
   signature_image_base64?: string;
   staff_id: string;
   ip_address?: string;
@@ -49,20 +42,20 @@ export type CreateConsentParams = {
 };
 
 export async function createConsent(
-  params: CreateConsentParams
+  params: CreateConsentParams,
+  token?: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
+    const auth = token ? await requireCmSession(token) : null;
+
     const {
       kaipoke_cs_id,
       consent_electronic,
       consent_recording,
       signer_type,
-      scribe_name,
-      scribe_relationship,
-      scribe_reason,
-      agent_name,
-      agent_relationship,
-      agent_authority,
+      proxy_name,
+      proxy_relationship,
+      proxy_reason,
       staff_id,
       ip_address,
       user_agent,
@@ -73,17 +66,14 @@ export async function createConsent(
       return { ok: false, error: "必須項目が不足しています" };
     }
 
-    if (signer_type === "scribe" && !scribe_name) {
-      return { ok: false, error: "代筆者氏名は必須です" };
-    }
-
-    if (signer_type === "agent" && !agent_name) {
+    if (signer_type === "proxy" && !proxy_name) {
       return { ok: false, error: "代理人氏名は必須です" };
     }
 
     logger.info("同意登録開始", {
       kaipokeCsId: kaipoke_cs_id,
       signerType: signer_type,
+      userId: auth?.userId,
     });
 
     // TODO: Google Drive API 連携実装時に署名画像アップロードを有効化
@@ -98,14 +88,9 @@ export async function createConsent(
         consent_electronic: consent_electronic ?? false,
         consent_recording: consent_recording ?? false,
         signer_type,
-        // 代筆者情報
-        scribe_name: signer_type === "scribe" ? scribe_name : null,
-        scribe_relationship_code: signer_type === "scribe" ? scribe_relationship : null,
-        scribe_reason_code: signer_type === "scribe" ? scribe_reason : null,
-        // 代理人情報
-        agent_name: signer_type === "agent" ? agent_name : null,
-        agent_relationship_code: signer_type === "agent" ? agent_relationship : null,
-        agent_authority: signer_type === "agent" ? agent_authority : null,
+        proxy_name: signer_type === "proxy" ? proxy_name : null,
+        proxy_relationship: signer_type === "proxy" ? proxy_relationship : null,
+        proxy_reason: signer_type === "proxy" ? proxy_reason : null,
         gdrive_file_id: gdriveFileId,
         gdrive_file_url: gdriveFileUrl,
         gdrive_file_path: gdriveFilePath,
@@ -118,12 +103,15 @@ export async function createConsent(
 
     if (error) {
       logger.error("同意登録エラー", { message: error.message });
-      return { ok: false, error: error.message };
+      return { ok: false, error: "同意登録に失敗しました" };
     }
 
-    logger.info("同意登録完了", { consentId: data.id });
+    logger.info("同意登録完了", { consentId: data.id, userId: auth?.userId });
     return { ok: true, data: { id: data.id } };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -150,12 +138,15 @@ export type UpdateContractParams = {
 };
 
 export async function updateContract(
-  params: UpdateContractParams
+  params: UpdateContractParams,
+  token?: string,
 ): Promise<ActionResult> {
   try {
+    const auth = token ? await requireCmSession(token) : null;
+
     const { contractId, ...fields } = params;
 
-    logger.info("契約更新開始", { contractId, fields: Object.keys(fields) });
+    logger.info("契約更新開始", { contractId, fields: Object.keys(fields), userId: auth?.userId });
 
     // 更新可能なフィールドのみ抽出
     const allowedFields = [
@@ -191,12 +182,15 @@ export async function updateContract(
 
     if (error) {
       logger.error("契約更新エラー", { message: error.message });
-      return { ok: false, error: error.message };
+      return { ok: false, error: "契約更新に失敗しました" };
     }
 
-    logger.info("契約更新完了", { contractId });
+    logger.info("契約更新完了", { contractId, userId: auth?.userId });
     return { ok: true };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -206,10 +200,14 @@ export async function updateContract(
 // 本人確認方法マスタ取得
 // =============================================================
 
-export async function getVerificationMethods(): Promise<
-  ActionResult<CmVerificationMethod[]>
-> {
+export async function getVerificationMethods(
+  token?: string,
+): Promise<ActionResult<CmVerificationMethod[]>> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("cm_contract_verification_methods")
       .select("id, code, name, description")
@@ -217,11 +215,15 @@ export async function getVerificationMethods(): Promise<
       .order("sort_order", { ascending: true });
 
     if (error) {
-      return { ok: false, error: error.message };
+      logger.error("本人確認方法マスタ取得エラー", { message: error.message });
+      return { ok: false, error: "マスタデータの取得に失敗しました" };
     }
 
     return { ok: true, data: (data ?? []) as CmVerificationMethod[] };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -231,10 +233,14 @@ export async function getVerificationMethods(): Promise<
 // 本人確認書類マスタ取得
 // =============================================================
 
-export async function getVerificationDocuments(): Promise<
-  ActionResult<CmVerificationDocument[]>
-> {
+export async function getVerificationDocuments(
+  token?: string,
+): Promise<ActionResult<CmVerificationDocument[]>> {
   try {
+    if (token) {
+      if (token) { await requireCmSession(token); }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("cm_contract_verification_documents")
       .select("id, code, name, description")
@@ -242,11 +248,15 @@ export async function getVerificationDocuments(): Promise<
       .order("sort_order", { ascending: true });
 
     if (error) {
-      return { ok: false, error: error.message };
+      logger.error("本人確認書類マスタ取得エラー", { message: error.message });
+      return { ok: false, error: "マスタデータの取得に失敗しました" };
     }
 
     return { ok: true, data: (data ?? []) as CmVerificationDocument[] };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
