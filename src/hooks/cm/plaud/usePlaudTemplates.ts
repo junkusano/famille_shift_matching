@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import {
   getPlaudTemplates,
   createPlaudTemplate,
@@ -15,6 +16,15 @@ import {
   CmPlaudTemplateCreateRequest,
   CmPlaudTemplateUpdateRequest,
 } from '@/types/cm/plaud';
+
+// =============================================================
+// 認証トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // =============================================================
 // 型定義
@@ -45,7 +55,8 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     setError(null);
 
     try {
-      const result = await getPlaudTemplates(activeOnly);
+      const token = await getAccessToken();
+      const result = await getPlaudTemplates(activeOnly, token);
 
       if (result.ok === false){
         throw new Error(result.error);
@@ -70,7 +81,8 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     data: CmPlaudTemplateCreateRequest
   ): Promise<PlaudTemplate | null> => {
     try {
-      const result = await createPlaudTemplate(data);
+      const token = await getAccessToken();
+      const result = await createPlaudTemplate(data, token);
 
       if (result.ok === false){
         throw new Error(result.error);
@@ -94,7 +106,8 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
     data: CmPlaudTemplateUpdateRequest
   ): Promise<PlaudTemplate | null> => {
     try {
-      const result = await updatePlaudTemplate(id, data);
+      const token = await getAccessToken();
+      const result = await updatePlaudTemplate(id, data, token);
 
       if (result.ok === false){
         throw new Error(result.error);
@@ -117,7 +130,8 @@ export function usePlaudTemplates(activeOnly: boolean = false): UsePlaudTemplate
   // 削除
   const remove = useCallback(async (id: number): Promise<boolean> => {
     try {
-      const result = await deletePlaudTemplate(id);
+      const token = await getAccessToken();
+      const result = await deletePlaudTemplate(id, token);
 
       if (result.ok === false){
         throw new Error(result.error);
