@@ -1,6 +1,12 @@
-// =============================================================
 // src/lib/cm/scheduled-jobs/runScheduleAction.ts
 // スケジュール実行用のServer Action（Client Componentから呼び出し用）
+//
+// セキュリティ:
+//   requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
+//
+// ※ cron/バッチからの実行は executor.ts 内の同名関数が使用される
 // =============================================================
 
 'use server';
@@ -23,12 +29,12 @@ const logger = createLogger('lib/cm/scheduled-jobs/runScheduleAction');
  */
 export async function executeSingleSchedule(
   jobTypeId: number,
-  token?: string,
+  token: string,
 ): Promise<ExecuteSingleScheduleResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('手動実行開始', { jobTypeId, userId: auth?.userId });
+    logger.info('手動実行開始', { jobTypeId, userId: auth.userId });
 
     // ジョブタイプを取得
     const { data: jobType, error: fetchError } = await supabaseAdmin
@@ -125,126 +131,77 @@ async function executeScheduleInternal(
     result.created_job_id = newJob.id;
     result.status = 'success';
 
-    logger.info('スケジュール実行成功', {
+    logger.info('スケジュール実行完了', {
       job_type_id: jobType.id,
-      cancelledCount: result.cancelled_job_ids.length,
-      createdJobId: result.created_job_id,
+      created_job_id: newJob.id,
+      cancelled: result.cancelled_job_ids.length,
     });
-
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     result.status = 'failed';
-    result.error_message = error instanceof Error ? error.message : String(error);
-
-    logger.error('スケジュール実行失敗', {
-      job_type_id: jobType.id,
-      error: result.error_message,
-    });
+    result.error_message = message;
+    logger.error('スケジュール実行失敗', { job_type_id: jobType.id, error: message });
   }
 
-  // 4. 実行履歴を記録
-  await recordRun(jobType.id, result, startedAt, triggeredBy);
-
-  // 5. cm_job_types の schedule_last_run 情報を更新
-  await updateLastRun(jobType.id, result);
+  // 4. 実行ログを記録
+  await supabaseAdmin.from('cm_schedule_runs').insert({
+    job_type_id: jobType.id,
+    triggered_by: triggeredBy,
+    status: result.status,
+    created_job_id: result.created_job_id,
+    cancelled_job_ids: result.cancelled_job_ids,
+    error_message: result.error_message,
+    started_at: startedAt,
+    completed_at: new Date().toISOString(),
+  });
 
   return result;
 }
 
 // =============================================================
-// ヘルパー関数
+// ヘルパー: pending ジョブキャンセル
 // =============================================================
 
-async function cancelPendingJobs(
-  queueCode: string,
-  jobTypeCode: string,
-): Promise<number[]> {
-  const { data: pendingJobs, error: fetchError } = await supabaseAdmin
+async function cancelPendingJobs(queueCode: string, jobTypeCode: string): Promise<number[]> {
+  const { data: pendingJobs, error } = await supabaseAdmin
     .from('cm_jobs')
     .select('id')
     .eq('queue', queueCode)
     .eq('job_type', jobTypeCode)
     .eq('status', 'pending');
 
-  if (fetchError || !pendingJobs || pendingJobs.length === 0) {
+  if (error || !pendingJobs || pendingJobs.length === 0) {
     return [];
   }
 
-  const jobIds = pendingJobs.map((j) => j.id);
+  const ids = pendingJobs.map((j) => j.id);
 
-  const { error: updateError } = await supabaseAdmin
+  await supabaseAdmin
     .from('cm_jobs')
     .update({ status: 'cancelled' })
-    .in('id', jobIds);
+    .in('id', ids);
 
-  if (updateError) {
-    logger.warn('pendingジョブキャンセル失敗', { error: updateError.message });
-    return [];
-  }
+  logger.info('pending ジョブをキャンセル', { count: ids.length, ids });
 
-  return jobIds;
+  return ids;
 }
 
-function resolvePayload(
-  payload: Record<string, unknown>,
-): Record<string, unknown> {
-  const resolved = { ...payload };
-  const now = new Date();
+// =============================================================
+// ヘルパー: payload 動的変換
+// =============================================================
 
-  for (const [key, value] of Object.entries(resolved)) {
-    if (value === 'auto') {
-      if (key === 'year_month') {
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        resolved[key] = `${year}-${month}`;
-      } else if (key === 'date') {
-        resolved[key] = now.toISOString().split('T')[0];
-      } else {
-        resolved[key] = now.toISOString();
-      }
+function resolvePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const resolved: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === '{{today}}') {
+      resolved[key] = new Date().toISOString().split('T')[0];
+    } else if (value === '{{now}}') {
+      resolved[key] = new Date().toISOString();
+    } else {
+      resolved[key] = value;
     }
   }
 
   return resolved;
-}
-
-async function recordRun(
-  jobTypeId: number,
-  result: CmScheduleRunResult,
-  startedAt: string,
-  triggeredBy: CmScheduledJobTrigger,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('cm_scheduled_job_runs')
-    .insert({
-      job_type_id: jobTypeId,
-      status: result.status,
-      cancelled_job_ids: result.cancelled_job_ids,
-      created_job_id: result.created_job_id,
-      error_message: result.error_message,
-      started_at: startedAt,
-      finished_at: new Date().toISOString(),
-      triggered_by: triggeredBy,
-    });
-
-  if (error) {
-    logger.error('実行履歴記録失敗', { error: error.message });
-  }
-}
-
-async function updateLastRun(
-  jobTypeId: number,
-  result: CmScheduleRunResult,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('cm_job_types')
-    .update({
-      schedule_last_run_at: new Date().toISOString(),
-      schedule_last_run_status: result.status,
-      schedule_last_created_job_id: result.created_job_id,
-    })
-    .eq('id', jobTypeId);
-
-  if (error) {
-    logger.error('schedule_last_run更新失敗', { error: error.message });
-  }
 }

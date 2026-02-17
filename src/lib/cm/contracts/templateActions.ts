@@ -1,6 +1,12 @@
-// =============================================================
 // src/lib/cm/contracts/templateActions.ts
 // テンプレート管理 Server Actions
+//
+// セキュリティ:
+//   書き込み系（updateTemplate）は requireCmSession(token) を必須実施。
+//   読み取り系（getTemplateList, getTemplateByCode, getActiveTemplates）は
+//   Server Component (page.tsx) からも呼ばれるため token はオプション。
+//   ※ 将来的には Server Component → lib関数直接呼び出しに移行し、
+//     全 Server Actions で token 必須化を推奨。
 // =============================================================
 
 'use server';
@@ -42,12 +48,13 @@ function handleActionError(
 // =============================================================
 // テンプレート一覧取得
 // ※ Server Component (page.tsx) からも呼ばれるため token はオプション
+// TODO: Server Component は lib関数を直接呼ぶよう移行し、token 必須化する
 // =============================================================
 
 export async function getTemplateList(token?: string): Promise<ActionResult<CmContractTemplateListItem[]>> {
   try {
     if (token) {
-      if (token) { await requireCmSession(token); }
+      await requireCmSession(token);
     }
 
     logger.debug('テンプレート一覧取得開始');
@@ -110,6 +117,7 @@ export async function getTemplateList(token?: string): Promise<ActionResult<CmCo
 // =============================================================
 // テンプレート詳細取得（コードで）
 // ※ createContract.ts 内部からも呼ばれるため token はオプション
+// TODO: 内部呼び出しは lib関数を直接呼ぶよう移行し、token 必須化する
 // =============================================================
 
 export async function getTemplateByCode(
@@ -118,7 +126,7 @@ export async function getTemplateByCode(
 ): Promise<ActionResult<CmContractTemplate>> {
   try {
     if (token) {
-      if (token) { await requireCmSession(token); }
+      await requireCmSession(token);
     }
 
     logger.debug('テンプレート取得開始', { code });
@@ -148,18 +156,18 @@ export async function getTemplateByCode(
 export async function updateTemplate(
   code: CmContractTemplateCode,
   htmlContent: string,
-  token?: string,
+  token: string,
 ): Promise<ActionResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('テンプレート更新開始', { code, userId: auth?.userId });
+    logger.info('テンプレート更新開始', { code, userId: auth.userId });
 
     const { error } = await supabaseAdmin
       .from('cm_contract_templates')
       .update({ 
         html_content: htmlContent,
-        updated_by: auth?.userId,
+        updated_by: auth.userId,
       })
       .eq('code', code);
 
@@ -168,7 +176,7 @@ export async function updateTemplate(
       return { ok: false, error: '更新に失敗しました' };
     }
 
-    logger.info('テンプレート更新完了', { code, userId: auth?.userId });
+    logger.info('テンプレート更新完了', { code, userId: auth.userId });
     return { ok: true };
   } catch (error) {
     return handleActionError(error, 'テンプレート更新エラー');
@@ -177,12 +185,14 @@ export async function updateTemplate(
 
 // =============================================================
 // 有効なテンプレート一覧取得（契約作成用）
+// ※ Server Component からも呼ばれるため token はオプション
+// TODO: Server Component は lib関数を直接呼ぶよう移行し、token 必須化する
 // =============================================================
 
 export async function getActiveTemplates(token?: string): Promise<ActionResult<CmContractTemplateListItem[]>> {
   try {
     if (token) {
-      if (token) { await requireCmSession(token); }
+      await requireCmSession(token);
     }
 
     const { data, error } = await supabaseAdmin

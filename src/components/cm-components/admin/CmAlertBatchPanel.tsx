@@ -1,5 +1,7 @@
+// =============================================================
 // src/components/cm-components/admin/CmAlertBatchPanel.tsx
 // CMアラートバッチ管理パネル
+// =============================================================
 
 "use client";
 
@@ -15,6 +17,15 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { runAlertBatch, type RunAlertBatchResult } from "@/lib/cm/alert-batch/actions";
+
+// ============================================================
+// トークン取得ヘルパー
+// ============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // ============================================================
 // 型定義
@@ -142,16 +153,16 @@ export function CmAlertBatchPanel() {
     setError(null);
 
     try {
-      // 認証ユーザーを取得
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData?.user) {
+      // アクセストークンを取得（※ user.id ではなく access_token を渡す）
+      const token = await getAccessToken();
+      if (!token) {
         setError("認証されていません。再ログインしてください。");
         setLastResult({ ok: false, error: "認証されていません。再ログインしてください。" });
         return;
       }
 
       // Server Action を呼び出し
-      const result = await runAlertBatch(authData.user.id);
+      const result = await runAlertBatch(token);
       setLastResult(result);
 
       if (result.ok === false){

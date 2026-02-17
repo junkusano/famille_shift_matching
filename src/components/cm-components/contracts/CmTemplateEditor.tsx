@@ -9,12 +9,22 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCmUserContext } from '@/context/cm/CmUserContext';
 import { updateTemplate } from '@/lib/cm/contracts/templateActions';
+import { supabase } from '@/lib/supabaseClient';
 import {
   CM_DIGISIGNER_TAGS,
   CM_TAG_CATEGORY_LABELS,
   getTagsByCategory,
 } from '@/types/cm/contractTemplate';
 import type { CmContractTemplate, CmContractTemplateCode } from '@/types/cm/contractTemplate';
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // =============================================================
 // Types
@@ -119,10 +129,12 @@ export function CmTemplateEditor({ template }: Props) {
       setSaving(true);
       setSaveResult(null);
 
+      // アクセストークンを取得（※ user.userId ではなく access_token を渡す）
+      const token = await getAccessToken();
       const result = await updateTemplate(
         template.code as CmContractTemplateCode,
         htmlContent,
-        user.userId
+        token
       );
 
       if (result.ok) {

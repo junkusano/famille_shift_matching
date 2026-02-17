@@ -11,11 +11,25 @@ import { RefreshCw } from "lucide-react";
 import { CmOtherOfficeFilters } from "@/components/cm-components/other-offices/CmOtherOfficeFilters";
 import { CmOtherOfficeTable } from "@/components/cm-components/other-offices/CmOtherOfficeTable";
 import { updateOtherOfficeFaxProxy } from "@/lib/cm/other-offices/actions";
+import { supabase } from "@/lib/supabaseClient";
 import type {
   CmOtherOffice,
   CmOtherOfficePagination,
   CmOtherOfficeFilters as FiltersType,
 } from "@/types/cm/otherOffices";
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
+// =============================================================
+// Types
+// =============================================================
 
 type Props = {
   offices: CmOtherOffice[];
@@ -23,6 +37,10 @@ type Props = {
   pagination: CmOtherOfficePagination;
   initialFilters: FiltersType;
 };
+
+// =============================================================
+// Component
+// =============================================================
 
 export function CmOtherOfficesPageContent({
   offices: initialOffices,
@@ -119,7 +137,8 @@ export function CmOtherOfficesPageContent({
       setUpdateError(null);
 
       try {
-        const result = await updateOtherOfficeFaxProxy(id, faxProxy);
+        const token = await getAccessToken();
+        const result = await updateOtherOfficeFaxProxy(id, faxProxy, token);
 
         if (result.ok === false){
           setUpdateError(result.error);

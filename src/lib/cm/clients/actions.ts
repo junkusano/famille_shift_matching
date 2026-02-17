@@ -1,6 +1,10 @@
-// =============================================================
 // src/lib/cm/clients/actions.ts
 // 利用者関連 Server Actions（Client Componentから呼び出し可能）
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 "use server";
@@ -42,11 +46,11 @@ export async function searchClients(
     status?: "active" | "inactive" | "all";
     limit?: number;
   },
-  token?: string,
+  token: string,
 ): Promise<ActionResult<ClientSearchResult[]>> {
   try {
     // 認証・認可チェック
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     const { search, status = "active", limit = 50 } = params;
 
@@ -54,7 +58,7 @@ export async function searchClients(
       return { ok: true, data: [] };
     }
 
-    logger.info("利用者検索開始", { search, status, userId: auth?.userId });
+    logger.info("利用者検索開始", { search, status, userId: auth.userId });
 
     let query = supabaseAdmin
       .from("cm_kaipoke_info")
@@ -82,7 +86,7 @@ export async function searchClients(
       return { ok: false, error: "検索に失敗しました" };
     }
 
-    logger.info("利用者検索完了", { count: data?.length ?? 0 });
+    logger.info("利用者検索完了", { count: data?.length ?? 0, userId: auth.userId });
 
     return { ok: true, data: (data ?? []) as ClientSearchResult[] };
   } catch (error) {

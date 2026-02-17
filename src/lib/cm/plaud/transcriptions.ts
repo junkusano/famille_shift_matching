@@ -1,6 +1,11 @@
-// =============================================================
 // src/lib/cm/plaud/transcriptions.ts
 // Plaud文字起こし Server Actions（管理画面用）
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - registered_by による所有者チェック（認可）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 "use server";
@@ -124,12 +129,12 @@ async function fetchClientNameMap(clientIds: string[]): Promise<Map<string, stri
 
 export async function getPlaudTranscription(
   id: number,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<PlaudTranscription>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    const userId = await resolveInternalUserId(auth?.userId);
+    const userId = await resolveInternalUserId(auth.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした" };
     }
@@ -170,7 +175,7 @@ export async function getPlaudTranscriptionList(
     const limit = params.limit ?? 20;
     const status = params.status;
 
-    const userId = await resolveInternalUserId(auth?.userId);
+    const userId = await resolveInternalUserId(auth.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした。再度ログインしてください。" };
     }
@@ -250,16 +255,16 @@ export async function getPlaudTranscriptionList(
 export async function executeTranscriptionAction(
   id: number,
   action: "approve" | "retry",
-  token?: string,
+  token: string,
 ): Promise<ActionResult<PlaudTranscription>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     if (!["approve", "retry"].includes(action)) {
       return { ok: false, error: "無効なアクションです" };
     }
 
-    const userId = await resolveInternalUserId(auth?.userId);
+    const userId = await resolveInternalUserId(auth.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした" };
     }
@@ -326,12 +331,12 @@ export async function executeTranscriptionAction(
 export async function updateTranscriptionClient(
   id: number,
   kaipokeCsId: string | null,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<PlaudTranscription & { client_name: string | null }>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    const userId = await resolveInternalUserId(auth?.userId);
+    const userId = await resolveInternalUserId(auth.userId);
     if (!userId) {
       return { ok: false, error: "認証情報を取得できませんでした" };
     }
@@ -369,7 +374,7 @@ export async function updateTranscriptionClient(
 
     const clientName = await fetchClientName(kaipokeCsId);
 
-    logger.info("利用者紐付け更新完了", { id, kaipoke_cs_id: kaipokeCsId, userId });
+    logger.info("利用者紐付け更新開始完了", { id, kaipoke_cs_id: kaipokeCsId, userId });
 
     revalidatePath("/cm-portal/plaud");
 

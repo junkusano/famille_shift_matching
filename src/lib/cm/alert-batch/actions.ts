@@ -1,6 +1,9 @@
-// =============================================================
 // src/lib/cm/alert-batch/actions.ts
 // CMアラートバッチ Server Actions
+//
+// セキュリティ:
+//   requireCmSession(token) による認証を必須実施。
+//   さらに system_role による認可チェックを実施。
 // =============================================================
 
 "use server";
@@ -30,30 +33,30 @@ export type RunAlertBatchResult = {
 // Server Action: アラートバッチを手動実行
 // =============================================================
 
-export async function runAlertBatch(token?: string): Promise<RunAlertBatchResult> {
+export async function runAlertBatch(token: string): Promise<RunAlertBatchResult> {
   const traceId = generateTraceId();
   const log = logger.withTrace(traceId);
 
   try {
     // トークン検証（認証・service_type チェック）
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     // users テーブルから system_role を取得（認可チェック）
     const { data: userData, error: userError } = await supabaseAdmin
       .from("users")
       .select("user_id, system_role")
-      .eq("user_id", auth?.userId)
+      .eq("user_id", auth.userId)
       .single();
 
     if (userError || !userData) {
-      log.warn("ユーザー情報取得失敗", { userId: auth?.userId, error: userError?.message });
+      log.warn("ユーザー情報取得失敗", { userId: auth.userId, error: userError?.message });
       return { ok: false, error: "ユーザー情報を取得できません" };
     }
 
     // 権限チェック（admin, manager, senior_care_manager のみ許可）
     const allowedRoles = ["admin", "manager", "senior_care_manager"];
     if (!allowedRoles.includes(userData.system_role)) {
-      log.warn("権限エラー", { userId: auth?.userId, role: userData.system_role });
+      log.warn("権限エラー", { userId: auth.userId, role: userData.system_role });
       return { ok: false, error: "バッチ実行権限がありません" };
     }
 

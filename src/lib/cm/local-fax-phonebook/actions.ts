@@ -1,6 +1,10 @@
-// =============================================================
 // src/lib/cm/local-fax-phonebook/actions.ts
 // ローカルFAX電話帳 Server Actions
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 "use server";
@@ -65,10 +69,10 @@ export async function createLocalFaxPhonebookEntry(
     fax_number?: string | null;
     notes?: string | null;
   },
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmLocalFaxPhonebookEntry>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
     const { name, name_kana, fax_number, notes } = data;
 
     // バリデーション
@@ -76,7 +80,7 @@ export async function createLocalFaxPhonebookEntry(
       return { ok: false, error: "事業所名は必須です" };
     }
 
-    logger.info("ローカルFAX電話帳新規作成", { name, fax_number, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳新規作成", { name, fax_number, userId: auth.userId });
 
     const faxNormalized = fax_number ? normalizeFaxNumber(fax_number) : null;
 
@@ -117,7 +121,7 @@ export async function createLocalFaxPhonebookEntry(
       return { ok: false, error: "データベースへの登録に失敗しました" };
     }
 
-    logger.info("ローカルFAX電話帳新規作成完了", { id: entry.id, sourceId, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳新規作成完了", { id: entry.id, sourceId, userId: auth.userId });
 
     revalidatePath(REVALIDATE_PATH);
     return { ok: true, data: entry as CmLocalFaxPhonebookEntry };
@@ -139,12 +143,12 @@ export async function updateLocalFaxPhonebookEntry(
     notes?: string | null;
     is_active?: boolean;
   },
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmLocalFaxPhonebookEntry>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳更新", { id, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳更新", { id, userId: auth.userId });
 
     // 既存レコード取得
     const { data: existingEntry, error: fetchError } = await supabaseAdmin
@@ -204,7 +208,7 @@ export async function updateLocalFaxPhonebookEntry(
       return { ok: false, error: "更新に失敗しました" };
     }
 
-    logger.info("ローカルFAX電話帳更新完了", { id, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳更新完了", { id, userId: auth.userId });
 
     revalidatePath(REVALIDATE_PATH);
     return { ok: true, data: updatedEntry as CmLocalFaxPhonebookEntry };
@@ -219,12 +223,12 @@ export async function updateLocalFaxPhonebookEntry(
 
 export async function deleteLocalFaxPhonebookEntry(
   id: number,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<{ deletedId: number }>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳削除", { id, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳削除", { id, userId: auth.userId });
 
     // 既存レコード取得
     const { data: existingEntry, error: fetchError } = await supabaseAdmin
@@ -256,7 +260,7 @@ export async function deleteLocalFaxPhonebookEntry(
       return { ok: false, error: "削除に失敗しました" };
     }
 
-    logger.info("ローカルFAX電話帳削除完了", { id, userId: auth?.userId });
+    logger.info("ローカルFAX電話帳削除完了", { id, userId: auth.userId });
 
     revalidatePath(REVALIDATE_PATH);
     return { ok: true, data: { deletedId: id } };
@@ -271,10 +275,10 @@ export async function deleteLocalFaxPhonebookEntry(
 
 export async function checkKaipokeByFaxNumber(
   faxNumber: string,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmKaipokeOfficeInfo[]>> {
   try {
-    if (token) { await requireCmSession(token); }
+    await requireCmSession(token);
 
     if (!faxNumber) {
       return { ok: true, data: [] };
@@ -296,12 +300,12 @@ export async function checkKaipokeByFaxNumber(
 // =============================================================
 
 export async function syncLocalFaxPhonebookWithXml(
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmLocalFaxPhonebookSyncResult>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳同期開始", { userId: auth?.userId });
+    logger.info("ローカルFAX電話帳同期開始", { userId: auth.userId });
 
     const gasResult = await gasSyncAll();
 
@@ -316,7 +320,7 @@ export async function syncLocalFaxPhonebookWithXml(
       dbOnly: syncResponse.summary.dbOnly,
       different: syncResponse.summary.different,
       duration: syncResponse.summary.duration,
-      userId: auth?.userId,
+      userId: auth.userId,
     });
 
     revalidatePath(REVALIDATE_PATH);

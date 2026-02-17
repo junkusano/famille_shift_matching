@@ -1,6 +1,10 @@
-// =============================================================
 // src/lib/cm/other-offices/actions.ts
 // 他社事業所 Server Actions
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 "use server";
@@ -32,10 +36,10 @@ export type ActionResult<T = void> = {
 export async function updateOtherOfficeFaxProxy(
   id: number,
   faxProxy: string | null,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmOtherOffice>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     // fax_proxy のバリデーション（nullまたは文字列のみ許可）
     if (faxProxy !== null && typeof faxProxy !== "string") {
@@ -45,7 +49,7 @@ export async function updateOtherOfficeFaxProxy(
     // FAX番号の形式チェック（空文字はnullに変換）
     const normalizedFaxProxy = faxProxy === "" ? null : faxProxy;
 
-    logger.info("他社事業所FAX代行番号更新開始", { id, faxProxy: normalizedFaxProxy, userId: auth?.userId });
+    logger.info("他社事業所FAX代行番号更新開始", { id, faxProxy: normalizedFaxProxy, userId: auth.userId });
 
     // 更新実行
     const { data: updatedOffice, error: updateError } = await supabaseAdmin
@@ -70,7 +74,7 @@ export async function updateOtherOfficeFaxProxy(
       id,
       office_name: updatedOffice.office_name,
       fax_proxy: normalizedFaxProxy,
-      userId: auth?.userId,
+      userId: auth.userId,
     });
 
     // ページを再検証
@@ -92,10 +96,10 @@ export async function updateOtherOfficeFaxProxy(
 
 export async function getOtherOffice(
   id: number,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmOtherOffice>> {
   try {
-    if (token) { await requireCmSession(token); }
+    await requireCmSession(token);
 
     const { data: office, error: queryError } = await supabaseAdmin
       .from("cm_kaipoke_other_office")

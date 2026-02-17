@@ -1,6 +1,10 @@
-// =============================================================
 // src/lib/cm/scheduled-jobs/actions.ts
 // 定期スケジュール更新系のServer Actions
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 'use server';
@@ -22,7 +26,7 @@ const logger = createLogger('lib/cm/scheduled-jobs/actions');
 // スケジュール追加（ジョブタイプを定期実行に設定）
 // =============================================================
 
-export async function addSchedule(params: AddScheduleParams, token?: string): Promise<UpdateScheduleResult> {
+export async function addSchedule(params: AddScheduleParams, token: string): Promise<UpdateScheduleResult> {
   const {
     jobTypeId,
     schedulePayload = {},
@@ -31,9 +35,9 @@ export async function addSchedule(params: AddScheduleParams, token?: string): Pr
   } = params;
 
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('スケジュール追加開始', { jobTypeId, userId: auth?.userId });
+    logger.info('スケジュール追加開始', { jobTypeId, userId: auth.userId });
 
     // 現在の最大 schedule_order を取得
     const { data: maxOrderData } = await supabaseAdmin
@@ -62,7 +66,7 @@ export async function addSchedule(params: AddScheduleParams, token?: string): Pr
       return { ok: false, error: 'スケジュールの追加に失敗しました' };
     }
 
-    logger.info('スケジュール追加完了', { jobTypeId, order: nextOrder, userId: auth?.userId });
+    logger.info('スケジュール追加完了', { jobTypeId, order: nextOrder, userId: auth.userId });
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
     return { ok: true };
@@ -79,13 +83,13 @@ export async function addSchedule(params: AddScheduleParams, token?: string): Pr
 // スケジュール設定更新
 // =============================================================
 
-export async function updateSchedule(params: UpdateScheduleParams, token?: string): Promise<UpdateScheduleResult> {
+export async function updateSchedule(params: UpdateScheduleParams, token: string): Promise<UpdateScheduleResult> {
   const { jobTypeId, schedulePayload, scheduleCancelPending, isScheduled } = params;
 
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('スケジュール更新開始', { jobTypeId, userId: auth?.userId });
+    logger.info('スケジュール更新開始', { jobTypeId, userId: auth.userId });
 
     const updateData: Record<string, unknown> = {};
 
@@ -113,7 +117,7 @@ export async function updateSchedule(params: UpdateScheduleParams, token?: strin
       return { ok: false, error: 'スケジュールの更新に失敗しました' };
     }
 
-    logger.info('スケジュール更新完了', { jobTypeId, userId: auth?.userId });
+    logger.info('スケジュール更新完了', { jobTypeId, userId: auth.userId });
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
     return { ok: true };
@@ -130,11 +134,11 @@ export async function updateSchedule(params: UpdateScheduleParams, token?: strin
 // スケジュール除外（定期実行から外す）
 // =============================================================
 
-export async function removeSchedule(jobTypeId: number, token?: string): Promise<UpdateScheduleResult> {
+export async function removeSchedule(jobTypeId: number, token: string): Promise<UpdateScheduleResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('スケジュール除外開始', { jobTypeId, userId: auth?.userId });
+    logger.info('スケジュール除外開始', { jobTypeId, userId: auth.userId });
 
     const { error } = await supabaseAdmin
       .from('cm_job_types')
@@ -149,7 +153,7 @@ export async function removeSchedule(jobTypeId: number, token?: string): Promise
       return { ok: false, error: 'スケジュールの除外に失敗しました' };
     }
 
-    logger.info('スケジュール除外完了', { jobTypeId, userId: auth?.userId });
+    logger.info('スケジュール除外完了', { jobTypeId, userId: auth.userId });
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
     return { ok: true };
@@ -166,13 +170,13 @@ export async function removeSchedule(jobTypeId: number, token?: string): Promise
 // 並び順更新
 // =============================================================
 
-export async function reorderSchedules(params: ReorderSchedulesParams, token?: string): Promise<UpdateScheduleResult> {
+export async function reorderSchedules(params: ReorderSchedulesParams, token: string): Promise<UpdateScheduleResult> {
   const { order } = params;
 
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('並び順更新開始', { count: order.length, userId: auth?.userId });
+    logger.info('並び順更新開始', { count: order.length, userId: auth.userId });
 
     // 各ジョブタイプの schedule_order を更新
     const updates = order.map((jobTypeId, index) => ({
@@ -193,7 +197,7 @@ export async function reorderSchedules(params: ReorderSchedulesParams, token?: s
       }
     }
 
-    logger.info('並び順更新完了', { count: order.length, userId: auth?.userId });
+    logger.info('並び順更新完了', { count: order.length, userId: auth.userId });
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
     return { ok: true };
@@ -210,11 +214,11 @@ export async function reorderSchedules(params: ReorderSchedulesParams, token?: s
 // 有効/無効切り替え
 // =============================================================
 
-export async function toggleScheduleActive(jobTypeId: number, isScheduled: boolean, token?: string): Promise<UpdateScheduleResult> {
+export async function toggleScheduleActive(jobTypeId: number, isScheduled: boolean, token: string): Promise<UpdateScheduleResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
-    logger.info('有効/無効切り替え', { jobTypeId, isScheduled, userId: auth?.userId });
+    logger.info('有効/無効切り替え', { jobTypeId, isScheduled, userId: auth.userId });
 
     const { error } = await supabaseAdmin
       .from('cm_job_types')
@@ -226,7 +230,7 @@ export async function toggleScheduleActive(jobTypeId: number, isScheduled: boole
       return { ok: false, error: '有効/無効の切り替えに失敗しました' };
     }
 
-    logger.info('有効/無効切り替え完了', { jobTypeId, isScheduled, userId: auth?.userId });
+    logger.info('有効/無効切り替え完了', { jobTypeId, isScheduled, userId: auth.userId });
 
     revalidatePath('/cm-portal/rpa-jobs/schedules');
     return { ok: true };
