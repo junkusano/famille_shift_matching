@@ -16,6 +16,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components';
+import { supabase } from '@/lib/supabaseClient';
 import { getContracts } from '@/lib/cm/contracts/getContracts';
 import { updateContract } from '@/lib/cm/contracts/actions';
 import { CmContractPlaudSelectModal } from '@/components/cm-components/contracts/CmContractPlaudSelectModal';
@@ -36,6 +37,15 @@ import styles from '@/styles/cm-styles/clients/contractsTab.module.css';
 type Props = {
   kaipokeCsId: string;
 };
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 // =============================================================
 // ステータスカラーマップ（CSS Module用インラインスタイル）
@@ -240,10 +250,11 @@ function ContractListCard({
     try {
       setPlaudLinkSubmitting(true);
 
+      const token = await getAccessToken();
       const result = await updateContract({
         contractId: plaudModalTarget.id,
         plaud_recording_id: recordingId,
-      });
+      }, token);
 
       if (result.ok === false) {
         const errorMessage = 'error' in result ? result.error : '更新に失敗しました';

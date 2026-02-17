@@ -1,6 +1,11 @@
 // =============================================================
 // src/lib/cm/contracts/actions.ts
 // 契約関連 Server Actions（Client Componentから呼び出し可能）
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
+//   - 操作ログにユーザーIDを記録（監査証跡）
 // =============================================================
 
 "use server";
@@ -43,10 +48,10 @@ export type CreateConsentParams = {
 
 export async function createConsent(
   params: CreateConsentParams,
-  token?: string,
+  token: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     const {
       kaipoke_cs_id,
@@ -73,7 +78,7 @@ export async function createConsent(
     logger.info("同意登録開始", {
       kaipokeCsId: kaipoke_cs_id,
       signerType: signer_type,
-      userId: auth?.userId,
+      userId: auth.userId,
     });
 
     // TODO: Google Drive API 連携実装時に署名画像アップロードを有効化
@@ -106,7 +111,7 @@ export async function createConsent(
       return { ok: false, error: "同意登録に失敗しました" };
     }
 
-    logger.info("同意登録完了", { consentId: data.id, userId: auth?.userId });
+    logger.info("同意登録完了", { consentId: data.id, userId: auth.userId });
     return { ok: true, data: { id: data.id } };
   } catch (e) {
     if (e instanceof CmAuthError) {
@@ -139,14 +144,14 @@ export type UpdateContractParams = {
 
 export async function updateContract(
   params: UpdateContractParams,
-  token?: string,
+  token: string,
 ): Promise<ActionResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     const { contractId, ...fields } = params;
 
-    logger.info("契約更新開始", { contractId, fields: Object.keys(fields), userId: auth?.userId });
+    logger.info("契約更新開始", { contractId, fields: Object.keys(fields), userId: auth.userId });
 
     // 更新可能なフィールドのみ抽出
     const allowedFields = [
@@ -185,7 +190,7 @@ export async function updateContract(
       return { ok: false, error: "契約更新に失敗しました" };
     }
 
-    logger.info("契約更新完了", { contractId, userId: auth?.userId });
+    logger.info("契約更新完了", { contractId, userId: auth.userId });
     return { ok: true };
   } catch (e) {
     if (e instanceof CmAuthError) {
@@ -201,12 +206,10 @@ export async function updateContract(
 // =============================================================
 
 export async function getVerificationMethods(
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmVerificationMethod[]>> {
   try {
-    if (token) {
-      if (token) { await requireCmSession(token); }
-    }
+    await requireCmSession(token);
 
     const { data, error } = await supabaseAdmin
       .from("cm_contract_verification_methods")
@@ -234,12 +237,10 @@ export async function getVerificationMethods(
 // =============================================================
 
 export async function getVerificationDocuments(
-  token?: string,
+  token: string,
 ): Promise<ActionResult<CmVerificationDocument[]>> {
   try {
-    if (token) {
-      if (token) { await requireCmSession(token); }
-    }
+    await requireCmSession(token);
 
     const { data, error } = await supabaseAdmin
       .from("cm_contract_verification_documents")

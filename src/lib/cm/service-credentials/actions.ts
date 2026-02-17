@@ -107,13 +107,13 @@ export async function fetchServiceCredential(
   token: string
 ): Promise<ActionResult<CmServiceCredential>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
     }
 
-    logger.info("サービス認証情報個別取得", { id, userId: auth?.userId });
+    logger.info("サービス認証情報個別取得", { id, userId: auth.userId });
 
     const { data: entry, error } = await supabaseAdmin
       .from("cm_rpa_credentials")
@@ -149,7 +149,7 @@ export async function createServiceCredential(
   token: string
 ): Promise<ActionResult<CmServiceCredential>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     const { service_name, label, credentials, is_active } = data;
 
@@ -190,7 +190,7 @@ export async function createServiceCredential(
 
     logger.info("サービス認証情報新規作成", {
       service_name,
-      userId: auth?.userId,
+      userId: auth.userId,
     });
 
     const { data: entry, error: insertError } = await supabaseAdmin
@@ -214,7 +214,7 @@ export async function createServiceCredential(
 
     logger.info("サービス認証情報新規作成完了", {
       id: entry.id,
-      userId: auth?.userId,
+      userId: auth.userId,
     });
 
     return { ok: true, data: entry as CmServiceCredential };
@@ -238,7 +238,7 @@ export async function updateServiceCredential(
   token: string
 ): Promise<ActionResult<CmServiceCredential>> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
@@ -274,7 +274,7 @@ export async function updateServiceCredential(
       }
     }
 
-    logger.info("サービス認証情報更新", { id, userId: auth?.userId });
+    logger.info("サービス認証情報更新", { id, userId: auth.userId });
 
     // 既存レコードを取得
     const { data: existing, error: fetchError } = await supabaseAdmin
@@ -338,7 +338,7 @@ export async function updateServiceCredential(
 
     revalidatePath("/cm-portal/service-credentials");
 
-    logger.info("サービス認証情報更新完了", { id, userId: auth?.userId });
+    logger.info("サービス認証情報更新完了", { id, userId: auth.userId });
 
     return { ok: true, data: entry as CmServiceCredential };
   } catch (error) {
@@ -355,13 +355,13 @@ export async function deleteServiceCredential(
   token: string
 ): Promise<ActionResult> {
   try {
-    const auth = token ? await requireCmSession(token) : null;
+    const auth = await requireCmSession(token);
 
     if (isNaN(id)) {
       return { ok: false, error: "無効なIDです" };
     }
 
-    logger.info("サービス認証情報削除", { id, userId: auth?.userId });
+    logger.info("サービス認証情報削除", { id, userId: auth.userId });
 
     const { data: existing } = await supabaseAdmin
       .from("cm_rpa_credentials")
@@ -385,7 +385,7 @@ export async function deleteServiceCredential(
 
     revalidatePath("/cm-portal/service-credentials");
 
-    logger.info("サービス認証情報削除完了", { id, userId: auth?.userId });
+    logger.info("サービス認証情報削除完了", { id, userId: auth.userId });
 
     return { ok: true };
   } catch (error) {
