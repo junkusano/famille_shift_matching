@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
-import { getJobMaster } from "@/lib/cm/rpa-jobs/actions";
+import { cmGetJobMasterCore } from "@/lib/cm/rpa-jobs/core";
 import type { CmJobMasterResponse } from "@/types/cm/jobs";
 
 // =============================================================
@@ -20,7 +20,7 @@ export const GET = cmRpaApiHandler<CmJobMasterResponse>(
 
     logger.info("マスタ取得", { queueCode });
 
-    const result = await getJobMaster(queueCode);
+    const result = await cmGetJobMasterCore(queueCode);
 
     if (result.ok === false) {
       return NextResponse.json(result, { status: 500 });

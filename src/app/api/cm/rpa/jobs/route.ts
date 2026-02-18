@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
-import { getJobs, createJob } from "@/lib/cm/rpa-jobs/actions";
+import { cmGetJobsCore, cmCreateJobCore } from "@/lib/cm/rpa-jobs/core";
 import type { CmJobListResponse, CmCreateJobResponse } from "@/types/cm/jobs";
 
 // =============================================================
@@ -17,7 +17,7 @@ export const GET = cmRpaApiHandler<CmJobListResponse>(
   async (request, logger) => {
     const { searchParams } = new URL(request.url);
 
-    const result = await getJobs({
+    const result = await cmGetJobsCore({
       queue: searchParams.get("queue") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       limit: parseInt(searchParams.get("limit") || "50", 10),
@@ -58,8 +58,8 @@ export const POST = cmRpaApiHandler<CmCreateJobResponse>(
     const { queue, job_type } = (body as Record<string, unknown>) ?? {};
     logger.info("ジョブ作成開始", { queue, job_type });
 
-    // バリデーション・マスタ検証・重複チェック・INSERT は全て createJob 内で実施
-    const result = await createJob({
+    // バリデーション・マスタ検証・重複チェック・INSERT は全て cmCreateJobCore 内で実施
+    const result = await cmCreateJobCore({
       queue: queue as string,
       job_type: job_type as string,
       payload: (body as Record<string, unknown>)?.payload as

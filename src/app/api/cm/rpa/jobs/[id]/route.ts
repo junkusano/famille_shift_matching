@@ -5,7 +5,8 @@
 
 import { NextResponse } from "next/server";
 import { cmRpaApiHandlerWithContext } from "@/lib/cm/rpa/cmRpaApiHandler";
-import { getJobDetail, updateJob, type UpdateJobParams } from "@/lib/cm/rpa-jobs/actions";
+import { cmGetJobDetailCore, cmUpdateJobCore } from "@/lib/cm/rpa-jobs/core";
+import type { UpdateJobParams } from "@/lib/cm/rpa-jobs/core";
 import type {
   CmJobDetailResponse,
   CmUpdateJobResponse,
@@ -113,7 +114,7 @@ export const GET = cmRpaApiHandlerWithContext<CmJobDetailResponse, RouteContext>
 
     logger.info("ジョブ詳細取得", { jobId });
 
-    const result = await getJobDetail(jobId);
+    const result = await cmGetJobDetailCore(jobId);
 
     if (result.ok === false) {
       const status = result.error === "ジョブが見つかりません" ? 404 : 500;
@@ -166,8 +167,8 @@ export const PUT = cmRpaApiHandlerWithContext<CmUpdateJobResponse, RouteContext>
 
     logger.info("ジョブ更新開始", { jobId, updates: validation.data });
 
-    // DB更新は updateJob に委譲
-    const result = await updateJob(jobId, validation.data);
+    // DB更新は cmUpdateJobCore に委譲
+    const result = await cmUpdateJobCore(jobId, validation.data);
 
     if (result.ok === false) {
       const status = result.error === "ジョブが見つかりません" ? 404 : 500;
