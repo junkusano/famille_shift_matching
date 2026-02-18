@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import { CmContractCreateStep1 } from './CmContractCreateStep1';
 import { CmContractCreateStep2 } from './CmContractCreateStep2';
@@ -45,6 +46,11 @@ type Step = 1 | 2 | 3;
 // =============================================================
 // Component
 // =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 export function CmContractCreateWizard({ kaipokeCsId }: Props) {
   const router = useRouter();
@@ -128,9 +134,10 @@ export function CmContractCreateWizard({ kaipokeCsId }: Props) {
       setLoading(true);
       setError(null);
 
+      const token = await getAccessToken();
       const [clientResult, staffResult, officeResult] = await Promise.all([
-        getClientInfoForContract(kaipokeCsId),
-        getStaffList(),
+        getClientInfoForContract(kaipokeCsId, token),
+        getStaffList(token),
         getDefaultOwnOffice(),
       ]);
 

@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 
 const logger = createLogger("lib/cm/contracts/getPlaudRecordingsForContract");
 
@@ -35,9 +36,12 @@ export type GetPlaudRecordingsForContractResult =
 // =============================================================
 
 export async function getPlaudRecordingsForContract(
-  kaipokeCsId: string
+  kaipokeCsId: string,
+  token: string,
 ): Promise<GetPlaudRecordingsForContractResult> {
   try {
+    await requireCmSession(token);
+
     if (!kaipokeCsId) {
       return { ok: false, error: "kaipoke_cs_id is required" };
     }
@@ -65,6 +69,9 @@ export async function getPlaudRecordingsForContract(
       data: (data ?? []) as CmPlaudRecordingOption[],
     };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

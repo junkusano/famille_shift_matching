@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/getStaffList.ts
 // 職員一覧取得（Server Action — Client Componentから呼び出し可能）
 //
@@ -12,6 +11,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 
 const logger = createLogger("lib/cm/contracts/getStaffList");
 
@@ -32,8 +32,10 @@ export type GetStaffListResult =
 // 職員一覧取得
 // =============================================================
 
-export async function getStaffList(): Promise<GetStaffListResult> {
+export async function getStaffList(token: string): Promise<GetStaffListResult> {
   try {
+    await requireCmSession(token);
+
     logger.info("職員一覧取得開始");
 
     // ---------------------------------------------------------
@@ -104,6 +106,9 @@ export async function getStaffList(): Promise<GetStaffListResult> {
     logger.info("職員一覧取得完了", { count: staffList.length });
     return { ok: true, data: staffList };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, User, Eraser } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import { useRouter } from 'next/navigation';
 import { getStaffList } from '@/lib/cm/contracts/getStaffList';
@@ -40,6 +41,11 @@ type SignerType = 'self' | 'scribe' | 'agent';
 // =============================================================
 // Component
 // =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 export function CmConsentFormPageContent({
   kaipokeCsId,
@@ -118,8 +124,9 @@ export function CmConsentFormPageContent({
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const token = await getAccessToken();
         const [staffResult, optionsResult] = await Promise.all([
-          getStaffList(),
+          getStaffList(token),
           getSelectOptionsMultiple(['relationship', 'proxy_reason']),
         ]);
 
@@ -371,6 +378,7 @@ export function CmConsentFormPageContent({
           : undefined;
 
       // PDF生成 → GDriveアップロード → DB登録 を一括実行
+      const token = await getAccessToken();
       const result = await uploadConsentPdf({
         kaipokeCsId,
         clientName,
@@ -402,7 +410,7 @@ export function CmConsentFormPageContent({
         agentRelationship: agentRelationshipDisplay,
         agentAuthority: signerType === 'agent' ? agentAuthority.trim() : undefined,
         signatureBase64,
-      });
+      }, token);
 
       if (result.ok !== true) {
         setError(result.error || '同意の登録に失敗しました');

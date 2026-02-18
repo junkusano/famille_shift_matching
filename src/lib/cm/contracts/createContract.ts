@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/createContract.ts
 // 契約作成 統合処理（Server Action）
 //
@@ -23,6 +22,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import { generateCombinedPdfFromHtml } from './generateContractPdf';
 import { getTemplateHtml } from './templateActions';
 import { uploadAndCreateSignatureRequest } from './digisignerApi';
@@ -85,12 +85,15 @@ function getDigiSignerRoles(signerType: string): string[] {
  * 契約を作成（PDF生成 → DigiSigner連携 → DB保存）
  */
 export async function createContractWithDocuments(
-  params: CreateContractParams
+  params: CreateContractParams,
+  token: string,
 ): Promise<CreateContractActionResult> {
   const { kaipokeCsId, wizardData } = params;
   const { step1, step2 } = wizardData;
 
   try {
+    await requireCmSession(token);
+
     logger.info('契約作成開始', {
       kaipokeCsId,
       templates: step1.selectedTemplates,
@@ -402,6 +405,9 @@ export async function createContractWithDocuments(
       },
     };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('契約作成例外', e as Error);
     return { ok: false, error: 'サーバーエラーが発生しました' };
   }

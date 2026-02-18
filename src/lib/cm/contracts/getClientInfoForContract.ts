@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/getClientInfoForContract.ts
 // 契約作成用 利用者情報取得（Server Action）
 //
@@ -9,6 +8,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type { CmClientInfoForContract } from '@/types/cm/contractCreate';
 
 const logger = createLogger('lib/cm/contracts/getClientInfoForContract');
@@ -29,9 +29,12 @@ export type GetClientInfoResult =
  * 契約作成用の利用者情報を取得
  */
 export async function getClientInfoForContract(
-  kaipokeCsId: string
+  kaipokeCsId: string,
+  token: string,
 ): Promise<GetClientInfoResult> {
   try {
+    await requireCmSession(token);
+
     logger.info('利用者情報取得開始', { kaipokeCsId });
 
     // ---------------------------------------------------------
@@ -101,6 +104,9 @@ export async function getClientInfoForContract(
     logger.info('利用者情報取得完了', { kaipokeCsId });
     return { ok: true, data: result };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('予期せぬエラー', e as Error);
     return { ok: false, error: 'サーバーエラーが発生しました' };
   }

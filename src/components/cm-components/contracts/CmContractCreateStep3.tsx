@@ -12,6 +12,7 @@
 
 import React, { useState } from 'react';
 import { FileText, Upload, CheckCircle2, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
@@ -24,6 +25,12 @@ import type {
 // =============================================================
 // Constants
 // =============================================================
+
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 /** 署名者ロールの表示ラベル */
 const SIGNER_ROLE_LABELS: Record<string, string> = {
@@ -79,10 +86,11 @@ export function CmContractCreateStep3({
       setStatus('processing');
       setError(null);
 
+      const token = await getAccessToken();
       const response = await createContractWithDocuments({
         kaipokeCsId,
         wizardData,
-      });
+      }, token);
 
       if (response.ok === false) {
         setError(response.error);

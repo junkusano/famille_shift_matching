@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/getContractDetail.ts
 // 契約詳細取得（Server Action — Client Componentから呼び出し可能）
 //
@@ -12,6 +11,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import type {
   CmContractDetailData,
   CmContractDocument,
@@ -34,9 +34,12 @@ export type GetContractDetailResult =
 // =============================================================
 
 export async function getContractDetail(
-  contractId: string
+  contractId: string,
+  token: string,
 ): Promise<GetContractDetailResult> {
   try {
+    await requireCmSession(token);
+
     logger.info("契約詳細取得開始", { contractId });
 
     // ---------------------------------------------------------
@@ -197,6 +200,9 @@ export async function getContractDetail(
       },
     };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

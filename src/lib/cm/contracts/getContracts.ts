@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/getContracts.ts
 // 契約一覧取得（Server Action — Client Componentから呼び出し可能）
 //
@@ -14,6 +13,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import type {
   CmContractListItem,
   CmContractConsent,
@@ -35,9 +35,12 @@ export type GetContractsResult =
 // =============================================================
 
 export async function getContracts(
-  kaipokeCsId: string
+  kaipokeCsId: string,
+  token: string,
 ): Promise<GetContractsResult> {
   try {
+    await requireCmSession(token);
+
     if (!kaipokeCsId) {
       return { ok: false, error: "kaipoke_cs_id is required" };
     }
@@ -160,6 +163,9 @@ export async function getContracts(
       data: { consent, contracts: contractsList },
     };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("予期せぬエラー", e as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

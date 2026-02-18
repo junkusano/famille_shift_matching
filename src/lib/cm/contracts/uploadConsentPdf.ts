@@ -1,4 +1,3 @@
-// =============================================================
 // src/lib/cm/contracts/uploadConsentPdf.ts
 // 電子契約同意書のPDF生成・Google Driveアップロード・DB登録
 //
@@ -15,6 +14,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import { generateConsentPdf } from './generateConsentPdf';
 import { uploadConsentPdfToDrive } from './googleDrive';
 
@@ -84,7 +84,8 @@ export type UploadConsentPdfResult =
 // =============================================================
 
 export async function uploadConsentPdf(
-  params: UploadConsentPdfParams
+  params: UploadConsentPdfParams,
+  token: string,
 ): Promise<UploadConsentPdfResult> {
   const {
     kaipokeCsId,
@@ -116,6 +117,8 @@ export async function uploadConsentPdf(
   } = params;
 
   try {
+    await requireCmSession(token);
+
     // ---------------------------------------------------------
     // バリデーション
     // ---------------------------------------------------------
@@ -262,8 +265,11 @@ export async function uploadConsentPdf(
       },
     };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     const message = e instanceof Error ? e.message : '不明なエラー';
     logger.error('同意書PDF処理例外', { error: message });
-    return { ok: false, error: message };
+    return { ok: false, error: 'サーバーエラーが発生しました' };
   }
 }

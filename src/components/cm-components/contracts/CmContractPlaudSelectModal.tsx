@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mic, Loader2, AlertCircle, Unlink } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { getPlaudRecordingsForContract } from '@/lib/cm/contracts/getPlaudRecordingsForContract';
 import type { CmPlaudRecordingOption } from '@/lib/cm/contracts/getPlaudRecordingsForContract';
 import {
@@ -23,6 +24,12 @@ import styles from '@/styles/cm-styles/contracts/plaudSelect.module.css';
 // =============================================================
 // 型定義
 // =============================================================
+
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 type CmContractPlaudSelectModalProps = {
   isOpen: boolean;
@@ -58,7 +65,8 @@ export function CmContractPlaudSelectModal({
       setLoading(true);
       setError(null);
 
-      const result = await getPlaudRecordingsForContract(kaipokeCsId);
+      const token = await getAccessToken();
+      const result = await getPlaudRecordingsForContract(kaipokeCsId, token);
 
       if (result.ok === false) {
         setError(result.error || '録音一覧の取得に失敗しました');

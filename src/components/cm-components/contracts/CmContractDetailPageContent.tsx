@@ -23,6 +23,7 @@ import {
   ExternalLink,
   ShieldCheck,
 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import type {
@@ -61,6 +62,11 @@ type Props = {
 // Component
 // =============================================================
 
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
 export function CmContractDetailPageContent({ contractId }: Props) {
   const [data, setData] = useState<CmContractDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +76,8 @@ export function CmContractDetailPageContent({ contractId }: Props) {
     try {
       setLoading(true);
       setError(null);
-      const result = await getContractDetail(contractId);
+      const token = await getAccessToken();
+      const result = await getContractDetail(contractId, token);
       if (result.ok === true) {
         setData(result.data);
       } else {

@@ -78,7 +78,7 @@ export function CmContractSignPageContent({ kaipokeCsId, contractId }: Props) {
       const token = await getAccessToken();
 
       const [contractResult, methodsResult, docsResult] = await Promise.all([
-        getContractDetail(contractId),
+        getContractDetail(contractId, token),
         getVerificationMethods(token),
         getVerificationDocuments(token),
       ]);

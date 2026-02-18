@@ -78,7 +78,8 @@ export function CmClientContractsTab({ kaipokeCsId }: Props) {
       setLoading(true);
       setError(null);
 
-      const result = await getContracts(kaipokeCsId);
+      const token = await getAccessToken();
+      const result = await getContracts(kaipokeCsId, token);
 
       if (result.ok === false) {
         setError(result.error || '契約情報の取得に失敗しました');
