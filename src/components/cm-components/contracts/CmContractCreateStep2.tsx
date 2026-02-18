@@ -32,6 +32,7 @@ import {
   ChevronUp,
   Shield,
 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
@@ -72,6 +73,10 @@ type Props = {
 // Component
 // =============================================================
 
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 export function CmContractCreateStep2({
   step1Data,
   data,
@@ -100,7 +105,8 @@ export function CmContractCreateStep2({
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const result = await getSelectOptionsMultiple(['relationship', 'proxy_reason']);
+        const token = await getAccessToken();
+        const result = await getSelectOptionsMultiple(['relationship', 'proxy_reason'], token);
         if (result.ok) {
           setRelationshipOptions(result.data.relationship || []);
           setScribeReasonOptions(result.data.proxy_reason || []);

@@ -127,7 +127,7 @@ export function CmConsentFormPageContent({
         const token = await getAccessToken();
         const [staffResult, optionsResult] = await Promise.all([
           getStaffList(token),
-          getSelectOptionsMultiple(['relationship', 'proxy_reason']),
+          getSelectOptionsMultiple(['relationship', 'proxy_reason'], token),
         ]);
 
         if (staffResult.ok) {

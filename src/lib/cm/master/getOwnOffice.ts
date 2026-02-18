@@ -1,12 +1,16 @@
 // =============================================================
 // src/lib/cm/master/getOwnOffice.ts
 // 自社事業所マスタ取得
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
 // =============================================================
 
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type { CmOwnOffice } from '@/types/cm/selectOptions';
 
 const logger = createLogger('lib/cm/master/getOwnOffice');
@@ -30,8 +34,10 @@ export type GetOwnOfficeListResult =
 /**
  * デフォルト事業所を取得
  */
-export async function getDefaultOwnOffice(): Promise<GetOwnOfficeResult> {
+export async function getDefaultOwnOffice(token: string): Promise<GetOwnOfficeResult> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from('cm_own_office')
       .select('*')
@@ -50,6 +56,9 @@ export async function getDefaultOwnOffice(): Promise<GetOwnOfficeResult> {
 
     return { ok: true, data };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('デフォルト事業所取得例外', e as Error);
     return { ok: false, error: '事業所情報の取得に失敗しました' };
   }
@@ -58,8 +67,10 @@ export async function getDefaultOwnOffice(): Promise<GetOwnOfficeResult> {
 /**
  * 事業所コードで取得
  */
-export async function getOwnOfficeByCode(code: string): Promise<GetOwnOfficeResult> {
+export async function getOwnOfficeByCode(code: string, token: string): Promise<GetOwnOfficeResult> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from('cm_own_office')
       .select('*')
@@ -78,6 +89,9 @@ export async function getOwnOfficeByCode(code: string): Promise<GetOwnOfficeResu
 
     return { ok: true, data };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('事業所取得例外', e as Error);
     return { ok: false, error: '事業所情報の取得に失敗しました' };
   }
@@ -86,8 +100,10 @@ export async function getOwnOfficeByCode(code: string): Promise<GetOwnOfficeResu
 /**
  * 全事業所一覧を取得
  */
-export async function getOwnOfficeList(): Promise<GetOwnOfficeListResult> {
+export async function getOwnOfficeList(token: string): Promise<GetOwnOfficeListResult> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from('cm_own_office')
       .select('*')
@@ -102,6 +118,9 @@ export async function getOwnOfficeList(): Promise<GetOwnOfficeListResult> {
 
     return { ok: true, data: data ?? [] };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('事業所一覧取得例外', e as Error);
     return { ok: false, error: '事業所一覧の取得に失敗しました' };
   }

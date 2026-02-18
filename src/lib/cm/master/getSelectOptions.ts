@@ -1,12 +1,16 @@
 // =============================================================
 // src/lib/cm/master/getSelectOptions.ts
 // 選択肢マスタ取得
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
 // =============================================================
 
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type { CmSelectOption, CmSelectOptionCategory } from '@/types/cm/selectOptions';
 
 const logger = createLogger('lib/cm/master/getSelectOptions');
@@ -27,9 +31,12 @@ export type GetSelectOptionsResult =
  * カテゴリ別に選択肢を取得
  */
 export async function getSelectOptions(
-  category: CmSelectOptionCategory
+  category: CmSelectOptionCategory,
+  token: string,
 ): Promise<GetSelectOptionsResult> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from('cm_select_options')
       .select('*')
@@ -44,6 +51,9 @@ export async function getSelectOptions(
 
     return { ok: true, data: data ?? [] };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('選択肢取得例外', e as Error);
     return { ok: false, error: '選択肢の取得に失敗しました' };
   }
@@ -53,9 +63,12 @@ export async function getSelectOptions(
  * 複数カテゴリの選択肢を一括取得
  */
 export async function getSelectOptionsMultiple(
-  categories: CmSelectOptionCategory[]
+  categories: CmSelectOptionCategory[],
+  token: string,
 ): Promise<{ ok: true; data: Record<CmSelectOptionCategory, CmSelectOption[]> } | { ok: false; error: string }> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from('cm_select_options')
       .select('*')
@@ -82,6 +95,9 @@ export async function getSelectOptionsMultiple(
 
     return { ok: true, data: grouped };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error('選択肢一括取得例外', e as Error);
     return { ok: false, error: '選択肢の取得に失敗しました' };
   }

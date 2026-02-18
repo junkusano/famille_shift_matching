@@ -138,7 +138,7 @@ export function CmContractCreateWizard({ kaipokeCsId }: Props) {
       const [clientResult, staffResult, officeResult] = await Promise.all([
         getClientInfoForContract(kaipokeCsId, token),
         getStaffList(token),
-        getDefaultOwnOffice(),
+        getDefaultOwnOffice(token),
       ]);
 
       if (clientResult.ok !== true) {

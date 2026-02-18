@@ -1,3 +1,4 @@
+// =============================================================
 // src/lib/cm/contracts/createContract.ts
 // 契約作成 統合処理（Server Action）
 //
@@ -180,8 +181,8 @@ export async function createContractWithDocuments(
     // ---------------------------------------------------------
     const [staffName, officeResult, optionsResult] = await Promise.all([
       getStaffName(step2.staffId),
-      getDefaultOwnOffice(),
-      getSelectOptionsMultiple(['relationship', 'proxy_reason']),
+      getDefaultOwnOffice(token),
+      getSelectOptionsMultiple(['relationship', 'proxy_reason'], token),
     ]);
 
     const office = officeResult.ok === true ? officeResult.data : null;
