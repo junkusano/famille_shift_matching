@@ -420,11 +420,197 @@ export async function runShiftStaffCheck(opts: {
             }
         }
 
+
+        // ------------------------------
+        // （追加ロジック②）シフト担当者が未設定 / 特定できない（staff_01_user_id 起点）
+        // 期間: 今日〜endDate（15日固定）
+        // ------------------------------
+        {
+            // まず、未来15日の roster（upcoming）から shift_id -> client_name を引けるようにする
+            const rosterByShiftId = new Map<number, { clientName: string; date: string; startAt: string }>();
+            for (const r of upcoming) {
+                // 99999999% は upcoming 側で除外している想定だが念のため
+                const csid = (r.kaipoke_cs_id ?? "").trim();
+                if (csid.startsWith("99999999")) continue;
+
+                rosterByShiftId.set(r.shift_id, {
+                    clientName: clientDisplay(r.client_name ?? ""),
+                    date: r.shift_date,
+                    startAt: hhmm(r.start_at),
+                });
+            }
+
+            const shiftIds = Array.from(rosterByShiftId.keys());
+            if (shiftIds.length > 0) {
+                type ShiftRow = {
+                    shift_id: number;
+                    shift_start_date: string | null;
+                    shift_start_time: string | null;
+                    staff_01_user_id: string | null;
+                    kaipoke_cs_id: string | null;
+                    service_code: string | null;
+                };
+
+                const { data: shiftRaw, error: shiftErr } = await supabaseAdmin
+                    .from("shift")
+                    .select("shift_id, shift_start_date, shift_start_time, staff_01_user_id, kaipoke_cs_id, service_code")
+                    .in("shift_id", shiftIds)
+                    .gte("shift_start_date", today)
+                    .lte("shift_start_date", endDate)
+                    .not("kaipoke_cs_id", "like", "99999999%");
+
+                if (shiftErr) throw shiftErr;
+
+                const shifts = (shiftRaw as ShiftRow[]) ?? [];
+
+                // キャンセル除外（SQLの条件に合わせる）
+                const liveShifts = shifts.filter((s) => {
+                    const sc = (s.service_code ?? "").trim();
+                    if (!sc) return true; // null は別ロジック③で扱うのでここでは通してOK
+                    return !/キャンセル/i.test(sc);
+                });
+
+                // staff_01_user_id を集める（空は reason 判定用に残す）
+                const staffIds2 = Array.from(
+                    new Set(
+                        liveShifts
+                            .map((s) => (s.staff_01_user_id ?? "").trim())
+                            .filter((v) => v.length > 0)
+                    )
+                );
+
+                // users を引く
+                type UsersMini = { user_id: string; org_unit_id: string | null };
+                const userMiniMap = new Map<string, UsersMini>();
+
+                if (staffIds2.length > 0) {
+                    const { data: umRaw, error: umErr } = await supabaseAdmin
+                        .from("users")
+                        .select("user_id, org_unit_id")
+                        .in("user_id", staffIds2);
+
+                    if (umErr) throw umErr;
+
+                    const ums = (umRaw as UsersMini[]) ?? [];
+                    for (const u of ums) userMiniMap.set(u.user_id, u);
+                }
+
+                // orgs を引く
+                const orgUnitIds = Array.from(
+                    new Set(
+                        Array.from(userMiniMap.values())
+                            .map((u) => (u.org_unit_id ?? "").trim())
+                            .filter((v) => v.length > 0)
+                    )
+                );
+
+                type OrgMini = { orgunitid: string; orgunitname: string | null };
+                const orgMap = new Map<string, OrgMini>();
+
+                if (orgUnitIds.length > 0) {
+                    const { data: orgRaw, error: orgErr } = await supabaseAdmin
+                        .from("orgs")
+                        .select("orgunitid, orgunitname")
+                        .in("orgunitid", orgUnitIds);
+
+                    if (orgErr) throw orgErr;
+
+                    const orgs = (orgRaw as OrgMini[]) ?? [];
+                    for (const o of orgs) orgMap.set(String(o.orgunitid), o);
+                }
+
+                // 判定してアラートにする
+                for (const s of liveShifts) {
+                    const info = rosterByShiftId.get(s.shift_id);
+                    if (!info) continue;
+
+                    const staff01 = (s.staff_01_user_id ?? "").trim();
+
+                    // reason判定（あなたのSQLに寄せる）
+                    let reason: string | null = null;
+
+                    if (!staff01) {
+                        reason = "shift.staff_01_user_id empty";
+                    } else {
+                        const u = userMiniMap.get(staff01);
+                        if (!u) {
+                            reason = "users not found";
+                        } else {
+                            const ou = (u.org_unit_id ?? "").trim();
+                            if (!ou) {
+                                reason = "users.org_unit_id empty";
+                            } else if (!orgMap.has(ou)) {
+                                reason = "orgs master missing";
+                            }
+                        }
+                    }
+
+                    if (reason) {
+                        // 表示形式：〇月〇日 〇時 ・・・様 のシフト担当者が特定されていない
+                        alertLines.push(
+                            `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフト担当者が特定されていません（${reason}）`
+                        );
+                    }
+                }
+            }
+        }
+
+        // ------------------------------
+        // （追加ロジック③）シフトの service_code が未設定（null）
+        // 期間: 今日〜endDate（15日固定）
+        // ------------------------------
+        {
+            // upcoming から shift_id -> client/date/time を作る
+            const rosterByShiftId = new Map<number, { clientName: string; date: string; startAt: string }>();
+            for (const r of upcoming) {
+                const csid = (r.kaipoke_cs_id ?? "").trim();
+                if (csid.startsWith("99999999")) continue;
+
+                rosterByShiftId.set(r.shift_id, {
+                    clientName: clientDisplay(r.client_name ?? ""),
+                    date: r.shift_date,
+                    startAt: hhmm(r.start_at),
+                });
+            }
+
+            const shiftIds = Array.from(rosterByShiftId.keys());
+            if (shiftIds.length > 0) {
+                type ShiftMini = { shift_id: number; service_code: string | null; kaipoke_cs_id: string | null };
+
+                const { data: sRaw, error: sErr } = await supabaseAdmin
+                    .from("shift")
+                    .select("shift_id, service_code, kaipoke_cs_id")
+                    .in("shift_id", shiftIds)
+                    .gte("shift_start_date", today)
+                    .lte("shift_start_date", endDate)
+                    .not("kaipoke_cs_id", "like", "99999999%");
+
+                if (sErr) throw sErr;
+
+                const shifts = (sRaw as ShiftMini[]) ?? [];
+                for (const s of shifts) {
+                    // キャンセル除外（SQLに合わせる）
+                    const sc = s.service_code;
+                    if (sc && /キャンセル/i.test(sc)) continue;
+
+                    if (s.service_code === null) {
+                        const info = rosterByShiftId.get(s.shift_id);
+                        if (!info) continue;
+
+                        alertLines.push(
+                            `・${yyyymmddSlash(info.date)} ${info.startAt}　${info.clientName} のシフトのサービスコードが未設定です`
+                        );
+                    }
+                }
+            }
+        }
+
+
         // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
         alertLines.sort((a, b) => {
-            const da = (a.match(/・(\d{4}\/\d{2}\/\d{2})/)?.[1] ?? "");
-            const db = (b.match(/・(\d{4}\/\d{2}\/\d{2})/)?.[1] ?? "");
-            return da.localeCompare(db);
+            const ka = (a.match(/・(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})/)?.slice(1, 3).join(" ") ?? "");
+            const kb = (b.match(/・(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})/)?.slice(1, 3).join(" ") ?? "");
+            return ka.localeCompare(kb);
         });
 
         result.alerts = alertLines.length;
