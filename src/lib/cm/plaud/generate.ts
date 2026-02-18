@@ -1,12 +1,17 @@
 // =============================================================
 // src/lib/cm/plaud/generate.ts
 // Plaud AI生成 Server Action
+//
+// セキュリティ:
+//   requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
 // =============================================================
 
 "use server";
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import OpenAI from "openai";
 
 const logger = createLogger("lib/cm/plaud/generate");
@@ -50,9 +55,12 @@ export type ActionResult<T = void> = {
 
 export async function generateWithTemplates(
   transcript: string,
-  templateIds: number[]
+  templateIds: number[],
+  token: string,
 ): Promise<ActionResult<GenerateResultItem[]>> {
   try {
+    await requireCmSession(token);
+
     // バリデーション
     if (!transcript || typeof transcript !== "string") {
       return { ok: false, error: "文字起こしデータは必須です" };
@@ -145,6 +153,9 @@ export async function generateWithTemplates(
 
     return { ok: true, data: results };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }

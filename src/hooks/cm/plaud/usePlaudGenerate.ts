@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import { generateWithTemplates } from '@/lib/cm/plaud/generate';
 
 // =============================================================
@@ -21,6 +22,11 @@ type UsePlaudGenerateReturn = {
 // =============================================================
 // フック本体
 // =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 export function usePlaudGenerate(): UsePlaudGenerateReturn {
   const [results, setResults] = useState<Record<number, string>>({});
@@ -41,7 +47,8 @@ export function usePlaudGenerate(): UsePlaudGenerateReturn {
     setError(null);
 
     try {
-      const result = await generateWithTemplates(transcript, templateIds);
+      const token = await getAccessToken();
+      const result = await generateWithTemplates(transcript, templateIds, token);
 
       if (result.ok === false){
         throw new Error(result.error);

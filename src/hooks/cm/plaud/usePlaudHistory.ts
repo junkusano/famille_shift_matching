@@ -4,6 +4,7 @@
 // =============================================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import {
   getPlaudHistoryList,
   getPlaudHistory,
@@ -61,6 +62,11 @@ function toHistoryWithDetails(h: PlaudHistory): CmPlaudProcessHistoryWithDetails
 // フック本体
 // =============================================================
 
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
 export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn {
   const [history, setHistory] = useState<CmPlaudProcessHistoryWithDetails[]>([]);
   const [pagination, setPagination] = useState<CmPlaudPagination | null>(null);
@@ -74,11 +80,12 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
     setError(null);
 
     try {
+      const token = await getAccessToken();
       const result = await getPlaudHistoryList({
         page,
         limit: 20,
         transcriptionId,
-      });
+      }, token);
 
       if (result.ok === false){
         throw new Error(result.error);
@@ -104,20 +111,21 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
     data: CmPlaudHistoryCreateRequest
   ): Promise<CmPlaudProcessHistoryWithDetails | null> => {
     try {
+      const token = await getAccessToken();
       const result = await createPlaudHistory({
         transcription_id: data.transcription_id,
         template_id: data.template_id,
         kaipoke_cs_id: data.kaipoke_cs_id,
         input_text: data.input_text,
         output_text: data.output_text,
-      });
+      }, token);
 
       if (result.ok === false){
         throw new Error(result.error);
       }
 
       // 詳細データを再取得してローカルステートに追加
-      const detailResult = await getPlaudHistory(result.data!.id);
+      const detailResult = await getPlaudHistory(result.data!.id, token);
 
       if (detailResult.ok && detailResult.data) {
         const newHistory = toHistoryWithDetails(detailResult.data);
@@ -138,9 +146,10 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
     data: CmPlaudHistoryUpdateRequest
   ): Promise<CmPlaudProcessHistoryWithDetails | null> => {
     try {
+      const token = await getAccessToken();
       const result = await updatePlaudHistory(id, {
         output_text: data.output_text,
-      });
+      }, token);
 
       if (result.ok === false){
         throw new Error(result.error);
@@ -165,7 +174,8 @@ export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn
   // 削除
   const remove = useCallback(async (id: number): Promise<boolean> => {
     try {
-      const result = await deletePlaudHistory(id);
+      const token = await getAccessToken();
+      const result = await deletePlaudHistory(id, token);
 
       if (result.ok === false){
         throw new Error(result.error);

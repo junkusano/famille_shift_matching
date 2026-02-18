@@ -1,12 +1,17 @@
 // =============================================================
 // src/lib/cm/plaud/history.ts
 // Plaud処理履歴 Server Actions
+//
+// セキュリティ:
+//   全アクションで requireCmSession(token) による認証を必須実施。
+//   - クライアントから渡された access_token を検証（認証）
 // =============================================================
 
 "use server";
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
 
 const logger = createLogger("lib/cm/plaud/history");
@@ -56,8 +61,10 @@ export async function getPlaudHistoryList(params: {
   page?: number;
   limit?: number;
   transcriptionId?: number;
-} = {}): Promise<ActionResult<{ history: PlaudHistory[]; pagination: PlaudHistoryPagination }>> {
+} = {}, token: string): Promise<ActionResult<{ history: PlaudHistory[]; pagination: PlaudHistoryPagination }>> {
   try {
+    await requireCmSession(token);
+
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const transcriptionId = params.transcriptionId;
@@ -181,6 +188,9 @@ export async function getPlaudHistoryList(params: {
       },
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -191,9 +201,12 @@ export async function getPlaudHistoryList(params: {
 // =============================================================
 
 export async function getPlaudHistory(
-  id: number
+  id: number,
+  token: string,
 ): Promise<ActionResult<PlaudHistory>> {
   try {
+    await requireCmSession(token);
+
     const { data, error } = await supabaseAdmin
       .from("cm_plaud_mgmt_history")
       .select("*")
@@ -235,6 +248,9 @@ export async function getPlaudHistory(
       } as PlaudHistory,
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -250,8 +266,10 @@ export async function createPlaudHistory(data: {
   kaipoke_cs_id?: string | null;
   input_text?: string | null;
   output_text: string;
-}): Promise<ActionResult<PlaudHistory>> {
+}, token: string): Promise<ActionResult<PlaudHistory>> {
   try {
+    await requireCmSession(token);
+
     // バリデーション
     if (!data.transcription_id || !data.template_id) {
       return { ok: false, error: "文字起こしIDとテンプレートIDは必須です" };
@@ -320,6 +338,9 @@ export async function createPlaudHistory(data: {
 
     return { ok: true, data: created as PlaudHistory };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -333,9 +354,12 @@ export async function updatePlaudHistory(
   id: number,
   data: {
     output_text: string;
-  }
+  },
+  token: string,
 ): Promise<ActionResult<PlaudHistory>> {
   try {
+    await requireCmSession(token);
+
     if (!data.output_text || typeof data.output_text !== "string") {
       return { ok: false, error: "出力テキストは必須です" };
     }
@@ -375,6 +399,9 @@ export async function updatePlaudHistory(
 
     return { ok: true, data: updated as PlaudHistory };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
@@ -385,9 +412,12 @@ export async function updatePlaudHistory(
 // =============================================================
 
 export async function deletePlaudHistory(
-  id: number
+  id: number,
+  token: string,
 ): Promise<ActionResult<{ deletedId: number }>> {
   try {
+    await requireCmSession(token);
+
     logger.info("処理履歴削除開始", { id });
 
     // 存在確認
@@ -418,6 +448,9 @@ export async function deletePlaudHistory(
 
     return { ok: true, data: { deletedId: id } };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
