@@ -1,7 +1,12 @@
+// =============================================================
 // src/app/cm-portal/page.tsx
+// CMポータル ダッシュボード（トップページ）
+// =============================================================
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import { CmCard } from '@/components/cm-components';
 import {
   Users,
@@ -272,6 +277,11 @@ const ScheduleItem = ({
 // =============================================================
 // メインコンポーネント
 // =============================================================
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
+
 export default function CmPortalHome() {
   // アラートデータ
   const [alerts, setAlerts] = useState<CmAlert[]>([]);
@@ -290,7 +300,8 @@ export default function CmPortalHome() {
         setAlertsError(null);
 
         // Server Actionを呼び出し
-        const result = await getAlerts();
+        const token = await getAccessToken();
+        const result = await getAlerts({}, token);
 
         if (result.ok === false){
           throw new Error(result.error);

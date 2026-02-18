@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
 
 const logger = createLogger("lib/cm/clients/updateClient");
@@ -32,10 +33,12 @@ export type UpdateClientResult = {
 // 利用者更新
 // =============================================================
 
-export async function updateClient(params: UpdateClientParams): Promise<UpdateClientResult> {
+export async function updateClient(params: UpdateClientParams, token: string): Promise<UpdateClientResult> {
   const { kaipokeCsId, ...fields } = params;
 
   try {
+    await requireCmSession(token);
+
     logger.info("利用者更新開始", { kaipokeCsId, fields: Object.keys(fields) });
 
     // 更新可能フィールドのみ抽出
@@ -74,7 +77,10 @@ export async function updateClient(params: UpdateClientParams): Promise<UpdateCl
 
     return { ok: true };
   } catch (e) {
+    if (e instanceof CmAuthError) {
+      return { ok: false, error: e.message };
+    }
     logger.error("例外", e);
-    return { ok: false, error: "Internal server error" };
+    return { ok: false, error: "サーバーエラーが発生しました" };
   }
 }

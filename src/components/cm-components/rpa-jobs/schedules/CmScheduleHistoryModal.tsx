@@ -1,4 +1,3 @@
-// =============================================================
 // src/components/cm-components/rpa-jobs/schedules/CmScheduleHistoryModal.tsx
 // 実行履歴モーダル
 // =============================================================
@@ -7,8 +6,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, Clock, User, CheckCircle, XCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { getScheduleRuns } from '@/lib/cm/scheduled-jobs/getScheduleRunsClient';
 import type { CmScheduledJobType, CmScheduledJobRun } from '@/types/cm/scheduledJobs';
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 type Props = {
   isOpen: boolean;
@@ -26,7 +31,7 @@ export function CmScheduleHistoryModal({ isOpen, onClose, jobType }: Props) {
       setLoading(true);
       setError(null);
 
-      getScheduleRuns({ jobTypeId: jobType.id, limit: 20 })
+      getAccessToken().then((token) => getScheduleRuns({ jobTypeId: jobType.id, limit: 20 }, token))
         .then((result) => {
           if (result.ok === true) {
             setRuns(result.runs);
@@ -198,3 +203,4 @@ function formatDuration(start: string, end: string): string {
   const diffSec = Math.round(diffMs / 1000);
   return `${diffSec}秒`;
 }
+

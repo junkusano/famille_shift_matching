@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import type {
   CmScheduledJobRun,
   GetScheduleRunsResult,
@@ -23,11 +24,14 @@ type GetScheduleRunsParams = {
  * 指定ジョブタイプの実行履歴を取得（Server Action）
  */
 export async function getScheduleRuns(
-  params: GetScheduleRunsParams
+  params: GetScheduleRunsParams,
+  token: string,
 ): Promise<GetScheduleRunsResult> {
   const { jobTypeId, limit = 20 } = params;
 
   try {
+    await requireCmSession(token);
+
     logger.info('実行履歴取得開始', { jobTypeId, limit });
 
     const { data: runs, error, count } = await supabaseAdmin
@@ -59,6 +63,9 @@ export async function getScheduleRuns(
 
     return { ok: true, runs: result, total: count ?? 0 };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error('予期せぬエラー', error as Error);
     return { ok: false, error: '予期せぬエラーが発生しました' };
   }

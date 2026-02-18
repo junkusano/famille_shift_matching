@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 
 const logger = createLogger("lib/cm/alerts/getAlerts");
 
@@ -57,7 +58,8 @@ export type GetAlertsResult = {
 // =============================================================
 
 export async function getAlerts(
-  params: GetAlertsParams = {}
+  params: GetAlertsParams = {},
+  token: string,
 ): Promise<GetAlertsResult> {
   const {
     status = ["unread", "read", "applying"],
@@ -66,6 +68,8 @@ export async function getAlerts(
   } = params;
 
   try {
+    await requireCmSession(token);
+
     // クエリ構築
     let query = supabaseAdmin
       .from("cm_alerts")
@@ -136,6 +140,9 @@ export async function getAlerts(
       summary,
     };
   } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message };
+    }
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, error: "サーバーエラーが発生しました" };
   }
