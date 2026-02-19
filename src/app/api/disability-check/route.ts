@@ -33,6 +33,12 @@ type CsKanaRow = {
   kana: string | null;
 };
 
+type StaffOption = {
+  id: string;
+  name: string;
+  roster_sort: number | null;
+};
+
 // GET メソッドを追加
 export async function GET(req: NextRequest) {
   try {
@@ -277,7 +283,28 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(merged);
+    // ★追加：実績担当者セレクト用（全員を roster_sort 順で）
+    const { data: staffRows, error: staffErr } = await supabaseAdmin
+      .from("user_entry_united_view_single")
+      .select("user_id,last_name_kanji,first_name_kanji,roster_sort")
+      .order("roster_sort", { ascending: true, nullsFirst: false })
+      .order("last_name_kanji", { ascending: true })
+      .order("first_name_kanji", { ascending: true });
+
+    if (staffErr) throw staffErr;
+
+    const staffOptions: StaffOption[] = (staffRows ?? [])
+      .map((r) => {
+        const id = String(r.user_id ?? "").trim();
+        if (!id) return null;
+        const name = `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim() || id;
+        return { id, name, roster_sort: (r as { roster_sort: number | null }).roster_sort ?? null };
+      })
+      .filter((x): x is StaffOption => x !== null);
+
+    // ★変更：records（従来 merged）と staffOptions を同梱して返す
+    return NextResponse.json({ records: merged, staffOptions });
+
   } catch (e) {
     console.error("[disability-check] fetch error", e);
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
