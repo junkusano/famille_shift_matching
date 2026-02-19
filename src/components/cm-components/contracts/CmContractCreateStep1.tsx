@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { FileText, Check } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
 import type { CmContractCreateStep1Data } from '@/types/cm/contractCreate';
 import type { CmContractTemplateCode } from '@/types/cm/contractTemplate';

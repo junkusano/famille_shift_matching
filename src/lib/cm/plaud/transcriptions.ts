@@ -1,3 +1,4 @@
+// =============================================================
 // src/lib/cm/plaud/transcriptions.ts
 // Plaud文字起こし Server Actions（管理画面用）
 //
@@ -58,28 +59,6 @@ export type PlaudTranscriptionPagination = {
 };
 
 // =============================================================
-// 共通: auth_user_id → user_id 変換
-//
-// requireCmSession が返す userId は Supabase auth UUID。
-// transcriptions の registered_by は users テーブルの user_id。
-// =============================================================
-
-async function resolveInternalUserId(authUserId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .select("user_id")
-    .eq("auth_user_id", authUserId)
-    .single();
-
-  if (error || !data) {
-    logger.warn("ユーザー情報取得失敗", { authUserId, error: error?.message });
-    return null;
-  }
-
-  return data.user_id;
-}
-
-// =============================================================
 // 共通: CmAuthError ハンドリング
 // =============================================================
 
@@ -132,12 +111,9 @@ export async function getPlaudTranscription(
   token: string,
 ): Promise<ActionResult<PlaudTranscription>> {
   try {
+    // requireCmSession は users テーブルの user_id を auth.userId として返す
     const auth = await requireCmSession(token);
-
-    const userId = await resolveInternalUserId(auth.userId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした" };
-    }
+    const userId = auth.userId;
 
     const { data, error } = await supabaseAdmin
       .from("cm_plaud_mgmt_transcriptions")
@@ -169,16 +145,13 @@ export async function getPlaudTranscriptionList(
   params: PlaudTranscriptionListParams,
 ): Promise<ActionResult<{ transcriptions: PlaudTranscription[]; pagination: PlaudTranscriptionPagination }>> {
   try {
+    // requireCmSession は users テーブルの user_id を auth.userId として返す
     const auth = await requireCmSession(params.token);
 
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const status = params.status;
-
-    const userId = await resolveInternalUserId(auth.userId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした。再度ログインしてください。" };
-    }
+    const userId = auth.userId;
 
     logger.info("文字起こし一覧取得開始", { page, limit, status, userId });
 
@@ -264,10 +237,7 @@ export async function executeTranscriptionAction(
       return { ok: false, error: "無効なアクションです" };
     }
 
-    const userId = await resolveInternalUserId(auth.userId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした" };
-    }
+    const userId = auth.userId;
 
     logger.info("アクション実行開始", { id, action, userId });
 
@@ -335,11 +305,7 @@ export async function updateTranscriptionClient(
 ): Promise<ActionResult<PlaudTranscription & { client_name: string | null }>> {
   try {
     const auth = await requireCmSession(token);
-
-    const userId = await resolveInternalUserId(auth.userId);
-    if (!userId) {
-      return { ok: false, error: "認証情報を取得できませんでした" };
-    }
+    const userId = auth.userId;
 
     logger.info("利用者紐付け更新開始", { id, kaipoke_cs_id: kaipokeCsId, userId });
 
@@ -374,7 +340,7 @@ export async function updateTranscriptionClient(
 
     const clientName = await fetchClientName(kaipokeCsId);
 
-    logger.info("利用者紐付け更新開始完了", { id, kaipoke_cs_id: kaipokeCsId, userId });
+    logger.info("利用者紐付け更新完了", { id, kaipoke_cs_id: kaipokeCsId, userId });
 
     revalidatePath("/cm-portal/plaud");
 

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Search } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { CmDateTimeLocalInput } from '@/components/cm-components/common/CmDateTimeLocalInput';
 import type { CmAuditLogFilters as CmAuditLogFiltersType } from '@/types/cm/auditLogs';
 

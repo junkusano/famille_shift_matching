@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Phone, ExternalLink } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { CmClientDetailRow } from './CmClientDetailRow';
 import { cmFormatAddress, cmCalculateAge } from '@/lib/cm/utils';
 import type { CmClientDetail } from '@/types/cm/clientDetail';

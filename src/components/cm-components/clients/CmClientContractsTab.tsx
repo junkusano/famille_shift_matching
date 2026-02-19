@@ -15,7 +15,7 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { supabase } from '@/lib/supabaseClient';
 import { getContracts } from '@/lib/cm/contracts/getContracts';
 import { updateContract } from '@/lib/cm/contracts/actions';

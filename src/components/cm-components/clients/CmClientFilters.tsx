@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Search } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmClientFilters as CmClientFiltersType } from '@/types/cm/clients';
 import styles from '@/styles/cm-styles/clients/clientFilters.module.css';
 

@@ -13,7 +13,7 @@
 import React, { useState } from 'react';
 import { FileText, Upload, CheckCircle2, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
 import { createContractWithDocuments } from '@/lib/cm/contracts/createContract';

@@ -8,7 +8,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import {
   cmFormatAddress,
   cmCalculateAge,

@@ -17,7 +17,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { CmContractCreateStep1 } from './CmContractCreateStep1';
 import { CmContractCreateStep2 } from './CmContractCreateStep2';
 import { CmContractCreateStep3 } from './CmContractCreateStep3';

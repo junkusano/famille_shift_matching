@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';

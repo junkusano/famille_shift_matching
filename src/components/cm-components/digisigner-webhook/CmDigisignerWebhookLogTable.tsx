@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { CmCard } from "@/components/cm-components";
+import { CmCard } from "@/components/cm-components/ui/CmCard";
 import type {
   CmDigisignerWebhookLogEntry,
   CmDigisignerWebhookLogPagination,

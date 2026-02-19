@@ -33,7 +33,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
 import { getTemplateByCode } from '@/lib/cm/contracts/templateActions';

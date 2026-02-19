@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import styles from '@/styles/cm-styles/clients/disabledTab.module.css';
 
 export function CmClientDisabledTab() {

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Search } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmOtherOfficeFilters as CmOtherOfficeFiltersType } from '@/types/cm/otherOffices';
 
 type Props = {

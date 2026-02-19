@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { AlertTriangle, AlertCircle, ChevronLeft, ChevronRight, FileWarning } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmLogEntry, CmAuditLogPagination } from '@/types/cm/auditLogs';
 
 type Props = {

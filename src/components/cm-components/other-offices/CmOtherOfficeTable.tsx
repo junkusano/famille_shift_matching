@@ -16,7 +16,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmOtherOffice, CmOtherOfficePagination } from '@/types/cm/otherOffices';
 
 type Props = {

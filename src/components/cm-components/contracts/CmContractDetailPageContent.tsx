@@ -24,7 +24,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import type {
   CmContractDetailData,

@@ -16,7 +16,7 @@ import {
   Bug,
   X,
 } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmRpaLogRecord } from '@/types/cm/rpa';
 import type { CmRpaLogPagination } from '@/types/cm/rpaLogs';
 

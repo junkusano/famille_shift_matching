@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { FileText, FolderOpen, ExternalLink } from 'lucide-react';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmDocument } from '@/types/cm/clientDetail';
 import styles from '@/styles/cm-styles/clients/documentsTab.module.css';
 

@@ -6,7 +6,7 @@
 "use client";
 
 import React from "react";
-import { CmCard } from "@/components/cm-components";
+import { CmCard } from "@/components/cm-components/ui/CmCard";
 import type { CmDigisignerWebhookLogSummary } from "@/types/cm/digisignerWebhookLogs";
 
 type Props = {

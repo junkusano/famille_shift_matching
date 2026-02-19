@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, User, Eraser } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { CmCard } from '@/components/cm-components';
+import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { useRouter } from 'next/navigation';
 import { getStaffList } from '@/lib/cm/contracts/getStaffList';
 import type { CmStaffOption } from '@/lib/cm/contracts/getStaffList';
