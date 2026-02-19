@@ -85,43 +85,55 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // どの項目を更新するかを組み立てる
-    const row: {
+    // どの項目を更新するかを組み立てる（★row ではなく rows）
+    const rows: Array<{
       kaipoke_cs_id: string;
       year_month: string;
       kaipoke_servicek: string;
       is_checked?: boolean;
       application_check?: boolean;
-    } = {
-      kaipoke_cs_id,
-      year_month,
-      kaipoke_servicek,
-    };
+    }> = [];
 
-    // 回収チェック（is_checked）を更新する場合
+    // 回収チェック（is_checked）は「その区分だけ」
     if (typeof check === "boolean") {
-      row.is_checked = check;
+      rows.push({
+        kaipoke_cs_id,
+        year_month,
+        kaipoke_servicek,
+        is_checked: check,
+      });
     }
 
-    // 提出チェック（application_check）を更新する場合
+    // 提出チェック（application_check）は「同一CSの障害/移動支援 両方」
     if (typeof submitted === "boolean") {
-      row.application_check = submitted;
+      const svcKs = ["障害", "移動支援"] as const;
+
+      for (const k of svcKs) {
+        rows.push({
+          kaipoke_cs_id,
+          year_month,
+          kaipoke_servicek: k,
+          application_check: submitted,
+          // ★もし同時に check も来ていて、かつその区分なら一緒に更新したい場合
+          ...(typeof check === "boolean" && k === kaipoke_servicek ? { is_checked: check } : {}),
+        });
+      }
     }
 
     // どちらも入っていないリクエストはエラー
-    if (row.is_checked === undefined && row.application_check === undefined) {
-      return NextResponse.json(
-        { error: "no_update_field" },
-        { status: 400 }
-      );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "no_update_field" }, { status: 400 });
     }
 
-    // 複合キーで upsert（障害/移動支援のユニーク制約に準拠）
+    // 複合キーで upsert
     const { error } = await supabaseAdmin
       .from("disability_check")
-      .upsert([row], {
+      .upsert(rows, {
         onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek",
       });
+
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
 
     if (error) throw error;
     return NextResponse.json({ ok: true });
