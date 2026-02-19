@@ -1,4 +1,15 @@
-// src/lib/cm/types.ts
+// =============================================================
+// src/types/cm/portalUser.ts
+// CMポータルユーザー関連の共有型定義
+//
+// CmUserContext / useCmUser / userAdapter の3層で共有される型。
+// 元 lib/cm/types.ts から責務分離して移動。
+//
+// 変更履歴:
+//   2026-02-19: lib/cm/types.ts から分離・移動（CS-08）
+//               CmUserContextValue はローカル型として
+//               context/cm/CmUserContext.tsx に移動
+// =============================================================
 
 /**
  * ユーザー権限
@@ -38,20 +49,4 @@ export interface CmUserData {
   email?: string;
   /** サービス種別（訪問介護/居宅/両方） */
   serviceType: CmServiceType;
-}
-
-/**
- * ユーザーコンテキストの値
- */
-export interface CmUserContextValue {
-  /** ユーザーデータ */
-  user: CmUserData | null;
-  /** ローディング状態 */
-  loading: boolean;
-  /** エラー */
-  error: Error | null;
-  /** 画像を更新 */
-  updatePhoto: (url: string | null) => Promise<void>;
-  /** データを再取得 */
-  refresh: () => Promise<void>;
 }

@@ -1,7 +1,13 @@
+// =============================================================
 // src/lib/cm/userAdapter.ts
+// CMポータル用ユーザーデータ取得・更新
+//
+// 変更履歴:
+//   2026-02-19: import先を @/types/cm/portalUser に変更（CS-08）
+// =============================================================
 
 import { supabase } from '@/lib/supabaseClient';
-import type { CmUserData, CmServiceType } from './types';
+import type { CmUserData, CmServiceType } from '@/types/cm/portalUser';
 import { createLogger } from '@/lib/common/logger';
 
 const logger = createLogger('cm/lib/userAdapter');

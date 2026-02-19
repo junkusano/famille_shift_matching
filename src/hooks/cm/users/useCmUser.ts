@@ -1,8 +1,14 @@
+// =============================================================
 // src/hooks/cm/users/useCmUser.ts
+// CMポータル用ユーザー情報フック群
+//
+// 変更履歴:
+//   2026-02-19: import先を @/types/cm/portalUser に変更（CS-08）
+// =============================================================
 'use client';
 
 import { useCmUserContext } from '@/context/cm/CmUserContext';
-import type { CmUserData, CmRole, CmServiceType } from '@/lib/cm/types';
+import type { CmUserData, CmRole, CmServiceType } from '@/types/cm/portalUser';
 
 /**
  * ユーザー情報全体を取得するhook
