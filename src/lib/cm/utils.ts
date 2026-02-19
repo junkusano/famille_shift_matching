@@ -81,22 +81,6 @@ export function cmCalculateAge(birthDateWareki: string | null): number | null {
 }
 
 /**
- * 電話番号をフォーマット
- */
-export function cmFormatPhone(phone: string | null): string {
-  if (!phone) return '-';
-  return phone;
-}
-
-/**
- * 日付をフォーマット（和暦 or ISO → 表示用）
- */
-export function cmFormatDate(date: string | null): string {
-  if (!date) return '-';
-  return date;
-}
-
-/**
  * 要介護度に応じたTailwindクラスを返す
  */
 export function cmGetCareLevelStyle(careLevel: string | null | undefined): string {
