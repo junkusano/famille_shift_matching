@@ -327,48 +327,12 @@ const DisabilityCheckPage: React.FC = () => {
     return Array.from(set);
   }, [filteredRecords]);
 
-  // 件数はフィルタ後を表示
-  // ===== ユニーク利用者数（kaipoke_cs_id）でカウントする =====
-  const uniqCountByService = (svc: string) => {
-    const set = new Set<string>();
-    records.forEach((r) => {
-      if (r.kaipoke_servicek === svc && r.kaipoke_cs_id) {
-        set.add(r.kaipoke_cs_id);
-      }
-    });
-    return set.size;
-  };
+  // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
+  const totalCount = uniqueFilteredRecords.length;     // 件数
+  const filteredCount = uniqueFilteredRecords.length;  // 表示中
 
-  const uniqCount = (rows: Row[]) => {
-    const set = new Set<string>();
-    rows.forEach((r) => {
-      if (r.kaipoke_cs_id) set.add(r.kaipoke_cs_id);
-    });
-    return set.size;
-  };
-
-  const uniqCheckedCount = (rows: Row[]) => {
-    const set = new Set<string>();
-    rows.forEach((r) => {
-      if (r.kaipoke_cs_id && r.is_checked) set.add(r.kaipoke_cs_id);
-    });
-    return set.size;
-  };
-
-  // ★サービス別「件数」（利用者数）
-  const countShogai = uniqCountByService("障害");
-  const countIdo = uniqCountByService("移動支援");
-
-  // ★「全て」の件数は障害＋移動支援（利用者数）
-  const totalCount =
-    kaipokeServicek === ""
-      ? countShogai + countIdo
-      : uniqCount(records);
-
-  // ★表示中・回収済も利用者数で統一
-  const filteredCount = uniqCount(filteredRecords);
-  const checkedCount = uniqCheckedCount(filteredRecords);
-
+  // ★回収済も「表示している行」に揃える
+  const checkedCount = uniqueFilteredRecords.filter((r) => !!r.is_checked).length;
 
   /** District 選択肢取得 */
   const fetchDistricts = async () => {
