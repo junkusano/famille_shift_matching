@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 import type { CmRpaLogRecord } from '@/types/cm/rpa';
 import type {
   CmRpaLogPagination,
@@ -13,6 +14,15 @@ import type {
   CmRpaLogsListResponse,
 } from '@/types/cm/rpaLogs';
 import { CM_RPA_LOG_DEFAULT_FILTERS } from '@/types/cm/rpaLogs';
+
+// =============================================================
+// トークン取得ヘルパー
+// =============================================================
+
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
+}
 
 export function useCmRpaLogs() {
   // ---------------------------------------------------------
@@ -33,6 +43,14 @@ export function useCmRpaLogs() {
     setError(null);
 
     try {
+      const token = await getAccessToken();
+      if (!token) {
+        setError('ログインしてください');
+        setLogs([]);
+        setPagination(null);
+        return;
+      }
+
       const params = new URLSearchParams();
       params.set('page', String(page));
 
@@ -46,6 +64,9 @@ export function useCmRpaLogs() {
 
       const res = await fetch(`/api/cm/rpa/logs?${params.toString()}`, {
         credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       const data: CmRpaLogsListResponse = await res.json();

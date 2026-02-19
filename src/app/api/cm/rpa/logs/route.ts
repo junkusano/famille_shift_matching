@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
+import { requireCmSession } from "@/lib/cm/auth/requireCmSession";
 import type { CmRpaLogRequest, CmRpaLogsApiResponse } from "@/types/cm/rpa";
 import type { CmRpaLogsListResponse } from "@/types/cm/rpaLogs";
 
@@ -96,16 +97,50 @@ function cmValidateLogRequest(body: unknown): ValidationResult {
 }
 
 // =============================================================
-// GET /api/cm/rpa/logs - ログ一覧取得（管理画面用、API キー認証なし）
+// Bearer トークン抽出ヘルパー
+// =============================================================
+
+function extractBearerToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get("authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  return null;
+}
+
+// =============================================================
+// GET /api/cm/rpa/logs - ログ一覧取得（管理画面用、Bearer トークン認証）
 // =============================================================
 
 export async function GET(
   request: NextRequest
 ): Promise<NextResponse<CmRpaLogsListResponse>> {
   try {
+    // ---------------------------------------------------------
+    // 認証：Bearer トークンを検証（管理画面からの呼び出し）
+    // ---------------------------------------------------------
+    const token = extractBearerToken(request);
+    if (!token) {
+      return NextResponse.json(
+        { ok: false, error: "認証が必要です" },
+        { status: 401 }
+      );
+    }
+
+    try {
+      await requireCmSession(token);
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "認証に失敗しました" },
+        { status: 401 }
+      );
+    }
+
+    // ---------------------------------------------------------
+    // クエリパラメータ取得
+    // ---------------------------------------------------------
     const { searchParams } = new URL(request.url);
 
-    // クエリパラメータ取得
     const env = searchParams.get("env");
     const level = searchParams.get("level");
     const moduleName = searchParams.get("module");
@@ -117,7 +152,9 @@ export async function GET(
     const limit = 50;
     const offset = (page - 1) * limit;
 
+    // ---------------------------------------------------------
     // クエリ構築
+    // ---------------------------------------------------------
     let query = supabaseAdmin
       .from("cm_rpa_logs")
       .select("*", { count: "exact" });
