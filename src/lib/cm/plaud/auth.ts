@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { validateApiKeyWithDetails } from '@/lib/cm/rpa/auth';
 
 const logger = createLogger('cm/plaud/auth');
 
@@ -30,45 +31,6 @@ export type PlaudAuthErrorResponse = {
   ok: false;
   error: string;
 };
-
-// =============================================================
-// APIキー検証
-// =============================================================
-
-/**
- * APIキーを検証する
- * @param request NextRequest オブジェクト
- * @returns 検証結果（キーID、キー名を含む）
- */
-async function validateApiKey(
-  request: NextRequest
-): Promise<{ valid: boolean; keyId?: number; keyName?: string }> {
-  const apiKey = request.headers.get('x-api-key');
-
-  if (!apiKey) {
-    logger.warn('APIキーが未指定');
-    return { valid: false };
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id, key_name')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  if (error || !data) {
-    logger.warn('APIキー検証失敗', { error: error?.message });
-    return { valid: false };
-  }
-
-  return {
-    valid: true,
-    keyId: data.id,
-    keyName: data.key_name,
-  };
-}
 
 // =============================================================
 // アカウント検証
@@ -143,8 +105,9 @@ export async function validatePlaudAuth(
   request: NextRequest
 ): Promise<PlaudAuthResult> {
   // 1. APIキー検証
-  const apiKeyResult = await validateApiKey(request);
+  const apiKeyResult = await validateApiKeyWithDetails(request);
   if (!apiKeyResult.valid) {
+    logger.warn('APIキー検証失敗');
     return { valid: false };
   }
 

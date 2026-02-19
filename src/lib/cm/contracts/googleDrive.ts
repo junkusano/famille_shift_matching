@@ -220,18 +220,6 @@ export async function uploadConsentPdfToDrive(
       },
     };
   } catch (e: unknown) {
-    // ★ デバッグ用に直接コンソール出力
-    console.log("=== GOOGLE DRIVE UPLOAD ERROR ===");
-    console.log("Error type:", typeof e);
-    console.log("Is Error instance:", e instanceof Error);
-    console.log("Error object:", e);
-    if (e instanceof Error) {
-      console.log("Error message:", e.message);
-      console.log("Error name:", e.name);
-      console.log("Error stack:", e.stack);
-    }
-    console.log("=================================");
-
     // エラー詳細をログ出力
     let errorMessage = "Unknown error";
     let errorDetails: Record<string, unknown> = {};

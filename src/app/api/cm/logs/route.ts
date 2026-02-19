@@ -9,34 +9,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
+import { createLogger } from '@/lib/common/logger';
+import { validateApiKey } from '@/lib/cm/rpa/auth';
 import type { CmRpaLogRequest, CmRpaLogsApiResponse } from '@/types/cm/rpa';
 import type { CmRpaLogsListResponse } from '@/types/cm/rpaLogs';
 
-// =============================================================
-// APIキー認証（既存）
-// =============================================================
-
-async function validateApiKey(request: NextRequest): Promise<boolean> {
-  const apiKey = request.headers.get('x-api-key');
-  
-  if (!apiKey) {
-    return false;
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('cm_rpa_api_keys')
-    .select('id')
-    .eq('api_key', apiKey)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  if (error || !data) {
-    return false;
-  }
-
-  return true;
-}
+const logger = createLogger('api/cm/rpa/logs');
 
 // =============================================================
 // バリデーション（既存）
@@ -174,7 +152,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsL
     const { data: logs, error, count } = await query;
 
     if (error) {
-      console.error('[RPA logs] DB query error:', error);
+      logger.error('ログ一覧取得エラー', { error: error.message });
       return NextResponse.json(
         { ok: false, error: 'ログ取得に失敗しました' },
         { status: 500 }
@@ -197,7 +175,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<CmRpaLogsL
       },
     });
   } catch (error) {
-    console.error('[RPA logs] Unexpected error:', error);
+    logger.error('ログ一覧取得例外', error as Error);
     return NextResponse.json(
       { ok: false, error: '予期せぬエラーが発生しました' },
       { status: 500 }
@@ -260,7 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogs
       });
 
     if (insertError) {
-      console.error('[RPA logs] DB insert error:', insertError);
+      logger.error('ログ保存エラー', { error: insertError.message });
       return NextResponse.json(
         { ok: false, error: 'ログの保存に失敗しました' },
         { status: 500 }
@@ -271,7 +249,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CmRpaLogs
     return NextResponse.json({ ok: true });
 
   } catch (error) {
-    console.error('[RPA logs] Unexpected error:', error);
+    logger.error('ログ保存例外', error as Error);
     return NextResponse.json(
       { ok: false, error: '予期せぬエラーが発生しました' },
       { status: 500 }
