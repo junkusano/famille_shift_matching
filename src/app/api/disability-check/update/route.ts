@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 type Body = {
-  check: boolean;
+  check?: boolean;          // ★必須→任意
   submitted?: boolean;
   year_month: string;
   kaipoke_servicek: string;
@@ -94,17 +94,6 @@ export async function PUT(req: NextRequest) {
       application_check?: boolean;
     }> = [];
 
-    // 回収チェック（is_checked）は「その区分だけ」
-    if (typeof check === "boolean") {
-      rows.push({
-        kaipoke_cs_id,
-        year_month,
-        kaipoke_servicek,
-        is_checked: check,
-      });
-    }
-
-    // 提出チェック（application_check）は「同一CSの障害/移動支援 両方」
     if (typeof submitted === "boolean") {
       const svcKs = ["障害", "移動支援"] as const;
 
@@ -114,10 +103,17 @@ export async function PUT(req: NextRequest) {
           year_month,
           kaipoke_servicek: k,
           application_check: submitted,
-          // ★もし同時に check も来ていて、かつその区分なら一緒に更新したい場合
+          // 同時に check も来ていて、かつその区分なら一緒に更新
           ...(typeof check === "boolean" && k === kaipoke_servicek ? { is_checked: check } : {}),
         });
       }
+    } else if (typeof check === "boolean") {
+      rows.push({
+        kaipoke_cs_id,
+        year_month,
+        kaipoke_servicek,
+        is_checked: check,
+      });
     }
 
     // どちらも入っていないリクエストはエラー
@@ -135,8 +131,6 @@ export async function PUT(req: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ ok: true });
 
-    if (error) throw error;
-    return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[disability-check] upsert error", e);
     return NextResponse.json({ error: "upsert_failed" }, { status: 500 });

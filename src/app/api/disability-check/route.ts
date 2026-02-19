@@ -367,11 +367,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ★追加：同一CS内で「どれかtrue」を集約（同じyearMonthで取ってるのでcs_idだけでOK）
+    const submittedAnyByCs = new Map<string, boolean>();
+    for (const r of rows) {
+      const csId = String(r.kaipoke_cs_id);
+      const cur = submittedAnyByCs.get(csId) ?? false;
+      const next = cur || r.application_check === true;
+      submittedAnyByCs.set(csId, next);
+    }
+
     const merged = rows.map((r: ViewRow) => {
+      const csId = String(r.kaipoke_cs_id);
+      const any = submittedAnyByCs.get(csId) ?? false;
+
       return {
         ...r,
-        client_kana: kanaMap.get(String(r.kaipoke_cs_id)) ?? null,
-        is_submitted: r.application_check ?? null,
+        client_kana: kanaMap.get(csId) ?? null,
+        // ★ここがポイント：表示は必ず統一
+        is_submitted: any,
+        // 必要なら application_check も返却上は統一（画面がこれを参照してるなら）
+        application_check: any,
       };
     });
 
