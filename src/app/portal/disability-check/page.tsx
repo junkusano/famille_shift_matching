@@ -327,22 +327,12 @@ const DisabilityCheckPage: React.FC = () => {
     return Array.from(set);
   }, [filteredRecords]);
 
-  // ★追加：サービス「全て」のときは重複排除しない
-  const displayRows = useMemo(() => {
-    return kaipokeServicek === ""
-      ? filteredRecords       // 全て → 重複あり
-      : uniqueFilteredRecords; // 障害/移動支援 → 1人1行
-  }, [kaipokeServicek, filteredRecords, uniqueFilteredRecords]);
+  // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
+  const totalCount = uniqueFilteredRecords.length;     // 件数
+  const filteredCount = uniqueFilteredRecords.length;  // 表示中
 
-  // ★件数：全件（サーバから取れた件数）
-  // 例）障害179 + 移動支援47 = 226 を出したいなら records.length
-  const totalCount = records.length;
-
-  // ★表示中：今画面に出している行数（全てなら重複あり / サービス指定なら1人1行）
-  const filteredCount = displayRows.length;
-
-  // ★回収済：表示している行のうち回収済の数
-  const checkedCount = displayRows.filter((r) => !!r.is_checked).length;
+  // ★回収済も「表示している行」に揃える
+  const checkedCount = uniqueFilteredRecords.filter((r) => !!r.is_checked).length;
 
   /** District 選択肢取得 */
   const fetchDistricts = async () => {
@@ -932,7 +922,7 @@ const DisabilityCheckPage: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {displayRows.map((r) => {
+          {uniqueFilteredRecords.map((r) => {
             const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
@@ -1017,7 +1007,7 @@ const DisabilityCheckPage: React.FC = () => {
               </tr>
             );
           })}
-          {displayRows.length === 0 && (
+          {uniqueFilteredRecords.length === 0 && (
             <tr>
               <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
