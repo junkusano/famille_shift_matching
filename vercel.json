@@ -70,7 +70,7 @@
     },
     {
       "path": "/api/cron/disability-check-daily",
-      "schedule": "13 4 1 * *"
+      "schedule": "13 4 * * *"
     }
   ]
 }
