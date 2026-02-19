@@ -134,6 +134,17 @@ const DisabilityCheckPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // ★追加：実績担当者の一括変更（manager/adminのみ）
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [newAssignedStaffId, setNewAssignedStaffId] = useState<string>("");
+  const [isSavingAssigned, setIsSavingAssigned] = useState<boolean>(false);
+
+  const isPrivileged = isManager || isAdmin;
+
+  // 行を一意に識別（year_month + service + cs_id）
+  const rowKey = (r: Row) =>
+    `${r.year_month}__${r.kaipoke_servicek}__${normCsId(r.kaipoke_cs_id)}`;
+
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
   const handleClickStaff = (staffId: string) => {
     // member は担当者固定運用なので、クリック絞り込みは不要（必要ならこの if を外す）
@@ -498,6 +509,89 @@ const DisabilityCheckPage: React.FC = () => {
             : r
         )
       );
+    }
+  };
+
+  const toggleSelected = (r: Row, checked: boolean) => {
+    const k = rowKey(r);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(k);
+      else next.delete(k);
+      return next;
+    });
+  };
+
+  const isSelected = (r: Row) => selectedKeys.has(rowKey(r));
+
+  const handleSaveAssignedStaff = async () => {
+    if (!isPrivileged) return;
+    if (!newAssignedStaffId) return;
+    if (selectedKeys.size === 0) return;
+
+    // 選択行から cs_id だけ抜く（同一年月・同一サービス前提の画面なので一括更新しやすい）
+    const selectedRows = uniqueFilteredRecords.filter((r) => isSelected(r));
+    const csIds = selectedRows
+      .map((r) => normCsId(r.kaipoke_cs_id))
+      .filter((v) => v.length > 0);
+
+    if (csIds.length === 0) return;
+
+    setIsSavingAssigned(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/update-assigned-staff", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          year_month: yearMonth,
+          kaipoke_servicek: kaipokeServicek,
+          kaipoke_cs_ids: csIds,
+          new_staff_id: newAssignedStaffId,
+        }),
+      });
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`update-assigned-staff failed: ${res.status} ${t}`);
+      }
+
+      // 表示側も更新（楽観的に反映）
+      const newName =
+        allStaffOptions.find((s) => s.id === newAssignedStaffId)?.name ?? null;
+
+      setRecords((prev) =>
+        prev.map((r) => {
+          const id = normCsId(r.kaipoke_cs_id);
+          if (
+            r.year_month === yearMonth &&
+            r.kaipoke_servicek === kaipokeServicek &&
+            csIds.includes(id)
+          ) {
+            return {
+              ...r,
+              asigned_jisseki_staff_id: newAssignedStaffId,
+              asigned_jisseki_staff_name: newName,
+            };
+          }
+          return r;
+        })
+      );
+
+      // 選択解除
+      setSelectedKeys(new Set());
+      setNewAssignedStaffId("");
+    } catch (e) {
+      console.error(e);
+      alert("実績担当者の保存に失敗しました。");
+    } finally {
+      setIsSavingAssigned(false);
     }
   };
 
@@ -924,11 +1018,57 @@ const DisabilityCheckPage: React.FC = () => {
 </label>
 */}
 
+        {/* ★追加：manager/admin のみ 一括変更UI */}
+        {isPrivileged && (
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <label style={{ width: 240 }}>
+              変更先担当者
+              <select
+                value={newAssignedStaffId}
+                onChange={(e) => setNewAssignedStaffId(e.target.value)}
+                style={{ width: 240 }}
+              >
+                <option value="">（選択）</option>
+                {staffOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleSaveAssignedStaff}
+              disabled={isSavingAssigned || selectedKeys.size === 0 || !newAssignedStaffId}
+              style={{
+                height: 32,
+                padding: "0 12px",
+                border: "1px solid #999",
+                borderRadius: 6,
+                background:
+                  isSavingAssigned || selectedKeys.size === 0 || !newAssignedStaffId
+                    ? "#f5f5f5"
+                    : "#fff",
+                cursor:
+                  isSavingAssigned || selectedKeys.size === 0 || !newAssignedStaffId
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {isSavingAssigned ? "保存中..." : `保存（${selectedKeys.size}件）`}
+            </button>
+          </div>
+        )}
+
       </div>
 
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
+            {isPrivileged && (
+              <th style={{ textAlign: "center", padding: 8, width: 60 }}>変更</th>
+            )}
             <th style={{ textAlign: "left", padding: 8 }}>地域</th>
             <th style={{ textAlign: "left", padding: 8 }}>カイポケID</th>
             <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
@@ -944,6 +1084,16 @@ const DisabilityCheckPage: React.FC = () => {
             const key = normCsId(r.kaipoke_cs_id);
             return (
               <tr key={key} style={{ verticalAlign: "middle" }}>
+                {isPrivileged && (
+                  <td style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected(r)}
+                      onChange={(e) => toggleSelected(r, e.target.checked)}
+                    />
+                  </td>
+                )}
+
                 <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
                 <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
 
@@ -977,25 +1127,25 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
-                  <select
-                    value={r.asigned_jisseki_staff_id ?? ""}
-                    disabled={isMember} // memberは従来通り触らせないならこのまま
-                    onChange={(e) => {
-                      if (isMember) return;
-                      const v = e.target.value;
-                      if (!v) return;
-                      handleClickStaff(v); // ★旧リンククリックと同じ（絞り込み）
-                    }}
-                    style={{ width: 220 }}
-                  >
-                    <option value="">（未選択）</option>
-
-                    {staffOptions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  {r.asigned_jisseki_staff_id ? (
+                    <button
+                      type="button"
+                      onClick={() => handleClickStaff(r.asigned_jisseki_staff_id!)} // ★絞り込み
+                      disabled={!isPrivileged}
+                      style={{
+                        color: "#2563eb",
+                        textDecoration: "underline",
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        cursor: isPrivileged ? "pointer" : "default",
+                      }}
+                    >
+                      {r.asigned_jisseki_staff_name ?? r.asigned_jisseki_staff_id}
+                    </button>
+                  ) : (
+                    <span>-</span>
+                  )}
                 </td>
 
                 {/* ★追加：チーム名 */}
@@ -1030,7 +1180,7 @@ const DisabilityCheckPage: React.FC = () => {
           })}
           {uniqueFilteredRecords.length === 0 && (
             <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
+              <td colSpan={isPrivileged ? 9 : 8} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
               </td>
             </tr>
