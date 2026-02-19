@@ -32,6 +32,8 @@ interface DistrictRow {
   district: string | null;
 }
 
+type StaffOption = { id: string; name: string; roster_sort: number | null };
+
 /** 前月 YYYY-MM を返す */
 const getPrevMonth = (): string => {
   const now = new Date();
@@ -108,6 +110,7 @@ const DisabilityCheckPage: React.FC = () => {
   const [allDistricts, setAllDistricts] = useState<string[]>([]);
   const [records, setRecords] = useState<Row[]>([]);
   const yearMonthOptions = useMemo(buildYearMonthOptions, []);
+  const [allStaffOptions, setAllStaffOptions] = useState<StaffOption[]>([]);
 
   // ② 検索用ステート
   const [filterKaipokeCsId, setFilterKaipokeCsId] = useState<string>("");  // 利用者（kaipoke_cs_id）
@@ -218,16 +221,8 @@ const DisabilityCheckPage: React.FC = () => {
   }, [records, jaCollator]);
 
   const staffOptions = useMemo(() => {
-    const map = new Map<string, string>(); // id -> name
-    records.forEach((r) => {
-      if (r.asigned_jisseki_staff_id && r.asigned_jisseki_staff_name) {
-        map.set(r.asigned_jisseki_staff_id, r.asigned_jisseki_staff_name);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
-  }, [records]);
+    return allStaffOptions.map(({ id, name }) => ({ id, name }));
+  }, [allStaffOptions]);
 
   const teamOptions = useMemo(() => {
     const map = new Map<string, string>(); // id -> name
@@ -350,6 +345,29 @@ const DisabilityCheckPage: React.FC = () => {
       setAllDistricts(uniq);
     } catch {
       console.error("Failed to fetch districts");
+    }
+  };
+
+  const fetchAllStaffOptions = async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/staff-options", {
+        method: "GET",
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) throw new Error("failed");
+
+      const list: StaffOption[] = await res.json();
+      setAllStaffOptions(list ?? []);
+    } catch (e) {
+      console.error("Failed to fetch staff options", e);
+      setAllStaffOptions([]);
     }
   };
 
@@ -707,9 +725,9 @@ const DisabilityCheckPage: React.FC = () => {
     router,
   ]);
 
-  /** 初回：District候補だけロード */
   useEffect(() => {
     fetchDistricts();
+    fetchAllStaffOptions(); // ★追加
   }, []);
 
   /** フィルタ変更で再読込 */
@@ -959,22 +977,27 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
-                  {r.asigned_jisseki_staff_id ? (
-                    <a
-                      href={`/portal/disability-check?ym=${encodeURIComponent(
-                        yearMonth
-                      )}&user_id=${encodeURIComponent(r.asigned_jisseki_staff_id)}`}
-                      className="text-blue-600 underline"
-                      onClick={(e) => {
-                        e.preventDefault(); // ★URLだけ変わって表示が変わらないのを防ぐ
-                        handleClickStaff(r.asigned_jisseki_staff_id!);
-                      }}
-                    >
-                      {r.asigned_jisseki_staff_name ?? r.asigned_jisseki_staff_id}
-                    </a>
-                  ) : (
-                    <span>-</span>
-                  )}
+                  <select
+                    value={r.asigned_jisseki_staff_id ?? ""}
+                    disabled={isMember} // memberは従来通り触らせないならこのまま
+                    onChange={(e) => {
+                      if (isMember) return;
+                      const v = e.target.value;
+                      if (!v) return;
+                      handleClickStaff(v); // ★旧リンククリックと同じ（絞り込み）
+                    }}
+                    style={{ width: 220 }}
+                  >
+                    <option value="">
+                      {r.asigned_jisseki_staff_id ? "（未選択）" : "（未割当）"}
+                    </option>
+
+                    {staffOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
 
                 {/* ★追加：チーム名 */}
