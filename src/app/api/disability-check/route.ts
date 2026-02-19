@@ -179,18 +179,6 @@ export async function POST(req: NextRequest) {
     if (kaipokeServicek) query = query.eq("kaipoke_servicek", kaipokeServicek);
     if (districts.length > 0) query = query.in("district", districts);
 
-    // 利用者（cs）での任意絞り込み
-    if (csReq) query = query.eq("kaipoke_cs_id", csReq);
-
-    // 権限による強制絞り込み
-    if (isMember) {
-      // member は必ず自分のみ（リクエストで staffId が来ても無視）
-      query = query.eq("asigned_jisseki_staff_id", myUserId);
-    } else {
-      // manager/admin は任意で担当者絞り込み可能
-      if (staffIdReq) query = query.eq("asigned_jisseki_staff_id", staffIdReq);
-    }
-
     const { data, error } = await query;
     if (error) throw error;
 
@@ -251,9 +239,119 @@ export async function POST(req: NextRequest) {
     // rows を絞り込み
     rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
 
+    // 利用者（cs）での任意絞り込み
+    if (csReq) query = query.eq("kaipoke_cs_id", csReq);
+
+    type ShiftStaffPick = {
+      staffCol: string;
+      rows: Array<{ kaipoke_cs_id: string | null; staff_id: string | null }>;
+    };
+
+    async function fetchShiftStaffRows(args: {
+      monthStart: string;
+      monthEndExclusive: string;
+      allowedServiceCodes: string[];
+    }): Promise<ShiftStaffPick> {
+      const staffCols = ["staff_user_id", "user_id", "staff_id", "worker_user_id", "caregiver_user_id"] as const;
+
+      for (const staffCol of staffCols) {
+        const { data, error } = await supabaseAdmin
+          .from("shift")
+          .select(`kaipoke_cs_id,${staffCol}`)
+          .gte("shift_start_date", args.monthStart)
+          .lt("shift_start_date", args.monthEndExclusive)
+          .in("service_code", args.allowedServiceCodes);
+
+        if (error) continue;
+
+        return {
+          staffCol,
+          rows: (data ?? []).map((r) => {
+            const rec = r as Record<string, unknown>;
+            return {
+              kaipoke_cs_id: (rec.kaipoke_cs_id as string | null) ?? null,
+              staff_id: (rec[staffCol] as string | null) ?? null,
+            };
+          }),
+        };
+      }
+      return { staffCol: "(none)", rows: [] };
+    }
+
+    // 1) shift から (cs_id, staff_id) を集計して最多staffを決める
+    const { rows: shiftStaffRows } = await fetchShiftStaffRows({ monthStart, monthEndExclusive, allowedServiceCodes });
+
+    const counts = new Map<string, Map<string, number>>();
+    for (const r of shiftStaffRows) {
+      const csId = (r.kaipoke_cs_id ?? "").toString();
+      const staffId = (r.staff_id ?? "").toString();
+      if (!csId || !staffId) continue;
+      let m1 = counts.get(csId);
+      if (!m1) { m1 = new Map(); counts.set(csId, m1); }
+      m1.set(staffId, (m1.get(staffId) ?? 0) + 1);
+    }
+
+    const bestStaffByCs = new Map<string, string>();
+    for (const [csId, m1] of counts.entries()) {
+      let bestId = ""; let bestCnt = -1;
+      for (const [staffId, cnt] of m1.entries()) {
+        if (cnt > bestCnt) { bestCnt = cnt; bestId = staffId; }
+      }
+      if (bestId) bestStaffByCs.set(csId, bestId);
+    }
+
+    // 2) staff の表示名（last+first）と所属を view から取得
+    const bestStaffIds = Array.from(new Set(Array.from(bestStaffByCs.values())));
+    const staffInfoMap = new Map<string, { name: string; org_unit_id: string | null; orgunitname: string | null }>();
+    if (bestStaffIds.length > 0) {
+      const { data: staffInfos } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("user_id,last_name_kanji,first_name_kanji,org_unit_id,orgunitname")
+        .in("user_id", bestStaffIds);
+
+      (staffInfos ?? []).forEach((r) => {
+        const rec = r as Record<string, unknown>;
+        const id = String(rec.user_id ?? "").trim();
+        if (!id) return;
+        const name = `${String(rec.last_name_kanji ?? "")}${String(rec.first_name_kanji ?? "")}`.trim() || id;
+        staffInfoMap.set(id, {
+          name,
+          org_unit_id: (rec.org_unit_id as string | null) ?? null,
+          orgunitname: (rec.orgunitname as string | null) ?? null,
+        });
+      });
+    }
+
+    // 3) disability_check_view の NULL を埋める
+    const assignedRows: ViewRow[] = rows.map((r) => {
+      if (r.asigned_jisseki_staff_id) return r;
+      const best = bestStaffByCs.get(String(r.kaipoke_cs_id));
+      if (!best) return r;
+      const info = staffInfoMap.get(best);
+      return {
+        ...r,
+        asigned_jisseki_staff_id: best,
+        asigned_jisseki_staff_name: info?.name ?? r.asigned_jisseki_staff_name ?? null,
+        asigned_org_id: info?.org_unit_id ?? r.asigned_org_id ?? null,
+        asigned_org_name: info?.orgunitname ?? r.asigned_org_name ?? null,
+      };
+    });
+
+    // 4) member/admin/manager のフィルタは「割当後」にかける
+    let visibleRows = assignedRows;
+    if (isMember) {
+      visibleRows = visibleRows.filter((r) => r.asigned_jisseki_staff_id === myUserId);
+    } else {
+      if (staffIdReq) visibleRows = visibleRows.filter((r) => r.asigned_jisseki_staff_id === staffIdReq);
+    }
+
+    // ★重要：ここを追加（visibleRows を最終結果に反映）
+    rows = visibleRows;
+
+    // ★重要：targetCsIds も rows 更新後に作り直す（かな取得対象がズレない）
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
 
-    // ★追加：かな（よみがな）を cs_kaipoke_info から取得（targetCsIds の後ろ）
+    // ★追加：かな（よみがな）を cs_kaipoke_info から取得
     const kanaMap = new Map<string, string | null>();
     if (targetCsIds.length > 0) {
       const { data: kanaRows, error: kanaErr } = await supabaseAdmin
@@ -273,7 +371,7 @@ export async function POST(req: NextRequest) {
       return {
         ...r,
         client_kana: kanaMap.get(String(r.kaipoke_cs_id)) ?? null,
-        is_submitted: r.application_check ?? null, // ★viewの列をそのまま使う
+        is_submitted: r.application_check ?? null,
       };
     });
 

@@ -988,9 +988,7 @@ const DisabilityCheckPage: React.FC = () => {
                     }}
                     style={{ width: 220 }}
                   >
-                    <option value="">
-                      {r.asigned_jisseki_staff_id ? "（未選択）" : "（未割当）"}
-                    </option>
+                    <option value="">（未選択）</option>
 
                     {staffOptions.map((s) => (
                       <option key={s.id} value={s.id}>
