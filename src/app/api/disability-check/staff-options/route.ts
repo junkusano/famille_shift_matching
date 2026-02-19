@@ -21,13 +21,14 @@ function isStaffRow(x: unknown): x is StaffRow {
     const r = x as Record<string, unknown>;
 
     const isStrOrNull = (v: unknown) => typeof v === "string" || v === null;
-    const isNumOrNull = (v: unknown) => typeof v === "number" || v === null;
+    const isNumLikeOrNull = (v: unknown) =>
+        typeof v === "number" || typeof v === "string" || v === null;
 
     return (
         isStrOrNull(r.user_id) &&
         isStrOrNull(r.last_name_kanji) &&
         isStrOrNull(r.first_name_kanji) &&
-        isNumOrNull(r.roster_sort)
+        isNumLikeOrNull(r.roster_sort)
     );
 }
 
@@ -69,7 +70,14 @@ export async function GET(req: NextRequest) {
                 const first = r.first_name_kanji ?? "";
                 const name = `${last}${first}`.trim() || id;
 
-                return { id, name, roster_sort: r.roster_sort ?? null };
+                const rs =
+                    typeof r.roster_sort === "number"
+                        ? r.roster_sort
+                        : typeof r.roster_sort === "string"
+                            ? Number(r.roster_sort)
+                            : null;
+
+                return { id, name, roster_sort: Number.isFinite(rs as number) ? (rs as number) : null };
             })
             .filter((x): x is StaffOption => x !== null);
 
