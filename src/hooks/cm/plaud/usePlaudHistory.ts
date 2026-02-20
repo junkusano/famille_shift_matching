@@ -4,7 +4,7 @@
 // =============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import {
   getPlaudHistoryList,
   getPlaudHistory,
@@ -60,13 +60,6 @@ function toHistoryWithDetails(h: PlaudHistory): CmPlaudProcessHistoryWithDetails
 
 // =============================================================
 // フック本体
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function usePlaudHistory(transcriptionId?: number): UsePlaudHistoryReturn {
   const [history, setHistory] = useState<CmPlaudProcessHistoryWithDetails[]>([]);
   const [pagination, setPagination] = useState<CmPlaudPagination | null>(null);

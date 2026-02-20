@@ -16,7 +16,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { CmContractCreateStep1 } from './CmContractCreateStep1';
 import { CmContractCreateStep2 } from './CmContractCreateStep2';
@@ -45,13 +45,6 @@ type Step = 1 | 2 | 3;
 
 // =============================================================
 // Component
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function CmContractCreateWizard({ kaipokeCsId }: Props) {
   const router = useRouter();
 

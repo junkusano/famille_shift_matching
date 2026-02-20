@@ -6,6 +6,7 @@
 import Link from 'next/link';
 import { FileText, Edit, CheckCircle2, XCircle } from 'lucide-react';
 import { getTemplateList } from '@/lib/cm/contracts/templateActions';
+import { cmFormatDate } from '@/lib/cm/utils';
 
 export default async function ContractTemplatesPage() {
   const result = await getTemplateList();
@@ -66,7 +67,7 @@ export default async function ContractTemplatesPage() {
                     )}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    コード: {template.code} ・ 最終更新: {formatDate(template.updated_at)}
+                    コード: {template.code} ・ 最終更新: {cmFormatDate(template.updated_at)}
                     {template.updated_by_name && (
                       <span> ・ 更新者: {template.updated_by_name}</span>
                     )}
@@ -97,13 +98,4 @@ export default async function ContractTemplatesPage() {
       </div>
     </div>
   );
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  } catch {
-    return dateStr;
-  }
 }

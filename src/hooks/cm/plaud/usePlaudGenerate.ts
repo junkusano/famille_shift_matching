@@ -4,7 +4,7 @@
 // =============================================================
 
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { generateWithTemplates } from '@/lib/cm/plaud/generate';
 
 // =============================================================
@@ -21,13 +21,6 @@ type UsePlaudGenerateReturn = {
 
 // =============================================================
 // フック本体
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function usePlaudGenerate(): UsePlaudGenerateReturn {
   const [results, setResults] = useState<Record<number, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);

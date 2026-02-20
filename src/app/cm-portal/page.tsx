@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import {
   Users,
@@ -276,12 +276,6 @@ const ScheduleItem = ({
 
 // =============================================================
 // メインコンポーネント
-// =============================================================
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export default function CmPortalHome() {
   // アラートデータ
   const [alerts, setAlerts] = useState<CmAlert[]>([]);

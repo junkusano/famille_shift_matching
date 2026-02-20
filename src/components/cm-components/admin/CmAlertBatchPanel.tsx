@@ -17,15 +17,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { runAlertBatch, type RunAlertBatchResult } from "@/lib/cm/alert-batch/actions";
-
-// ============================================================
-// トークン取得ヘルパー
-// ============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDateTimeLocale } from '@/lib/cm/utils';
 
 // ============================================================
 // 型定義
@@ -385,16 +378,7 @@ function CmAlertStatsGrid({ stats }: { stats: AlertStats[] }) {
 }
 
 function CmBatchHistoryTable({ history }: { history: BatchRunRecord[] }) {
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleString("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -451,7 +435,7 @@ function CmBatchHistoryTable({ history }: { history: BatchRunRecord[] }) {
           {history.map((record) => (
             <tr key={record.id} className="border-b border-slate-100 hover:bg-slate-50">
               <td className="py-3 px-4 text-slate-700">
-                {formatDate(record.started_at)}
+                {cmFormatDateTimeLocale(record.started_at)}
               </td>
               <td className="py-3 px-4">
                 {getRunTypeBadge(record.run_type)}

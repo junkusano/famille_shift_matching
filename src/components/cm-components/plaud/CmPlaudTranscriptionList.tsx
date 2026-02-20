@@ -35,6 +35,7 @@ import {
 } from './CmPlaudCommon';
 import { CmPlaudClientSearchModal } from './CmPlaudClientSearchModal';
 import styles from '@/styles/cm-styles/plaud/transcriptionList.module.css';
+import { cmFormatDateTimeLocale } from '@/lib/cm/utils';
 
 // =============================================================
 // 型定義
@@ -206,16 +207,7 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
   };
 
   // 日付フォーマット
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+
 
   return (
     <div className={styles.container}>
@@ -397,7 +389,7 @@ export const CmPlaudTranscriptionList: React.FC<CmPlaudTranscriptionListProps> =
                           )}
                         </div>
                         <span className={styles.date}>
-                          {formatDate(item.plaud_created_at)}
+                          {cmFormatDateTimeLocale(item.plaud_created_at)}
                         </span>
                       </div>
 

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import {
   updateContract,
@@ -38,16 +38,6 @@ type Props = {
   kaipokeCsId: string;
   contractId: string;
 };
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // Component
 // =============================================================

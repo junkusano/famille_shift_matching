@@ -37,6 +37,7 @@ import type {
   CmCreateContractResult,
 } from '@/types/cm/contractCreate';
 import type { CmContractTemplateCode } from '@/types/cm/contractTemplate';
+import { cmFormatDateJapanese } from '@/lib/cm/utils';
 
 const logger = createLogger('lib/cm/contracts/createContract');
 
@@ -207,12 +208,7 @@ export async function createContractWithDocuments(
     // 3. タグ置換マップを作成
     //    v2変更: proxy_* → scribe_*/agent_* タグ対応
     // ---------------------------------------------------------
-    const formatDate = (dateStr: string): string => {
-      if (!dateStr) return '';
-      const [year, month, day] = dateStr.split('-').map(Number);
-      if (!year || !month || !day) return dateStr;
-      return `${year}年${month}月${day}日`;
-    };
+
 
     // 代筆者タグの値（signerType が scribe の場合のみ有効）
     const scribeRelationshipDisplay = getDisplayValue(
@@ -249,11 +245,11 @@ export async function createContractWithDocuments(
       // 共通
       '{{緊急連絡先電話}}': step2.emergencyPhone,
       // 契約情報
-      '{{契約日}}': formatDate(step2.contractDate),
-      '{{同意日}}': formatDate(step2.contractDate),
-      '{{説明日}}': formatDate(step2.contractDate),
-      '{{契約開始日}}': formatDate(step2.contractStartDate),
-      '{{契約終了日}}': formatDate(step2.contractEndDate),
+      '{{契約日}}': cmFormatDateJapanese(step2.contractDate),
+      '{{同意日}}': cmFormatDateJapanese(step2.contractDate),
+      '{{説明日}}': cmFormatDateJapanese(step2.contractDate),
+      '{{契約開始日}}': cmFormatDateJapanese(step2.contractStartDate),
+      '{{契約終了日}}': cmFormatDateJapanese(step2.contractEndDate),
       // 担当者情報
       '{{説明者氏名}}': step2.staffName || staffName || '（担当者）',
       '{{担当者氏名}}': step2.careManagerName,

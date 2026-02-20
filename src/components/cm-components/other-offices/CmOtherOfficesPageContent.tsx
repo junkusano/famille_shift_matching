@@ -11,22 +11,12 @@ import { RefreshCw } from "lucide-react";
 import { CmOtherOfficeFilters } from "@/components/cm-components/other-offices/CmOtherOfficeFilters";
 import { CmOtherOfficeTable } from "@/components/cm-components/other-offices/CmOtherOfficeTable";
 import { updateOtherOfficeFaxProxy } from "@/lib/cm/other-offices/actions";
-import { supabase } from "@/lib/supabaseClient";
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import type {
   CmOtherOffice,
   CmOtherOfficePagination,
   CmOtherOfficeFilters as FiltersType,
 } from "@/types/cm/otherOffices";
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // Types
 // =============================================================

@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mic, Loader2, AlertCircle, Unlink } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { getPlaudRecordingsForContract } from '@/lib/cm/contracts/getPlaudRecordingsForContract';
 import type { CmPlaudRecordingOption } from '@/lib/cm/contracts/getPlaudRecordingsForContract';
 import {
@@ -23,14 +23,6 @@ import styles from '@/styles/cm-styles/contracts/plaudSelect.module.css';
 
 // =============================================================
 // 型定義
-// =============================================================
-
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 type CmContractPlaudSelectModalProps = {
   isOpen: boolean;
   onClose: () => void;

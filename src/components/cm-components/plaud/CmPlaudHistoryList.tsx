@@ -17,6 +17,7 @@ import {
   CopyButton,
 } from './CmPlaudCommon';
 import styles from '@/styles/cm-styles/plaud/historyList.module.css';
+import { cmFormatDateTimeLocale } from '@/lib/cm/utils';
 
 // =============================================================
 // コンポーネント
@@ -89,16 +90,7 @@ export const CmPlaudHistoryList: React.FC = () => {
   };
 
   // 日付フォーマット
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+
 
   return (
     <div className={styles.container}>
@@ -153,7 +145,7 @@ export const CmPlaudHistoryList: React.FC = () => {
                   </div>
                   <div className={styles.historyMeta}>
                     <Clock size={12} />
-                    <span>{formatDate(item.processed_at)}</span>
+                    <span>{cmFormatDateTimeLocale(item.processed_at)}</span>
                     {item.updated_at && (
                       <span className={styles.editedBadge}>（編集済み）</span>
                     )}
@@ -213,12 +205,12 @@ export const CmPlaudHistoryList: React.FC = () => {
               </div>
               <div className={styles.metaItem}>
                 <span className={styles.metaLabel}>生成日時:</span>
-                <span>{formatDate(selectedItem.processed_at)}</span>
+                <span>{cmFormatDateTimeLocale(selectedItem.processed_at)}</span>
               </div>
               {selectedItem.updated_at && (
                 <div className={styles.metaItem}>
                   <span className={styles.metaLabel}>編集日時:</span>
-                  <span>{formatDate(selectedItem.updated_at)}</span>
+                  <span>{cmFormatDateTimeLocale(selectedItem.updated_at)}</span>
                 </div>
               )}
             </div>

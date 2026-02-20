@@ -18,7 +18,7 @@ import {
   updateServiceCredential,
   deleteServiceCredential,
 } from '@/lib/cm/service-credentials/actions';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import type {
   CmServiceCredential,
   CmServiceCredentialMasked,
@@ -36,11 +36,6 @@ type Props = {
 };
 
 /** Supabase セッションから access_token を取得 */
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function CmServiceCredentialsPageContent({ entries, initialFilters }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();

@@ -12,7 +12,8 @@
 
 import React, { useState } from 'react';
 import { FileText, Upload, CheckCircle2, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDateJapanese } from '@/lib/cm/utils';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
@@ -24,14 +25,6 @@ import type {
 
 // =============================================================
 // Constants
-// =============================================================
-
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 /** 署名者ロールの表示ラベル */
 const SIGNER_ROLE_LABELS: Record<string, string> = {
   signer: '利用者（署名者）',
@@ -117,11 +110,7 @@ export function CmContractCreateStep3({
   // ---------------------------------------------------------
   // 契約日の表示形式
   // ---------------------------------------------------------
-  const formatDate = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return `${year}年${month}月${day}日`;
-  };
+
 
   // ---------------------------------------------------------
   // レンダリング
@@ -214,7 +203,7 @@ export function CmContractCreateStep3({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">契約日</span>
-                  <span className="text-slate-700">{formatDate(wizardData.step2.contractDate)}</span>
+                  <span className="text-slate-700">{cmFormatDateJapanese(wizardData.step2.contractDate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">書類数</span>

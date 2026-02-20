@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import type { CmRpaLogRecord } from '@/types/cm/rpa';
 import type {
   CmRpaLogPagination,
@@ -14,16 +14,6 @@ import type {
   CmRpaLogsListResponse,
 } from '@/types/cm/rpaLogs';
 import { CM_RPA_LOG_DEFAULT_FILTERS } from '@/types/cm/rpaLogs';
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function useCmRpaLogs() {
   // ---------------------------------------------------------
   // State

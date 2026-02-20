@@ -23,7 +23,8 @@ import {
   ExternalLink,
   ShieldCheck,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDate, cmFormatDateTime } from '@/lib/cm/utils';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import type {
@@ -60,13 +61,6 @@ type Props = {
 
 // =============================================================
 // Component
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function CmContractDetailPageContent({ contractId }: Props) {
   const [data, setData] = useState<CmContractDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,13 +138,13 @@ export function CmContractDetailPageContent({ contractId }: Props) {
       {/* 契約基本情報 */}
       <CmCard title="契約情報">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-          <InfoRow label="契約日" value={formatDate(contract.contract_date)} />
+          <InfoRow label="契約日" value={cmFormatDate(contract.contract_date)} />
           <InfoRow label="担当職員" value={contract.staff_name || '—'} />
           <InfoRow label="契約種別" value={typeLabel} />
           <InfoRow label="契約方式" value={contract.signing_method === 'paper' ? '紙' : '電子'} />
-          <InfoRow label="作成日時" value={formatDateTime(contract.created_at)} />
-          {contract.signed_at && <InfoRow label="署名完了日時" value={formatDateTime(contract.signed_at)} />}
-          {contract.completed_at && <InfoRow label="完了日時" value={formatDateTime(contract.completed_at)} />}
+          <InfoRow label="作成日時" value={cmFormatDateTime(contract.created_at)} />
+          {contract.signed_at && <InfoRow label="署名完了日時" value={cmFormatDateTime(contract.signed_at)} />}
+          {contract.completed_at && <InfoRow label="完了日時" value={cmFormatDateTime(contract.completed_at)} />}
           {contract.notes && (
             <div className="md:col-span-2">
               <InfoRow label="備考" value={contract.notes} />
@@ -187,7 +181,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
                       <SigningStatusBadge status={doc.signing_status} />
                       {doc.all_signed_at && (
                         <p className="text-xs text-slate-400 mt-1">
-                          {formatDateTime(doc.all_signed_at)}
+                          {cmFormatDateTime(doc.all_signed_at)}
                         </p>
                       )}
                     </td>
@@ -233,7 +227,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
                 </span>
               </p>
               {contract.verification_at && (
-                <p className="text-slate-500">確認日時: {formatDateTime(contract.verification_at)}</p>
+                <p className="text-slate-500">確認日時: {cmFormatDateTime(contract.verification_at)}</p>
               )}
             </div>
           </div>
@@ -254,7 +248,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
             </div>
             <div className="text-sm space-y-1">
               <p className="text-slate-700 font-medium">{plaudRecording.title}</p>
-              <p className="text-slate-500">録音日時: {formatDateTime(plaudRecording.plaud_created_at)}</p>
+              <p className="text-slate-500">録音日時: {cmFormatDateTime(plaudRecording.plaud_created_at)}</p>
             </div>
           </div>
         ) : (
@@ -274,7 +268,7 @@ export function CmContractDetailPageContent({ contractId }: Props) {
             </div>
             <div className="text-sm space-y-1">
               <ConsentSignerInfo consent={consent} />
-              <p className="text-slate-500">同意日時: {formatDateTime(consent.consented_at)}</p>
+              <p className="text-slate-500">同意日時: {cmFormatDateTime(consent.consented_at)}</p>
               {consent.gdrive_file_url && (
                 <a href={consent.gdrive_file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs mt-1">
                   <ExternalLink className="w-3 h-3" />署名画像を表示
@@ -336,7 +330,7 @@ function SignerRow({ signer }: { signer: CmContractDocumentSigner }) {
         </a>
       )}
       {signer.signed_at && (
-        <span className="text-slate-400">{formatDateTime(signer.signed_at)}</span>
+        <span className="text-slate-400">{cmFormatDateTime(signer.signed_at)}</span>
       )}
     </div>
   );
@@ -439,23 +433,3 @@ function ConsentSignerInfo({ consent }: { consent: NonNullable<CmContractDetailD
 // =============================================================
 // ヘルパー
 // =============================================================
-
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  } catch {
-    return dateStr;
-  }
-}

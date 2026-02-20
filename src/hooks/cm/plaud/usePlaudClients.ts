@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { searchClients } from '@/lib/cm/clients/actions';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import type { CmClient } from '@/types/cm/plaud';
 
 // =============================================================
@@ -21,16 +21,6 @@ type UsePlaudClientsReturn = {
   error: string | null;
   clear: () => void;
 };
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // フック本体
 // =============================================================

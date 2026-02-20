@@ -16,7 +16,8 @@ import {
   FileText,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDate, cmFormatDateTime } from '@/lib/cm/utils';
 import { getContracts } from '@/lib/cm/contracts/getContracts';
 import { updateContract } from '@/lib/cm/contracts/actions';
 import { CmContractPlaudSelectModal } from '@/components/cm-components/contracts/CmContractPlaudSelectModal';
@@ -37,16 +38,6 @@ import styles from '@/styles/cm-styles/clients/contractsTab.module.css';
 type Props = {
   kaipokeCsId: string;
 };
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // ステータスカラーマップ（CSS Module用インラインスタイル）
 // =============================================================
@@ -165,7 +156,7 @@ function ConsentStatusCard({
                 </div>
                 <div>
                   <p className={styles.consentLabel}>電子契約同意済み</p>
-                  <p className={styles.consentDate}>{formatDateTime(consent.consented_at)}</p>
+                  <p className={styles.consentDate}>{cmFormatDateTime(consent.consented_at)}</p>
                 </div>
               </div>
             )}
@@ -176,7 +167,7 @@ function ConsentStatusCard({
                 </div>
                 <div>
                   <p className={styles.consentLabel}>録音同意済み</p>
-                  <p className={styles.consentDate}>{formatDateTime(consent.consented_at)}</p>
+                  <p className={styles.consentDate}>{cmFormatDateTime(consent.consented_at)}</p>
                 </div>
               </div>
             )}
@@ -371,7 +362,7 @@ function ContractRow({
 
   return (
     <tr className={styles.contractRow}>
-      <td className={styles.cellDate}>{formatDate(contract.created_at)}</td>
+      <td className={styles.cellDate}>{cmFormatDate(contract.created_at)}</td>
       <td className={styles.cellDocCount}>{contract.document_count}点</td>
       <td className={styles.cell}>
         <span className={styles.statusBadge} style={statusStyle}>
@@ -425,26 +416,4 @@ function ContractRow({
       </td>
     </tr>
   );
-}
-
-// =============================================================
-// ヘルパー
-// =============================================================
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatDateTime(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  } catch {
-    return dateStr;
-  }
 }

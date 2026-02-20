@@ -16,7 +16,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, User, Eraser } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { useRouter } from 'next/navigation';
 import { getStaffList } from '@/lib/cm/contracts/getStaffList';
@@ -40,13 +40,6 @@ type SignerType = 'self' | 'scribe' | 'agent';
 
 // =============================================================
 // Component
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 export function CmConsentFormPageContent({
   kaipokeCsId,
   clientName,

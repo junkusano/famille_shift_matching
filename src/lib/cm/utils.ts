@@ -91,11 +91,59 @@ export function cmFormatPhone(phone: string | null): string {
 }
 
 /**
- * 日付をフォーマット（和暦 or ISO → 表示用）
+ * 日付を YYYY/M/D 形式でフォーマット
+ * 一覧画面の日付表示用
  */
-export function cmFormatDate(date: string | null): string {
-  if (!date) return '-';
-  return date;
+export function cmFormatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * 日付を YYYY/M/D HH:mm 形式でフォーマット
+ * 一覧画面の日時表示用
+ */
+export function cmFormatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * 日付を YYYY年M月D日 形式でフォーマット
+ * 契約書・PDF差し込み用（YYYY-MM-DD 形式の文字列入力を想定）
+ */
+export function cmFormatDateJapanese(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  return `${year}年${month}月${day}日`;
+}
+
+/**
+ * 日付を ja-JP ロケールでフォーマット（YYYY/MM/DD HH:mm）
+ * Plaud系・バッチ系の統一表示用
+ */
+export function cmFormatDateTimeLocale(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /**

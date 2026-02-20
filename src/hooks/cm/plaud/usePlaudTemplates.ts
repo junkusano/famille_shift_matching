@@ -4,7 +4,7 @@
 // =============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import {
   getPlaudTemplates,
   createPlaudTemplate,
@@ -16,16 +16,6 @@ import {
   CmPlaudTemplateCreateRequest,
   CmPlaudTemplateUpdateRequest,
 } from '@/types/cm/plaud';
-
-// =============================================================
-// 認証トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // 型定義
 // =============================================================

@@ -32,7 +32,8 @@ import {
   ChevronUp,
   Shield,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
+import { cmFormatDateJapanese } from '@/lib/cm/utils';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import { StepIndicator } from './CmContractCreateStep1';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
@@ -71,12 +72,6 @@ type Props = {
 
 // =============================================================
 // Component
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
 export function CmContractCreateStep2({
   step1Data,
   data,
@@ -267,11 +262,7 @@ export function CmContractCreateStep2({
   // タグ置換用データ
   // ---------------------------------------------------------
   const getTagReplacements = useCallback((): Record<string, string> => {
-    const formatDate = (dateStr: string): string => {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-    };
+
 
     // 代筆者の続柄・理由の表示値
     const scribeRelationshipDisplay = getSelectDisplayValue(
@@ -323,11 +314,11 @@ export function CmContractCreateStep2({
       '{{代理人電話}}': data.agentPhone,
       // 共通
       '{{緊急連絡先電話}}': data.emergencyPhone,
-      '{{契約日}}': formatDate(data.contractDate),
-      '{{同意日}}': formatDate(data.contractDate),
-      '{{説明日}}': formatDate(data.contractDate),
-      '{{契約開始日}}': formatDate(data.contractStartDate),
-      '{{契約終了日}}': formatDate(data.contractEndDate),
+      '{{契約日}}': cmFormatDateJapanese(data.contractDate),
+      '{{同意日}}': cmFormatDateJapanese(data.contractDate),
+      '{{説明日}}': cmFormatDateJapanese(data.contractDate),
+      '{{契約開始日}}': cmFormatDateJapanese(data.contractStartDate),
+      '{{契約終了日}}': cmFormatDateJapanese(data.contractEndDate),
       '{{説明者氏名}}': data.staffName,
       '{{担当者氏名}}': data.careManagerName,
       '{{担当者電話}}': data.careManagerPhone,

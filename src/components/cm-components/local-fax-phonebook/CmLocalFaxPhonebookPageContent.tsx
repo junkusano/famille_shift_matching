@@ -8,7 +8,7 @@
 import React, { useState, useCallback, useTransition, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Plus, CloudDownload } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { CmLocalFaxPhonebookFilters } from "@/components/cm-components/local-fax-phonebook/CmLocalFaxPhonebookFilters";
 import { CmLocalFaxPhonebookTable } from "@/components/cm-components/local-fax-phonebook/CmLocalFaxPhonebookTable";
 import { CmLocalFaxPhonebookModal } from "@/components/cm-components/local-fax-phonebook/CmLocalFaxPhonebookModal";
@@ -38,16 +38,6 @@ type Props = {
   pagination: CmLocalFaxPhonebookPagination;
   initialFilters: CmLocalFaxPhonebookSearchFilters;
 };
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // Component
 // =============================================================

@@ -8,7 +8,7 @@
 import React, { useState, useTransition, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Plus, Info, GripVertical, Play, History, Settings, X } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { CmScheduleTable } from './CmScheduleTable';
 import { CmAddScheduleModal } from './CmAddScheduleModal';
 import { CmEditScheduleModal } from './CmEditScheduleModal';
@@ -32,16 +32,6 @@ type Props = {
   scheduledJobTypes: CmScheduledJobType[];
   availableJobTypes: CmAvailableJobType[];
 };
-
-// =============================================================
-// トークン取得ヘルパー
-// =============================================================
-
-async function getAccessToken(): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? '';
-}
-
 // =============================================================
 // Component
 // =============================================================

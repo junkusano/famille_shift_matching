@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
 import { requirePlaudAuth, isAuthError } from '@/lib/cm/plaud/auth';
+import { cmPlaudCorsHeaders } from '@/lib/cm/plaud/cors';
 
 const logger = createLogger('cm/plaud/transcriptions/register');
 
@@ -19,11 +20,7 @@ const logger = createLogger('cm/plaud/transcriptions/register');
 // CORS設定
 // =============================================================
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-plaud-account',
-};
+const corsHeaders = cmPlaudCorsHeaders('POST, OPTIONS');
 
 // =============================================================
 // 型定義
