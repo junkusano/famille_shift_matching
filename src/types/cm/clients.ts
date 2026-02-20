@@ -72,3 +72,17 @@ export type CmClientFilters = {
   status: string;
   insurer: string;
 };
+
+/**
+ * 介護度バッジのバリアント（UIの色分けキー）
+ *
+ * ビジネスロジック（lib/cm/utils.ts の cmGetCareLevelDisplay）が返す意味値。
+ * 色の定義は constants/cm/careLevelStyle.ts の CM_CARE_LEVEL_STYLES を参照。
+ */
+export type CmCareLevelVariant =
+  | 'youkaigo'       // 要介護1〜5
+  | 'youshien'       // 要支援1〜2
+  | 'jigyou'         // 事業対象者
+  | 'default'        // 上記以外の介護度文字列
+  | 'empty'          // 未入力（保険証はあるが介護度なし / 保険証自体がない）
+  | 'expired';       // 有効期限切れ

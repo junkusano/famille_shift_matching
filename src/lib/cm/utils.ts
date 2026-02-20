@@ -3,6 +3,8 @@
 // CM用ユーティリティ関数
 // =============================================================
 
+import type { CmCareLevelVariant } from '@/types/cm/clients';
+
 /**
  * 住所を結合して表示用文字列を生成
  */
@@ -81,14 +83,32 @@ export function cmCalculateAge(birthDateWareki: string | null): number | null {
 }
 
 /**
- * 要介護度に応じたTailwindクラスを返す
+ * 電話番号をフォーマット
  */
-export function cmGetCareLevelStyle(careLevel: string | null | undefined): string {
-  if (!careLevel) return '';
-  if (careLevel.includes('要介護')) return 'bg-orange-100 text-orange-700';
-  if (careLevel.includes('要支援')) return 'bg-blue-100 text-blue-700';
-  if (careLevel.includes('事業対象者')) return 'bg-green-100 text-green-700';
-  return 'bg-slate-100 text-slate-600';
+export function cmFormatPhone(phone: string | null): string {
+  if (!phone) return '-';
+  return phone;
+}
+
+/**
+ * 日付をフォーマット（和暦 or ISO → 表示用）
+ */
+export function cmFormatDate(date: string | null): string {
+  if (!date) return '-';
+  return date;
+}
+
+/**
+ * 介護度の文字列からバリアント（意味値）を判定
+ *
+ * CmClientInsuranceTab など、cmGetCareLevelDisplay を経由せず
+ * 個別の care_level テキストから直接 variant を取得する場合にも使用する。
+ */
+export function cmGetCareLevelVariant(careLevel: string): CmCareLevelVariant {
+  if (careLevel.includes('要介護')) return 'youkaigo';
+  if (careLevel.includes('要支援')) return 'youshien';
+  if (careLevel.includes('事業対象者')) return 'jigyou';
+  return 'default';
 }
 
 /**
@@ -201,24 +221,24 @@ export function cmGetCareLevelDisplay<T extends {
   care_level?: string | null;
 }>(insurances: T[]): {
   text: string;
-  style: string;
+  variant: CmCareLevelVariant;
 } {
   const { insurance, status } = cmGetCurrentInsurance(insurances);
 
   if (status === 'none') {
-    return { text: '未入力', style: 'bg-slate-100 text-slate-500' };
+    return { text: '未入力', variant: 'empty' };
   }
 
   if (status === 'expired') {
-    return { text: '有効期限切れ', style: 'bg-red-100 text-red-700' };
+    return { text: '有効期限切れ', variant: 'expired' };
   }
 
   if (insurance?.care_level) {
     return {
       text: insurance.care_level,
-      style: cmGetCareLevelStyle(insurance.care_level),
+      variant: cmGetCareLevelVariant(insurance.care_level),
     };
   }
 
-  return { text: '未入力', style: 'bg-slate-100 text-slate-500' };
+  return { text: '未入力', variant: 'empty' };
 }
