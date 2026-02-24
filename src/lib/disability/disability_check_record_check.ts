@@ -65,8 +65,6 @@ type SystemAlertPayload = {
 };
 
 async function sendManagerAlert(payload: SystemAlertPayload): Promise<void> {
-    // ensureSystemAlert の実際の型に合わせるのが理想ですが、
-    // ここでは any を使わずに「最小構成」を渡します。
     await ensureSystemAlert(payload);
 }
 
@@ -171,7 +169,6 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             mgr_user_id: row.mgr_user_id == null ? null : String(row.mgr_user_id),
         });
     }
-
     // チーム単位にまとめる
     type Item = {
         kaipoke_cs_id: string;
@@ -183,8 +180,12 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
     };
 
     const unsubmittedByOrg = new Map<string, Item[]>();
-    const uncollectedByOrg = new Map<string, Item[]>();
+    const uncollectedByMgrClient = new Map<
+        string,
+        { mgrUserId: string; orgName: string; clientLabel: string; items: Item[] }
+    >();
 
+    // ★ここは「集計だけ」する（送信・returnは絶対に入れない）
     for (const r of dcRows) {
         const cs = csMap.get(r.kaipoke_cs_id);
         if (!cs?.orgunitid) continue;
@@ -198,13 +199,28 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             orgunitname: cs.orgunitname ?? "",
         };
 
+        // 提出（チーム単位のまま）
         if (doSubmitReminder && r.application_check !== true) {
             const key = item.orgunitid;
             unsubmittedByOrg.set(key, [...(unsubmittedByOrg.get(key) ?? []), item]);
         }
+
+        // 回収（利用者単位）
         if (doCollectAlert && r.is_checked !== true) {
-            const key = item.orgunitid;
-            uncollectedByOrg.set(key, [...(uncollectedByOrg.get(key) ?? []), item]);
+            const org = orgMap.get(item.orgunitid);
+            const mgrUserId = org?.mgr_user_id ? String(org.mgr_user_id) : "";
+            if (!mgrUserId) continue; // ★return禁止
+
+            const orgName = org?.orgunitname || item.orgunitname || "";
+            const clientLabel = item.client_name ? `${item.client_name}様` : `${item.kaipoke_cs_id}`;
+            const key = `${mgrUserId}::${item.kaipoke_cs_id}`;
+
+            const cur = uncollectedByMgrClient.get(key);
+            if (!cur) {
+                uncollectedByMgrClient.set(key, { mgrUserId, orgName, clientLabel, items: [item] });
+            } else {
+                cur.items.push(item);
+            }
         }
     }
 
@@ -219,71 +235,66 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
         for (const [orgunitid, items] of unsubmittedByOrg) {
             const orgName = orgMap.get(orgunitid)?.orgunitname || items[0]?.orgunitname || "";
 
-            const roomId = await resolveLineworksRoomIdForOrg(orgName);
+            try {
+                const roomId = await resolveLineworksRoomIdForOrg(orgName);
 
-            const lines = items.map((it) => {
-                const client = it.client_name ? `${it.client_name}様` : `${it.kaipoke_cs_id}`;
-                const staff = it.assigned_staff ? `${it.assigned_staff}さん` : "（担当未設定）";
-                return `- ${client} [${it.servicek}] 担当: ${staff}`;
-            });
+                const lines = items.map((it) => {
+                    const client = it.client_name ? `${it.client_name}様` : `${it.kaipoke_cs_id}`;
+                    const staff = it.assigned_staff ? `${it.assigned_staff}さん` : "（担当未設定）";
+                    return `- ${client} [${it.servicek}] 担当: ${staff}`;
+                });
 
-            const message =
-                `【実績 提出未チェック】${yearMonth}\n` +
-                `チーム: ${orgName}\n` +
-                `（月10日以降：提出チェックが未入力のもの）\n` +
-                lines.join("\n");
+                const message =
+                    `【実績 提出未チェック】${yearMonth}\n` +
+                    `チーム: ${orgName}\n` +
+                    `（月10日以降：提出チェックが未入力のもの）\n` +
+                    lines.join("\n");
 
-            if (!dryRun) {
-                try {
+                if (!dryRun) {
                     await sendLWBotMessage(token, roomId, message);
-                    lwSentOrgs += 1;
-                    lwSentCount += items.length;
-                } catch (e: unknown) {
-                    lwErrors.push({ orgunitid, error: toErrorMessage(e) });
                 }
+
+                lwSentOrgs += 1;
+                lwSentCount += items.length;
+            } catch (e: unknown) {
+                lwErrors.push({ orgunitid, error: toErrorMessage(e) });
             }
         }
     }
 
     // ===== 回収：mgr_user_id へアラート（15日以降） =====
-    let alertsCreatedOrgs = 0;
-    let alertsCreatedCount = 0;
-    const alertErrors: Array<{ orgunitid: string; error: string }> = [];
+    let alertsCreatedClients = 0; // 利用者アラート件数
+    let alertsCreatedRows = 0;    // 行数（障害/移動支援）
+    const alertErrors: Array<{ key: string; error: string }> = [];
 
-    if (doCollectAlert && uncollectedByOrg.size > 0) {
-        for (const [orgunitid, items] of uncollectedByOrg) {
-            const org = orgMap.get(orgunitid);
-            const mgrUserId = org?.mgr_user_id;
-
-            if (!mgrUserId) continue;
-
-            const orgName = org?.orgunitname || items[0]?.orgunitname || "";
+    if (doCollectAlert && uncollectedByMgrClient.size > 0) {
+        for (const [key, pack] of uncollectedByMgrClient) {
+            const { mgrUserId, orgName, clientLabel, items } = pack;
 
             const lines = items.map((it) => {
-                const client = it.client_name ? `${it.client_name}様` : `${it.kaipoke_cs_id}`;
                 const staff = it.assigned_staff ? `${it.assigned_staff}さん` : "（担当未設定）";
-                return `- ${client} [${it.servicek}] 担当: ${staff}`;
+                return `- [${it.servicek}] 担当: ${staff}`;
             });
 
             const message =
                 `【実績 回収未チェック】${yearMonth}\n` +
+                `${clientLabel}\n` + // ★利用者ごとに1件
                 `チーム: ${orgName}\n` +
                 `（月15日以降：回収チェックが未入力のもの）\n` +
                 lines.join("\n");
 
-            if (!dryRun) {
-                try {
+            try {
+                if (!dryRun) {
                     await sendManagerAlert({
                         user_id: mgrUserId,
                         title: `回収未チェック（${yearMonth}）`,
                         message,
                     });
-
-                    alertsCreatedOrgs += 1;
-                    alertsCreatedCount += items.length;
-                } catch (e: unknown) {
-                    alertErrors.push({ orgunitid, error: toErrorMessage(e) });
                 }
+                alertsCreatedClients += 1;
+                alertsCreatedRows += items.length;
+            } catch (e: unknown) {
+                alertErrors.push({ key, error: toErrorMessage(e) });
             }
         }
     }
@@ -301,15 +312,14 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             errors: lwErrors,
         },
         collect: {
-            targetOrgs: uncollectedByOrg.size,
-            targetRows: Array.from(uncollectedByOrg.values()).reduce((a, b) => a + b.length, 0),
-            alertOrgs: alertsCreatedOrgs,
-            alertRows: alertsCreatedCount,
+            targetClients: uncollectedByMgrClient.size,
+            targetRows: Array.from(uncollectedByMgrClient.values()).reduce((a, b) => a + b.items.length, 0),
+            alertClients: alertsCreatedClients,
+            alertRows: alertsCreatedRows,
             errors: alertErrors,
         },
     };
 }
-
 /**
  * ★ここだけプロジェクト既存の “shift_record_check と同じ部屋検索” をそのまま移植してください。
  * 要件: 「情報連携」とグループ名(orgName)を含む部屋。
