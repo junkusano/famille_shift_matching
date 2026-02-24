@@ -729,9 +729,12 @@ const DisabilityCheckPage: React.FC = () => {
         const role = String(roleRow.system_role ?? "").trim().toLowerCase();
 
         const isAdminRole = role === "admin" || role === "super_admin";
-        // ★ manager 系ロール（senior_manager 等）をまとめて拾う
-        const isManagerRole = isAdminRole || role.includes("manager");
 
+        // not_manager を除外した上で、manager系のみ true
+        const isManagerRole =
+          isAdminRole ||
+          (role !== "not_manager" &&
+            (role === "manager" || role.endsWith("_manager") || role.startsWith("manager_")));
         setIsAdmin(isAdminRole);
         setIsManager(isManagerRole);
         setMyUserId(String(roleRow.user_id));
@@ -827,7 +830,16 @@ const DisabilityCheckPage: React.FC = () => {
   /** フィルタ変更で再読込 */
   useEffect(() => {
     fetchRecords();
-  }, [yearMonth, kaipokeServicek, districts, filterStaffId, filterKaipokeCsId]);
+  }, [
+    yearMonth,
+    kaipokeServicek,
+    districts,
+    filterStaffId,
+    filterKaipokeCsId,
+    myUserId,
+    isManager,
+    isAdmin,
+  ]);
 
   return (
     <div>
