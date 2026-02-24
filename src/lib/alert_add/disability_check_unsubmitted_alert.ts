@@ -482,38 +482,55 @@ async function runCollectedUncheckManagerAlert(args: {
     const orgIds = Array.from(new Set(rows.map((r) => String(r.asigned_org_id ?? "")).filter(Boolean)));
     const orgMap = await loadOrgMap(orgIds);
 
-    const byMgr = new Map<string, { orgName: string; items: DisabilityCheckViewRow[] }>();
+    type ByMgrClientPack = {
+        orgName: string;
+        kaipokeCsId: string;
+        clientName: string; // "○○様" or "CS:xxxx"
+        items: DisabilityCheckViewRow[]; // 障害/移動支援（未回収）をまとめる
+    };
+
+    const byMgrClient = new Map<string, { mgrUserId: string; pack: ByMgrClientPack }>();
 
     for (const r of rows) {
         const orgunitid = String(r.asigned_org_id ?? "").trim();
         if (!orgunitid) continue;
 
         const org = orgMap.get(orgunitid);
-        const mgr = org?.mgr_user_id ? String(org.mgr_user_id) : "";
-        if (!mgr) continue;
+        const mgrUserId = org?.mgr_user_id ? String(org.mgr_user_id).trim() : "";
+        if (!mgrUserId) continue;
 
         const orgName = (r.asigned_org_name ?? org?.orgunitname ?? "").trim();
+        const kaipokeCsId = String(r.kaipoke_cs_id ?? "").trim();
+        if (!kaipokeCsId) continue;
 
-        const cur = byMgr.get(mgr);
-        if (!cur) byMgr.set(mgr, { orgName, items: [r] });
-        else cur.items.push(r);
+        const clientNameRaw = (r.client_name ?? "").trim();
+        const clientName = clientNameRaw ? `${clientNameRaw}様` : `CS:${kaipokeCsId}`;
+
+        const key = `${mgrUserId}::${kaipokeCsId}`;
+
+        const cur = byMgrClient.get(key);
+        if (!cur) {
+            byMgrClient.set(key, {
+                mgrUserId,
+                pack: { orgName, kaipokeCsId, clientName, items: [r] },
+            });
+        } else {
+            cur.pack.items.push(r);
+        }
     }
 
     let alertManagers = 0;
     let alertRows = 0;
     let errors = 0;
 
-    for (const [mgrUserId, pack] of byMgr) {
-
+    for (const { mgrUserId, pack } of byMgrClient.values()) {
         const staffIds = Array.from(
             new Set(pack.items.map((it) => String(it.asigned_jisseki_staff_id ?? "")).filter(Boolean))
         );
         const staffInfoMap = await loadStaffInfoMap(staffIds);
 
+        // 利用者1人の中で、障害/移動支援（未回収）を列挙
         const lines = pack.items.map((it) => {
-            const clientNameRaw = (it.client_name ?? "").trim();
-            const clientName = clientNameRaw ? `${clientNameRaw}様` : `CS:${it.kaipoke_cs_id}`;
-
             const staffId = String(it.asigned_jisseki_staff_id ?? "").trim();
             const staffName =
                 (it.asigned_jisseki_staff_name ?? "").trim() ||
@@ -521,7 +538,7 @@ async function runCollectedUncheckManagerAlert(args: {
                 staffId ||
                 "（担当未設定）";
 
-            const labelText = `${clientName} [${it.kaipoke_servicek}] 担当:${staffName}さん`;
+            const labelText = `[${it.kaipoke_servicek}] 担当:${staffName}さん`;
 
             const detailUrl =
                 staffId
@@ -533,6 +550,7 @@ async function runCollectedUncheckManagerAlert(args: {
 
         const message =
             `【実績記録 未チェック】 回収 〈${formatYmJa(targetYm)}分〉\n` +
+            `${pack.clientName}\n` +
             `回収チェックが、15日以降で未完了の状態です。\n` +
             `至急ご確認ください。\n\n` +
             `チーム: ${pack.orgName}\n\n` +
@@ -543,13 +561,13 @@ async function runCollectedUncheckManagerAlert(args: {
                 const payload: EnsureAlertParams = {
                     user_id: mgrUserId,
                     message,
-                    // shift_id が EnsureAlertParams に存在するなら残してOK。エラーになるなら次の行も消してください。
-                    shift_id: `disability_check:collect:${targetYm}:${mgrUserId}`,
+                    // ★利用者ごとに一意になるIDへ変更（同月・同mgr・同利用者で1件に保つ）
+                    shift_id: `disability_check:collect:${targetYm}:${mgrUserId}:${pack.kaipokeCsId}`,
                 };
                 await ensureSystemAlert(payload);
             }
 
-            alertManagers += 1;
+            alertManagers += 1;         // ※件数（=利用者数）
             alertRows += pack.items.length;
         } catch (e: unknown) {
             errors += 1;
@@ -559,18 +577,6 @@ async function runCollectedUncheckManagerAlert(args: {
             });
         }
     }
-
-    return {
-        enabled: true,
-        scanned,
-        targetRows: rows.length,
-        alertManagers,
-        alertRows,
-        errors,
-        dryRun: args.dryRun,
-        targetYearMonth: targetYm,
-        skippedBecauseDay: false,
-    };
 }
 
 /**
