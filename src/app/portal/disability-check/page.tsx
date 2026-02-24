@@ -452,30 +452,12 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };
 
-  /** ✅ 実績担当者 更新（manager/admin のみ） */
+  /** ✅ 実績担当者 更新（manager/admin のみ）※DB成功後のみUI反映 */
   const handleAssignedStaffChange = async (row: Row, staffId: string | null) => {
+    if (!(isManager || isAdmin)) return;
+
     const prevId = row.asigned_jisseki_staff_id ?? null;
     const prevName = row.asigned_jisseki_staff_name ?? null;
-
-    // 楽観更新（表示を先に変える）
-    const nextName =
-      staffId
-        ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
-        : null;
-
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.kaipoke_cs_id === row.kaipoke_cs_id &&
-          r.year_month === row.year_month &&
-          r.kaipoke_servicek === row.kaipoke_servicek
-          ? {
-            ...r,
-            asigned_jisseki_staff_id: staffId,
-            asigned_jisseki_staff_name: nextName,
-          }
-          : r
-      )
-    );
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -492,46 +474,74 @@ const DisabilityCheckPage: React.FC = () => {
           kaipoke_cs_id: row.kaipoke_cs_id,
           yearMonth: row.year_month,
           kaipokeServicek: row.kaipoke_servicek,
-          staffId, // null 可（解除）
+          staffId, // null可（解除）
         }),
       });
 
+      const payloadText = await res.text().catch(() => "");
       if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(`assigned-staff update failed: ${res.status} ${t}`);
+        alert(`実績担当者の更新に失敗しました (${res.status})\n${payloadText}`);
+        return;
       }
 
-      // 返ってきた最新view行で上書き（堅くする）
-      const payload = (await res.json().catch(() => null)) as { ok?: boolean; updated?: Row | null } | null;
+      const payload = JSON.parse(payloadText) as {
+        ok?: boolean;
+        saved?: { asigned_jisseki_staff: string | null };
+        updated?: Row | null;
+      };
+
+      const expected = staffId ?? null;
+      const savedStaff = payload?.saved?.asigned_jisseki_staff ?? null;
+
+      // DBが更新されているか確認
+      if (savedStaff !== expected) {
+        alert(`DBに反映されていません。\n期待: ${expected ?? "null"}\n実際: ${savedStaff ?? "null"}`);
+        return;
+      }
+
+      // DB成功 → UI反映
       const updated = payload?.updated ?? null;
 
       if (updated) {
         setRecords((prev) =>
-          prev.map((rr) =>
-            rr.kaipoke_cs_id === row.kaipoke_cs_id &&
-              rr.year_month === row.year_month &&
-              rr.kaipoke_servicek === row.kaipoke_servicek
-              ? { ...rr, ...updated }
-              : rr
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, ...updated }
+              : r
+          )
+        );
+      } else {
+        const nextName = staffId
+          ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
+          : null;
+
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, asigned_jisseki_staff_id: staffId, asigned_jisseki_staff_name: nextName }
+              : r
           )
         );
       }
     } catch (e) {
       console.error(e);
-      // 失敗時は元に戻す
+
+      // 例外時は元に戻す
       setRecords((prev) =>
         prev.map((r) =>
           r.kaipoke_cs_id === row.kaipoke_cs_id &&
             r.year_month === row.year_month &&
             r.kaipoke_servicek === row.kaipoke_servicek
-            ? {
-              ...r,
-              asigned_jisseki_staff_id: prevId,
-              asigned_jisseki_staff_name: prevName,
-            }
+            ? { ...r, asigned_jisseki_staff_id: prevId, asigned_jisseki_staff_name: prevName }
             : r
         )
       );
+
+      alert(`実績担当者の更新で例外が発生しました: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
