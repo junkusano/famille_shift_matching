@@ -32,6 +32,35 @@ function isStaffRow(x: unknown): x is StaffRow {
     );
 }
 
+type AssignBody = {
+    kaipoke_cs_id: string;
+    yearMonth: string;        // YYYY-MM
+    kaipokeServicek: string;  // "障害" | "移動支援"
+    staffId: string | null;   // user_id or null
+};
+
+function isYm(v: string) {
+    return /^\d{4}-\d{2}$/.test(v);
+}
+
+async function readRoleFromBearer(req: NextRequest): Promise<{ role: string }> {
+    const authHeader = req.headers.get("authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token) throw new Error("unauthorized:no_token");
+
+    const { data: userRes, error: userErr } = await supabaseAdmin.auth.getUser(token);
+    if (userErr || !userRes?.user) throw new Error("unauthorized:bad_token");
+
+    const { data: me, error: meErr } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("system_role")
+        .eq("auth_user_id", userRes.user.id)
+        .maybeSingle();
+
+    if (meErr) throw meErr;
+    return { role: String(me?.system_role ?? "").trim().toLowerCase() };
+}
+
 export async function GET(req: NextRequest) {
     try {
         // Bearer 認証
@@ -85,5 +114,66 @@ export async function GET(req: NextRequest) {
     } catch (e: unknown) {
         console.error("[staff-options] error", e);
         return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const { role } = await readRoleFromBearer(req);
+        const isAdmin = role === "admin" || role === "super_admin";
+        const isManager = isAdmin || role.includes("manager");
+        if (!isManager) {
+            return NextResponse.json({ error: "forbidden:not_manager" }, { status: 403 });
+        }
+
+        const body = (await req.json()) as AssignBody;
+
+        if (!body.kaipoke_cs_id) {
+            return NextResponse.json({ error: "bad_request:kaipoke_cs_id" }, { status: 400 });
+        }
+        if (!body.yearMonth || !isYm(body.yearMonth)) {
+            return NextResponse.json({ error: "bad_request:yearMonth" }, { status: 400 });
+        }
+        if (!body.kaipokeServicek) {
+            return NextResponse.json({ error: "bad_request:kaipokeServicek" }, { status: 400 });
+        }
+
+        // disability_check に upsert（view は dc が優先されるので即反映）
+        const { error: upsertErr } = await supabaseAdmin
+            .from("disability_check")
+            .upsert(
+                {
+                    kaipoke_cs_id: body.kaipoke_cs_id,
+                    year_month: body.yearMonth,
+                    kaipoke_servicek: body.kaipokeServicek,
+                    asigned_jisseki_staff: body.staffId, // null 可（解除）
+                },
+                { onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek" }
+            );
+
+        if (upsertErr) throw upsertErr;
+
+        // 更新後の view 行を返す（フロントがそのまま差し替え可能）
+        const { data: updated, error: viewErr } = await supabaseAdmin
+            .from("disability_check_view")
+            .select("*")
+            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
+            .eq("year_month", body.yearMonth)
+            .eq("kaipoke_servicek", body.kaipokeServicek)
+            .maybeSingle();
+
+        if (viewErr) throw viewErr;
+
+        return NextResponse.json(updated ?? { ok: true });
+    } catch (e: unknown) {
+        console.error("[staff-options:POST] error", e);
+        const msg = e instanceof Error ? e.message : String(e);
+
+        const status =
+            msg.startsWith("unauthorized:") ? 401 :
+                msg.startsWith("forbidden:") ? 403 :
+                    500;
+
+        return NextResponse.json({ error: msg }, { status });
     }
 }

@@ -134,8 +134,9 @@ const DisabilityCheckPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // 未使用のため一旦コメントアウト
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
-  const handleClickStaff = (staffId: string) => {
+  /*const handleClickStaff = (staffId: string) => {
     // member は担当者固定運用なので、クリック絞り込みは不要（必要ならこの if を外す）
     if (!(isManager || isAdmin)) return;
 
@@ -152,7 +153,7 @@ const DisabilityCheckPage: React.FC = () => {
     qp.set("user_id", staffId);
 
     router.push(`${pathname}?${qp.toString()}`);
-  };
+  };*/
 
   // ② Selectbox 用の選択肢
   type ClientOption = {
@@ -448,6 +449,87 @@ const DisabilityCheckPage: React.FC = () => {
     } catch {
       console.error("Failed to fetch records");
       setRecords([]);
+    }
+  };
+
+  /** ✅ 実績担当者 更新（manager/admin のみ） */
+  const handleAssignedStaffChange = async (row: Row, staffId: string | null) => {
+    const prevId = row.asigned_jisseki_staff_id ?? null;
+    const prevName = row.asigned_jisseki_staff_name ?? null;
+
+    // 楽観更新（表示を先に変える）
+    const nextName =
+      staffId
+        ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
+        : null;
+
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.kaipoke_cs_id === row.kaipoke_cs_id &&
+          r.year_month === row.year_month &&
+          r.kaipoke_servicek === row.kaipoke_servicek
+          ? {
+            ...r,
+            asigned_jisseki_staff_id: staffId,
+            asigned_jisseki_staff_name: nextName,
+          }
+          : r
+      )
+    );
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/staff-options", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          kaipoke_cs_id: row.kaipoke_cs_id,
+          yearMonth: row.year_month,
+          kaipokeServicek: row.kaipoke_servicek,
+          staffId, // null 可（解除）
+        }),
+      });
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`assigned-staff update failed: ${res.status} ${t}`);
+      }
+
+      // 返ってきた最新view行で上書き（堅くする）
+      const updated = (await res.json().catch(() => null)) as Row | null;
+      if (updated) {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, ...updated }
+              : r
+          )
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      // 失敗時は元に戻す
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.kaipoke_cs_id === row.kaipoke_cs_id &&
+            r.year_month === row.year_month &&
+            r.kaipoke_servicek === row.kaipoke_servicek
+            ? {
+              ...r,
+              asigned_jisseki_staff_id: prevId,
+              asigned_jisseki_staff_name: prevName,
+            }
+            : r
+        )
+      );
     }
   };
 
@@ -979,17 +1061,15 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ padding: 8 }}>
                   <select
                     value={r.asigned_jisseki_staff_id ?? ""}
-                    disabled={isMember} // memberは従来通り触らせないならこのまま
+                    disabled={!(isManager || isAdmin)} // ★manager/adminのみ変更可
                     onChange={(e) => {
-                      if (isMember) return;
+                      if (!(isManager || isAdmin)) return;
                       const v = e.target.value;
-                      if (!v) return;
-                      handleClickStaff(v); // ★旧リンククリックと同じ（絞り込み）
+                      handleAssignedStaffChange(r, v ? v : null); // ★オンタイムでDB更新
                     }}
                     style={{ width: 220 }}
                   >
                     <option value="">（未選択）</option>
-
                     {staffOptions.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
