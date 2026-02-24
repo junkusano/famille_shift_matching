@@ -6,6 +6,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { cmSanitizeForOrFilter } from "@/lib/cm/supabase/sanitizeFilterValue";
 import type {
   CmClientInfo,
   CmPagination,
@@ -97,11 +98,15 @@ export async function getClients(params: GetClientsParams = {}): Promise<GetClie
 
     // 検索フィルター（名前・カナ）
     // ひらがな→カタカナ変換して両方で検索
+    // PostgREST フィルター構文インジェクション防止のためサニタイズ
     if (search) {
-      const searchKatakana = search.replace(/[\u3041-\u3096]/g, (char) =>
-        String.fromCharCode(char.charCodeAt(0) + 0x60)
-      );
-      query = query.or(`name.ilike.%${search}%,kana.ilike.%${search}%,kana.ilike.%${searchKatakana}%`);
+      const sanitized = cmSanitizeForOrFilter(search);
+      if (sanitized) {
+        const sanitizedKatakana = sanitized.replace(/[\u3041-\u3096]/g, (char) =>
+          String.fromCharCode(char.charCodeAt(0) + 0x60)
+        );
+        query = query.or(`name.ilike.%${sanitized}%,kana.ilike.%${sanitized}%,kana.ilike.%${sanitizedKatakana}%`);
+      }
     }
 
     // ステータスフィルター
