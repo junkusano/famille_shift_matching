@@ -42,7 +42,6 @@ type AssignBody = {
 function isYm(v: string) {
     return /^\d{4}-\d{2}$/.test(v);
 }
-
 async function readRoleFromBearer(req: NextRequest): Promise<{ role: string }> {
     const authHeader = req.headers.get("authorization") ?? "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -51,14 +50,36 @@ async function readRoleFromBearer(req: NextRequest): Promise<{ role: string }> {
     const { data: userRes, error: userErr } = await supabaseAdmin.auth.getUser(token);
     if (userErr || !userRes?.user) throw new Error("unauthorized:bad_token");
 
-    const { data: me, error: meErr } = await supabaseAdmin
+    const authUserId = userRes.user.id;
+
+    // 1) まず single
+    const { data: me1, error: meErr1 } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select("system_role")
-        .eq("auth_user_id", userRes.user.id)
+        .eq("auth_user_id", authUserId)
         .maybeSingle();
 
-    if (meErr) throw meErr;
-    return { role: String(me?.system_role ?? "").trim().toLowerCase() };
+    let role = String(me1?.system_role ?? "").trim().toLowerCase();
+    let lastErr = meErr1;
+
+    // 2) singleで取れない/空なら fallback で united_view
+    if (!lastErr && !role) {
+        const { data: me2, error: meErr2 } = await supabaseAdmin
+            .from("user_entry_united_view")
+            .select("system_role")
+            .eq("auth_user_id", authUserId)
+            .maybeSingle();
+
+        role = String(me2?.system_role ?? "").trim().toLowerCase();
+        lastErr = meErr2;
+    }
+
+    if (lastErr) throw lastErr;
+
+    // role が最後まで取れない場合は not_manager 扱い（403に落ちる）
+    if (!role) role = "not_manager";
+
+    return { role };
 }
 
 export async function GET(req: NextRequest) {
@@ -121,9 +142,17 @@ export async function POST(req: NextRequest) {
     try {
         const { role } = await readRoleFromBearer(req);
         const isAdmin = role === "admin" || role === "super_admin";
-        const isManager = isAdmin || role.includes("manager");
+
+        // not_manager は明示的に除外した上で manager 系を許可
+        const isManager =
+            isAdmin ||
+            (role !== "not_manager" && role.includes("manager"));
+
         if (!isManager) {
-            return NextResponse.json({ error: "forbidden:not_manager" }, { status: 403 });
+            return NextResponse.json(
+                { error: "forbidden:not_manager", role }, // ←デバッグしやすいよう role も返す
+                { status: 403 }
+            );
         }
 
         const body = (await req.json()) as AssignBody;
