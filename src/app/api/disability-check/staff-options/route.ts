@@ -167,73 +167,44 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "bad_request:kaipokeServicek" }, { status: 400 });
         }
 
-        // ★追加：kaipoke_cs_id のゆらぎ吸収（全角/空白/ゼロ幅など）
-        function normCsIdLoose(s: string) {
-            return (s ?? "")
-                .normalize("NFKC")
-                .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF　]+/g, "")
-                .trim();
-        }
-
-        // ★追加：数字だけ版（「7941630」だけ残す）
-        function digitsOnly(s: string) {
-            return normCsIdLoose(s).replace(/[^\d]/g, "");
-        }
-
-        // ★追加：候補リスト（DB上の表記揺れに当てに行く）
-        function buildCsIdVariants(input: string): string[] {
-            const a = (input ?? "").toString();
-            const b = a.trim();
-            const c = normCsIdLoose(a);
-            const d = digitsOnly(a);
-
-            const set = new Set<string>();
-            [a, b, c, d].forEach((v) => {
-                const vv = (v ?? "").toString();
-                if (vv) set.add(vv);
-            });
-
-            return Array.from(set);
-        }
-
-        const variants = buildCsIdVariants(body.kaipoke_cs_id);
-        const digits = digitsOnly(body.kaipoke_cs_id); // 例: "7941630"
-
-        // ★追加：OR条件（eq... + like digits%）
-        const orParts = [
-            ...variants.map((v) => `kaipoke_cs_id.eq.${v}`),
-            ...(digits ? [`kaipoke_cs_id.like.${digits}%`] : []),
-        ].join(",");
-
-        // 2) 同じ「実質 cs_id」+ 月 の全サービス行を「同じ担当者」にそろえる
-        const { error: updateAllErr } = await supabaseAdmin
+        // 1) disability_check に upsert（必ずDBに反映させる）
+        const { error: upsertErr } = await supabaseAdmin
             .from("disability_check")
-            .update({ asigned_jisseki_staff: body.staffId })
-            .eq("year_month", body.yearMonth)
-            .or(orParts);
+            .upsert(
+                {
+                    kaipoke_cs_id: body.kaipoke_cs_id,
+                    year_month: body.yearMonth,
+                    kaipoke_servicek: body.kaipokeServicek,
+                    asigned_jisseki_staff: body.staffId, // null 可
+                },
+                { onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek" }
+            );
 
-        if (updateAllErr) throw updateAllErr;
+        if (upsertErr) throw upsertErr;
 
-        // 3) 保存結果確認（variants でまとめて確認）
+        // 2) DBの保存結果を読み直して返す（フロントが「DB更新済」を判定できる）
         const { data: saved, error: savedErr } = await supabaseAdmin
             .from("disability_check")
-            .select("kaipoke_cs_id, kaipoke_servicek, asigned_jisseki_staff")
-            .in("kaipoke_cs_id", variants)
-            .eq("year_month", body.yearMonth);
+            .select("asigned_jisseki_staff")
+            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
+            .eq("year_month", body.yearMonth)
+            .eq("kaipoke_servicek", body.kaipokeServicek)
+            .maybeSingle();
 
         if (savedErr) throw savedErr;
 
-        // 4) view も同月分まとめて返す（variants）
+        // 3) 最新view行も返す（UI差し替え用）
         const { data: updated, error: viewErr } = await supabaseAdmin
             .from("disability_check_view")
             .select("*")
-            .in("kaipoke_cs_id", variants)
-            .eq("year_month", body.yearMonth);
+            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
+            .eq("year_month", body.yearMonth)
+            .eq("kaipoke_servicek", body.kaipokeServicek)
+            .maybeSingle();
 
         if (viewErr) throw viewErr;
 
-        return NextResponse.json({ ok: true, variants, saved, updated });
-
+        return NextResponse.json({ ok: true, saved, updated });
     } catch (e: unknown) {
         console.error("[staff-options:POST] error", e);
         const msg = e instanceof Error ? e.message : String(e);

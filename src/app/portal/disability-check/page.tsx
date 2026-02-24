@@ -65,9 +65,8 @@ const DisabilityCheckPage: React.FC = () => {
       .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF　]+/g, "") // NBSP/ゼロ幅/全角空白も除去
       .trim();
 
-  // ★修正：kaipoke_cs_id 専用の正規化（数字だけ残す）
-  // 例: "7941630*" も "7941630" に揃える
-  const normCsId = (s: string) => norm(s).replace(/[^\d]/g, "");
+  // ★追加：kaipoke_cs_id 専用の正規化（数字と * だけ残す）
+  const normCsId = (s: string) => norm(s).replace(/[^\d*]/g, "");
 
   // ★カタカナ→ひらがな
   const kanaKey = (s: string) =>
@@ -460,10 +459,6 @@ const DisabilityCheckPage: React.FC = () => {
     const prevId = row.asigned_jisseki_staff_id ?? null;
     const prevName = row.asigned_jisseki_staff_name ?? null;
 
-    // ★先に nextName を決める（updated 分岐でも使うため）
-    const nextName =
-      staffId ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId) : null;
-
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -478,8 +473,8 @@ const DisabilityCheckPage: React.FC = () => {
         body: JSON.stringify({
           kaipoke_cs_id: row.kaipoke_cs_id,
           yearMonth: row.year_month,
-          kaipokeServicek: row.kaipoke_servicek, // サーバ側で両サービス更新していても、ここは送ってOK
-          staffId,
+          kaipokeServicek: row.kaipoke_servicek,
+          staffId, // null可（解除）
         }),
       });
 
@@ -492,31 +487,46 @@ const DisabilityCheckPage: React.FC = () => {
       const payload = JSON.parse(payloadText) as {
         ok?: boolean;
         saved?: { asigned_jisseki_staff: string | null };
-        updated?: Row | null; // サーバが1行だけ返しても、UIは全行更新するので依存しない
+        updated?: Row | null;
       };
 
       const expected = staffId ?? null;
       const savedStaff = payload?.saved?.asigned_jisseki_staff ?? null;
 
-      // DBが更新されているか確認（少なくとも呼び出した svc の保存が一致すること）
+      // DBが更新されているか確認
       if (savedStaff !== expected) {
         alert(`DBに反映されていません。\n期待: ${expected ?? "null"}\n実際: ${savedStaff ?? "null"}`);
         return;
       }
 
-      // ✅ DB成功 → UI反映（cs_id + 月で全サービス行を更新）
-      setRecords((prev) =>
-        prev.map((r) =>
-          normCsId(r.kaipoke_cs_id) === normCsId(row.kaipoke_cs_id) &&
-            r.year_month === row.year_month
-            ? {
-              ...r,
-              asigned_jisseki_staff_id: staffId,
-              asigned_jisseki_staff_name: nextName,
-            }
-            : r
-        )
-      );
+      // DB成功 → UI反映
+      const updated = payload?.updated ?? null;
+
+      if (updated) {
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, ...updated }
+              : r
+          )
+        );
+      } else {
+        const nextName = staffId
+          ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
+          : null;
+
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, asigned_jisseki_staff_id: staffId, asigned_jisseki_staff_name: nextName }
+              : r
+          )
+        );
+      }
     } catch (e) {
       console.error(e);
 
