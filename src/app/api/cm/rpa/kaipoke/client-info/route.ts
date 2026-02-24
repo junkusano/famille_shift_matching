@@ -80,6 +80,18 @@ type ApiResponse = {
   error?: string;
 };
 
+/**
+ * cmUpsertRecord で操作可能なテーブル名
+ *
+ * このファイル内のローカル関数でのみ使用。
+ * テーブルを追加する場合はここに追加すること。
+ */
+type CmKaipokeUpsertTable =
+  | "cm_kaipoke_info"
+  | "cm_kaipoke_insurance"
+  | "cm_kaipoke_support_office"
+  | "cm_kaipoke_benefit_limit";
+
 // =============================================================
 // ヘルパー関数
 // =============================================================
@@ -88,7 +100,7 @@ type ApiResponse = {
  * 汎用upsert関数（SELECT → UPDATE/INSERT 方式）
  */
 async function cmUpsertRecord(
-  tableName: string,
+  tableName: CmKaipokeUpsertTable,
   data: Record<string, unknown>,
   matchConditions: Record<string, unknown>,
   logPrefix: string,
