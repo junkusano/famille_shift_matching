@@ -167,44 +167,35 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "bad_request:kaipokeServicek" }, { status: 400 });
         }
 
-        // 1) disability_check に upsert（必ずDBに反映させる）
-        const { error: upsertErr } = await supabaseAdmin
+        // 2) 同じ cs_id + 月 の全サービス行を「同じ担当者」にそろえる
+        const { error: updateAllErr } = await supabaseAdmin
             .from("disability_check")
-            .upsert(
-                {
-                    kaipoke_cs_id: body.kaipoke_cs_id,
-                    year_month: body.yearMonth,
-                    kaipoke_servicek: body.kaipokeServicek,
-                    asigned_jisseki_staff: body.staffId, // null 可
-                },
-                { onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek" }
-            );
+            .update({ asigned_jisseki_staff: body.staffId })
+            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
+            .eq("year_month", body.yearMonth);
 
-        if (upsertErr) throw upsertErr;
+        if (updateAllErr) throw updateAllErr;
 
-        // 2) DBの保存結果を読み直して返す（フロントが「DB更新済」を判定できる）
+        // 3) 保存結果確認（※ service を限定しないで複数返す）
         const { data: saved, error: savedErr } = await supabaseAdmin
             .from("disability_check")
-            .select("asigned_jisseki_staff")
+            .select("kaipoke_servicek, asigned_jisseki_staff")
             .eq("kaipoke_cs_id", body.kaipoke_cs_id)
-            .eq("year_month", body.yearMonth)
-            .eq("kaipoke_servicek", body.kaipokeServicek)
-            .maybeSingle();
+            .eq("year_month", body.yearMonth);
 
         if (savedErr) throw savedErr;
 
-        // 3) 最新view行も返す（UI差し替え用）
+        // 4) view も同月分まとめて返す（フロント差し替え用に使ってもOK）
         const { data: updated, error: viewErr } = await supabaseAdmin
             .from("disability_check_view")
             .select("*")
             .eq("kaipoke_cs_id", body.kaipoke_cs_id)
-            .eq("year_month", body.yearMonth)
-            .eq("kaipoke_servicek", body.kaipokeServicek)
-            .maybeSingle();
+            .eq("year_month", body.yearMonth);
 
         if (viewErr) throw viewErr;
 
         return NextResponse.json({ ok: true, saved, updated });
+
     } catch (e: unknown) {
         console.error("[staff-options:POST] error", e);
         const msg = e instanceof Error ? e.message : String(e);
