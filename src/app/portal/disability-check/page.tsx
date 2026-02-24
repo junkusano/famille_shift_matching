@@ -502,15 +502,17 @@ const DisabilityCheckPage: React.FC = () => {
       }
 
       // 返ってきた最新view行で上書き（堅くする）
-      const updated = (await res.json().catch(() => null)) as Row | null;
+      const payload = (await res.json().catch(() => null)) as { ok?: boolean; updated?: Row | null } | null;
+      const updated = payload?.updated ?? null;
+
       if (updated) {
         setRecords((prev) =>
-          prev.map((r) =>
-            r.kaipoke_cs_id === row.kaipoke_cs_id &&
-              r.year_month === row.year_month &&
-              r.kaipoke_servicek === row.kaipoke_servicek
-              ? { ...r, ...updated }
-              : r
+          prev.map((rr) =>
+            rr.kaipoke_cs_id === row.kaipoke_cs_id &&
+              rr.year_month === row.year_month &&
+              rr.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...rr, ...updated }
+              : rr
           )
         );
       }

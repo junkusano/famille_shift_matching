@@ -119,6 +119,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
+        // 1) 認可（manager/adminのみ）
         const { role } = await readRoleFromBearer(req);
         const isAdmin = role === "admin" || role === "super_admin";
         const isManager = isAdmin || role.includes("manager");
@@ -126,45 +127,85 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "forbidden:not_manager" }, { status: 403 });
         }
 
+        // 2) 入力
         const body = (await req.json()) as AssignBody;
 
-        if (!body.kaipoke_cs_id) {
+        const kaipoke_cs_id = (body.kaipoke_cs_id ?? "").trim();
+        const yearMonth = (body.yearMonth ?? "").trim();
+        const kaipokeServicek = (body.kaipokeServicek ?? "").trim();
+
+        // staffId は "" を null に正規化（空文字が入ると「未設定解除」扱いにならないため）
+        const staffIdRaw = (body.staffId ?? null);
+        const staffId =
+            typeof staffIdRaw === "string"
+                ? (staffIdRaw.trim() ? staffIdRaw.trim() : null)
+                : null;
+
+        if (!kaipoke_cs_id) {
             return NextResponse.json({ error: "bad_request:kaipoke_cs_id" }, { status: 400 });
         }
-        if (!body.yearMonth || !isYm(body.yearMonth)) {
+        if (!yearMonth || !isYm(yearMonth)) {
             return NextResponse.json({ error: "bad_request:yearMonth" }, { status: 400 });
         }
-        if (!body.kaipokeServicek) {
-            return NextResponse.json({ error: "bad_request:kaipokeServicek" }, { status: 400 });
+
+        // テーブル制約に合わせて明示チェック（あなたが提示した CHECK 制約と合わせる）
+        if (kaipokeServicek !== "障害" && kaipokeServicek !== "移動支援") {
+            return NextResponse.json({ error: "bad_request:kaipokeServicek_invalid" }, { status: 400 });
         }
 
-        // disability_check に upsert（view は dc が優先されるので即反映）
+        // 3) disability_check に upsert（unique: (kaipoke_cs_id, year_month, kaipoke_servicek)）
         const { error: upsertErr } = await supabaseAdmin
             .from("disability_check")
             .upsert(
                 {
-                    kaipoke_cs_id: body.kaipoke_cs_id,
-                    year_month: body.yearMonth,
-                    kaipoke_servicek: body.kaipokeServicek,
-                    asigned_jisseki_staff: body.staffId, // null 可（解除）
+                    kaipoke_cs_id,
+                    year_month: yearMonth,
+                    kaipoke_servicek: kaipokeServicek,
+                    asigned_jisseki_staff: staffId, // null 可
                 },
                 { onConflict: "kaipoke_cs_id,year_month,kaipoke_servicek" }
             );
 
-        if (upsertErr) throw upsertErr;
+        if (upsertErr) {
+            return NextResponse.json(
+                { error: "db_upsert_failed", detail: upsertErr.message },
+                { status: 500 }
+            );
+        }
 
-        // 更新後の view 行を返す（フロントがそのまま差し替え可能）
+        // 4) 「DBに記録が残った」証拠として disability_check を直接返す
+        const { data: saved, error: savedErr } = await supabaseAdmin
+            .from("disability_check")
+            .select("kaipoke_cs_id,year_month,kaipoke_servicek,asigned_jisseki_staff,is_checked,application_check")
+            .eq("kaipoke_cs_id", kaipoke_cs_id)
+            .eq("year_month", yearMonth)
+            .eq("kaipoke_servicek", kaipokeServicek)
+            .maybeSingle();
+
+        if (savedErr) {
+            return NextResponse.json(
+                { error: "db_readback_failed", detail: savedErr.message },
+                { status: 500 }
+            );
+        }
+
+        // 5) 画面差し替え用に view も返す（従来互換）
         const { data: updated, error: viewErr } = await supabaseAdmin
             .from("disability_check_view")
             .select("*")
-            .eq("kaipoke_cs_id", body.kaipoke_cs_id)
-            .eq("year_month", body.yearMonth)
-            .eq("kaipoke_servicek", body.kaipokeServicek)
+            .eq("kaipoke_cs_id", kaipoke_cs_id)
+            .eq("year_month", yearMonth)
+            .eq("kaipoke_servicek", kaipokeServicek)
             .maybeSingle();
 
-        if (viewErr) throw viewErr;
+        if (viewErr) {
+            return NextResponse.json(
+                { error: "view_read_failed", detail: viewErr.message, saved },
+                { status: 500 }
+            );
+        }
 
-        return NextResponse.json(updated ?? { ok: true });
+        return NextResponse.json({ ok: true, saved, updated });
     } catch (e: unknown) {
         console.error("[staff-options:POST] error", e);
         const msg = e instanceof Error ? e.message : String(e);
