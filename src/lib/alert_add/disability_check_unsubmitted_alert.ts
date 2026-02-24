@@ -577,6 +577,17 @@ async function runCollectedUncheckManagerAlert(args: {
             });
         }
     }
+    return {
+        enabled: true,
+        scanned,
+        targetRows: rows.length,
+        alertManagers,
+        alertRows,
+        errors,
+        dryRun: args.dryRun,
+        targetYearMonth: targetYm,
+        skippedBecauseDay: false,
+    };
 }
 
 /**
