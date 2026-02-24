@@ -1,3 +1,4 @@
+//api/assessment/[id]/auto-generate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -27,7 +28,31 @@ type ShiftRow = {
   tokutei_comment: string | null;
 };
 
-const REQUIRED_DOC_NAMES = ["基本情報(ステップ２）", "サービス等利用計画"] as const;
+// ===== Assessment Content Types (any禁止のため route 内で定義) =====
+type AssessmentRow = {
+  key: string;
+  label: string;
+  check: "NONE" | "CIRCLE";
+  remark: string;
+  hope: string;
+};
+
+type AssessmentSheet = {
+  key: string;
+  title: string;
+  printTarget: boolean;
+  rows: AssessmentRow[];
+};
+
+type AssessmentContent = {
+  version: number;
+  sheets: AssessmentSheet[];
+};
+
+// ===== doc_name 条件 =====
+// 「基本情報(ステップ２）」 or 「サービス等利用計画」 のどちらか1つあればOK
+const CORE_DOC_NAMES = ["基本情報(ステップ２）", "サービス等利用計画"] as const;
+// あれば使う
 const OPTIONAL_DOC_NAMES = ["情報連携・看護サマリー等"] as const;
 
 function trimOrEmpty(v: unknown) {
@@ -54,17 +79,48 @@ function pickText(row: CsDocRow, maxOcr: number) {
   return { text: "", use: "none" as const };
 }
 
-function countFilled(content) {
+// remark/hope が入った行数を数える（any禁止）
+function countFilled(content: AssessmentContent): number {
   let n = 0;
-  for (const s of content?.sheets ?? []) {
-    for (const r of s?.rows ?? []) {
-      const remark = trimOrEmpty(r?.remark);
-      const hope = trimOrEmpty(r?.hope);
-      const check = r?.check;
-      if (remark || hope || check === "CIRCLE") n++;
+  for (const s of content.sheets) {
+    for (const r of s.rows) {
+      const remark = trimOrEmpty(r.remark);
+      const hope = trimOrEmpty(r.hope);
+      if (remark || hope) n++;
     }
   }
   return n;
+}
+
+// OpenAIのJSONがAssessmentContent形か検証（any禁止）
+function isAssessmentContent(v: unknown): v is AssessmentContent {
+  if (!v || typeof v !== "object") return false;
+  const obj = v as { version?: unknown; sheets?: unknown };
+
+  if (typeof obj.version !== "number") return false;
+  if (!Array.isArray(obj.sheets)) return false;
+
+  for (const s of obj.sheets) {
+    if (!s || typeof s !== "object") return false;
+    const sh = s as { key?: unknown; title?: unknown; printTarget?: unknown; rows?: unknown };
+
+    if (typeof sh.key !== "string") return false;
+    if (typeof sh.title !== "string") return false;
+    if (typeof sh.printTarget !== "boolean") return false;
+    if (!Array.isArray(sh.rows)) return false;
+
+    for (const r of sh.rows) {
+      if (!r || typeof r !== "object") return false;
+      const row = r as { key?: unknown; label?: unknown; check?: unknown; remark?: unknown; hope?: unknown };
+
+      if (typeof row.key !== "string") return false;
+      if (typeof row.label !== "string") return false;
+      if (row.check !== "NONE" && row.check !== "CIRCLE") return false;
+      if (typeof row.remark !== "string") return false;
+      if (typeof row.hope !== "string") return false;
+    }
+  }
+  return true;
 }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
@@ -86,22 +142,26 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const kaipokeCsId = trimOrEmpty(assessment.kaipoke_cs_id);
     if (!kaipokeCsId) return json({ ok: false, error: "kaipoke_cs_id is empty" }, 400);
 
-    const templateContent = assessment.content ?? {};
-    if (!Array.isArray(templateContent?.sheets) || templateContent.sheets.length === 0) {
-      return json({ ok: false, error: "assessment content has no sheets" }, 400);
+    const templateContentUnknown: unknown = assessment.content ?? null;
+    if (!isAssessmentContent(templateContentUnknown)) {
+      return json(
+        { ok: false, error: "assessment content is invalid (not AssessmentContent)" },
+        400
+      );
     }
+    const templateContent: AssessmentContent = templateContentUnknown;
 
-    const baseCreatedAtIso = assessment.created_at ?? new Date().toISOString();
+    const baseCreatedAtIso = (assessment.created_at as string | null) ?? new Date().toISOString();
     const baseDate = new Date(baseCreatedAtIso);
     const fromDate = new Date(baseDate);
     fromDate.setDate(fromDate.getDate() - 30);
 
-    // 2) cs_docs 取得（必須2+任意）
+    // 2) cs_docs 取得（core + optional）
     const { data: docs, error: dErr } = await supabaseAdmin
       .from("cs_docs")
       .select("id, created_at, kaipoke_cs_id, doc_name, ocr_text, summary")
       .eq("kaipoke_cs_id", kaipokeCsId)
-      .in("doc_name", [...REQUIRED_DOC_NAMES, ...OPTIONAL_DOC_NAMES])
+      .in("doc_name", [...CORE_DOC_NAMES, ...OPTIONAL_DOC_NAMES])
       .order("created_at", { ascending: false });
 
     if (dErr) throw dErr;
@@ -113,15 +173,41 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       byName.get(name)!.push(d);
     });
 
-    // 必須：存在チェック（doc_name）
-    const missingByName = REQUIRED_DOC_NAMES.filter((n) => !(byName.get(n)?.length));
-    if (missingByName.length) {
+    const selectedDocs: Array<{ id: string; created_at: string; doc_name: string; use: string; text: string }> = [];
+
+    const pickLatestByName = (name: string, maxOcr: number) => {
+      const latest = byName.get(name)?.[0];
+      if (!latest) return null;
+      const picked = pickText(latest, maxOcr); // summary優先、なければ ocr_text を maxOcr まで使う
+      if (!picked.text) return null;
+      return {
+        id: latest.id,
+        created_at: latest.created_at,
+        doc_name: name,
+        use: picked.use,
+        text: picked.text,
+      };
+    };
+
+    // core（基本情報/計画）のどちらかが “テキストあり” ならOK
+    const corePicked = CORE_DOC_NAMES.map((n) => pickLatestByName(n, 7000)).filter(
+      (x): x is NonNullable<ReturnType<typeof pickLatestByName>> => Boolean(x)
+    );
+
+    if (corePicked.length === 0) {
+      // 2つとも「存在しない」or「summary/ocr_textが空」
+      const missingByName = CORE_DOC_NAMES.filter((n) => !(byName.get(n)?.length));
+      const emptyTextNames = CORE_DOC_NAMES.filter((n) =>
+        byName.get(n)?.length ? !pickLatestByName(n, 10) : false
+      );
+
       return json(
         {
           ok: false,
-          error: "required cs_docs are missing",
+          error: "core cs_docs are missing (need either 基本情報 or サービス等利用計画 with non-empty text)",
           missing_doc_names: missingByName,
-          required_doc_names: REQUIRED_DOC_NAMES,
+          empty_text_doc_names: emptyTextNames,
+          core_doc_names: CORE_DOC_NAMES,
           optional_doc_names: OPTIONAL_DOC_NAMES,
           kaipoke_cs_id: kaipokeCsId,
         },
@@ -129,50 +215,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       );
     }
 
-    // 文字が空の必須資料は「不足」扱いにする
-    const selectedDocs: Array<{ id: string; created_at: string; doc_name: string; use: string; text: string }> = [];
+    selectedDocs.push(...corePicked);
 
-    const reqEmpty: string[] = [];
-    for (const name of REQUIRED_DOC_NAMES) {
-      const latest = byName.get(name)![0];
-      const picked = pickText(latest, 7000);
-      if (!picked.text) reqEmpty.push(name);
-      else {
-        selectedDocs.push({
-          id: latest.id,
-          created_at: latest.created_at,
-          doc_name: name,
-          use: picked.use,
-          text: picked.text,
-        });
-      }
-    }
-    if (reqEmpty.length) {
-      return json(
-        {
-          ok: false,
-          error: "required cs_docs exist but text is empty (summary/ocr_text)",
-          missing_doc_names: reqEmpty,
-          note: "summary/ocr_text が空です。OCR/要約生成が完了しているか確認してください。",
-          kaipoke_cs_id: kaipokeCsId,
-        },
-        400
-      );
-    }
-
+    // optional があれば追加
     const missingOptional = OPTIONAL_DOC_NAMES.filter((n) => !(byName.get(n)?.length));
     for (const name of OPTIONAL_DOC_NAMES) {
-      const latest = byName.get(name)?.[0];
-      if (!latest) continue;
-      const picked = pickText(latest, 4000);
-      if (!picked.text) continue;
-      selectedDocs.push({
-        id: latest.id,
-        created_at: latest.created_at,
-        doc_name: name,
-        use: picked.use,
-        text: picked.text,
-      });
+      const opt = pickLatestByName(name, 4000);
+      if (opt) selectedDocs.push(opt);
     }
 
     const docsText = selectedDocs
@@ -203,13 +252,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         const tm = r.shift_start_time ?? "";
         return `- ${d} ${tm} (shift_id=${r.shift_id})\n${t}`;
       })
-      .filter(Boolean)
+      .filter((x): x is string => Boolean(x))
       .join("\n\n");
 
     const visitNotes = visitNotesRaw ? take(visitNotesRaw, 7000) : "(直近1か月の訪問記録はありません)";
 
     const materials = [
-      "## 必須/任意資料(cs_docs)",
+      "## 資料(cs_docs)",
       docsText,
       "",
       "## 直近1か月の訪問記録(shift.tokutei_comment)",
@@ -218,7 +267,6 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
     const materialsChars = materials.length;
 
-    // ログ（ここが出ないなら、このroute自体が呼ばれてない）
     console.log("[assessment:auto-generate] start", {
       assessment_id: id,
       kaipoke_cs_id: kaipokeCsId,
@@ -240,8 +288,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 - sheets/rows の key,title,label は変更しない
 - rows[].check は "CIRCLE" または "NONE"
 - 該当根拠が資料内にある項目は check="CIRCLE" にし、remark/hope を短く埋める
-- 根拠が薄い項目は check="NONE"、remark/hope は空でもよい
+- 根拠が薄い項目は check="NONE" でもよいが、資料に少しでも関連があるなら remark を短く入れる
+- 最低でも 5項目以上は remark か hope を埋める（資料に基づく範囲で）
 - 推測で断定しない（資料にある表現を要約して入れる）
+
 remark: 現状/観察/留意点
 hope: 本人・家族の希望/要望
 `.trim();
@@ -249,7 +299,7 @@ hope: 本人・家族の希望/要望
     const user = {
       materials,
       template_content: templateContent,
-      assessed_on: assessment.assessed_on ?? null,
+      assessed_on: (assessment.assessed_on as string | null) ?? null,
       kaipoke_cs_id: kaipokeCsId,
     };
 
@@ -266,13 +316,29 @@ hope: 本人・家族の希望/要望
     const txt = resp.choices?.[0]?.message?.content ?? "";
     if (!txt.trim()) throw new Error("OpenAI returned empty content");
 
-    let generated;
+    // ===== ここ重要：JSON.parse と型ガードは POST の中に置く =====
+    let generatedUnknown: unknown;
     try {
-      generated = JSON.parse(txt);
+      generatedUnknown = JSON.parse(txt);
     } catch {
       throw new Error("OpenAI response is not valid JSON");
     }
 
+    if (!isAssessmentContent(generatedUnknown)) {
+      return json(
+        {
+          ok: false,
+          error: "OpenAI JSON shape mismatch (not AssessmentContent)",
+          debug: {
+            model: resp.model,
+            response_chars: txt.length,
+          },
+        },
+        500
+      );
+    }
+
+    const generated: AssessmentContent = generatedUnknown;
     const filled = countFilled(generated);
 
     console.log("[assessment:auto-generate] openai done", {
