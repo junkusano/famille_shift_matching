@@ -506,7 +506,8 @@ const DisabilityCheckPage: React.FC = () => {
       // ✅ DB成功 → UI反映（cs_id + 月で全サービス行を更新）
       setRecords((prev) =>
         prev.map((r) =>
-          r.kaipoke_cs_id === row.kaipoke_cs_id && r.year_month === row.year_month
+          normCsId(r.kaipoke_cs_id) === normCsId(row.kaipoke_cs_id) &&
+            r.year_month === row.year_month
             ? {
               ...r,
               asigned_jisseki_staff_id: staffId,
