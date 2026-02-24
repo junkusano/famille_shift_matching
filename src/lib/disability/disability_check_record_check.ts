@@ -52,20 +52,11 @@ function toErrorMessage(e: unknown): string {
     }
 }
 
-/**
- * ensureSystemAlert の引数型がプロジェクト側で厳密な場合に備え、
- * ここで "unknown" にせず、必要最小限の形に揃える薄いラッパーを作る。
- *
- * ※ ensureSystemAlert の正式な型が分かる場合は、この型をそれに合わせてください。
- */
-type SystemAlertPayload = {
-    user_id: string;
-    title: string;
-    message: string;
-};
-
-async function sendManagerAlert(payload: SystemAlertPayload): Promise<void> {
-    await ensureSystemAlert(payload);
+function formatYmJa(ym: string): string {
+    // "2026-01" → "2026年1月"
+    const m = /^(\d{4})-(\d{2})$/.exec(ym);
+    if (!m) return ym;
+    return `${m[1]}年${Number(m[2])}月`;
 }
 
 /**
@@ -180,9 +171,16 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
     };
 
     const unsubmittedByOrg = new Map<string, Item[]>();
-    const uncollectedByMgrClient = new Map<
+    const uncollectedByMgrStaffClient = new Map<
         string,
-        { mgrUserId: string; orgName: string; clientLabel: string; items: Item[] }
+        {
+            mgrUserId: string;
+            orgName: string;
+            staffId: string;           // 担当者ID
+            clientLabel: string;       // "石川 育美様"
+            kaipokeCsId: string;
+            svcSet: Set<string>;       // ★ "障害"/"移動支援" をまとめる
+        }
     >();
 
     // ★ここは「集計だけ」する（送信・returnは絶対に入れない）
@@ -205,21 +203,34 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             unsubmittedByOrg.set(key, [...(unsubmittedByOrg.get(key) ?? []), item]);
         }
 
-        // 回収（利用者単位）
+        // 回収（利用者×担当者単位）
         if (doCollectAlert && r.is_checked !== true) {
             const org = orgMap.get(item.orgunitid);
-            const mgrUserId = org?.mgr_user_id ? String(org.mgr_user_id) : "";
-            if (!mgrUserId) continue; // ★return禁止
+            const mgrUserId = org?.mgr_user_id ? String(org.mgr_user_id).trim() : "";
+            if (!mgrUserId) continue;
+
+            const staffId = (item.assigned_staff ?? "").trim(); // ★disability_check.asigned_jisseki_staff
+            if (!staffId) continue; // 担当未設定は一旦スキップ（必要なら別ルールで）
 
             const orgName = org?.orgunitname || item.orgunitname || "";
             const clientLabel = item.client_name ? `${item.client_name}様` : `${item.kaipoke_cs_id}`;
-            const key = `${mgrUserId}::${item.kaipoke_cs_id}`;
+            const kaipokeCsId = item.kaipoke_cs_id;
 
-            const cur = uncollectedByMgrClient.get(key);
+            // ★ mgr + 担当 + 利用者 で 1件
+            const key = `${mgrUserId}::${staffId}::${kaipokeCsId}`;
+
+            const cur = uncollectedByMgrStaffClient.get(key);
             if (!cur) {
-                uncollectedByMgrClient.set(key, { mgrUserId, orgName, clientLabel, items: [item] });
+                uncollectedByMgrStaffClient.set(key, {
+                    mgrUserId,
+                    orgName,
+                    staffId,
+                    clientLabel,
+                    kaipokeCsId,
+                    svcSet: new Set([item.servicek]),
+                });
             } else {
-                cur.items.push(item);
+                cur.svcSet.add(item.servicek);
             }
         }
     }
@@ -261,40 +272,37 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             }
         }
     }
-
     // ===== 回収：mgr_user_id へアラート（15日以降） =====
-    let alertsCreatedClients = 0; // 利用者アラート件数
-    let alertsCreatedRows = 0;    // 行数（障害/移動支援）
-    const alertErrors: Array<{ key: string; error: string }> = [];
+    let alertsCreated = 0;
+    const collectErrors: Array<{ key: string; error: string }> = [];
 
-    if (doCollectAlert && uncollectedByMgrClient.size > 0) {
-        for (const [key, pack] of uncollectedByMgrClient) {
-            const { mgrUserId, orgName, clientLabel, items } = pack;
+    if (doCollectAlert && uncollectedByMgrStaffClient.size > 0) {
+        for (const [key, pack] of uncollectedByMgrStaffClient) {
+            const { mgrUserId, orgName, staffId, clientLabel, kaipokeCsId, svcSet } = pack;
 
-            const lines = items.map((it) => {
-                const staff = it.assigned_staff ? `${it.assigned_staff}さん` : "（担当未設定）";
-                return `- [${it.servicek}] 担当: ${staff}`;
-            });
+            const svcLabel = Array.from(svcSet).join("/"); // "障害/移動支援" など
 
+            // ★あなたの希望フォーマット
             const message =
-                `【実績 回収未チェック】${yearMonth}\n` +
-                `${clientLabel}\n` + // ★利用者ごとに1件
                 `チーム: ${orgName}\n` +
-                `（月15日以降：回収チェックが未入力のもの）\n` +
-                lines.join("\n");
+                `担当:${staffId}さん\n` +
+                `【実績記録 未チェック】 回収 〈${formatYmJa(yearMonth)}分〉\n` +
+                `回収チェックが、15日以降で未完了の状態です。\n` +
+                `至急ご確認ください。` +
+                `${clientLabel} [${svcLabel}]`;
 
             try {
                 if (!dryRun) {
-                    await sendManagerAlert({
+                    await ensureSystemAlert({
                         user_id: mgrUserId,
-                        title: `回収未チェック（${yearMonth}）`,
                         message,
-                    });
+                        // ★超重要：これが無い/弱いと「同じアラートに上書き」されやすい
+                        shift_id: `disability_check:collect:${yearMonth}:${mgrUserId}:${staffId}:${kaipokeCsId}`,
+                    } as unknown as Parameters<typeof ensureSystemAlert>[0]);
                 }
-                alertsCreatedClients += 1;
-                alertsCreatedRows += items.length;
+                alertsCreated += 1;
             } catch (e: unknown) {
-                alertErrors.push({ key, error: toErrorMessage(e) });
+                collectErrors.push({ key, error: toErrorMessage(e) });
             }
         }
     }
@@ -312,11 +320,9 @@ export async function runDisabilityCheckRecordCheck(opts: Opts = {}) {
             errors: lwErrors,
         },
         collect: {
-            targetClients: uncollectedByMgrClient.size,
-            targetRows: Array.from(uncollectedByMgrClient.values()).reduce((a, b) => a + b.items.length, 0),
-            alertClients: alertsCreatedClients,
-            alertRows: alertsCreatedRows,
-            errors: alertErrors,
+            targetAlerts: uncollectedByMgrStaffClient.size,
+            alertAlerts: alertsCreated,
+            errors: collectErrors, // ←こっちが正しい
         },
     };
 }
