@@ -195,15 +195,22 @@ export async function POST(req: NextRequest) {
 
             return Array.from(set);
         }
-        
-        const variants = buildCsIdVariants(body.kaipoke_cs_id);
 
-        // 2) 同じ「実質 cs_id」+ 月 の全サービス行を「同じ担当者」にそろえる（ゆらぎ吸収）
+        const variants = buildCsIdVariants(body.kaipoke_cs_id);
+        const digits = digitsOnly(body.kaipoke_cs_id); // 例: "7941630"
+
+        // ★追加：OR条件（eq... + like digits%）
+        const orParts = [
+            ...variants.map((v) => `kaipoke_cs_id.eq.${v}`),
+            ...(digits ? [`kaipoke_cs_id.like.${digits}%`] : []),
+        ].join(",");
+
+        // 2) 同じ「実質 cs_id」+ 月 の全サービス行を「同じ担当者」にそろえる
         const { error: updateAllErr } = await supabaseAdmin
             .from("disability_check")
             .update({ asigned_jisseki_staff: body.staffId })
-            .in("kaipoke_cs_id", variants)
-            .eq("year_month", body.yearMonth);
+            .eq("year_month", body.yearMonth)
+            .or(orParts);
 
         if (updateAllErr) throw updateAllErr;
 

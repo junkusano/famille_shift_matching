@@ -65,8 +65,9 @@ const DisabilityCheckPage: React.FC = () => {
       .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF　]+/g, "") // NBSP/ゼロ幅/全角空白も除去
       .trim();
 
-  // ★追加：kaipoke_cs_id 専用の正規化（数字と * だけ残す）
-  const normCsId = (s: string) => norm(s).replace(/[^\d*]/g, "");
+  // ★修正：kaipoke_cs_id 専用の正規化（数字だけ残す）
+  // 例: "7941630*" も "7941630" に揃える
+  const normCsId = (s: string) => norm(s).replace(/[^\d]/g, "");
 
   // ★カタカナ→ひらがな
   const kanaKey = (s: string) =>
