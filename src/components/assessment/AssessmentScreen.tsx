@@ -187,6 +187,13 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
             const j2 = await res2.json();
 
+            // 422: 生成が空（metaを見せたい）
+            if (res2.status === 422) {
+                console.log("auto-generate meta:", j2?.meta ?? j2);
+                window.alert(`自動生成結果が空でした。\nconsoleの meta を確認してください。`);
+                return;
+            }
+
             // 必須資料不足: 400 + missing_doc_names
             if (!res2.ok && Array.isArray(j2?.missing_doc_names)) {
                 window.alert(
@@ -197,14 +204,22 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 return;
             }
 
+            // その他エラー
             if (!j2?.ok || !j2?.data) {
+                console.log("auto-generate error body:", j2);
                 window.alert(`自動生成に失敗: ${j2?.error ?? "unknown error"}`);
                 return;
             }
 
-            // 反映
+            // 成功
             setDetail(j2.data);
-            setList((prev) => prev.map((r) => (r.assessment_id === j2.data.assessment_id ? j2.data : r)));
+            setList((prev) =>
+                prev.map((r) => (r.assessment_id === j2.data.assessment_id ? j2.data : r))
+            );
+
+            console.log("auto-generate meta:", j2?.meta);
+
+
         } finally {
             setGenerating(false);
         }
