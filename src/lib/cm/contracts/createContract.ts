@@ -25,7 +25,7 @@ import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
 import { requireCmSession, CmAuthError } from '@/lib/cm/auth/requireCmSession';
 import { generateCombinedPdfFromHtml } from './generateContractPdf';
-import { getTemplateHtml } from './templateActions';
+import { cmGetTemplateHtmlCore } from './templateCore';
 import { uploadAndCreateSignatureRequest } from './digisignerApi';
 import { getTemplateByCode } from './templates';
 import { getStaffName } from './getClientInfoForContract';
@@ -272,7 +272,7 @@ export async function createContractWithDocuments(
     const htmlList: { html: string; templateCode: CmContractTemplateCode }[] = [];
 
     for (const code of templateCodes) {
-      const html = await getTemplateHtml(code);
+      const html = await cmGetTemplateHtmlCore(code);
       if (!html) {
         logger.error('テンプレートHTML取得失敗', { code });
         continue;

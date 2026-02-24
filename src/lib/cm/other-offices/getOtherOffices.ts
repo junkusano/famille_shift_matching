@@ -7,6 +7,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { buildFaxSearchPattern, normalizeFaxNumber } from "@/lib/cm/faxNumberUtils";
+import { cmSanitizeForLikeValue } from "@/lib/cm/supabase/sanitizeFilterValue";
 import type {
   CmOtherOffice,
   CmOtherOfficePagination,
@@ -73,10 +74,18 @@ export async function getOtherOffices(
       query = query.eq("service_type", serviceType);
     }
     if (officeName) {
-      query = query.ilike("office_name", `%${officeName}%`);
+      // LIKE ワイルドカード文字をサニタイズ
+      const sanitizedName = cmSanitizeForLikeValue(officeName);
+      if (sanitizedName) {
+        query = query.ilike("office_name", `%${sanitizedName}%`);
+      }
     }
     if (officeNumber) {
-      query = query.ilike("office_number", `%${officeNumber}%`);
+      // LIKE ワイルドカード文字をサニタイズ
+      const sanitizedNumber = cmSanitizeForLikeValue(officeNumber);
+      if (sanitizedNumber) {
+        query = query.ilike("office_number", `%${sanitizedNumber}%`);
+      }
     }
 
     // FAX番号検索（ハイフン混在対応）
@@ -89,17 +98,19 @@ export async function getOtherOffices(
         const wildcardPattern = buildFaxSearchPattern(normalized);
 
         if (wildcardPattern) {
-          // ワイルドカード検索（ハイフン混在対応）
+          // buildFaxSearchPattern は数字のみの入力からパターンを生成するため
+          // PostgREST 特殊文字は含まれない（追加のサニタイズは不要）
           query = query.or(`fax.ilike.${wildcardPattern},fax_proxy.ilike.${wildcardPattern}`);
           logger.info("FAX検索パターン", { input: faxNumber, pattern: wildcardPattern });
         } else {
-          // 短すぎる場合は部分一致
+          // 短すぎる場合は部分一致（normalized は数字のみなのでサニタイズ不要）
           query = query.or(`fax.ilike.%${normalized}%,fax_proxy.ilike.%${normalized}%`);
         }
-      } else {
-        // 正規化できない場合は元の値で検索
-        query = query.or(`fax.ilike.%${faxNumber}%,fax_proxy.ilike.%${faxNumber}%`);
+      } else if (normalized) {
+        // 4桁未満の数字: そのまま部分一致（数字のみなのでサニタイズ不要）
+        query = query.or(`fax.ilike.%${normalized}%,fax_proxy.ilike.%${normalized}%`);
       }
+      // normalized が空（数字を含まない入力）の場合はフィルターを適用しない
     }
 
     // ソート（サービス種別 → 事業所名）

@@ -5,6 +5,9 @@
 // クライアントから渡された access_token を検証し、
 // CM権限（service_type: kyotaku or both）を確認する。
 //
+// 内部実装は cmValidateTokenAndUser に委譲。
+// このファイルは Server Actions 向けのインターフェースを提供する。
+//
 // 使い方:
 //   import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 //
@@ -23,33 +26,15 @@
 
 import "server-only";
 
-import { supabaseAdmin } from "@/lib/supabase/service";
-import { createLogger } from "@/lib/common/logger";
+import { cmValidateTokenAndUser } from "./cmValidateTokenAndUser";
+import type { CmValidatedUser } from "./cmValidateTokenAndUser";
 
-const logger = createLogger("cm/auth/requireCmSession");
-
-// =============================================================
-// 定数
-// =============================================================
-
-/**
- * CM側で許可される service_type（verifyRequest.ts と統一）
- */
-const CM_ALLOWED_SERVICE_TYPES = ["kyotaku", "both"];
-
-// =============================================================
-// エラークラス
-// =============================================================
-
-/**
- * CM認証・認可エラー
- */
-export class CmAuthError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CmAuthError";
-  }
-}
+// ---------------------------------------------------------
+// Re-export: 既存の import パスを維持するため
+//   import { CmAuthError } from "@/lib/cm/auth/requireCmSession"
+// を壊さない
+// ---------------------------------------------------------
+export { CmAuthError } from "./cmValidateTokenAndUser";
 
 // =============================================================
 // 型定義
@@ -82,63 +67,11 @@ export type CmSessionInfo = {
  * @throws CmAuthError 認証・認可に失敗した場合
  */
 export async function requireCmSession(token: string): Promise<CmSessionInfo> {
-  // ---------------------------------------------------------
-  // 1. トークン検証
-  // ---------------------------------------------------------
-  if (!token) {
-    logger.warn("セッション認証失敗", { error: "トークンなし" });
-    throw new CmAuthError("ログインしてください");
-  }
-
-  const { data: authData, error: authError } =
-    await supabaseAdmin.auth.getUser(token);
-
-  if (authError || !authData?.user) {
-    logger.warn("セッション認証失敗", {
-      error: authError?.message ?? "ユーザー未取得",
-    });
-    throw new CmAuthError("ログインしてください");
-  }
-
-  const user = authData.user;
-
-  // ---------------------------------------------------------
-  // 2. users テーブルから user_id, service_type を取得
-  // ---------------------------------------------------------
-  const { data: userData, error: userError } = await supabaseAdmin
-    .from("users")
-    .select("user_id, service_type")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  if (userError) {
-    logger.error("ユーザー情報取得エラー", {
-      authUserId: user.id,
-      error: userError.message,
-    });
-    throw new CmAuthError("ユーザー情報の取得に失敗しました");
-  }
-
-  if (!userData) {
-    logger.warn("ユーザー情報が見つからない", { authUserId: user.id });
-    throw new CmAuthError("ユーザー情報が見つかりません");
-  }
-
-  // ---------------------------------------------------------
-  // 3. service_type チェック（kyotaku or both のみ許可）
-  // ---------------------------------------------------------
-  if (!CM_ALLOWED_SERVICE_TYPES.includes(userData.service_type)) {
-    logger.warn("CM権限なし", {
-      authUserId: user.id,
-      userId: userData.user_id,
-      serviceType: userData.service_type,
-    });
-    throw new CmAuthError("このサービスへのアクセス権限がありません");
-  }
+  const validated: CmValidatedUser = await cmValidateTokenAndUser(token);
 
   return {
-    authUserId: user.id,
-    userId: userData.user_id,
-    serviceType: userData.service_type,
+    authUserId: validated.authUserId,
+    userId: validated.userId,
+    serviceType: validated.serviceType,
   };
 }

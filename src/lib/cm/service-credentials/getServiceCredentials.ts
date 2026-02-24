@@ -6,6 +6,7 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
+import { cmSanitizeForLikeValue } from "@/lib/cm/supabase/sanitizeFilterValue";
 import type { CmServiceCredentialMasked } from "@/types/cm/serviceCredentials";
 
 const logger = createLogger("lib/cm/service-credentials");
@@ -72,7 +73,11 @@ export async function getServiceCredentials(
     }
 
     if (serviceName) {
-      query = query.ilike('service_name', `%${serviceName}%`);
+      // LIKE ワイルドカード文字をサニタイズ
+      const sanitized = cmSanitizeForLikeValue(serviceName);
+      if (sanitized) {
+        query = query.ilike('service_name', `%${sanitized}%`);
+      }
     }
 
     const { data: entries, error } = await query;

@@ -1,3 +1,4 @@
+// =============================================================
 // src/lib/cm/clients/actions.ts
 // 利用者関連 Server Actions（Client Componentから呼び出し可能）
 //
@@ -5,6 +6,7 @@
 //   全アクションで requireCmSession(token) による認証を必須実施。
 //   - クライアントから渡された access_token を検証（認証）
 //   - 操作ログにユーザーIDを記録（監査証跡）
+//   - 検索値は cmSanitizeForOrFilter でサニタイズ済み
 // =============================================================
 
 "use server";
@@ -12,6 +14,7 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
+import { cmSanitizeForOrFilter } from "@/lib/cm/supabase/sanitizeFilterValue";
 
 const logger = createLogger("lib/cm/clients/actions");
 
@@ -73,7 +76,12 @@ export async function searchClients(
     }
 
     // 検索条件（名前、カナ、カイポケID）
-    const searchTerm = `%${search}%`;
+    // PostgREST フィルター構文インジェクション防止のためサニタイズ
+    const sanitized = cmSanitizeForOrFilter(search);
+    if (!sanitized) {
+      return { ok: true, data: [] };
+    }
+    const searchTerm = `%${sanitized}%`;
     query = query.or(`name.ilike.${searchTerm},kana.ilike.${searchTerm},kaipoke_cs_id.ilike.${searchTerm}`);
 
     // ソート

@@ -1,26 +1,54 @@
+// =============================================================
 // src/lib/cm/auth/verifyRequest.ts
-// CM用認証・認可ヘルパー
-// - Bearer トークンを検証（認証）
-// - service_type が kyotaku or both であることを確認（認可）
+// CM用 API Route 認証・認可ヘルパー
+//
+// Bearer トークンを検証（認証）し、
+// service_type が kyotaku or both であることを確認（認可）する。
+//
+// 内部実装は cmValidateTokenAndUser に委譲。
+// このファイルは API Route 向けのインターフェース（Result型）を提供する。
+//
+// 使い方:
+//   import { verifyRequest } from "@/lib/cm/auth/verifyRequest";
+//
+//   export async function GET(req: NextRequest) {
+//     const auth = await verifyRequest(req);
+//     if (!auth.ok) {
+//       return NextResponse.json({ error: auth.error }, { status: auth.status });
+//     }
+//     // auth.authUserId, auth.userId, auth.serviceType が使える
+//   }
+// =============================================================
 
 import "server-only";
-import type { NextRequest } from "next/server";
-import type { User } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/lib/supabase/service";
 
-/**
- * CM側で許可される service_type
- */
-const CM_ALLOWED_SERVICE_TYPES = ["kyotaku", "both"];
+import type { NextRequest } from "next/server";
+import {
+  cmValidateTokenAndUser,
+  CmAuthError,
+} from "./cmValidateTokenAndUser";
+
+// =============================================================
+// 型定義
+// =============================================================
 
 /**
  * 認証成功時の結果
+ *
+ * 変更履歴:
+ *   - `user: User` フィールドを `authUserId: string` に変更。
+ *     Supabase Auth の User オブジェクト全体は不要なため簡素化。
+ *     既存の呼び出し元で `auth.user.id` を参照していた箇所は
+ *     `auth.authUserId` に変更すること。
  */
 export type VerifySuccess = {
   ok: true;
-  user: User;
-  userId: string;      // users.user_id (text)
-  serviceType: string; // users.service_type
+  /** Supabase Auth の user.id（UUID） */
+  authUserId: string;
+  /** users テーブルの user_id（テキスト） */
+  userId: string;
+  /** users テーブルの service_type */
+  serviceType: string;
 };
 
 /**
@@ -37,26 +65,18 @@ export type VerifyFailure = {
  */
 export type VerifyResult = VerifySuccess | VerifyFailure;
 
+// =============================================================
+// メイン関数
+// =============================================================
+
 /**
- * CM側API用の認証・認可
- * - Bearer トークンを検証
- * - service_type が kyotaku or both であることを確認
+ * CM側 API Route 用の認証・認可
  *
- * @example
- * ```ts
- * import { verifyRequest } from "@/lib/cm/auth/verifyRequest";
+ * 1. Authorization ヘッダーから Bearer トークンを抽出
+ * 2. cmValidateTokenAndUser でトークン検証 + CM権限チェック
  *
- * export async function GET(req: NextRequest) {
- *   const auth = await verifyRequest(req);
- *   if (!auth.ok) {
- *     return NextResponse.json({ error: auth.error }, { status: auth.status });
- *   }
- *
- *   // auth.user, auth.userId, auth.serviceType が使える
- *   console.log(auth.userId);      // users.user_id (text)
- *   console.log(auth.serviceType); // "kyotaku" or "both"
- * }
- * ```
+ * @param req NextRequest
+ * @returns VerifyResult（成功 or 失敗）
  */
 export async function verifyRequest(req: NextRequest): Promise<VerifyResult> {
   // 1. Authorization ヘッダーから Bearer トークンを取得
@@ -68,36 +88,21 @@ export async function verifyRequest(req: NextRequest): Promise<VerifyResult> {
     return { ok: false, error: "ログインしてください", status: 401 };
   }
 
-  // 2. Supabase Auth でトークン検証
-  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !authData?.user) {
-    return { ok: false, error: "ログインしてください", status: 401 };
+  // 2. 共通バリデーション（トークン検証 → users → service_type）
+  try {
+    const validated = await cmValidateTokenAndUser(token);
+
+    return {
+      ok: true,
+      authUserId: validated.authUserId,
+      userId: validated.userId,
+      serviceType: validated.serviceType,
+    };
+  } catch (error) {
+    if (error instanceof CmAuthError) {
+      return { ok: false, error: error.message, status: error.status };
+    }
+    // CmAuthError 以外の予期せぬエラー
+    return { ok: false, error: "認証処理中にエラーが発生しました", status: 401 };
   }
-
-  // 3. users テーブルから user_id, service_type 取得
-  const { data: userData, error: userError } = await supabaseAdmin
-    .from("users")
-    .select("user_id, service_type")
-    .eq("auth_user_id", authData.user.id)
-    .maybeSingle();
-
-  if (userError) {
-    return { ok: false, error: "ユーザー情報の取得に失敗しました", status: 401 };
-  }
-
-  if (!userData) {
-    return { ok: false, error: "ユーザー情報が見つかりません", status: 401 };
-  }
-
-  // 4. service_type チェック（kyotaku or both のみ許可）
-  if (!CM_ALLOWED_SERVICE_TYPES.includes(userData.service_type)) {
-    return { ok: false, error: "このサービスへのアクセス権限がありません", status: 403 };
-  }
-
-  return {
-    ok: true,
-    user: authData.user,
-    userId: userData.user_id,
-    serviceType: userData.service_type,
-  };
 }

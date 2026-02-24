@@ -1,3 +1,4 @@
+// =============================================================
 // src/lib/cm/contracts/templateActions.ts
 // テンプレート管理 Server Actions
 //
@@ -7,6 +8,9 @@
 //   Server Component (page.tsx) からも呼ばれるため token はオプション。
 //   ※ 将来的には Server Component → lib関数直接呼び出しに移行し、
 //     全 Server Actions で token 必須化を推奨。
+//
+// 内部専用関数（getTemplateHtml 等）は templateCore.ts に配置。
+// "use server" ファイルに認証なしの supabaseAdmin 呼び出しを置かないこと。
 // =============================================================
 
 'use server';
@@ -208,26 +212,5 @@ export async function getActiveTemplates(token?: string): Promise<ActionResult<C
     return { ok: true, data: (data ?? []) as CmContractTemplateListItem[] };
   } catch (error) {
     return handleActionError(error, 'テンプレート一覧取得エラー');
-  }
-}
-
-// =============================================================
-// テンプレートHTML取得（PDF生成用 — 内部専用）
-// =============================================================
-
-export async function getTemplateHtml(
-  code: CmContractTemplateCode,
-): Promise<string | null> {
-  try {
-    const { data } = await supabaseAdmin
-      .from('cm_contract_templates')
-      .select('html_content')
-      .eq('code', code)
-      .eq('is_active', true)
-      .single();
-
-    return data?.html_content ?? null;
-  } catch {
-    return null;
   }
 }
