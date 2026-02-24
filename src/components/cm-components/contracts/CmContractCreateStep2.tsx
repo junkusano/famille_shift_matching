@@ -45,7 +45,8 @@ import type {
   CmStaffSelectOption,
 } from '@/types/cm/contractCreate';
 import type { CmSelectOption } from '@/types/cm/selectOptions';
-import { CM_GUARDIAN_TYPE_LABELS, getSelectDisplayValue } from '@/types/cm/selectOptions';
+import { getSelectDisplayValue } from '@/lib/cm/selectOptions';
+import { CM_GUARDIAN_TYPE_LABELS } from '@/constants/cm/guardianType';
 import type { CmContractTemplateCode } from '@/types/cm/contractTemplate';
 
 // =============================================================

@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import type { CmServiceCredential, CmServiceCredentialMasked } from '@/types/cm/serviceCredentials';
-import { CM_PREDEFINED_SERVICES } from '@/types/cm/serviceCredentials';
+import { CM_PREDEFINED_SERVICES } from '@/constants/cm/serviceCredentials';
 
 type Props = {
   isOpen: boolean;

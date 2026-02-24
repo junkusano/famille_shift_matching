@@ -24,7 +24,7 @@ import type { CmStaffOption } from '@/lib/cm/contracts/getStaffList';
 import { uploadConsentPdf } from '@/lib/cm/contracts/uploadConsentPdf';
 import { getSelectOptionsMultiple } from '@/lib/cm/master/getSelectOptions';
 import type { CmSelectOption } from '@/types/cm/selectOptions';
-import { getSelectDisplayValue } from '@/types/cm/selectOptions';
+import { getSelectDisplayValue } from '@/lib/cm/selectOptions';
 
 // =============================================================
 // Types

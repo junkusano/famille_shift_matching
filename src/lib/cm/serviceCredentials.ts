@@ -5,6 +5,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/service';
 import { createLogger } from '@/lib/common/logger';
+import { CM_PREDEFINED_SERVICES } from '@/constants/cm/serviceCredentials';
 
 const logger = createLogger('cm/lib/serviceCredentials');
 
@@ -121,6 +122,18 @@ export async function refreshServiceCredentials(
 ): Promise<Record<string, unknown> | null> {
   cache.delete(serviceName);
   return getServiceCredentials(serviceName);
+}
+
+// =============================================================
+// ラベルヘルパー
+// =============================================================
+
+/**
+ * サービス名からラベルを取得
+ */
+export function getServiceLabel(serviceName: string): string {
+  const predefined = CM_PREDEFINED_SERVICES.find(s => s.service_name === serviceName);
+  return predefined?.label || serviceName;
 }
 
 // =============================================================

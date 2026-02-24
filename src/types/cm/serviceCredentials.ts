@@ -55,30 +55,6 @@ export type CmServiceCredentialUpdateRequest = {
   is_active?: boolean;
 };
 
-/**
- * 定義済みサービス（補完用）
- */
-export const CM_PREDEFINED_SERVICES = [
-  {
-    service_name: 'local_fax_phonebook_gas',
-    label: 'ローカルFAX電話帳 GAS Web App',
-    credentials_template: { url: '' },
-  },
-  {
-    service_name: 'kaipoke_rpa',
-    label: 'カイポケRPA',
-    credentials_template: { user: '', password: '' },
-  },
-] as const;
-
-/**
- * サービス名からラベルを取得
- */
-export function getServiceLabel(serviceName: string): string {
-  const predefined = CM_PREDEFINED_SERVICES.find(s => s.service_name === serviceName);
-  return predefined?.label || serviceName;
-}
-
 // =============================================================
 // 管理画面用の型
 // =============================================================
@@ -91,12 +67,4 @@ export type CmServiceCredentialsFilters = {
   serviceName: string;
   /** 無効データも表示 */
   showInactive: boolean;
-};
-
-/**
- * 管理画面用フィルターのデフォルト値
- */
-export const CM_SERVICE_CREDENTIALS_DEFAULT_FILTERS: CmServiceCredentialsFilters = {
-  serviceName: '',
-  showInactive: false,
 };
