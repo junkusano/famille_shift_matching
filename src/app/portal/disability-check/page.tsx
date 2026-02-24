@@ -1061,11 +1061,13 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ padding: 8 }}>
                   <select
                     value={r.asigned_jisseki_staff_id ?? ""}
-                    disabled={!(isManager || isAdmin)} // ★manager/adminのみ変更可
+                    disabled={!(isManager || isAdmin)}
+                    onMouseDown={(e) => e.stopPropagation()} // ★親のクリック/Link遷移を止める
+                    onClick={(e) => e.stopPropagation()}     // ★念のため
                     onChange={(e) => {
                       if (!(isManager || isAdmin)) return;
                       const v = e.target.value;
-                      handleAssignedStaffChange(r, v ? v : null); // ★オンタイムでDB更新
+                      handleAssignedStaffChange(r, v ? v : null); // ★DB更新だけ
                     }}
                     style={{ width: 220 }}
                   >
