@@ -1,9 +1,10 @@
+//portal/dashboard/page.tsx
 "use client";
 
 import ShiftSumBizStats from "@/components/biz-stats/ShiftSum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DefectSum from "@/components/biz-stats/DefectSum";
-
+import EntrySumBizStats from "@/components/biz-stats/EntrySum"; 
 
 export default function DashboardPage() {
   return (
@@ -24,6 +25,7 @@ export default function DashboardPage() {
       {/* ===== 個別ウィジェット ===== */}
       <ShiftSumBizStats />
       <DefectSum />
+      <EntrySumBizStats />
     </div>
   );
 }
