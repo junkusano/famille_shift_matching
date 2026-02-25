@@ -40,9 +40,9 @@ function ymToMonthStartISO(ym: string): string {
 }
 
 function formatNumInt(v: number): string {
-  return new Intl.NumberFormat("ja-JP", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(v));
+  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(
+    Math.round(v)
+  );
 }
 
 function monthKeyFromDateLike(v: string | null | undefined): string | null {
@@ -50,6 +50,40 @@ function monthKeyFromDateLike(v: string | null | undefined): string | null {
   const m = v.match(/^(\d{4})-(\d{2})/);
   if (!m) return null;
   return `${m[1]}${m[2]}`;
+}
+
+/* -----------------------------
+   error formatting (anyなし)
+----------------------------- */
+
+type PostgrestLikeError = {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
+function isPostgrestLikeError(x: unknown): x is PostgrestLikeError {
+  if (typeof x !== "object" || x === null) return false;
+  const r = x as Record<string, unknown>;
+  return typeof r.message === "string";
+}
+
+function formatUnknownError(e: unknown): string {
+  if (isPostgrestLikeError(e)) {
+    const parts: string[] = [e.message];
+    if (typeof e.code === "string" && e.code) parts.push(`code=${e.code}`);
+    if (typeof e.details === "string" && e.details) parts.push(`details=${e.details}`);
+    if (typeof e.hint === "string" && e.hint) parts.push(`hint=${e.hint}`);
+    return parts.join(" / ");
+  }
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return "failed to load";
+  }
 }
 
 /* -----------------------------
@@ -98,23 +132,26 @@ export default function EntrySumBizStats({
     setLoading(true);
     setError("");
 
+    const fromDate = ymToMonthStartISO(fromYM);
+    const toMonthStart = new Date(
+      Number(toYM.slice(0, 4)),
+      Number(toYM.slice(4, 6)) - 1,
+      1
+    );
+    const toDateExclusive = ymToMonthStartISO(toYYYYMM(addMonths(toMonthStart, 1)));
+
+    console.log("[EntrySum] load start", { fromYM, toYM, fromDate, toDateExclusive });
+
     try {
-      const fromDate = ymToMonthStartISO(fromYM);
-
-      const toMonthStart = new Date(
-        Number(toYM.slice(0, 4)),
-        Number(toYM.slice(4, 6)) - 1,
-        1
-      );
-
-      const toDateExclusive = ymToMonthStartISO(
-        toYYYYMM(addMonths(toMonthStart, 1))
-      );
+      /* -----------------------------
+         0) セッション確認（任意だけど原因切り分けに便利）
+      ----------------------------- */
+      const { data: s } = await supabase.auth.getSession();
+      console.log("[EntrySum] session", { hasSession: !!s.session });
 
       /* -----------------------------
          1) entry 集計
       ----------------------------- */
-
       const { data: entryData, error: entryErr } = await supabase
         .from("users")
         .select("entry_date_latest")
@@ -122,59 +159,57 @@ export default function EntrySumBizStats({
         .gte("entry_date_latest", fromDate)
         .lt("entry_date_latest", toDateExclusive);
 
-      if (entryErr) throw entryErr;
+      if (entryErr) {
+        console.error("[EntrySum] users query error", entryErr);
+        setError(formatUnknownError(entryErr));
+        setRows([]);
+        return;
+      }
+
+      console.log("[EntrySum] entry rows", { count: entryData?.length ?? 0 });
 
       const entryCountByYM = new Map<string, number>();
-
       for (const r of (entryData ?? []) as UsersEntryRow[]) {
         const ym = monthKeyFromDateLike(r.entry_date_latest);
         if (!ym) continue;
-
         entryCountByYM.set(ym, (entryCountByYM.get(ym) ?? 0) + 1);
       }
 
       /* -----------------------------
          2) removed 集計
       ----------------------------- */
-
       const { data: removedData, error: removedErr } = await supabase
         .from("user_entry_united_view_single")
-        .select(
-          "resign_date_latest,end_at,updated_at,created_at"
-        )
+        .select("resign_date_latest,end_at,updated_at,created_at")
         .eq("status", "removed_from_lineworks_kaipoke");
 
-      if (removedErr) throw removedErr;
+      if (removedErr) {
+        console.error("[EntrySum] removed query error", removedErr);
+        setError(formatUnknownError(removedErr));
+        setRows([]);
+        return;
+      }
+
+      console.log("[EntrySum] removed rows", { count: removedData?.length ?? 0 });
 
       const removedCountByYM = new Map<string, number>();
-
       for (const r of (removedData ?? []) as RemovedRow[]) {
-        const dt =
-          r.resign_date_latest ??
-          r.end_at ??
-          r.updated_at ??
-          r.created_at;
-
+        const dt = r.resign_date_latest ?? r.end_at ?? r.updated_at ?? r.created_at;
         const ym = monthKeyFromDateLike(dt);
         if (!ym) continue;
-
         if (ym < fromYM || ym > toYM) continue;
-
         removedCountByYM.set(ym, (removedCountByYM.get(ym) ?? 0) + 1);
       }
 
       /* -----------------------------
-         3) 月配列生成
+         3) 月配列生成 & 出力
       ----------------------------- */
-
       const months: string[] = [];
-
       const start = new Date(
         Number(fromYM.slice(0, 4)),
         Number(fromYM.slice(4, 6)) - 1,
         1
       );
-
       const end = new Date(
         Number(toYM.slice(0, 4)),
         Number(toYM.slice(4, 6)) - 1,
@@ -188,8 +223,7 @@ export default function EntrySumBizStats({
       const out: Row[] = months.map((ym, i) => {
         const removed = removedCountByYM.get(ym) ?? 0;
         const prevYM = i > 0 ? months[i - 1] : null;
-        const prevRemoved =
-          prevYM !== null ? removedCountByYM.get(prevYM) ?? 0 : 0;
+        const prevRemoved = prevYM ? removedCountByYM.get(prevYM) ?? 0 : 0;
 
         return {
           year_month: ym,
@@ -199,11 +233,12 @@ export default function EntrySumBizStats({
         };
       });
 
+      console.log("[EntrySum] load ok", { outRows: out.length });
+
       setRows(out);
     } catch (e: unknown) {
-      const message =
-        e instanceof Error ? e.message : "failed to load";
-      setError(message);
+      console.error("[EntrySum] unexpected error", e);
+      setError(formatUnknownError(e));
       setRows([]);
     } finally {
       setLoading(false);
@@ -217,8 +252,12 @@ export default function EntrySumBizStats({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-1">
         <CardTitle>{title}</CardTitle>
+        <div className="text-sm text-muted-foreground">
+          エントリー: <code>users.entry_date_latest</code> ／ 退職:
+          <code> user_entry_united_view_single.status = removed_from_lineworks_kaipoke</code>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -244,11 +283,13 @@ export default function EntrySumBizStats({
           <Button onClick={load} disabled={loading}>
             {loading ? "読込中..." : "更新"}
           </Button>
-
-          {error && (
-            <div className="text-sm text-red-600">{error}</div>
-          )}
         </div>
+
+        {error && (
+          <pre className="text-xs text-red-600 whitespace-pre-wrap border rounded p-2">
+            {error}
+          </pre>
+        )}
 
         <div className="overflow-x-auto">
           <Table>
@@ -287,6 +328,11 @@ export default function EntrySumBizStats({
               })}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          ※ removed の月判定は{" "}
+          <code>resign_date_latest → end_at → updated_at → created_at</code> の優先順
         </div>
       </CardContent>
     </Card>
