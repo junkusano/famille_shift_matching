@@ -30,26 +30,17 @@ import { getContractDetail } from '@/lib/cm/contracts/getContractDetail';
 import type {
   CmContractDetailData,
   CmContractStatus,
-  CmDocumentSigningStatus,
-  CmContractDocumentSigner,
 } from '@/types/cm/contract';
 import {
   CM_CONTRACT_STATUS_LABELS,
   CM_CONTRACT_STATUS_COLORS,
   CM_CONTRACT_TYPE_LABELS,
 } from '@/types/cm/contract';
-
-// =============================================================
-// Constants
-// =============================================================
-
-/** 署名者ロールの表示ラベル */
-const SIGNER_ROLE_LABELS: Record<string, string> = {
-  signer: '利用者',
-  family: '家族',
-  scribe: '代筆者',
-  agent: '代理人',
-};
+import { InfoRow } from './InfoRow';
+import { SigningStatusBadge } from './SigningStatusBadge';
+import { SignerRow } from './SignerRow';
+import { DocumentDriveLinks } from './DocumentDriveLinks';
+import { ConsentSignerInfo } from './ConsentSignerInfo';
 
 // =============================================================
 // Types
@@ -281,155 +272,3 @@ export function CmContractDetailPageContent({ contractId }: Props) {
     </div>
   );
 }
-
-// =============================================================
-// サブコンポーネント
-// =============================================================
-
-function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-slate-800 font-medium mt-0.5">{value || '—'}</dd>
-    </div>
-  );
-}
-
-function SigningStatusBadge({ status }: { status: CmDocumentSigningStatus }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending:  { bg: 'bg-slate-100',  text: 'text-slate-600',  label: '未送信' },
-    signing:  { bg: 'bg-amber-100',  text: 'text-amber-700',  label: '署名中' },
-    signed:   { bg: 'bg-green-100',  text: 'text-green-700',  label: '署名済' },
-    declined: { bg: 'bg-red-100',    text: 'text-red-700',    label: '辞退' },
-  };
-  const c = config[status] ?? config.pending;
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
-  );
-}
-
-/** 署名者1行 */
-function SignerRow({ signer }: { signer: CmContractDocumentSigner }) {
-  const roleLabel = SIGNER_ROLE_LABELS[signer.role] ?? signer.role;
-
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-slate-500 min-w-[4rem]">{roleLabel}</span>
-      <SigningStatusBadge status={signer.signing_status} />
-      {signer.signing_url && signer.signing_status !== 'signed' && (
-        <a
-          href={signer.signing_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 hover:underline"
-        >
-          <ExternalLink className="w-3 h-3" />
-          署名URL
-        </a>
-      )}
-      {signer.signed_at && (
-        <span className="text-slate-400">{cmFormatDateTime(signer.signed_at)}</span>
-      )}
-    </div>
-  );
-}
-
-/** Google Drive リンク（電子署名済み / 紙契約用） */
-function DocumentDriveLinks({
-  gdriveFileUrl,
-  unsignedGdriveFileUrl,
-  signedGdriveFileUrl,
-}: {
-  gdriveFileUrl: string | null;
-  unsignedGdriveFileUrl: string | null;
-  signedGdriveFileUrl: string | null;
-}) {
-  // 電子契約の署名済みPDF
-  if (gdriveFileUrl) {
-    return (
-      <a href={gdriveFileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
-        <ExternalLink className="w-3 h-3" />Drive で開く
-      </a>
-    );
-  }
-
-  // 紙契約
-  if (unsignedGdriveFileUrl || signedGdriveFileUrl) {
-    return (
-      <div className="space-y-1">
-        {unsignedGdriveFileUrl && (
-          <a href={unsignedGdriveFileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs">
-            <ExternalLink className="w-3 h-3" />未署名PDF
-          </a>
-        )}
-        {signedGdriveFileUrl && (
-          <a href={signedGdriveFileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-green-600 hover:text-green-800 text-xs">
-            <ExternalLink className="w-3 h-3" />署名済PDF
-          </a>
-        )}
-      </div>
-    );
-  }
-
-  return <span className="text-slate-400 text-xs">—</span>;
-}
-
-/** 同意情報の署名者表示（signer_type別） */
-function ConsentSignerInfo({ consent }: { consent: NonNullable<CmContractDetailData['consent']> }) {
-  if (consent.signer_type === 'scribe') {
-    return (
-      <div className="space-y-0.5">
-        <p className="text-slate-700">
-          署名者: <span className="font-medium">代筆</span>
-        </p>
-        {consent.scribe_name && (
-          <p className="text-slate-600">
-            代筆者: {consent.scribe_name}
-            {consent.scribe_relationship_code && ` (${consent.scribe_relationship_code})`}
-          </p>
-        )}
-        {consent.scribe_reason_code && (
-          <p className="text-slate-600">理由: {consent.scribe_reason_code}</p>
-        )}
-      </div>
-    );
-  }
-
-  if (consent.signer_type === 'agent') {
-    return (
-      <div className="space-y-0.5">
-        <p className="text-slate-700">
-          署名者: <span className="font-medium">代理人</span>
-        </p>
-        {consent.agent_name && (
-          <p className="text-slate-600">
-            代理人: {consent.agent_name}
-            {consent.agent_relationship_code && ` (${consent.agent_relationship_code})`}
-          </p>
-        )}
-        {consent.agent_authority && (
-          <p className="text-slate-600">根拠: {consent.agent_authority}</p>
-        )}
-        {consent.guardian_type && (
-          <p className="text-slate-600">
-            後見類型: {consent.guardian_type}
-            {consent.guardian_confirmed && ' ✓確認済'}
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  // self
-  return (
-    <p className="text-slate-700">
-      署名者: <span className="font-medium">本人</span>
-    </p>
-  );
-}
-
-// =============================================================
-// ヘルパー
-// =============================================================
