@@ -7,9 +7,6 @@
 
 import React from 'react';
 import {
-  Shield,
-  Building,
-  AlertTriangle,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -20,6 +17,9 @@ import {
 } from '@/lib/cm/utils';
 import { CM_CARE_LEVEL_STYLES } from '@/constants/cm/careLevelStyle';
 import type { CmInsuranceDetail } from '@/types/cm/clientDetail';
+import { CmInsuranceCertSection } from './CmInsuranceCertSection';
+import { CmInsuranceSupportOfficeSection } from './CmInsuranceSupportOfficeSection';
+import { CmInsuranceBenefitLimitSection } from './CmInsuranceBenefitLimitSection';
 
 type Props = {
   insurances: CmInsuranceDetail[];
@@ -211,151 +211,6 @@ export function CmClientInsuranceTab({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// =============================================================
-// サブコンポーネント：認定情報
-// =============================================================
-
-function CmInsuranceCertSection({
-  insurance,
-}: {
-  insurance: CmInsuranceDetail;
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-      {/* ヘッダー */}
-      <div className="bg-blue-600 px-4 py-2 flex items-center gap-2">
-        <Shield className="w-4 h-4 text-white" />
-        <h4 className="text-sm font-semibold text-white">認定情報</h4>
-      </div>
-      {/* 内容 */}
-      <div className="p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <div className="text-xs text-slate-500 mb-1">証の状態</div>
-            <div className="text-sm text-slate-800">{insurance.cert_status ?? '-'}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 mb-1">交付年月日</div>
-            <div className="text-sm text-slate-800">{insurance.issue_date ?? '-'}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 mb-1">認定年月日</div>
-            <div className="text-sm text-slate-800">{insurance.certification_date ?? '-'}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 mb-1">認定有効期間</div>
-            <div className="text-sm text-slate-800">
-              {insurance.cert_valid_start && insurance.cert_valid_end
-                ? `${insurance.cert_valid_start} 〜 ${insurance.cert_valid_end}`
-                : '-'}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 mb-1">区分支給限度基準額単位数</div>
-            <div className="text-sm text-slate-800">{insurance.limit_units?.toLocaleString() ?? '-'}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 mb-1">保険者コード</div>
-            <div className="text-sm font-mono text-slate-800">{insurance.insurer_code}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================
-// サブコンポーネント：居宅介護支援事業所
-// =============================================================
-
-function CmInsuranceSupportOfficeSection({
-  supportOffices,
-}: {
-  supportOffices: CmInsuranceDetail['supportOffices'];
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
-      {/* ヘッダー */}
-      <div className="bg-green-600 px-4 py-2 flex items-center gap-2">
-        <Building className="w-4 h-4 text-white" />
-        <h4 className="text-sm font-semibold text-white">居宅介護支援事業所（{supportOffices.length}件）</h4>
-      </div>
-      {/* 内容 */}
-      <div className="p-4 space-y-3">
-        {supportOffices.map((office, index) => (
-          <div
-            key={office.id}
-            className={`grid grid-cols-2 md:grid-cols-5 gap-4 p-3 rounded border ${index === 0 ? 'bg-green-50 border-green-300' : 'bg-slate-50 border-slate-200'}`}
-          >
-            <div>
-              <div className="text-xs text-slate-500 mb-1">適用開始</div>
-              <div className="text-sm text-slate-800">{office.apply_start ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">事業所名</div>
-              <div className="text-sm text-slate-800 font-medium">{office.office_name ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">契約形態</div>
-              <div className="text-sm text-slate-800">{office.contract_type ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">担当ケアマネ</div>
-              <div className="text-sm text-slate-800">{office.care_manager_name ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 mb-1">届出年月日</div>
-              <div className="text-sm text-slate-800">{office.notification_date ?? '-'}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================
-// サブコンポーネント：給付制限
-// =============================================================
-
-function CmInsuranceBenefitLimitSection({
-  benefitLimits,
-}: {
-  benefitLimits: CmInsuranceDetail['benefitLimits'];
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-amber-400 shadow-sm overflow-hidden">
-      {/* ヘッダー */}
-      <div className="bg-amber-500 px-4 py-2 flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4 text-white" />
-        <h4 className="text-sm font-semibold text-white">給付制限（{benefitLimits.length}件）</h4>
-      </div>
-      {/* 内容 */}
-      <div className="p-4 space-y-3">
-        {benefitLimits.map((limit) => (
-          <div
-            key={limit.id}
-            className="grid grid-cols-3 gap-4 p-3 bg-amber-50 border border-amber-300 rounded"
-          >
-            <div>
-              <div className="text-xs text-amber-700 mb-1">適用開始</div>
-              <div className="text-sm text-slate-800">{limit.limit_start ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-amber-700 mb-1">適用終了</div>
-              <div className="text-sm text-slate-800">{limit.limit_end ?? '-'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-amber-700 mb-1">給付率</div>
-              <div className="text-sm text-slate-800 font-semibold">{limit.benefit_rate}%</div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
