@@ -11,7 +11,7 @@ export default function DashboardPage() {
     <div className="p-4 space-y-6">
       {/* ===== ダッシュボード全体の表題 ===== */}
       <Card>
-        <CardHeader>
+        <CardHeader>biz
           <CardTitle className="text-xl">ダッシュボード</CardTitle>
         </CardHeader>
         <CardContent>

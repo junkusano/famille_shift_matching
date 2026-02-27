@@ -180,7 +180,7 @@ export default function EntrySumBizStats({
       ----------------------------- */
       const { data: removedData, error: removedErr } = await supabase
         .from("user_entry_united_view_single")
-        .select("resign_date_latest,end_at,updated_at,created_at")
+        .select("resign_date_latest,end_at,created_at")
         .eq("status", "removed_from_lineworks_kaipoke");
 
       if (removedErr) {
