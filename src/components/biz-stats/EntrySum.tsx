@@ -90,14 +90,19 @@ function formatUnknownError(e: unknown): string {
    types
 ----------------------------- */
 
-type UsersEntryRow = {
+type UsersRow = {
+  user_id: string;
   entry_date_latest: string | null;
+};
+
+type FormEntryRow = {
+  user_id: string;
+  agreed_at: string | null;
 };
 
 type RemovedRow = {
   resign_date_latest: string | null;
   end_at: string | null;
-  updated_at: string | null;
   created_at: string | null;
 };
 
@@ -107,10 +112,6 @@ type Row = {
   removed_count: number;
   removed_increase: number;
 };
-
-/* -----------------------------
-   component
------------------------------ */
 
 export default function EntrySumBizStats({
   title = "エントリー数の推移（月別）/ 退職者の推移（前月からの増加分）",
@@ -144,40 +145,98 @@ export default function EntrySumBizStats({
 
     try {
       /* -----------------------------
-         0) セッション確認（任意だけど原因切り分けに便利）
+         1) users: user_id & entry_date_latest を全件取得
+         ※ entry_date_latest は null が多いので fallback する
       ----------------------------- */
-      const { data: s } = await supabase.auth.getSession();
-      console.log("[EntrySum] session", { hasSession: !!s.session });
-
-      /* -----------------------------
-         1) entry 集計
-      ----------------------------- */
-      const { data: entryData, error: entryErr } = await supabase
+      const { data: usersData, error: usersErr } = await supabase
         .from("users")
-        .select("entry_date_latest")
-        .not("entry_date_latest", "is", null)
-        .gte("entry_date_latest", fromDate)
-        .lt("entry_date_latest", toDateExclusive);
+        .select("user_id,entry_date_latest");
 
-      if (entryErr) {
-        console.error("[EntrySum] users query error", entryErr);
-        setError(formatUnknownError(entryErr));
+      if (usersErr) {
+        console.error("[EntrySum] users query error", usersErr);
+        setError(formatUnknownError(usersErr));
         setRows([]);
         return;
       }
 
-      console.log("[EntrySum] entry rows", { count: entryData?.length ?? 0 });
+      const users = (usersData ?? []) as UsersRow[];
+      console.log("[EntrySum] users rows", { count: users.length });
+
+      // users の entry_date_latest を map 化
+      const entryDateByUser = new Map<string, string | null>();
+      for (const u of users) {
+        entryDateByUser.set(u.user_id, u.entry_date_latest);
+      }
+
+      // entry_date_latest が null の user_id を抽出
+      const missingUserIds: string[] = [];
+      for (const u of users) {
+        if (!u.entry_date_latest) missingUserIds.push(u.user_id);
+      }
+
+      console.log("[EntrySum] missing entry_date_latest", { count: missingUserIds.length });
+
+      /* -----------------------------
+         2) form_entries: agreed_at を fallback に使う
+         - 1人に複数 form_entries がある場合は “最古の agreed_at” を採用
+         - ただし対象は entry_date_latest が null の users のみ
+         - ※ in(...) は数が多いと制限があるので 500件ずつ分割
+      ----------------------------- */
+
+      const agreedAtByUser = new Map<string, string>(); // 最古 agreed_at
+
+      const chunkSize = 500;
+      for (let i = 0; i < missingUserIds.length; i += chunkSize) {
+        const chunk = missingUserIds.slice(i, i + chunkSize);
+
+        const { data: feData, error: feErr } = await supabase
+          .from("form_entries")
+          .select("user_id,agreed_at")
+          .in("user_id", chunk)
+          .not("agreed_at", "is", null);
+
+        if (feErr) {
+          console.error("[EntrySum] form_entries query error", feErr);
+          setError(formatUnknownError(feErr));
+          setRows([]);
+          return;
+        }
+
+        for (const r of (feData ?? []) as FormEntryRow[]) {
+          if (!r.user_id || !r.agreed_at) continue;
+
+          const prev = agreedAtByUser.get(r.user_id);
+          // 文字列比較でISO前提。Supabaseは通常ISO返すのでOK
+          if (!prev || r.agreed_at < prev) {
+            agreedAtByUser.set(r.user_id, r.agreed_at);
+          }
+        }
+      }
+
+      console.log("[EntrySum] agreed_at resolved", { count: agreedAtByUser.size });
+
+      /* -----------------------------
+         3) エントリー月を userごとに確定し、月別カウント
+         - entry_date_latest があればそれ
+         - なければ agreed_at
+         - さらに from/to 範囲で絞る
+      ----------------------------- */
 
       const entryCountByYM = new Map<string, number>();
-      for (const r of (entryData ?? []) as UsersEntryRow[]) {
-        const ym = monthKeyFromDateLike(r.entry_date_latest);
+
+      for (const u of users) {
+        const dt = u.entry_date_latest ?? agreedAtByUser.get(u.user_id) ?? null;
+        const ym = monthKeyFromDateLike(dt);
         if (!ym) continue;
+        if (ym < fromYM || ym > toYM) continue;
+
         entryCountByYM.set(ym, (entryCountByYM.get(ym) ?? 0) + 1);
       }
 
       /* -----------------------------
-         2) removed 集計
+         4) removed 集計
       ----------------------------- */
+
       const { data: removedData, error: removedErr } = await supabase
         .from("user_entry_united_view_single")
         .select("resign_date_latest,end_at,created_at")
@@ -190,11 +249,9 @@ export default function EntrySumBizStats({
         return;
       }
 
-      console.log("[EntrySum] removed rows", { count: removedData?.length ?? 0 });
-
       const removedCountByYM = new Map<string, number>();
       for (const r of (removedData ?? []) as RemovedRow[]) {
-        const dt = r.resign_date_latest ?? r.end_at ?? r.updated_at ?? r.created_at;
+        const dt = r.resign_date_latest ?? r.end_at ?? r.created_at;
         const ym = monthKeyFromDateLike(dt);
         if (!ym) continue;
         if (ym < fromYM || ym > toYM) continue;
@@ -202,8 +259,9 @@ export default function EntrySumBizStats({
       }
 
       /* -----------------------------
-         3) 月配列生成 & 出力
+         5) 月配列生成 & 出力
       ----------------------------- */
+
       const months: string[] = [];
       const start = new Date(
         Number(fromYM.slice(0, 4)),
@@ -234,7 +292,6 @@ export default function EntrySumBizStats({
       });
 
       console.log("[EntrySum] load ok", { outRows: out.length });
-
       setRows(out);
     } catch (e: unknown) {
       console.error("[EntrySum] unexpected error", e);
@@ -255,8 +312,9 @@ export default function EntrySumBizStats({
       <CardHeader className="space-y-1">
         <CardTitle>{title}</CardTitle>
         <div className="text-sm text-muted-foreground">
-          エントリー: <code>users.entry_date_latest</code> ／ 退職:
-          <code> user_entry_united_view_single.status = removed_from_lineworks_kaipoke</code>
+          エントリー日: <code>users.entry_date_latest</code>（優先）→ 無ければ{" "}
+          <code>form_entries.agreed_at</code>
+          ／ 退職: <code>user_entry_united_view_single.status = removed_from_lineworks_kaipoke</code>
         </div>
       </CardHeader>
 
@@ -264,20 +322,12 @@ export default function EntrySumBizStats({
         <div className="flex gap-3 items-end flex-wrap">
           <div>
             <div className="text-sm text-muted-foreground">From (YYYYMM)</div>
-            <Input
-              value={fromYM}
-              onChange={(e) => setFromYM(e.target.value)}
-              className="w-32"
-            />
+            <Input value={fromYM} onChange={(e) => setFromYM(e.target.value)} className="w-32" />
           </div>
 
           <div>
             <div className="text-sm text-muted-foreground">To (YYYYMM)</div>
-            <Input
-              value={toYM}
-              onChange={(e) => setToYM(e.target.value)}
-              className="w-32"
-            />
+            <Input value={toYM} onChange={(e) => setToYM(e.target.value)} className="w-32" />
           </div>
 
           <Button onClick={load} disabled={loading}>
@@ -314,15 +364,9 @@ export default function EntrySumBizStats({
                 return (
                   <TableRow key={r.year_month}>
                     <TableCell>{r.year_month}</TableCell>
-                    <TableCell className="text-right">
-                      {formatNumInt(r.entry_count)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumInt(r.removed_count)}
-                    </TableCell>
-                    <TableCell className={`text-right ${incCls}`}>
-                      {formatNumInt(r.removed_increase)}
-                    </TableCell>
+                    <TableCell className="text-right">{formatNumInt(r.entry_count)}</TableCell>
+                    <TableCell className="text-right">{formatNumInt(r.removed_count)}</TableCell>
+                    <TableCell className={`text-right ${incCls}`}>{formatNumInt(r.removed_increase)}</TableCell>
                   </TableRow>
                 );
               })}
@@ -331,8 +375,8 @@ export default function EntrySumBizStats({
         </div>
 
         <div className="text-xs text-muted-foreground">
-          ※ removed の月判定は{" "}
-          <code>resign_date_latest → end_at → updated_at → created_at</code> の優先順
+          ※ form_entries は <code>entry_date_latest が空のユーザー</code>のみ参照し、
+          1人に複数ある場合は <code>最古の agreed_at</code> を採用。
         </div>
       </CardContent>
     </Card>
