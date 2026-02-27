@@ -89,17 +89,10 @@ function formatUnknownError(e: unknown): string {
 }
 
 /* -----------------------------
-   form_entries key detection (anyなし)
+   loose row type (anyなし)
 ----------------------------- */
 
 type LooseRow = Record<string, unknown>;
-
-function pickFirstKey(row: LooseRow, candidates: string[]): string | null {
-  for (const k of candidates) {
-    if (Object.prototype.hasOwnProperty.call(row, k)) return k;
-  }
-  return null;
-}
 
 /* -----------------------------
    types
@@ -107,6 +100,7 @@ function pickFirstKey(row: LooseRow, candidates: string[]): string | null {
 
 type UsersRow = {
   user_id: string;
+  auth_user_id: string | null;
   entry_date_latest: string | null;
 };
 
@@ -170,7 +164,7 @@ export default function EntrySumBizStats({
       ----------------------------- */
       const { data: usersData, error: usersErr } = await supabase
         .from("users")
-        .select("user_id,entry_date_latest");
+        .select("user_id,auth_user_id,entry_date_latest");
 
       if (usersErr) {
         console.error("[EntrySum] users query error", usersErr);
@@ -182,112 +176,76 @@ export default function EntrySumBizStats({
       const users = (usersData ?? []) as UsersRow[];
       console.log("[EntrySum] users rows", { count: users.length });
 
-      const missingUserIds: string[] = [];
+      const missingAuthUids: string[] = [];
+      const authUidToUserId = new Map<string, string>();
+
       for (const u of users) {
-        if (!u.entry_date_latest) missingUserIds.push(u.user_id);
+        if (typeof u.auth_user_id === "string" && u.auth_user_id.length > 0) {
+          authUidToUserId.set(u.auth_user_id, u.user_id);
+        }
+        if (!u.entry_date_latest && u.auth_user_id) {
+          missingAuthUids.push(u.auth_user_id);
+        }
       }
-      console.log("[EntrySum] missing entry_date_latest", {
-        count: missingUserIds.length,
+
+      console.log("[EntrySum] missing entry_date_latest (with auth_user_id)", {
+        count: missingAuthUids.length,
       });
 
       /* -----------------------------
          2) form_entries の agreed系日付（fallback）を作成
+         users.entry_date_latest が無い場合のみ、
+         form_entries.auth_uid (= users.auth_user_id) で紐づける
       ----------------------------- */
       const agreedAtByUser = new Map<string, string>();
 
-      if (missingUserIds.length > 0) {
-        // 2-1) サンプル1件で列名を自動判定
-        const { data: sampleData, error: sampleErr } = await supabase
-          .from("form_entries")
-          .select("*")
-          .limit(1);
+      if (missingAuthUids.length > 0) {
+        // form_entries から auth_uid で紐付けて agreed_at（無ければ created_at）を拾う
+        const chunkSize = 500;
 
-        if (sampleErr) {
-          console.error("[EntrySum] form_entries sample error", sampleErr);
-          setError(formatUnknownError(sampleErr));
-          setRows([]);
-          return;
-        }
+        for (let i = 0; i < missingAuthUids.length; i += chunkSize) {
+          const chunk = missingAuthUids.slice(i, i + chunkSize);
 
-        const sampleRow = ((sampleData ?? [])[0] ?? null) as LooseRow | null;
+          const { data: feData, error: feErr } = await supabase
+            .from("form_entries")
+            .select("auth_uid,agreed_at,created_at")
+            .in("auth_uid", chunk);
 
-        if (!sampleRow) {
-          console.log("[EntrySum] form_entries has no rows (skip fallback)");
-        } else {
-          const userKey =
-            pickFirstKey(sampleRow, [
-              "user_id",
-              "requester_user_id",
-              "author_user_id",
-              "created_by_user_id",
-              "created_by",
-              "staff_user_id",
-              "target_user_id",
-            ]) ?? null;
-
-          const agreedKey =
-            pickFirstKey(sampleRow, [
-              "agreed_at",
-              "signed_at",
-              "submitted_at",
-              "applied_at",
-              "created_at",
-            ]) ?? null;
-
-          if (!userKey) {
-            const msg =
-              "form_entries: ユーザー列が見つからない（候補: user_id/requester_user_id/author_user_id/...）。";
-            console.error("[EntrySum]", msg, { sampleKeys: Object.keys(sampleRow) });
-            setError(msg);
+          if (feErr) {
+            console.error("[EntrySum] form_entries query error", feErr);
+            setError(formatUnknownError(feErr));
             setRows([]);
             return;
           }
 
-          if (!agreedKey) {
-            const msg =
-              "form_entries: agreed_at 系の列が見つからない（候補: agreed_at/signed_at/submitted_at/...）。";
-            console.error("[EntrySum]", msg, { sampleKeys: Object.keys(sampleRow) });
-            setError(msg);
-            setRows([]);
-            return;
+          const rowsUnknown: unknown = feData ?? [];
+          for (const row of rowsUnknown as LooseRow[]) {
+            const authUid = row["auth_uid"];
+            const agreedAt = row["agreed_at"];
+            const createdAt = row["created_at"];
+
+            if (typeof authUid !== "string" || authUid.length === 0) continue;
+
+            const userId = authUidToUserId.get(authUid);
+            if (!userId) continue;
+
+            const dt =
+              (typeof agreedAt === "string" && agreedAt.length > 0
+                ? agreedAt
+                : typeof createdAt === "string" && createdAt.length > 0
+                ? createdAt
+                : null);
+
+            if (!dt) continue;
+
+            const prev = agreedAtByUser.get(userId);
+            if (!prev || dt < prev) agreedAtByUser.set(userId, dt);
           }
-
-          console.log("[EntrySum] form_entries keys detected", { userKey, agreedKey });
-
-          // 2-2) missingUserIds を 500件ずつ in(...) で取って最古日を確定
-          const chunkSize = 500;
-          for (let i = 0; i < missingUserIds.length; i += chunkSize) {
-            const chunk = missingUserIds.slice(i, i + chunkSize);
-
-            const { data: feData, error: feErr } = await supabase
-              .from("form_entries")
-              .select(`${userKey},${agreedKey}`)
-              .in(userKey, chunk)
-              .not(agreedKey, "is", null);
-
-            if (feErr) {
-              console.error("[EntrySum] form_entries query error", feErr);
-              setError(formatUnknownError(feErr));
-              setRows([]);
-              return;
-            }
-
-            // 動的 select で型が壊れるので unknown 経由（any は使わない）
-            const rowsUnknown: unknown = feData ?? [];
-            for (const row of rowsUnknown as LooseRow[]) {
-              const uid = row[userKey];
-              const dt = row[agreedKey];
-
-              if (typeof uid !== "string" || uid.length === 0) continue;
-              if (typeof dt !== "string" || dt.length === 0) continue;
-
-              const prev = agreedAtByUser.get(uid);
-              if (!prev || dt < prev) agreedAtByUser.set(uid, dt);
-            }
-          }
-
-          console.log("[EntrySum] agreed_at resolved", { count: agreedAtByUser.size });
         }
+
+        console.log("[EntrySum] agreed_at resolved (via form_entries.auth_uid)", {
+          count: agreedAtByUser.size,
+        });
       }
 
       /* -----------------------------
@@ -383,7 +341,8 @@ export default function EntrySumBizStats({
         <CardTitle>{title}</CardTitle>
         <div className="text-sm text-muted-foreground">
           エントリー日: <code>users.entry_date_latest</code>（優先）→ 無ければ{" "}
-          <code>form_entries.agreed_at（系）</code> ／ 退職:{" "}
+          <code>form_entries.agreed_at（無ければ created_at）</code>（<code>auth_uid</code>{" "}
+          → <code>users.auth_user_id</code> で紐付け） ／ 退職:{" "}
           <code>user_entry_united_view_single.status = removed_from_lineworks_kaipoke</code>
         </div>
       </CardHeader>
@@ -459,8 +418,9 @@ export default function EntrySumBizStats({
         </div>
 
         <div className="text-xs text-muted-foreground">
-          ※ form_entries は <code>entry_date_latest が空のユーザー</code>のみ参照し、
-          列名は <code>1件サンプルから自動判定</code>しています（Console に検出結果が出ます）
+          ※ form_entries は <code>entry_date_latest が空</code>かつ{" "}
+          <code>users.auth_user_id がある</code>ユーザーのみ参照し、
+          <code>form_entries.auth_uid</code> で照合しています
         </div>
       </CardContent>
     </Card>
