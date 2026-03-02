@@ -1,9 +1,8 @@
 // src/lib/alert_add/disability_check_unsubmitted_alert.ts
 // disability_check の提出未チェック → 10日以降のみ LINEWORKS（利用者別：利用者名 + 「情報連携」グループへ送信）
-// disability_check の回収未チェック → 15日以降のみ mgr_user_id 宛てにアラートログ
 
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
+//import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
 import { getAccessToken } from "@/lib/getAccessToken";
 import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 
@@ -36,7 +35,7 @@ export type DisabilityCheckDailyAlertResult = {
         targetYearMonth: string;
         skippedBecauseDay: boolean;
     };
-    collected: {
+    /*collected: {
         enabled: boolean;
         scanned: number;
         targetRows: number;
@@ -46,22 +45,22 @@ export type DisabilityCheckDailyAlertResult = {
         dryRun: boolean;
         targetYearMonth: string;
         skippedBecauseDay: boolean;
-    };
+    };*/
 };
 
 export type DisabilityCheckAlertArgs = {
     dryRun?: boolean;
-    mode?: "all" | "collectedOnly" | "submittedOnly";
+    //mode?: "all" | "collectedOnly" | "submittedOnly";
     targetKaipokeCsId?: string; // テスト用に1件へ絞る
     forceDay10Rule?: boolean; // 10日条件を無視してテスト
-    forceDay15Rule?: boolean; // 15日条件を無視してテスト
+    //forceDay15Rule?: boolean; // 15日条件を無視してテスト
 };
 
-type OrgRow = {
+/*type OrgRow = {
     orgunitid: string;
     orgunitname: string;
     mgr_user_id: string | null;
-};
+};*/
 
 function pad2(n: number) {
     return String(n).padStart(2, "0");
@@ -208,7 +207,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
     return map;
 }
 
-async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
+/*async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
     if (!orgIds.length) return new Map<string, OrgRow>();
 
     const { data, error } = await supabaseAdmin
@@ -227,7 +226,7 @@ async function loadOrgMap(orgIds: string[]): Promise<Map<string, OrgRow>> {
         });
     }
     return map;
-}
+}*/
 
 
 /**
@@ -413,7 +412,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
 /**
  * B) 回収（is_checked）未チェック → 15日以降のみ / 当月のみ / mgr_user_id 宛てにアラート作成
- */
+ 
 async function runCollectedUncheckManagerAlert(args: {
     dryRun: boolean;
     targetKaipokeCsId?: string;
@@ -588,7 +587,7 @@ async function runCollectedUncheckManagerAlert(args: {
         targetYearMonth: targetYm,
         skippedBecauseDay: false,
     };
-}
+}*/
 
 /**
  * cronから呼ぶ統合関数（1日1回で提出/回収を回す）
@@ -597,45 +596,33 @@ export async function runDisabilityCheckDailyAlerts(
     args: DisabilityCheckAlertArgs = {},
 ): Promise<DisabilityCheckDailyAlertResult> {
     const dryRun = args.dryRun ?? false;
-    const mode = args.mode ?? "all";
 
-    const submitted =
-        mode === "collectedOnly"
-            ? {
-                enabled: true,
-                scanned: 0,
-                targetRows: 0,
-                sentRooms: 0,
-                sentRows: 0,
-                errors: 0,
-                dryRun,
-                targetYearMonth: "",
-                skippedBecauseDay: false,
-            }
-            : await runSubmittedUncheckLineworksOnly({
-                dryRun,
-                targetKaipokeCsId: args.targetKaipokeCsId,
-                forceDay10Rule: args.forceDay10Rule,
-            });
+    const submitted = await runSubmittedUncheckLineworksOnly({
+        dryRun,
+        targetKaipokeCsId: args.targetKaipokeCsId,
+        forceDay10Rule: args.forceDay10Rule,
+    });
 
-    const collected =
-        mode === "submittedOnly"
-            ? {
-                enabled: true,
-                scanned: 0,
-                targetRows: 0,
-                alertManagers: 0,
-                alertRows: 0,
-                errors: 0,
-                dryRun,
-                targetYearMonth: "",
-                skippedBecauseDay: false,
-            }
-            : await runCollectedUncheckManagerAlert({
-                dryRun,
-                targetKaipokeCsId: args.targetKaipokeCsId,
-                forceDay15Rule: args.forceDay15Rule,
-            });
-
-    return { submitted, collected };
+    return { submitted };
 }
+
+/* const collected =
+     mode === "submittedOnly"
+         ? {
+             enabled: true,
+             scanned: 0,
+             targetRows: 0,
+             alertManagers: 0,
+             alertRows: 0,
+             errors: 0,
+             dryRun,
+             targetYearMonth: "",
+             skippedBecauseDay: false,
+         }
+         : await runCollectedUncheckManagerAlert({
+             dryRun,
+             targetKaipokeCsId: args.targetKaipokeCsId,
+             forceDay15Rule: args.forceDay15Rule,
+         });
+
+ return { submitted, collected }; */
