@@ -15,7 +15,7 @@ import { FileText, Upload, CheckCircle2, Loader2, AlertCircle, ExternalLink } fr
 import { getAccessToken } from '@/lib/cm/auth/getAccessToken';
 import { cmFormatDateJapanese } from '@/lib/cm/utils';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
-import { StepIndicator } from './CmContractCreateStep1';
+import { StepIndicator } from './StepIndicator';
 import { CONTRACT_DOCUMENT_TEMPLATES } from '@/lib/cm/contracts/templates';
 import { createContractWithDocuments } from '@/lib/cm/contracts/createContract';
 import type {
