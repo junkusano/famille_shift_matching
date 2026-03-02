@@ -102,18 +102,6 @@ function readBoolean(v: unknown): boolean | undefined {
     return rows;
 }*/
 
-// 成功時だけ返す型（失敗は throw する）
-type SyncOk = { required_count: number };
-
-function parseSyncOk(j: unknown): SyncOk {
-    if (!isRecord(j)) throw new Error("Invalid response");
-    if (readBoolean(j.ok) !== true) {
-        throw new Error(readString(j.error) ?? "sync failed");
-    }
-    const required_count = typeof j.required_count === "number" ? j.required_count : 0;
-    return { required_count };
-}
-
 async function fetchWithBearer(input: RequestInfo, init?: RequestInit) {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -144,27 +132,18 @@ export default function MonthlyMeetingCheckPage() {
     // ★追加：行ごとの保存中フラグ
     const [saving, setSaving] = useState<Record<string, boolean>>({});
     const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
-
-    async function runSync() {
-        setMsg("");
-        setLoading(true);
-        try {
-            const res = await fetchWithBearer("/api/monthly-meeting/sync", {
-                method: "POST",
-                body: JSON.stringify({ ym }),
-            });
-
-            const j: unknown = await res.json();
-            const ok = parseSyncOk(j);
-
-            setMsg(`対象者を更新しました: ${ok.required_count}件`);
-            await load();
-        } catch (e: unknown) {
-            setMsg(toErrorMessage(e));
-        } finally {
-            setLoading(false);
+    // ★追加：過去12ヶ月＋今月の選択肢を作る
+    const monthOptions = useMemo(() => {
+        const list: string[] = [];
+        const now = new Date();
+        for (let i = -6; i <= 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            list.push(`${y}-${m}`);
         }
-    }
+        return list;
+    }, []);
 
     async function load() {
         setMsg("");
@@ -274,15 +253,17 @@ export default function MonthlyMeetingCheckPage() {
             <div className="rounded border p-3 space-y-2">
                 <div className="flex items-center gap-2">
                     <label className="text-sm">対象月</label>
-                    <input
+                    <select
                         className="border rounded px-2 py-1"
                         value={ym}
                         onChange={(e) => setYm(e.target.value)}
-                        placeholder="YYYY-MM"
-                    />
-                    <button className="border rounded px-3 py-1" onClick={runSync} disabled={loading}>
-                        対象者を更新（shift参照）
-                    </button>
+                    >
+                        {monthOptions.map((m) => (
+                            <option key={m} value={m}>
+                                {m}
+                            </option>
+                        ))}
+                    </select>
                     <button className="border rounded px-3 py-1" onClick={load} disabled={loading}>
                         再読込
                     </button>
@@ -422,6 +403,6 @@ export default function MonthlyMeetingCheckPage() {
                     </table>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
