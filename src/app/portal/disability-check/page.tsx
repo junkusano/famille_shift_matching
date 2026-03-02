@@ -103,7 +103,8 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ① 初期フィルタ：前月 × 障害
   const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
-  const [kaipokeServicek, setKaipokeServicek] = useState<string>("移動支援"); // ★デフォルトを移動支援に
+  // サービス区分（デフォルトは全て）
+  const [kaipokeServicek, setKaipokeServicek] = useState<string>("");
   // ③ Districtは未選択（全件）
   const [districts, setDistricts] = useState<string[]>([]);
 
