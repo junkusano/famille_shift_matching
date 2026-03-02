@@ -54,7 +54,7 @@ function readBoolean(v: unknown): boolean | undefined {
     return typeof v === "boolean" ? v : undefined;
 }
 
-function readRows(v: unknown): Row[] | undefined {
+/*function readRows(v: unknown): Row[] | undefined {
     if (!Array.isArray(v)) return undefined;
 
     const rows: Row[] = [];
@@ -100,11 +100,10 @@ function readRows(v: unknown): Row[] | undefined {
     }
 
     return rows;
-}
+}*/
 
 // 成功時だけ返す型（失敗は throw する）
 type SyncOk = { required_count: number };
-type AttendanceOk = { rows: Row[] };
 
 function parseSyncOk(j: unknown): SyncOk {
     if (!isRecord(j)) throw new Error("Invalid response");
@@ -113,15 +112,6 @@ function parseSyncOk(j: unknown): SyncOk {
     }
     const required_count = typeof j.required_count === "number" ? j.required_count : 0;
     return { required_count };
-}
-
-function parseAttendanceOk(j: unknown): AttendanceOk {
-    if (!isRecord(j)) throw new Error("Invalid response");
-    if (readBoolean(j.ok) !== true) {
-        throw new Error(readString(j.error) ?? "load failed");
-    }
-    const rows = readRows(j.rows) ?? [];
-    return { rows };
 }
 
 async function fetchWithBearer(input: RequestInfo, init?: RequestInit) {
@@ -153,7 +143,7 @@ export default function MonthlyMeetingCheckPage() {
 
     // ★追加：行ごとの保存中フラグ
     const [saving, setSaving] = useState<Record<string, boolean>>({});
-    const requiredRows = useMemo(() => rows.filter((r) => r.required), [rows]);
+    const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
 
     async function runSync() {
         setMsg("");
@@ -179,23 +169,58 @@ export default function MonthlyMeetingCheckPage() {
     async function load() {
         setMsg("");
         setLoading(true);
+
         try {
-            const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${encodeURIComponent(ym)}`); const j: unknown = await res.json();
+            // ★APIを呼ばず、従業員一覧を直接取得する
+            const { data: staffData, error: staffErr } = await supabase
+                .from("user_entry_united_view_single")
+                .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status,resign_date_latest,end_at")
+                .is("end_at", null)
+                .is("resign_date_latest", null)
+                .neq("status", "removed_from_lineworks_kaipoke")
+                .order("orgunitname", { ascending: true });
 
-            const ok = parseAttendanceOk(j);
+            if (staffErr) throw staffErr;
 
-            setRows(ok.rows);
-            // ★追加：編集state初期化（DBの値を入力欄の初期値にする）
+            const monthStart = `${ym}-01`;
+
+            // ★ここで rows を生成（attendanceが無くても全員表示）
+            const newRows: Row[] = (staffData ?? [])
+                .map((s): Row | null => {
+                    const userId = String(s.user_id ?? "").trim();
+                    if (!userId) return null;
+
+                    const name = `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim();
+
+                    return {
+                        target_month: monthStart,
+                        user_id: userId,
+                        required: true,
+                        attended_regular: null,
+                        attended_extra: null,
+                        minutes_url: null,
+                        staff_comment: null,
+                        manager_checked: null,
+                        user_name: name || userId,
+                        full_name_kanji: name || userId,
+                    };
+                })
+                .filter((v) => v !== null) as Row[];
+
+            setRows(newRows);
+
+            // ★入力欄の初期化
             const next: Record<string, EditRow> = {};
-            for (const r of ok.rows) {
+            for (const r of newRows) {
                 next[r.user_id] = {
-                    attended_regular: r.attended_regular ?? false,
-                    attended_extra: r.attended_extra ?? false,
-                    minutes_url: r.minutes_url ?? "",
-                    staff_comment: r.staff_comment ?? "",
+                    attended_regular: false,
+                    attended_extra: false,
+                    minutes_url: "",
+                    staff_comment: "",
                 };
             }
             setEdit(next);
+
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
         } finally {
@@ -272,7 +297,7 @@ export default function MonthlyMeetingCheckPage() {
 
             {/* 下段：表 */}
             <div className="rounded border p-3">
-                <div className="text-sm mb-2">対象者一覧（required=true）</div>
+                <div className="text-sm mb-2">従業員一覧</div>
 
                 <div className="overflow-auto">
                     <table className="min-w-[900px] w-full border-collapse">
@@ -288,7 +313,7 @@ export default function MonthlyMeetingCheckPage() {
                         </thead>
 
                         <tbody>
-                            {requiredRows.map((r) => {
+                            {visibleRows.map((r) => {
                                 const e = edit[r.user_id] ?? {
                                     attended_regular: false,
                                     attended_extra: false,
@@ -386,7 +411,7 @@ export default function MonthlyMeetingCheckPage() {
                                 );
                             })}
 
-                            {requiredRows.length === 0 && (
+                            {visibleRows.length === 0 && (
                                 <tr>
                                     <td className="border p-3 text-sm text-gray-600" colSpan={6}>
                                         データがありません（先に「対象者を更新（shift参照）」を押してください）
