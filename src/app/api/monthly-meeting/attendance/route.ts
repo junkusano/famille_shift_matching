@@ -48,14 +48,6 @@ type AttendanceRowDb = {
     users: { user_id: string | null } | null;
 };
 
-type StaffRowDb = {
-    user_id: string | null;
-    last_name_kanji: string | null;
-    first_name_kanji: string | null;
-    orgunitname: string | null;
-    status: string | null;
-};
-
 type StaffDto = {
     user_id: string;
     user_name: string;
@@ -94,11 +86,18 @@ export async function GET(req: NextRequest) {
         // ★在籍従業員一覧を取得（最初に1回だけ）
         const { data: staffData, error: staffErr } = await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status")
+            .select(`
+    user_id,
+    last_name_kanji,
+    first_name_kanji,
+    orgunitname,
+    status,
+    resign_date_latest,
+    end_at
+  `)
             .is("end_at", null)
             .is("resign_date_latest", null)
-            .neq("status", "removed_from_lineworks_kaipoke")
-            .returns<StaffRowDb[]>();
+            .neq("status", "removed_from_lineworks_kaipoke");
 
         if (staffErr) throw staffErr;
 
@@ -126,30 +125,6 @@ export async function GET(req: NextRequest) {
             if (insertErr) throw insertErr;
         }
 
-        /* ===== ここまで追加 ===== */
-
-        // ===== 追加①：その月のシフトに入っている user_id を取得 =====
-        const monthEnd = new Date(monthStart);
-        monthEnd.setMonth(monthEnd.getMonth() + 1);
-
-        const { data: shifts, error: shiftErr } = await supabaseAdmin
-            .from("shift")
-            .select("staff_01_user_id, staff_02_user_id, staff_03_user_id, shift_start_date")
-            .gte("shift_start_date", monthStart)
-            .lt("shift_start_date", monthEnd.toISOString().slice(0, 10));
-
-        if (shiftErr) throw shiftErr;
-
-        const shiftUserIdSet = new Set<string>();
-
-        for (const s of shifts ?? []) {
-            if (s.staff_01_user_id) shiftUserIdSet.add(s.staff_01_user_id);
-            if (s.staff_02_user_id) shiftUserIdSet.add(s.staff_02_user_id);
-            if (s.staff_03_user_id) shiftUserIdSet.add(s.staff_03_user_id);
-        }
-
-        const shiftUserIds = Array.from(shiftUserIdSet);
-
         const staff: StaffDto[] = (staffData ?? []).map((r) => {
             const userId = (r.user_id ?? "").trim();
             const name = `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim();
@@ -168,21 +143,26 @@ export async function GET(req: NextRequest) {
         );
 
         // ===== 変更③：シフトに入っている人を必ず表示する =====
-        const rows = shiftUserIds.map((userId) => {
-            const r = attendanceMap.get(userId);
+        const rows = (staffData ?? [])
+            .map((s) => {
+                const userId = (s.user_id ?? "").trim();
+                if (!userId) return null;
 
-            return {
-                target_month: monthStart,
-                user_id: userId,
-                required: true,
-                attended_regular: r?.attended_regular ?? null,
-                attended_extra: r?.attended_extra ?? null,
-                minutes_url: r?.minutes_url ?? null,
-                staff_comment: r?.staff_comment ?? null,
-                manager_checked: r?.manager_checked ?? null,
-                user_name: null, // フロントで staff から補完
-            };
-        });
+                const r = attendanceMap.get(userId);
+
+                return {
+                    target_month: monthStart,
+                    user_id: userId,
+                    required: r?.required ?? true,
+                    attended_regular: r?.attended_regular ?? null,
+                    attended_extra: r?.attended_extra ?? null,
+                    minutes_url: r?.minutes_url ?? null,
+                    staff_comment: r?.staff_comment ?? null,
+                    manager_checked: r?.manager_checked ?? null,
+                    user_name: `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim() || userId,
+                };
+            })
+            .filter((v): v is NonNullable<typeof v> => v !== null);
 
         return json({ ok: true, ym, rows, staff });
 
