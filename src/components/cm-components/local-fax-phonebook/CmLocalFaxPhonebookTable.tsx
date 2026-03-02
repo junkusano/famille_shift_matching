@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   BookOpen,
   AlertCircle,
@@ -13,17 +13,16 @@ import {
   ChevronRight,
   Pencil,
   Trash2,
-  Check,
   X,
   Loader2,
-  Link2,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type {
   CmLocalFaxPhonebookPagination,
-  CmKaipokeOfficeInfo,
   CmLocalFaxPhonebookEntryWithKaipoke,
 } from '@/types/cm/localFaxPhonebook';
+import { KaipokePopover } from './KaipokePopover';
+import { InlineEditCell } from './InlineEditCell';
 
 type Props = {
   entries: CmLocalFaxPhonebookEntryWithKaipoke[];
@@ -38,193 +37,6 @@ type Props = {
   onUpdateField: (id: number, field: string, value: string | null) => Promise<boolean>;
   onClearUpdateError: () => void;
 };
-
-// カイポケポップオーバー
-function KaipokePopover({
-  offices,
-  isOpen,
-  onToggle,
-}: {
-  offices: CmKaipokeOfficeInfo[];
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // 外側クリックで閉じる
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        onToggle();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onToggle]);
-
-  return (
-    <div className="relative inline-block" ref={popoverRef}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 border border-green-200 rounded text-xs font-semibold hover:bg-green-200 transition-colors"
-      >
-        <Link2 className="w-3 h-3" />
-        {offices.length}件
-      </button>
-
-      {isOpen && (
-        <div className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[300px]">
-          {/* 矢印 */}
-          <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-slate-200 rotate-45" />
-          
-          {/* ヘッダー */}
-          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 rounded-t-lg">
-            <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-green-600" />
-              カイポケ登録済み（{offices.length}件）
-            </h4>
-          </div>
-          
-          {/* リスト */}
-          <div className="max-h-48 overflow-y-auto">
-            {offices.map((office, index) => (
-              <div
-                key={office.id}
-                className={`px-4 py-2 ${index !== offices.length - 1 ? 'border-b border-slate-100' : ''}`}
-              >
-                <div className="text-sm font-medium text-slate-800">
-                  {office.office_name}
-                </div>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  {office.service_type || '-'} / {office.office_number || '-'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// インライン編集セル
-function InlineEditCell({
-  value,
-  onSave,
-  isUpdating,
-  placeholder = '',
-}: {
-  value: string | null;
-  onSave: (value: string | null) => Promise<boolean>;
-  isUpdating: boolean;
-  placeholder?: string;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(value || '');
-  const [isHovered, setIsHovered] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleStartEdit = () => {
-    setEditValue(value || '');
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
-    const newValue = editValue.trim() || null;
-    if (newValue === value) {
-      setIsEditing(false);
-      return;
-    }
-    const success = await onSave(newValue);
-    if (success) {
-      setIsEditing(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditValue(value || '');
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  };
-
-  if (isUpdating) {
-    return (
-      <div className="flex items-center gap-2 text-slate-400">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        <span className="text-sm">保存中...</span>
-      </div>
-    );
-  }
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-32 px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          placeholder={placeholder}
-        />
-        <button
-          onClick={handleSave}
-          className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-          title="保存 (Enter)"
-        >
-          <Check className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleCancel}
-          className="p-1 text-slate-500 hover:bg-slate-100 rounded transition-colors"
-          title="キャンセル (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="flex items-center gap-2 cursor-pointer min-h-[28px]"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={handleStartEdit}
-    >
-      <span className={`text-sm ${value ? 'text-slate-800' : 'text-slate-400'}`}>
-        {value || '-'}
-      </span>
-      {isHovered && (
-        <button className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all">
-          <Pencil className="w-3 h-3" />
-        </button>
-      )}
-    </div>
-  );
-}
 
 export function CmLocalFaxPhonebookTable({
   entries,
