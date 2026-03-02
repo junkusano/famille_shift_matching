@@ -192,6 +192,73 @@ export async function GET(req: NextRequest) {
     }
 }
 
+async function updateAttendance(req: NextRequest) {
+    const { myUserId, role } = await readMyRole(req);
+
+    const body: unknown = await req.json();
+    if (!isRecord(body)) return json({ ok: false, error: "invalid body" }, 400);
+
+    const target_month = typeof body.target_month === "string" ? body.target_month : "";
+    const user_id = typeof body.user_id === "string" ? body.user_id : "";
+
+    if (!target_month || !user_id) {
+        return json({ ok: false, error: "target_month and user_id required" }, 400);
+    }
+
+    const patch: Record<string, unknown> = {};
+    const nowIso = new Date().toISOString();
+
+    // 本人コメント：本人のみ
+    if ("staff_comment" in body) {
+        if (myUserId !== user_id) throw new Error("forbidden: only self can update staff_comment");
+        patch.staff_comment = body.staff_comment == null ? null : String(body.staff_comment);
+    }
+
+    // 参加チェック＆議事録URL：FULLのみ
+    const hasAttend =
+        ("attended_regular" in body) || ("attended_extra" in body) || ("minutes_url" in body);
+
+    if (hasAttend) {
+        if (role !== "FULL") throw new Error("forbidden: FULL only can update attendance fields");
+
+        if ("attended_regular" in body) {
+            patch.attended_regular = body.attended_regular == null ? null : Boolean(body.attended_regular);
+        }
+        if ("attended_extra" in body) {
+            patch.attended_extra = body.attended_extra == null ? null : Boolean(body.attended_extra);
+        }
+        if ("minutes_url" in body) {
+            patch.minutes_url = body.minutes_url == null ? null : String(body.minutes_url);
+        }
+    }
+
+    // 確認：MANAGERのみ
+    if ("manager_checked" in body) {
+        if (role !== "MANAGER") throw new Error("forbidden: MANAGER only can update manager_checked");
+
+        const v = body.manager_checked == null ? null : Boolean(body.manager_checked);
+        patch.manager_checked = v;
+        patch.manager_checked_at = v == null ? null : nowIso;
+        patch.manager_checked_by = v == null ? null : myUserId;
+    }
+
+    if (!Object.keys(patch).length) {
+        return json({ ok: false, error: "no updatable fields in body" }, 400);
+    }
+
+    patch.updated_at = nowIso;
+
+    const { error } = await supabaseAdmin
+        .from("monthly_meeting_attendance")
+        .update(patch)
+        .eq("target_month", target_month)
+        .eq("user_id", user_id);
+
+    if (error) throw error;
+
+    return json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
     try {
         const { myUserId, role } = await readMyRole(req);
@@ -259,6 +326,15 @@ export async function POST(req: NextRequest) {
         if (error) throw error;
 
         return json({ ok: true });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return json({ ok: false, error: msg }, 500);
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        return await updateAttendance(req);
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return json({ ok: false, error: msg }, 500);

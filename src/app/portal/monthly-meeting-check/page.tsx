@@ -15,6 +15,14 @@ type Row = {
     full_name_kanji?: string | null;
 };
 
+// ★追加：編集用（画面で入力中の値）
+type EditRow = {
+    attended_regular: boolean;
+    attended_extra: boolean;
+    minutes_url: string;
+    staff_comment: string;
+};
+
 function ymNowJst(): string {
     const now = new Date();
     const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -121,6 +129,11 @@ export default function MonthlyMeetingCheckPage() {
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
 
+    // ★追加：編集状態（user_id -> 入力中の値）
+    const [edit, setEdit] = useState<Record<string, EditRow>>({});
+
+    // ★追加：行ごとの保存中フラグ
+    const [saving, setSaving] = useState<Record<string, boolean>>({});
     const requiredRows = useMemo(() => rows.filter((r) => r.required), [rows]);
 
     async function runSync() {
@@ -155,10 +168,57 @@ export default function MonthlyMeetingCheckPage() {
             const ok = parseAttendanceOk(j);
 
             setRows(ok.rows);
+            // ★追加：編集state初期化（DBの値を入力欄の初期値にする）
+            const next: Record<string, EditRow> = {};
+            for (const r of ok.rows) {
+                next[r.user_id] = {
+                    attended_regular: r.attended_regular ?? false,
+                    attended_extra: r.attended_extra ?? false,
+                    minutes_url: r.minutes_url ?? "",
+                    staff_comment: r.staff_comment ?? "",
+                };
+            }
+            setEdit(next);
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
         } finally {
             setLoading(false);
+        }
+    }
+
+    // ★追加：1行保存（チェック/URL/コメント）
+    async function saveRow(user_id: string) {
+        const v = edit[user_id];
+        if (!v) return;
+
+        setSaving((p) => ({ ...p, [user_id]: true }));
+        setMsg("");
+
+        try {
+            const res = await fetch("/api/monthly-meeting/attendance", {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                    ym,
+                    user_id,
+                    attended_regular: v.attended_regular,
+                    attended_extra: v.attended_extra,
+                    minutes_url: v.minutes_url,
+                    staff_comment: v.staff_comment,
+                }),
+            });
+
+            const j: unknown = await res.json();
+            if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+            }
+
+            setMsg("保存しました");
+            await load(); // 最新反映
+        } catch (e: unknown) {
+            setMsg(toErrorMessage(e));
+        } finally {
+            setSaving((p) => ({ ...p, [user_id]: false }));
         }
     }
 
@@ -207,37 +267,108 @@ export default function MonthlyMeetingCheckPage() {
                                 <th className="border p-2">追加</th>
                                 <th className="border p-2 text-left">議事録URL</th>
                                 <th className="border p-2 text-left">コメント</th>
-                                <th className="border p-2">確認</th>
+                                <th className="border p-2">保存</th>
                             </tr>
                         </thead>
 
                         <tbody>
-                            {requiredRows.map((r) => (
-                                <tr key={`${r.target_month}-${r.user_id}`}>
-                                    <td className="border p-2">
-                                        {r.full_name_kanji ?? r.user_name ?? r.user_id}
-                                    </td>
-                                    <td className="border p-2 text-center">
-                                        {r.attended_regular === true ? "✅" : r.attended_regular === false ? "❌" : ""}
-                                    </td>
-                                    <td className="border p-2 text-center">
-                                        {r.attended_extra === true ? "✅" : r.attended_extra === false ? "❌" : ""}
-                                    </td>
-                                    <td className="border p-2">
-                                        {r.minutes_url ? (
-                                            <a className="text-blue-600 underline" href={r.minutes_url} target="_blank" rel="noreferrer">
-                                                議事録
-                                            </a>
-                                        ) : (
-                                            ""
-                                        )}
-                                    </td>
-                                    <td className="border p-2">{r.staff_comment ?? ""}</td>
-                                    <td className="border p-2 text-center">
-                                        {r.manager_checked === true ? "✅" : r.manager_checked === false ? "❌" : ""}
-                                    </td>
-                                </tr>
-                            ))}
+                            {requiredRows.map((r) => {
+                                const e = edit[r.user_id] ?? {
+                                    attended_regular: false,
+                                    attended_extra: false,
+                                    minutes_url: "",
+                                    staff_comment: "",
+                                };
+
+                                return (
+                                    <tr key={`${r.target_month}-${r.user_id}`}>
+                                        <td className="border p-2">
+                                            {r.full_name_kanji ?? r.user_name ?? r.user_id}
+                                        </td>
+
+                                        {/* 月例 */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={e.attended_regular}
+                                                onChange={(ev) =>
+                                                    setEdit((p) => ({
+                                                        ...p,
+                                                        [r.user_id]: { ...e, attended_regular: ev.target.checked },
+                                                    }))
+                                                }
+                                            />
+                                        </td>
+
+                                        {/* 追加 */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={e.attended_extra}
+                                                onChange={(ev) =>
+                                                    setEdit((p) => ({
+                                                        ...p,
+                                                        [r.user_id]: { ...e, attended_extra: ev.target.checked },
+                                                    }))
+                                                }
+                                            />
+                                        </td>
+
+                                        {/* 議事録URL（入力＋開く） */}
+                                        <td className="border p-2">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    className="border rounded px-2 py-1 w-full"
+                                                    value={e.minutes_url}
+                                                    onChange={(ev) =>
+                                                        setEdit((p) => ({
+                                                            ...p,
+                                                            [r.user_id]: { ...e, minutes_url: ev.target.value },
+                                                        }))
+                                                    }
+                                                    placeholder="https://..."
+                                                />
+                                                {e.minutes_url.startsWith("http") && (
+                                                    <a
+                                                        className="text-blue-600 underline whitespace-nowrap"
+                                                        href={e.minutes_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        開く
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        {/* コメント（入力） */}
+                                        <td className="border p-2">
+                                            <input
+                                                className="border rounded px-2 py-1 w-full"
+                                                value={e.staff_comment}
+                                                onChange={(ev) =>
+                                                    setEdit((p) => ({
+                                                        ...p,
+                                                        [r.user_id]: { ...e, staff_comment: ev.target.value },
+                                                    }))
+                                                }
+                                                placeholder="コメント"
+                                            />
+                                        </td>
+
+                                        {/* 保存（※「確認」列を「保存」に変えるのがおすすめ） */}
+                                        <td className="border p-2 text-center">
+                                            <button
+                                                className="border rounded px-3 py-1"
+                                                onClick={() => saveRow(r.user_id)}
+                                                disabled={loading || saving[r.user_id] === true}
+                                            >
+                                                保存
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
 
                             {requiredRows.length === 0 && (
                                 <tr>
