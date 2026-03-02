@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient"; // ★追加（shiftページでも使ってるはず）
 
 type Row = {
     target_month: string; // YYYY-MM-01
@@ -123,6 +124,24 @@ function parseAttendanceOk(j: unknown): AttendanceOk {
     return { rows };
 }
 
+async function fetchWithBearer(input: RequestInfo, init?: RequestInit) {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+
+    const token = data.session?.access_token;
+    if (!token) throw new Error("unauthorized");
+
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+
+    // JSON送る場合に備えて（GETでは不要だが害なし）
+    if (init?.body && !headers.has("content-type")) {
+        headers.set("content-type", "application/json");
+    }
+
+    return fetch(input, { ...init, headers });
+}
+
 export default function MonthlyMeetingCheckPage() {
     const [ym, setYm] = useState<string>(ymNowJst());
     const [rows, setRows] = useState<Row[]>([]);
@@ -140,9 +159,8 @@ export default function MonthlyMeetingCheckPage() {
         setMsg("");
         setLoading(true);
         try {
-            const res = await fetch("/api/monthly-meeting/sync", {
+            const res = await fetchWithBearer("/api/monthly-meeting/sync", {
                 method: "POST",
-                headers: { "content-type": "application/json" },
                 body: JSON.stringify({ ym }),
             });
 
@@ -162,8 +180,7 @@ export default function MonthlyMeetingCheckPage() {
         setMsg("");
         setLoading(true);
         try {
-            const res = await fetch(`/api/monthly-meeting/attendance?ym=${encodeURIComponent(ym)}`);
-            const j: unknown = await res.json();
+            const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${encodeURIComponent(ym)}`); const j: unknown = await res.json();
 
             const ok = parseAttendanceOk(j);
 
@@ -195,11 +212,10 @@ export default function MonthlyMeetingCheckPage() {
         setMsg("");
 
         try {
-            const res = await fetch("/api/monthly-meeting/attendance", {
-                method: "PATCH",
-                headers: { "content-type": "application/json" },
+            const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                method: "PATCH", // or "POST"（あなたのAPIに合わせて）
                 body: JSON.stringify({
-                    ym,
+                    target_month: `${ym}-01`,
                     user_id,
                     attended_regular: v.attended_regular,
                     attended_extra: v.attended_extra,
