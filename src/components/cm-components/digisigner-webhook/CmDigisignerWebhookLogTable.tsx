@@ -5,20 +5,21 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
   FileWarning,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { CmCard } from "@/components/cm-components/ui/CmCard";
 import type {
   CmDigisignerWebhookLogEntry,
   CmDigisignerWebhookLogPagination,
 } from "@/types/cm/digisignerWebhookLogs";
+import { DigiSignerStatusBadge as StatusBadge } from './DigiSignerStatusBadge';
+import { EventTypeBadge } from './EventTypeBadge';
+import { PayloadCell } from './PayloadCell';
 
 type Props = {
   logs: CmDigisignerWebhookLogEntry[];
@@ -27,84 +28,6 @@ type Props = {
   error: string | null;
   onPageChange: (page: number) => void;
 };
-
-// ---------------------------------------------------------
-// ステータスバッジ
-// ---------------------------------------------------------
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    received: "bg-amber-100 text-amber-700",
-    processed: "bg-green-100 text-green-700",
-    failed: "bg-red-100 text-red-700",
-    rejected: "bg-pink-100 text-pink-700",
-  };
-  const style = styles[status] || "bg-slate-100 text-slate-600";
-
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${style}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------
-// イベントタイプバッジ
-// ---------------------------------------------------------
-function EventTypeBadge({ eventType }: { eventType: string }) {
-  const styles: Record<string, string> = {
-    SIGNATURE_REQUEST_COMPLETED: "bg-purple-100 text-purple-700",
-    DOCUMENT_SIGNED: "bg-sky-100 text-sky-700",
-  };
-  const style = styles[eventType] || "bg-slate-100 text-slate-600";
-
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium ${style}`}
-    >
-      {eventType}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------
-// ペイロード展開セル
-// ---------------------------------------------------------
-function PayloadCell({ payload }: { payload: Record<string, unknown> }) {
-  const [expanded, setExpanded] = useState(false);
-  const jsonStr = JSON.stringify(payload, null, 2);
-  const preview = JSON.stringify(payload).slice(0, 40) + "...";
-
-  return (
-    <div>
-      <div className="text-xs text-slate-400 font-mono truncate max-w-[200px]">
-        {preview}
-      </div>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-xs text-blue-500 hover:text-blue-700 hover:underline mt-0.5 flex items-center gap-0.5"
-      >
-        {expanded ? (
-          <>
-            <ChevronUp className="w-3 h-3" />
-            閉じる
-          </>
-        ) : (
-          <>
-            <ChevronDown className="w-3 h-3" />
-            詳細を見る
-          </>
-        )}
-      </button>
-      {expanded && (
-        <pre className="mt-2 p-3 bg-slate-800 text-slate-200 rounded-lg text-xs font-mono leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap break-all">
-          {jsonStr}
-        </pre>
-      )}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------
 // メインコンポーネント
