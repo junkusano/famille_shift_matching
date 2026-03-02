@@ -5,19 +5,18 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import {
   Building2,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Pencil,
-  Check,
   X,
   Loader2,
 } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
 import type { CmOtherOffice, CmOtherOfficePagination } from '@/types/cm/otherOffices';
+import { FaxProxyEditCell } from './FaxProxyEditCell';
 
 type Props = {
   offices: CmOtherOffice[];
@@ -30,133 +29,6 @@ type Props = {
   onUpdateFaxProxy: (id: number, faxProxy: string | null) => Promise<boolean>;
   onClearUpdateError: () => void;
 };
-
-/**
- * FAX代行番号のインライン編集セル
- */
-function FaxProxyEditCell({
-  office,
-  isUpdating,
-  onUpdate,
-}: {
-  office: CmOtherOffice;
-  isUpdating: boolean;
-  onUpdate: (faxProxy: string | null) => Promise<boolean>;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(office.fax_proxy || '');
-  const [isHovered, setIsHovered] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // 編集開始時にフォーカス
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  // 編集開始
-  const handleStartEdit = () => {
-    setEditValue(office.fax_proxy || '');
-    setIsEditing(true);
-  };
-
-  // 保存
-  const handleSave = async () => {
-    const newValue = editValue.trim() || null;
-    
-    // 変更がない場合は編集モードを終了するだけ
-    if (newValue === office.fax_proxy) {
-      setIsEditing(false);
-      return;
-    }
-
-    const success = await onUpdate(newValue);
-    if (success) {
-      setIsEditing(false);
-    }
-  };
-
-  // キャンセル
-  const handleCancel = () => {
-    setEditValue(office.fax_proxy || '');
-    setIsEditing(false);
-  };
-
-  // キーボードイベント
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  };
-
-  // 更新中
-  if (isUpdating) {
-    return (
-      <div className="flex items-center gap-2 text-slate-400">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        <span className="text-sm">保存中...</span>
-      </div>
-    );
-  }
-
-  // 編集モード
-  if (isEditing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-32 px-2 py-1 text-sm border border-blue-400 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          placeholder="FAX代行番号"
-        />
-        <button
-          onClick={handleSave}
-          className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-          title="保存 (Enter)"
-        >
-          <Check className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleCancel}
-          className="p-1 text-slate-500 hover:bg-slate-100 rounded transition-colors"
-          title="キャンセル (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
-
-  // 表示モード
-  return (
-    <div
-      className="flex items-center gap-2 group cursor-pointer min-h-[28px]"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={handleStartEdit}
-    >
-      <span className={`text-sm ${office.fax_proxy ? 'text-slate-800' : 'text-slate-400'}`}>
-        {office.fax_proxy || '-'}
-      </span>
-      <button
-        className={`p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all ${
-          isHovered ? 'opacity-100' : 'opacity-0'
-        }`}
-        title="編集"
-      >
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-}
 
 export function CmOtherOfficeTable({
   offices,
