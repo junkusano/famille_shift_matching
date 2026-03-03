@@ -95,9 +95,6 @@ export async function GET(req: NextRequest) {
     resign_date_latest,
     end_at
   `)
-            // 在籍者のみ
-            .is("end_at", null)
-            .is("resign_date_latest", null)
             .neq("status", "removed_from_lineworks_kaipoke")
             // disability-check と同じ並び順に寄せる（部署→姓→名→ID）
             .order("orgunitname", { ascending: true })
