@@ -13,6 +13,11 @@
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import {
+  CM_OP_LOG_CONSENT_CREATE,
+  CM_OP_LOG_CONTRACT_UPDATE,
+} from "@/constants/cm/operationLogActions";
 import type {
   CmVerificationMethod,
   CmVerificationDocument,
@@ -53,66 +58,76 @@ export async function createConsent(
   try {
     const auth = await requireCmSession(token);
 
-    const {
-      kaipoke_cs_id,
-      consent_electronic,
-      consent_recording,
-      signer_type,
-      proxy_name,
-      proxy_relationship,
-      proxy_reason,
-      staff_id,
-      ip_address,
-      user_agent,
-    } = params;
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_CONSENT_CREATE,
+        resourceType: "consent",
+        resourceId: params.kaipoke_cs_id,
+      },
+      async () => {
+        const {
+          kaipoke_cs_id,
+          consent_electronic,
+          consent_recording,
+          signer_type,
+          proxy_name,
+          proxy_relationship,
+          proxy_reason,
+          staff_id,
+          ip_address,
+          user_agent,
+        } = params;
 
-    // バリデーション
-    if (!kaipoke_cs_id || !signer_type || !staff_id) {
-      return { ok: false, error: "必須項目が不足しています" };
-    }
+        // バリデーション
+        if (!kaipoke_cs_id || !signer_type || !staff_id) {
+          return { ok: false, error: "必須項目が不足しています" };
+        }
 
-    if (signer_type === "proxy" && !proxy_name) {
-      return { ok: false, error: "代理人氏名は必須です" };
-    }
+        if (signer_type === "proxy" && !proxy_name) {
+          return { ok: false, error: "代理人氏名は必須です" };
+        }
 
-    logger.info("同意登録開始", {
-      kaipokeCsId: kaipoke_cs_id,
-      signerType: signer_type,
-      userId: auth.userId,
-    });
+        logger.info("同意登録開始", {
+          kaipokeCsId: kaipoke_cs_id,
+          signerType: signer_type,
+          userId: auth.userId,
+        });
 
-    // TODO: Google Drive API 連携実装時に署名画像アップロードを有効化
-    const gdriveFileId: string | null = null;
-    const gdriveFileUrl: string | null = null;
-    const gdriveFilePath: string | null = null;
+        // TODO: Google Drive API 連携実装時に署名画像アップロードを有効化
+        const gdriveFileId: string | null = null;
+        const gdriveFileUrl: string | null = null;
+        const gdriveFilePath: string | null = null;
 
-    const { data, error } = await supabaseAdmin
-      .from("cm_contract_consents")
-      .insert({
-        kaipoke_cs_id,
-        consent_electronic: consent_electronic ?? false,
-        consent_recording: consent_recording ?? false,
-        signer_type,
-        proxy_name: signer_type === "proxy" ? proxy_name : null,
-        proxy_relationship: signer_type === "proxy" ? proxy_relationship : null,
-        proxy_reason: signer_type === "proxy" ? proxy_reason : null,
-        gdrive_file_id: gdriveFileId,
-        gdrive_file_url: gdriveFileUrl,
-        gdrive_file_path: gdriveFilePath,
-        staff_id,
-        ip_address: ip_address ?? null,
-        user_agent: user_agent ?? null,
-      })
-      .select("id")
-      .single();
+        const { data, error } = await supabaseAdmin
+          .from("cm_contract_consents")
+          .insert({
+            kaipoke_cs_id,
+            consent_electronic: consent_electronic ?? false,
+            consent_recording: consent_recording ?? false,
+            signer_type,
+            proxy_name: signer_type === "proxy" ? proxy_name : null,
+            proxy_relationship: signer_type === "proxy" ? proxy_relationship : null,
+            proxy_reason: signer_type === "proxy" ? proxy_reason : null,
+            gdrive_file_id: gdriveFileId,
+            gdrive_file_url: gdriveFileUrl,
+            gdrive_file_path: gdriveFilePath,
+            staff_id,
+            ip_address: ip_address ?? null,
+            user_agent: user_agent ?? null,
+          })
+          .select("id")
+          .single();
 
-    if (error) {
-      logger.error("同意登録エラー", { message: error.message });
-      return { ok: false, error: "同意登録に失敗しました" };
-    }
+        if (error) {
+          logger.error("同意登録エラー", { message: error.message });
+          return { ok: false, error: "同意登録に失敗しました" };
+        }
 
-    logger.info("同意登録完了", { consentId: data.id, userId: auth.userId });
-    return { ok: true, data: { id: data.id } };
+        logger.info("同意登録完了", { consentId: data.id, userId: auth.userId });
+        return { ok: true, data: { id: data.id } };
+      },
+    );
   } catch (e) {
     if (e instanceof CmAuthError) {
       return { ok: false, error: e.message };
@@ -149,49 +164,59 @@ export async function updateContract(
   try {
     const auth = await requireCmSession(token);
 
-    const { contractId, ...fields } = params;
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_CONTRACT_UPDATE,
+        resourceType: "contract",
+        resourceId: params.contractId,
+      },
+      async () => {
+        const { contractId, ...fields } = params;
 
-    logger.info("契約更新開始", { contractId, fields: Object.keys(fields), userId: auth.userId });
+        logger.info("契約更新開始", { contractId, fields: Object.keys(fields), userId: auth.userId });
 
-    // 更新可能なフィールドのみ抽出
-    const allowedFields = [
-      "status",
-      "signing_method",
-      "contract_date",
-      "consent_record_id",
-      "verification_method_id",
-      "verification_document_id",
-      "verification_document_other",
-      "verification_at",
-      "plaud_recording_id",
-      "notes",
-      "signed_at",
-      "completed_at",
-    ];
+        // 更新可能なフィールドのみ抽出
+        const allowedFields = [
+          "status",
+          "signing_method",
+          "contract_date",
+          "consent_record_id",
+          "verification_method_id",
+          "verification_document_id",
+          "verification_document_other",
+          "verification_at",
+          "plaud_recording_id",
+          "notes",
+          "signed_at",
+          "completed_at",
+        ];
 
-    const updateData: Record<string, unknown> = {};
-    for (const key of allowedFields) {
-      if (key in fields) {
-        updateData[key] = fields[key as keyof typeof fields];
-      }
-    }
+        const updateData: Record<string, unknown> = {};
+        for (const key of allowedFields) {
+          if (key in fields) {
+            updateData[key] = fields[key as keyof typeof fields];
+          }
+        }
 
-    if (Object.keys(updateData).length === 0) {
-      return { ok: false, error: "更新するフィールドがありません" };
-    }
+        if (Object.keys(updateData).length === 0) {
+          return { ok: false, error: "更新するフィールドがありません" };
+        }
 
-    const { error } = await supabaseAdmin
-      .from("cm_contracts")
-      .update(updateData)
-      .eq("id", contractId);
+        const { error } = await supabaseAdmin
+          .from("cm_contracts")
+          .update(updateData)
+          .eq("id", contractId);
 
-    if (error) {
-      logger.error("契約更新エラー", { message: error.message });
-      return { ok: false, error: "契約更新に失敗しました" };
-    }
+        if (error) {
+          logger.error("契約更新エラー", { message: error.message });
+          return { ok: false, error: "契約更新に失敗しました" };
+        }
 
-    logger.info("契約更新完了", { contractId, userId: auth.userId });
-    return { ok: true };
+        logger.info("契約更新完了", { contractId, userId: auth.userId });
+        return { ok: true };
+      },
+    );
   } catch (e) {
     if (e instanceof CmAuthError) {
       return { ok: false, error: e.message };
@@ -202,7 +227,7 @@ export async function updateContract(
 }
 
 // =============================================================
-// 本人確認方法マスタ取得
+// 本人確認方法マスタ取得（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function getVerificationMethods(
@@ -233,7 +258,7 @@ export async function getVerificationMethods(
 }
 
 // =============================================================
-// 本人確認書類マスタ取得
+// 本人確認書類マスタ取得（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function getVerificationDocuments(

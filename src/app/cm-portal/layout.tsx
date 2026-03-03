@@ -1,4 +1,8 @@
+// =============================================================
 // src/app/cm-portal/layout.tsx
+// CM居宅ポータルのレイアウト
+// =============================================================
+
 'use client';
 
 import React, { useState, useEffect, type ReactNode } from 'react';
@@ -6,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { CmUserProvider, useCmUserContext } from '@/context/cm/CmUserContext';
 import { CmSidebar } from '@/components/cm-components/layout/CmSidebar';
 import { CmHeader } from '@/components/cm-components/layout/CmHeader';
+import { CmPageViewTracker } from '@/components/cm-components/layout/CmPageViewTracker';
 
 interface CmPortalLayoutProps {
   children: ReactNode;
@@ -92,6 +97,9 @@ function CmPortalLayoutContent({ children }: { children: ReactNode }) {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-100">
+        {/* ページ遷移記録（UIなし） */}
+        <CmPageViewTracker />
+
         {/* サイドバー（固定位置） */}
         <CmSidebar
           isOpen={sidebarOpen}

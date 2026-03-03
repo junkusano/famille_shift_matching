@@ -11,7 +11,16 @@ import {
   cmMarkJobItemFailed,
   type CmJobItemRef,
 } from "@/lib/cm/rpa/cmRpaJobItemHelper";
+import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
+import { CM_OP_LOG_RPA_CLIENT_INFO } from "@/constants/cm/operationLogActions";
+import { randomUUID } from "crypto";
 import type { Logger } from "@/lib/common/logger";
+
+// =============================================================
+// 定数
+// =============================================================
+
+const RPA_USER_ID = "system:rpa";
 
 // =============================================================
 // 型定義
@@ -205,6 +214,14 @@ export const POST = cmRpaApiHandler<ApiResponse>(
       );
     }
 
+    // 監査コンテキスト設定
+    const traceId = randomUUID();
+    await supabaseAdmin.rpc("set_audit_context", {
+      p_user_id: RPA_USER_ID,
+      p_action: CM_OP_LOG_RPA_CLIENT_INFO,
+      p_trace_id: traceId,
+    });
+
     logger.info("利用者情報登録開始", {
       kaipoke_cs_id,
       hasBasicInfo: !!basic_info,
@@ -361,6 +378,15 @@ export const POST = cmRpaApiHandler<ApiResponse>(
     if (jobInfo) {
       await cmMarkJobItemCompleted(jobInfo);
     }
+
+    // 操作ログ記録
+    await recordOperationLog({
+      userId: RPA_USER_ID,
+      action: CM_OP_LOG_RPA_CLIENT_INFO,
+      resourceType: "client",
+      resourceId: kaipoke_cs_id,
+      traceId,
+    });
 
     logger.info("利用者情報登録完了", { kaipoke_cs_id });
 

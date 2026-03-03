@@ -11,6 +11,15 @@ import {
   cmMarkJobItemFailed,
   type CmJobItemRef,
 } from "@/lib/cm/rpa/cmRpaJobItemHelper";
+import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
+import { CM_OP_LOG_RPA_OTHER_OFFICE } from "@/constants/cm/operationLogActions";
+import { randomUUID } from "crypto";
+
+// =============================================================
+// 定数
+// =============================================================
+
+const RPA_USER_ID = "system:rpa";
 
 // =============================================================
 // 型定義
@@ -100,6 +109,14 @@ export const POST = cmRpaApiHandler<ApiResponse>(
       return NextResponse.json({ ok: true, success: 0, fail: 0 });
     }
 
+    // 監査コンテキスト設定
+    const traceId = randomUUID();
+    await supabaseAdmin.rpc("set_audit_context", {
+      p_user_id: RPA_USER_ID,
+      p_action: CM_OP_LOG_RPA_OTHER_OFFICE,
+      p_trace_id: traceId,
+    });
+
     // バルク UPSERT 処理
     let successCount = 0;
     let failCount = 0;
@@ -150,6 +167,15 @@ export const POST = cmRpaApiHandler<ApiResponse>(
         await cmMarkJobItemCompleted(jobParam);
       }
     }
+
+    // 操作ログ記録
+    await recordOperationLog({
+      userId: RPA_USER_ID,
+      action: CM_OP_LOG_RPA_OTHER_OFFICE,
+      resourceType: "other-office",
+      metadata: { success: successCount, fail: failCount },
+      traceId,
+    });
 
     return NextResponse.json({
       ok: true,

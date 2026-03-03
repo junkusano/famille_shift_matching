@@ -10,6 +10,11 @@
 
 import { createLogger } from "@/lib/common/logger";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import {
+  CM_OP_LOG_RPA_JOB_CREATE,
+  CM_OP_LOG_RPA_JOB_UPDATE,
+} from "@/constants/cm/operationLogActions";
 import {
   cmGetJobMasterCore,
   cmGetJobsCore,
@@ -33,7 +38,7 @@ export type {
 const logger = createLogger("lib/cm/rpa-jobs/actions");
 
 // =============================================================
-// getJobMaster - マスタ取得
+// getJobMaster - マスタ取得（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function getJobMaster(
@@ -53,7 +58,7 @@ export async function getJobMaster(
 }
 
 // =============================================================
-// getJobs - ジョブ一覧取得
+// getJobs - ジョブ一覧取得（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function getJobs(
@@ -73,7 +78,7 @@ export async function getJobs(
 }
 
 // =============================================================
-// getJobDetail - ジョブ詳細取得
+// getJobDetail - ジョブ詳細取得（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function getJobDetail(
@@ -102,8 +107,18 @@ export async function createJob(
 ) {
   try {
     const auth = await requireCmSession(token);
-    logger.info("ジョブ作成", { userId: auth.userId });
-    return cmCreateJobCore(params);
+
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_RPA_JOB_CREATE,
+        resourceType: "rpa-job",
+      },
+      async () => {
+        logger.info("ジョブ作成", { userId: auth.userId });
+        return cmCreateJobCore(params);
+      },
+    );
   } catch (error) {
     if (error instanceof CmAuthError) {
       return { ok: false as const, error: error.message };
@@ -124,8 +139,19 @@ export async function updateJob(
 ) {
   try {
     const auth = await requireCmSession(token);
-    logger.info("ジョブ更新", { jobId, userId: auth.userId });
-    return cmUpdateJobCore(jobId, params);
+
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_RPA_JOB_UPDATE,
+        resourceType: "rpa-job",
+        resourceId: String(jobId),
+      },
+      async () => {
+        logger.info("ジョブ更新", { jobId, userId: auth.userId });
+        return cmUpdateJobCore(jobId, params);
+      },
+    );
   } catch (error) {
     if (error instanceof CmAuthError) {
       return { ok: false as const, error: error.message };

@@ -15,6 +15,8 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { cmSanitizeForOrFilter } from "@/lib/cm/supabase/sanitizeFilterValue";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import { CM_OP_LOG_CLIENT_SEARCH } from "@/constants/cm/operationLogActions";
 
 const logger = createLogger("lib/cm/clients/actions");
 
@@ -55,48 +57,58 @@ export async function searchClients(
     // 認証・認可チェック
     const auth = await requireCmSession(token);
 
-    const { search, status = "active", limit = 50 } = params;
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_CLIENT_SEARCH,
+        resourceType: "client",
+        metadata: { search: params.search, status: params.status },
+      },
+      async () => {
+        const { search, status = "active", limit = 50 } = params;
 
-    if (!search.trim()) {
-      return { ok: true, data: [] };
-    }
+        if (!search.trim()) {
+          return { ok: true, data: [] } as ActionResult<ClientSearchResult[]>;
+        }
 
-    logger.info("利用者検索開始", { search, status, userId: auth.userId });
+        logger.info("利用者検索開始", { search, status, userId: auth.userId });
 
-    let query = supabaseAdmin
-      .from("cm_kaipoke_info")
-      .select("id, kaipoke_cs_id, name, kana, birth_date, is_active")
-      .limit(limit);
+        let query = supabaseAdmin
+          .from("cm_kaipoke_info")
+          .select("id, kaipoke_cs_id, name, kana, birth_date, is_active")
+          .limit(limit);
 
-    // ステータスフィルター
-    if (status === "active") {
-      query = query.eq("is_active", true);
-    } else if (status === "inactive") {
-      query = query.eq("is_active", false);
-    }
+        // ステータスフィルター
+        if (status === "active") {
+          query = query.eq("is_active", true);
+        } else if (status === "inactive") {
+          query = query.eq("is_active", false);
+        }
 
-    // 検索条件（名前、カナ、カイポケID）
-    // PostgREST フィルター構文インジェクション防止のためサニタイズ
-    const sanitized = cmSanitizeForOrFilter(search);
-    if (!sanitized) {
-      return { ok: true, data: [] };
-    }
-    const searchTerm = `%${sanitized}%`;
-    query = query.or(`name.ilike.${searchTerm},kana.ilike.${searchTerm},kaipoke_cs_id.ilike.${searchTerm}`);
+        // 検索条件（名前、カナ、カイポケID）
+        // PostgREST フィルター構文インジェクション防止のためサニタイズ
+        const sanitized = cmSanitizeForOrFilter(search);
+        if (!sanitized) {
+          return { ok: true, data: [] } as ActionResult<ClientSearchResult[]>;
+        }
+        const searchTerm = `%${sanitized}%`;
+        query = query.or(`name.ilike.${searchTerm},kana.ilike.${searchTerm},kaipoke_cs_id.ilike.${searchTerm}`);
 
-    // ソート
-    query = query.order("kana", { ascending: true, nullsFirst: false });
+        // ソート
+        query = query.order("kana", { ascending: true, nullsFirst: false });
 
-    const { data, error } = await query;
+        const { data, error } = await query;
 
-    if (error) {
-      logger.error("検索エラー", { error: error.message });
-      return { ok: false, error: "検索に失敗しました" };
-    }
+        if (error) {
+          logger.error("検索エラー", { error: error.message });
+          return { ok: false, error: "検索に失敗しました" };
+        }
 
-    logger.info("利用者検索完了", { count: data?.length ?? 0, userId: auth.userId });
+        logger.info("利用者検索完了", { count: data?.length ?? 0, userId: auth.userId });
 
-    return { ok: true, data: (data ?? []) as ClientSearchResult[] };
+        return { ok: true, data: (data ?? []) as ClientSearchResult[] };
+      },
+    );
   } catch (error) {
     if (error instanceof CmAuthError) {
       return { ok: false, error: error.message };

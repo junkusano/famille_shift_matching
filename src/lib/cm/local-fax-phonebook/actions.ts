@@ -1,3 +1,4 @@
+// =============================================================
 // src/lib/cm/local-fax-phonebook/actions.ts
 // ローカルFAX電話帳 Server Actions
 //
@@ -21,6 +22,13 @@ import {
   gasSyncAll,
 } from "@/lib/cm/local-fax-phonebook/gasClient";
 import { cmFindKaipokeOfficesByFax } from "@/lib/cm/local-fax-phonebook/cmKaipokeMatchByFax";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import {
+  CM_OP_LOG_PHONEBOOK_CREATE,
+  CM_OP_LOG_PHONEBOOK_UPDATE,
+  CM_OP_LOG_PHONEBOOK_DELETE,
+  CM_OP_LOG_PHONEBOOK_SYNC,
+} from "@/constants/cm/operationLogActions";
 import type {
   CmLocalFaxPhonebookEntry,
   CmKaipokeOfficeInfo,
@@ -73,58 +81,69 @@ export async function createLocalFaxPhonebookEntry(
 ): Promise<ActionResult<CmLocalFaxPhonebookEntry>> {
   try {
     const auth = await requireCmSession(token);
-    const { name, name_kana, fax_number, notes } = data;
 
-    // バリデーション
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      return { ok: false, error: "事業所名は必須です" };
-    }
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_PHONEBOOK_CREATE,
+        resourceType: "phonebook",
+        metadata: { name: data.name, fax_number: data.fax_number },
+      },
+      async () => {
+        const { name, name_kana, fax_number, notes } = data;
 
-    logger.info("ローカルFAX電話帳新規作成", { name, fax_number, userId: auth.userId });
+        // バリデーション
+        if (!name || typeof name !== "string" || name.trim() === "") {
+          return { ok: false, error: "事業所名は必須です" };
+        }
 
-    const faxNormalized = fax_number ? normalizeFaxNumber(fax_number) : null;
+        logger.info("ローカルFAX電話帳新規作成", { name, fax_number, userId: auth.userId });
 
-    // GAS XML追加（source_idを取得）
-    let sourceId: string | null = null;
-    const gasResult = await gasAddEntry({
-      name: name.trim(),
-      nameKana: name_kana?.trim() || undefined,
-      faxNumber: fax_number?.trim() || undefined,
-    });
+        const faxNormalized = fax_number ? normalizeFaxNumber(fax_number) : null;
 
-    if (!gasResult.ok) {
-      // URL未設定はスキップ、それ以外はエラー
-      if (gasResult.error !== "GAS Web App URLが設定されていません") {
-        return { ok: false, error: gasResult.error };
-      }
-    } else {
-      sourceId = gasResult.data.sourceId;
-    }
+        // GAS XML追加（source_idを取得）
+        let sourceId: string | null = null;
+        const gasResult = await gasAddEntry({
+          name: name.trim(),
+          nameKana: name_kana?.trim() || undefined,
+          faxNumber: fax_number?.trim() || undefined,
+        });
 
-    // DB登録
-    const { data: entry, error: insertError } = await supabaseAdmin
-      .from("cm_local_fax_phonebook")
-      .insert({
-        name: name.trim(),
-        name_kana: name_kana?.trim() || null,
-        fax_number: fax_number?.trim() || null,
-        fax_number_normalized: faxNormalized,
-        source_id: sourceId,
-        notes: notes?.trim() || null,
-        is_active: true,
-      })
-      .select()
-      .single();
+        if (!gasResult.ok) {
+          // URL未設定はスキップ、それ以外はエラー
+          if (gasResult.error !== "GAS Web App URLが設定されていません") {
+            return { ok: false, error: gasResult.error };
+          }
+        } else {
+          sourceId = gasResult.data.sourceId;
+        }
 
-    if (insertError) {
-      logger.error("ローカルFAX電話帳DB登録エラー", insertError);
-      return { ok: false, error: "データベースへの登録に失敗しました" };
-    }
+        // DB登録
+        const { data: entry, error: insertError } = await supabaseAdmin
+          .from("cm_local_fax_phonebook")
+          .insert({
+            name: name.trim(),
+            name_kana: name_kana?.trim() || null,
+            fax_number: fax_number?.trim() || null,
+            fax_number_normalized: faxNormalized,
+            source_id: sourceId,
+            notes: notes?.trim() || null,
+            is_active: true,
+          })
+          .select()
+          .single();
 
-    logger.info("ローカルFAX電話帳新規作成完了", { id: entry.id, sourceId, userId: auth.userId });
+        if (insertError) {
+          logger.error("ローカルFAX電話帳DB登録エラー", insertError);
+          return { ok: false, error: "データベースへの登録に失敗しました" };
+        }
 
-    revalidatePath(REVALIDATE_PATH);
-    return { ok: true, data: entry as CmLocalFaxPhonebookEntry };
+        logger.info("ローカルFAX電話帳新規作成完了", { id: entry.id, sourceId, userId: auth.userId });
+
+        revalidatePath(REVALIDATE_PATH);
+        return { ok: true, data: entry as CmLocalFaxPhonebookEntry };
+      },
+    );
   } catch (error) {
     return handleActionError(error, "ローカルFAX電話帳作成予期せぬエラー");
   }
@@ -148,70 +167,80 @@ export async function updateLocalFaxPhonebookEntry(
   try {
     const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳更新", { id, userId: auth.userId });
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_PHONEBOOK_UPDATE,
+        resourceType: "phonebook",
+        resourceId: String(id),
+      },
+      async () => {
+        logger.info("ローカルFAX電話帳更新", { id, userId: auth.userId });
 
-    // 既存レコード取得
-    const { data: existingEntry, error: fetchError } = await supabaseAdmin
-      .from("cm_local_fax_phonebook")
-      .select("*")
-      .eq("id", id)
-      .single();
+        // 既存レコード取得
+        const { data: existingEntry, error: fetchError } = await supabaseAdmin
+          .from("cm_local_fax_phonebook")
+          .select("*")
+          .eq("id", id)
+          .single();
 
-    if (fetchError || !existingEntry) {
-      return { ok: false, error: "対象のエントリが見つかりません" };
-    }
+        if (fetchError || !existingEntry) {
+          return { ok: false, error: "対象のエントリが見つかりません" };
+        }
 
-    // 更新データ構築
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
+        // 更新データ構築
+        const updateData: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+        };
 
-    const { name, name_kana, fax_number, notes, is_active } = data;
+        const { name, name_kana, fax_number, notes, is_active } = data;
 
-    if (name !== undefined) {
-      updateData.name = name?.trim() || existingEntry.name;
-    }
-    if (name_kana !== undefined) {
-      updateData.name_kana = name_kana?.trim() || null;
-    }
-    if (fax_number !== undefined) {
-      updateData.fax_number = fax_number?.trim() || null;
-      updateData.fax_number_normalized = fax_number ? normalizeFaxNumber(fax_number) : null;
-    }
-    if (notes !== undefined) {
-      updateData.notes = notes?.trim() || null;
-    }
-    if (is_active !== undefined) {
-      updateData.is_active = Boolean(is_active);
-    }
+        if (name !== undefined) {
+          updateData.name = name?.trim() || existingEntry.name;
+        }
+        if (name_kana !== undefined) {
+          updateData.name_kana = name_kana?.trim() || null;
+        }
+        if (fax_number !== undefined) {
+          updateData.fax_number = fax_number?.trim() || null;
+          updateData.fax_number_normalized = fax_number ? normalizeFaxNumber(fax_number) : null;
+        }
+        if (notes !== undefined) {
+          updateData.notes = notes?.trim() || null;
+        }
+        if (is_active !== undefined) {
+          updateData.is_active = Boolean(is_active);
+        }
 
-    // GAS XML更新（source_idがある場合のみ、失敗してもDB更新は続行）
-    if (existingEntry.source_id) {
-      await gasUpdateEntry({
-        sourceId: existingEntry.source_id,
-        name: updateData.name as string | undefined,
-        nameKana: updateData.name_kana as string | undefined,
-        faxNumber: updateData.fax_number as string | undefined,
-      });
-    }
+        // GAS XML更新（source_idがある場合のみ、失敗してもDB更新は続行）
+        if (existingEntry.source_id) {
+          await gasUpdateEntry({
+            sourceId: existingEntry.source_id,
+            name: updateData.name as string | undefined,
+            nameKana: updateData.name_kana as string | undefined,
+            faxNumber: updateData.fax_number as string | undefined,
+          });
+        }
 
-    // DB更新
-    const { data: updatedEntry, error: updateError } = await supabaseAdmin
-      .from("cm_local_fax_phonebook")
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .single();
+        // DB更新
+        const { data: updatedEntry, error: updateError } = await supabaseAdmin
+          .from("cm_local_fax_phonebook")
+          .update(updateData)
+          .eq("id", id)
+          .select()
+          .single();
 
-    if (updateError) {
-      logger.error("ローカルFAX電話帳DB更新エラー", updateError);
-      return { ok: false, error: "更新に失敗しました" };
-    }
+        if (updateError) {
+          logger.error("ローカルFAX電話帳DB更新エラー", updateError);
+          return { ok: false, error: "更新に失敗しました" };
+        }
 
-    logger.info("ローカルFAX電話帳更新完了", { id, userId: auth.userId });
+        logger.info("ローカルFAX電話帳更新完了", { id, userId: auth.userId });
 
-    revalidatePath(REVALIDATE_PATH);
-    return { ok: true, data: updatedEntry as CmLocalFaxPhonebookEntry };
+        revalidatePath(REVALIDATE_PATH);
+        return { ok: true, data: updatedEntry as CmLocalFaxPhonebookEntry };
+      },
+    );
   } catch (error) {
     return handleActionError(error, "ローカルFAX電話帳更新予期せぬエラー");
   }
@@ -228,49 +257,59 @@ export async function deleteLocalFaxPhonebookEntry(
   try {
     const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳削除", { id, userId: auth.userId });
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_PHONEBOOK_DELETE,
+        resourceType: "phonebook",
+        resourceId: String(id),
+      },
+      async () => {
+        logger.info("ローカルFAX電話帳削除", { id, userId: auth.userId });
 
-    // 既存レコード取得
-    const { data: existingEntry, error: fetchError } = await supabaseAdmin
-      .from("cm_local_fax_phonebook")
-      .select("*")
-      .eq("id", id)
-      .single();
+        // 既存レコード取得
+        const { data: existingEntry, error: fetchError } = await supabaseAdmin
+          .from("cm_local_fax_phonebook")
+          .select("*")
+          .eq("id", id)
+          .single();
 
-    if (fetchError || !existingEntry) {
-      return { ok: false, error: "対象のエントリが見つかりません" };
-    }
+        if (fetchError || !existingEntry) {
+          return { ok: false, error: "対象のエントリが見つかりません" };
+        }
 
-    // GAS XML削除（source_idがある場合のみ、失敗時はDB削除も中止）
-    if (existingEntry.source_id) {
-      const gasResult = await gasDeleteEntry(existingEntry.source_id);
-      if (!gasResult.ok) {
-        return { ok: false, error: gasResult.error };
-      }
-    }
+        // GAS XML削除（source_idがある場合のみ、失敗時はDB削除も中止）
+        if (existingEntry.source_id) {
+          const gasResult = await gasDeleteEntry(existingEntry.source_id);
+          if (!gasResult.ok) {
+            return { ok: false, error: gasResult.error };
+          }
+        }
 
-    // DB削除
-    const { error: deleteError } = await supabaseAdmin
-      .from("cm_local_fax_phonebook")
-      .delete()
-      .eq("id", id);
+        // DB削除
+        const { error: deleteError } = await supabaseAdmin
+          .from("cm_local_fax_phonebook")
+          .delete()
+          .eq("id", id);
 
-    if (deleteError) {
-      logger.error("ローカルFAX電話帳DB削除エラー", deleteError);
-      return { ok: false, error: "削除に失敗しました" };
-    }
+        if (deleteError) {
+          logger.error("ローカルFAX電話帳DB削除エラー", deleteError);
+          return { ok: false, error: "削除に失敗しました" };
+        }
 
-    logger.info("ローカルFAX電話帳削除完了", { id, userId: auth.userId });
+        logger.info("ローカルFAX電話帳削除完了", { id, userId: auth.userId });
 
-    revalidatePath(REVALIDATE_PATH);
-    return { ok: true, data: { deletedId: id } };
+        revalidatePath(REVALIDATE_PATH);
+        return { ok: true, data: { deletedId: id } };
+      },
+    );
   } catch (error) {
     return handleActionError(error, "ローカルFAX電話帳削除予期せぬエラー");
   }
 }
 
 // =============================================================
-// カイポケ登録チェック
+// カイポケ登録チェック（読み取り専用 — 操作ログ不要）
 // =============================================================
 
 export async function checkKaipokeByFaxNumber(
@@ -305,34 +344,43 @@ export async function syncLocalFaxPhonebookWithXml(
   try {
     const auth = await requireCmSession(token);
 
-    logger.info("ローカルFAX電話帳同期開始", { userId: auth.userId });
-
-    const gasResult = await gasSyncAll();
-
-    if (!gasResult.ok) {
-      return { ok: false, error: gasResult.error };
-    }
-
-    const syncResponse = gasResult.data;
-
-    logger.info("ローカルFAX電話帳同期完了", {
-      xmlOnly: syncResponse.summary.xmlOnly,
-      dbOnly: syncResponse.summary.dbOnly,
-      different: syncResponse.summary.different,
-      duration: syncResponse.summary.duration,
-      userId: auth.userId,
-    });
-
-    revalidatePath(REVALIDATE_PATH);
-
-    return {
-      ok: true,
-      data: {
-        ok: true,
-        summary: syncResponse.summary,
-        log: syncResponse.log || [],
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_PHONEBOOK_SYNC,
+        resourceType: "phonebook",
       },
-    };
+      async () => {
+        logger.info("ローカルFAX電話帳同期開始", { userId: auth.userId });
+
+        const gasResult = await gasSyncAll();
+
+        if (!gasResult.ok) {
+          return { ok: false, error: gasResult.error };
+        }
+
+        const syncResponse = gasResult.data;
+
+        logger.info("ローカルFAX電話帳同期完了", {
+          xmlOnly: syncResponse.summary.xmlOnly,
+          dbOnly: syncResponse.summary.dbOnly,
+          different: syncResponse.summary.different,
+          duration: syncResponse.summary.duration,
+          userId: auth.userId,
+        });
+
+        revalidatePath(REVALIDATE_PATH);
+
+        return {
+          ok: true,
+          data: {
+            ok: true,
+            summary: syncResponse.summary,
+            log: syncResponse.log || [],
+          },
+        };
+      },
+    );
   } catch (error) {
     return handleActionError(error, "ローカルFAX電話帳同期予期せぬエラー");
   }

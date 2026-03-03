@@ -11,6 +11,15 @@ import {
   cmMarkJobItemFailed,
   type CmJobItemRef,
 } from "@/lib/cm/rpa/cmRpaJobItemHelper";
+import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
+import { CM_OP_LOG_RPA_SERVICE_USAGE } from "@/constants/cm/operationLogActions";
+import { randomUUID } from "crypto";
+
+// =============================================================
+// 定数
+// =============================================================
+
+const RPA_USER_ID = "system:rpa";
 
 // =============================================================
 // 型定義
@@ -160,6 +169,14 @@ export const POST = cmRpaApiHandler<BulkResponse>(
       );
     }
 
+    // 監査コンテキスト設定
+    const traceId = randomUUID();
+    await supabaseAdmin.rpc("set_audit_context", {
+      p_user_id: RPA_USER_ID,
+      p_action: CM_OP_LOG_RPA_SERVICE_USAGE,
+      p_trace_id: traceId,
+    });
+
     // updated_at を追加
     const now = new Date().toISOString();
     const recordsWithTimestamp = records.map((r) => ({
@@ -194,6 +211,15 @@ export const POST = cmRpaApiHandler<BulkResponse>(
     if (jobParam) {
       await cmMarkJobItemCompleted(jobParam);
     }
+
+    // 操作ログ記録
+    await recordOperationLog({
+      userId: RPA_USER_ID,
+      action: CM_OP_LOG_RPA_SERVICE_USAGE,
+      resourceType: "service-usage",
+      metadata: { recordCount: records.length },
+      traceId,
+    });
 
     return NextResponse.json({
       ok: true,

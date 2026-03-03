@@ -9,6 +9,8 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { revalidatePath } from "next/cache";
+import { withAuditLog } from "@/lib/cm/audit/withAuditLog";
+import { CM_OP_LOG_CLIENT_UPDATE } from "@/constants/cm/operationLogActions";
 
 const logger = createLogger("lib/cm/clients/updateClient");
 
@@ -37,45 +39,55 @@ export async function updateClient(params: UpdateClientParams, token: string): P
   const { kaipokeCsId, ...fields } = params;
 
   try {
-    await requireCmSession(token);
+    const auth = await requireCmSession(token);
 
-    logger.info("利用者更新開始", { kaipokeCsId, fields: Object.keys(fields) });
+    return withAuditLog(
+      {
+        auth,
+        action: CM_OP_LOG_CLIENT_UPDATE,
+        resourceType: "client",
+        resourceId: kaipokeCsId,
+      },
+      async () => {
+        logger.info("利用者更新開始", { kaipokeCsId, fields: Object.keys(fields) });
 
-    // 更新可能フィールドのみ抽出
-    const allowedFields = ["biko", "documents"];
-    const updateData: Record<string, unknown> = {};
+        // 更新可能フィールドのみ抽出
+        const allowedFields = ["biko", "documents"];
+        const updateData: Record<string, unknown> = {};
 
-    for (const field of allowedFields) {
-      if (field in fields) {
-        updateData[field] = fields[field as keyof typeof fields];
-      }
-    }
+        for (const field of allowedFields) {
+          if (field in fields) {
+            updateData[field] = fields[field as keyof typeof fields];
+          }
+        }
 
-    if (Object.keys(updateData).length === 0) {
-      return { ok: false, error: "更新可能なフィールドがありません" };
-    }
+        if (Object.keys(updateData).length === 0) {
+          return { ok: false, error: "更新可能なフィールドがありません" };
+        }
 
-    updateData.updated_at = new Date().toISOString();
+        updateData.updated_at = new Date().toISOString();
 
-    const { error } = await supabaseAdmin
-      .from("cm_kaipoke_info")
-      .update(updateData)
-      .eq("kaipoke_cs_id", kaipokeCsId);
+        const { error } = await supabaseAdmin
+          .from("cm_kaipoke_info")
+          .update(updateData)
+          .eq("kaipoke_cs_id", kaipokeCsId);
 
-    if (error) {
-      logger.error("更新エラー", {
-        message: error.message,
-        code: error.code,
-      });
-      return { ok: false, error: error.message };
-    }
+        if (error) {
+          logger.error("更新エラー", {
+            message: error.message,
+            code: error.code,
+          });
+          return { ok: false, error: error.message };
+        }
 
-    logger.info("利用者更新完了", { kaipokeCsId });
+        logger.info("利用者更新完了", { kaipokeCsId });
 
-    // キャッシュを無効化
-    revalidatePath(`/cm-portal/clients/${kaipokeCsId}`);
+        // キャッシュを無効化
+        revalidatePath(`/cm-portal/clients/${kaipokeCsId}`);
 
-    return { ok: true };
+        return { ok: true };
+      },
+    );
   } catch (e) {
     if (e instanceof CmAuthError) {
       return { ok: false, error: e.message };
