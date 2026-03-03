@@ -131,6 +131,25 @@ export async function GET(req: NextRequest) {
             if (insertErr) throw insertErr;
         }
 
+        // ★INSERTした後の最新 attendance を取り直す（ここが重要）
+        const { data: data2, error: error2 } = await supabaseAdmin
+            .from("monthly_meeting_attendance")
+            .select(`
+    target_month,
+    user_id,
+    required,
+    attended_regular,
+    attended_extra,
+    minutes_url,
+    staff_comment,
+    manager_checked
+  `)
+            .eq("target_month", monthStart)
+            .order("user_id", { ascending: true })
+            .returns<AttendanceRowDb[]>();
+
+        if (error2) throw error2;
+
         const staff: StaffDto[] = (staffData ?? []).map((r) => {
             const userId = (r.user_id ?? "").trim();
             const name = `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim();
@@ -145,7 +164,7 @@ export async function GET(req: NextRequest) {
 
         // ===== 追加②：attendance を user_id で引けるようにする =====
         const attendanceMap = new Map(
-            (data ?? []).map((r) => [r.user_id, r])
+            (data2 ?? []).map((r) => [r.user_id, r])
         );
 
         // ===== 変更③：シフトに入っている人を必ず表示する =====

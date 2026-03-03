@@ -370,7 +370,7 @@ export default function MonthlyMeetingCheckPage() {
                             {visibleRows.length === 0 && (
                                 <tr>
                                     <td className="border p-3 text-sm text-gray-600" colSpan={6}>
-                                        データがありません（先に「対象者を更新（shift参照）」を押してください）
+                                        従業員データが0件です（在籍者の取得条件をご確認ください）
                                     </td>
                                 </tr>
                             )}
