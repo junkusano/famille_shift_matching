@@ -79,9 +79,13 @@ const calcHalfHourRoundedHours = (mins: number): number => {
 const ymToRange = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
   const start = `${y}-${String(m).padStart(2, "0")}-01`;
-  const endDate = new Date(y, m, 0).getDate();
-  const end = `${y}-${String(m).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`;
-  return { start, end };
+
+  // 翌月の1日（排他的な上限）
+  const nextMonth = m === 12 ? 1 : m + 1;
+  const nextYear = m === 12 ? y + 1 : y;
+  const endExclusive = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+
+  return { start, endExclusive };
 };
 
 const isNagoyaZip = (zipRaw: string | null | undefined): boolean => {
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const { start, end } = ymToRange(month);
+  const { start, endExclusive } = ymToRange(month);
 
   // ★①：利用者名と郵便番号（名古屋市判定用）を取得
   const { data: cs } = await supabaseAdmin
@@ -129,7 +133,7 @@ export async function GET(req: NextRequest) {
     .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id,staff_02_user_id,staff_03_user_id, judo_ido")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .gte("shift_start_date", start)
-    .lte("shift_start_date", end)
+    .lt("shift_start_date", endExclusive)
     .order("shift_start_date", { ascending: true })
     .order("shift_start_time", { ascending: true })
     .returns<ShiftRow[]>();

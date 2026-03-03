@@ -179,6 +179,9 @@ export async function POST(req: NextRequest) {
     if (kaipokeServicek) query = query.eq("kaipoke_servicek", kaipokeServicek);
     if (districts.length > 0) query = query.in("district", districts);
 
+    // 利用者（cs）での任意絞り込み
+    if (csReq) query = query.eq("kaipoke_cs_id", csReq);
+
     const { data, error } = await query;
     if (error) throw error;
 
@@ -238,9 +241,6 @@ export async function POST(req: NextRequest) {
     // 4) disability_check_view の結果を「許可利用者」のみに絞る
     // rows を絞り込み
     rows = rows.filter((r) => allowedCsIdSet.has(String(r.kaipoke_cs_id)));
-
-    // 利用者（cs）での任意絞り込み
-    if (csReq) query = query.eq("kaipoke_cs_id", csReq);
 
     type ShiftStaffPick = {
       staffCol: string;
