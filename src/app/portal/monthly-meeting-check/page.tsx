@@ -150,52 +150,27 @@ export default function MonthlyMeetingCheckPage() {
         setLoading(true);
 
         try {
-            // ★APIを呼ばず、従業員一覧を直接取得する
-            const { data: staffData, error: staffErr } = await supabase
-                .from("user_entry_united_view_single")
-                .select("user_id,last_name_kanji,first_name_kanji,orgunitname,status,resign_date_latest,end_at")
-                .is("end_at", null)
-                .is("resign_date_latest", null)
-                .neq("status", "removed_from_lineworks_kaipoke")
-                .order("orgunitname", { ascending: true });
+            // ★APIから「全従業員 + 既存の入力値」を取得する
+            const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${ym}`);
+            const j: unknown = await res.json();
 
-            if (staffErr) throw staffErr;
+            if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
+            }
 
-            const monthStart = `${ym}-01`;
-
-            // ★ここで rows を生成（attendanceが無くても全員表示）
-            const newRows: Row[] = (staffData ?? [])
-                .map((s): Row | null => {
-                    const userId = String(s.user_id ?? "").trim();
-                    if (!userId) return null;
-
-                    const name = `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim();
-
-                    return {
-                        target_month: monthStart,
-                        user_id: userId,
-                        required: true,
-                        attended_regular: null,
-                        attended_extra: null,
-                        minutes_url: null,
-                        staff_comment: null,
-                        manager_checked: null,
-                        user_name: name || userId,
-                        full_name_kanji: name || userId,
-                    };
-                })
-                .filter((v) => v !== null) as Row[];
+            const newRows = (Array.isArray(j.rows) ? (j.rows as Row[]) : [])
+                .filter((r) => r && typeof r.user_id === "string" && typeof r.target_month === "string");
 
             setRows(newRows);
 
-            // ★入力欄の初期化
+            // ★入力欄の初期化（既存値があればそれを入れる）
             const next: Record<string, EditRow> = {};
             for (const r of newRows) {
                 next[r.user_id] = {
-                    attended_regular: false,
-                    attended_extra: false,
-                    minutes_url: "",
-                    staff_comment: "",
+                    attended_regular: r.attended_regular ?? false,
+                    attended_extra: r.attended_extra ?? false,
+                    minutes_url: r.minutes_url ?? "",
+                    staff_comment: r.staff_comment ?? "",
                 };
             }
             setEdit(next);

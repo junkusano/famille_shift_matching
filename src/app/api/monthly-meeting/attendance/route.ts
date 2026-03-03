@@ -95,9 +95,15 @@ export async function GET(req: NextRequest) {
     resign_date_latest,
     end_at
   `)
+            // 在籍者のみ
             .is("end_at", null)
             .is("resign_date_latest", null)
-            .neq("status", "removed_from_lineworks_kaipoke");
+            .neq("status", "removed_from_lineworks_kaipoke")
+            // disability-check と同じ並び順に寄せる（部署→姓→名→ID）
+            .order("orgunitname", { ascending: true })
+            .order("last_name_kanji", { ascending: true })
+            .order("first_name_kanji", { ascending: true })
+            .order("user_id", { ascending: true });
 
         if (staffErr) throw staffErr;
 
@@ -160,6 +166,8 @@ export async function GET(req: NextRequest) {
                     staff_comment: r?.staff_comment ?? null,
                     manager_checked: r?.manager_checked ?? null,
                     user_name: `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim() || userId,
+                    // フロント側で使いやすいように明示的に返す
+                    full_name_kanji: `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim() || userId,
                 };
             })
             .filter((v): v is NonNullable<typeof v> => v !== null);
