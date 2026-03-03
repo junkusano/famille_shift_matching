@@ -8,7 +8,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { createLogger } from "@/lib/common/logger";
+import { createLogger, getEnvironment } from "@/lib/common/logger";
 import { cmGetCategoryFromAction } from "@/constants/cm/operationLogActions";
 import type { CmRecordOperationLogParams } from "@/types/cm/operationLog";
 
@@ -38,6 +38,7 @@ export async function recordOperationLog(
         user_name: params.userName ?? null,
         action: params.action,
         category,
+        env: getEnvironment().name,
         description: params.description ?? null,
         resource_type: params.resourceType ?? null,
         resource_id: params.resourceId ?? null,
