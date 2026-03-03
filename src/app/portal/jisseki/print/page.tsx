@@ -1738,14 +1738,15 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                         {(() => {
                             const rows = form?.rows ?? [];
                             const pageSize = ROWS_PER_PAGE.JYUHO;
-                            const startIndex = (pageNo - 1) * pageSize;
-                            const pageRows = rows.slice(startIndex, startIndex + pageSize);
+
+                            // ★ここでは slice しない（上で pages を chunk 済みのため）
+                            const pageRows = rows;
 
                             // 末尾まで空行で埋める
                             const padded = [
                                 ...pageRows,
                                 ...Array.from({ length: Math.max(0, pageSize - pageRows.length) }).map(() => null),
-                            ];
+                            ].slice(0, pageSize);
 
                             // 曜日（日本語表記）
                             const weekdayJa = (d?: string) => {
