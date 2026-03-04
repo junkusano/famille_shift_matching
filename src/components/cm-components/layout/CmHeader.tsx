@@ -1,4 +1,9 @@
+// =============================================================
 // src/components/cm-components/layout/CmHeader.tsx
+// ヘッダー（パンくずリスト・検索・通知）
+// ★ 変更: 監査関連パンくず追加（operations, flow）、audit マッピング修正
+// =============================================================
+
 'use client';
 
 import React from 'react';
@@ -22,7 +27,7 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
   const pathMap: Record<string, string> = {
     '/cm-portal': 'ホーム',
     '/cm-portal/fax': 'FAX受信一覧',
-    '/cm-portal/plaud': '文字起こし管理', // ★ 追加
+    '/cm-portal/plaud': '文字起こし管理',
     '/cm-portal/clients': '利用者一覧',
     '/cm-portal/clients/insurance': '被保険者証',
     '/cm-portal/clients/subsidy': '公費・減額',
@@ -54,7 +59,11 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
     '/cm-portal/settings/forms': '帳票設定',
     '/cm-portal/settings/notifications': '通知設定',
     '/cm-portal/settings/account': 'アカウント',
-    '/cm-portal/audit': '監査ログ',
+    // ★ 変更: 監査関連パンくず — '監査ログ' → '監査ダッシュボード'
+    '/cm-portal/audit': '監査ダッシュボード',
+    // ★ 追加: 監査サブページ
+    '/cm-portal/audit/operations': '操作ログ',
+    '/cm-portal/audit/flow': '経路フロー',
     '/cm-portal/audit/logs': 'システムログ',
     '/cm-portal/admin/alert-batch': 'アラートバッチ',
     '/cm-portal/service-credentials': 'サービス認証情報',
@@ -68,6 +77,10 @@ const cmGetBreadcrumbs = (pathname: string): CmBreadcrumb[] => {
 
   // 完全一致チェック
   if (pathname !== '/cm-portal' && pathMap[pathname]) {
+    // ★ 追加: 監査サブページの場合は「監査ダッシュボード」を中間パンくずに挿入
+    if (pathname.startsWith('/cm-portal/audit/') && pathname !== '/cm-portal/audit') {
+      breadcrumbs.push({ label: '監査ダッシュボード', path: '/cm-portal/audit', isLink: true });
+    }
     breadcrumbs.push({ label: pathMap[pathname], path: pathname, isLink: false });
     return breadcrumbs;
   }

@@ -1,10 +1,17 @@
 // =============================================================
 // src/app/cm-portal/audit/logs/page.tsx
 // システムログ管理画面（Server Component）
+//
+// getAuditLogs でサーバーサイドでデータ取得し、
+// CmAuditLogsPageContent（Client Component）に渡す。
+//
+// 変更履歴:
+//   旧: CmAuditSystemLogs（モックデータ）を使用
+//   新: getAuditLogs + CmAuditLogsPageContent に置き換え
 // =============================================================
 
-import { getAuditLogs } from "@/lib/cm/audit/getAuditLogs";
-import { CmAuditLogsPageContent } from "@/components/cm-components/audit/CmAuditLogsPageContent";
+import { getAuditLogs } from '@/lib/cm/audit/getAuditLogs';
+import { CmAuditLogsPageContent } from '@/components/cm-components/audit/CmAuditLogsPageContent';
 
 type Props = {
   searchParams: Promise<{
@@ -22,14 +29,14 @@ type Props = {
 export default async function CmAuditLogsPage({ searchParams }: Props) {
   const params = await searchParams;
 
-  const page = parseInt(params.page || "1", 10);
-  const env = params.env || "";
-  const level = params.level || "";
-  const moduleName = params.module || "";
-  const message = params.message || "";
-  const traceId = params.traceId || "";
-  const from = params.from || "";
-  const to = params.to || "";
+  const page = parseInt(params.page || '1', 10);
+  const env = params.env || '';
+  const level = params.level || '';
+  const moduleName = params.module || '';
+  const message = params.message || '';
+  const traceId = params.traceId || '';
+  const from = params.from || '';
+  const to = params.to || '';
 
   // Server側でデータ取得
   const result = await getAuditLogs({

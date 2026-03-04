@@ -1,4 +1,9 @@
+// =============================================================
 // src/components/cm-components/layout/CmSidebar.tsx
+// サイドバーナビゲーション
+// ★ 変更: 「監査」グループを追加、dev-tools から監査項目を分離
+// =============================================================
+
 'use client';
 
 import React, { useState } from 'react';
@@ -20,7 +25,8 @@ import {
   ChevronRight,
   HeartHandshake,
   Terminal,
-  Inbox, // ★ 変更: FileText → Inbox
+  Inbox,
+  Shield, // ★ 追加: 監査グループ用
 } from 'lucide-react';
 import styles from '@/styles/cm-styles/components/sidebar.module.css';
 import { CmUserSection } from './CmUserSection';
@@ -58,7 +64,6 @@ const CmMenuStructure: CmMenuGroup[] = [
       { id: 'kyotaku-home', label: '居宅介護支援ポータルHome', path: '/cm-portal' },
     ],
   },
-  // ★ 変更: FAX管理 → 入力管理、Plaud追加
   {
     id: 'input',
     label: '入力管理',
@@ -152,6 +157,20 @@ const CmMenuStructure: CmMenuGroup[] = [
       { id: 'contract-templates', label: '契約書テンプレート', path: '/cm-portal/master/contract-templates' },
     ],
   },
+  // ★ 追加: 監査グループ（dev-toolsから分離）
+  {
+    id: 'audit',
+    label: '監査',
+    icon: Shield,
+    roles: ['admin'],
+    items: [
+      { id: 'audit-dashboard', label: '監査ダッシュボード', path: '/cm-portal/audit' },
+      { id: 'audit-operations', label: '操作ログ', path: '/cm-portal/audit/operations' },
+      { id: 'audit-flow', label: '経路フロー', path: '/cm-portal/audit/flow' },
+      { id: 'audit-logs', label: 'システムログ', path: '/cm-portal/audit/logs' },
+    ],
+  },
+  // ★ 変更: dev-tools から audit-logs, system-logs を削除
   {
     id: 'dev-tools',
     label: '開発者ツール',
@@ -160,8 +179,6 @@ const CmMenuStructure: CmMenuGroup[] = [
     items: [
       { id: 'service-credentials', label: 'サービス認証情報', path: '/cm-portal/service-credentials' },
       { id: 'alert-batch', label: 'アラートバッチ', path: '/cm-portal/admin/alert-batch' },
-      { id: 'audit-logs', label: '監査ログ', path: '/cm-portal/audit' },
-      { id: 'system-logs', label: 'システムログ', path: '/cm-portal/audit/logs' },
       { id: 'digisigner-webhook-logs', label: 'DigiSigner Webhook', path: '/cm-portal/digisigner-webhook-logs' },
     ],
   },
@@ -184,7 +201,6 @@ type CmSidebarProps = {
 
 export function CmSidebar({ isOpen, onToggle }: CmSidebarProps) {
   const pathname = usePathname();
-  // ★ 変更: 'fax' → 'input'
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'clients', 'input']);
   
   const isManagerOrAdmin = useCmHasRole(['admin', 'manager']);
