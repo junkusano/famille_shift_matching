@@ -70,6 +70,7 @@ type StaffRow = {
     last_name_kanji: string | null;
     first_name_kanji: string | null;
     orgunitname: string | null;
+    roster_sort: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -107,12 +108,11 @@ export async function GET(req: NextRequest) {
         // 2) 名前を取得（姓+名）
         const { data: staffData, error: staffErr } = await supabaseAdmin
             .from("user_entry_united_view_single")
-            .select("user_id,last_name_kanji,first_name_kanji,orgunitname")
+            .select("user_id,last_name_kanji,first_name_kanji,orgunitname,roster_sort")
             .in("user_id", staffIds)
-            .order("orgunitname", { ascending: true })
-            .order("last_name_kanji", { ascending: true })
-            .order("first_name_kanji", { ascending: true });
-
+            .order("roster_sort", { ascending: true })      // ★これが本命（最優先）
+            .order("user_id", { ascending: true })          // ★同順位の安定化
+            .returns<StaffRow[]>();
         if (staffErr) throw staffErr;
 
         // 3) attendance を取得（その月の既存値）
