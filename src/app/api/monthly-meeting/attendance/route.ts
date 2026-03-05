@@ -224,11 +224,22 @@ export async function PATCH(req: NextRequest) {
         if (hasAttend) {
             if (role !== "FULL") throw new Error("forbidden: FULL only can update attendance fields");
 
-            if ("attended_regular" in body)
-                patch.attended_regular = Boolean(body.attended_regular);
-            if ("attended_extra" in body)
-                patch.attended_extra = Boolean(body.attended_extra);
-            if ("minutes_url" in body) patch.minutes_url = body.minutes_url == null ? null : String(body.minutes_url);
+            if (typeof body.attended_regular === "boolean") {
+                patch.attended_regular = body.attended_regular; // ★true/falseをそのまま保存
+            }
+            if (typeof body.attended_extra === "boolean") {
+                patch.attended_extra = body.attended_extra;     // ★true/falseをそのまま保存
+            }
+            if (typeof body.checked_regular === "boolean") {
+                patch.checked_regular = body.checked_regular;   // ★true/falseをそのまま保存
+            }
+            if (typeof body.checked_extra === "boolean") {
+                patch.checked_extra = body.checked_extra;       // ★true/falseをそのまま保存
+            }
+
+            if ("minutes_url" in body) {
+                patch.minutes_url = body.minutes_url == null ? null : String(body.minutes_url);
+            }
         }
 
         // 確認：MANAGERのみ

@@ -231,11 +231,11 @@ export default function MonthlyMeetingCheckPage() {
             const next: Record<string, EditRow> = {};
             for (const r of newRows) {
                 next[r.user_id] = {
-                    attended_regular: r.attended_regular,
-                    attended_extra: r.attended_extra,
+                    attended_regular: r.attended_regular ?? false,
+                    attended_extra: r.attended_extra ?? false,
 
-                    checked_regular: r.checked_regular, // ★追加
-                    checked_extra: r.checked_extra,     // ★追加
+                    checked_regular: r.checked_regular ?? false,
+                    checked_extra: r.checked_extra ?? false,
 
                     minutes_url: r.minutes_url ?? "",
                     staff_comment: r.staff_comment ?? "",
