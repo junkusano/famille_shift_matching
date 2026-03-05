@@ -7,6 +7,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { createLogger } from "@/lib/common/logger";
 import { normalizeFaxNumber } from "@/lib/cm/faxNumberUtils";
+import { cmSanitizeForOrFilter } from "@/lib/cm/supabase/sanitizeFilterValue";
 import { cmFindKaipokeOfficesByFaxBatch } from "@/lib/cm/local-fax-phonebook/cmKaipokeMatchByFax";
 import type {
   CmLocalFaxPhonebookPagination,
@@ -73,15 +74,21 @@ export async function getLocalFaxPhonebook(
     }
 
     if (name) {
-      query = query.or(`name.ilike.%${name}%,name_kana.ilike.%${name}%`);
+      const sanitizedName = cmSanitizeForOrFilter(name);
+      if (sanitizedName) {
+        query = query.or(`name.ilike.%${sanitizedName}%,name_kana.ilike.%${sanitizedName}%`);
+      }
     }
 
     if (faxNumber) {
       const normalized = normalizeFaxNumber(faxNumber);
       if (normalized) {
-        query = query.or(`fax_number.ilike.%${faxNumber}%,fax_number_normalized.ilike.%${normalized}%`);
+        // normalizeFaxNumber() で数字のみに正規化済みのため、
+        // PostgREST 特殊文字・LIKE ワイルドカードを含まず追加のサニタイズは不要
+        query = query.or(`fax_number_normalized.ilike.%${normalized}%`);
       } else {
-        query = query.ilike("fax_number", `%${faxNumber}%`);
+        // 数字を含まない入力の場合はフィルターを適用しない
+        // （サニタイズなしでユーザー入力を埋め込まない）
       }
     }
 
