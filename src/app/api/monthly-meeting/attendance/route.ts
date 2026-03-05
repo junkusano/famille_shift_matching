@@ -189,8 +189,9 @@ export async function GET(req: NextRequest) {
                 };
             })
             .filter((v): v is NonNullable<typeof v> => v !== null);
+        const { role } = await readMyRole(req); // すでに readMyRole はある想定
 
-        return json({ ok: true, ym, rows });
+        return json({ ok: true, ym, rows, role }); // ★role を返す
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return json({ ok: false, error: msg }, 500);

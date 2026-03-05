@@ -131,6 +131,11 @@ export default function MonthlyMeetingCheckPage() {
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
+    const [myRole, setMyRole] = useState<string>(""); // ★追加
+
+    // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
+    const canManagerEdit =
+        myRole === "MANAGER" || myRole === "ADMIN" || myRole === "FULL";
 
     // ★追加：編集状態（user_id -> 入力中の値）
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
@@ -162,7 +167,10 @@ export default function MonthlyMeetingCheckPage() {
             if (!isRecord(j) || readBoolean(j.ok) !== true) {
                 throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
             }
-            const raw = Array.isArray(j.rows) ? j.rows : [];
+            const roleFromApi = isRecord(j) && typeof j["role"] === "string" ? j["role"] : "";
+            setMyRole(roleFromApi);
+
+            const raw = Array.isArray(j["rows"]) ? j["rows"] : [];
 
             function isRowCandidate(v: unknown): v is Record<string, unknown> {
                 return isRecord(v);
@@ -366,17 +374,17 @@ export default function MonthlyMeetingCheckPage() {
             <div className="rounded border p-3">
                 <div className="text-sm mb-2">従業員一覧</div>
 
-                <div className="overflow-auto">
+                <div className="overflow-auto max-h-[70vh]">
                     <table className="min-w-[900px] w-full border-collapse">
                         <thead>
-                            <tr className="bg-gray-50">
-                                <th className="border p-2 text-left">従業員</th>
-                                <th className="border p-2">月例</th>
-                                <th className="border p-2">確認（月例）</th> {/* ★追加 */}
-                                <th className="border p-2">追加</th>
-                                <th className="border p-2">確認（追加）</th> {/* ★追加 */}
-                                <th className="border p-2 text-left">議事録URL</th>
-                                <th className="border p-2 text-left">コメント</th>
+                            <tr className="bg-gray-50 sticky top-0 z-10">
+                                <th className="border p-2 text-left bg-gray-50">従業員</th>
+                                <th className="border p-2 bg-gray-50">月例</th>
+                                <th className="border p-2 bg-gray-50">確認（月例）</th>
+                                <th className="border p-2 bg-gray-50">追加</th>
+                                <th className="border p-2 bg-gray-50">確認（追加）</th>
+                                <th className="border p-2 text-left bg-gray-50">議事録URL</th>
+                                <th className="border p-2 text-left bg-gray-50">コメント</th>
                             </tr>
                         </thead>
 
@@ -418,10 +426,11 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.checked_regular)}
+                                                disabled={!canManagerEdit}
                                                 onChange={async (ev) => {
-                                                    const v = ev.target.checked; // true/false
+                                                    const v = ev.target.checked;
                                                     try {
-                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                        await patchOne(r.user_id, { checked_regular: v });
                                                     } catch (err: unknown) {
                                                         setMsg(toErrorMessage(err));
                                                     }
@@ -434,10 +443,11 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.attended_extra)}
+                                                disabled={!canManagerEdit}
                                                 onChange={async (ev) => {
-                                                    const v = ev.target.checked; // true/false
+                                                    const v = ev.target.checked;
                                                     try {
-                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                        await patchOne(r.user_id, { attended_extra: v });
                                                     } catch (err: unknown) {
                                                         setMsg(toErrorMessage(err));
                                                     }
@@ -450,10 +460,11 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.checked_extra)}
+                                                disabled={!canManagerEdit}
                                                 onChange={async (ev) => {
-                                                    const v = ev.target.checked; // true/false
+                                                    const v = ev.target.checked;
                                                     try {
-                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                        await patchOne(r.user_id, { checked_extra: v });
                                                     } catch (err: unknown) {
                                                         setMsg(toErrorMessage(err));
                                                     }
