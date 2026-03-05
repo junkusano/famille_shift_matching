@@ -11,6 +11,8 @@ type Row = {
     required: boolean;
     attended_regular: boolean | null;
     attended_extra: boolean | null;
+    checked_regular: boolean; // ★追加：確認（月例）
+    checked_extra: boolean;   // ★追加：確認（追加）
     minutes_url: string | null;
     staff_comment: string | null;
     manager_checked: boolean | null;
@@ -20,6 +22,10 @@ type Row = {
 type EditRow = {
     attended_regular: boolean;
     attended_extra: boolean;
+
+    checked_regular: boolean; // ★追加
+    checked_extra: boolean;   // ★追加
+
     minutes_url: string;
     staff_comment: string;
 };
@@ -130,7 +136,6 @@ export default function MonthlyMeetingCheckPage() {
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
 
     // ★追加：行ごとの保存中フラグ
-    const [saving, setSaving] = useState<Record<string, boolean>>({});
     const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
     // ★追加：過去12ヶ月＋今月の選択肢を作る
     const monthOptions = useMemo(() => {
@@ -192,6 +197,12 @@ export default function MonthlyMeetingCheckPage() {
                                 ? r["attended_extra"]
                                 : null,
 
+                    checked_regular:
+                        typeof r["checked_regular"] === "boolean" ? r["checked_regular"] : false,
+
+                    checked_extra:
+                        typeof r["checked_extra"] === "boolean" ? r["checked_extra"] : false,
+
                     minutes_url:
                         r["minutes_url"] === null
                             ? null
@@ -220,8 +231,12 @@ export default function MonthlyMeetingCheckPage() {
             const next: Record<string, EditRow> = {};
             for (const r of newRows) {
                 next[r.user_id] = {
-                    attended_regular: r.attended_regular ?? false,
-                    attended_extra: r.attended_extra ?? false,
+                    attended_regular: r.attended_regular,
+                    attended_extra: r.attended_extra,
+
+                    checked_regular: r.checked_regular, // ★追加
+                    checked_extra: r.checked_extra,     // ★追加
+
                     minutes_url: r.minutes_url ?? "",
                     staff_comment: r.staff_comment ?? "",
                 };
@@ -235,38 +250,44 @@ export default function MonthlyMeetingCheckPage() {
         }
     }
 
-    // ★追加：1行保存（チェック/URL/コメント）
-    async function saveRow(user_id: string) {
-        const v = edit[user_id];
-        if (!v) return;
-
-        setSaving((p) => ({ ...p, [user_id]: true }));
+    async function saveAll() {
         setMsg("");
+        setLoading(true);
 
         try {
-            const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
-                method: "PATCH", // or "POST"（あなたのAPIに合わせて）
-                body: JSON.stringify({
-                    target_month: `${ym}-01`,
-                    user_id,
-                    attended_regular: v.attended_regular,
-                    attended_extra: v.attended_extra,
-                    minutes_url: v.minutes_url,
-                    staff_comment: v.staff_comment,
-                }),
-            });
+            for (const r of rows) {
+                const v = edit[r.user_id];
+                if (!v) continue;
 
-            const j: unknown = await res.json();
-            if (!isRecord(j) || readBoolean(j.ok) !== true) {
-                throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+                const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        target_month: `${ym}-01`,
+                        user_id: r.user_id,
+
+                        attended_regular: v.attended_regular,
+                        attended_extra: v.attended_extra,
+
+                        checked_regular: v.checked_regular,
+                        checked_extra: v.checked_extra,
+
+                        minutes_url: v.minutes_url,
+                        staff_comment: v.staff_comment,
+                    }),
+                });
+
+                const j: unknown = await res.json();
+                if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                    throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+                }
             }
 
             setMsg("保存しました");
-            await load(); // 最新反映
+            await load();
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
         } finally {
-            setSaving((p) => ({ ...p, [user_id]: false }));
+            setLoading(false);
         }
     }
 
@@ -295,6 +316,10 @@ export default function MonthlyMeetingCheckPage() {
                     <button className="border rounded px-3 py-1" onClick={load} disabled={loading}>
                         再読込
                     </button>
+
+                    <button className="border rounded px-3 py-1" onClick={saveAll} disabled={loading}>
+                        保存
+                    </button>
                 </div>
 
                 <div className="text-xs text-gray-600">
@@ -314,10 +339,11 @@ export default function MonthlyMeetingCheckPage() {
                             <tr className="bg-gray-50">
                                 <th className="border p-2 text-left">従業員</th>
                                 <th className="border p-2">月例</th>
+                                <th className="border p-2">確認（月例）</th> {/* ★追加 */}
                                 <th className="border p-2">追加</th>
+                                <th className="border p-2">確認（追加）</th> {/* ★追加 */}
                                 <th className="border p-2 text-left">議事録URL</th>
                                 <th className="border p-2 text-left">コメント</th>
-                                <th className="border p-2">保存</th>
                             </tr>
                         </thead>
 
@@ -326,6 +352,8 @@ export default function MonthlyMeetingCheckPage() {
                                 const e = edit[r.user_id] ?? {
                                     attended_regular: false,
                                     attended_extra: false,
+                                    checked_regular: false,
+                                    checked_extra: false,
                                     minutes_url: "",
                                     staff_comment: "",
                                 };
@@ -340,7 +368,7 @@ export default function MonthlyMeetingCheckPage() {
                                         <td className="border p-2 text-center">
                                             <input
                                                 type="checkbox"
-                                                checked={e.attended_regular}
+                                                checked={Boolean(e.attended_regular)}
                                                 onChange={(ev) =>
                                                     setEdit((p) => ({
                                                         ...p,
@@ -350,15 +378,43 @@ export default function MonthlyMeetingCheckPage() {
                                             />
                                         </td>
 
+                                        {/* 確認（月例） */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(e.checked_regular)}
+                                                onChange={(ev) =>
+                                                    setEdit((p) => ({
+                                                        ...p,
+                                                        [r.user_id]: { ...e, checked_regular: ev.target.checked },
+                                                    }))
+                                                }
+                                            />
+                                        </td>
+
                                         {/* 追加 */}
                                         <td className="border p-2 text-center">
                                             <input
                                                 type="checkbox"
-                                                checked={e.attended_extra}
+                                                checked={Boolean(e.attended_extra)}
                                                 onChange={(ev) =>
                                                     setEdit((p) => ({
                                                         ...p,
                                                         [r.user_id]: { ...e, attended_extra: ev.target.checked },
+                                                    }))
+                                                }
+                                            />
+                                        </td>
+
+                                        {/* 確認（追加） */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(e.checked_extra)}
+                                                onChange={(ev) =>
+                                                    setEdit((p) => ({
+                                                        ...p,
+                                                        [r.user_id]: { ...e, checked_extra: ev.target.checked },
                                                     }))
                                                 }
                                             />
@@ -405,24 +461,13 @@ export default function MonthlyMeetingCheckPage() {
                                                 placeholder="コメント"
                                             />
                                         </td>
-
-                                        {/* 保存（※「確認」列を「保存」に変えるのがおすすめ） */}
-                                        <td className="border p-2 text-center">
-                                            <button
-                                                className="border rounded px-3 py-1"
-                                                onClick={() => saveRow(r.user_id)}
-                                                disabled={loading || saving[r.user_id] === true}
-                                            >
-                                                保存
-                                            </button>
-                                        </td>
                                     </tr>
                                 );
                             })}
 
                             {visibleRows.length === 0 && (
                                 <tr>
-                                    <td className="border p-3 text-sm text-gray-600" colSpan={6}>
+                                    <td className="border p-3 text-sm text-gray-600" colSpan={7}>
                                         従業員データが0件です（在籍者の取得条件をご確認ください）
                                     </td>
                                 </tr>

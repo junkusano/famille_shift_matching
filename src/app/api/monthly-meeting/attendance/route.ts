@@ -58,8 +58,14 @@ type AttendanceRow = {
     target_month: string;
     user_id: string;
     required: boolean;
+
     attended_regular: boolean | null;
     attended_extra: boolean | null;
+
+    // ★追加：確認（月例/追加）
+    checked_regular: boolean | null;
+    checked_extra: boolean | null;
+
     minutes_url: string | null;
     staff_comment: string | null;
     manager_checked: boolean | null;
@@ -118,7 +124,7 @@ export async function GET(req: NextRequest) {
         // 3) attendance を取得（その月の既存値）
         const { data: att, error: attErr } = await supabaseAdmin
             .from("monthly_meeting_attendance")
-            .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,manager_checked")
+            .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,checked_regular,checked_extra")
             .eq("target_month", monthStartStr)
             .in("user_id", staffIds)
             .returns<AttendanceRow[]>();
@@ -145,7 +151,7 @@ export async function GET(req: NextRequest) {
             // 作成後に取り直し
             const { data: att2, error: att2Err } = await supabaseAdmin
                 .from("monthly_meeting_attendance")
-                .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,manager_checked")
+                .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,checked_regular,checked_extra")
                 .eq("target_month", monthStartStr)
                 .in("user_id", staffIds)
                 .returns<AttendanceRow[]>();
@@ -171,8 +177,12 @@ export async function GET(req: NextRequest) {
                     orgunitname: s.orgunitname ?? null,
 
                     required: r?.required ?? true,
-                    attended_regular: r?.attended_regular ?? null,
-                    attended_extra: r?.attended_extra ?? null,
+                    attended_regular: r?.attended_regular ?? false,
+                    attended_extra: r?.attended_extra ?? false,
+
+                    checked_regular: r?.checked_regular ?? false, // ★追加
+                    checked_extra: r?.checked_extra ?? false,     // ★追加
+
                     minutes_url: r?.minutes_url ?? null,
                     staff_comment: r?.staff_comment ?? null,
                     manager_checked: r?.manager_checked ?? null,
@@ -214,8 +224,10 @@ export async function PATCH(req: NextRequest) {
         if (hasAttend) {
             if (role !== "FULL") throw new Error("forbidden: FULL only can update attendance fields");
 
-            if ("attended_regular" in body) patch.attended_regular = body.attended_regular == null ? null : Boolean(body.attended_regular);
-            if ("attended_extra" in body) patch.attended_extra = body.attended_extra == null ? null : Boolean(body.attended_extra);
+            if ("attended_regular" in body)
+                patch.attended_regular = Boolean(body.attended_regular);
+            if ("attended_extra" in body)
+                patch.attended_extra = Boolean(body.attended_extra);
             if ("minutes_url" in body) patch.minutes_url = body.minutes_url == null ? null : String(body.minutes_url);
         }
 
