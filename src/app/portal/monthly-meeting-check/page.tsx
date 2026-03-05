@@ -6,14 +6,14 @@ import { supabase } from "@/lib/supabaseClient"; // ★追加（shiftページ�
 type Row = {
     target_month: string; // YYYY-MM-01
     user_id: string;
+    full_name_kanji: string; // ★必須（姓+名 or user_id）
+    orgunitname: string | null; // ★追加（APIが返すなら表示できる）
     required: boolean;
     attended_regular: boolean | null;
     attended_extra: boolean | null;
     minutes_url: string | null;
     staff_comment: string | null;
     manager_checked: boolean | null;
-    user_name?: string | null;
-    full_name_kanji?: string | null;
 };
 
 // ★追加：編集用（画面で入力中の値）
@@ -157,9 +157,62 @@ export default function MonthlyMeetingCheckPage() {
             if (!isRecord(j) || readBoolean(j.ok) !== true) {
                 throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
             }
+            const raw = Array.isArray(j.rows) ? j.rows : [];
 
-            const newRows = (Array.isArray(j.rows) ? (j.rows as Row[]) : [])
-                .filter((r) => r && typeof r.user_id === "string" && typeof r.target_month === "string");
+            function isRowCandidate(v: unknown): v is Record<string, unknown> {
+                return isRecord(v);
+            }
+
+            const newRows: Row[] = raw
+                .filter(isRowCandidate)
+                .filter((r) =>
+                    typeof r["user_id"] === "string" &&
+                    typeof r["target_month"] === "string" &&
+                    typeof r["full_name_kanji"] === "string"
+                )
+                .map((r) => ({
+                    target_month: r["target_month"] as string,
+                    user_id: r["user_id"] as string,
+                    full_name_kanji: r["full_name_kanji"] as string,
+                    orgunitname: typeof r["orgunitname"] === "string" ? r["orgunitname"] : null,
+
+                    required: typeof r["required"] === "boolean" ? r["required"] : true,
+
+                    attended_regular:
+                        r["attended_regular"] === null
+                            ? null
+                            : typeof r["attended_regular"] === "boolean"
+                                ? r["attended_regular"]
+                                : null,
+
+                    attended_extra:
+                        r["attended_extra"] === null
+                            ? null
+                            : typeof r["attended_extra"] === "boolean"
+                                ? r["attended_extra"]
+                                : null,
+
+                    minutes_url:
+                        r["minutes_url"] === null
+                            ? null
+                            : typeof r["minutes_url"] === "string"
+                                ? r["minutes_url"]
+                                : null,
+
+                    staff_comment:
+                        r["staff_comment"] === null
+                            ? null
+                            : typeof r["staff_comment"] === "string"
+                                ? r["staff_comment"]
+                                : null,
+
+                    manager_checked:
+                        r["manager_checked"] === null
+                            ? null
+                            : typeof r["manager_checked"] === "boolean"
+                                ? r["manager_checked"]
+                                : null,
+                }));
 
             setRows(newRows);
 
@@ -280,7 +333,7 @@ export default function MonthlyMeetingCheckPage() {
                                 return (
                                     <tr key={`${r.target_month}-${r.user_id}`}>
                                         <td className="border p-2">
-                                            {r.full_name_kanji ?? r.user_name ?? r.user_id}
+                                            {r.full_name_kanji}
                                         </td>
 
                                         {/* 月例 */}
