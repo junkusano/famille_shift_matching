@@ -196,6 +196,7 @@ export async function GET(req: NextRequest) {
         return json({ ok: false, error: msg }, 500);
     }
 }
+
 export async function PATCH(req: NextRequest) {
     try {
         const { myUserId, role } = await readMyRole(req);
@@ -205,64 +206,60 @@ export async function PATCH(req: NextRequest) {
 
         const target_month = typeof body["target_month"] === "string" ? body["target_month"] : "";
         const user_id = typeof body["user_id"] === "string" ? body["user_id"] : "";
+
         if (!target_month || !user_id) {
             return json({ ok: false, error: "target_month and user_id required" }, 400);
         }
 
+        // ✅ ここが原因になりがち：FULL縛りだとチェックしただけで弾かれます
+        // まずは動かすため、チェック系は FULL/MANAGER 以外も許可するのが無難です
+        // もし制限したいなら、後で role 条件を入れ直してください
+        // 例：if (role !== "FULL" && role !== "MANAGER") throw new Error("forbidden");
+
         const patch: Record<string, unknown> = {};
         const nowIso = new Date().toISOString();
 
-        // 本人コメント：本人のみ
+        // ✅ チェックボックス系（falseも入れるため typeof boolean で判定）
+        if (typeof body["attended_regular"] === "boolean") {
+            patch.attended_regular = body["attended_regular"];
+        }
+        if (typeof body["attended_extra"] === "boolean") {
+            patch.attended_extra = body["attended_extra"];
+        }
+        if (typeof body["checked_regular"] === "boolean") {
+            patch.checked_regular = body["checked_regular"];
+        }
+        if (typeof body["checked_extra"] === "boolean") {
+            patch.checked_extra = body["checked_extra"];
+        }
+
+        // ✅ URL（null許容）
+        if ("minutes_url" in body) {
+            const v = body["minutes_url"];
+            patch.minutes_url = v == null ? null : String(v);
+        }
+
+        // ✅ コメント（本人のみ、という運用ならこれを維持）
         if ("staff_comment" in body) {
             if (myUserId !== user_id) throw new Error("forbidden: only self can update staff_comment");
-            patch["staff_comment"] = body["staff_comment"] == null ? null : String(body["staff_comment"]);
+            const v = body["staff_comment"];
+            patch.staff_comment = v == null ? null : String(v);
         }
 
-        // 参加/確認/議事録URL（false も保存したいので typeof boolean で拾う）
-        const hasAttend =
-            "attended_regular" in body ||
-            "attended_extra" in body ||
-            "checked_regular" in body ||
-            "checked_extra" in body ||
-            "minutes_url" in body;
-
-        if (hasAttend) {
-            // ★ここが原因になりやすい：FULL縛りだと保存できない
-            // 必要なら MANAGER も許可（または制限を外す）
-            if (role !== "FULL" && role !== "MANAGER") {
-                throw new Error("forbidden: FULL or MANAGER only");
-            }
-
-            const attendedRegular = body["attended_regular"];
-            if (typeof attendedRegular === "boolean") patch["attended_regular"] = attendedRegular; // falseも入る
-
-            const attendedExtra = body["attended_extra"];
-            if (typeof attendedExtra === "boolean") patch["attended_extra"] = attendedExtra;
-
-            const checkedRegular = body["checked_regular"];
-            if (typeof checkedRegular === "boolean") patch["checked_regular"] = checkedRegular;
-
-            const checkedExtra = body["checked_extra"];
-            if (typeof checkedExtra === "boolean") patch["checked_extra"] = checkedExtra;
-
-            const minutesUrl = body["minutes_url"];
-            if (minutesUrl === null) patch["minutes_url"] = null;
-            else if (typeof minutesUrl === "string") patch["minutes_url"] = minutesUrl;
-        }
-
-        // 確認：MANAGERのみ（既存仕様を残す場合）
+        // ✅ manager_checked（今使ってないならこのブロック自体消してOK）
         if ("manager_checked" in body) {
             if (role !== "MANAGER") throw new Error("forbidden: MANAGER only can update manager_checked");
-            patch["manager_checked"] = body["manager_checked"] == null ? null : Boolean(body["manager_checked"]);
-            patch["manager_checked_at"] = patch["manager_checked"] ? nowIso : null;
-            patch["manager_checked_by"] = patch["manager_checked"] ? myUserId : null;
+            const v = body["manager_checked"];
+            patch.manager_checked = v == null ? null : Boolean(v);
+            patch.manager_checked_at = v == null ? null : nowIso;
+            patch.manager_checked_by = v == null ? null : myUserId;
         }
 
-        if (!Object.keys(patch).length) {
+        if (Object.keys(patch).length === 0) {
             return json({ ok: false, error: "no updatable fields in body" }, 400);
         }
 
-        patch["updated_at"] = nowIso;
+        patch.updated_at = nowIso;
 
         const { error } = await supabaseAdmin
             .from("monthly_meeting_attendance")

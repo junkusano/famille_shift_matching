@@ -250,6 +250,46 @@ export default function MonthlyMeetingCheckPage() {
         }
     }
 
+    async function patchOne(user_id: string, patch: Partial<EditRow>) {
+        setMsg("");
+
+        // 画面の状態を先に更新（体感が良い）
+        setEdit((p) => {
+            const cur = p[user_id];
+            if (!cur) return p;
+            return { ...p, [user_id]: { ...cur, ...patch } };
+        });
+
+        const cur = edit[user_id];
+        const merged: EditRow = {
+            attended_regular: cur?.attended_regular ?? false,
+            attended_extra: cur?.attended_extra ?? false,
+            checked_regular: cur?.checked_regular ?? false,
+            checked_extra: cur?.checked_extra ?? false,
+            minutes_url: cur?.minutes_url ?? "",
+            staff_comment: cur?.staff_comment ?? "",
+            ...patch,
+        };
+
+        const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+            method: "PATCH",
+            body: JSON.stringify({
+                target_month: `${ym}-01`,
+                user_id,
+                // ✅ 必要な項目だけ送ればOK（ここは patch の中身に合わせる）
+                ...("attended_regular" in patch ? { attended_regular: merged.attended_regular } : {}),
+                ...("attended_extra" in patch ? { attended_extra: merged.attended_extra } : {}),
+                ...("checked_regular" in patch ? { checked_regular: merged.checked_regular } : {}),
+                ...("checked_extra" in patch ? { checked_extra: merged.checked_extra } : {}),
+            }),
+        });
+
+        const j: unknown = await res.json();
+        if (!isRecord(j) || readBoolean(j.ok) !== true) {
+            throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+        }
+    }
+
     async function saveAll() {
         setMsg("");
         setLoading(true);
@@ -264,13 +304,6 @@ export default function MonthlyMeetingCheckPage() {
                     body: JSON.stringify({
                         target_month: `${ym}-01`,
                         user_id: r.user_id,
-
-                        attended_regular: v.attended_regular,
-                        attended_extra: v.attended_extra,
-
-                        checked_regular: v.checked_regular,
-                        checked_extra: v.checked_extra,
-
                         minutes_url: v.minutes_url,
                         staff_comment: v.staff_comment,
                     }),
@@ -369,12 +402,14 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.attended_regular)}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, attended_regular: ev.target.checked },
-                                                    }))
-                                                }
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked; // true/false
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
@@ -383,12 +418,14 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.checked_regular)}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, checked_regular: ev.target.checked },
-                                                    }))
-                                                }
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked; // true/false
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
@@ -397,12 +434,14 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.attended_extra)}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, attended_extra: ev.target.checked },
-                                                    }))
-                                                }
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked; // true/false
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
@@ -411,12 +450,14 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.checked_extra)}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, checked_extra: ev.target.checked },
-                                                    }))
-                                                }
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked; // true/false
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
