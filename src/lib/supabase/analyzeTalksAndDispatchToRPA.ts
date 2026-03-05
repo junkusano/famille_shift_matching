@@ -76,6 +76,54 @@ const DAYPART = {
     EVENING: { key: "evening", start: "16:00", end: "22:00", kw: ["夕", "夕方", "夜", "宵"] },
 } as const;
 
+function isUnknownLike(v: unknown): boolean {
+    if (v === null || v === undefined) return true;
+    if (typeof v !== "string") return false;
+    const s = v.trim();
+    return s === "" || s === "不明" || s.toLowerCase() === "unknown" || s === "null";
+}
+
+function normalizeMaybeString(v: unknown): string {
+    if (isUnknownLike(v)) return "";
+    return String(v).trim();
+}
+
+function parseSingleTimeToHHMM(s: string): string | null {
+    const t = s.trim();
+    // 14時 / 14:00 / 14：00
+    const m1 = t.match(/^(\d{1,2})\s*時$/);
+    if (m1) {
+        const hh = String(Number(m1[1])).padStart(2, "0");
+        return `${hh}:00`;
+    }
+    const m2 = t.replace("：", ":").match(/^(\d{1,2}):(\d{2})$/);
+    if (m2) {
+        const hh = String(Number(m2[1])).padStart(2, "0");
+        return `${hh}:${m2[2]}`;
+    }
+    return null;
+}
+
+function minutesBetween(startHHMM: string, endHHMM: string): number | null {
+    const a = startHHMM.match(/^(\d{2}):(\d{2})$/);
+    const b = endHHMM.match(/^(\d{2}):(\d{2})$/);
+    if (!a || !b) return null;
+    const am = Number(a[1]) * 60 + Number(a[2]);
+    const bm = Number(b[1]) * 60 + Number(b[2]);
+    return bm - am;
+}
+
+function addMinutes(hhmm: string, add: number): string | null {
+    const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    let mins = Number(m[1]) * 60 + Number(m[2]) + add;
+    if (mins < 0) mins = 0;
+    if (mins > 23 * 60 + 59) mins = 23 * 60 + 59;
+    const hh = String(Math.floor(mins / 60)).padStart(2, "0");
+    const mm = String(mins % 60).padStart(2, "0");
+    return `${hh}:${mm}`;
+}
+
 function hhmm(t: string | null | undefined): string | null {
     if (!t) return null;
     // "08:30:00" -> "08:30"
@@ -187,14 +235,36 @@ async function enrichInsertRequest(
 
     for (const item of src) {
         const date = (item.shift_date ?? "").trim();
-        let time = (item.shift_time ?? "").trim(); // "朝" 等もありうる
-        let userId = (item.user_id ?? req.requested_by_user_id ?? "").trim();
-        let svc = (item.service_code ?? "").trim();
+        let time = normalizeMaybeString(item.shift_time);
+        let userId = normalizeMaybeString(item.user_id) || normalizeMaybeString(req.requested_by_user_id);
+        let svc = normalizeMaybeString(item.service_code);
 
         if (!date) {
             // 日付が無いのは補完しづらいので素通し（のちの厳密化でエラーにさせる）
             out.push({ shift_date: date, shift_time: time, user_id: userId || undefined, service_code: svc || undefined });
             continue;
+        }
+
+        // --- 単発時刻（例: "14時" / "14:00"）を「開始時刻」として扱う ---
+        // 終了が無いので、基本は「直近シフトの所要時間」をコピーしてレンジ化。
+        // それも無理ならデフォルト 120分にする（シフト漏れ最小化）。
+        if (!isConcreteRange(time)) {
+            const single = parseSingleTimeToHHMM(time);
+            if (single) {
+                // 直近シフトから所要時間推定
+                const prev = await getLastShiftBefore(req.group_account, date);
+                const prevSt = hhmm(prev?.shift_start_time ?? null);
+                const prevEt = hhmm(prev?.shift_end_time ?? null);
+                let dur = 120; // fallback: 2時間
+                if (prevSt && prevEt) {
+                    const d = minutesBetween(prevSt, prevEt);
+                    if (d && d > 0 && d <= 12 * 60) dur = d;
+                }
+                const end = addMinutes(single, dur);
+                if (end) time = `${single}-${end}`;
+                if (!svc) svc = prev?.service_code ?? "";
+                if (!userId) userId = firstStaffOf(prev) ?? "";
+            }
         }
 
         // --- ② 朝/夕などの曖昧指定 → 周辺（前後5件）から該当時間帯の代表をコピー ---
