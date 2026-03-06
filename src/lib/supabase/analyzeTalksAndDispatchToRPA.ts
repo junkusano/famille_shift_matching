@@ -76,6 +76,62 @@ const DAYPART = {
     EVENING: { key: "evening", start: "16:00", end: "22:00", kw: ["夕", "夕方", "夜", "宵"] },
 } as const;
 
+const DELETE_TIME_AMBIGUOUS = "__AMBIGUOUS__";
+const DELETE_TIME_NOT_FOUND = "__NOT_FOUND__";
+
+function isDeleteTimeResolved(t: string): boolean {
+    // "08:00-09:00" or "08:00"
+    return /^\d{1,2}:\d{2}(\s*[-~]\s*\d{1,2}:\d{2})?$/.test((t ?? "").trim());
+}
+
+function isUnknownLike(v: unknown): boolean {
+    if (v === null || v === undefined) return true;
+    if (typeof v !== "string") return false;
+    const s = v.trim();
+    return s === "" || s === "不明" || s.toLowerCase() === "unknown" || s === "null";
+}
+
+function normalizeMaybeString(v: unknown): string {
+    if (isUnknownLike(v)) return "";
+    return String(v).trim();
+}
+
+function parseSingleTimeToHHMM(s: string): string | null {
+    const t = s.trim();
+    // 14時 / 14:00 / 14：00
+    const m1 = t.match(/^(\d{1,2})\s*時$/);
+    if (m1) {
+        const hh = String(Number(m1[1])).padStart(2, "0");
+        return `${hh}:00`;
+    }
+    const m2 = t.replace("：", ":").match(/^(\d{1,2}):(\d{2})$/);
+    if (m2) {
+        const hh = String(Number(m2[1])).padStart(2, "0");
+        return `${hh}:${m2[2]}`;
+    }
+    return null;
+}
+
+function minutesBetween(startHHMM: string, endHHMM: string): number | null {
+    const a = startHHMM.match(/^(\d{2}):(\d{2})$/);
+    const b = endHHMM.match(/^(\d{2}):(\d{2})$/);
+    if (!a || !b) return null;
+    const am = Number(a[1]) * 60 + Number(a[2]);
+    const bm = Number(b[1]) * 60 + Number(b[2]);
+    return bm - am;
+}
+
+function addMinutes(hhmm: string, add: number): string | null {
+    const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    let mins = Number(m[1]) * 60 + Number(m[2]) + add;
+    if (mins < 0) mins = 0;
+    if (mins > 23 * 60 + 59) mins = 23 * 60 + 59;
+    const hh = String(Math.floor(mins / 60)).padStart(2, "0");
+    const mm = String(mins % 60).padStart(2, "0");
+    return `${hh}:${mm}`;
+}
+
 function hhmm(t: string | null | undefined): string | null {
     if (!t) return null;
     // "08:30:00" -> "08:30"
@@ -187,14 +243,36 @@ async function enrichInsertRequest(
 
     for (const item of src) {
         const date = (item.shift_date ?? "").trim();
-        let time = (item.shift_time ?? "").trim(); // "朝" 等もありうる
-        let userId = (item.user_id ?? req.requested_by_user_id ?? "").trim();
-        let svc = (item.service_code ?? "").trim();
+        let time = normalizeMaybeString(item.shift_time);
+        let userId = normalizeMaybeString(item.user_id) || normalizeMaybeString(req.requested_by_user_id);
+        let svc = normalizeMaybeString(item.service_code);
 
         if (!date) {
             // 日付が無いのは補完しづらいので素通し（のちの厳密化でエラーにさせる）
             out.push({ shift_date: date, shift_time: time, user_id: userId || undefined, service_code: svc || undefined });
             continue;
+        }
+
+        // --- 単発時刻（例: "14時" / "14:00"）を「開始時刻」として扱う ---
+        // 終了が無いので、基本は「直近シフトの所要時間」をコピーしてレンジ化。
+        // それも無理ならデフォルト 120分にする（シフト漏れ最小化）。
+        if (!isConcreteRange(time)) {
+            const single = parseSingleTimeToHHMM(time);
+            if (single) {
+                // 直近シフトから所要時間推定
+                const prev = await getLastShiftBefore(req.group_account, date);
+                const prevSt = hhmm(prev?.shift_start_time ?? null);
+                const prevEt = hhmm(prev?.shift_end_time ?? null);
+                let dur = 120; // fallback: 2時間
+                if (prevSt && prevEt) {
+                    const d = minutesBetween(prevSt, prevEt);
+                    if (d && d > 0 && d <= 12 * 60) dur = d;
+                }
+                const end = addMinutes(single, dur);
+                if (end) time = `${single}-${end}`;
+                if (!svc) svc = prev?.service_code ?? "";
+                if (!userId) userId = firstStaffOf(prev) ?? "";
+            }
         }
 
         // --- ② 朝/夕などの曖昧指定 → 周辺（前後5件）から該当時間帯の代表をコピー ---
@@ -423,8 +501,12 @@ async function resolveDeletionTimes(
                     continue;
                 }
             }
-            // 候補0件 or チェーン複数 → 従来どおり
-            out.push({ shift_date: date, shift_time: rawTime || '不明' });
+            // 候補0件 or チェーン複数 → 自動確定できない（削除しない）
+            if (rows.length === 0) {
+                out.push({ shift_date: date, shift_time: DELETE_TIME_NOT_FOUND });
+            } else {
+                out.push({ shift_date: date, shift_time: DELETE_TIME_AMBIGUOUS });
+            }
             continue;
         }
 
@@ -588,51 +670,88 @@ const analyzePendingTalksAndDispatch = async (): Promise<void> => {
 
                 console.log("🚀 シフト削除リクエストを検知。shiftテーブルから直接削除を試行します。");
                 const delReqResolved = await resolveDeletionTimes(request_detail as ShiftDeletionRequest);
-                const delResult = await deleteShifts(delReqResolved);
-                const rawErrs = delResult && typeof delResult === "object" && "errors" in delResult
-                    ? (delResult as { errors?: unknown }).errors
-                    : undefined;
 
-                const errs: string[] = Array.isArray(rawErrs)
-                    ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
-                    : [];
+                // 実行できる削除（時間が確定したもの）だけ抽出
+                const executable = delReqResolved.deletions.filter((d) => isDeleteTimeResolved(d.shift_time));
+                const skipped = delReqResolved.deletions.filter((d) => !isDeleteTimeResolved(d.shift_time));
 
-                const ok =
-                    delResult &&
-                    typeof delResult === "object" &&
-                    "success" in delResult &&
-                    Boolean((delResult as { success?: boolean }).success);
-
-                if (ok) {
-                    const lines: string[] = ["✅ シフト削除を反映しました。"];
-                    for (const d of request_detail.deletions) {
-                        lines.push(
-                            `・利用者: ${request_detail.group_account} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`
-                        );
+                // 1件も確定できないなら削除を実行しない（安全）
+                if (executable.length === 0) {
+                    const lines: string[] = ["⚠️ シフト削除は実行しませんでした（時間が特定できません）。"];
+                    for (const d of skipped) {
+                        const why =
+                            d.shift_time === DELETE_TIME_NOT_FOUND
+                                ? "（その日のシフトが見つかりません）"
+                                : d.shift_time === DELETE_TIME_AMBIGUOUS
+                                    ? "（その日に複数シフトがあり特定できません）"
+                                    : "（時間不明）";
+                        lines.push(`・利用者: ${delReqResolved.group_account} / 日付: ${d.shift_date} ${why}`);
                     }
-                    lines.push("", "※ 反映には時間がかかる場合があります。");
+                    lines.push("", "例）「3/9 13:00 のシフトを削除」または「3/9 午前のシフトを削除」");
                     await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+
+                    // RPAキュー投入もしない（安全）
+                    templateIdForRPA = null;
+                    requestDetailForRPA = null;
                 } else {
-                    const isMissing = errs.some((e) => e.includes("必須情報不足"));
-                    const isNotFound = errs.some((e) => e.includes("見つかりません") || e.toLowerCase().includes("not found"));
+                    // 確定できた分だけ削除実行
+                    const delResult = await deleteShifts({
+                        group_account: delReqResolved.group_account,
+                        deletions: executable,
+                    });
 
-                    let header = "⚠️ シフト削除に失敗しました。";
-                    if (isMissing) header = "⚠️ シフト削除できませんでした（必須情報が不足しています）。";
-                    else if (isNotFound) header = "⚠️ シフト削除警告: 対象シフトが見つかりませんでした。";
+                    const rawErrs =
+                        delResult && typeof delResult === "object" && "errors" in delResult
+                            ? (delResult as { errors?: unknown }).errors
+                            : undefined;
 
-                    const lines: string[] = [header];
-                    for (const d of request_detail.deletions) {
-                        lines.push(
-                            `・利用者: ${request_detail.group_account} / 日付: ${d.shift_date ?? "不明"} / 時間: ${d.shift_time ?? "不明"}`
-                        );
+                    const errs: string[] = Array.isArray(rawErrs)
+                        ? rawErrs.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
+                        : [];
+
+                    const ok =
+                        delResult &&
+                        typeof delResult === "object" &&
+                        "success" in delResult &&
+                        Boolean((delResult as { success?: boolean }).success);
+
+                    if (ok) {
+                        const lines: string[] = ["✅ シフト削除を反映しました。"];
+                        for (const d of executable) {
+                            lines.push(`・利用者: ${delReqResolved.group_account} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
+                        }
+
+                        if (skipped.length > 0) {
+                            lines.push("", "⚠️ 次の分は時間が特定できないため削除していません：");
+                            for (const d of skipped) {
+                                const why =
+                                    d.shift_time === DELETE_TIME_NOT_FOUND
+                                        ? "（その日のシフトが見つかりません）"
+                                        : d.shift_time === DELETE_TIME_AMBIGUOUS
+                                            ? "（その日に複数シフトがあり特定できません）"
+                                            : "（時間不明）";
+                                lines.push(`・日付: ${d.shift_date} ${why}`);
+                            }
+                            lines.push("", "例）「3/9 13:00 のシフトを削除」");
+                        }
+
+                        lines.push("", "※ 反映には時間がかかる場合があります。");
+                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+
+                        // RPAへ入れるなら executable だけにする（安全）
+                        requestDetailForRPA = { group_account: delReqResolved.group_account, deletions: executable };
+                    } else {
+                        const lines: string[] = ["⚠️ シフト削除に失敗しました。"];
+                        for (const d of executable) {
+                            lines.push(`・利用者: ${delReqResolved.group_account} / 日付: ${d.shift_date} / 時間: ${d.shift_time}`);
+                        }
+                        if (errs.length > 0) lines.push("", `詳細: ${errs[0]}`);
+                        await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
+
+                        // 失敗時もRPAキュー投入は避ける（重複削除防止）
+                        templateIdForRPA = null;
+                        requestDetailForRPA = null;
                     }
-                    if (isMissing) {
-                        lines.push("", "例）「10/13 08:00 のシフトを削除」 のように日時を一緒に送ってください。");
-                    } else if (isNotFound) {
-                        lines.push("", "候補：時間の表記ゆれ（08:00 / 8:00 / 8:00-9:00）や別日の同名案件が無いかをご確認ください。");
-                    }
-                    if (errs.length > 0) lines.push("", `詳細: ${errs[0]}`);
-                    await sendLWBotMessage(channel_id, lines.join("\n"), accessToken);
                 }
             }
 

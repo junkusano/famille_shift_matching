@@ -6,20 +6,26 @@ import { supabase } from "@/lib/supabaseClient"; // ★追加（shiftページ�
 type Row = {
     target_month: string; // YYYY-MM-01
     user_id: string;
+    full_name_kanji: string; // ★必須（姓+名 or user_id）
+    orgunitname: string | null; // ★追加（APIが返すなら表示できる）
     required: boolean;
     attended_regular: boolean | null;
     attended_extra: boolean | null;
+    checked_regular: boolean; // ★追加：確認（月例）
+    checked_extra: boolean;   // ★追加：確認（追加）
     minutes_url: string | null;
     staff_comment: string | null;
     manager_checked: boolean | null;
-    user_name?: string | null;
-    full_name_kanji?: string | null;
 };
 
 // ★追加：編集用（画面で入力中の値）
 type EditRow = {
     attended_regular: boolean;
     attended_extra: boolean;
+
+    checked_regular: boolean; // ★追加
+    checked_extra: boolean;   // ★追加
+
     minutes_url: string;
     staff_comment: string;
 };
@@ -125,12 +131,16 @@ export default function MonthlyMeetingCheckPage() {
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
+    const [myRole, setMyRole] = useState<string>(""); // ★追加
+
+    // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
+    const canManagerEdit =
+        myRole === "MANAGER" || myRole === "ADMIN" || myRole === "FULL";
 
     // ★追加：編集状態（user_id -> 入力中の値）
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
 
     // ★追加：行ごとの保存中フラグ
-    const [saving, setSaving] = useState<Record<string, boolean>>({});
     const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
     // ★追加：過去12ヶ月＋今月の選択肢を作る
     const monthOptions = useMemo(() => {
@@ -157,9 +167,71 @@ export default function MonthlyMeetingCheckPage() {
             if (!isRecord(j) || readBoolean(j.ok) !== true) {
                 throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
             }
+            const roleFromApi = isRecord(j) && typeof j["role"] === "string" ? j["role"] : "";
+            setMyRole(roleFromApi);
 
-            const newRows = (Array.isArray(j.rows) ? (j.rows as Row[]) : [])
-                .filter((r) => r && typeof r.user_id === "string" && typeof r.target_month === "string");
+            const raw = Array.isArray(j["rows"]) ? j["rows"] : [];
+
+            function isRowCandidate(v: unknown): v is Record<string, unknown> {
+                return isRecord(v);
+            }
+
+            const newRows: Row[] = raw
+                .filter(isRowCandidate)
+                .filter((r) =>
+                    typeof r["user_id"] === "string" &&
+                    typeof r["target_month"] === "string" &&
+                    typeof r["full_name_kanji"] === "string"
+                )
+                .map((r) => ({
+                    target_month: r["target_month"] as string,
+                    user_id: r["user_id"] as string,
+                    full_name_kanji: r["full_name_kanji"] as string,
+                    orgunitname: typeof r["orgunitname"] === "string" ? r["orgunitname"] : null,
+
+                    required: typeof r["required"] === "boolean" ? r["required"] : true,
+
+                    attended_regular:
+                        r["attended_regular"] === null
+                            ? null
+                            : typeof r["attended_regular"] === "boolean"
+                                ? r["attended_regular"]
+                                : null,
+
+                    attended_extra:
+                        r["attended_extra"] === null
+                            ? null
+                            : typeof r["attended_extra"] === "boolean"
+                                ? r["attended_extra"]
+                                : null,
+
+                    checked_regular:
+                        typeof r["checked_regular"] === "boolean" ? r["checked_regular"] : false,
+
+                    checked_extra:
+                        typeof r["checked_extra"] === "boolean" ? r["checked_extra"] : false,
+
+                    minutes_url:
+                        r["minutes_url"] === null
+                            ? null
+                            : typeof r["minutes_url"] === "string"
+                                ? r["minutes_url"]
+                                : null,
+
+                    staff_comment:
+                        r["staff_comment"] === null
+                            ? null
+                            : typeof r["staff_comment"] === "string"
+                                ? r["staff_comment"]
+                                : null,
+
+                    manager_checked:
+                        r["manager_checked"] === null
+                            ? null
+                            : typeof r["manager_checked"] === "boolean"
+                                ? r["manager_checked"]
+                                : null,
+                }));
 
             setRows(newRows);
 
@@ -169,6 +241,10 @@ export default function MonthlyMeetingCheckPage() {
                 next[r.user_id] = {
                     attended_regular: r.attended_regular ?? false,
                     attended_extra: r.attended_extra ?? false,
+
+                    checked_regular: r.checked_regular ?? false,
+                    checked_extra: r.checked_extra ?? false,
+
                     minutes_url: r.minutes_url ?? "",
                     staff_comment: r.staff_comment ?? "",
                 };
@@ -182,38 +258,77 @@ export default function MonthlyMeetingCheckPage() {
         }
     }
 
-    // ★追加：1行保存（チェック/URL/コメント）
-    async function saveRow(user_id: string) {
-        const v = edit[user_id];
-        if (!v) return;
-
-        setSaving((p) => ({ ...p, [user_id]: true }));
+    async function patchOne(user_id: string, patch: Partial<EditRow>) {
         setMsg("");
 
-        try {
-            const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
-                method: "PATCH", // or "POST"（あなたのAPIに合わせて）
-                body: JSON.stringify({
-                    target_month: `${ym}-01`,
-                    user_id,
-                    attended_regular: v.attended_regular,
-                    attended_extra: v.attended_extra,
-                    minutes_url: v.minutes_url,
-                    staff_comment: v.staff_comment,
-                }),
-            });
+        // 画面の状態を先に更新（体感が良い）
+        setEdit((p) => {
+            const cur = p[user_id];
+            if (!cur) return p;
+            return { ...p, [user_id]: { ...cur, ...patch } };
+        });
 
-            const j: unknown = await res.json();
-            if (!isRecord(j) || readBoolean(j.ok) !== true) {
-                throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+        const cur = edit[user_id];
+        const merged: EditRow = {
+            attended_regular: cur?.attended_regular ?? false,
+            attended_extra: cur?.attended_extra ?? false,
+            checked_regular: cur?.checked_regular ?? false,
+            checked_extra: cur?.checked_extra ?? false,
+            minutes_url: cur?.minutes_url ?? "",
+            staff_comment: cur?.staff_comment ?? "",
+            ...patch,
+        };
+
+        const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+            method: "PATCH",
+            body: JSON.stringify({
+                target_month: `${ym}-01`,
+                user_id,
+                // ✅ 必要な項目だけ送ればOK（ここは patch の中身に合わせる）
+                ...("attended_regular" in patch ? { attended_regular: merged.attended_regular } : {}),
+                ...("attended_extra" in patch ? { attended_extra: merged.attended_extra } : {}),
+                ...("checked_regular" in patch ? { checked_regular: merged.checked_regular } : {}),
+                ...("checked_extra" in patch ? { checked_extra: merged.checked_extra } : {}),
+            }),
+        });
+
+        const j: unknown = await res.json();
+        if (!isRecord(j) || readBoolean(j.ok) !== true) {
+            throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+        }
+    }
+
+    async function saveAll() {
+        setMsg("");
+        setLoading(true);
+
+        try {
+            for (const r of rows) {
+                const v = edit[r.user_id];
+                if (!v) continue;
+
+                const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        target_month: `${ym}-01`,
+                        user_id: r.user_id,
+                        minutes_url: v.minutes_url,
+                        staff_comment: v.staff_comment,
+                    }),
+                });
+
+                const j: unknown = await res.json();
+                if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                    throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+                }
             }
 
             setMsg("保存しました");
-            await load(); // 最新反映
+            await load();
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
         } finally {
-            setSaving((p) => ({ ...p, [user_id]: false }));
+            setLoading(false);
         }
     }
 
@@ -242,6 +357,10 @@ export default function MonthlyMeetingCheckPage() {
                     <button className="border rounded px-3 py-1" onClick={load} disabled={loading}>
                         再読込
                     </button>
+
+                    <button className="border rounded px-3 py-1" onClick={saveAll} disabled={loading}>
+                        保存
+                    </button>
                 </div>
 
                 <div className="text-xs text-gray-600">
@@ -255,16 +374,17 @@ export default function MonthlyMeetingCheckPage() {
             <div className="rounded border p-3">
                 <div className="text-sm mb-2">従業員一覧</div>
 
-                <div className="overflow-auto">
+                <div className="overflow-auto max-h-[70vh]">
                     <table className="min-w-[900px] w-full border-collapse">
                         <thead>
-                            <tr className="bg-gray-50">
-                                <th className="border p-2 text-left">従業員</th>
-                                <th className="border p-2">月例</th>
-                                <th className="border p-2">追加</th>
-                                <th className="border p-2 text-left">議事録URL</th>
-                                <th className="border p-2 text-left">コメント</th>
-                                <th className="border p-2">保存</th>
+                            <tr className="bg-gray-50 sticky top-0 z-10">
+                                <th className="border p-2 text-left bg-gray-50">従業員</th>
+                                <th className="border p-2 bg-gray-50">月例</th>
+                                <th className="border p-2 bg-gray-50">確認（月例）</th>
+                                <th className="border p-2 bg-gray-50">追加</th>
+                                <th className="border p-2 bg-gray-50">確認（追加）</th>
+                                <th className="border p-2 text-left bg-gray-50">議事録URL</th>
+                                <th className="border p-2 text-left bg-gray-50">コメント</th>
                             </tr>
                         </thead>
 
@@ -273,6 +393,8 @@ export default function MonthlyMeetingCheckPage() {
                                 const e = edit[r.user_id] ?? {
                                     attended_regular: false,
                                     attended_extra: false,
+                                    checked_regular: false,
+                                    checked_extra: false,
                                     minutes_url: "",
                                     staff_comment: "",
                                 };
@@ -280,20 +402,39 @@ export default function MonthlyMeetingCheckPage() {
                                 return (
                                     <tr key={`${r.target_month}-${r.user_id}`}>
                                         <td className="border p-2">
-                                            {r.full_name_kanji ?? r.user_name ?? r.user_id}
+                                            {r.full_name_kanji}
                                         </td>
 
                                         {/* 月例 */}
                                         <td className="border p-2 text-center">
                                             <input
                                                 type="checkbox"
-                                                checked={e.attended_regular}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, attended_regular: ev.target.checked },
-                                                    }))
-                                                }
+                                                checked={Boolean(e.attended_regular)}
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked; // true/false
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
+                                            />
+                                        </td>
+
+                                        {/* 確認（月例） */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(e.checked_regular)}
+                                                disabled={!canManagerEdit}
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked;
+                                                    try {
+                                                        await patchOne(r.user_id, { checked_regular: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
@@ -301,13 +442,33 @@ export default function MonthlyMeetingCheckPage() {
                                         <td className="border p-2 text-center">
                                             <input
                                                 type="checkbox"
-                                                checked={e.attended_extra}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, attended_extra: ev.target.checked },
-                                                    }))
-                                                }
+                                                checked={Boolean(e.attended_extra)}
+                                                disabled={!canManagerEdit}
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked;
+                                                    try {
+                                                        await patchOne(r.user_id, { attended_extra: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
+                                            />
+                                        </td>
+
+                                        {/* 確認（追加） */}
+                                        <td className="border p-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(e.checked_extra)}
+                                                disabled={!canManagerEdit}
+                                                onChange={async (ev) => {
+                                                    const v = ev.target.checked;
+                                                    try {
+                                                        await patchOne(r.user_id, { checked_extra: v });
+                                                    } catch (err: unknown) {
+                                                        setMsg(toErrorMessage(err));
+                                                    }
+                                                }}
                                             />
                                         </td>
 
@@ -352,24 +513,13 @@ export default function MonthlyMeetingCheckPage() {
                                                 placeholder="コメント"
                                             />
                                         </td>
-
-                                        {/* 保存（※「確認」列を「保存」に変えるのがおすすめ） */}
-                                        <td className="border p-2 text-center">
-                                            <button
-                                                className="border rounded px-3 py-1"
-                                                onClick={() => saveRow(r.user_id)}
-                                                disabled={loading || saving[r.user_id] === true}
-                                            >
-                                                保存
-                                            </button>
-                                        </td>
                                     </tr>
                                 );
                             })}
 
                             {visibleRows.length === 0 && (
                                 <tr>
-                                    <td className="border p-3 text-sm text-gray-600" colSpan={6}>
+                                    <td className="border p-3 text-sm text-gray-600" colSpan={7}>
                                         従業員データが0件です（在籍者の取得条件をご確認ください）
                                     </td>
                                 </tr>
