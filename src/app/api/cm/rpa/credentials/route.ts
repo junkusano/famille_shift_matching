@@ -55,12 +55,21 @@ export const GET = cmRpaApiHandler<CmRpaCredentialsApiResponse>(
     }
 
     // DB取得
-    const { data, error: selectError } = await supabaseAdmin
+    // ?label=xxx が指定された場合はそのアカウントだけ返す（複数アカウント並列化対応）
+    // label 未指定時は従来通り全件返す（後方互換）
+    const label = searchParams.get("label");
+
+    let query = supabaseAdmin
       .from("cm_rpa_credentials")
       .select("id, service_name, label, credentials, is_active")
       .eq("service_name", service)
-      .eq("is_active", true)
-      .order("id", { ascending: true });
+      .eq("is_active", true);
+
+    if (label) {
+      query = query.eq("label", label);
+    }
+
+    const { data, error: selectError } = await query.order("id", { ascending: true });
 
     if (selectError) {
       logger.error("認証情報取得エラー", undefined, {
