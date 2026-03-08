@@ -38,7 +38,7 @@ type SystemRole = "admin" | "manager" | "member";
 export default function AlertBar() {
   // ==== ロール情報 ====
   const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
-  const [roleLoaded, setRoleLoaded] = useState(true);
+  const [roleLoaded, setRoleLoaded] = useState(false);
 
   // ==== アラート一覧など ====
   const [rows, setRows] = useState<AlertRow[]>([]);
@@ -49,7 +49,8 @@ export default function AlertBar() {
   const [commentText, setCommentText] = useState("");
 
   // 一覧の表示/非表示（畳む）制御
-  const [collapsed, setCollapsed] = useState(false);
+  //const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
     // ✅ ここに移動（orgMap と並べるのが自然）
   const [orgMap, setOrgMap] = useState<Map<string, string>>(new Map());
