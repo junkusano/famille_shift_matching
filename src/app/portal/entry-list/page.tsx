@@ -9,24 +9,24 @@ import Link from 'next/link';
 
 interface EntryData {
   id: string;
-  last_name_kanji: string;
-  first_name_kanji: string;
-  last_name_kana: string;
-  first_name_kana: string;
-  gender: string;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  gender: string | null;
   created_at: string;
   auth_uid: string | null;
   birth_year: number;
   birth_month: number;
   birth_day: number;
-  postal_code?: string;
-  address: string;
+  postal_code?: string | null;
+  address: string | null;
   shortAddress?: string;
   googleMapUrl?: string;
-  status?: string;
-  status_label?: string;
-  level_label?: string;
-  level_sort?: number;
+  status?: string | null;
+  status_label?: string | null;
+  level_label?: string | null;
+  level_sort?: number | null;
   // 追加: usersテーブル由来
   user_id?: string | null;               // ★ 追加（users結合で使う）
   roster_sort?: string | null;           // ★ 追加（users.roster_sort）
@@ -364,8 +364,18 @@ export default function EntryListPage() {
   }
 
   const filteredEntries = entriesWithMap.filter((entry) => {
-    const fullName = `${entry.last_name_kanji}${entry.first_name_kanji}${entry.last_name_kana}${entry.first_name_kana}`;
-    return fullName.includes(searchText) || entry.address.includes(searchText);
+    const fullName = [
+      entry.last_name_kanji,
+      entry.first_name_kanji,
+      entry.last_name_kana,
+      entry.first_name_kana,
+    ]
+      .filter(Boolean)
+      .join('');
+
+    const address = entry.address ?? '';
+
+    return fullName.includes(searchText) || address.includes(searchText);
   });
 
   return (
@@ -419,10 +429,10 @@ export default function EntryListPage() {
                   <tr key={entry.id}>
                     <td className="border px-2 py-1">
                       <span className="text-sm text-gray-500">
-                        {entry.last_name_kana} {entry.first_name_kana}
+                        {(entry.last_name_kana ?? '')} {(entry.first_name_kana ?? '')}
                       </span>
                       <br />
-                      {entry.last_name_kanji} {entry.first_name_kanji}
+                      {(entry.last_name_kanji ?? '')} {(entry.first_name_kanji ?? '')}
                     </td>
                     <td className="border px-2 py-1">{entry.gender ?? '―'}</td>
                     <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
