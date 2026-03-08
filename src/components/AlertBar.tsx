@@ -38,7 +38,7 @@ type SystemRole = "admin" | "manager" | "member";
 export default function AlertBar() {
   // ==== ロール情報 ====
   const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
-  const [roleLoaded, setRoleLoaded] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(true);
 
   // ==== アラート一覧など ====
   const [rows, setRows] = useState<AlertRow[]>([]);
