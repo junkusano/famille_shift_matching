@@ -5,7 +5,11 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { cmRpaApiHandler } from "@/lib/cm/rpa/cmRpaApiHandler";
+import {
+  cmRpaApiHandler,
+  CM_RPA_SYSTEM_USER_ID,
+  CM_RPA_SYSTEM_USER_NAME,
+} from "@/lib/cm/rpa/cmRpaApiHandler";
 import {
   cmMarkJobItemCompleted,
   cmMarkJobItemFailed,
@@ -14,12 +18,6 @@ import {
 import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { CM_OP_LOG_RPA_OTHER_OFFICE } from "@/constants/cm/operationLogActions";
 import { randomUUID } from "crypto";
-
-// =============================================================
-// 定数
-// =============================================================
-
-const RPA_USER_ID = "system:rpa";
 
 // =============================================================
 // 型定義
@@ -112,7 +110,7 @@ export const POST = cmRpaApiHandler<ApiResponse>(
     // 監査コンテキスト設定
     const traceId = randomUUID();
     await supabaseAdmin.rpc("set_audit_context", {
-      p_user_id: RPA_USER_ID,
+      p_user_id: CM_RPA_SYSTEM_USER_ID,
       p_action: CM_OP_LOG_RPA_OTHER_OFFICE,
       p_trace_id: traceId,
     });
@@ -170,7 +168,8 @@ export const POST = cmRpaApiHandler<ApiResponse>(
 
     // 操作ログ記録
     await recordOperationLog({
-      userId: RPA_USER_ID,
+      userId: CM_RPA_SYSTEM_USER_ID,
+      userName: CM_RPA_SYSTEM_USER_NAME,
       action: CM_OP_LOG_RPA_OTHER_OFFICE,
       resourceType: "other-office",
       metadata: { success: successCount, fail: failCount },

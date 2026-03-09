@@ -12,6 +12,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLogger, Logger } from "@/lib/common/logger";
 import { validateApiKey } from "@/lib/cm/rpa/auth";
 
+// =============================================================
+// RPA システムユーザー定数
+//
+// audit.operation_logs の user_id / user_name に使用する。
+// user_id は UUID 型ではなく text 型のため、擬似 ID を許容している。
+// user_name を明示することで、タイムライン表示時に auth.users への
+// 問い合わせをスキップし、不要な warn ログを防ぐ。
+// =============================================================
+
+/** RPA操作時の user_id（audit.operation_logs に記録される識別子） */
+export const CM_RPA_SYSTEM_USER_ID = "system:rpa";
+
+/** RPA操作時の表示名（タイムライン画面での表示用） */
+export const CM_RPA_SYSTEM_USER_NAME = "RPA";
+
 /**
  * RPA API のレスポンス基本型
  * 全レスポンスは ok フィールドを持つ
