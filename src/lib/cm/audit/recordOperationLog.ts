@@ -47,13 +47,16 @@ export async function recordOperationLog(
         trace_id: params.traceId ?? null,
       });
 
-    if (error) {
-      logger.error("operation_logs INSERT失敗", undefined, {
-        message: error.message,
-        code: error.code,
-        action: params.action,
-      });
-    }
+      if (error) {
+        logger.error("operation_logs INSERT失敗", undefined, {
+          message: error.message,
+          code: error.code,
+          action: params.action,
+          details: error.details,
+          hint: error.hint,
+          errorJson: JSON.stringify(error),
+        });
+      }
   } catch (e) {
     logger.error(
       "recordOperationLog例外",
