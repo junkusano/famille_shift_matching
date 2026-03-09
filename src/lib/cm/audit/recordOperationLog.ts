@@ -48,7 +48,7 @@ export async function recordOperationLog(
       });
 
     if (error) {
-      logger.error("operation_logs INSERT失敗", {
+      logger.error("operation_logs INSERT失敗", undefined, {
         message: error.message,
         code: error.code,
         action: params.action,
