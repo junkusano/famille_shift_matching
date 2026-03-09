@@ -184,8 +184,31 @@ export async function POST(
       .select('id')
       .single();
 
-    if (insertError || !inserted) {
-      logger.error('レコード登録エラー', { error: insertError?.message });
+    if (insertError) {
+      // 同時リクエストによるUNIQUE制約違反（23505）は既存レコードとして扱う
+      if (insertError.code === '23505') {
+        const { data: conflicted } = await supabaseAdmin
+          .from('cm_plaud_mgmt_transcriptions')
+          .select('id')
+          .eq('plaud_uuid', plaud_uuid)
+          .single();
+
+        logger.info('競合により既存レコードを返却', { plaud_uuid, id: conflicted?.id });
+        return NextResponse.json(
+          { ok: true, result: 'exists', id: conflicted!.id },
+          { headers: corsHeaders }
+        );
+      }
+
+      logger.error('レコード登録エラー', { error: insertError.message });
+      return NextResponse.json(
+        { ok: false, error: 'Internal Server Error' },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    if (!inserted) {
+      logger.error('レコード登録エラー: 挿入結果が空');
       return NextResponse.json(
         { ok: false, error: 'Internal Server Error' },
         { status: 500, headers: corsHeaders }
