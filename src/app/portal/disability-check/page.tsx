@@ -260,7 +260,13 @@ const DisabilityCheckPage: React.FC = () => {
         !(r.is_submitted === true && r.is_checked !== true)
       ) return false;
       return true;
-    });
+    })
+      // ★追加：受給者証番号順
+      .sort((a, b) => {
+        const aNum = Number(a.ido_jukyusyasho ?? 0);
+        const bNum = Number(b.ido_jukyusyasho ?? 0);
+        return aNum - bNum;
+      });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
   // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
   const uniqueFilteredRecords = useMemo(() => {
