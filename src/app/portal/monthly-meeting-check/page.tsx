@@ -344,6 +344,21 @@ export default function MonthlyMeetingCheckPage() {
         <div className="p-4 space-y-4">
             {/* 上段：操作 */}
             <div className="rounded border p-3 space-y-2">
+                {/* ★使い方説明（目立つ版） */}
+                <div className="rounded border border-blue-300 bg-blue-50 p-4 text-sm leading-7">
+                    <div className="flex items-center gap-2 font-bold text-blue-800 mb-2">
+                        <span>ℹ</span>
+                        <span>月例会議 出席チェックの流れ</span>
+                    </div>
+
+                    <div>月例会議に参加 → 「月例」にチェック</div>
+                    <div>マネージャー確認 → 「月例（確認）」にチェック</div>
+
+                    <div className="mt-2 font-semibold">月例に参加できない場合</div>
+                    <div>追加会議に参加 → 「追加」にチェック</div>
+                    <div>マネージャー確認 → 「追加（確認）」にチェック</div>
+                </div>
+
                 <div className="flex items-center gap-2">
                     <label className="text-sm">対象月</label>
                     <select
