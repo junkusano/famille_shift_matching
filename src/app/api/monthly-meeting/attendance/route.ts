@@ -41,7 +41,10 @@ async function readMyRole(req: NextRequest) {
         .maybeSingle<UserRoleRow>();
 
     if (error) throw error;
-    return { myUserId: String(u?.user_id ?? ""), role: String(u?.system_role ?? "") };
+    return {
+        myUserId: String(u?.user_id ?? ""),
+        role: String(u?.system_role ?? "").trim().toUpperCase(),
+    };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {

@@ -132,10 +132,13 @@ export default function MonthlyMeetingCheckPage() {
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
     const [myRole, setMyRole] = useState<string>(""); // ★追加
+    const normalizedRole = myRole.trim().toUpperCase();
 
     // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
     const canManagerEdit =
-        myRole === "MANAGER" || myRole === "ADMIN" || myRole === "FULL";
+        normalizedRole === "MANAGER" ||
+        normalizedRole === "ADMIN" ||
+        normalizedRole === "FULL";
 
     // ★追加：編集状態（user_id -> 入力中の値）
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
@@ -168,7 +171,7 @@ export default function MonthlyMeetingCheckPage() {
                 throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
             }
             const roleFromApi = isRecord(j) && typeof j["role"] === "string" ? j["role"] : "";
-            setMyRole(roleFromApi);
+            setMyRole(roleFromApi.trim().toUpperCase());
 
             const raw = Array.isArray(j["rows"]) ? j["rows"] : [];
 
