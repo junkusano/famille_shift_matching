@@ -351,12 +351,13 @@ export default function MonthlyMeetingCheckPage() {
                         <span>月例会議 出席チェックの流れ</span>
                     </div>
 
+                    <div className="font-semibold text-black">月例に参加した場合</div>
                     <div>月例会議に参加 → 「月例」にチェック</div>
-                    <div>マネージャー確認 → 「月例（確認）」にチェック</div>
+                    <div>マネージャー確認 → 「月例（確認）」にチェック（※マネージャーのみ）</div>
 
-                    <div className="mt-2 font-semibold">月例に参加できない場合</div>
+                    <div className="mt-3 font-semibold text-black">月例に参加できない場合</div>
                     <div>追加会議に参加 → 「追加」にチェック</div>
-                    <div>マネージャー確認 → 「追加（確認）」にチェック</div>
+                    <div>マネージャー確認 → 「追加（確認）」にチェック（※マネージャーのみ）</div>
                 </div>
 
                 <div className="flex items-center gap-2">
