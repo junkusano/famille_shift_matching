@@ -121,6 +121,8 @@ const DisabilityCheckPage: React.FC = () => {
   const [filterTeamId, setFilterTeamId] = useState<string>("");
   const [isManager, setIsManager] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  // ★追加：未チェック絞り込み
+  const [checkFilter, setCheckFilter] = useState<string>("");
 
   // ★追加：member 判定（manager/admin 以外はすべて member）
   const isMember = !(isManager || isAdmin);
@@ -245,19 +247,19 @@ const DisabilityCheckPage: React.FC = () => {
         filterKaipokeCsId &&
         normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
       ) return false;
+
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
       // ★追加：チームで絞り込み
       if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
 
-      // if (filterKaipokeId && !r.kaipoke_cs_id.includes(filterKaipokeId)) return false;
-
-      // if (filterIdo && !(r.ido_jukyusyasho ?? "").includes(filterIdo)) return false;
+      // ★追加：提出未チェック / 回収未チェック
+      if (checkFilter === "unsubmitted" && r.is_submitted === true) return false;
+      if (checkFilter === "unchecked" && r.is_checked === true) return false;
 
       return true;
     });
-  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId]);
-
+  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
   // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
   const uniqueFilteredRecords = useMemo(() => {
     const pickBetter = (a: Row, b: Row) => {
@@ -1006,6 +1008,19 @@ const DisabilityCheckPage: React.FC = () => {
                 {t.name}
               </option>
             ))}
+          </select>
+        </label>
+
+        <label style={{ width: 180 }}>
+          チェック状況
+          <select
+            value={checkFilter}
+            onChange={(e) => setCheckFilter(e.target.value)}
+            style={{ width: 180 }}
+          >
+            <option value="">（全て）</option>
+            <option value="unsubmitted">提出未チェック</option>
+            <option value="unchecked">回収未チェック</option>
           </select>
         </label>
 
