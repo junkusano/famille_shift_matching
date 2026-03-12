@@ -89,7 +89,7 @@ async function loadStaffInfoMap(userIds: string[]) {
 export async function runDisabilityCheckCollectedAlert(args: {
     dryRun?: boolean;
     targetKaipokeCsId?: string;
-    forceDay15Rule?: boolean;
+    forceDay20Rule?: boolean;
 } = {}): Promise<DisabilityCheckCollectedAlertResult> {
     const dryRun = args.dryRun ?? false;
 
@@ -100,7 +100,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
 
-    if (day < 15 && !args.forceDay15Rule) {
+    if (day < 20 && !args.forceDay20Rule) {
         return {
             enabled: true,
             scanned: 0,
@@ -224,7 +224,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
         const message =
             `【実績記録 未チェック】 回収 〈${formatYmJa(targetYm)}分〉\n` +
             `${pack.clientName}\n` +
-            `回収チェックが、15日以降で未完了の状態です。\n` +
+            `回収チェックが、20日以降で未完了の状態です。\n` +
             `至急ご確認ください。\n\n` +
             `チーム: ${pack.orgName}\n\n` +
             lines.join("\n");

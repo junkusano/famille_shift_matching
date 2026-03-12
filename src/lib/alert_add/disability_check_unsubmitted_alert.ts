@@ -52,7 +52,7 @@ export type DisabilityCheckAlertArgs = {
     dryRun?: boolean;
     //mode?: "all" | "collectedOnly" | "submittedOnly";
     targetKaipokeCsId?: string; // テスト用に1件へ絞る
-    forceDay10Rule?: boolean; // 10日条件を無視してテスト
+    forceDay15Rule?: boolean; // 10日条件を無視してテスト
     //forceDay15Rule?: boolean; // 15日条件を無視してテスト
 };
 
@@ -235,14 +235,14 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 async function runSubmittedUncheckLineworksOnly(args: {
     dryRun: boolean;
     targetKaipokeCsId?: string;
-    forceDay10Rule?: boolean;
+    forceDay15Rule?: boolean;
 }): Promise<DisabilityCheckDailyAlertResult["submitted"]> {
     const now = new Date();
     const day = now.getDate();
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
 
-    if (day < 10 && !args.forceDay10Rule) {
+    if (day < 15 && !args.forceDay15Rule) {
         return {
             enabled: true,
             scanned: 0,
@@ -600,7 +600,7 @@ export async function runDisabilityCheckDailyAlerts(
     const submitted = await runSubmittedUncheckLineworksOnly({
         dryRun,
         targetKaipokeCsId: args.targetKaipokeCsId,
-        forceDay10Rule: args.forceDay10Rule,
+        forceDay15Rule: args.forceDay15Rule,
     });
 
     return { submitted };
