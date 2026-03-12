@@ -1963,7 +1963,10 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: FormP
     }, 0);
 
     return (
-        <div className="formBox p-2" style={{ position: "relative" }}>
+        <div
+            className="formBox p-2"
+            style={{ position: "relative", paddingTop: "12mm" }}
+        >
             <div style={{ display: "flex", alignItems: "flex-end" }}>
                 <div className="small" style={{ flex: "1 1 0%" }}>
                     {formatReiwaYearMonth(data.month)}
