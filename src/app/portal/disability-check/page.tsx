@@ -255,8 +255,10 @@ const DisabilityCheckPage: React.FC = () => {
 
       // ★追加：提出未チェック / 回収未チェック
       if (checkFilter === "unsubmitted" && r.is_submitted === true) return false;
-      if (checkFilter === "unchecked" && r.is_checked === true) return false;
-
+      if (
+        checkFilter === "unchecked" &&
+        !(r.is_submitted === true && r.is_checked !== true)
+      ) return false;
       return true;
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
