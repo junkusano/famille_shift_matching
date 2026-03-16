@@ -184,8 +184,12 @@ export default function MonthlyMeetingCheckPage() {
             const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${ym}`);
             const j: unknown = await res.json();
 
-            if (!isRecord(j) || readBoolean(j.ok) !== true) {
-                throw new Error(isRecord(j) ? (readString(j.error) ?? "load failed") : "load failed");
+            if (!res.ok || !isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(
+                    isRecord(j)
+                        ? (readString(j.error) ?? `load failed (${res.status})`)
+                        : `load failed (${res.status})`
+                );
             }
             const roleFromApi = isRecord(j) && typeof j["role"] === "string" ? j["role"] : "";
             setMyRole(roleFromApi.trim().toUpperCase());

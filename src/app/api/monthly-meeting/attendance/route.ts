@@ -157,6 +157,7 @@ export async function GET(req: NextRequest) {
         const attMap = new Map((att ?? []).map((r) => [r.user_id, r]));
 
         // 4) attendance に無い人は required=true で作成（表示できるように）
+        // ★同時アクセス対策：insert ではなく upsert を使う
         const toInsert = staffIds
             .filter((uid) => !attMap.has(uid))
             .map((uid) => ({
@@ -166,10 +167,14 @@ export async function GET(req: NextRequest) {
             }));
 
         if (toInsert.length > 0) {
-            const { error: insErr } = await supabaseAdmin
+            const { error: upsertErr } = await supabaseAdmin
                 .from("monthly_meeting_attendance")
-                .insert(toInsert);
-            if (insErr) throw insErr;
+                .upsert(toInsert, {
+                    onConflict: "target_month,user_id",
+                    ignoreDuplicates: true,
+                });
+
+            if (upsertErr) throw upsertErr;
 
             // 作成後に取り直し
             const { data: att2, error: att2Err } = await supabaseAdmin
@@ -178,6 +183,7 @@ export async function GET(req: NextRequest) {
                 .eq("target_month", monthStartStr)
                 .in("user_id", staffIds)
                 .returns<AttendanceRow[]>();
+
             if (att2Err) throw att2Err;
 
             attMap.clear();
