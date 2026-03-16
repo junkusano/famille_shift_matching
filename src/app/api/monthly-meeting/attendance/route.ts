@@ -107,9 +107,29 @@ export async function GET(req: NextRequest) {
             if (r.staff_01_user_id) staffSet.add(r.staff_01_user_id);
             if (r.staff_02_user_id) staffSet.add(r.staff_02_user_id);
         }
-        const staffIds = Array.from(staffSet);
+        const staffIdsFromShift = Array.from(staffSet);
 
-        // 0件なら空で返す
+        // ★shiftで0件でも、既存 attendance から復元できるようにする
+        let staffIds = [...staffIdsFromShift];
+
+        if (staffIds.length === 0) {
+            const { data: attOnly, error: attOnlyErr } = await supabaseAdmin
+                .from("monthly_meeting_attendance")
+                .select("user_id")
+                .eq("target_month", monthStartStr);
+
+            if (attOnlyErr) throw attOnlyErr;
+
+            staffIds = Array.from(
+                new Set(
+                    (attOnly ?? [])
+                        .map((r) => String(r.user_id ?? "").trim())
+                        .filter((v) => v.length > 0)
+                )
+            );
+        }
+
+        // それでも0件なら空で返す
         if (staffIds.length === 0) {
             return json({ ok: true, ym, rows: [] });
         }
