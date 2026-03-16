@@ -138,7 +138,7 @@ const DisabilityCheckPage: React.FC = () => {
   const searchParams = useSearchParams();
 
   // ★追加：受給者証番号ソート
-  const [idoSort, setIdoSort] = useState<"asc" | "desc">("asc");
+  const [idoSort, setIdoSort] = useState<"none" | "asc" | "desc">("none");
 
   // 未使用のため一旦コメントアウト
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
@@ -269,6 +269,10 @@ const DisabilityCheckPage: React.FC = () => {
 
   const sortedRecords = useMemo(() => {
     const arr = [...filteredRecords];
+
+    if (idoSort === "none") {
+      return arr;
+    }
 
     arr.sort((a, b) => {
       const na = Number(a.ido_jukyusyasho ?? "");
@@ -1070,9 +1074,18 @@ const DisabilityCheckPage: React.FC = () => {
             <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
             <th
               style={{ cursor: "pointer" }}
-              onClick={() => setIdoSort(idoSort === "asc" ? "desc" : "asc")}
+              onClick={() =>
+                setIdoSort(
+                  idoSort === "none"
+                    ? "asc"
+                    : idoSort === "asc"
+                      ? "desc"
+                      : "none"
+                )
+              }
             >
-              受給者証番号 {idoSort === "asc" ? "▲" : "▼"}
+              受給者証番号{" "}
+              {idoSort === "asc" ? "▲" : idoSort === "desc" ? "▼" : ""}
             </th>
             <th style={{ textAlign: "left", padding: 8 }}>実績担当者</th>
             <th style={{ textAlign: "left", padding: 8 }}>チーム名</th> {/* ★追加 */}
