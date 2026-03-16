@@ -1073,7 +1073,7 @@ const DisabilityCheckPage: React.FC = () => {
             <th style={{ textAlign: "left", padding: 8 }}>カイポケID</th>
             <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
             <th
-              style={{ cursor: "pointer" }}
+              style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
               onClick={() =>
                 setIdoSort(
                   idoSort === "none"
@@ -1085,7 +1085,16 @@ const DisabilityCheckPage: React.FC = () => {
               }
             >
               受給者証番号{" "}
-              {idoSort === "asc" ? "▲" : idoSort === "desc" ? "▼" : ""}
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {idoSort === "asc"
+                  ? "昇順▲"
+                  : idoSort === "desc"
+                    ? "降順▼"
+                    : "⇅"}
+              </span>
+              <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
+                昇順/降順
+              </span>
             </th>
             <th style={{ textAlign: "left", padding: 8 }}>実績担当者</th>
             <th style={{ textAlign: "left", padding: 8 }}>チーム名</th> {/* ★追加 */}
