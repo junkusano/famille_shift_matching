@@ -32,9 +32,14 @@ type EditRow = {
 
 function ymNowJst(): string {
     const now = new Date();
-    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const y = jst.getFullYear();
-    const m = String(jst.getMonth() + 1).padStart(2, "0");
+    const parts = new Intl.DateTimeFormat("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+    }).formatToParts(now);
+
+    const y = parts.find((p) => p.type === "year")?.value ?? "";
+    const m = parts.find((p) => p.type === "month")?.value ?? "";
     return `${y}-${m}`;
 }
 
@@ -149,13 +154,24 @@ export default function MonthlyMeetingCheckPage() {
     // ★追加：過去12ヶ月＋今月の選択肢を作る
     const monthOptions = useMemo(() => {
         const list: string[] = [];
+
         const now = new Date();
+        const parts = new Intl.DateTimeFormat("ja-JP", {
+            timeZone: "Asia/Tokyo",
+            year: "numeric",
+            month: "2-digit",
+        }).formatToParts(now);
+
+        const baseYear = Number(parts.find((p) => p.type === "year")?.value ?? "0");
+        const baseMonth = Number(parts.find((p) => p.type === "month")?.value ?? "1");
+
         for (let i = -6; i <= 6; i++) {
-            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            const d = new Date(baseYear, baseMonth - 1 + i, 1);
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, "0");
             list.push(`${y}-${m}`);
         }
+
         return list;
     }, []);
 
