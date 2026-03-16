@@ -132,6 +132,7 @@ export default function MonthlyMeetingCheckPage() {
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
     const [myRole, setMyRole] = useState<string>(""); // ★追加
+    const [authReady, setAuthReady] = useState(false); // ★追加
     const normalizedRole = myRole.trim().toUpperCase();
 
     // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
@@ -336,9 +337,45 @@ export default function MonthlyMeetingCheckPage() {
     }
 
     useEffect(() => {
+        let mounted = true;
+
+        const initAuth = async () => {
+            try {
+                const { data } = await supabase.auth.getSession();
+                if (!mounted) return;
+
+                if (data.session?.access_token) {
+                    setAuthReady(true);
+                    return;
+                }
+
+                const {
+                    data: { subscription },
+                } = supabase.auth.onAuthStateChange((_event, session) => {
+                    if (session?.access_token) {
+                        setAuthReady(true);
+                    }
+                });
+
+                return () => subscription.unsubscribe();
+            } catch {
+                if (mounted) setAuthReady(true);
+            }
+        };
+
+        const cleanupPromise = initAuth();
+
+        return () => {
+            mounted = false;
+            void cleanupPromise;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!authReady) return;
         void load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ym]);
+    }, [ym, authReady]);
 
     return (
         <div className="p-4 space-y-4">
