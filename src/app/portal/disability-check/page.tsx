@@ -137,6 +137,9 @@ const DisabilityCheckPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // ★追加：受給者証番号ソート
+  const [idoSort, setIdoSort] = useState<"asc" | "desc">("asc");
+
   // 未使用のため一旦コメントアウト
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
   /*const handleClickStaff = (staffId: string) => {
@@ -250,29 +253,36 @@ const DisabilityCheckPage: React.FC = () => {
 
       if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
-      // ★追加：チームで絞り込み
       if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
 
-      // ★追加：提出未チェック / 回収未チェック
       if (checkFilter === "unsubmitted" && r.is_submitted === true) return false;
+
       if (
         checkFilter === "unchecked" &&
         !(r.is_submitted === true && r.is_checked !== true)
       ) return false;
+
       return true;
-    })
-      // ★追加：受給者証番号順
-      .sort((a, b) => {
-        const aNum = Number(a.ido_jukyusyasho ?? 0);
-        const bNum = Number(b.ido_jukyusyasho ?? 0);
-        return aNum - bNum;
-      });
+    });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
   // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
+
+  const sortedRecords = useMemo(() => {
+    const arr = [...filteredRecords];
+
+    arr.sort((a, b) => {
+      const na = Number(a.ido_jukyusyasho ?? "");
+      const nb = Number(b.ido_jukyusyasho ?? "");
+
+      if (idoSort === "asc") return na - nb;
+      return nb - na;
+    });
+
+    return arr;
+  }, [filteredRecords, idoSort]);
+
   const uniqueFilteredRecords = useMemo(() => {
     const pickBetter = (a: Row, b: Row) => {
-      // サービスが「全て」の時だけ、どれを代表にするか決める
-      // 優先：障害 > 移動支援 > その他
       const rankSvc = (svc: string) => {
         if (svc === "障害") return 0;
         if (svc === "移動支援") return 1;
@@ -283,12 +293,10 @@ const DisabilityCheckPage: React.FC = () => {
       const rb = rankSvc(b.kaipoke_servicek ?? "");
       if (ra !== rb) return ra < rb ? a : b;
 
-      // 次に、回収済を優先（任意：見せたい方針に合わせて）
       const ca = a.is_checked ? 0 : 1;
       const cb = b.is_checked ? 0 : 1;
       if (ca !== cb) return ca < cb ? a : b;
 
-      // 最後は安定化：year_month が新しい方（同一月なら同じ）
       const ya = a.year_month ?? "";
       const yb = b.year_month ?? "";
       if (ya !== yb) return ya > yb ? a : b;
@@ -298,7 +306,7 @@ const DisabilityCheckPage: React.FC = () => {
 
     const map = new Map<string, Row>();
 
-    for (const r of filteredRecords) {
+    for (const r of sortedRecords) {
       const id = normCsId(r.kaipoke_cs_id);
       if (!id) continue;
 
@@ -310,11 +318,9 @@ const DisabilityCheckPage: React.FC = () => {
       }
     }
 
-    // 既存の並び順（地区→かな→ID）を維持するため、元の filteredRecords の順序に寄せる
-    // ＝ map の値を “filteredRecords の順に” 取り出す
     const seen = new Set<string>();
     const out: Row[] = [];
-    for (const r of filteredRecords) {
+    for (const r of sortedRecords) {
       const id = normCsId(r.kaipoke_cs_id);
       if (!id || seen.has(id)) continue;
       const v = map.get(id);
@@ -322,7 +328,7 @@ const DisabilityCheckPage: React.FC = () => {
       seen.add(id);
     }
     return out;
-  }, [filteredRecords]);
+  }, [sortedRecords]);
 
   // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
   const bulkClientIds = useMemo(() => {
@@ -1062,7 +1068,12 @@ const DisabilityCheckPage: React.FC = () => {
             <th style={{ textAlign: "left", padding: 8 }}>地域</th>
             <th style={{ textAlign: "left", padding: 8 }}>カイポケID</th>
             <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
-            <th style={{ textAlign: "left", padding: 8 }}>受給者証番号</th>
+            <th
+              style={{ cursor: "pointer" }}
+              onClick={() => setIdoSort(idoSort === "asc" ? "desc" : "asc")}
+            >
+              受給者証番号 {idoSort === "asc" ? "▲" : "▼"}
+            </th>
             <th style={{ textAlign: "left", padding: 8 }}>実績担当者</th>
             <th style={{ textAlign: "left", padding: 8 }}>チーム名</th> {/* ★追加 */}
             <th style={{ textAlign: "center", padding: 8, width: 80 }}>提出✅</th>
