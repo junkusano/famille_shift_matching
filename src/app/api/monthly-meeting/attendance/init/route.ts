@@ -59,6 +59,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 type ShiftStaffRow = {
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
         // 1) 対象月の shift から staff を集める
         const { data: shifts, error: shiftErr } = await supabaseAdmin
             .from("shift")
-            .select("staff_01_user_id, staff_02_user_id")
+            .select("staff_01_user_id, staff_02_user_id, staff_03_user_id")
             .gte("shift_start_date", fromDate)
             .lt("shift_start_date", toDate)
             .limit(100000)
@@ -91,8 +92,13 @@ export async function POST(req: NextRequest) {
 
         const staffSet = new Set<string>();
         for (const row of shifts ?? []) {
-            if (row.staff_01_user_id) staffSet.add(row.staff_01_user_id);
-            if (row.staff_02_user_id) staffSet.add(row.staff_02_user_id);
+            const s1 = String(row.staff_01_user_id ?? "").trim();
+            const s2 = String(row.staff_02_user_id ?? "").trim();
+            const s3 = String(row.staff_03_user_id ?? "").trim();
+
+            if (s1) staffSet.add(s1);
+            if (s2) staffSet.add(s2);
+            if (s3) staffSet.add(s3);
         }
 
         const staffIds = Array.from(staffSet);
