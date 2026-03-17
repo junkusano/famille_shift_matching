@@ -44,8 +44,9 @@ function ymNowJst(): string {
 function toErrorMessage(e: unknown): string {
     if (e instanceof Error) return e.message;
     if (typeof e === "string") return e;
+    if (isRecord(e) && typeof e["message"] === "string") return e["message"];
     try {
-        return JSON.stringify(e);
+        return JSON.stringify(e, null, 2);
     } catch {
         return "Unknown error";
     }
@@ -181,7 +182,23 @@ export default function MonthlyMeetingCheckPage() {
         setLoading(true);
 
         try {
-            // ★APIから「全従業員 + 既存の入力値」を取得する
+            // ① 先に対象月の attendance を初期化
+            const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
+                method: "POST",
+                body: JSON.stringify({ ym }),
+            });
+
+            const initJson: unknown = await initRes.json();
+
+            if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
+                throw new Error(
+                    isRecord(initJson)
+                        ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
+                        : `init failed (${initRes.status})`
+                );
+            }
+
+            // ② そのあと一覧取得
             const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${ym}`);
             const j: unknown = await res.json();
 
