@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient"; // ★追加（shiftページでも使ってるはず）
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 type Row = {
     target_month: string; // YYYY-MM-01
@@ -131,7 +132,16 @@ async function fetchWithBearer(input: RequestInfo, init?: RequestInit) {
 }
 
 export default function MonthlyMeetingCheckPage() {
-    const [ym, setYm] = useState<string>(ymNowJst());
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    const initialYmFromUrl = searchParams.get("ym");
+    const [ym, setYm] = useState<string>(
+        initialYmFromUrl && /^\d{4}-\d{2}$/.test(initialYmFromUrl)
+            ? initialYmFromUrl
+            : ymNowJst()
+    );
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState<string>("");
@@ -487,6 +497,13 @@ export default function MonthlyMeetingCheckPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ym, authReady]);
 
+    useEffect(() => {
+        const qym = searchParams.get("ym");
+        if (qym && /^\d{4}-\d{2}$/.test(qym) && qym !== ym) {
+            setYm(qym);
+        }
+    }, [searchParams, ym]);
+
     return (
         <div className="p-4 space-y-4">
             {/* 上段：操作 */}
@@ -512,7 +529,14 @@ export default function MonthlyMeetingCheckPage() {
                     <select
                         className="border rounded px-2 py-1"
                         value={ym}
-                        onChange={(e) => setYm(e.target.value)}
+                        onChange={(e) => {
+                            const nextYm = e.target.value;
+                            setYm(nextYm);
+
+                            const params = new URLSearchParams(searchParams.toString());
+                            params.set("ym", nextYm);
+                            router.replace(`${pathname}?${params.toString()}`);
+                        }}
                     >
                         {monthOptions.map((m) => (
                             <option key={m} value={m}>
