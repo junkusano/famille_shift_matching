@@ -187,144 +187,135 @@ export default function MonthlyMeetingCheckPage() {
         return list;
     }, []);
 
-    async function loadOnce(targetYm: string) {
-        // ① 先に対象月の attendance を初期化
-        const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
-            method: "POST",
-            body: JSON.stringify({ ym: targetYm }),
-        });
-
-        const initJson: unknown = await initRes.json();
-
-        if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
-            throw new Error(
-                isRecord(initJson)
-                    ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
-                    : `init failed (${initRes.status})`
-            );
-        }
-
-        // ② そのあと一覧取得
-        const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${targetYm}`);
-        const j: unknown = await res.json();
-
-        if (!res.ok || !isRecord(j) || readBoolean(j.ok) !== true) {
-            throw new Error(
-                isRecord(j)
-                    ? (readString(j.error) ?? `load failed (${res.status})`)
-                    : `load failed (${res.status})`
-            );
-        }
-
-        const roleFromApi = typeof j["role"] === "string" ? j["role"] : "";
-        setMyRole(roleFromApi.trim().toUpperCase());
-
-        const raw = Array.isArray(j["rows"]) ? j["rows"] : [];
-
-        function isRowCandidate(v: unknown): v is Record<string, unknown> {
-            return isRecord(v);
-        }
-
-        const newRows: Row[] = raw
-            .filter(isRowCandidate)
-            .filter((r) =>
-                typeof r["user_id"] === "string" &&
-                typeof r["target_month"] === "string" &&
-                typeof r["full_name_kanji"] === "string"
-            )
-            .map((r) => ({
-                target_month: r["target_month"] as string,
-                user_id: r["user_id"] as string,
-                full_name_kanji: r["full_name_kanji"] as string,
-                orgunitname: typeof r["orgunitname"] === "string" ? r["orgunitname"] : null,
-
-                required: typeof r["required"] === "boolean" ? r["required"] : true,
-
-                attended_regular:
-                    r["attended_regular"] === null
-                        ? null
-                        : typeof r["attended_regular"] === "boolean"
-                            ? r["attended_regular"]
-                            : null,
-
-                attended_extra:
-                    r["attended_extra"] === null
-                        ? null
-                        : typeof r["attended_extra"] === "boolean"
-                            ? r["attended_extra"]
-                            : null,
-
-                checked_regular:
-                    typeof r["checked_regular"] === "boolean" ? r["checked_regular"] : false,
-
-                checked_extra:
-                    typeof r["checked_extra"] === "boolean" ? r["checked_extra"] : false,
-
-                meeting_date:
-                    r["meeting_date"] === null
-                        ? null
-                        : typeof r["meeting_date"] === "string"
-                            ? r["meeting_date"]
-                            : null,
-
-                minutes_url:
-                    r["minutes_url"] === null
-                        ? null
-                        : typeof r["minutes_url"] === "string"
-                            ? r["minutes_url"]
-                            : null,
-
-                staff_comment:
-                    r["staff_comment"] === null
-                        ? null
-                        : typeof r["staff_comment"] === "string"
-                            ? r["staff_comment"]
-                            : null,
-
-                manager_checked:
-                    r["manager_checked"] === null
-                        ? null
-                        : typeof r["manager_checked"] === "boolean"
-                            ? r["manager_checked"]
-                            : null,
-            }));
-
-        setRows(newRows);
-
-        const firstMeetingDate =
-            newRows.find((r) => r.meeting_date)?.meeting_date ?? "";
-        const firstMinutesUrl =
-            newRows.find((r) => r.minutes_url)?.minutes_url ?? "";
-
-        setMeetingDate(firstMeetingDate);
-        setSharedMinutesUrl(firstMinutesUrl);
-
-        const next: Record<string, EditRow> = {};
-        for (const r of newRows) {
-            next[r.user_id] = {
-                attended_regular: r.attended_regular ?? false,
-                attended_extra: r.attended_extra ?? false,
-                checked_regular: r.checked_regular ?? false,
-                checked_extra: r.checked_extra ?? false,
-                staff_comment: r.staff_comment ?? "",
-            };
-        }
-        setEdit(next);
-    }
-
     async function load() {
         setMsg("");
         setLoading(true);
 
         try {
-            await loadOnce(ym);
-        } catch {
-            try {
-                await loadOnce(ym);
-            } catch (e2: unknown) {
-                setRows([]);
-                setMsg(toErrorMessage(e2));
+            // ① 先に対象月の attendance を初期化
+            const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
+                method: "POST",
+                body: JSON.stringify({ ym }),
+            });
+
+            const initJson: unknown = await initRes.json();
+
+            if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
+                throw new Error(
+                    isRecord(initJson)
+                        ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
+                        : `init failed (${initRes.status})`
+                );
             }
+
+            // ② そのあと一覧取得
+            const res = await fetchWithBearer(`/api/monthly-meeting/attendance?ym=${ym}`);
+            const j: unknown = await res.json();
+
+            if (!res.ok || !isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(
+                    isRecord(j)
+                        ? (readString(j.error) ?? `load failed (${res.status})`)
+                        : `load failed (${res.status})`
+                );
+            }
+            const roleFromApi = isRecord(j) && typeof j["role"] === "string" ? j["role"] : "";
+            setMyRole(roleFromApi.trim().toUpperCase());
+
+            const raw = Array.isArray(j["rows"]) ? j["rows"] : [];
+
+            function isRowCandidate(v: unknown): v is Record<string, unknown> {
+                return isRecord(v);
+            }
+
+            const newRows: Row[] = raw
+                .filter(isRowCandidate)
+                .filter((r) =>
+                    typeof r["user_id"] === "string" &&
+                    typeof r["target_month"] === "string" &&
+                    typeof r["full_name_kanji"] === "string"
+                )
+                .map((r) => ({
+                    target_month: r["target_month"] as string,
+                    user_id: r["user_id"] as string,
+                    full_name_kanji: r["full_name_kanji"] as string,
+                    orgunitname: typeof r["orgunitname"] === "string" ? r["orgunitname"] : null,
+
+                    required: typeof r["required"] === "boolean" ? r["required"] : true,
+
+                    attended_regular:
+                        r["attended_regular"] === null
+                            ? null
+                            : typeof r["attended_regular"] === "boolean"
+                                ? r["attended_regular"]
+                                : null,
+
+                    attended_extra:
+                        r["attended_extra"] === null
+                            ? null
+                            : typeof r["attended_extra"] === "boolean"
+                                ? r["attended_extra"]
+                                : null,
+
+                    checked_regular:
+                        typeof r["checked_regular"] === "boolean" ? r["checked_regular"] : false,
+
+                    checked_extra:
+                        typeof r["checked_extra"] === "boolean" ? r["checked_extra"] : false,
+                    meeting_date:
+                        r["meeting_date"] === null
+                            ? null
+                            : typeof r["meeting_date"] === "string"
+                                ? r["meeting_date"]
+                                : null,
+
+                    minutes_url:
+                        r["minutes_url"] === null
+                            ? null
+                            : typeof r["minutes_url"] === "string"
+                                ? r["minutes_url"]
+                                : null,
+
+                    staff_comment:
+                        r["staff_comment"] === null
+                            ? null
+                            : typeof r["staff_comment"] === "string"
+                                ? r["staff_comment"]
+                                : null,
+
+                    manager_checked:
+                        r["manager_checked"] === null
+                            ? null
+                            : typeof r["manager_checked"] === "boolean"
+                                ? r["manager_checked"]
+                                : null,
+                }));
+
+            setRows(newRows);
+
+            const firstMeetingDate =
+                newRows.find((r) => r.meeting_date)?.meeting_date ?? "";
+            const firstMinutesUrl =
+                newRows.find((r) => r.minutes_url)?.minutes_url ?? "";
+
+            setMeetingDate(firstMeetingDate);
+            setSharedMinutesUrl(firstMinutesUrl);
+
+            // ★入力欄の初期化（既存値があればそれを入れる）
+            const next: Record<string, EditRow> = {};
+            for (const r of newRows) {
+                next[r.user_id] = {
+                    attended_regular: r.attended_regular ?? false,
+                    attended_extra: r.attended_extra ?? false,
+                    checked_regular: r.checked_regular ?? false,
+                    checked_extra: r.checked_extra ?? false,
+                    staff_comment: r.staff_comment ?? "",
+                };
+            }
+            setEdit(next);
+
+        } catch (e: unknown) {
+            setMsg(toErrorMessage(e));
         } finally {
             setLoading(false);
         }
@@ -508,12 +499,10 @@ export default function MonthlyMeetingCheckPage() {
 
     useEffect(() => {
         const qym = searchParams.get("ym");
-        if (!qym && ym) {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("ym", ym);
-            router.replace(`${pathname}?${params.toString()}`);
+        if (qym && /^\d{4}-\d{2}$/.test(qym) && qym !== ym) {
+            setYm(qym);
         }
-    }, [searchParams, ym, router, pathname]);
+    }, [searchParams, ym]);
 
     return (
         <div className="p-4 space-y-4">
