@@ -333,6 +333,45 @@ export default function MonthlyMeetingCheckPage() {
         }
     }
 
+    async function saveMeetingInfo() {
+        setMsg("");
+        setLoading(true);
+
+        try {
+            if (rows.length === 0) {
+                throw new Error("保存対象の従業員データがありません");
+            }
+
+            const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                method: "PATCH",
+                body: JSON.stringify({
+                    target_month: `${ym}-01`,
+                    user_id: rows[0].user_id,
+                    apply_shared_fields_to_all: true,
+                    meeting_date: meetingDate || null,
+                    minutes_url: sharedMinutesUrl || null,
+                }),
+            });
+
+            const j: unknown = await res.json();
+
+            if (!res.ok || !isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(
+                    isRecord(j)
+                        ? (readString(j.error) ?? `save failed (${res.status})`)
+                        : `save failed (${res.status})`
+                );
+            }
+
+            setMsg("会議日・議事録URLを保存しました");
+            await load();
+        } catch (e: unknown) {
+            setMsg(toErrorMessage(e));
+        } finally {
+            setLoading(false);
+        }
+    }
+
     async function saveAll() {
         setMsg("");
         setLoading(true);
@@ -469,7 +508,7 @@ export default function MonthlyMeetingCheckPage() {
                     </button>
 
                     <button className="border rounded px-3 py-1" onClick={saveAll} disabled={loading}>
-                        保存
+                        コメントを保存
                     </button>
                 </div>
 
@@ -515,6 +554,17 @@ export default function MonthlyMeetingCheckPage() {
                             )}
                         </div>
                     </label>
+                </div>
+
+                <div>
+                    <button
+                        className="border rounded px-3 py-1 bg-white"
+                        onClick={saveMeetingInfo}
+                        disabled={loading || rows.length === 0}
+                        type="button"
+                    >
+                        会議情報を保存
+                    </button>
                 </div>
             </div>
 
