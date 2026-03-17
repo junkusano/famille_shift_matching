@@ -11,6 +11,7 @@ type Row = {
     required: boolean;
     attended_regular: boolean | null;
     attended_extra: boolean | null;
+    meeting_date: string | null;   // ★追加
     checked_regular: boolean; // ★追加：確認（月例）
     checked_extra: boolean;   // ★追加：確認（追加）
     minutes_url: string | null;
@@ -22,11 +23,8 @@ type Row = {
 type EditRow = {
     attended_regular: boolean;
     attended_extra: boolean;
-
-    checked_regular: boolean; // ★追加
-    checked_extra: boolean;   // ★追加
-
-    minutes_url: string;
+    checked_regular: boolean;
+    checked_extra: boolean;
     staff_comment: string;
 };
 
@@ -149,6 +147,9 @@ export default function MonthlyMeetingCheckPage() {
     // ★追加：編集状態（user_id -> 入力中の値）
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
 
+    const [meetingDate, setMeetingDate] = useState<string>("");
+    const [sharedMinutesUrl, setSharedMinutesUrl] = useState<string>("");
+
     // ★追加：行ごとの保存中フラグ
     const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
     // ★追加：過去12ヶ月＋今月の選択肢を作る
@@ -234,6 +235,12 @@ export default function MonthlyMeetingCheckPage() {
 
                     checked_extra:
                         typeof r["checked_extra"] === "boolean" ? r["checked_extra"] : false,
+                    meeting_date:
+                        r["meeting_date"] === null
+                            ? null
+                            : typeof r["meeting_date"] === "string"
+                                ? r["meeting_date"]
+                                : null,
 
                     minutes_url:
                         r["minutes_url"] === null
@@ -259,17 +266,22 @@ export default function MonthlyMeetingCheckPage() {
 
             setRows(newRows);
 
+            const firstMeetingDate =
+                newRows.find((r) => r.meeting_date)?.meeting_date ?? "";
+            const firstMinutesUrl =
+                newRows.find((r) => r.minutes_url)?.minutes_url ?? "";
+
+            setMeetingDate(firstMeetingDate);
+            setSharedMinutesUrl(firstMinutesUrl);
+
             // ★入力欄の初期化（既存値があればそれを入れる）
             const next: Record<string, EditRow> = {};
             for (const r of newRows) {
                 next[r.user_id] = {
                     attended_regular: r.attended_regular ?? false,
                     attended_extra: r.attended_extra ?? false,
-
                     checked_regular: r.checked_regular ?? false,
                     checked_extra: r.checked_extra ?? false,
-
-                    minutes_url: r.minutes_url ?? "",
                     staff_comment: r.staff_comment ?? "",
                 };
             }
@@ -298,7 +310,6 @@ export default function MonthlyMeetingCheckPage() {
             attended_extra: cur?.attended_extra ?? false,
             checked_regular: cur?.checked_regular ?? false,
             checked_extra: cur?.checked_extra ?? false,
-            minutes_url: cur?.minutes_url ?? "",
             staff_comment: cur?.staff_comment ?? "",
             ...patch,
         };
@@ -327,6 +338,28 @@ export default function MonthlyMeetingCheckPage() {
         setLoading(true);
 
         try {
+            // ① 月全体の会議情報を一括保存
+            {
+                const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        target_month: `${ym}-01`,
+                        user_id: rows[0]?.user_id ?? "",
+                        apply_shared_fields_to_all: true,
+                        meeting_date: meetingDate || null,
+                        minutes_url: sharedMinutesUrl || null,
+                    }),
+                });
+
+                const j: unknown = await res.json();
+                if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                    throw new Error(
+                        isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed"
+                    );
+                }
+            }
+
+            // ② コメントは各行ごとに保存
             for (const r of rows) {
                 const v = edit[r.user_id];
                 if (!v) continue;
@@ -336,14 +369,15 @@ export default function MonthlyMeetingCheckPage() {
                     body: JSON.stringify({
                         target_month: `${ym}-01`,
                         user_id: r.user_id,
-                        minutes_url: v.minutes_url,
                         staff_comment: v.staff_comment,
                     }),
                 });
 
                 const j: unknown = await res.json();
                 if (!isRecord(j) || readBoolean(j.ok) !== true) {
-                    throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
+                    throw new Error(
+                        isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed"
+                    );
                 }
             }
 
@@ -446,6 +480,44 @@ export default function MonthlyMeetingCheckPage() {
                 {msg && <div className="text-sm">{msg}</div>}
             </div>
 
+            <div className="rounded border bg-gray-50 p-3 space-y-3">
+                <div className="font-semibold text-sm">会議情報登録</div>
+
+                <div className="flex flex-wrap items-center gap-4">
+                    <label className="text-sm">
+                        会議日
+                        <input
+                            type="date"
+                            className="border rounded px-2 py-1 ml-2"
+                            value={meetingDate}
+                            onChange={(e) => setMeetingDate(e.target.value)}
+                        />
+                    </label>
+
+                    <label className="text-sm flex-1 min-w-[320px]">
+                        議事録リンク
+                        <div className="flex items-center gap-2 mt-1">
+                            <input
+                                className="border rounded px-2 py-1 w-full"
+                                value={sharedMinutesUrl}
+                                onChange={(e) => setSharedMinutesUrl(e.target.value)}
+                                placeholder="https://..."
+                            />
+                            {sharedMinutesUrl.startsWith("http") && (
+                                <a
+                                    className="text-blue-600 underline whitespace-nowrap"
+                                    href={sharedMinutesUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    開く
+                                </a>
+                            )}
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             {/* 下段：表 */}
             <div className="rounded border p-3">
                 <div className="text-sm mb-2">従業員一覧</div>
@@ -459,7 +531,6 @@ export default function MonthlyMeetingCheckPage() {
                                 <th className="border p-2 bg-gray-50">確認（月例）</th>
                                 <th className="border p-2 bg-gray-50">追加</th>
                                 <th className="border p-2 bg-gray-50">確認（追加）</th>
-                                <th className="border p-2 text-left bg-gray-50">議事録URL</th>
                                 <th className="border p-2 text-left bg-gray-50">コメント</th>
                             </tr>
                         </thead>
@@ -471,7 +542,6 @@ export default function MonthlyMeetingCheckPage() {
                                     attended_extra: false,
                                     checked_regular: false,
                                     checked_extra: false,
-                                    minutes_url: "",
                                     staff_comment: "",
                                 };
 
@@ -548,33 +618,6 @@ export default function MonthlyMeetingCheckPage() {
                                             />
                                         </td>
 
-                                        {/* 議事録URL（入力＋開く） */}
-                                        <td className="border p-2">
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    className="border rounded px-2 py-1 w-full"
-                                                    value={e.minutes_url}
-                                                    onChange={(ev) =>
-                                                        setEdit((p) => ({
-                                                            ...p,
-                                                            [r.user_id]: { ...e, minutes_url: ev.target.value },
-                                                        }))
-                                                    }
-                                                    placeholder="https://..."
-                                                />
-                                                {e.minutes_url.startsWith("http") && (
-                                                    <a
-                                                        className="text-blue-600 underline whitespace-nowrap"
-                                                        href={e.minutes_url}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                    >
-                                                        開く
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </td>
-
                                         {/* コメント（入力） */}
                                         <td className="border p-2">
                                             <input
@@ -595,7 +638,7 @@ export default function MonthlyMeetingCheckPage() {
 
                             {visibleRows.length === 0 && (
                                 <tr>
-                                    <td className="border p-3 text-sm text-gray-600" colSpan={7}>
+                                    <td className="border p-3 text-sm text-gray-600" colSpan={6}>
                                         従業員データが0件です（在籍者の取得条件をご確認ください）
                                     </td>
                                 </tr>

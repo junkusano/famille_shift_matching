@@ -68,7 +68,7 @@ type AttendanceRow = {
     // ★追加：確認（月例/追加）
     checked_regular: boolean | null;
     checked_extra: boolean | null;
-
+    meeting_date: string | null;   // ★追加
     minutes_url: string | null;
     staff_comment: string | null;
     manager_checked: boolean | null;
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
         // 3) attendance を取得（その月の既存値）
         const { data: att, error: attErr } = await supabaseAdmin
             .from("monthly_meeting_attendance")
-            .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,checked_regular,checked_extra")
+            .select("target_month,user_id,required,attended_regular,attended_extra,meeting_date,minutes_url,staff_comment,checked_regular,checked_extra")
             .eq("target_month", monthStartStr)
             .in("user_id", staffIds)
             .returns<AttendanceRow[]>();
@@ -179,8 +179,7 @@ export async function GET(req: NextRequest) {
             // 作成後に取り直し
             const { data: att2, error: att2Err } = await supabaseAdmin
                 .from("monthly_meeting_attendance")
-                .select("target_month,user_id,required,attended_regular,attended_extra,minutes_url,staff_comment,checked_regular,checked_extra")
-                .eq("target_month", monthStartStr)
+                .select("target_month,user_id,required,attended_regular,attended_extra,meeting_date,minutes_url,staff_comment,checked_regular,checked_extra").eq("target_month", monthStartStr)
                 .in("user_id", staffIds)
                 .returns<AttendanceRow[]>();
 
@@ -211,7 +210,7 @@ export async function GET(req: NextRequest) {
 
                     checked_regular: r?.checked_regular ?? false, // ★追加
                     checked_extra: r?.checked_extra ?? false,     // ★追加
-
+                    meeting_date: r?.meeting_date ?? null,   // ★追加
                     minutes_url: r?.minutes_url ?? null,
                     staff_comment: r?.staff_comment ?? null,
                     manager_checked: r?.manager_checked ?? null,
@@ -269,6 +268,11 @@ export async function PATCH(req: NextRequest) {
             patch.minutes_url = v == null ? null : String(v);
         }
 
+        if ("meeting_date" in body) {
+            const v = body["meeting_date"];
+            patch.meeting_date = v == null || v === "" ? null : String(v);
+        }
+
         // ✅ コメント（本人のみ、という運用ならこれを維持）
         if ("staff_comment" in body) {
             if (myUserId !== user_id) throw new Error("forbidden: only self can update staff_comment");
@@ -291,11 +295,18 @@ export async function PATCH(req: NextRequest) {
 
         patch.updated_at = nowIso;
 
-        const { error } = await supabaseAdmin
+        const applySharedToAll = body["apply_shared_fields_to_all"] === true;
+
+        let query = supabaseAdmin
             .from("monthly_meeting_attendance")
             .update(patch)
-            .eq("target_month", target_month)
-            .eq("user_id", user_id);
+            .eq("target_month", target_month);
+
+        if (!applySharedToAll) {
+            query = query.eq("user_id", user_id);
+        }
+
+        const { error } = await query;
 
         if (error) throw error;
 
