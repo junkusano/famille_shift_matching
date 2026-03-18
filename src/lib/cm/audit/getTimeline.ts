@@ -42,6 +42,20 @@ type GetTimelineResult = {
 /** セッション区切りの閾値（ミリ秒） — 30分 */
 const SESSION_GAP_MS = 30 * 60 * 1000;
 
+/**
+ * 内部クエリの取得上限
+ *
+ * 日付フィルター（start_date）がある場合は期間で絞り込まれるため
+ * 上限を大きくしても問題ない。日付フィルターがない場合は安全のため
+ * 小さい上限を使用する。
+ *
+ * 旧: 全ケースで 500 固定 → 30日間で操作件数が 500 件を超えるとデータ欠落していた
+ */
+const CM_TIMELINE_LIMIT_WITH_DATE = 5000;
+const CM_TIMELINE_LIMIT_WITHOUT_DATE = 500;
+const CM_TIMELINE_DC_LIMIT_WITH_DATE = 10000;
+const CM_TIMELINE_DC_LIMIT_WITHOUT_DATE = 2000;
+
 // =============================================================
 // メイン関数
 // =============================================================
@@ -185,7 +199,11 @@ async function fetchPageViews(
   if (filter.end_date) query = query.lte("timestamp", filter.end_date);
   if (filter.user_id) query = query.eq("user_id", filter.user_id);
 
-  query = query.order("timestamp", { ascending: false }).limit(500);
+  // 日付フィルターがある場合は期間で絞り込まれるため上限を大きくする
+  const limit = filter.start_date
+    ? CM_TIMELINE_LIMIT_WITH_DATE
+    : CM_TIMELINE_LIMIT_WITHOUT_DATE;
+  query = query.order("timestamp", { ascending: false }).limit(limit);
 
   const { data, error } = await query;
   return { data: (data as CmPageView[]) ?? [], error: error?.message ?? null };
@@ -204,7 +222,11 @@ async function fetchOperationLogs(
   if (filter.user_id) query = query.eq("user_id", filter.user_id);
   if (filter.category) query = query.eq("category", filter.category);
 
-  query = query.order("timestamp", { ascending: false }).limit(500);
+  // 日付フィルターがある場合は期間で絞り込まれるため上限を大きくする
+  const limit = filter.start_date
+    ? CM_TIMELINE_LIMIT_WITH_DATE
+    : CM_TIMELINE_LIMIT_WITHOUT_DATE;
+  query = query.order("timestamp", { ascending: false }).limit(limit);
 
   const { data, error } = await query;
   return { data: (data as CmOperationLog[]) ?? [], error: error?.message ?? null };
@@ -222,7 +244,11 @@ async function fetchDataChangeLogs(
   if (filter.end_date) query = query.lte("timestamp", filter.end_date);
   if (filter.user_id) query = query.eq("context_user_id", filter.user_id);
 
-  query = query.order("timestamp", { ascending: false }).limit(2000);
+  // data_change_logs は operation_logs より件数が多くなるため上限を大きめにする
+  const limit = filter.start_date
+    ? CM_TIMELINE_DC_LIMIT_WITH_DATE
+    : CM_TIMELINE_DC_LIMIT_WITHOUT_DATE;
+  query = query.order("timestamp", { ascending: false }).limit(limit);
 
   const { data, error } = await query;
   return { data: (data as CmDataChangeLog[]) ?? [], error: error?.message ?? null };

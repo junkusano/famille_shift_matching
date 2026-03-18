@@ -9,6 +9,13 @@
 // データ取得:
 //   cmGetTimeline で当日のタイムラインを取得し、
 //   サマリー・チャート・テーブル・ヒートマップを描画する。
+//
+// 分割構成:
+//   型定義        → types/cm/auditDashboard.ts
+//   定数          → constants/cm/auditDashboard.ts
+//   集計ロジック  → lib/cm/audit/dashboardAggregation.ts
+//   ツールチップ  → CmAuditChartTooltip.tsx
+//   ヒートマップ  → CmAuditAccessHeatmap.tsx
 // =============================================================
 
 'use client';
@@ -22,9 +29,6 @@ import {
   RefreshCw,
   Eye,
   LayoutDashboard,
-  List,
-  GitBranch,
-  Terminal,
   ArrowRight,
   ArrowUpRight,
   ChevronRight,
@@ -46,453 +50,45 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabaseClient';
 import { cmGetTimeline } from '@/lib/cm/audit/getTimeline';
+import {
+  cmAuditPeriodLabel,
+  cmAuditPeriodPrefix,
+  cmAuditDaysAgoStart,
+  cmAuditFormatTime,
+  cmAuditBuildDailyTrend,
+  cmAuditBuildCategoryData,
+  cmAuditBuildUserStats,
+  cmAuditBuildImportantOps,
+  cmAuditBuildHeatmap,
+  cmAuditBuildHourlyTimeline,
+} from '@/lib/cm/audit/dashboardAggregation';
+import {
+  CM_AUDIT_PALETTE,
+  CM_AUDIT_SEVERITY_STYLES,
+  CM_AUDIT_NAV_CARDS,
+} from '@/constants/cm/auditDashboard';
+import { CmAuditChartTooltip } from '@/components/cm-components/audit/CmAuditChartTooltip';
+import { CmAuditAccessHeatmap } from '@/components/cm-components/audit/CmAuditAccessHeatmap';
 import type {
   CmAuditLogFilter,
   CmAuditSession,
   CmTimelineEvent,
 } from '@/types/cm/operationLog';
+import type {
+  CmAuditPeriod,
+  CmAuditUserStat,
+  CmAuditImportantOp,
+} from '@/types/cm/auditDashboard';
 import styles from '@/styles/cm-styles/components/auditDashboard.module.css';
 
 // =============================================================
-// 型定義
-// =============================================================
-
-type CmAuditColorSet = {
-  main: string;
-  light: string;
-  muted: string;
-};
-
-type CmAuditSeverity = 'high' | 'medium' | 'low';
-
-type CmAuditPeriod = 'today' | '7d' | '30d';
-
-type CmAuditUserStat = {
-  name: string;
-  userId: string;
-  operations: number;
-  pageViews: number;
-  lastAccess: string;
-  changes: number;
-};
-
-type CmAuditImportantOp = {
-  time: string;
-  user: string;
-  action: string;
-  target: string;
-  severity: CmAuditSeverity;
-};
-
-type CmAuditHeatmapCell = {
-  day: string;
-  dayIndex: number;
-  hour: number;
-  count: number;
-};
-
-// =============================================================
-// カラーパレット（旧版と同一）
-// =============================================================
-
-const CM_AUDIT_PALETTE: Record<string, CmAuditColorSet> = {
-  blue:    { main: '#2563eb', light: '#dbeafe', muted: '#93bbfd' },
-  violet:  { main: '#7c3aed', light: '#ede9fe', muted: '#b4a0f4' },
-  cyan:    { main: '#0891b2', light: '#cffafe', muted: '#67d9ef' },
-  emerald: { main: '#059669', light: '#d1fae5', muted: '#6ee7b7' },
-  amber:   { main: '#d97706', light: '#fef3c7', muted: '#fbbf24' },
-};
-
-// severity スタイル
-const CM_AUDIT_SEVERITY_STYLES: Record<CmAuditSeverity, {
-  bg: string;
-  border: string;
-  dot: string;
-  text: string;
-}> = {
-  high:   { bg: '#fef2f2', border: '#fecaca', dot: '#ef4444', text: '#b91c1c' },
-  medium: { bg: '#fffbeb', border: '#fed7aa', dot: '#f59e0b', text: '#b45309' },
-  low:    { bg: '#ffffff', border: '#e2e8f0', dot: '#cbd5e1', text: '#64748b' },
-};
-
-// 高重要度アクションのキーワード
-const CM_AUDIT_HIGH_SEVERITY_ACTIONS = ['delete', 'remove', 'destroy'];
-const CM_AUDIT_MEDIUM_SEVERITY_ACTIONS = ['create', 'insert', 'batch', 'execute', 'rpa', 'update'];
-
-// カテゴリラベルマップ
-const CM_AUDIT_CATEGORY_LABELS: Record<string, string> = {
-  client: '利用者',
-  contract: '契約',
-  fax: 'FAX',
-  phonebook: 'FAX電話帳',
-  'other-office': '他事業所',
-  schedule: 'スケジュール',
-  credential: '認証情報',
-  'rpa-api': 'RPA API',
-  'rpa-job': 'RPAジョブ',
-  'alert-batch': 'アラートバッチ',
-  plaud: 'Plaud',
-  master: 'マスタ',
-};
-
-// カテゴリごとのカラー
-const CM_AUDIT_CATEGORY_COLORS: Record<string, string> = {
-  client: CM_AUDIT_PALETTE.blue.main,
-  contract: CM_AUDIT_PALETTE.violet.main,
-  fax: CM_AUDIT_PALETTE.cyan.main,
-  'rpa-api': CM_AUDIT_PALETTE.amber.main,
-  'rpa-job': CM_AUDIT_PALETTE.amber.main,
-  master: CM_AUDIT_PALETTE.emerald.main,
-};
-
-const CM_AUDIT_DEFAULT_CATEGORY_COLOR = '#94a3b8';
-
-// =============================================================
-// ユーティリティ
+// ユーティリティ（コンポーネントローカル）
 // =============================================================
 
 async function getAccessToken(): Promise<string> {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? '';
 }
-
-/** 指定日数前の00:00:00をISO文字列で返す */
-function cmAuditDaysAgoStart(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
-/** セッションからユーザー表示名 */
-function cmAuditSessionDisplayName(session: CmAuditSession): string {
-  if (session.user_name) return session.user_name;
-  if (session.user_email) return session.user_email.split('@')[0];
-  return session.user_id.slice(0, 8);
-}
-
-/** イベントからユーザー表示名 */
-function cmAuditDisplayName(event: CmTimelineEvent): string {
-  if (event.user_name) return event.user_name;
-  if (event.user_email) return event.user_email.split('@')[0];
-  return event.user_id.slice(0, 8);
-}
-
-/** 時刻フォーマット HH:mm */
-function cmAuditFormatTime(timestamp: string): string {
-  const d = new Date(timestamp);
-  return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-}
-
-/** アクションのseverity判定 */
-function cmAuditGetSeverity(action: string): CmAuditSeverity {
-  const lower = action.toLowerCase();
-  if (CM_AUDIT_HIGH_SEVERITY_ACTIONS.some((k) => lower.includes(k))) return 'high';
-  if (CM_AUDIT_MEDIUM_SEVERITY_ACTIONS.some((k) => lower.includes(k))) return 'medium';
-  return 'low';
-}
-
-/** ヒートマップカラー算出 */
-function cmAuditHeatmapColor(intensity: number): { bg: string; text: string } {
-  if (intensity === 0) return { bg: '#f1f5f9', text: '#475569' };
-  if (intensity < 0.25) return { bg: '#bfdbfe', text: '#475569' };
-  if (intensity < 0.5) return { bg: '#60a5fa', text: '#fff' };
-  if (intensity < 0.75) return { bg: '#3b82f6', text: '#fff' };
-  return { bg: '#1e40af', text: '#fff' };
-}
-
-// =============================================================
-// 集計関数: イベント配列 → チャート用データ
-// =============================================================
-
-/** 日別推移データを構築 */
-function cmAuditBuildDailyTrend(
-  events: CmTimelineEvent[],
-  days: number
-): { date: string; pageViews: number; operations: number; dataChanges: number }[] {
-  const buckets = new Map<string, { pageViews: number; operations: number; dataChanges: number }>();
-
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = `${d.getMonth() + 1}/${d.getDate()}`;
-    buckets.set(key, { pageViews: 0, operations: 0, dataChanges: 0 });
-  }
-
-  for (const ev of events) {
-    const d = new Date(ev.timestamp);
-    const key = `${d.getMonth() + 1}/${d.getDate()}`;
-    const bucket = buckets.get(key);
-    if (!bucket) continue;
-    if (ev.event_type === 'page_view') {
-      bucket.pageViews++;
-    } else {
-      bucket.operations++;
-      bucket.dataChanges += ev.db_changes.length;
-    }
-  }
-
-  return Array.from(buckets.entries()).map(([date, vals]) => ({ date, ...vals }));
-}
-
-/** カテゴリ内訳データを構築 */
-function cmAuditBuildCategoryData(
-  events: CmTimelineEvent[]
-): { name: string; value: number; color: string }[] {
-  const counts = new Map<string, number>();
-  for (const ev of events) {
-    if (ev.event_type !== 'operation' || !ev.category) continue;
-    counts.set(ev.category, (counts.get(ev.category) ?? 0) + 1);
-  }
-
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([cat, count]) => ({
-      name: CM_AUDIT_CATEGORY_LABELS[cat] ?? cat,
-      value: count,
-      color: CM_AUDIT_CATEGORY_COLORS[cat] ?? CM_AUDIT_DEFAULT_CATEGORY_COLOR,
-    }));
-}
-
-/** ユーザー別アクティビティを構築 */
-function cmAuditBuildUserStats(sessions: CmAuditSession[]): CmAuditUserStat[] {
-  const userMap = new Map<string, CmAuditUserStat>();
-
-  for (const session of sessions) {
-    const name = cmAuditSessionDisplayName(session);
-    const existing = userMap.get(session.user_id) ?? {
-      name,
-      userId: session.user_id,
-      operations: 0,
-      pageViews: 0,
-      lastAccess: '',
-      changes: 0,
-    };
-
-    for (const ev of session.events) {
-      if (ev.event_type === 'page_view') {
-        existing.pageViews++;
-      } else {
-        existing.operations++;
-        existing.changes += ev.db_changes.length;
-      }
-    }
-
-    const sessionLast = session.last_timestamp;
-    if (!existing.lastAccess || sessionLast > existing.lastAccess) {
-      existing.lastAccess = sessionLast;
-    }
-
-    userMap.set(session.user_id, existing);
-  }
-
-  return Array.from(userMap.values())
-    .sort((a, b) => b.operations - a.operations);
-}
-
-/** 注目操作（高severity）を抽出 */
-function cmAuditBuildImportantOps(events: CmTimelineEvent[]): CmAuditImportantOp[] {
-  return events
-    .filter((ev) => ev.event_type === 'operation')
-    .map((ev) => ({
-      time: cmAuditFormatTime(ev.timestamp),
-      user: cmAuditDisplayName(ev),
-      action: ev.action,
-      target: ev.description ?? ev.resource_type ?? '',
-      severity: cmAuditGetSeverity(ev.action),
-    }))
-    .sort((a, b) => {
-      const order: Record<CmAuditSeverity, number> = { high: 0, medium: 1, low: 2 };
-      return order[a.severity] - order[b.severity];
-    })
-    .slice(0, 8);
-}
-
-/** 曜日×時間帯ヒートマップを構築 */
-function cmAuditBuildHeatmap(events: CmTimelineEvent[]): CmAuditHeatmapCell[] {
-  const days = ['月', '火', '水', '木', '金', '土', '日'];
-  const grid = new Map<string, number>();
-
-  for (let d = 0; d < 7; d++) {
-    for (let h = 6; h <= 21; h++) {
-      grid.set(`${d}-${h}`, 0);
-    }
-  }
-
-  for (const ev of events) {
-    const date = new Date(ev.timestamp);
-    const jsDay = date.getDay();
-    const dayIdx = jsDay === 0 ? 6 : jsDay - 1;
-    const h = date.getHours();
-    if (h >= 6 && h <= 21) {
-      const key = `${dayIdx}-${h}`;
-      grid.set(key, (grid.get(key) ?? 0) + 1);
-    }
-  }
-
-  const data: CmAuditHeatmapCell[] = [];
-  for (let d = 0; d < 7; d++) {
-    for (let h = 6; h <= 21; h++) {
-      data.push({
-        day: days[d],
-        dayIndex: d,
-        hour: h,
-        count: grid.get(`${d}-${h}`) ?? 0,
-      });
-    }
-  }
-  return data;
-}
-
-/** 時間帯別バーチャートデータを構築 */
-function cmAuditBuildHourlyTimeline(
-  events: CmTimelineEvent[]
-): { hour: string; operations: number; pageViews: number }[] {
-  const buckets = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${String(i).padStart(2, '0')}:00`,
-    operations: 0,
-    pageViews: 0,
-  }));
-
-  for (const ev of events) {
-    const h = new Date(ev.timestamp).getHours();
-    if (ev.event_type === 'page_view') {
-      buckets[h].pageViews++;
-    } else {
-      buckets[h].operations++;
-    }
-  }
-
-  return buckets;
-}
-
-// =============================================================
-// ツールチップ（旧版と同一）
-// =============================================================
-
-type CmAuditTooltipPayload = {
-  name: string;
-  value: number;
-  color: string;
-};
-
-type CmAuditTooltipProps = {
-  active?: boolean;
-  payload?: CmAuditTooltipPayload[];
-  label?: string;
-};
-
-function CmAuditChartTooltip({ active, payload, label }: CmAuditTooltipProps) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className={styles.tooltip}>
-      <div className={styles.tooltipLabel}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} className={styles.tooltipRow}>
-          <div className={styles.tooltipDot} style={{ backgroundColor: p.color }} />
-          <span className={styles.tooltipName}>{p.name}:</span>
-          <span className={styles.tooltipValue}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// =============================================================
-// ヒートマップコンポーネント（旧版と同一）
-// =============================================================
-
-function CmAuditAccessHeatmap({ data }: { data: CmAuditHeatmapCell[] }) {
-  const days = ['月', '火', '水', '木', '金', '土', '日'];
-  const hours = Array.from({ length: 16 }, (_, i) => i + 6);
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-  return (
-    <div className={styles.heatmapWrap}>
-      <div className={styles.heatmapInner}>
-        <div className={styles.heatmapHourLabels}>
-          {hours.map((h) => (
-            <div key={h} className={styles.heatmapHourLabel}>{h}</div>
-          ))}
-        </div>
-        {days.map((day, di) => (
-          <div key={day} className={styles.heatmapRow}>
-            <div className={styles.heatmapDayLabel}>{day}</div>
-            {hours.map((h) => {
-              const cell = data.find((d) => d.dayIndex === di && d.hour === h);
-              const count = cell?.count ?? 0;
-              const intensity = maxCount > 0 ? count / maxCount : 0;
-              const { bg, text } = cmAuditHeatmapColor(intensity);
-              return (
-                <div key={h} className={styles.heatmapCellWrap}>
-                  <div
-                    className={styles.heatmapCell}
-                    style={{ backgroundColor: bg, color: text }}
-                    title={`${count}件`}
-                  >
-                    {count > 0 ? count : ''}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-        <div className={styles.heatmapLegend}>
-          <span className={styles.heatmapLegendLabel}>少</span>
-          {['#f1f5f9', '#bfdbfe', '#60a5fa', '#3b82f6', '#1e40af'].map((c) => (
-            <div key={c} className={styles.heatmapLegendSwatch} style={{ backgroundColor: c }} />
-          ))}
-          <span className={styles.heatmapLegendLabel}>多</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================
-// ナビカード定義
-// =============================================================
-
-type CmAuditNavCardDef = {
-  id: string;
-  label: string;
-  description: string;
-  href: string;
-  Icon: React.ElementType;
-  color: CmAuditColorSet;
-  statLabel: string;
-};
-
-const CM_AUDIT_NAV_CARDS: CmAuditNavCardDef[] = [
-  {
-    id: 'operations',
-    label: '操作ログ一覧',
-    description: 'ユーザー操作・DB変更をフィルター検索',
-    href: '/cm-portal/audit/operations',
-    Icon: List,
-    color: CM_AUDIT_PALETTE.blue,
-    statLabel: '本日の操作',
-  },
-  {
-    id: 'flow',
-    label: '経路フロー',
-    description: '操作の因果関係をトレースID単位で可視化',
-    href: '/cm-portal/audit/flow',
-    Icon: GitBranch,
-    color: CM_AUDIT_PALETTE.violet,
-    statLabel: '本日のセッション',
-  },
-  {
-    id: 'logs',
-    label: 'システムログ',
-    description: 'warn / error レベルのログを確認',
-    href: '/cm-portal/audit/logs',
-    Icon: Terminal,
-    color: CM_AUDIT_PALETTE.cyan,
-    statLabel: 'ログ管理',
-  },
-];
 
 // =============================================================
 // メインコンポーネント
@@ -581,13 +177,24 @@ export function CmAuditDashboardPage() {
     logs: '閲覧',
   }), [operationCount, sessions.length]);
 
-  // サマリーカード
+  // ナビカードの期間ラベル（period に応じて動的に切り替え）
+  const navCardStatLabels: Record<string, string> = useMemo(() => {
+    const prefix = cmAuditPeriodPrefix(period);
+    return {
+      operations: `${prefix}操作`,
+      flow: `${prefix}セッション`,
+      logs: 'ログ管理',
+    };
+  }, [period]);
+
+  // サマリーカード（period に応じて動的に切り替え）
+  const periodLabel = cmAuditPeriodLabel(period);
   const summaryItems = useMemo(() => [
-    { label: 'アクティブユーザー', value: activeUsers,    sub: '本日', color: CM_AUDIT_PALETTE.blue,    Icon: Users },
-    { label: '操作件数',          value: operationCount, sub: '本日', color: CM_AUDIT_PALETTE.violet,  Icon: Zap },
-    { label: 'DB変更件数',        value: dbChangeCount,  sub: '本日', color: CM_AUDIT_PALETTE.cyan,    Icon: RefreshCw },
-    { label: 'ページ閲覧',        value: pageViewCount,  sub: '本日', color: CM_AUDIT_PALETTE.emerald, Icon: Eye },
-  ], [activeUsers, operationCount, dbChangeCount, pageViewCount]);
+    { label: 'アクティブユーザー', value: activeUsers,    sub: periodLabel, color: CM_AUDIT_PALETTE.blue,    Icon: Users },
+    { label: '操作件数',          value: operationCount, sub: periodLabel, color: CM_AUDIT_PALETTE.violet,  Icon: Zap },
+    { label: 'DB変更件数',        value: dbChangeCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.cyan,    Icon: RefreshCw },
+    { label: 'ページ閲覧',        value: pageViewCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.emerald, Icon: Eye },
+  ], [activeUsers, operationCount, dbChangeCount, pageViewCount, periodLabel]);
 
   // ----------------------------------------------------------
   // データ取得
@@ -704,7 +311,7 @@ export function CmAuditDashboardPage() {
                   <span className={styles.navCardStatValue} style={{ color: navCard.color.main }}>
                     {loading ? '—' : navCardStats[navCard.id]}
                   </span>
-                  <span className={styles.navCardStatLabel}>{navCard.statLabel}</span>
+                  <span className={styles.navCardStatLabel}>{navCardStatLabels[navCard.id]}</span>
                 </div>
               </div>
               <ArrowUpRight className={styles.navCardArrow} size={16} />
@@ -942,7 +549,7 @@ export function CmAuditDashboardPage() {
 
         <div className={styles.chartCard}>
           <div className={styles.sectionHeader}>
-            <h3 className={styles.sectionTitle}>本日の時間帯別アクティビティ</h3>
+            <h3 className={styles.sectionTitle}>{cmAuditPeriodPrefix(period)}時間帯別アクティビティ</h3>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={hourlyTimeline} barGap={2}>
