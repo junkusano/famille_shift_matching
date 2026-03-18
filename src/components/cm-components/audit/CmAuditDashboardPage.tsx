@@ -3,17 +3,15 @@
 // 監査ダッシュボード（ハブ）の Client Component
 // /cm-portal/audit のメインコンテンツ
 //
-// 旧 CmAuditDashboard.tsx（モックデータ）を実データ接続に置き換え。
-// デザイン・レイアウト・CSSクラスは旧版を完全踏襲。
-//
 // データ取得:
-//   cmGetTimeline で当日のタイムラインを取得し、
-//   サマリー・チャート・テーブル・ヒートマップを描画する。
+//   cmGetDashboardSummary でサーバー側集計済みのデータを取得。
+//   クライアントには集計結果（数KB）だけが転送される。
 //
 // 分割構成:
 //   型定義        → types/cm/auditDashboard.ts
 //   定数          → constants/cm/auditDashboard.ts
 //   集計ロジック  → lib/cm/audit/dashboardAggregation.ts
+//   集計API       → lib/cm/audit/getDashboardSummary.ts
 //   ツールチップ  → CmAuditChartTooltip.tsx
 //   ヒートマップ  → CmAuditAccessHeatmap.tsx
 // =============================================================
@@ -49,18 +47,12 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { supabase } from '@/lib/supabaseClient';
-import { cmGetTimeline } from '@/lib/cm/audit/getTimeline';
+import { cmGetDashboardSummary } from '@/lib/cm/audit/getDashboardSummary';
 import {
   cmAuditPeriodLabel,
   cmAuditPeriodPrefix,
   cmAuditDaysAgoStart,
   cmAuditFormatTime,
-  cmAuditBuildDailyTrend,
-  cmAuditBuildCategoryData,
-  cmAuditBuildUserStats,
-  cmAuditBuildImportantOps,
-  cmAuditBuildHeatmap,
-  cmAuditBuildHourlyTimeline,
 } from '@/lib/cm/audit/dashboardAggregation';
 import {
   CM_AUDIT_PALETTE,
@@ -70,14 +62,10 @@ import {
 import { CmAuditChartTooltip } from '@/components/cm-components/audit/CmAuditChartTooltip';
 import { CmAuditAccessHeatmap } from '@/components/cm-components/audit/CmAuditAccessHeatmap';
 import type {
-  CmAuditLogFilter,
-  CmAuditSession,
-  CmTimelineEvent,
-} from '@/types/cm/operationLog';
-import type {
   CmAuditPeriod,
   CmAuditUserStat,
   CmAuditImportantOp,
+  CmAuditDashboardSummary,
 } from '@/types/cm/auditDashboard';
 import styles from '@/styles/cm-styles/components/auditDashboard.module.css';
 
@@ -90,6 +78,21 @@ async function getAccessToken(): Promise<string> {
   return data.session?.access_token ?? '';
 }
 
+/** 空の集計結果 */
+const CM_AUDIT_EMPTY_SUMMARY: CmAuditDashboardSummary = {
+  activeUsers: 0,
+  operationCount: 0,
+  pageViewCount: 0,
+  dbChangeCount: 0,
+  sessionCount: 0,
+  dailyTrend: [],
+  categoryData: [],
+  userStats: [],
+  importantOps: [],
+  heatmapData: [],
+  hourlyTimeline: [],
+};
+
 // =============================================================
 // メインコンポーネント
 // =============================================================
@@ -98,84 +101,15 @@ export function CmAuditDashboardPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<CmAuditPeriod>('today');
   const [loading, setLoading] = useState(false);
-  const [sessions, setSessions] = useState<CmAuditSession[]>([]);
-
-  // ----------------------------------------------------------
-  // 全イベントをフラット化
-  // ----------------------------------------------------------
-  const flatEvents = useMemo<CmTimelineEvent[]>(() => {
-    const events: CmTimelineEvent[] = [];
-    for (const session of sessions) {
-      for (const ev of session.events) {
-        events.push(ev);
-      }
-    }
-    events.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    return events;
-  }, [sessions]);
-
-  // ----------------------------------------------------------
-  // 各種集計データ
-  // ----------------------------------------------------------
-  const activeUsers = useMemo(() => {
-    const uniqueUsers = new Set(sessions.map((s) => s.user_id));
-    return uniqueUsers.size;
-  }, [sessions]);
-
-  const operationCount = useMemo(
-    () => flatEvents.filter((e) => e.event_type === 'operation').length,
-    [flatEvents]
-  );
-
-  const pageViewCount = useMemo(
-    () => flatEvents.filter((e) => e.event_type === 'page_view').length,
-    [flatEvents]
-  );
-
-  const dbChangeCount = useMemo(
-    () => flatEvents.reduce((sum, e) => sum + e.db_changes.length, 0),
-    [flatEvents]
-  );
-
-  const dailyTrend = useMemo(() => {
-    const days = period === '30d' ? 30 : period === '7d' ? 7 : 1;
-    return cmAuditBuildDailyTrend(flatEvents, days);
-  }, [flatEvents, period]);
-
-  const categoryData = useMemo(
-    () => cmAuditBuildCategoryData(flatEvents),
-    [flatEvents]
-  );
-
-  const userStats = useMemo(
-    () => cmAuditBuildUserStats(sessions),
-    [sessions]
-  );
-
-  const importantOps = useMemo(
-    () => cmAuditBuildImportantOps(flatEvents),
-    [flatEvents]
-  );
-
-  const heatmapData = useMemo(
-    () => cmAuditBuildHeatmap(flatEvents),
-    [flatEvents]
-  );
-
-  const hourlyTimeline = useMemo(
-    () => cmAuditBuildHourlyTimeline(flatEvents),
-    [flatEvents]
-  );
+  // サーバー側で集計済みの結果を保持（全イベントはクライアントに来ない）
+  const [summary, setSummary] = useState<CmAuditDashboardSummary>(CM_AUDIT_EMPTY_SUMMARY);
 
   // ナビカードの統計値
   const navCardStats: Record<string, string> = useMemo(() => ({
-    operations: `${operationCount}件`,
-    flow: `${sessions.length}件`,
+    operations: `${summary.operationCount}件`,
+    flow: `${summary.sessionCount}件`,
     logs: '閲覧',
-  }), [operationCount, sessions.length]);
+  }), [summary.operationCount, summary.sessionCount]);
 
   // ナビカードの期間ラベル（period に応じて動的に切り替え）
   const navCardStatLabels: Record<string, string> = useMemo(() => {
@@ -190,11 +124,11 @@ export function CmAuditDashboardPage() {
   // サマリーカード（period に応じて動的に切り替え）
   const periodLabel = cmAuditPeriodLabel(period);
   const summaryItems = useMemo(() => [
-    { label: 'アクティブユーザー', value: activeUsers,    sub: periodLabel, color: CM_AUDIT_PALETTE.blue,    Icon: Users },
-    { label: '操作件数',          value: operationCount, sub: periodLabel, color: CM_AUDIT_PALETTE.violet,  Icon: Zap },
-    { label: 'DB変更件数',        value: dbChangeCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.cyan,    Icon: RefreshCw },
-    { label: 'ページ閲覧',        value: pageViewCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.emerald, Icon: Eye },
-  ], [activeUsers, operationCount, dbChangeCount, pageViewCount, periodLabel]);
+    { label: 'アクティブユーザー', value: summary.activeUsers,    sub: periodLabel, color: CM_AUDIT_PALETTE.blue,    Icon: Users },
+    { label: '操作件数',          value: summary.operationCount, sub: periodLabel, color: CM_AUDIT_PALETTE.violet,  Icon: Zap },
+    { label: 'DB変更件数',        value: summary.dbChangeCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.cyan,    Icon: RefreshCw },
+    { label: 'ページ閲覧',        value: summary.pageViewCount,  sub: periodLabel, color: CM_AUDIT_PALETTE.emerald, Icon: Eye },
+  ], [summary, periodLabel]);
 
   // ----------------------------------------------------------
   // データ取得
@@ -205,26 +139,15 @@ export function CmAuditDashboardPage() {
       const token = await getAccessToken();
       if (!token) return;
 
-      const daysMap: Record<CmAuditPeriod, number> = { today: 0, '7d': 7, '30d': 30 };
-      const startDate = cmAuditDaysAgoStart(daysMap[p]);
+      const daysMap: Record<CmAuditPeriod, number> = { today: 1, '7d': 7, '30d': 30 };
+      const days = daysMap[p];
+      const startDate = cmAuditDaysAgoStart(p === 'today' ? 0 : days);
 
-      const filter: CmAuditLogFilter = {
-        start_date: startDate,
-        end_date: null,
-        user_id: null,
-        category: null,
-        table_name: null,
-        operation: null,
-        record_id: null,
-        page: 1,
-        per_page: 50,
-      };
-
-      const result = await cmGetTimeline(filter, token);
+      const result = await cmGetDashboardSummary({ startDate, days }, token);
       if (result.ok) {
-        setSessions(result.sessions);
+        setSummary(result.summary);
       } else {
-        console.error('[CmAuditDashboardPage] タイムライン取得エラー:', result.error);
+        console.error('[CmAuditDashboardPage] ダッシュボードデータ取得エラー:', result.error);
       }
     } catch (error) {
       console.error('[CmAuditDashboardPage] 予期せぬエラー:', error);
@@ -359,7 +282,7 @@ export function CmAuditDashboardPage() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={dailyTrend}>
+            <AreaChart data={summary.dailyTrend}>
               <defs>
                 <linearGradient id="cmAuditGradPV" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={CM_AUDIT_PALETTE.blue.muted} stopOpacity={0.2} />
@@ -389,12 +312,12 @@ export function CmAuditDashboardPage() {
           <div className={styles.sectionHeader}>
             <h3 className={styles.sectionTitle}>操作カテゴリ内訳</h3>
           </div>
-          {categoryData.length > 0 ? (
+          {summary.categoryData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie
-                    data={categoryData}
+                    data={summary.categoryData}
                     cx="50%"
                     cy="50%"
                     innerRadius={42}
@@ -403,7 +326,7 @@ export function CmAuditDashboardPage() {
                     strokeWidth={2}
                     stroke="#fff"
                   >
-                    {categoryData.map((entry, i) => (
+                    {summary.categoryData.map((entry, i) => (
                       <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
@@ -422,7 +345,7 @@ export function CmAuditDashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className={styles.categoryList}>
-                {categoryData.map((c) => (
+                {summary.categoryData.map((c) => (
                   <div key={c.name} className={styles.categoryItem}>
                     <div className={styles.categoryItemLeft}>
                       <div className={styles.categoryDot} style={{ backgroundColor: c.color }} />
@@ -455,7 +378,7 @@ export function CmAuditDashboardPage() {
             <Filter />
             行をクリック → 操作ログ一覧にフィルター付き遷移
           </div>
-          {userStats.length > 0 ? (
+          {summary.userStats.length > 0 ? (
             <table className={styles.userTable}>
               <thead>
                 <tr>
@@ -467,7 +390,7 @@ export function CmAuditDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {userStats.map((u) => (
+                {summary.userStats.map((u) => (
                   <tr
                     key={u.userId}
                     className={styles.userRow}
@@ -504,9 +427,9 @@ export function CmAuditDashboardPage() {
             <Filter />
             行をクリック → 操作ログ一覧にフィルター付き遷移
           </div>
-          {importantOps.length > 0 ? (
+          {summary.importantOps.length > 0 ? (
             <div className={styles.importantList}>
-              {importantOps.map((item, i) => {
+              {summary.importantOps.map((item, i) => {
                 const severity = CM_AUDIT_SEVERITY_STYLES[item.severity];
                 return (
                   <button
@@ -544,7 +467,7 @@ export function CmAuditDashboardPage() {
             <h3 className={styles.sectionTitle}>曜日×時間帯 アクセス分布</h3>
             <span className={styles.sectionRight}>選択期間の操作回数</span>
           </div>
-          <CmAuditAccessHeatmap data={heatmapData} />
+          <CmAuditAccessHeatmap data={summary.heatmapData} />
         </div>
 
         <div className={styles.chartCard}>
@@ -552,7 +475,7 @@ export function CmAuditDashboardPage() {
             <h3 className={styles.sectionTitle}>{cmAuditPeriodPrefix(period)}時間帯別アクティビティ</h3>
           </div>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={hourlyTimeline} barGap={2}>
+            <BarChart data={summary.hourlyTimeline} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis
                 dataKey="hour"
