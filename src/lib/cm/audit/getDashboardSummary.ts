@@ -6,12 +6,13 @@
 // 30日間で数千件になるとレスポンスが大きすぎて通信エラーになる。
 //
 // この関数はサーバー側で集計を完了し、集計結果のみを返す。
-// クライアントに送るデータは数KB程度に収まる。
 //
-// 経緯:
-//   旧: cmGetTimeline（全イベント返却） → クライアント側で useMemo 集計
-//   新: getDashboardSummary（サーバー集計） → 集計結果のみ返却
-//   操作ログ一覧・経路フローは従来通り cmGetTimeline を使用（detail表示に全件必要）
+// パフォーマンス:
+//   - 3テーブル並行取得（軽量カラム）
+//   - data_change_logs は trace_id のみ取得（カウント集計用）
+//   - ダミー配列を生成せず、trace_id カウントマップから直接集計
+//   - 全集計を1パス（events を1回ループ）で完了
+//   - 各ステップの所要時間を logger.info で出力
 // =============================================================
 
 "use server";
@@ -20,21 +21,26 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { requireCmSession, CmAuthError } from "@/lib/cm/auth/requireCmSession";
 import { createLogger } from "@/lib/common/logger";
 import {
-  cmAuditBuildDailyTrend,
-  cmAuditBuildCategoryData,
-  cmAuditBuildUserStats,
-  cmAuditBuildImportantOps,
-  cmAuditBuildHeatmap,
-  cmAuditBuildHourlyTimeline,
-} from "@/lib/cm/audit/dashboardAggregation";
+  CM_AUDIT_CATEGORY_LABELS,
+  CM_AUDIT_CATEGORY_COLORS,
+  CM_AUDIT_DEFAULT_CATEGORY_COLOR,
+  CM_AUDIT_HIGH_SEVERITY_ACTIONS,
+  CM_AUDIT_MEDIUM_SEVERITY_ACTIONS,
+} from "@/constants/cm/auditDashboard";
 import type {
   CmPageView,
   CmOperationLog,
-  CmDataChangeLog,
-  CmTimelineEvent,
-  CmAuditSession,
 } from "@/types/cm/operationLog";
-import type { CmAuditDashboardSummary } from "@/types/cm/auditDashboard";
+import type {
+  CmAuditSeverity,
+  CmAuditDashboardSummary,
+  CmAuditUserStat,
+  CmAuditImportantOp,
+  CmAuditHeatmapCell,
+  CmAuditDailyTrendItem,
+  CmAuditCategoryItem,
+  CmAuditHourlyItem,
+} from "@/types/cm/auditDashboard";
 
 const logger = createLogger("lib/cm/audit/getDashboardSummary");
 
@@ -71,34 +77,27 @@ const EMPTY_SUMMARY: CmAuditDashboardSummary = {
   hourlyTimeline: [],
 };
 
-/** ダッシュボード用の取得上限（日付フィルターあり前提） */
+/** ダッシュボード用の取得上限 */
 const CM_DASHBOARD_PV_LIMIT = 5000;
 const CM_DASHBOARD_OP_LIMIT = 5000;
 const CM_DASHBOARD_DC_LIMIT = 10000;
 
-/** 軽量 select カラム（ダッシュボードで必要な最小限） */
+/** 軽量 select カラム */
 const PV_COLUMNS = "id,timestamp,user_id,path,ip_address";
 const OP_COLUMNS =
   "id,timestamp,user_id,user_email,user_name,action,category,description,resource_type,resource_id,trace_id,ip_address";
-const DC_COLUMNS = "id,timestamp,context_trace_id,context_user_id";
+const DC_COLUMNS = "context_trace_id";
 
 // =============================================================
 // メイン関数
 // =============================================================
 
-/**
- * ダッシュボード用の集計データを取得する
- *
- * サーバー側で以下を実行し、集計結果のみをクライアントに返す:
- *   1. page_views / operation_logs / data_change_logs を軽量カラムで取得
- *   2. イベントに変換・セッション構築
- *   3. 各集計関数（dailyTrend, category, userStats 等）を実行
- *   4. 集計結果を CmAuditDashboardSummary として返却
- */
 export async function cmGetDashboardSummary(
   params: GetDashboardSummaryParams,
   token: string
 ): Promise<GetDashboardSummaryResult> {
+  const t0 = performance.now();
+
   try {
     await requireCmSession(token);
   } catch (e) {
@@ -108,6 +107,8 @@ export async function cmGetDashboardSummary(
     throw e;
   }
 
+  const tAuth = performance.now();
+
   try {
     // ----------------------------------------------------------
     // 1. 3テーブル並行取得（軽量カラム）
@@ -115,8 +116,10 @@ export async function cmGetDashboardSummary(
     const [pvResult, opResult, dcResult] = await Promise.all([
       fetchPageViewsLight(params.startDate),
       fetchOperationLogsLight(params.startDate),
-      fetchDataChangeLogsLight(params.startDate),
+      fetchDcTraceIds(params.startDate),
     ]);
+
+    const tQuery = performance.now();
 
     if (pvResult.error || opResult.error || dcResult.error) {
       const errorMsg = pvResult.error ?? opResult.error ?? dcResult.error ?? "";
@@ -125,99 +128,412 @@ export async function cmGetDashboardSummary(
     }
 
     // ----------------------------------------------------------
-    // 2. trace_id で data_change_logs をマップ化（件数カウント用）
+    // 2. trace_id → DB変更件数マップ
     // ----------------------------------------------------------
     const dcCountByTraceId = new Map<string, number>();
-    for (const dc of dcResult.data) {
-      if (!dc.context_trace_id) continue;
-      dcCountByTraceId.set(
-        dc.context_trace_id,
-        (dcCountByTraceId.get(dc.context_trace_id) ?? 0) + 1
-      );
+    let totalDbChanges = 0;
+    for (const row of dcResult.data) {
+      const traceId = row.context_trace_id;
+      if (!traceId) continue;
+      dcCountByTraceId.set(traceId, (dcCountByTraceId.get(traceId) ?? 0) + 1);
+      totalDbChanges++;
     }
 
     // ----------------------------------------------------------
-    // 3. CmTimelineEvent[] に変換
+    // 3. 軽量イベント配列を構築（db_changes は持たず dcCount で件数だけ保持）
     // ----------------------------------------------------------
-    const events: CmTimelineEvent[] = [];
+    const events: LightEvent[] = [];
 
     for (const pv of pvResult.data) {
+      const d = new Date(pv.timestamp);
       events.push({
         timestamp: pv.timestamp,
-        user_id: pv.user_id,
-        user_email: null,
-        user_name: null,
-        event_type: "page_view",
+        tsMs: d.getTime(),
+        userId: pv.user_id,
+        userEmail: null,
+        userName: null,
+        eventType: "page_view",
         action: pv.path,
         category: null,
         description: `${pv.path} を閲覧`,
-        resource_type: null,
-        resource_id: null,
-        trace_id: null,
-        ip_address: pv.ip_address,
-        db_changes: [],
+        resourceType: null,
+        traceId: null,
+        ipAddress: pv.ip_address,
+        dcCount: 0,
+        hour: d.getHours(),
+        dayIndex: d.getDay() === 0 ? 6 : d.getDay() - 1,
+        dateKey: `${d.getMonth() + 1}/${d.getDate()}`,
       });
     }
 
     for (const op of opResult.data) {
-      // db_changes は件数だけ必要。ダミー配列で長さを表現する
+      const d = new Date(op.timestamp);
       const dcCount = op.trace_id ? (dcCountByTraceId.get(op.trace_id) ?? 0) : 0;
-      const dbChangesPlaceholder = dcCount > 0
-        ? Array.from({ length: dcCount }, () => ({} as CmDataChangeLog))
-        : [];
-
       events.push({
         timestamp: op.timestamp,
-        user_id: op.user_id,
-        user_email: op.user_email,
-        user_name: op.user_name,
-        event_type: "operation",
+        tsMs: d.getTime(),
+        userId: op.user_id,
+        userEmail: op.user_email,
+        userName: op.user_name,
+        eventType: "operation",
         action: op.action,
         category: op.category,
         description: op.description,
-        resource_type: op.resource_type,
-        resource_id: op.resource_id,
-        trace_id: op.trace_id,
-        ip_address: op.ip_address,
-        db_changes: dbChangesPlaceholder,
+        resourceType: op.resource_type,
+        traceId: op.trace_id,
+        ipAddress: op.ip_address,
+        dcCount,
+        hour: d.getHours(),
+        dayIndex: d.getDay() === 0 ? 6 : d.getDay() - 1,
+        dateKey: `${d.getMonth() + 1}/${d.getDate()}`,
       });
     }
+
+    const tTransform = performance.now();
 
     // ----------------------------------------------------------
     // 4. ユーザー名解決
     // ----------------------------------------------------------
-    await resolveUserNames(events);
+    await resolveUserNamesLight(events);
+
+    const tUserNames = performance.now();
 
     // ----------------------------------------------------------
-    // 5. セッション構築
+    // 5. セッション構築（ユーザー別 + 件数のみ、イベント詳細は不要）
     // ----------------------------------------------------------
-    events.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    const sessions = buildSessions(events);
+    events.sort((a, b) => b.tsMs - a.tsMs);
+    const sessions = buildLightSessions(events);
+
+    const tSessions = performance.now();
 
     // ----------------------------------------------------------
-    // 6. 集計実行
+    // 6. 1パス集計 — events を1回だけループして全集計データを同時構築
     // ----------------------------------------------------------
-    const summary: CmAuditDashboardSummary = {
-      activeUsers: new Set(sessions.map((s) => s.user_id)).size,
-      operationCount: events.filter((e) => e.event_type === "operation").length,
-      pageViewCount: events.filter((e) => e.event_type === "page_view").length,
-      dbChangeCount: events.reduce((sum, e) => sum + e.db_changes.length, 0),
+    const summary = aggregateInSinglePass(events, sessions, totalDbChanges, params.days);
+
+    const tEnd = performance.now();
+
+    // ----------------------------------------------------------
+    // パフォーマンス計測ログ
+    // ----------------------------------------------------------
+    logger.info("[Dashboard perf]", {
+      days: params.days,
+      pvCount: pvResult.data.length,
+      opCount: opResult.data.length,
+      dcCount: dcResult.data.length,
+      eventCount: events.length,
       sessionCount: sessions.length,
-      dailyTrend: cmAuditBuildDailyTrend(events, params.days),
-      categoryData: cmAuditBuildCategoryData(events),
-      userStats: cmAuditBuildUserStats(sessions),
-      importantOps: cmAuditBuildImportantOps(events),
-      heatmapData: cmAuditBuildHeatmap(events),
-      hourlyTimeline: cmAuditBuildHourlyTimeline(events),
-    };
+      ms_auth: Math.round(tAuth - t0),
+      ms_query: Math.round(tQuery - tAuth),
+      ms_transform: Math.round(tTransform - tQuery),
+      ms_userNames: Math.round(tUserNames - tTransform),
+      ms_sessions: Math.round(tSessions - tUserNames),
+      ms_aggregate: Math.round(tEnd - tSessions),
+      ms_total: Math.round(tEnd - t0),
+    });
 
     return { ok: true, summary };
   } catch (error) {
     logger.error("予期せぬエラー", error as Error);
     return { ok: false, summary: EMPTY_SUMMARY, error: "サーバーエラーが発生しました" };
   }
+}
+
+// =============================================================
+// 1パス集計
+// =============================================================
+
+type LightEvent = {
+  timestamp: string;
+  tsMs: number;
+  userId: string;
+  userEmail: string | null;
+  userName: string | null;
+  eventType: "page_view" | "operation";
+  action: string;
+  category: string | null;
+  description: string | null;
+  resourceType: string | null;
+  traceId: string | null;
+  ipAddress: string | null;
+  dcCount: number;
+  hour: number;
+  dayIndex: number;
+  dateKey: string;
+};
+
+/**
+ * events を1回だけループして全集計データを同時構築する
+ *
+ * 旧方式: 7つの集計関数が各々 events をループ → 7回走査 + Date パース多重実行
+ * 新方式: 1回のループで日別推移・カテゴリ・ヒートマップ・時間帯・注目操作を同時集計
+ */
+function aggregateInSinglePass(
+  events: LightEvent[],
+  sessions: LightSession[],
+  totalDbChanges: number,
+  days: number
+): CmAuditDashboardSummary {
+  // --- 日別推移バケット初期化 ---
+  const dailyBuckets = new Map<string, { pageViews: number; operations: number; dataChanges: number }>();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dailyBuckets.set(`${d.getMonth() + 1}/${d.getDate()}`, { pageViews: 0, operations: 0, dataChanges: 0 });
+  }
+
+  // --- 集計用変数 ---
+  let operationCount = 0;
+  let pageViewCount = 0;
+  const categoryCounts = new Map<string, number>();
+  const hourlyBuckets = Array.from({ length: 24 }, () => ({ operations: 0, pageViews: 0 }));
+  const heatmapGrid = new Map<string, number>();
+  for (let d = 0; d < 7; d++) {
+    for (let h = 6; h <= 21; h++) {
+      heatmapGrid.set(`${d}-${h}`, 0);
+    }
+  }
+  const importantCandidates: CmAuditImportantOp[] = [];
+
+  // --- 1パスループ ---
+  for (const ev of events) {
+    const isOp = ev.eventType === "operation";
+
+    if (isOp) {
+      operationCount++;
+
+      // カテゴリ集計
+      if (ev.category) {
+        categoryCounts.set(ev.category, (categoryCounts.get(ev.category) ?? 0) + 1);
+      }
+
+      // 注目操作候補（severity が high/medium のみ収集、最大20件で打ち止め）
+      if (importantCandidates.length < 20) {
+        const severity = getSeverity(ev.action);
+        if (severity !== "low") {
+          const displayName = ev.userName ?? ev.userEmail?.split("@")[0] ?? ev.userId.slice(0, 8);
+          importantCandidates.push({
+            time: formatTime(ev.timestamp),
+            user: displayName,
+            action: ev.action,
+            target: ev.description ?? ev.resourceType ?? "",
+            severity,
+          });
+        }
+      }
+    } else {
+      pageViewCount++;
+    }
+
+    // 日別推移
+    const dailyBucket = dailyBuckets.get(ev.dateKey);
+    if (dailyBucket) {
+      if (isOp) {
+        dailyBucket.operations++;
+        dailyBucket.dataChanges += ev.dcCount;
+      } else {
+        dailyBucket.pageViews++;
+      }
+    }
+
+    // 時間帯別
+    if (isOp) {
+      hourlyBuckets[ev.hour].operations++;
+    } else {
+      hourlyBuckets[ev.hour].pageViews++;
+    }
+
+    // ヒートマップ
+    if (ev.hour >= 6 && ev.hour <= 21) {
+      const key = `${ev.dayIndex}-${ev.hour}`;
+      heatmapGrid.set(key, (heatmapGrid.get(key) ?? 0) + 1);
+    }
+  }
+
+  // --- 後処理 ---
+
+  // 日別推移
+  const dailyTrend: CmAuditDailyTrendItem[] = Array.from(dailyBuckets.entries()).map(
+    ([date, vals]) => ({ date, ...vals })
+  );
+
+  // カテゴリ内訳（上位6件）
+  const categoryData: CmAuditCategoryItem[] = Array.from(categoryCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([cat, count]) => ({
+      name: CM_AUDIT_CATEGORY_LABELS[cat] ?? cat,
+      value: count,
+      color: CM_AUDIT_CATEGORY_COLORS[cat] ?? CM_AUDIT_DEFAULT_CATEGORY_COLOR,
+    }));
+
+  // 時間帯別
+  const hourlyTimeline: CmAuditHourlyItem[] = hourlyBuckets.map((b, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    operations: b.operations,
+    pageViews: b.pageViews,
+  }));
+
+  // ヒートマップ
+  const dayLabels = ["月", "火", "水", "木", "金", "土", "日"];
+  const heatmapData: CmAuditHeatmapCell[] = [];
+  for (let d = 0; d < 7; d++) {
+    for (let h = 6; h <= 21; h++) {
+      heatmapData.push({
+        day: dayLabels[d],
+        dayIndex: d,
+        hour: h,
+        count: heatmapGrid.get(`${d}-${h}`) ?? 0,
+      });
+    }
+  }
+
+  // 注目操作（severity 順ソート、上位8件）
+  const severityOrder: Record<CmAuditSeverity, number> = { high: 0, medium: 1, low: 2 };
+  const importantOps = importantCandidates
+    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+    .slice(0, 8);
+
+  // ユーザー別アクティビティ（sessions から構築）
+  const userStats = buildUserStatsFromSessions(sessions);
+
+  return {
+    activeUsers: new Set(sessions.map((s) => s.userId)).size,
+    operationCount,
+    pageViewCount,
+    dbChangeCount: totalDbChanges,
+    sessionCount: sessions.length,
+    dailyTrend,
+    categoryData,
+    userStats,
+    importantOps,
+    heatmapData,
+    hourlyTimeline,
+  };
+}
+
+// =============================================================
+// 軽量セッション
+// =============================================================
+
+type LightSession = {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  firstTimestamp: string;
+  lastTimestamp: string;
+  operations: number;
+  pageViews: number;
+  changes: number;
+};
+
+function buildLightSessions(events: LightEvent[]): LightSession[] {
+  if (events.length === 0) return [];
+
+  const byUser = new Map<string, LightEvent[]>();
+  for (const ev of events) {
+    const list = byUser.get(ev.userId) ?? [];
+    list.push(ev);
+    byUser.set(ev.userId, list);
+  }
+
+  const sessions: LightSession[] = [];
+
+  for (const [userId, userEvents] of byUser) {
+    // 昇順（セッション区切り用）
+    userEvents.sort((a, b) => a.tsMs - b.tsMs);
+
+    const namedEvent = userEvents.find((e) => e.userName || e.userEmail);
+
+    let sessionOps = 0;
+    let sessionPvs = 0;
+    let sessionChanges = 0;
+    let sessionStart = userEvents[0];
+
+    const flushSession = (startEv: LightEvent, endEv: LightEvent) => {
+      sessions.push({
+        userId,
+        userName: namedEvent?.userName ?? null,
+        userEmail: namedEvent?.userEmail ?? null,
+        firstTimestamp: startEv.timestamp,
+        lastTimestamp: endEv.timestamp,
+        operations: sessionOps,
+        pageViews: sessionPvs,
+        changes: sessionChanges,
+      });
+    };
+
+    for (let i = 0; i < userEvents.length; i++) {
+      const ev = userEvents[i];
+
+      if (i > 0 && ev.tsMs - userEvents[i - 1].tsMs > SESSION_GAP_MS) {
+        flushSession(sessionStart, userEvents[i - 1]);
+        sessionStart = ev;
+        sessionOps = 0;
+        sessionPvs = 0;
+        sessionChanges = 0;
+      }
+
+      if (ev.eventType === "operation") {
+        sessionOps++;
+        sessionChanges += ev.dcCount;
+      } else {
+        sessionPvs++;
+      }
+    }
+
+    // 最後のセッション
+    flushSession(sessionStart, userEvents[userEvents.length - 1]);
+  }
+
+  sessions.sort((a, b) =>
+    new Date(b.lastTimestamp).getTime() - new Date(a.lastTimestamp).getTime()
+  );
+
+  return sessions;
+}
+
+function buildUserStatsFromSessions(sessions: LightSession[]): CmAuditUserStat[] {
+  const userMap = new Map<string, CmAuditUserStat>();
+
+  for (const s of sessions) {
+    const displayName = s.userName ?? s.userEmail?.split("@")[0] ?? s.userId.slice(0, 8);
+    const existing = userMap.get(s.userId) ?? {
+      name: displayName,
+      userId: s.userId,
+      operations: 0,
+      pageViews: 0,
+      lastAccess: "",
+      changes: 0,
+    };
+
+    existing.operations += s.operations;
+    existing.pageViews += s.pageViews;
+    existing.changes += s.changes;
+    if (!existing.lastAccess || s.lastTimestamp > existing.lastAccess) {
+      existing.lastAccess = s.lastTimestamp;
+    }
+
+    userMap.set(s.userId, existing);
+  }
+
+  return Array.from(userMap.values()).sort((a, b) => b.operations - a.operations);
+}
+
+// =============================================================
+// ユーティリティ
+// =============================================================
+
+function getSeverity(action: string): CmAuditSeverity {
+  const lower = action.toLowerCase();
+  if (CM_AUDIT_HIGH_SEVERITY_ACTIONS.some((k) => lower.includes(k))) return "high";
+  if (CM_AUDIT_MEDIUM_SEVERITY_ACTIONS.some((k) => lower.includes(k))) return "medium";
+  return "low";
+}
+
+function formatTime(timestamp: string): string {
+  const d = new Date(timestamp);
+  return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
 // =============================================================
@@ -254,9 +570,9 @@ async function fetchOperationLogsLight(
   return { data: (data as CmOperationLog[]) ?? [], error: error?.message ?? null };
 }
 
-async function fetchDataChangeLogsLight(
+async function fetchDcTraceIds(
   startDate: string
-): Promise<LightResult<Pick<CmDataChangeLog, "id" | "timestamp" | "context_trace_id" | "context_user_id">>> {
+): Promise<LightResult<{ context_trace_id: string | null }>> {
   const { data, error } = await supabaseAdmin
     .schema("audit")
     .from("data_change_logs")
@@ -265,27 +581,27 @@ async function fetchDataChangeLogsLight(
     .order("timestamp", { ascending: false })
     .limit(CM_DASHBOARD_DC_LIMIT);
 
-  return { data: (data ?? []) as Pick<CmDataChangeLog, "id" | "timestamp" | "context_trace_id" | "context_user_id">[], error: error?.message ?? null };
+  return { data: (data ?? []) as { context_trace_id: string | null }[], error: error?.message ?? null };
 }
 
 // =============================================================
-// 内部ヘルパー: ユーザー名解決（getTimeline.ts と同一ロジック）
+// 内部ヘルパー: ユーザー名解決（軽量イベント用）
 // =============================================================
 
-async function resolveUserNames(events: CmTimelineEvent[]): Promise<void> {
+async function resolveUserNamesLight(events: LightEvent[]): Promise<void> {
   const userMap = new Map<string, { name: string | null; email: string | null }>();
   for (const ev of events) {
-    if (ev.event_type === "operation" && (ev.user_name || ev.user_email)) {
-      if (!userMap.has(ev.user_id)) {
-        userMap.set(ev.user_id, { name: ev.user_name, email: ev.user_email });
+    if (ev.eventType === "operation" && (ev.userName || ev.userEmail)) {
+      if (!userMap.has(ev.userId)) {
+        userMap.set(ev.userId, { name: ev.userName, email: ev.userEmail });
       }
     }
   }
 
   const missingUserIds = new Set<string>();
   for (const ev of events) {
-    if (!ev.user_name && !ev.user_email && !userMap.has(ev.user_id)) {
-      missingUserIds.add(ev.user_id);
+    if (!ev.userName && !ev.userEmail && !userMap.has(ev.userId)) {
+      missingUserIds.add(ev.userId);
     }
   }
 
@@ -307,80 +623,12 @@ async function resolveUserNames(events: CmTimelineEvent[]): Promise<void> {
   }
 
   for (const ev of events) {
-    if (!ev.user_name && !ev.user_email) {
-      const resolved = userMap.get(ev.user_id);
+    if (!ev.userName && !ev.userEmail) {
+      const resolved = userMap.get(ev.userId);
       if (resolved) {
-        ev.user_name = resolved.name;
-        ev.user_email = resolved.email;
+        ev.userName = resolved.name;
+        ev.userEmail = resolved.email;
       }
     }
   }
-}
-
-// =============================================================
-// 内部ヘルパー: セッション構築（getTimeline.ts と同一ロジック）
-// =============================================================
-
-function buildSessions(events: CmTimelineEvent[]): CmAuditSession[] {
-  if (events.length === 0) return [];
-
-  const byUser = new Map<string, CmTimelineEvent[]>();
-  for (const ev of events) {
-    const userEvents = byUser.get(ev.user_id) ?? [];
-    userEvents.push(ev);
-    byUser.set(ev.user_id, userEvents);
-  }
-
-  const allSessions: CmAuditSession[] = [];
-
-  for (const [userId, userEvents] of byUser) {
-    userEvents.sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
-    const namedEvent = userEvents.find((e) => e.user_name || e.user_email);
-    const userName = namedEvent?.user_name ?? null;
-    const userEmail = namedEvent?.user_email ?? null;
-
-    let currentSession: CmTimelineEvent[] = [userEvents[0]];
-
-    for (let i = 1; i < userEvents.length; i++) {
-      const prevTime = new Date(userEvents[i - 1].timestamp).getTime();
-      const currTime = new Date(userEvents[i].timestamp).getTime();
-
-      if (currTime - prevTime > SESSION_GAP_MS) {
-        allSessions.push(createSession(userId, userName, userEmail, currentSession));
-        currentSession = [];
-      }
-      currentSession.push(userEvents[i]);
-    }
-
-    if (currentSession.length > 0) {
-      allSessions.push(createSession(userId, userName, userEmail, currentSession));
-    }
-  }
-
-  allSessions.sort(
-    (a, b) => new Date(b.last_timestamp).getTime() - new Date(a.last_timestamp).getTime()
-  );
-
-  return allSessions;
-}
-
-function createSession(
-  userId: string,
-  userName: string | null,
-  userEmail: string | null,
-  events: CmTimelineEvent[]
-): CmAuditSession {
-  return {
-    session_key: `${userId}:${events[0].timestamp}`,
-    user_id: userId,
-    user_name: userName,
-    user_email: userEmail,
-    first_timestamp: events[0].timestamp,
-    last_timestamp: events[events.length - 1].timestamp,
-    is_active: Date.now() - new Date(events[events.length - 1].timestamp).getTime() < SESSION_GAP_MS,
-    events: [], // ダッシュボード用なのでイベント詳細は不要
-  };
 }
