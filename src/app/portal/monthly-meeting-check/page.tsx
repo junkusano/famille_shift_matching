@@ -291,10 +291,6 @@ export default function MonthlyMeetingCheckPage() {
                                 : null,
                 }));
 
-            // URLとstateがずれている最中のレスポンスでは画面を更新しない
-            const currentQym = searchParams.get("ym");
-            if (currentQym !== ym) return;
-
             setRows(newRows);
 
             const firstMeetingDate =
@@ -499,14 +495,9 @@ export default function MonthlyMeetingCheckPage() {
 
     useEffect(() => {
         if (!authReady) return;
-
-        const qym = searchParams.get("ym");
-        if (!qym || !/^\d{4}-\d{2}$/.test(qym)) return;
-        if (qym !== ym) return;
-
         void load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ym, authReady, searchParams]);
+    }, [ym, authReady]);
 
     useEffect(() => {
         const qym = searchParams.get("ym");
