@@ -499,6 +499,18 @@ export default function MonthlyMeetingCheckPage() {
 
     useEffect(() => {
         const qym = searchParams.get("ym");
+
+        // URLに ym が入っていれば何もしない
+        if (qym && /^\d{4}-\d{2}$/.test(qym)) return;
+
+        // URLに ym が無いときだけ、現在の ym を付ける
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("ym", ym);
+        router.replace(`${pathname}?${params.toString()}`);
+    }, [searchParams, ym, router, pathname]);
+
+    useEffect(() => {
+        const qym = searchParams.get("ym");
         if (qym && /^\d{4}-\d{2}$/.test(qym) && qym !== ym) {
             setYm(qym);
         }
