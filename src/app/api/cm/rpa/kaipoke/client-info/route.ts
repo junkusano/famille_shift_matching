@@ -19,6 +19,10 @@ import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { CM_OP_LOG_RPA_CLIENT_INFO } from "@/constants/cm/operationLogActions";
 import { randomUUID } from "crypto";
 import type { Logger } from "@/lib/common/logger";
+import {
+  cmWithRetry,
+  cmSanitizeErrorMessage,
+} from "@/lib/cm/supabase/cmSupabaseRetry";
 
 // =============================================================
 // 型定義
@@ -105,6 +109,9 @@ type CmKaipokeUpsertTable =
 
 /**
  * 汎用upsert関数（SELECT → UPDATE/INSERT 方式）
+ *
+ * Supabase のインフラ障害（502/503/504）時に指数バックオフでリトライする。
+ * HTML エラーページが返された場合はサニタイズしてからログに記録する。
  */
 async function cmUpsertRecord(
   tableName: CmKaipokeUpsertTable,
@@ -114,15 +121,21 @@ async function cmUpsertRecord(
   logger: Logger
 ): Promise<boolean> {
   try {
-    // 既存レコード検索
-    let query = supabaseAdmin.from(tableName).select("id");
-    for (const [column, value] of Object.entries(matchConditions)) {
-      query = query.eq(column, value);
-    }
-    const { data: existing, error: selectError } = await query.single();
+    // 既存レコード検索（リトライ付き）
+    const { data: existing, error: selectError } = await cmWithRetry(
+      () => {
+        let query = supabaseAdmin.from(tableName).select("id");
+        for (const [column, value] of Object.entries(matchConditions)) {
+          query = query.eq(column, value);
+        }
+        return query.single();
+      },
+      { operationLabel: `${logPrefix}SELECT(${tableName})`, logger }
+    );
 
     // PGRST116 = 結果なし（正常）
     if (selectError && selectError.code !== "PGRST116") {
+      // cmWithRetry がエラーメッセージをサニタイズ済み
       logger.error(`${logPrefix}検索エラー`, undefined, {
         tableName,
         error: selectError.message,
@@ -134,11 +147,15 @@ async function cmUpsertRecord(
     data.updated_at = new Date().toISOString();
 
     if (existing) {
-      // 更新
-      const { error: updateError } = await supabaseAdmin
-        .from(tableName)
-        .update(data)
-        .eq("id", (existing as { id: number }).id);
+      // 更新（リトライ付き）
+      const { error: updateError } = await cmWithRetry(
+        () =>
+          supabaseAdmin
+            .from(tableName)
+            .update(data)
+            .eq("id", (existing as { id: number }).id),
+        { operationLabel: `${logPrefix}UPDATE(${tableName})`, logger }
+      );
 
       if (updateError) {
         logger.error(`${logPrefix}更新エラー`, undefined, {
@@ -149,10 +166,11 @@ async function cmUpsertRecord(
       }
       logger.info(`${logPrefix}更新完了`, { tableName });
     } else {
-      // 新規登録
-      const { error: insertError } = await supabaseAdmin
-        .from(tableName)
-        .insert(data);
+      // 新規登録（リトライ付き）
+      const { error: insertError } = await cmWithRetry(
+        () => supabaseAdmin.from(tableName).insert(data),
+        { operationLabel: `${logPrefix}INSERT(${tableName})`, logger }
+      );
 
       if (insertError) {
         logger.error(`${logPrefix}登録エラー`, undefined, {
@@ -166,8 +184,13 @@ async function cmUpsertRecord(
 
     return true;
   } catch (error) {
+    // catch に来た場合も HTML が含まれる可能性があるためサニタイズ
     const msg = error instanceof Error ? error.message : "Unknown error";
-    logger.error(`${logPrefix}エラー`, undefined, { tableName, error: msg });
+    const sanitizedMsg = cmSanitizeErrorMessage({ message: msg });
+    logger.error(`${logPrefix}エラー`, undefined, {
+      tableName,
+      error: sanitizedMsg,
+    });
     return false;
   }
 }

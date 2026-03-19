@@ -18,6 +18,7 @@ import {
 import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { CM_OP_LOG_RPA_SERVICE_USAGE } from "@/constants/cm/operationLogActions";
 import { randomUUID } from "crypto";
+import { cmWithRetry } from "@/lib/cm/supabase/cmSupabaseRetry";
 
 // =============================================================
 // 型定義
@@ -182,18 +183,24 @@ export const POST = cmRpaApiHandler<BulkResponse>(
       updated_at: now,
     }));
 
-    // バルク upsert
-    const { error: upsertError } = await supabaseAdmin
-      .from("cm_kaipoke_service_usage")
-      .upsert(recordsWithTimestamp, {
-        onConflict: "plan_achievement_details_id",
-      });
+    // バルク upsert（リトライ付き）
+    const { error: upsertError } = await cmWithRetry(
+      () =>
+        supabaseAdmin
+          .from("cm_kaipoke_service_usage")
+          .upsert(recordsWithTimestamp, {
+            onConflict: "plan_achievement_details_id",
+          }),
+      { operationLabel: "サービス利用: バルクUPSERT", logger }
+    );
 
     if (upsertError) {
+      // cmWithRetry がエラーメッセージをサニタイズ済み
       logger.error("DB upsert エラー", undefined, {
         message: upsertError.message,
       });
       if (jobParam) {
+        // ジョブ失敗メッセージにもサニタイズ済みのメッセージを使用
         await cmMarkJobItemFailed(
           jobParam,
           `DB保存エラー: ${upsertError.message}`

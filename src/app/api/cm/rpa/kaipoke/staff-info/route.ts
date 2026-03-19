@@ -19,6 +19,7 @@ import {
 import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { CM_OP_LOG_RPA_STAFF_INFO } from "@/constants/cm/operationLogActions";
 import { randomUUID } from "crypto";
+import { cmWithRetry } from "@/lib/cm/supabase/cmSupabaseRetry";
 
 // =============================================================
 // 型定義
@@ -103,18 +104,23 @@ export const POST = cmRpaApiHandler<ApiResponse>(
       login_id,
     });
 
-    // usersテーブルを更新
+    // usersテーブルを更新（リトライ付き）
     // user_id = login_id かつ service_type が 'kyotaku' または 'both' のレコードを更新
-    const { data, error } = await supabaseAdmin
-      .from("users")
-      .update({
-        kaipoke_user_id: staff_member_internal_id,
-      })
-      .eq("user_id", login_id)
-      .in("service_type", ["kyotaku", "both"])
-      .select("user_id");
+    const { data, error } = await cmWithRetry(
+      () =>
+        supabaseAdmin
+          .from("users")
+          .update({
+            kaipoke_user_id: staff_member_internal_id,
+          })
+          .eq("user_id", login_id)
+          .in("service_type", ["kyotaku", "both"])
+          .select("user_id"),
+      { operationLabel: `スタッフ情報: UPDATE(${login_id})`, logger }
+    );
 
     if (error) {
+      // cmWithRetry がエラーメッセージをサニタイズ済み
       logger.error("スタッフ情報更新エラー", undefined, {
         error: error.message,
         code: error.code,

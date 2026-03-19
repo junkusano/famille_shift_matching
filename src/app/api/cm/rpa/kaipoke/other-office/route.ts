@@ -18,6 +18,7 @@ import {
 import { recordOperationLog } from "@/lib/cm/audit/recordOperationLog";
 import { CM_OP_LOG_RPA_OTHER_OFFICE } from "@/constants/cm/operationLogActions";
 import { randomUUID } from "crypto";
+import { cmWithRetry } from "@/lib/cm/supabase/cmSupabaseRetry";
 
 // =============================================================
 // 型定義
@@ -139,11 +140,17 @@ export const POST = cmRpaApiHandler<ApiResponse>(
         updated_at: new Date().toISOString(),
       };
 
-      const { error: dbError } = await supabaseAdmin
-        .from("cm_kaipoke_other_office")
-        .upsert(upsertData, { onConflict: "kaipoke_office_id" });
+      // リトライ付き upsert
+      const { error: dbError } = await cmWithRetry(
+        () =>
+          supabaseAdmin
+            .from("cm_kaipoke_other_office")
+            .upsert(upsertData, { onConflict: "kaipoke_office_id" }),
+        { operationLabel: `他社事業所: UPSERT(${record.kaipoke_office_id})`, logger }
+      );
 
       if (dbError) {
+        // cmWithRetry がエラーメッセージをサニタイズ済み
         logger.error("DB upsert エラー", undefined, {
           message: dbError.message,
         });
