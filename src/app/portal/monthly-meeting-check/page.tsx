@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -160,6 +160,7 @@ export default function MonthlyMeetingCheckPage() {
 
     const [meetingDate, setMeetingDate] = useState<string>("");
     const [sharedMinutesUrl, setSharedMinutesUrl] = useState<string>("");
+    const initDoneRef = useRef<string>(""); // ★追加：同じ月のinit多重実行防止
 
     // ★追加：行ごとの保存中フラグ
     const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
@@ -192,20 +193,24 @@ export default function MonthlyMeetingCheckPage() {
         setLoading(true);
 
         try {
-            // ① 先に対象月の attendance を初期化
-            const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
-                method: "POST",
-                body: JSON.stringify({ ym }),
-            });
+            // ① 先に対象月の attendance を初期化（同じ月では1回だけ）
+            if (initDoneRef.current !== ym) {
+                const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
+                    method: "POST",
+                    body: JSON.stringify({ ym }),
+                });
 
-            const initJson: unknown = await initRes.json();
+                const initJson: unknown = await initRes.json();
 
-            if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
-                throw new Error(
-                    isRecord(initJson)
-                        ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
-                        : `init failed (${initRes.status})`
-                );
+                if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
+                    throw new Error(
+                        isRecord(initJson)
+                            ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
+                            : `init failed (${initRes.status})`
+                    );
+                }
+
+                initDoneRef.current = ym;
             }
 
             // ② そのあと一覧取得
