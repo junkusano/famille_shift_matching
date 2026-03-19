@@ -1,5 +1,5 @@
 // src/lib/alert_add/disability_check_collected_alert.ts
-// disability_check の回収未チェック → 15日以降のみ mgr_user_id 宛てにアラートログ（ensureSystemAlert）
+// disability_check の回収未チェック → 20日以降のみ mgr_user_id 宛てにアラートログ（ensureSystemAlert）
 // ※提出（LINEWORKS）はこのファイルでは扱わない
 
 import { supabaseAdmin } from "@/lib/supabase/service";
@@ -183,7 +183,10 @@ export async function runDisabilityCheckCollectedAlert(args: {
         if (!kaipokeCsId) continue;
 
         const clientNameRaw = (r.client_name ?? "").trim();
-        const clientName = clientNameRaw ? `${clientNameRaw}様` : `CS:${kaipokeCsId}`;
+        const clientLabel = clientNameRaw ? `${clientNameRaw}様` : `CS:${kaipokeCsId}`;
+        const clientUrl =
+            `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`;
+        const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
 
         const key = `${mgrUserId}::${kaipokeCsId}`;
         const cur = byMgrClient.get(key);

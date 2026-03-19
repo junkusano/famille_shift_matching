@@ -1,5 +1,5 @@
 // src/lib/alert_add/disability_check_unsubmitted_alert.ts
-// disability_check の提出未チェック → 10日以降のみ LINEWORKS（利用者別：利用者名 + 「情報連携」グループへ送信）
+// disability_check の提出未チェック → 15日以降のみ LINEWORKS（利用者別：利用者名 + 「情報連携」グループへ送信）
 
 import { supabaseAdmin } from "@/lib/supabase/service";
 //import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
@@ -52,8 +52,7 @@ export type DisabilityCheckAlertArgs = {
     dryRun?: boolean;
     //mode?: "all" | "collectedOnly" | "submittedOnly";
     targetKaipokeCsId?: string; // テスト用に1件へ絞る
-    forceDay15Rule?: boolean; // 10日条件を無視してテスト
-    //forceDay15Rule?: boolean; // 15日条件を無視してテスト
+    forceDay15Rule?: boolean; // 15日条件を無視してテスト
 };
 
 /*type OrgRow = {
