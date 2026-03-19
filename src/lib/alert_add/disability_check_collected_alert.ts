@@ -232,6 +232,12 @@ export async function runDisabilityCheckCollectedAlert(args: {
             `チーム: ${pack.orgName}\n\n` +
             lines.join("\n");
 
+        console.log("[disability_check_collected] payload", {
+            mgrUserId,
+            kaipoke_cs_id: pack.kaipokeCsId,
+            shift_id: `disability_check:collect:${targetYm}:${mgrUserId}:${pack.kaipokeCsId}`,
+        });
+
         try {
             if (!dryRun) {
                 const payload: EnsureAlertParams = {
