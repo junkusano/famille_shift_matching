@@ -244,18 +244,14 @@ export default function MonthlyMeetingCheckPage() {
                     required: typeof r["required"] === "boolean" ? r["required"] : true,
 
                     attended_regular:
-                        r["attended_regular"] === null
-                            ? null
-                            : typeof r["attended_regular"] === "boolean"
-                                ? r["attended_regular"]
-                                : null,
+                        typeof r["attended_regular"] === "boolean"
+                            ? r["attended_regular"]
+                            : false,
 
                     attended_extra:
-                        r["attended_extra"] === null
-                            ? null
-                            : typeof r["attended_extra"] === "boolean"
-                                ? r["attended_extra"]
-                                : null,
+                        typeof r["attended_extra"] === "boolean"
+                            ? r["attended_extra"]
+                            : false,
 
                     checked_regular:
                         typeof r["checked_regular"] === "boolean" ? r["checked_regular"] : false,
@@ -305,10 +301,10 @@ export default function MonthlyMeetingCheckPage() {
             const next: Record<string, EditRow> = {};
             for (const r of newRows) {
                 next[r.user_id] = {
-                    attended_regular: r.attended_regular ?? false,
-                    attended_extra: r.attended_extra ?? false,
-                    checked_regular: r.checked_regular ?? false,
-                    checked_extra: r.checked_extra ?? false,
+                    attended_regular: r.attended_regular === true,
+                    attended_extra: r.attended_extra === true,
+                    checked_regular: r.checked_regular === true,
+                    checked_extra: r.checked_extra === true,
                     staff_comment: r.staff_comment ?? "",
                 };
             }
