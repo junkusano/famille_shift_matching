@@ -3,7 +3,7 @@
 // ※提出（LINEWORKS）はこのファイルでは扱わない
 
 import { supabaseAdmin } from "@/lib/supabase/service";
-import { ensureSystemAlert, type EnsureAlertParams } from "@/lib/alert/ensureSystemAlert";
+import { ensureSystemAlert } from "@/lib/alert/ensureSystemAlert";
 
 type DisabilityCheckViewRow = {
     kaipoke_cs_id: string;
@@ -17,11 +17,12 @@ type DisabilityCheckViewRow = {
     asigned_jisseki_staff_name: string | null;
 };
 
-type OrgRow = {
-    orgunitid: string;
-    orgunitname: string;
-    mgr_user_id: string | null;
-};
+// ★削除でOK
+// type OrgRow = {
+//     orgunitid: string;
+//     orgunitname: string;
+//     mgr_user_id: string | null;
+// };
 
 type StaffRow = {
     user_id: string;
@@ -56,7 +57,7 @@ function formatYmJa(ym: string) {
     return `${m[1]}年${Number(m[2])}月`;
 }
 
-async function loadOrgMap(orgunitids: string[]) {
+/*async function loadOrgMap(orgunitids: string[]) {
     if (!orgunitids.length) return new Map<string, OrgRow>();
 
     const { data, error } = await supabaseAdmin
@@ -69,7 +70,7 @@ async function loadOrgMap(orgunitids: string[]) {
     const map = new Map<string, OrgRow>();
     for (const r of (data ?? []) as OrgRow[]) map.set(r.orgunitid, r);
     return map;
-}
+}*/
 
 async function loadStaffInfoMap(userIds: string[]) {
     if (!userIds.length) return new Map<string, StaffRow>();
@@ -155,10 +156,10 @@ export async function runDisabilityCheckCollectedAlert(args: {
         };
     }
 
-    const orgIds = Array.from(
+    /*const orgIds = Array.from(
         new Set(rows.map((r) => String(r.asigned_org_id ?? "")).filter(Boolean)),
     );
-    const orgMap = await loadOrgMap(orgIds);
+    const orgMap = await loadOrgMap(orgIds);*/
 
     // mgr_user_id × 利用者（kaipoke_cs_id）でまとめる（＝利用者別アラート）
     type Pack = {
@@ -168,17 +169,10 @@ export async function runDisabilityCheckCollectedAlert(args: {
         items: DisabilityCheckViewRow[]; // 障害/移動支援を同一利用者で列挙
     };
 
-    const byMgrClient = new Map<string, { mgrUserId: string; pack: Pack }>();
+    const byClient = new Map<string, Pack>();
 
     for (const r of rows) {
-        const orgunitid = String(r.asigned_org_id ?? "").trim();
-        if (!orgunitid) continue;
-
-        const org = orgMap.get(orgunitid);
-        const mgrUserId = org?.mgr_user_id ? String(org.mgr_user_id).trim() : "";
-        if (!mgrUserId) continue;
-
-        const orgName = (r.asigned_org_name ?? org?.orgunitname ?? "").trim();
+        const orgName = (r.asigned_org_name ?? "").trim();
         const kaipokeCsId = String(r.kaipoke_cs_id ?? "").trim();
         if (!kaipokeCsId) continue;
 
@@ -188,13 +182,17 @@ export async function runDisabilityCheckCollectedAlert(args: {
             `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`;
         const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
 
-        const key = `${mgrUserId}::${kaipokeCsId}`;
-        const cur = byMgrClient.get(key);
+        const cur = byClient.get(kaipokeCsId);
 
         if (!cur) {
-            byMgrClient.set(key, { mgrUserId, pack: { orgName, kaipokeCsId, clientName, items: [r] } });
+            byClient.set(kaipokeCsId, {
+                orgName,
+                kaipokeCsId,
+                clientName,
+                items: [r],
+            });
         } else {
-            cur.pack.items.push(r);
+            cur.items.push(r);
         }
     }
 
@@ -202,7 +200,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
     let alertRows = 0;
     let errorsCount = 0;
 
-    for (const { mgrUserId, pack } of byMgrClient.values()) {
+    for (const pack of byClient.values()) {
         const staffIds = Array.from(
             new Set(pack.items.map((it) => String(it.asigned_jisseki_staff_id ?? "")).filter(Boolean)),
         );
@@ -233,21 +231,19 @@ export async function runDisabilityCheckCollectedAlert(args: {
             lines.join("\n");
 
         console.log("[disability_check_collected] payload", {
-            mgrUserId,
             kaipoke_cs_id: pack.kaipokeCsId,
-            shift_id: `disability_check:collect:${targetYm}:${mgrUserId}:${pack.kaipokeCsId}`,
+            shift_id: `disability_check:collect:${targetYm}:${pack.kaipokeCsId}`,
         });
 
         try {
             if (!dryRun) {
-                const payload: EnsureAlertParams = {
-                    user_id: mgrUserId,
+                await ensureSystemAlert({
                     message,
-                    kaipoke_cs_id: pack.kaipokeCsId, // ★追加
-                    // 同月・同mgr・同利用者で1件に保つ（既存の考え方を踏襲）
-                    shift_id: `disability_check:collect:${targetYm}:${mgrUserId}:${pack.kaipokeCsId}`,
-                };
-                await ensureSystemAlert(payload);
+                    kaipoke_cs_id: pack.kaipokeCsId,
+                    shift_id: `disability_check:collect:${targetYm}:${pack.kaipokeCsId}`,
+                    user_id: null,
+                    rpa_request_id: null,
+                });
             }
 
             alertManagers += 1;
@@ -255,7 +251,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
         } catch (e: unknown) {
             errorsCount += 1;
             console.error("[disability_check_collected] ensureSystemAlert error", {
-                mgrUserId,
+                kaipoke_cs_id: pack.kaipokeCsId,
                 error: toErrorMessage(e),
             });
         }
