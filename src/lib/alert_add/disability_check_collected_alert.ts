@@ -24,10 +24,10 @@ type DisabilityCheckViewRow = {
 //     mgr_user_id: string | null;
 // };
 
-type StaffRow = {
+/*type StaffRow = {
     user_id: string;
     name: string | null;
-};
+};*/
 
 export type DisabilityCheckCollectedAlertResult = {
     enabled: boolean;
@@ -70,7 +70,7 @@ function formatYmJa(ym: string) {
     const map = new Map<string, OrgRow>();
     for (const r of (data ?? []) as OrgRow[]) map.set(r.orgunitid, r);
     return map;
-}*/
+}
 
 async function loadStaffInfoMap(userIds: string[]) {
     if (!userIds.length) return new Map<string, StaffRow>();
@@ -85,7 +85,7 @@ async function loadStaffInfoMap(userIds: string[]) {
     const map = new Map<string, StaffRow>();
     for (const r of (data ?? []) as StaffRow[]) map.set(r.user_id, r);
     return map;
-}
+}*/
 
 export async function runDisabilityCheckCollectedAlert(args: {
     dryRun?: boolean;
@@ -201,16 +201,10 @@ export async function runDisabilityCheckCollectedAlert(args: {
     let errorsCount = 0;
 
     for (const pack of byClient.values()) {
-        const staffIds = Array.from(
-            new Set(pack.items.map((it) => String(it.asigned_jisseki_staff_id ?? "")).filter(Boolean)),
-        );
-        const staffInfoMap = await loadStaffInfoMap(staffIds);
-
         const lines = pack.items.map((it) => {
             const staffId = String(it.asigned_jisseki_staff_id ?? "").trim();
             const staffName =
                 (it.asigned_jisseki_staff_name ?? "").trim() ||
-                staffInfoMap.get(staffId)?.name ||
                 staffId ||
                 "（担当未設定）";
 
