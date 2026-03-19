@@ -36,6 +36,15 @@ export type SpotOfferTemplateUnified = {
   ucare_scraped_at: string | null;
   kaiteku_scraped_at: string | null;
 
+  unit_amount: number | null;
+  commute_fee: number | null;
+  send_msg_flg: boolean | null;
+  matching_msg: string | null;
+  meeting_place: string | null;
+  meeting_yuubinn: string | null;
+  matching_place_name: string | null;
+  meeting_place_banchi: string | null;
+
   created_at: string;
   updated_at: string;
 };
