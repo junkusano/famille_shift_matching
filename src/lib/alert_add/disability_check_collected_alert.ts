@@ -90,7 +90,7 @@ async function loadStaffInfoMap(userIds: string[]) {
 export async function runDisabilityCheckCollectedAlert(args: {
     dryRun?: boolean;
     targetKaipokeCsId?: string;
-    forceDay15Rule?: boolean;
+    forceDay20Rule?: boolean;
 } = {}): Promise<DisabilityCheckCollectedAlertResult> {
     const dryRun = args.dryRun ?? false;
 
@@ -101,7 +101,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
 
-    if (day < 15 && !args.forceDay15Rule) {
+    if (day < 20 && !args.forceDay20Rule) {
         return {
             enabled: true,
             scanned: 0,
