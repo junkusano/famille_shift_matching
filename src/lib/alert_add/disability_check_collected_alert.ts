@@ -237,6 +237,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
                 const payload: EnsureAlertParams = {
                     user_id: mgrUserId,
                     message,
+                    kaipoke_cs_id: pack.kaipokeCsId, // ★追加
                     // 同月・同mgr・同利用者で1件に保つ（既存の考え方を踏襲）
                     shift_id: `disability_check:collect:${targetYm}:${mgrUserId}:${pack.kaipokeCsId}`,
                 };
