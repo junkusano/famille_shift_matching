@@ -291,6 +291,10 @@ export default function MonthlyMeetingCheckPage() {
                                 : null,
                 }));
 
+            // URLとstateがずれている最中のレスポンスでは画面を更新しない
+            const currentQym = searchParams.get("ym");
+            if (currentQym !== ym) return;
+
             setRows(newRows);
 
             const firstMeetingDate =
@@ -358,6 +362,8 @@ export default function MonthlyMeetingCheckPage() {
         if (!isRecord(j) || readBoolean(j.ok) !== true) {
             throw new Error(isRecord(j) ? (readString(j.error) ?? "save failed") : "save failed");
         }
+
+        await load();
     }
 
     async function saveMeetingInfo() {
@@ -493,17 +499,21 @@ export default function MonthlyMeetingCheckPage() {
 
     useEffect(() => {
         if (!authReady) return;
+
+        const qym = searchParams.get("ym");
+        if (!qym || !/^\d{4}-\d{2}$/.test(qym)) return;
+        if (qym !== ym) return;
+
         void load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ym, authReady]);
+    }, [ym, authReady, searchParams]);
 
     useEffect(() => {
         const qym = searchParams.get("ym");
 
-        // URLに ym が入っていれば何もしない
-        if (qym && /^\d{4}-\d{2}$/.test(qym)) return;
+        // URLの ym が state と一致していれば何もしない
+        if (qym === ym) return;
 
-        // URLに ym が無いときだけ、現在の ym を付ける
         const params = new URLSearchParams(searchParams.toString());
         params.set("ym", ym);
         router.replace(`${pathname}?${params.toString()}`);
