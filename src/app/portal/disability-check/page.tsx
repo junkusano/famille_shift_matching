@@ -138,8 +138,46 @@ const DisabilityCheckPage: React.FC = () => {
   const searchParams = useSearchParams();
 
   // ★追加：受給者証番号ソート
-  const [idoSort, setIdoSort] = useState<"none" | "asc" | "desc">("none");
+  type SortKey =
+    | "district"
+    | "kaipoke_cs_id"
+    | "client_name"
+    | "ido_jukyusyasho"
+    | "asigned_jisseki_staff_name"
+    | "asigned_org_name"
+    | "is_submitted"
+    | "is_checked";
 
+  type SortOrder = "none" | "asc" | "desc";
+
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortOrder("asc");
+      return;
+    }
+
+    if (sortOrder === "asc") {
+      setSortOrder("desc");
+      return;
+    }
+
+    if (sortOrder === "desc") {
+      setSortOrder("none");
+      setSortKey(null);
+      return;
+    }
+
+    setSortOrder("asc");
+  };
+
+  const sortMark = (key: SortKey) => {
+    if (sortKey !== key || sortOrder === "none") return "⇅";
+    return sortOrder === "asc" ? "昇順▲" : "降順▼";
+  };
   // 未使用のため一旦コメントアウト
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
   /*const handleClickStaff = (staffId: string) => {
@@ -265,26 +303,80 @@ const DisabilityCheckPage: React.FC = () => {
       return true;
     });
   }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
-  // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
 
   const sortedRecords = useMemo(() => {
     const arr = [...filteredRecords];
 
-    if (idoSort === "none") {
+    if (!sortKey || sortOrder === "none") {
       return arr;
     }
 
-    arr.sort((a, b) => {
-      const na = Number(a.ido_jukyusyasho ?? "");
-      const nb = Number(b.ido_jukyusyasho ?? "");
+    const dir = sortOrder === "asc" ? 1 : -1;
+    const boolRank = (v: boolean | null | undefined) => (v === true ? 1 : 0);
 
-      if (idoSort === "asc") return na - nb;
-      return nb - na;
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case "district": {
+          const av = areaLabel(a.district);
+          const bv = areaLabel(b.district);
+          return jaCollator.compare(av, bv) * dir;
+        }
+
+        case "kaipoke_cs_id": {
+          const av = normCsId(a.kaipoke_cs_id);
+          const bv = normCsId(b.kaipoke_cs_id);
+          return av.localeCompare(bv, "ja", { numeric: true }) * dir;
+        }
+
+        case "client_name": {
+          const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
+          const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
+          const byName = jaCollator.compare(ak, bk);
+          if (byName !== 0) return byName * dir;
+          return normCsId(a.kaipoke_cs_id).localeCompare(
+            normCsId(b.kaipoke_cs_id),
+            "ja",
+            { numeric: true }
+          ) * dir;
+        }
+
+        case "ido_jukyusyasho": {
+          const av = Number(a.ido_jukyusyasho ?? "");
+          const bv = Number(b.ido_jukyusyasho ?? "");
+          const an = Number.isNaN(av) ? -1 : av;
+          const bn = Number.isNaN(bv) ? -1 : bv;
+          return (an - bn) * dir;
+        }
+
+        case "asigned_jisseki_staff_name": {
+          const av = norm(a.asigned_jisseki_staff_name ?? "");
+          const bv = norm(b.asigned_jisseki_staff_name ?? "");
+          return jaCollator.compare(av, bv) * dir;
+        }
+
+        case "asigned_org_name": {
+          const av = norm(a.asigned_org_name ?? "");
+          const bv = norm(b.asigned_org_name ?? "");
+          return jaCollator.compare(av, bv) * dir;
+        }
+
+        case "is_submitted": {
+          return (boolRank(a.is_submitted) - boolRank(b.is_submitted)) * dir;
+        }
+
+        case "is_checked": {
+          return (boolRank(a.is_checked) - boolRank(b.is_checked)) * dir;
+        }
+
+        default:
+          return 0;
+      }
     });
 
     return arr;
-  }, [filteredRecords, idoSort]);
+  }, [filteredRecords, sortKey, sortOrder, jaCollator]);
 
+  // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
   const uniqueFilteredRecords = useMemo(() => {
     const pickBetter = (a: Row, b: Row) => {
       const rankSvc = (svc: string) => {
@@ -1065,41 +1157,91 @@ const DisabilityCheckPage: React.FC = () => {
 */}
 
       </div>
-
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left", padding: 8 }}>地域</th>
-            <th style={{ textAlign: "left", padding: 8 }}>カイポケID</th>
-            <th style={{ textAlign: "left", padding: 8 }}>利用者名</th>
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("district")}
+            >
+              地域
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("district")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("kaipoke_cs_id")}
+            >
+              カイポケID
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("kaipoke_cs_id")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("client_name")}
+            >
+              利用者名
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("client_name")}
+              </span>
+            </th>
+
             <th
               style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
-              onClick={() =>
-                setIdoSort(
-                  idoSort === "none"
-                    ? "asc"
-                    : idoSort === "asc"
-                      ? "desc"
-                      : "none"
-                )
-              }
+              onClick={() => toggleSort("ido_jukyusyasho")}
             >
-              受給者証番号{" "}
+              受給者証番号
               <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {idoSort === "asc"
-                  ? "昇順▲"
-                  : idoSort === "desc"
-                    ? "降順▼"
-                    : "⇅"}
+                {sortMark("ido_jukyusyasho")}
               </span>
               <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
                 昇順/降順
               </span>
             </th>
-            <th style={{ textAlign: "left", padding: 8 }}>実績担当者</th>
-            <th style={{ textAlign: "left", padding: 8 }}>チーム名</th> {/* ★追加 */}
-            <th style={{ textAlign: "center", padding: 8, width: 80 }}>提出✅</th>
-            <th style={{ textAlign: "center", padding: 8, width: 80 }}>回収✅</th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("asigned_jisseki_staff_name")}
+            >
+              実績担当者
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("asigned_jisseki_staff_name")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+              onClick={() => toggleSort("asigned_org_name")}
+            >
+              チーム名
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("asigned_org_name")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
+              onClick={() => toggleSort("is_submitted")}
+            >
+              提出✅
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("is_submitted")}
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
+              onClick={() => toggleSort("is_checked")}
+            >
+              回収✅
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("is_checked")}
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
