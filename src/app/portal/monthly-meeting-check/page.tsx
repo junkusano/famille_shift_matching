@@ -194,23 +194,29 @@ export default function MonthlyMeetingCheckPage() {
 
         try {
             // ① 先に対象月の attendance を初期化（同じ月では1回だけ）
+            // init が失敗しても、一覧GETは止めない
             if (initDoneRef.current !== ym) {
-                const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
-                    method: "POST",
-                    body: JSON.stringify({ ym }),
-                });
+                try {
+                    const initRes = await fetchWithBearer("/api/monthly-meeting/attendance/init", {
+                        method: "POST",
+                        body: JSON.stringify({ ym }),
+                    });
 
-                const initJson: unknown = await initRes.json();
+                    const initJson: unknown = await initRes.json();
 
-                if (!initRes.ok || !isRecord(initJson) || readBoolean(initJson.ok) !== true) {
-                    throw new Error(
-                        isRecord(initJson)
-                            ? (readString(initJson.error) ?? `init failed (${initRes.status})`)
-                            : `init failed (${initRes.status})`
-                    );
+                    if (initRes.ok && isRecord(initJson) && readBoolean(initJson.ok) === true) {
+                        initDoneRef.current = ym;
+                    } else {
+                        console.warn("attendance init failed but continue:", initJson);
+                        // ★ throwしない
+                        // 既存データがあるかもしれないので、このまま一覧取得へ進む
+                        initDoneRef.current = ym;
+                    }
+                } catch (e) {
+                    console.warn("attendance init error but continue:", e);
+                    // ★ throwしない
+                    initDoneRef.current = ym;
                 }
-
-                initDoneRef.current = ym;
             }
 
             // ② そのあと一覧取得

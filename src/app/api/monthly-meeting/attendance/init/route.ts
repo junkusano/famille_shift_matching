@@ -145,7 +145,20 @@ export async function POST(req: NextRequest) {
                     ignoreDuplicates: true,
                 });
 
-            if (upsertErr) throw upsertErr;
+            if (upsertErr) {
+                const msg = String(upsertErr.message ?? "");
+                const code = String((upsertErr as { code?: string }).code ?? "");
+
+                const isDuplicate =
+                    code === "23505" ||
+                    msg.includes("duplicate key") ||
+                    msg.includes("unique constraint") ||
+                    msg.includes("409");
+
+                if (!isDuplicate) {
+                    throw upsertErr;
+                }
+            }
         }
 
         return json({
