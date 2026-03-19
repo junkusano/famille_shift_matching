@@ -495,6 +495,8 @@ export default function MonthlyMeetingCheckPage() {
 
     useEffect(() => {
         if (!authReady) return;
+        if (!/^\d{4}-\d{2}$/.test(ym)) return;
+
         void load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ym, authReady]);
@@ -502,20 +504,20 @@ export default function MonthlyMeetingCheckPage() {
     useEffect(() => {
         const qym = searchParams.get("ym");
 
-        // URLの ym が state と一致していれば何もしない
-        if (qym === ym) return;
+        // URLに ym が無い or 不正なら、今月をURLに入れる
+        if (!qym || !/^\d{4}-\d{2}$/.test(qym)) {
+            const currentYm = ymNowJst();
+            const params = new URLSearchParams(searchParams.toString());
+            params.set("ym", currentYm);
+            router.replace(`${pathname}?${params.toString()}`);
+            return;
+        }
 
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("ym", ym);
-        router.replace(`${pathname}?${params.toString()}`);
-    }, [searchParams, ym, router, pathname]);
-
-    useEffect(() => {
-        const qym = searchParams.get("ym");
-        if (qym && /^\d{4}-\d{2}$/.test(qym) && qym !== ym) {
+        // URLの ym を state に反映
+        if (qym !== ym) {
             setYm(qym);
         }
-    }, [searchParams, ym]);
+    }, [searchParams, ym, router, pathname]);
 
     return (
         <div className="p-4 space-y-4">
@@ -544,7 +546,6 @@ export default function MonthlyMeetingCheckPage() {
                         value={ym}
                         onChange={(e) => {
                             const nextYm = e.target.value;
-                            setYm(nextYm);
 
                             const params = new URLSearchParams(searchParams.toString());
                             params.set("ym", nextYm);
