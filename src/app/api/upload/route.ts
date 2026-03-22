@@ -10,11 +10,14 @@ function bufferToStream(buffer: Buffer) {
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const filename = formData.get("filename") as string;
+    const file = formData.get("file") as File | null;
+    const filenameRaw = formData.get("filename");
+    const filename = typeof filenameRaw === "string" && filenameRaw.trim()
+      ? filenameRaw.trim()
+      : file?.name?.trim() || `${Date.now()}_upload`;
 
-    if (!file || !filename) {
-      return NextResponse.json({ error: "Missing file or filename" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
 
     const auth = new google.auth.GoogleAuth({
@@ -60,6 +63,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       url: directUrl,
       fileId: fileId,
+      filename,
+      mimeType: file.type || null,
     });
   } catch (error) {
     console.error("Upload error:", error);

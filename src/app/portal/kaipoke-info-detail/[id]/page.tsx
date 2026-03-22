@@ -211,28 +211,27 @@ export default function KaipokeInfoDetailPage() {
         }
     };
 
-    // handleImageUpload関数
+    // 駐車場画像アップロード（書類アップロードと同じAPI仕様に合わせる）
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const formData = new FormData();
-        formData.append("file", file);
+        try {
+            const { url } = await uploadFileViaApi(file);
 
-        const response = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-        });
+            setNewParkingPlace((prev) => ({
+                ...prev,
+                ...(index === 1 ? { picture1_url: url } : {}),
+                ...(index === 2 ? { picture2_url: url } : {}),
+            }));
 
-        if (response.ok) {
-            const data = await response.json();
-            const imageUrl = data.url;
-
-            if (index === 1) {
-                setNewParkingPlace({ ...newParkingPlace, picture1_url: imageUrl });
-            } else if (index === 2) {
-                setNewParkingPlace({ ...newParkingPlace, picture2_url: imageUrl });
-            }
+            toast.success(`画像${index}をアップロードしました`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("parking image upload error:", err);
+            toast.error(`画像アップロードに失敗: ${msg}`);
+        } finally {
+            e.currentTarget.value = '';
         }
     };
 
