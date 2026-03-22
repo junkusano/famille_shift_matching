@@ -68,6 +68,8 @@ type ParkingPlace = {
   remarks: string | null;
   permit_required: boolean | null;
   police_station_place_id: string | null;
+  picture1_url?: string | null;
+  picture2_url?: string | null;
 };
 
 // ★ 追加：cs_idごとの駐車情報キャッシュ（チラつき防止）
@@ -240,6 +242,12 @@ function isImageUrl(u?: string | null) {
   if (!u) return false;
   const s = u.toLowerCase().split("?")[0];
   return [".jpg", ".jpeg", ".png", ".webp", ".gif"].some(ext => s.endsWith(ext));
+}
+
+function isPdfUrl(u?: string | null) {
+  if (!u) return false;
+  const s = u.toLowerCase().split("?")[0];
+  return s.endsWith(".pdf");
 }
 
 // ★ 追加：駐車場所を取得（API経由）
@@ -1208,6 +1216,12 @@ export default function ShiftCard({
                                       className="mt-2 max-h-[360px] w-full rounded border object-contain"
                                     />
                                   </div>
+                                ) : isPdfUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図PDFを開く
+                                    </a>
+                                  </div>
                                 ) : (
                                   <div className="mt-1">
                                     <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
@@ -1216,6 +1230,46 @@ export default function ShiftCard({
                                   </div>
                                 )}
                               </div>
+
+                              {(p.picture1_url || p.picture2_url) && (
+                                <div className="mt-3 text-sm space-y-2">
+                                  <div className="font-semibold">添付資料</div>
+                                  {[p.picture1_url, p.picture2_url].filter(Boolean).map((attachmentUrl, idx) => {
+                                    const fileUrl = attachmentUrl as string;
+                                    const label = `添付${idx + 1}`;
+                                    if (isImageUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} を別タブで開く
+                                          </a>
+                                          <img
+                                            src={fileUrl}
+                                            alt={label}
+                                            className="mt-2 max-h-[360px] w-full rounded border object-contain"
+                                          />
+                                        </div>
+                                      );
+                                    }
+                                    if (isPdfUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} のPDFを開く
+                                          </a>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div key={fileUrl} className="mt-1">
+                                        <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                          {label} を開く
+                                        </a>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
