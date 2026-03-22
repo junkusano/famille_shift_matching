@@ -212,17 +212,36 @@ export default function KaipokeInfoDetailPage() {
     };
 
     // 駐車場画像アップロード（書類アップロードと同じAPI仕様に合わせる）
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const handleImageUpload = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        index: 1 | 2,
+        placeId?: string
+    ) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         try {
+            const pictureSlot = index === 1 ? "picture1" : "picture2";
+
+            // 既存レコードならAPIでDBまで即時更新
+            if (placeId) {
+                const { url } = await uploadParkingImageViaApi(file, placeId, pictureSlot);
+
+                setNewParkingPlace((prev) => ({
+                    ...prev,
+                    [index === 1 ? "picture1_url" : "picture2_url"]: url,
+                }));
+
+                toast.success(`画像${index}をアップロードしました`);
+                return;
+            }
+
+            // 新規作成中なら従来通りURLだけ保持
             const { url } = await uploadFileViaApi(file);
 
             setNewParkingPlace((prev) => ({
                 ...prev,
-                ...(index === 1 ? { picture1_url: url } : {}),
-                ...(index === 2 ? { picture2_url: url } : {}),
+                [index === 1 ? "picture1_url" : "picture2_url"]: url,
             }));
 
             toast.success(`画像${index}をアップロードしました`);
@@ -231,7 +250,7 @@ export default function KaipokeInfoDetailPage() {
             console.error("parking image upload error:", err);
             toast.error(`画像アップロードに失敗: ${msg}`);
         } finally {
-            e.currentTarget.value = '';
+            e.currentTarget.value = "";
         }
     };
 
@@ -540,7 +559,44 @@ export default function KaipokeInfoDetailPage() {
         return { url: json.url as string, mimeType };
     };
 
+    const uploadParkingImageViaApi = async (
+        file: File,
+        placeId: string,
+        pictureSlot: "picture1" | "picture2"
+    ) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("filename", `${Date.now()}_${file.name}`);
+        form.append("target", "parking_cs_places");
+        form.append("placeId", placeId);
+        form.append("pictureSlot", pictureSlot);
 
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`アップロードAPI失敗: status=${res.status} ${text}`);
+        }
+
+        const json = await res.json();
+
+        const lower = file.name.toLowerCase();
+        const guessed =
+            lower.endsWith(".pdf") ? "application/pdf" :
+                lower.endsWith(".png") ? "image/png" :
+                    lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg" :
+                        null;
+
+        const mimeType = (file.type || json.mimeType || guessed || null) as string | null;
+
+        if (!json.url) throw new Error("アップロードAPIの戻り値に url がありません");
+
+        return {
+            url: json.url as string,
+            mimeType,
+            updatedRow: json.updatedRow ?? null,
+        };
+    };
 
     const saveDocuments = async (next: Attachment[]) => {
         if (!row) return;
