@@ -17,15 +17,16 @@ type ViewRow = {
   year_month: string;
   kaipoke_servicek: string;
   client_name: string | null;
-  client_kana: string | null; // ★追加
+  client_kana: string | null;
   ido_jukyusyasho: string | null;
+  shogai_jukyusha_no: string | null;
   is_checked: boolean | null;
   district: string | null;
   asigned_jisseki_staff_id: string | null;
   asigned_jisseki_staff_name: string | null;
   asigned_org_id: string | null;
   asigned_org_name: string | null;
-  application_check: boolean | null; // ★追加（viewに追加した提出）
+  application_check: boolean | null;
 };
 
 type CsKanaRow = {
@@ -163,6 +164,7 @@ export async function POST(req: NextRequest) {
           "kaipoke_servicek",
           "client_name",
           "ido_jukyusyasho",
+          "shogai_jukyusha_no",
           "is_checked",
           "district",
           "asigned_jisseki_staff_id",
