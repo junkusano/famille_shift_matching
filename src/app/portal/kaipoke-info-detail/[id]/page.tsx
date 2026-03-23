@@ -232,6 +232,17 @@ export default function KaipokeInfoDetailPage() {
                     [index === 1 ? "picture1_url" : "picture2_url"]: url,
                 }));
 
+                setParkingPlaces((prev) =>
+                    prev.map((p) =>
+                        p.id === placeId
+                            ? {
+                                ...p,
+                                [index === 1 ? "picture1_url" : "picture2_url"]: url,
+                            }
+                            : p
+                    )
+                );
+
                 toast.success(`画像${index}をアップロードしました`);
                 return;
             }
@@ -1084,12 +1095,12 @@ export default function KaipokeInfoDetailPage() {
                     <input
                         type="file"
                         name="picture1_url"
-                        onChange={(e) => handleImageUpload(e, 1)}
+                        onChange={(e) => handleImageUpload(e, 1, newParkingPlace.id || undefined)}
                     />
                     <input
                         type="file"
                         name="picture2_url"
-                        onChange={(e) => handleImageUpload(e, 2)}
+                        onChange={(e) => handleImageUpload(e, 2, newParkingPlace.id || undefined)}
                     />
                     <button className="btn-save" onClick={handleSave}>駐車場情報保存</button>
                 </div>
