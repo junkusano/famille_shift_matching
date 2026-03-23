@@ -542,11 +542,48 @@ export default function SpotOfferTemplatePage() {
             </div>
 
             <div>
+              <div className="text-sm font-semibold">ID / 連携情報</div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">timee_offer_id</div>
+                  <Input value={fTimeeOfferId} onChange={(e) => setFTimeeOfferId(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">ucare_offer_id</div>
+                  <Input value={fUcareOfferId} onChange={(e) => setFUcareOfferId(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">kaiteku_offer_id</div>
+                  <Input value={fKaitekuOfferId} onChange={(e) => setFKaitekuOfferId(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">kaipoke_cs_id</div>
+                  <Input value={fKaipokeCsId} onChange={(e) => setFKaipokeCsId(e.target.value)} />
+                </div>
+                {editing && (
+                  <div className="md:col-span-2 xl:col-span-2 text-xs text-muted-foreground self-end">
+                    core_id: {editing.core_id}
+                    <br />
+                    timee_scraped_at: {editing.timee_scraped_at ?? "-"}
+                    <br />
+                    ucare_scraped_at: {editing.ucare_scraped_at ?? "-"}
+                    <br />
+                    kaiteku_scraped_at: {editing.kaiteku_scraped_at ?? "-"}
+                    <br />
+                    created_at: {editing.created_at ?? "-"}
+                    <br />
+                    updated_at: {editing.updated_at ?? "-"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
               <div className="text-sm font-semibold">勤務地 / 集合情報</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div className="md:col-span-2 xl:col-span-3">
                   <div className="text-[11px] text-muted-foreground">住所</div>
-                  <Input value={fAddress} onChange={(e) => setFAddress(e.target.value)} placeholder="例：名古屋市熱田区" />
+                  <Input value={fAddress} onChange={(e) => setFAddress(e.target.value)} placeholder="例：名古屋市港区..." />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所</div>
@@ -558,11 +595,11 @@ export default function SpotOfferTemplatePage() {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所番地</div>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
+                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所 郵便番号</div>
-                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
+                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">緊急連絡先</div>
@@ -575,12 +612,20 @@ export default function SpotOfferTemplatePage() {
               <div className="text-sm font-semibold">勤務条件</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
+                  <div className="text-[11px] text-muted-foreground">給与</div>
+                  <Input value={fSalary} onChange={(e) => setFSalary(e.target.value)} placeholder="例：時給1,500円" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">交通費/手当</div>
+                  <Input value={fFare} onChange={(e) => setFFare(e.target.value)} placeholder="例：交通費500円" />
+                </div>
+                <div>
                   <div className="text-[11px] text-muted-foreground">commute_fee</div>
-                  <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
+                  <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="数値" inputMode="numeric" />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">unit_amount</div>
-                  <Input value={fUnitAmount} onChange={(e) => setFUnitAmount(e.target.value)} placeholder="例：1500" inputMode="numeric" />
+                  <Input value={fUnitAmount} onChange={(e) => setFUnitAmount(e.target.value)} placeholder="数値" inputMode="numeric" />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">start_at</div>
@@ -632,42 +677,6 @@ export default function SpotOfferTemplatePage() {
               </div>
             </div>
 
-            <div>
-              <div className="text-sm font-semibold">ID / 連携情報</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] text-muted-foreground">timee_offer_id</div>
-                  <Input value={fTimeeOfferId} onChange={(e) => setFTimeeOfferId(e.target.value)} />
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">ucare_offer_id</div>
-                  <Input value={fUcareOfferId} onChange={(e) => setFUcareOfferId(e.target.value)} />
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">kaiteku_offer_id</div>
-                  <Input value={fKaitekuOfferId} onChange={(e) => setFKaitekuOfferId(e.target.value)} />
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">kaipoke_cs_id</div>
-                  <Input value={fKaipokeCsId} onChange={(e) => setFKaipokeCsId(e.target.value)} />
-                </div>
-                {editing && (
-                  <div className="md:col-span-2 xl:col-span-2 text-xs text-muted-foreground self-end">
-                    core_id: {editing.core_id}
-                    <br />
-                    timee_scraped_at: {editing.timee_scraped_at ?? "-"}
-                    <br />
-                    ucare_scraped_at: {editing.ucare_scraped_at ?? "-"}
-                    <br />
-                    kaiteku_scraped_at: {editing.kaiteku_scraped_at ?? "-"}
-                    <br />
-                    created_at: {editing.created_at ?? "-"}
-                    <br />
-                    updated_at: {editing.updated_at ?? "-"}
-                  </div>
-                )}
-              </div>
-            </div>
             {editing && (
               <div className="rounded border p-3 text-xs text-muted-foreground">
                 DBの存在確認済み追加項目: smoking_policy / smoking_area_work / requires_license / unit_amount /
