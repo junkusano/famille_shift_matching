@@ -119,12 +119,13 @@ export async function GET(req: NextRequest) {
   // ★①：利用者名と郵便番号（名古屋市判定用）を取得
   const { data: cs } = await supabaseAdmin
     .from("cs_kaipoke_info")
-    .select("kaipoke_cs_id,name,postal_code,ido_jukyusyasho")
+    .select("kaipoke_cs_id,name,postal_code,ido_jukyusyasho,shogai_jukyusha_no")
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .maybeSingle();
 
   const client_name = cs?.name ?? "";
   const ido_jukyusyasho = (cs as { ido_jukyusyasho?: string } | null)?.ido_jukyusyasho ?? "";
+  const shogai_jukyusha_no = (cs as { shogai_jukyusha_no?: string } | null)?.shogai_jukyusha_no ?? "";
   const address_zip = (cs as { postal_code?: string } | null)?.postal_code ?? "";
 
   // シフト取得（staff_01_user_id 追加）
@@ -251,7 +252,7 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({
-    client: { kaipoke_cs_id, client_name, ido_jukyusyasho, address_zip },
+    client: { kaipoke_cs_id, client_name, ido_jukyusyasho, shogai_jukyusha_no, address_zip },
     month,
     forms,
   });

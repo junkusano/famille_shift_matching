@@ -8,7 +8,8 @@ type PrintPayload = {
     client: {
         kaipoke_cs_id: string;
         client_name: string;
-        ido_jukyusyasho?: string | null; // ★追加
+        ido_jukyusyasho?: string | null;
+        shogai_jukyusha_no?: string | null;
         // もし今後使うなら postal_code 等もここに追加できます
     };
     month: string; // YYYY-MM
@@ -48,7 +49,7 @@ const OFFICE_NAME_LINES = ["合同会社施恩", "ファミーユヘルパーサ
 const DOKO_OFFICE_NO = "2311100974";
 const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 // 居宅介護（様式1）用（PDF要件）
-const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
+//const TAKINO_JUKYUSHA_NO = ""; // 10桁（未連携なら空でOK）
 
 // 重度訪問介護用（PDF要件）
 const JYUHO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
@@ -361,7 +362,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "0px 3px" }}>
-                                            <DigitBoxes10 value={TAKINO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
