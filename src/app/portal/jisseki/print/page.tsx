@@ -555,10 +555,12 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                         {/* 居宅介護計画：乗降は要望外なので空 */}
                                         <td>&nbsp;</td>
 
-                                        {/* 以降の列（提供時間、算定、加算等）は要望外なので空のまま */}
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
-                                        <td>&nbsp;</td>
+                                        {/* サービス提供時間：計画と同じ */}
+                                        <td className="center">{r.start}</td>
+                                        <td className="center">{r.end}</td>
+
+                                        {/* 算定時間数：計画時間数と同じ */}
+                                        <td className="center">{hoursText(r)}</td>
                                         <td>&nbsp;</td>
 
                                         {/* 派遣人数 */}
