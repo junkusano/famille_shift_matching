@@ -4,7 +4,7 @@
 import ShiftSumBizStats from "@/components/biz-stats/ShiftSum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DefectSum from "@/components/biz-stats/DefectSum";
-import EntrySumBizStats from "@/components/biz-stats/EntrySum"; 
+import EntrySumBizStats from "@/components/biz-stats/EntrySum";
 import TableViewer from "@/components/TableViewer";
 
 export default function DashboardPage() {
@@ -39,7 +39,7 @@ export default function DashboardPage() {
           { key: "prev_month_hours", label: "前月時間" },
           { key: "diff_hours", label: "差分時間" },
         ]}
-        defaultSort={{ column: "month_start", ascending: false }}
+        defaultSort={{ column: "diff_hours", ascending: true }}
         pageSize={30}
       />
     </div>

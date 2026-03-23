@@ -1,4 +1,5 @@
-//components/TableViewer.tsx
+// src/components/TableViewer.tsx
+
 "use client";
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";

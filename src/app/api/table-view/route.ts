@@ -1,24 +1,7 @@
-//app/api/table-view/route.ts
+// src/app/api/table-view/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl) {
-  throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-}
-
-if (!serviceRoleKey) {
-  throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
-}
-
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+import { supabaseAdmin } from "@/lib/supabase/service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,7 +18,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 5000) : 1000;
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(limit, 1), 5000)
+      : 1000;
 
     const { data, error } = await supabaseAdmin
       .from(tableName)
@@ -54,11 +39,11 @@ export async function GET(req: NextRequest) {
       rows: Array.isArray(data) ? data : [],
       count: Array.isArray(data) ? data.length : 0,
     });
-  } catch (error) {
+  } catch (e) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: e instanceof Error ? e.message : "Unknown error",
       },
       { status: 500 }
     );
