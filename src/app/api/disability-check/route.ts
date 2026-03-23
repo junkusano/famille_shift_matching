@@ -17,15 +17,16 @@ type ViewRow = {
   year_month: string;
   kaipoke_servicek: string;
   client_name: string | null;
-  client_kana: string | null; // ★追加
+  client_kana: string | null;
   ido_jukyusyasho: string | null;
+  shogai_jukyusha_no: string | null;
   is_checked: boolean | null;
   district: string | null;
   asigned_jisseki_staff_id: string | null;
   asigned_jisseki_staff_name: string | null;
   asigned_org_id: string | null;
   asigned_org_name: string | null;
-  application_check: boolean | null; // ★追加（viewに追加した提出）
+  application_check: boolean | null;
 };
 
 type CsKanaRow = {
@@ -163,6 +164,7 @@ export async function POST(req: NextRequest) {
           "kaipoke_servicek",
           "client_name",
           "ido_jukyusyasho",
+          "shogai_jukyusha_no",
           "is_checked",
           "district",
           "asigned_jisseki_staff_id",
@@ -367,25 +369,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ★追加：同一CS内で「どれかtrue」を集約（同じyearMonthで取ってるのでcs_idだけでOK）
+    // ★追加：同一CS内で「どれかtrue」を集約
     const submittedAnyByCs = new Map<string, boolean>();
-    for (const r of rows) {
-      const csId = String(r.kaipoke_cs_id);
+
+    for (const r of rows as ViewRow[]) {
+      const csId = r.kaipoke_cs_id;
       const cur = submittedAnyByCs.get(csId) ?? false;
       const next = cur || r.application_check === true;
       submittedAnyByCs.set(csId, next);
     }
 
-    const merged = rows.map((r: ViewRow) => {
-      const csId = String(r.kaipoke_cs_id);
+    // ★型を明示して返す
+    const merged: ViewRow[] = (rows as ViewRow[]).map((r) => {
+      const csId = r.kaipoke_cs_id;
       const any = submittedAnyByCs.get(csId) ?? false;
 
       return {
         ...r,
         client_kana: kanaMap.get(csId) ?? null,
-        // ★ここがポイント：表示は必ず統一
         is_submitted: any,
-        // 必要なら application_check も返却上は統一（画面がこれを参照してるなら）
         application_check: any,
       };
     });

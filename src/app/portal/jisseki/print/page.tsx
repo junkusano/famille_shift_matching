@@ -66,7 +66,7 @@ const TAKINO_OFFICE_NO = "2311100974";
 const TAKINO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 
 // 受給者証番号はデータ連携が未定なら空文字でOK（表示は10桁枠のみ出ます）
-const DOKO_JUKYUSHA_NO = ""; // 例: "2320600812"
+//const DOKO_JUKYUSHA_NO = ""; // 例: "2320600812"
 const DOKO_CONTRACT = "同行援護 25時間/月";
 
 // ★1ページあたりの明細行数（+10）
@@ -1219,7 +1219,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={DOKO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 

@@ -10,10 +10,11 @@ import Link from "next/link";
 interface Row {
   kaipoke_cs_id: string;
   client_name: string;
-  client_kana: string | null; // ★追加
-  year_month: string;         // YYYY-MM
-  kaipoke_servicek: string;   // "障害" | "移動支援" など
+  client_kana: string | null;
+  year_month: string;
+  kaipoke_servicek: string;
   ido_jukyusyasho: string | null;
+  shogai_jukyusha_no: string | null;
   is_checked: boolean | null;
   district: string | null;
   // ① 実績担当者（API / View 側で JOIN して返してもらう想定）
@@ -341,8 +342,18 @@ const DisabilityCheckPage: React.FC = () => {
         }
 
         case "ido_jukyusyasho": {
-          const av = Number(a.ido_jukyusyasho ?? "");
-          const bv = Number(b.ido_jukyusyasho ?? "");
+          const aNo =
+            a.kaipoke_servicek === "移動支援"
+              ? (a.ido_jukyusyasho ?? "")
+              : (a.shogai_jukyusha_no ?? "");
+
+          const bNo =
+            b.kaipoke_servicek === "移動支援"
+              ? (b.ido_jukyusyasho ?? "")
+              : (b.shogai_jukyusha_no ?? "");
+
+          const av = Number(aNo);
+          const bv = Number(bNo);
           const an = Number.isNaN(av) ? -1 : av;
           const bn = Number.isNaN(bv) ? -1 : bv;
           return (an - bn) * dir;
@@ -758,20 +769,38 @@ const DisabilityCheckPage: React.FC = () => {
   };
 
   /** 受給者証番号 更新 */
-  const handleIdoChange = async (row: Row, value: string) => {
+  const handleJukyushaNoChange = async (row: Row, value: string) => {
+    const isIdo = row.kaipoke_servicek === "移動支援";
+
     setRecords((prev) =>
       prev.map((r) =>
-        r.kaipoke_cs_id === row.kaipoke_cs_id ? { ...r, ido_jukyusyasho: value } : r
+        r.kaipoke_cs_id === row.kaipoke_cs_id
+          ? {
+            ...r,
+            ido_jukyusyasho: isIdo ? value : r.ido_jukyusyasho,
+            shogai_jukyusha_no: isIdo ? r.shogai_jukyusha_no : value,
+          }
+          : r
       )
     );
+
     try {
-      await fetch("/api/disability-check/update-ido-jukyusyasho", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.kaipoke_cs_id, idoJukyusyasho: value }),
-      });
+      await fetch(
+        isIdo
+          ? "/api/disability-check/update-ido-jukyusyasho"
+          : "/api/disability-check/update-shogai-jukyusha-no",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            isIdo
+              ? { id: row.kaipoke_cs_id, idoJukyusyasho: value }
+              : { id: row.kaipoke_cs_id, shogaiJukyushaNo: value }
+          ),
+        }
+      );
     } catch {
-      console.error("Failed to update ido_jukyusyasho");
+      console.error("Failed to update jukyusha_no");
     }
   };
 
@@ -1269,8 +1298,12 @@ const DisabilityCheckPage: React.FC = () => {
                 <td style={{ padding: 8 }}>
                   <input
                     type="text"
-                    value={r.ido_jukyusyasho ?? ""}
-                    onChange={(e) => handleIdoChange(r, e.target.value)}
+                    value={
+                      r.kaipoke_servicek === "移動支援"
+                        ? (r.ido_jukyusyasho ?? "")
+                        : (r.shogai_jukyusha_no ?? "")
+                    }
+                    onChange={(e) => handleJukyushaNoChange(r, e.target.value)}
                     style={{
                       height: 28,
                       lineHeight: "28px",
