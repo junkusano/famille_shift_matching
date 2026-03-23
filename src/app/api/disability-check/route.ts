@@ -32,6 +32,7 @@ type ViewRow = {
 type CsKanaRow = {
   kaipoke_cs_id: string;
   kana: string | null;
+  shogai_jukyusha_no: string | null;
 };
 
 // GET メソッドを追加
@@ -164,7 +165,6 @@ export async function POST(req: NextRequest) {
           "kaipoke_servicek",
           "client_name",
           "ido_jukyusyasho",
-          "shogai_jukyusha_no",
           "is_checked",
           "district",
           "asigned_jisseki_staff_id",
@@ -355,10 +355,12 @@ export async function POST(req: NextRequest) {
 
     // ★追加：かな（よみがな）を cs_kaipoke_info から取得
     const kanaMap = new Map<string, string | null>();
+    const shogaiMap = new Map<string, string | null>();
+
     if (targetCsIds.length > 0) {
       const { data: kanaRows, error: kanaErr } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,kana")
+        .select("kaipoke_cs_id,kana,shogai_jukyusha_no")
         .in("kaipoke_cs_id", targetCsIds);
 
       if (kanaErr) throw kanaErr;
@@ -366,6 +368,7 @@ export async function POST(req: NextRequest) {
       (kanaRows ?? []).forEach((r: CsKanaRow) => {
         if (!r.kaipoke_cs_id) return;
         kanaMap.set(r.kaipoke_cs_id, r.kana);
+        shogaiMap.set(r.kaipoke_cs_id, r.shogai_jukyusha_no);
       });
     }
 
@@ -380,15 +383,14 @@ export async function POST(req: NextRequest) {
 
     const merged = rows.map((r: ViewRow) => {
       const csId = String(r.kaipoke_cs_id);
-      const any = submittedAnyByCs.get(csId) ?? false;
+      const submitted = submittedAnyByCs.get(csId) ?? false;
 
       return {
         ...r,
         client_kana: kanaMap.get(csId) ?? null,
-        // ★ここがポイント：表示は必ず統一
-        is_submitted: any,
-        // 必要なら application_check も返却上は統一（画面がこれを参照してるなら）
-        application_check: any,
+        shogai_jukyusha_no: shogaiMap.get(csId) ?? null,
+        is_submitted: submitted,
+        application_check: submitted,
       };
     });
 
