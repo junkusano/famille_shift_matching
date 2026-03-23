@@ -10,11 +10,10 @@ import Link from "next/link";
 interface Row {
   kaipoke_cs_id: string;
   client_name: string;
-  client_kana: string | null;
-  year_month: string;
-  kaipoke_servicek: string;
+  client_kana: string | null; // ★追加
+  year_month: string;         // YYYY-MM
+  kaipoke_servicek: string;   // "障害" | "移動支援" など
   ido_jukyusyasho: string | null;
-  shogai_jukyusha_no: string | null;
   is_checked: boolean | null;
   district: string | null;
   // ① 実績担当者（API / View 側で JOIN して返してもらう想定）
@@ -283,887 +282,859 @@ const DisabilityCheckPage: React.FC = () => {
   }, [records]);
 
   // ② 各種フィルタ（年月・サービス・地域 + 検索条件）をかけた後のリスト
-  const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      if (
-        filterKaipokeCsId &&
-        normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
-      ) return false;
+const filteredRecords = useMemo(() => {
+  return records.filter((r) => {
+    if (
+      filterKaipokeCsId &&
+      normCsId(r.kaipoke_cs_id) !== normCsId(filterKaipokeCsId)
+    ) return false;
 
-      if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
+    if (filterStaffId && r.asigned_jisseki_staff_id !== filterStaffId) return false;
 
-      if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
+    if (filterTeamId && r.asigned_org_id !== filterTeamId) return false;
 
-      if (checkFilter === "unsubmitted" && r.is_submitted === true) return false;
+    if (checkFilter === "unsubmitted" && r.is_submitted === true) return false;
 
-      if (
-        checkFilter === "unchecked" &&
-        !(r.is_submitted === true && r.is_checked !== true)
-      ) return false;
+    if (
+      checkFilter === "unchecked" &&
+      !(r.is_submitted === true && r.is_checked !== true)
+    ) return false;
 
-      return true;
-    });
-  }, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
+    return true;
+  });
+}, [records, filterKaipokeCsId, filterStaffId, filterTeamId, checkFilter]);
 
-  const sortedRecords = useMemo(() => {
-    const arr = [...filteredRecords];
+const sortedRecords = useMemo(() => {
+  const arr = [...filteredRecords];
 
-    if (!sortKey || sortOrder === "none") {
-      return arr;
-    }
-
-    const dir = sortOrder === "asc" ? 1 : -1;
-    const boolRank = (v: boolean | null | undefined) => (v === true ? 1 : 0);
-
-    arr.sort((a, b) => {
-      switch (sortKey) {
-        case "district": {
-          const av = areaLabel(a.district);
-          const bv = areaLabel(b.district);
-          return jaCollator.compare(av, bv) * dir;
-        }
-
-        case "kaipoke_cs_id": {
-          const av = normCsId(a.kaipoke_cs_id);
-          const bv = normCsId(b.kaipoke_cs_id);
-          return av.localeCompare(bv, "ja", { numeric: true }) * dir;
-        }
-
-        case "client_name": {
-          const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
-          const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
-          const byName = jaCollator.compare(ak, bk);
-          if (byName !== 0) return byName * dir;
-          return normCsId(a.kaipoke_cs_id).localeCompare(
-            normCsId(b.kaipoke_cs_id),
-            "ja",
-            { numeric: true }
-          ) * dir;
-        }
-
-        case "ido_jukyusyasho": {
-          const aNo =
-            a.kaipoke_servicek === "移動支援"
-              ? (a.ido_jukyusyasho ?? "")
-              : (a.shogai_jukyusha_no ?? "");
-
-          const bNo =
-            b.kaipoke_servicek === "移動支援"
-              ? (b.ido_jukyusyasho ?? "")
-              : (b.shogai_jukyusha_no ?? "");
-
-          const av = Number(aNo);
-          const bv = Number(bNo);
-          const an = Number.isNaN(av) ? -1 : av;
-          const bn = Number.isNaN(bv) ? -1 : bv;
-          return (an - bn) * dir;
-        }
-
-        case "asigned_jisseki_staff_name": {
-          const av = norm(a.asigned_jisseki_staff_name ?? "");
-          const bv = norm(b.asigned_jisseki_staff_name ?? "");
-          return jaCollator.compare(av, bv) * dir;
-        }
-
-        case "asigned_org_name": {
-          const av = norm(a.asigned_org_name ?? "");
-          const bv = norm(b.asigned_org_name ?? "");
-          return jaCollator.compare(av, bv) * dir;
-        }
-
-        case "is_submitted": {
-          return (boolRank(a.is_submitted) - boolRank(b.is_submitted)) * dir;
-        }
-
-        case "is_checked": {
-          return (boolRank(a.is_checked) - boolRank(b.is_checked)) * dir;
-        }
-
-        default:
-          return 0;
-      }
-    });
-
+  if (!sortKey || sortOrder === "none") {
     return arr;
-  }, [filteredRecords, sortKey, sortOrder, jaCollator]);
+  }
 
-  // ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
-  const uniqueFilteredRecords = useMemo(() => {
-    const pickBetter = (a: Row, b: Row) => {
-      const rankSvc = (svc: string) => {
-        if (svc === "障害") return 0;
-        if (svc === "移動支援") return 1;
-        return 2;
-      };
+  const dir = sortOrder === "asc" ? 1 : -1;
+  const boolRank = (v: boolean | null | undefined) => (v === true ? 1 : 0);
 
-      const ra = rankSvc(a.kaipoke_servicek ?? "");
-      const rb = rankSvc(b.kaipoke_servicek ?? "");
-      if (ra !== rb) return ra < rb ? a : b;
-
-      const ca = a.is_checked ? 0 : 1;
-      const cb = b.is_checked ? 0 : 1;
-      if (ca !== cb) return ca < cb ? a : b;
-
-      const ya = a.year_month ?? "";
-      const yb = b.year_month ?? "";
-      if (ya !== yb) return ya > yb ? a : b;
-
-      return a;
-    };
-
-    const map = new Map<string, Row>();
-
-    for (const r of sortedRecords) {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (!id) continue;
-
-      const prev = map.get(id);
-      if (!prev) {
-        map.set(id, r);
-      } else {
-        map.set(id, pickBetter(prev, r));
+  arr.sort((a, b) => {
+    switch (sortKey) {
+      case "district": {
+        const av = areaLabel(a.district);
+        const bv = areaLabel(b.district);
+        return jaCollator.compare(av, bv) * dir;
       }
-    }
 
-    const seen = new Set<string>();
-    const out: Row[] = [];
-    for (const r of sortedRecords) {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (!id || seen.has(id)) continue;
-      const v = map.get(id);
-      if (v) out.push(v);
-      seen.add(id);
-    }
-    return out;
-  }, [sortedRecords]);
+      case "kaipoke_cs_id": {
+        const av = normCsId(a.kaipoke_cs_id);
+        const bv = normCsId(b.kaipoke_cs_id);
+        return av.localeCompare(bv, "ja", { numeric: true }) * dir;
+      }
 
-  // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
-  const bulkClientIds = useMemo(() => {
-    const set = new Set<string>();
-    filteredRecords.forEach((r) => {
-      const id = normCsId(r.kaipoke_cs_id);
-      if (id) set.add(id);
-    });
-    return Array.from(set);
-  }, [filteredRecords]);
-
-  // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
-  const totalCount = uniqueFilteredRecords.length;     // 件数
-  const filteredCount = uniqueFilteredRecords.length;  // 表示中
-
-  // ★回収済も「表示している行」に揃える
-  const checkedCount = uniqueFilteredRecords.filter((r) => !!r.is_checked).length;
-
-  /** District 選択肢取得 */
-  const fetchDistricts = async () => {
-    try {
-      const res = await fetch("/api/postal-districts", { method: "GET" });
-      if (!res.ok) throw new Error("failed");
-      const rows: DistrictRow[] = await res.json();
-      const uniq = Array.from(
-        new Set(
-          rows
-            .map((r) => (r.district ?? "").trim())
-            .filter((d) => d.length > 0)
-        )
-      ).sort((a, b) => a.localeCompare(b, "ja"));
-      setAllDistricts(uniq);
-    } catch {
-      console.error("Failed to fetch districts");
-    }
-  };
-
-  const fetchAllStaffOptions = async () => {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      const res = await fetch("/api/disability-check/staff-options", {
-        method: "GET",
-        headers: {
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "same-origin",
-      });
-
-      if (!res.ok) throw new Error("failed");
-
-      const list: StaffOption[] = await res.json();
-      setAllStaffOptions(list ?? []);
-    } catch (e) {
-      console.error("Failed to fetch staff options", e);
-      setAllStaffOptions([]);
-    }
-  };
-
-  /** ビューからデータ取得（Server 絞り込み＋Client 最終ソート） */
-  const fetchRecords = async () => {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      const res = await fetch("/api/disability-check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        // cookies を使う運用に将来寄せる場合に備えて入れておいてもOK
-        credentials: "same-origin",
-        body: JSON.stringify({
-          yearMonth,
-          kaipokeServicek,
-          districts,
-          staffId:
-            (isManager || isAdmin)
-              ? (filterStaffId || null)
-              : myUserId,
-          kaipoke_cs_id: filterKaipokeCsId || null,
-        }),
-      });
-      if (!res.ok) throw new Error("failed");
-      const rows: Row[] = await res.json();
-
-      // ★追加：五十音順比較のための正規化
-      const norm = (s: string) =>
-        (s ?? "")
-          .normalize("NFKC")          // 全角半角などを揃える
-          .replace(/[\s　]+/g, "")    // 半角/全角スペース除去
-          .trim();
-
-      // ★追加：カタカナ→ひらがな（全角範囲）
-      // ※NFKC後なので半角カナの揺れも減ります
-      const kanaKey = (s: string) =>
-        norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
-          String.fromCharCode(ch.charCodeAt(0) - 0x60)
-        );
-
-      // ★追加：日本語の並び替えを明示
-      const jaCollator = new Intl.Collator("ja", {
-        usage: "sort",
-        sensitivity: "base",
-        ignorePunctuation: true,
-        numeric: false,
-      });
-
-      // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
-      rows.sort((a, b) => {
-        const areaRank = (d?: string | null) => {
-          const s = norm(d ?? "");
-          if (s.includes("春日井")) return 0;
-          if (s.includes("名古屋")) return 1;
-          return 2;
-        };
-
-        const ra = areaRank(a.district);
-        const rb = areaRank(b.district);
-        if (ra !== rb) return ra - rb;
-
+      case "client_name": {
         const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
         const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
         const byName = jaCollator.compare(ak, bk);
-
-        if (byName !== 0) return byName;
-
-        // 同名安定化
-        return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
-      });
-
-      setRecords(rows);
-    } catch {
-      console.error("Failed to fetch records");
-      setRecords([]);
-    }
-  };
-
-  /** ✅ 実績担当者 更新（manager/admin のみ）※DB成功後のみUI反映 */
-  const handleAssignedStaffChange = async (row: Row, staffId: string | null) => {
-    if (!(isManager || isAdmin)) return;
-
-    const prevId = row.asigned_jisseki_staff_id ?? null;
-    const prevName = row.asigned_jisseki_staff_name ?? null;
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      const res = await fetch("/api/disability-check/staff-options", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          kaipoke_cs_id: row.kaipoke_cs_id,
-          yearMonth: row.year_month,
-          kaipokeServicek: row.kaipoke_servicek,
-          staffId, // null可（解除）
-        }),
-      });
-
-      const payloadText = await res.text().catch(() => "");
-      if (!res.ok) {
-        alert(`実績担当者の更新に失敗しました (${res.status})\n${payloadText}`);
-        return;
+        if (byName !== 0) return byName * dir;
+        return normCsId(a.kaipoke_cs_id).localeCompare(
+          normCsId(b.kaipoke_cs_id),
+          "ja",
+          { numeric: true }
+        ) * dir;
       }
 
-      const payload = JSON.parse(payloadText) as {
-        ok?: boolean;
-        saved?: { asigned_jisseki_staff: string | null };
-        updated?: Row | null;
+      case "ido_jukyusyasho": {
+        const av = Number(a.ido_jukyusyasho ?? "");
+        const bv = Number(b.ido_jukyusyasho ?? "");
+        const an = Number.isNaN(av) ? -1 : av;
+        const bn = Number.isNaN(bv) ? -1 : bv;
+        return (an - bn) * dir;
+      }
+
+      case "asigned_jisseki_staff_name": {
+        const av = norm(a.asigned_jisseki_staff_name ?? "");
+        const bv = norm(b.asigned_jisseki_staff_name ?? "");
+        return jaCollator.compare(av, bv) * dir;
+      }
+
+      case "asigned_org_name": {
+        const av = norm(a.asigned_org_name ?? "");
+        const bv = norm(b.asigned_org_name ?? "");
+        return jaCollator.compare(av, bv) * dir;
+      }
+
+      case "is_submitted": {
+        return (boolRank(a.is_submitted) - boolRank(b.is_submitted)) * dir;
+      }
+
+      case "is_checked": {
+        return (boolRank(a.is_checked) - boolRank(b.is_checked)) * dir;
+      }
+
+      default:
+        return 0;
+    }
+  });
+
+  return arr;
+}, [filteredRecords, sortKey, sortOrder, jaCollator]);
+
+// ★追加：表示用（HP表示用）は 1人（kaipoke_cs_id）= 1行 に集約する
+const uniqueFilteredRecords = useMemo(() => {
+      const pickBetter = (a: Row, b: Row) => {
+        const rankSvc = (svc: string) => {
+          if (svc === "障害") return 0;
+          if (svc === "移動支援") return 1;
+          return 2;
+        };
+
+        const ra = rankSvc(a.kaipoke_servicek ?? "");
+        const rb = rankSvc(b.kaipoke_servicek ?? "");
+        if (ra !== rb) return ra < rb ? a : b;
+
+        const ca = a.is_checked ? 0 : 1;
+        const cb = b.is_checked ? 0 : 1;
+        if (ca !== cb) return ca < cb ? a : b;
+
+        const ya = a.year_month ?? "";
+        const yb = b.year_month ?? "";
+        if (ya !== yb) return ya > yb ? a : b;
+
+        return a;
       };
 
-      const expected = staffId ?? null;
-      const savedStaff = payload?.saved?.asigned_jisseki_staff ?? null;
+      const map = new Map<string, Row>();
 
-      // DBが更新されているか確認
-      if (savedStaff !== expected) {
-        alert(`DBに反映されていません。\n期待: ${expected ?? "null"}\n実際: ${savedStaff ?? "null"}`);
-        return;
-      }
+      for (const r of sortedRecords) {
+        const id = normCsId(r.kaipoke_cs_id);
+        if (!id) continue;
 
-      // DB成功 → UI反映
-      const updated = payload?.updated ?? null;
-
-      if (updated) {
-        setRecords((prev) =>
-          prev.map((r) =>
-            r.kaipoke_cs_id === row.kaipoke_cs_id &&
-              r.year_month === row.year_month &&
-              r.kaipoke_servicek === row.kaipoke_servicek
-              ? { ...r, ...updated }
-              : r
-          )
-        );
-      } else {
-        const nextName = staffId
-          ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
-          : null;
-
-        setRecords((prev) =>
-          prev.map((r) =>
-            r.kaipoke_cs_id === row.kaipoke_cs_id &&
-              r.year_month === row.year_month &&
-              r.kaipoke_servicek === row.kaipoke_servicek
-              ? { ...r, asigned_jisseki_staff_id: staffId, asigned_jisseki_staff_name: nextName }
-              : r
-          )
-        );
-      }
-    } catch (e) {
-      console.error(e);
-
-      // 例外時は元に戻す
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.kaipoke_cs_id === row.kaipoke_cs_id &&
-            r.year_month === row.year_month &&
-            r.kaipoke_servicek === row.kaipoke_servicek
-            ? { ...r, asigned_jisseki_staff_id: prevId, asigned_jisseki_staff_name: prevName }
-            : r
-        )
-      );
-
-      alert(`実績担当者の更新で例外が発生しました: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-
-  /** ✅ チェック更新 */
-  const handleCheckChange = async (row: Row, checked: boolean) => {
-    // 先に画面を更新（楽観的）
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.kaipoke_cs_id === row.kaipoke_cs_id &&
-          r.year_month === row.year_month &&
-          r.kaipoke_servicek === row.kaipoke_servicek
-          ? { ...r, is_checked: checked }
-          : r
-      )
-    );
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      const res = await fetch("/api/disability-check/update", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          check: checked,
-          year_month: row.year_month,
-          kaipoke_servicek: row.kaipoke_servicek,
-          kaipoke_cs_id: row.kaipoke_cs_id,
-        }),
-      });
-
-      // ★重要：非2xxを失敗扱いにする
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(`update failed: ${res.status} ${t}`);
-      }
-    } catch {
-      // 失敗時は元に戻す
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.kaipoke_cs_id === row.kaipoke_cs_id &&
-            r.year_month === row.year_month &&
-            r.kaipoke_servicek === row.kaipoke_servicek
-            ? { ...r, is_checked: !checked }
-            : r
-        )
-      );
-    }
-  };
-
-  /** ③ 提出フラグ 更新 */
-  const handleSubmitChange = async (row: Row, submitted: boolean) => {
-    // 楽観的更新
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.kaipoke_cs_id === row.kaipoke_cs_id &&
-          r.year_month === row.year_month &&
-          r.kaipoke_servicek === row.kaipoke_servicek
-          ? { ...r, is_submitted: submitted }
-          : r
-      )
-    );
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-
-      const res = await fetch("/api/disability-check/update", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          submitted,
-          year_month: row.year_month,
-          kaipoke_servicek: row.kaipoke_servicek,
-          kaipoke_cs_id: row.kaipoke_cs_id,
-        }),
-      });
-
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(`update failed: ${res.status} ${t}`);
-      }
-    } catch {
-      // 失敗時は元に戻す
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.kaipoke_cs_id === row.kaipoke_cs_id &&
-            r.year_month === row.year_month &&
-            r.kaipoke_servicek === row.kaipoke_servicek
-            ? { ...r, is_submitted: !submitted }
-            : r
-        )
-      );
-    }
-  };
-
-  /** 受給者証番号 更新 */
-  const handleJukyushaNoChange = async (row: Row, value: string) => {
-    const isIdo = row.kaipoke_servicek === "移動支援";
-
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.kaipoke_cs_id === row.kaipoke_cs_id
-          ? {
-            ...r,
-            ido_jukyusyasho: isIdo ? value : r.ido_jukyusyasho,
-            shogai_jukyusha_no: isIdo ? r.shogai_jukyusha_no : value,
-          }
-          : r
-      )
-    );
-
-    try {
-      await fetch(
-        isIdo
-          ? "/api/disability-check/update-ido-jukyusyasho"
-          : "/api/disability-check/update-shogai-jukyusha-no",
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            isIdo
-              ? { id: row.kaipoke_cs_id, idoJukyusyasho: value }
-              : { id: row.kaipoke_cs_id, shogaiJukyushaNo: value }
-          ),
+        const prev = map.get(id);
+        if (!prev) {
+          map.set(id, r);
+        } else {
+          map.set(id, pickBetter(prev, r));
         }
-      );
-    } catch {
-      console.error("Failed to update jukyusha_no");
-    }
-  };
+      }
 
-  // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
-  const handleBulkPrint = () => {
-    const payload = {
-      month: yearMonth,
-      clientIds: bulkClientIds, // 表示されている利用者の ID を渡す
+      const seen = new Set<string>();
+      const out: Row[] = [];
+      for (const r of sortedRecords) {
+        const id = normCsId(r.kaipoke_cs_id);
+        if (!id || seen.has(id)) continue;
+        const v = map.get(id);
+        if (v) out.push(v);
+        seen.add(id);
+      }
+      return out;
+    }, [sortedRecords]);
+
+    // ★追加：一括印刷対象（表示中の利用者を重複なしで集める）
+    const bulkClientIds = useMemo(() => {
+      const set = new Set<string>();
+      filteredRecords.forEach((r) => {
+        const id = normCsId(r.kaipoke_cs_id);
+        if (id) set.add(id);
+      });
+      return Array.from(set);
+    }, [filteredRecords]);
+
+    // ★件数・表示中は「実際に表示している行（=1人1行）」に揃える
+    const totalCount = uniqueFilteredRecords.length;     // 件数
+    const filteredCount = uniqueFilteredRecords.length;  // 表示中
+
+    // ★回収済も「表示している行」に揃える
+    const checkedCount = uniqueFilteredRecords.filter((r) => !!r.is_checked).length;
+
+    /** District 選択肢取得 */
+    const fetchDistricts = async () => {
+      try {
+        const res = await fetch("/api/postal-districts", { method: "GET" });
+        if (!res.ok) throw new Error("failed");
+        const rows: DistrictRow[] = await res.json();
+        const uniq = Array.from(
+          new Set(
+            rows
+              .map((r) => (r.district ?? "").trim())
+              .filter((d) => d.length > 0)
+          )
+        ).sort((a, b) => a.localeCompare(b, "ja"));
+        setAllDistricts(uniq);
+      } catch {
+        console.error("Failed to fetch districts");
+      }
     };
 
-    // データを localStorage に保存
-    localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
-
-    // 一括印刷ページ（新規追加）を別タブで開く
-    window.open(
-      `/portal/jisseki/print/bulk?month=${encodeURIComponent(yearMonth)}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
-  };
-
-  // ★追加：ログインユーザーの system_role を取得して権限判定
-  useEffect(() => {
-    const loadRole = async () => {
+    const fetchAllStaffOptions = async () => {
       try {
-        // 1) ログインユーザーを取得（user を正しく取り出す）
-        const { data: userData, error: userErr } = await supabase.auth.getUser();
-        if (userErr || !userData?.user) {
-          setIsAdmin(false);
-          setIsManager(false);
-          setMyUserId("");
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const res = await fetch("/api/disability-check/staff-options", {
+          method: "GET",
+          headers: {
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          credentials: "same-origin",
+        });
+
+        if (!res.ok) throw new Error("failed");
+
+        const list: StaffOption[] = await res.json();
+        setAllStaffOptions(list ?? []);
+      } catch (e) {
+        console.error("Failed to fetch staff options", e);
+        setAllStaffOptions([]);
+      }
+    };
+
+    /** ビューからデータ取得（Server 絞り込み＋Client 最終ソート） */
+    const fetchRecords = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const res = await fetch("/api/disability-check", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          // cookies を使う運用に将来寄せる場合に備えて入れておいてもOK
+          credentials: "same-origin",
+          body: JSON.stringify({
+            yearMonth,
+            kaipokeServicek,
+            districts,
+            staffId:
+              (isManager || isAdmin)
+                ? (filterStaffId || null)
+                : myUserId,
+            kaipoke_cs_id: filterKaipokeCsId || null,
+          }),
+        });
+        if (!res.ok) throw new Error("failed");
+        const rows: Row[] = await res.json();
+
+        // ★追加：五十音順比較のための正規化
+        const norm = (s: string) =>
+          (s ?? "")
+            .normalize("NFKC")          // 全角半角などを揃える
+            .replace(/[\s　]+/g, "")    // 半角/全角スペース除去
+            .trim();
+
+        // ★追加：カタカナ→ひらがな（全角範囲）
+        // ※NFKC後なので半角カナの揺れも減ります
+        const kanaKey = (s: string) =>
+          norm(s).replace(/[\u30A1-\u30F6]/g, (ch) =>
+            String.fromCharCode(ch.charCodeAt(0) - 0x60)
+          );
+
+        // ★追加：日本語の並び替えを明示
+        const jaCollator = new Intl.Collator("ja", {
+          usage: "sort",
+          sensitivity: "base",
+          ignorePunctuation: true,
+          numeric: false,
+        });
+
+        // ★置換：春日井→名古屋市→その他、同エリア内は五十音順
+        rows.sort((a, b) => {
+          const areaRank = (d?: string | null) => {
+            const s = norm(d ?? "");
+            if (s.includes("春日井")) return 0;
+            if (s.includes("名古屋")) return 1;
+            return 2;
+          };
+
+          const ra = areaRank(a.district);
+          const rb = areaRank(b.district);
+          if (ra !== rb) return ra - rb;
+
+          const ak = kanaKey(a.client_kana ?? a.client_name ?? "");
+          const bk = kanaKey(b.client_kana ?? b.client_name ?? "");
+          const byName = jaCollator.compare(ak, bk);
+
+          if (byName !== 0) return byName;
+
+          // 同名安定化
+          return norm(a.kaipoke_cs_id ?? "").localeCompare(norm(b.kaipoke_cs_id ?? ""), "ja");
+        });
+
+        setRecords(rows);
+      } catch {
+        console.error("Failed to fetch records");
+        setRecords([]);
+      }
+    };
+
+    /** ✅ 実績担当者 更新（manager/admin のみ）※DB成功後のみUI反映 */
+    const handleAssignedStaffChange = async (row: Row, staffId: string | null) => {
+      if (!(isManager || isAdmin)) return;
+
+      const prevId = row.asigned_jisseki_staff_id ?? null;
+      const prevName = row.asigned_jisseki_staff_name ?? null;
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const res = await fetch("/api/disability-check/staff-options", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            kaipoke_cs_id: row.kaipoke_cs_id,
+            yearMonth: row.year_month,
+            kaipokeServicek: row.kaipoke_servicek,
+            staffId, // null可（解除）
+          }),
+        });
+
+        const payloadText = await res.text().catch(() => "");
+        if (!res.ok) {
+          alert(`実績担当者の更新に失敗しました (${res.status})\n${payloadText}`);
           return;
         }
 
-        const authUserId = userData.user.id;
+        const payload = JSON.parse(payloadText) as {
+          ok?: boolean;
+          saved?: { asigned_jisseki_staff: string | null };
+          updated?: Row | null;
+        };
 
-        // 2) role を view から取得（data/error の名前衝突を避ける）
-        // 2) まず single を試す
-        const { data: roleRow1, error: roleErr1 } = await supabase
-          .from("user_entry_united_view_single")
-          .select("system_role,user_id")
-          .eq("auth_user_id", authUserId)
-          .maybeSingle();
+        const expected = staffId ?? null;
+        const savedStaff = payload?.saved?.asigned_jisseki_staff ?? null;
 
-        let roleRow = roleRow1;
-        let roleErr = roleErr1;
+        // DBが更新されているか確認
+        if (savedStaff !== expected) {
+          alert(`DBに反映されていません。\n期待: ${expected ?? "null"}\n実際: ${savedStaff ?? "null"}`);
+          return;
+        }
 
-        // 3) single が取れない/ user_id が空なら、fallback で united_view を試す
-        if (!roleErr && (!roleRow?.user_id || !roleRow?.system_role)) {
-          const { data: roleRow2, error: roleErr2 } = await supabase
-            .from("user_entry_united_view")
+        // DB成功 → UI反映
+        const updated = payload?.updated ?? null;
+
+        if (updated) {
+          setRecords((prev) =>
+            prev.map((r) =>
+              r.kaipoke_cs_id === row.kaipoke_cs_id &&
+                r.year_month === row.year_month &&
+                r.kaipoke_servicek === row.kaipoke_servicek
+                ? { ...r, ...updated }
+                : r
+            )
+          );
+        } else {
+          const nextName = staffId
+            ? (staffOptions.find((s) => s.id === staffId)?.name ?? staffId)
+            : null;
+
+          setRecords((prev) =>
+            prev.map((r) =>
+              r.kaipoke_cs_id === row.kaipoke_cs_id &&
+                r.year_month === row.year_month &&
+                r.kaipoke_servicek === row.kaipoke_servicek
+                ? { ...r, asigned_jisseki_staff_id: staffId, asigned_jisseki_staff_name: nextName }
+                : r
+            )
+          );
+        }
+      } catch (e) {
+        console.error(e);
+
+        // 例外時は元に戻す
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, asigned_jisseki_staff_id: prevId, asigned_jisseki_staff_name: prevName }
+              : r
+          )
+        );
+
+        alert(`実績担当者の更新で例外が発生しました: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    };
+
+    /** ✅ チェック更新 */
+    const handleCheckChange = async (row: Row, checked: boolean) => {
+      // 先に画面を更新（楽観的）
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.kaipoke_cs_id === row.kaipoke_cs_id &&
+            r.year_month === row.year_month &&
+            r.kaipoke_servicek === row.kaipoke_servicek
+            ? { ...r, is_checked: checked }
+            : r
+        )
+      );
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const res = await fetch("/api/disability-check/update", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            check: checked,
+            year_month: row.year_month,
+            kaipoke_servicek: row.kaipoke_servicek,
+            kaipoke_cs_id: row.kaipoke_cs_id,
+          }),
+        });
+
+        // ★重要：非2xxを失敗扱いにする
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`update failed: ${res.status} ${t}`);
+        }
+      } catch {
+        // 失敗時は元に戻す
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, is_checked: !checked }
+              : r
+          )
+        );
+      }
+    };
+
+    /** ③ 提出フラグ 更新 */
+    const handleSubmitChange = async (row: Row, submitted: boolean) => {
+      // 楽観的更新
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.kaipoke_cs_id === row.kaipoke_cs_id &&
+            r.year_month === row.year_month &&
+            r.kaipoke_servicek === row.kaipoke_servicek
+            ? { ...r, is_submitted: submitted }
+            : r
+        )
+      );
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        const res = await fetch("/api/disability-check/update", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            submitted,
+            year_month: row.year_month,
+            kaipoke_servicek: row.kaipoke_servicek,
+            kaipoke_cs_id: row.kaipoke_cs_id,
+          }),
+        });
+
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`update failed: ${res.status} ${t}`);
+        }
+      } catch {
+        // 失敗時は元に戻す
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.kaipoke_cs_id === row.kaipoke_cs_id &&
+              r.year_month === row.year_month &&
+              r.kaipoke_servicek === row.kaipoke_servicek
+              ? { ...r, is_submitted: !submitted }
+              : r
+          )
+        );
+      }
+    };
+
+    /** 受給者証番号 更新 */
+    const handleIdoChange = async (row: Row, value: string) => {
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.kaipoke_cs_id === row.kaipoke_cs_id ? { ...r, ido_jukyusyasho: value } : r
+        )
+      );
+      try {
+        await fetch("/api/disability-check/update-ido-jukyusyasho", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.kaipoke_cs_id, idoJukyusyasho: value }),
+        });
+      } catch {
+        console.error("Failed to update ido_jukyusyasho");
+      }
+    };
+
+    // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
+    const handleBulkPrint = () => {
+      const payload = {
+        month: yearMonth,
+        clientIds: bulkClientIds, // 表示されている利用者の ID を渡す
+      };
+
+      // データを localStorage に保存
+      localStorage.setItem("jisseki_bulk_print", JSON.stringify(payload));
+
+      // 一括印刷ページ（新規追加）を別タブで開く
+      window.open(
+        `/portal/jisseki/print/bulk?month=${encodeURIComponent(yearMonth)}`,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    };
+
+    // ★追加：ログインユーザーの system_role を取得して権限判定
+    useEffect(() => {
+      const loadRole = async () => {
+        try {
+          // 1) ログインユーザーを取得（user を正しく取り出す）
+          const { data: userData, error: userErr } = await supabase.auth.getUser();
+          if (userErr || !userData?.user) {
+            setIsAdmin(false);
+            setIsManager(false);
+            setMyUserId("");
+            return;
+          }
+
+          const authUserId = userData.user.id;
+
+          // 2) role を view から取得（data/error の名前衝突を避ける）
+          // 2) まず single を試す
+          const { data: roleRow1, error: roleErr1 } = await supabase
+            .from("user_entry_united_view_single")
             .select("system_role,user_id")
             .eq("auth_user_id", authUserId)
             .maybeSingle();
 
-          roleRow = roleRow2;
-          roleErr = roleErr2;
-        }
+          let roleRow = roleRow1;
+          let roleErr = roleErr1;
 
-        if (roleErr || !roleRow?.user_id) {
-          console.error("Failed to load system_role (no row)", roleErr);
+          // 3) single が取れない/ user_id が空なら、fallback で united_view を試す
+          if (!roleErr && (!roleRow?.user_id || !roleRow?.system_role)) {
+            const { data: roleRow2, error: roleErr2 } = await supabase
+              .from("user_entry_united_view")
+              .select("system_role,user_id")
+              .eq("auth_user_id", authUserId)
+              .maybeSingle();
+
+            roleRow = roleRow2;
+            roleErr = roleErr2;
+          }
+
+          if (roleErr || !roleRow?.user_id) {
+            console.error("Failed to load system_role (no row)", roleErr);
+            setIsAdmin(false);
+            setIsManager(false);
+            setMyUserId("");
+            return;
+          }
+
+          const role = String(roleRow.system_role ?? "").trim().toLowerCase();
+
+          const isAdminRole = role === "admin" || role === "super_admin";
+
+          // not_manager を除外した上で、manager系のみ true
+          const isManagerRole =
+            isAdminRole ||
+            (role !== "not_manager" &&
+              (role === "manager" || role.endsWith("_manager") || role.startsWith("manager_")));
+          setIsAdmin(isAdminRole);
+          setIsManager(isManagerRole);
+          setMyUserId(String(roleRow.user_id));
+
+        } catch (e) {
+          console.error("Failed to determine role", e);
           setIsAdmin(false);
           setIsManager(false);
           setMyUserId("");
-          return;
         }
+      };
 
-        const role = String(roleRow.system_role ?? "").trim().toLowerCase();
+      loadRole();
+    }, []);
 
-        const isAdminRole = role === "admin" || role === "super_admin";
+    // ★追加⑤：URL（クエリ）→ state 初期反映
+    useEffect(() => {
+      if (didInitFromUrl) return;
 
-        // not_manager を除外した上で、manager系のみ true
-        const isManagerRole =
-          isAdminRole ||
-          (role !== "not_manager" &&
-            (role === "manager" || role.endsWith("_manager") || role.startsWith("manager_")));
-        setIsAdmin(isAdminRole);
-        setIsManager(isManagerRole);
-        setMyUserId(String(roleRow.user_id));
+      // role 取得が終わるまで待つ
+      if (!myUserId && !isManager && !isAdmin) return;
 
-      } catch (e) {
-        console.error("Failed to determine role", e);
-        setIsAdmin(false);
-        setIsManager(false);
-        setMyUserId("");
-      }
-    };
-
-    loadRole();
-  }, []);
-
-  // ★追加⑤：URL（クエリ）→ state 初期反映
-  useEffect(() => {
-    if (didInitFromUrl) return;
-
-    // role 取得が終わるまで待つ
-    if (!myUserId && !isManager && !isAdmin) return;
-
-    const cs =
-      searchParams.get("kaipoke_cs_id") ??
-      searchParams.get("cs") ??
-      "";
-
-    setFilterKaipokeCsId(cs);
-
-    if (isManager || isAdmin) {
-      // manager / admin は URL 指定を尊重
-      const staff =
-        searchParams.get("user_id") ??
-        searchParams.get("staffId") ??
+      const cs =
+        searchParams.get("kaipoke_cs_id") ??
+        searchParams.get("cs") ??
         "";
-      setFilterStaffId(staff);
-    } else {
-      // member は常に自分固定
-      setFilterStaffId(myUserId);
-    }
 
-    setDidInitFromUrl(true);
-  }, [didInitFromUrl, searchParams, isManager, isAdmin, myUserId]);
+      setFilterKaipokeCsId(cs);
 
-  // ★追加⑥：state → URL（クエリ）同期
-  useEffect(() => {
-    if (!didInitFromUrl) return;
+      if (isManager || isAdmin) {
+        // manager / admin は URL 指定を尊重
+        const staff =
+          searchParams.get("user_id") ??
+          searchParams.get("staffId") ??
+          "";
+        setFilterStaffId(staff);
+      } else {
+        // member は常に自分固定
+        setFilterStaffId(myUserId);
+      }
 
-    const qp = new URLSearchParams();
+      setDidInitFromUrl(true);
+    }, [didInitFromUrl, searchParams, isManager, isAdmin, myUserId]);
 
-    // 共通：年月・サービス・チーム・地域
-    if (yearMonth) qp.set("ym", yearMonth);
-    if (kaipokeServicek) qp.set("svc", kaipokeServicek); // ""(全て)は省略
-    if (filterTeamId) qp.set("team", filterTeamId);
-    if (districts[0]) qp.set("dist", districts[0]);
+    // ★追加⑥：state → URL（クエリ）同期
+    useEffect(() => {
+      if (!didInitFromUrl) return;
 
-    // 利用者（新キーに統一）
-    if (filterKaipokeCsId) qp.set("kaipoke_cs_id", filterKaipokeCsId);
+      const qp = new URLSearchParams();
 
-    // 実績担当者
-    if (!(isManager || isAdmin)) {
-      // member は常に自分固定
-      if (myUserId) qp.set("user_id", myUserId);
-    } else {
-      // manager/admin は選択されているときだけURLに出す（未選択=全件）
-      if (filterStaffId) qp.set("user_id", filterStaffId);
-    }
+      // 共通：年月・サービス・チーム・地域
+      if (yearMonth) qp.set("ym", yearMonth);
+      if (kaipokeServicek) qp.set("svc", kaipokeServicek); // ""(全て)は省略
+      if (filterTeamId) qp.set("team", filterTeamId);
+      if (districts[0]) qp.set("dist", districts[0]);
 
-    // manager/admin は staffId を qp に入れない（= URL から消える）
-    const next = qp.toString();
-    const nextUrl = next ? `${pathname}?${next}` : pathname;
+      // 利用者（新キーに統一）
+      if (filterKaipokeCsId) qp.set("kaipoke_cs_id", filterKaipokeCsId);
 
-    router.replace(nextUrl, { scroll: false });
-  }, [
-    didInitFromUrl,
-    yearMonth,
-    kaipokeServicek,
-    filterTeamId,
-    districts,
-    filterKaipokeCsId,   // ★追加
-    filterStaffId,      // ★追加
-    isManager,
-    myUserId,
-    pathname,
-    router,
-  ]);
+      // 実績担当者
+      if (!(isManager || isAdmin)) {
+        // member は常に自分固定
+        if (myUserId) qp.set("user_id", myUserId);
+      } else {
+        // manager/admin は選択されているときだけURLに出す（未選択=全件）
+        if (filterStaffId) qp.set("user_id", filterStaffId);
+      }
 
-  useEffect(() => {
-    fetchDistricts();
-    fetchAllStaffOptions(); // ★追加
-  }, []);
+      // manager/admin は staffId を qp に入れない（= URL から消える）
+      const next = qp.toString();
+      const nextUrl = next ? `${pathname}?${next}` : pathname;
 
-  /** フィルタ変更で再読込 */
-  useEffect(() => {
-    fetchRecords();
-  }, [
-    yearMonth,
-    kaipokeServicek,
-    districts,
-    filterStaffId,
-    filterKaipokeCsId,
-    myUserId,
-    isManager,
-    isAdmin,
-  ]);
+      router.replace(nextUrl, { scroll: false });
+    }, [
+      didInitFromUrl,
+      yearMonth,
+      kaipokeServicek,
+      filterTeamId,
+      districts,
+      filterKaipokeCsId,   // ★追加
+      filterStaffId,      // ★追加
+      isManager,
+      myUserId,
+      pathname,
+      router,
+    ]);
 
-  return (
-    <div>
-      <h1>実績記録チェック</h1>
-      <p style={{ color: "red", marginTop: 4, marginBottom: 12 }}>
-        実績担当者は、直近で１番シフトに入っている人を割り当てて、毎月20日に自動更新されています。
-      </p>
+    useEffect(() => {
+      fetchDistricts();
+      fetchAllStaffOptions(); // ★追加
+    }, []);
 
-      {/* 件数表示 */}
-      <div style={{ marginBottom: 8 }}>
-        <span style={{ marginRight: 16 }}>件数：{totalCount}</span>
-        <span style={{ marginRight: 16 }}>表示中：{filteredCount}</span>
-        <span>回収済：{checkedCount}</span>
-      </div>
+    /** フィルタ変更で再読込 */
+    useEffect(() => {
+      fetchRecords();
+    }, [
+      yearMonth,
+      kaipokeServicek,
+      districts,
+      filterStaffId,
+      filterKaipokeCsId,
+      myUserId,
+      isManager,
+      isAdmin,
+    ]);
 
-      {/* ★追加：admin, manager, member 向け 一括印刷ボタン */}
-      {(isAdmin || isManager || !(isManager || isAdmin)) && (
-        <div style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            onClick={handleBulkPrint}
-            disabled={bulkClientIds.length === 0}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #999",
-              borderRadius: 6,
-              background: bulkClientIds.length ? "#fff" : "#f5f5f5",
-              cursor: bulkClientIds.length ? "pointer" : "not-allowed",
-            }}
-          >
-            担当分を一括印刷（{bulkClientIds.length}名）
-          </button>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-            表示中の担当利用者をまとめて印刷します（別タブで印刷画面が開きます）
-          </div>
+    return (
+      <div>
+        <h1>実績記録チェック</h1>
+        <p style={{ color: "red", marginTop: 4, marginBottom: 12 }}>
+          実績担当者は、直近で１番シフトに入っている人を割り当てて、毎月20日に自動更新されています。
+        </p>
+
+        {/* 件数表示 */}
+        <div style={{ marginBottom: 8 }}>
+          <span style={{ marginRight: 16 }}>件数：{totalCount}</span>
+          <span style={{ marginRight: 16 }}>表示中：{filteredCount}</span>
+          <span>回収済：{checkedCount}</span>
         </div>
-      )}
 
-      {/* フィルタ：横並び・幅180 */}
-      <div className="filters" style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
-        <label style={{ width: 180 }}>
-          年月
-          <select
-            value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
-            style={{ width: 180 }}
-          >
-            {yearMonthOptions.map((ym) => (
-              <option key={ym} value={ym}>
-                {ym}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* ★追加：admin, manager, member 向け 一括印刷ボタン */}
+        {(isAdmin || isManager || !(isManager || isAdmin)) && (
+          <div style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              onClick={handleBulkPrint}
+              disabled={bulkClientIds.length === 0}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #999",
+                borderRadius: 6,
+                background: bulkClientIds.length ? "#fff" : "#f5f5f5",
+                cursor: bulkClientIds.length ? "pointer" : "not-allowed",
+              }}
+            >
+              担当分を一括印刷（{bulkClientIds.length}名）
+            </button>
+            <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+              表示中の担当利用者をまとめて印刷します（別タブで印刷画面が開きます）
+            </div>
+          </div>
+        )}
 
-        <label style={{ width: 180 }}>
-          サービス
-          <select
-            value={kaipokeServicek}
-            onChange={(e) => {
-              const v = e.target.value;
-              setKaipokeServicek(v);
+        {/* フィルタ：横並び・幅180 */}
+        <div className="filters" style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
+          <label style={{ width: 180 }}>
+            年月
+            <select
+              value={yearMonth}
+              onChange={(e) => setYearMonth(e.target.value)}
+              style={{ width: 180 }}
+            >
+              {yearMonthOptions.map((ym) => (
+                <option key={ym} value={ym}>
+                  {ym}
+                </option>
+              ))}
+            </select>
+          </label>
 
-              // ★追加：サービス切替時に検索条件をリセット（これが効きます）
-              setFilterKaipokeCsId("");
-              setFilterStaffId((isManager || isAdmin) ? "" : myUserId);
-              setFilterTeamId("");
-              setDistricts([]);
-            }}
-            style={{ width: 180 }}
-          >
-            <option value="">（全て）</option>
-            <option value="障害">障害</option>
-            <option value="移動支援">移動支援</option>
-          </select>
-        </label>
+          <label style={{ width: 180 }}>
+            サービス
+            <select
+              value={kaipokeServicek}
+              onChange={(e) => {
+                const v = e.target.value;
+                setKaipokeServicek(v);
 
-        <label style={{ width: 180 }}>
-          地域（複数可）
-          <select
-            value={districts[0] ?? ""} // 1件目 or 全て
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "") {
-                // 全件
+                // ★追加：サービス切替時に検索条件をリセット（これが効きます）
+                setFilterKaipokeCsId("");
+                setFilterStaffId((isManager || isAdmin) ? "" : myUserId);
+                setFilterTeamId("");
                 setDistricts([]);
-              } else {
-                setDistricts([v]); // 1件だけ選択
-              }
-            }}
-            style={{ width: 180 }}
-          >
-            <option value="">（全て）</option>
-            {allDistricts.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+              }}
+              style={{ width: 180 }}
+            >
+              <option value="">（全て）</option>
+              <option value="障害">障害</option>
+              <option value="移動支援">移動支援</option>
+            </select>
+          </label>
 
-      {/* ② 追加の検索欄 */}
-      <div
-        style={{
-          display: "flex",
-          gap: 20,
-          flexWrap: "wrap",
-          marginBottom: 12,
-        }}
-      >
-        <label style={{ width: 180 }}>
-          利用者名
-          <select
-            value={filterKaipokeCsId}
-            onChange={(e) => setFilterKaipokeCsId(e.target.value)}
-            style={{ width: 180 }}
-          >
-            <option value="">（全て）</option>
-            {clientGroups.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.options.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+          <label style={{ width: 180 }}>
+            地域（複数可）
+            <select
+              value={districts[0] ?? ""} // 1件目 or 全て
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  // 全件
+                  setDistricts([]);
+                } else {
+                  setDistricts([v]); // 1件だけ選択
+                }
+              }}
+              style={{ width: 180 }}
+            >
+              <option value="">（全て）</option>
+              {allDistricts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-        <label style={{ width: 220 }}>
-          実績担当者
-          <select
-            value={filterStaffId}
-            disabled={isMember} // ★memberのみ無効
-            onChange={(e) => {
-              if (isMember) return;
-              setFilterStaffId(e.target.value);
-            }}
-            style={{ width: 220 }}
-          >
-            <option value="">（全て）</option>
-            {staffOptions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* ② 追加の検索欄 */}
+        <div
+          style={{
+            display: "flex",
+            gap: 20,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <label style={{ width: 180 }}>
+            利用者名
+            <select
+              value={filterKaipokeCsId}
+              onChange={(e) => setFilterKaipokeCsId(e.target.value)}
+              style={{ width: 180 }}
+            >
+              <option value="">（全て）</option>
+              {clientGroups.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
 
-        {/* ★追加：チーム名検索 */}
-        <label style={{ width: 220 }}>
-          チーム名
-          <select
-            value={filterTeamId}
-            onChange={(e) => setFilterTeamId(e.target.value)}
-            style={{ width: 220 }}
-          >
-            <option value="">（全て）</option>
-            {teamOptions.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label style={{ width: 220 }}>
+            実績担当者
+            <select
+              value={filterStaffId}
+              disabled={isMember} // ★memberのみ無効
+              onChange={(e) => {
+                if (isMember) return;
+                setFilterStaffId(e.target.value);
+              }}
+              style={{ width: 220 }}
+            >
+              <option value="">（全て）</option>
+              {staffOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label style={{ width: 180 }}>
-          チェック状況
-          <select
-            value={checkFilter}
-            onChange={(e) => setCheckFilter(e.target.value)}
-            style={{ width: 180 }}
-          >
-            <option value="">（全て）</option>
-            <option value="unsubmitted">提出未チェック</option>
-            <option value="unchecked">回収未チェック</option>
-          </select>
-        </label>
+          {/* ★追加：チーム名検索 */}
+          <label style={{ width: 220 }}>
+            チーム名
+            <select
+              value={filterTeamId}
+              onChange={(e) => setFilterTeamId(e.target.value)}
+              style={{ width: 220 }}
+            >
+              <option value="">（全て）</option>
+              {teamOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        {/*
+          <label style={{ width: 180 }}>
+            チェック状況
+            <select
+              value={checkFilter}
+              onChange={(e) => setCheckFilter(e.target.value)}
+              style={{ width: 180 }}
+            >
+              <option value="">（全て）</option>
+              <option value="unsubmitted">提出未チェック</option>
+              <option value="unchecked">回収未チェック</option>
+            </select>
+          </label>
+
+          {/*
 <label style={{ width: 180 }}>
   カイポケID
   <input
@@ -1185,198 +1156,194 @@ const DisabilityCheckPage: React.FC = () => {
 </label>
 */}
 
-      </div>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("district")}
-            >
-              地域
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("district")}
-              </span>
-            </th>
+        </div>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead>
+            <tr>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+                onClick={() => toggleSort("district")}
+              >
+                地域
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("district")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("kaipoke_cs_id")}
-            >
-              カイポケID
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("kaipoke_cs_id")}
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+                onClick={() => toggleSort("kaipoke_cs_id")}
+              >
+                カイポケID
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("kaipoke_cs_id")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("client_name")}
-            >
-              利用者名
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("client_name")}
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+                onClick={() => toggleSort("client_name")}
+              >
+                利用者名
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("client_name")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
-              onClick={() => toggleSort("ido_jukyusyasho")}
-            >
-              受給者証番号
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("ido_jukyusyasho")}
-              </span>
-              <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
-                昇順/降順
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
+                onClick={() => toggleSort("ido_jukyusyasho")}
+              >
+                受給者証番号
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("ido_jukyusyasho")}
+                </span>
+                <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
+                  昇順/降順
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("asigned_jisseki_staff_name")}
-            >
-              実績担当者
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("asigned_jisseki_staff_name")}
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+                onClick={() => toggleSort("asigned_jisseki_staff_name")}
+              >
+                実績担当者
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("asigned_jisseki_staff_name")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
-              onClick={() => toggleSort("asigned_org_name")}
-            >
-              チーム名
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("asigned_org_name")}
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "left", padding: 8 }}
+                onClick={() => toggleSort("asigned_org_name")}
+              >
+                チーム名
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("asigned_org_name")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
-              onClick={() => toggleSort("is_submitted")}
-            >
-              提出✅
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("is_submitted")}
-              </span>
-            </th>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
+                onClick={() => toggleSort("is_submitted")}
+              >
+                提出✅
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("is_submitted")}
+                </span>
+              </th>
 
-            <th
-              style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
-              onClick={() => toggleSort("is_checked")}
-            >
-              回収✅
-              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
-                {sortMark("is_checked")}
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {uniqueFilteredRecords.map((r) => {
-            const key = normCsId(r.kaipoke_cs_id);
-            return (
-              <tr key={key} style={{ verticalAlign: "middle" }}>
-                <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
-                <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
+              <th
+                style={{ cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", padding: 8, width: 80 }}
+                onClick={() => toggleSort("is_checked")}
+              >
+                回収✅
+                <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                  {sortMark("is_checked")}
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {uniqueFilteredRecords.map((r) => {
+              const key = normCsId(r.kaipoke_cs_id);
+              return (
+                <tr key={key} style={{ verticalAlign: "middle" }}>
+                  <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
+                  <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
 
-                {/* ★追加：利用者名を印刷ページへのリンクにする */}
-                <td style={{ padding: 8 }}>
-                  <Link
-                    href={`/portal/jisseki/print?kaipoke_cs_id=${encodeURIComponent(
-                      r.kaipoke_cs_id
-                    )}&month=${encodeURIComponent(r.year_month)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline"
-                  >
-                    {r.client_name}
-                  </Link>
-                </td>
+                  {/* ★追加：利用者名を印刷ページへのリンクにする */}
+                  <td style={{ padding: 8 }}>
+                    <Link
+                      href={`/portal/jisseki/print?kaipoke_cs_id=${encodeURIComponent(
+                        r.kaipoke_cs_id
+                      )}&month=${encodeURIComponent(r.year_month)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      {r.client_name}
+                    </Link>
+                  </td>
 
-                <td style={{ padding: 8 }}>
-                  <input
-                    type="text"
-                    value={
-                      r.kaipoke_servicek === "移動支援"
-                        ? (r.ido_jukyusyasho ?? "")
-                        : (r.shogai_jukyusha_no ?? "")
-                    }
-                    onChange={(e) => handleJukyushaNoChange(r, e.target.value)}
-                    style={{
-                      height: 28,
-                      lineHeight: "28px",
-                      padding: "2px 6px",
-                      boxSizing: "border-box",
-                      width: "100%",
-                    }}
-                  />
-                </td>
-                {/* ① 実績担当者表示 */}
-                <td style={{ padding: 8 }}>
-                  <select
-                    value={r.asigned_jisseki_staff_id ?? ""}
-                    disabled={!(isManager || isAdmin)}
-                    onMouseDown={(e) => e.stopPropagation()} // ★親のクリック/Link遷移を止める
-                    onClick={(e) => e.stopPropagation()}     // ★念のため
-                    onChange={(e) => {
-                      if (!(isManager || isAdmin)) return;
-                      const v = e.target.value;
-                      handleAssignedStaffChange(r, v ? v : null); // ★DB更新だけ
-                    }}
-                    style={{ width: 220 }}
-                  >
-                    <option value="">（未選択）</option>
-                    {staffOptions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
+                  <td style={{ padding: 8 }}>
+                    <input
+                      type="text"
+                      value={r.ido_jukyusyasho ?? ""}
+                      onChange={(e) => handleIdoChange(r, e.target.value)}
+                      style={{
+                        height: 28,
+                        lineHeight: "28px",
+                        padding: "2px 6px",
+                        boxSizing: "border-box",
+                        width: "100%",
+                      }}
+                    />
+                  </td>
+                  {/* ① 実績担当者表示 */}
+                  <td style={{ padding: 8 }}>
+                    <select
+                      value={r.asigned_jisseki_staff_id ?? ""}
+                      disabled={!(isManager || isAdmin)}
+                      onMouseDown={(e) => e.stopPropagation()} // ★親のクリック/Link遷移を止める
+                      onClick={(e) => e.stopPropagation()}     // ★念のため
+                      onChange={(e) => {
+                        if (!(isManager || isAdmin)) return;
+                        const v = e.target.value;
+                        handleAssignedStaffChange(r, v ? v : null); // ★DB更新だけ
+                      }}
+                      style={{ width: 220 }}
+                    >
+                      <option value="">（未選択）</option>
+                      {staffOptions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
 
-                {/* ★追加：チーム名 */}
-                <td style={{ padding: 8 }}>
-                  {r.asigned_org_name ?? "-"}
-                </td>
+                  {/* ★追加：チーム名 */}
+                  <td style={{ padding: 8 }}>
+                    {r.asigned_org_name ?? "-"}
+                  </td>
 
-                {/* ③ 提出チェックボックス */}
-                <td style={{ textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!r.is_submitted}
-                    onChange={(e) => handleSubmitChange(r, e.target.checked)}
-                    style={{ display: "inline-block" }}
-                  />
-                </td>
-                {/* 既存：回収チェックボックス */}
-                <td style={{ textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!r.is_checked}
-                    disabled={isMember} // ★memberのみ無効
-                    onChange={(e) => {
-                      if (isMember) return;
-                      handleCheckChange(r, e.target.checked);
-                    }}
-                    style={{ display: "inline-block" }}
-                  />
+                  {/* ③ 提出チェックボックス */}
+                  <td style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!r.is_submitted}
+                      onChange={(e) => handleSubmitChange(r, e.target.checked)}
+                      style={{ display: "inline-block" }}
+                    />
+                  </td>
+                  {/* 既存：回収チェックボックス */}
+                  <td style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!r.is_checked}
+                      disabled={isMember} // ★memberのみ無効
+                      onChange={(e) => {
+                        if (isMember) return;
+                        handleCheckChange(r, e.target.checked);
+                      }}
+                      style={{ display: "inline-block" }}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+            {uniqueFilteredRecords.length === 0 && (
+              <tr>
+                <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
+                  該当データがありません
                 </td>
               </tr>
-            );
-          })}
-          {uniqueFilteredRecords.length === 0 && (
-            <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
-                該当データがありません
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
-export default DisabilityCheckPage;
+  export default DisabilityCheckPage;
