@@ -1,13 +1,17 @@
 // =============================================================
 // src/components/cm-components/audit/CmAuditLogTable.tsx
 // システムログ一覧テーブル
+//
+// 変更履歴:
+//   - 行クリックで詳細モーダル（CmSystemLogDetailModal）を表示する機能を追加
 // =============================================================
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertTriangle, AlertCircle, ChevronLeft, ChevronRight, FileWarning } from 'lucide-react';
 import { CmCard } from '@/components/cm-components/ui/CmCard';
+import { CmSystemLogDetailModal } from '@/components/cm-components/audit/CmSystemLogDetailModal';
 import type { CmLogEntry, CmAuditLogPagination } from '@/types/cm/auditLogs';
 
 type Props = {
@@ -25,6 +29,8 @@ export function CmAuditLogTable({
   error,
   onPageChange,
 }: Props) {
+  const [selectedLog, setSelectedLog] = useState<CmLogEntry | null>(null);
+
   // ---------------------------------------------------------
   // 日時フォーマット
   // ---------------------------------------------------------
@@ -96,6 +102,7 @@ export function CmAuditLogTable({
                   <tr
                     key={log.id}
                     className="hover:bg-blue-50/50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedLog(log)}
                   >
                     <td className="px-4 py-4 text-sm text-slate-600 whitespace-nowrap">
                       {formatTimestamp(log.timestamp)}
@@ -185,6 +192,14 @@ export function CmAuditLogTable({
           </div>
         )}
       </CmCard>
+
+      {/* 詳細モーダル */}
+      {selectedLog && (
+        <CmSystemLogDetailModal
+          log={selectedLog}
+          onClose={() => setSelectedLog(null)}
+        />
+      )}
     </>
   );
 }
