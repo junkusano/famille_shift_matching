@@ -278,11 +278,18 @@ function toDrivePreviewUrl(u?: string | null) {
 }
 
 // ★ 追加：駐車場所を取得（API経由）
-async function fetchActiveParkingPlaces(csId: string, accessToken?: string) {
-  // キャッシュ優先
+async function fetchActiveParkingPlaces(
+  csId: string,
+  accessToken?: string,
+  forceRefresh = false
+) {
+  if (forceRefresh) {
+    parkingCache.delete(csId);
+    parkingPromiseCache.delete(csId);
+  }
+
   if (parkingCache.has(csId)) return parkingCache.get(csId)!;
 
-  // 進行中Promiseがあれば待つ
   const inflight = parkingPromiseCache.get(csId);
   if (inflight) return await inflight;
 
@@ -926,7 +933,7 @@ export default function ShiftCard({
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
 
-      const rows = await fetchActiveParkingPlaces(csId, accessToken);
+      const rows = await fetchActiveParkingPlaces(csId, accessToken, true);
       setParkingPlaces(rows);
       const firstId = rows[0]?.id ?? "";
       setParkingSelectedId(firstId);
