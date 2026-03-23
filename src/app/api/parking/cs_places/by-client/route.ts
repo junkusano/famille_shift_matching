@@ -28,7 +28,20 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("parking_cs_places")
-    .select("id,kaipoke_cs_id,serial,label,location_link,parking_orientation,remarks,permit_required,police_station_place_id,is_active")
+    .select(`
+  id,
+  kaipoke_cs_id,
+  serial,
+  label,
+  location_link,
+  parking_orientation,
+  remarks,
+  permit_required,
+  police_station_place_id,
+  is_active,
+  picture1_url,
+  picture2_url
+`)
     .eq("kaipoke_cs_id", csId)
     .eq("is_active", true)
     .order("serial", { ascending: true });
