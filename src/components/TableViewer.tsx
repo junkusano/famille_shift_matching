@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   ArrowUpDown,
@@ -19,6 +19,7 @@ export type TableColumnConfig = {
   width?: string;
   sortable?: boolean;
   filterable?: boolean;
+  filterMode?: "partial" | "exact";
   format?: (value: unknown, row: TableRow) => React.ReactNode;
 };
 
@@ -31,9 +32,9 @@ export type TableViewerProps = {
     ascending?: boolean;
   };
   pageSize?: number;
-  maxRows?: number;
   emptyMessage?: string;
   className?: string;
+  initialColumnFilters?: Record<string, string>;
 };
 
 type SortState = {
@@ -53,25 +54,18 @@ function toDisplayString(value: unknown) {
   }
 }
 
-function compareValues(a: unknown, b: unknown) {
-  if (a === b) return 0;
-  if (a === null || a === undefined) return 1;
-  if (b === null || b === undefined) return -1;
+export function formatHours2(value: unknown) {
+  const num = Number(value ?? 0);
+  if (Number.isNaN(num)) return "-";
+  return num.toFixed(2);
+}
 
-  if (typeof a === "number" && typeof b === "number") {
-    return a - b;
-  }
-
-  const aDate = Date.parse(String(a));
-  const bDate = Date.parse(String(b));
-  const isADate = !Number.isNaN(aDate);
-  const isBDate = !Number.isNaN(bDate);
-
-  if (isADate && isBDate) {
-    return aDate - bDate;
-  }
-
-  return String(a).localeCompare(String(b), "ja");
+function getNextYearMonth() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const y = next.getFullYear();
+  const m = String(next.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
 export default function TableViewer({
@@ -79,17 +73,20 @@ export default function TableViewer({
   columns,
   title,
   defaultSort,
-  pageSize = 20,
-  maxRows = 1000,
+  pageSize = 50,
   emptyMessage = "データがありません",
   className = "",
+  initialColumnFilters,
 }: TableViewerProps) {
   const [rows, setRows] = useState<TableRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
+    initialColumnFilters ?? {}
+  );
   const [sort, setSort] = useState<SortState | null>(
     defaultSort
       ? {
@@ -104,16 +101,45 @@ export default function TableViewer({
     [columns]
   );
 
+  const serverFilters = useMemo(() => {
+    const filters: Array<{
+      column: string;
+      operator: "eq" | "ilike";
+      value: string;
+    }> = [];
+
+    for (const col of columns) {
+      const value = (columnFilters[col.key] ?? "").trim();
+      if (!value) continue;
+
+      filters.push({
+        column: col.key,
+        operator: col.filterMode === "exact" ? "eq" : "ilike",
+        value,
+      });
+    }
+
+    return filters;
+  }, [columns, columnFilters]);
+
   const fetchRows = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const url = `/api/table-view?tableName=${encodeURIComponent(
-        tableName
-      )}&limit=${encodeURIComponent(String(maxRows))}&select=${encodeURIComponent(
-        selectClause
-      )}`;
+      const offset = (page - 1) * pageSize;
+
+      const url =
+        `/api/table-view?tableName=${encodeURIComponent(tableName)}` +
+        `&select=${encodeURIComponent(selectClause)}` +
+        `&limit=${encodeURIComponent(String(pageSize))}` +
+        `&offset=${encodeURIComponent(String(offset))}` +
+        `&filters=${encodeURIComponent(JSON.stringify(serverFilters))}` +
+        (sort?.column
+          ? `&sortColumn=${encodeURIComponent(sort.column)}&sortAscending=${encodeURIComponent(
+              String(sort.ascending)
+            )}`
+          : "");
 
       const res = await fetch(url, {
         method: "GET",
@@ -126,70 +152,41 @@ export default function TableViewer({
         throw new Error(json.error ?? "データ取得に失敗しました");
       }
 
-      const normalizedRows = Array.isArray(json.rows)
-        ? (json.rows as TableRow[])
-        : [];
-
-      setRows(normalizedRows);
+      setRows(Array.isArray(json.rows) ? (json.rows as TableRow[]) : []);
+      setTotalCount(typeof json.totalCount === "number" ? json.totalCount : 0);
     } catch (e) {
       setRows([]);
+      setTotalCount(0);
       setError(e instanceof Error ? e.message : "不明なエラーが発生しました");
     } finally {
       setLoading(false);
     }
-  }, [tableName, maxRows, selectClause]);
+  }, [page, pageSize, selectClause, serverFilters, sort, tableName]);
 
   useEffect(() => {
-    setPage(1);
     fetchRows();
   }, [fetchRows]);
 
-  const filteredRows = useMemo(() => {
-    const globalKeyword = globalFilter.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      const matchesGlobal =
-        !globalKeyword ||
-        columns.some((col) =>
-          toDisplayString(row[col.key]).toLowerCase().includes(globalKeyword)
-        );
-
-      if (!matchesGlobal) return false;
-
-      return columns.every((col) => {
-        const filterValue = (columnFilters[col.key] ?? "").trim().toLowerCase();
-        if (!filterValue) return true;
-        return toDisplayString(row[col.key]).toLowerCase().includes(filterValue);
-      });
-    });
-  }, [rows, columns, globalFilter, columnFilters]);
-
-  const sortedRows = useMemo(() => {
-    if (!sort) return filteredRows;
-
-    const copied = [...filteredRows];
-    copied.sort((a, b) => {
-      const result = compareValues(a[sort.column], b[sort.column]);
-      return sort.ascending ? result : -result;
-    });
-    return copied;
-  }, [filteredRows, sort]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
-
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return sortedRows.slice(start, start + pageSize);
-  }, [sortedRows, page, pageSize]);
-
   useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [page, totalPages]);
+    setPage(1);
+  }, [tableName, sort, columnFilters]);
+
+  const currentPageRows = useMemo(() => {
+    const keyword = globalFilter.trim().toLowerCase();
+    if (!keyword) return rows;
+
+    return rows.filter((row) =>
+      columns.some((col) =>
+        toDisplayString(row[col.key]).toLowerCase().includes(keyword)
+      )
+    );
+  }, [rows, columns, globalFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endIndex = Math.min(page * pageSize, totalCount);
 
   const toggleSort = (columnKey: string) => {
-    setPage(1);
     setSort((current) => {
       if (!current || current.column !== columnKey) {
         return { column: columnKey, ascending: true };
@@ -201,9 +198,6 @@ export default function TableViewer({
     });
   };
 
-  const startIndex = sortedRows.length === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endIndex = Math.min(page * pageSize, sortedRows.length);
-
   return (
     <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>
       <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
@@ -212,7 +206,7 @@ export default function TableViewer({
             {title ?? tableName}
           </h2>
           <p className="text-sm text-slate-500">
-            読み取り専用 / 並べ替え・フィルターのみ可能 / {sortedRows.length}件表示
+            読み取り専用 / 並べ替え・フィルターのみ可能 / {totalCount}件表示
           </p>
         </div>
 
@@ -221,11 +215,8 @@ export default function TableViewer({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={globalFilter}
-              onChange={(e) => {
-                setPage(1);
-                setGlobalFilter(e.target.value);
-              }}
-              placeholder="全項目を横断検索"
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="現在ページ内を横断検索"
               className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 sm:w-64"
             />
           </div>
@@ -261,7 +252,7 @@ export default function TableViewer({
                       >
                         <span>{col.label ?? col.key}</span>
                         {col.sortable === false ? null : isSorted ? (
-                          sort?.ascending ? (
+                          sort.ascending ? (
                             <ChevronUp className="h-4 w-4" />
                           ) : (
                             <ChevronDown className="h-4 w-4" />
@@ -274,13 +265,12 @@ export default function TableViewer({
                       {col.filterable === false ? null : (
                         <input
                           value={columnFilters[col.key] ?? ""}
-                          onChange={(e) => {
-                            setPage(1);
+                          onChange={(e) =>
                             setColumnFilters((prev) => ({
                               ...prev,
                               [col.key]: e.target.value,
-                            }));
-                          }}
+                            }))
+                          }
                           placeholder={`${col.label ?? col.key} で絞り込み`}
                           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none placeholder:text-slate-400 focus:border-slate-400"
                         />
@@ -305,15 +295,15 @@ export default function TableViewer({
                   取得エラー: {error}
                 </td>
               </tr>
-            ) : pagedRows.length === 0 ? (
+            ) : currentPageRows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-slate-500">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
-              pagedRows.map((row, rowIndex) => (
-                <tr key={`${tableName}-${rowIndex}`} className="odd:bg-white even:bg-slate-50/40">
+              currentPageRows.map((row, rowIndex) => (
+                <tr key={`${tableName}-${page}-${rowIndex}`} className="odd:bg-white even:bg-slate-50/40">
                   {columns.map((col) => (
                     <td
                       key={col.key}
@@ -335,7 +325,7 @@ export default function TableViewer({
 
       <div className="flex flex-col gap-3 border-t border-slate-200 p-4 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
         <div>
-          {sortedRows.length}件中 {startIndex} - {endIndex}件を表示
+          {totalCount}件中 {startIndex} - {endIndex}件を表示
         </div>
 
         <div className="flex items-center gap-2">
@@ -365,3 +355,5 @@ export default function TableViewer({
     </div>
   );
 }
+
+export { getNextYearMonth };

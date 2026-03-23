@@ -5,7 +5,10 @@ import ShiftSumBizStats from "@/components/biz-stats/ShiftSum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DefectSum from "@/components/biz-stats/DefectSum";
 import EntrySumBizStats from "@/components/biz-stats/EntrySum";
-import TableViewer from "@/components/TableViewer";
+import TableViewer, {
+  formatHours2,
+  getNextYearMonth,
+} from "@/components/TableViewer";
 
 export default function DashboardPage() {
   return (
@@ -27,21 +30,36 @@ export default function DashboardPage() {
       <ShiftSumBizStats />
       <DefectSum />
       <EntrySumBizStats />
-      <TableViewer
-        title="月次CSサービス時間サマリー"
-        tableName="shift_summary_monthly_cs_view"
-        columns={[
-          { key: "kaipoke_cs_id", label: "Kaipoke CS ID" },
-          { key: "cs_name", label: "利用者名" },
-          { key: "month_start", label: "月初日" },
-          { key: "year_month", label: "年月" },
-          { key: "this_month_hours", label: "当月時間" },
-          { key: "prev_month_hours", label: "前月時間" },
-          { key: "diff_hours", label: "差分時間" },
-        ]}
-        defaultSort={{ column: "diff_hours", ascending: true }}
-        pageSize={30}
-      />
+        <TableViewer
+          title="月次CSサービス時間サマリー"
+          tableName="shift_summary_monthly_cs_view"
+          columns={[
+            { key: "kaipoke_cs_id", label: "Kaipoke CS ID" },
+            { key: "cs_name", label: "利用者名" },
+            { key: "month_start", label: "月初日", filterMode: "exact" },
+            { key: "year_month", label: "年月", filterMode: "exact" },
+            {
+              key: "this_month_hours",
+              label: "当月時間",
+              format: (value) => formatHours2(value),
+            },
+            {
+              key: "prev_month_hours",
+              label: "前月時間",
+              format: (value) => formatHours2(value),
+            },
+            {
+              key: "diff_hours",
+              label: "差分時間",
+              format: (value) => formatHours2(value),
+            },
+          ]}
+          defaultSort={{ column: "diff_hours", ascending: true }}
+          pageSize={50}
+          initialColumnFilters={{
+            year_month: getNextYearMonth(),
+          }}
+        />
     </div>
   );
 }
