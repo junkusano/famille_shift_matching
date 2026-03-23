@@ -28,9 +28,10 @@ type ViewRow = {
   application_check: boolean | null; // ★追加（viewに追加した提出）
 };
 
-type CsKanaRow = {
+type CsKaipokeInfoRow = {
   kaipoke_cs_id: string;
   kana: string | null;
+  shogai_jukyusha_no: string | null;
 };
 
 // GET メソッドを追加
@@ -351,19 +352,24 @@ export async function POST(req: NextRequest) {
     // ★重要：targetCsIds も rows 更新後に作り直す（かな取得対象がズレない）
     const targetCsIds = Array.from(new Set(rows.map((r) => r.kaipoke_cs_id))).filter(Boolean);
 
-    // ★追加：かな（よみがな）を cs_kaipoke_info から取得
+    // ★追加：かな（よみがな）と shogai_jukyusha_no を cs_kaipoke_info から取得
     const kanaMap = new Map<string, string | null>();
+    const shogaiMap = new Map<string, string | null>();
+
     if (targetCsIds.length > 0) {
-      const { data: kanaRows, error: kanaErr } = await supabaseAdmin
+      const { data: csRows, error: csErr } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,kana")
+        .select("kaipoke_cs_id,kana,shogai_jukyusha_no")
         .in("kaipoke_cs_id", targetCsIds);
 
-      if (kanaErr) throw kanaErr;
+      if (csErr) throw csErr;
 
-      (kanaRows ?? []).forEach((r: CsKanaRow) => {
-        if (!r.kaipoke_cs_id) return;
-        kanaMap.set(r.kaipoke_cs_id, r.kana);
+      (csRows ?? []).forEach((r) => {
+        const row = r as CsKaipokeInfoRow;
+        if (!row.kaipoke_cs_id) return;
+
+        kanaMap.set(row.kaipoke_cs_id, row.kana);
+        shogaiMap.set(row.kaipoke_cs_id, row.shogai_jukyusha_no);
       });
     }
 
@@ -380,12 +386,15 @@ export async function POST(req: NextRequest) {
       const csId = String(r.kaipoke_cs_id);
       const any = submittedAnyByCs.get(csId) ?? false;
 
+      const shogaiNo = (shogaiMap.get(csId) ?? "").trim();
+      const idoNo = (r.ido_jukyusyasho ?? "").trim();
+
       return {
         ...r,
+        // ★ shogai_jukyusha_no があればそれを優先して表示
+        ido_jukyusyasho: shogaiNo || idoNo || null,
         client_kana: kanaMap.get(csId) ?? null,
-        // ★ここがポイント：表示は必ず統一
         is_submitted: any,
-        // 必要なら application_check も返却上は統一（画面がこれを参照してるなら）
         application_check: any,
       };
     });
