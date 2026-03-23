@@ -40,7 +40,7 @@ export default function DashboardPage() {
           { key: "diff_hours", label: "差分時間" },
         ]}
         defaultSort={{ column: "month_start", ascending: false }}
-        pageSize={500}
+        pageSize={30}
       />
     </div>
   );
