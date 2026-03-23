@@ -250,6 +250,33 @@ function isPdfUrl(u?: string | null) {
   return s.endsWith(".pdf");
 }
 
+function getDriveFileId(u?: string | null): string | null {
+  if (!u) return null;
+
+  const m1 = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1?.[1]) return m1[1];
+
+  try {
+    const url = new URL(u);
+    const id = url.searchParams.get("id");
+    if (id) return id;
+  } catch {
+    // noop
+  }
+
+  const m2 = u.match(/[-\w]{25,}/);
+  return m2?.[0] ?? null;
+}
+
+function isGoogleDriveUrl(u?: string | null) {
+  return !!u && u.includes("drive.google.com");
+}
+
+function toDrivePreviewUrl(u?: string | null) {
+  const fileId = getDriveFileId(u);
+  return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : null;
+}
+
 // ★ 追加：駐車場所を取得（API経由）
 async function fetchActiveParkingPlaces(csId: string, accessToken?: string) {
   // キャッシュ優先
@@ -1205,6 +1232,17 @@ export default function ShiftCard({
                                 <div className="font-semibold">地図</div>
                                 {!url ? (
                                   <div className="text-gray-600">未登録</div>
+                                ) : isGoogleDriveUrl(url) ? (
+                                  <div className="mt-1">
+                                    <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                      地図を開く
+                                    </a>
+                                    <iframe
+                                      src={toDrivePreviewUrl(url) ?? undefined}
+                                      className="mt-2 h-[360px] w-full rounded border"
+                                      title="地図プレビュー"
+                                    />
+                                  </div>
                                 ) : isImageUrl(url) ? (
                                   <div className="mt-1">
                                     <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
@@ -1221,6 +1259,11 @@ export default function ShiftCard({
                                     <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">
                                       地図PDFを開く
                                     </a>
+                                    <iframe
+                                      src={url}
+                                      className="mt-2 h-[360px] w-full rounded border"
+                                      title="地図PDF"
+                                    />
                                   </div>
                                 ) : (
                                   <div className="mt-1">
@@ -1237,6 +1280,22 @@ export default function ShiftCard({
                                   {[p.picture1_url, p.picture2_url].filter(Boolean).map((attachmentUrl, idx) => {
                                     const fileUrl = attachmentUrl as string;
                                     const label = `添付${idx + 1}`;
+
+                                    if (isGoogleDriveUrl(fileUrl)) {
+                                      return (
+                                        <div key={fileUrl} className="mt-1">
+                                          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                                            {label} を開く
+                                          </a>
+                                          <iframe
+                                            src={toDrivePreviewUrl(fileUrl) ?? undefined}
+                                            className="mt-2 h-[360px] w-full rounded border"
+                                            title={label}
+                                          />
+                                        </div>
+                                      );
+                                    }
+
                                     if (isImageUrl(fileUrl)) {
                                       return (
                                         <div key={fileUrl} className="mt-1">
@@ -1251,15 +1310,22 @@ export default function ShiftCard({
                                         </div>
                                       );
                                     }
+
                                     if (isPdfUrl(fileUrl)) {
                                       return (
                                         <div key={fileUrl} className="mt-1">
                                           <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
                                             {label} のPDFを開く
                                           </a>
+                                          <iframe
+                                            src={fileUrl}
+                                            className="mt-2 h-[360px] w-full rounded border"
+                                            title={label}
+                                          />
                                         </div>
                                       );
                                     }
+
                                     return (
                                       <div key={fileUrl} className="mt-1">
                                         <a href={fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
