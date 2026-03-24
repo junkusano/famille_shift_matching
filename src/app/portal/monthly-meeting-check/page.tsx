@@ -367,6 +367,7 @@ export default function MonthlyMeetingCheckPage() {
         }
 
         await load();
+        setMsg("保存しました");
     }
 
     async function saveMeetingInfo() {
@@ -399,8 +400,8 @@ export default function MonthlyMeetingCheckPage() {
                 );
             }
 
-            setMsg("会議日・議事録URLを保存しました");
             await load();
+            setMsg("会議日・議事録URLを保存しました");
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
         } finally {
@@ -410,6 +411,7 @@ export default function MonthlyMeetingCheckPage() {
 
     async function saveComment(user_id: string) {
         setMsg("");
+        setLoading(true);
 
         try {
             const v = edit[user_id];
@@ -431,10 +433,12 @@ export default function MonthlyMeetingCheckPage() {
                 );
             }
 
-            setMsg("コメントを保存しました");
             await load();
+            setMsg("コメントを保存しました");
         } catch (e: unknown) {
             setMsg(toErrorMessage(e));
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -595,12 +599,13 @@ export default function MonthlyMeetingCheckPage() {
                             </option>
                         ))}
                     </select>
-                    <button className="border rounded px-3 py-1" onClick={load} disabled={loading}>
-                        再読込
-                    </button>
                 </div>
 
-                {msg && <div className="text-sm">{msg}</div>}
+                {msg && (
+                    <div className="text-sm rounded border border-green-300 bg-green-50 text-green-800 px-3 py-2">
+                        {msg}
+                    </div>
+                )}
             </div>
 
             <div className="rounded border bg-gray-50 p-3 space-y-3">
