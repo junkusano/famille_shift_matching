@@ -87,7 +87,7 @@ function isAlertTargetMonth(ym: string, now: Date) {
     return true;
 }
 
-async function cancelLegacyCollectedAlerts() {
+async function cancelOldDay15CollectedAlerts() {
     const { error } = await supabaseAdmin
         .from("alert_log")
         .update({
@@ -95,11 +95,11 @@ async function cancelLegacyCollectedAlerts() {
         })
         .eq("status", "open")
         .eq("status_source", "system")
-        .is("kaipoke_cs_id", null)
-        .like("shift_id", "disability_check:collect:%");
+        .like("shift_id", "disability_check:collect:%")
+        .like("message", "%15日以降%");
 
     if (error) {
-        throw new Error(`legacy alert cancel failed: ${error.message}`);
+        throw new Error(`old day15 alert cancel failed: ${error.message}`);
     }
 }
 
@@ -145,9 +145,9 @@ export async function runDisabilityCheckCollectedAlert(args: {
     const currentYm = ymNow(now);
     const MIN_ALERT_YM = "2026-01";
 
-    // ★追加：古い形式（kaipoke_cs_id なし）の回収アラートを閉じる
+    // 旧文面（15日以降）の回収アラートを閉じる
     if (!dryRun) {
-        await cancelLegacyCollectedAlerts();
+        await cancelOldDay15CollectedAlerts();
     }
 
     let q = supabaseAdmin
