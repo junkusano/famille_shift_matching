@@ -70,15 +70,20 @@ function isAlertTargetMonth(ym: string, now: Date) {
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const targetMonthStart = new Date(target.getFullYear(), target.getMonth(), 1);
 
-    if (targetMonthStart > currentMonthStart) return false;
+    // 翌月以降（未来月）は対象外
+    if (targetMonthStart >= currentMonthStart) return false;
 
+    // 前月かどうか
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     if (
-        targetMonthStart.getFullYear() === currentMonthStart.getFullYear() &&
-        targetMonthStart.getMonth() === currentMonthStart.getMonth()
+        targetMonthStart.getFullYear() === prevMonthStart.getFullYear() &&
+        targetMonthStart.getMonth() === prevMonthStart.getMonth()
     ) {
+        // 前月分は「今月20日以降」だけ表示
         return now.getDate() >= 20;
     }
 
+    // それより前の月は未回収なら表示継続
     return true;
 }
 
