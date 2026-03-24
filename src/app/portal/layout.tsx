@@ -23,6 +23,19 @@ interface UserData {
 
 interface Props { children: ReactNode }
 
+function getCurrentYmJst(): string {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  return `${y}-${m}`;
+}
+
 /** ========= Small components ========= */
 function LogoutButton({ className }: { className?: string }) {
   const router = useRouter();
@@ -73,13 +86,15 @@ function AvatarBlock({
 
 function NavLinks({ role }: { role: string | null }) {
   const isManagerOrAdmin = ["manager", "admin"].includes(role ?? "");
+  const currentYm = getCurrentYmJst();
+
   return (
     <ul className="mt-6 space-y-2">
       <li><Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link></li>
       <li><Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link></li>
       {isManagerOrAdmin && (
         <>
-          <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>  
+          <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
           <li><Link href="/portal/spot-offer-template" className="text-blue-300 hover:underline">スポット募集管理</Link></li>
           <li><Link href="/portal/taimee-emp" className="text-blue-300 hover:underline">タイミーリスト</Link></li>
@@ -87,7 +102,7 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/kaipoke-info" className="text-blue-300 hover:underline">利用者情報</Link></li>
           <li><Link href="/portal/assign_matome" className="text-blue-300 hover:underline">利用者担当管理</Link></li>
           <li><Link href="/portal/cs_docs" className="text-blue-300 hover:underline">利用者書類一覧</Link></li>
-          <li><Link href="/portal/event-tasks" className="text-blue-300 hover:underline">イベント管理</Link></li> 
+          <li><Link href="/portal/event-tasks" className="text-blue-300 hover:underline">イベント管理</Link></li>
           <li><Link href="/portal/event-template" className="text-blue-300 hover:underline">イベントテンプレート管理</Link></li>
           <li><Link href="/portal/phone" className="text-blue-300 hover:underline">電話帳</Link></li>
           <li><Link href="/portal/fax-sending" className="text-blue-300 hover:underline">fax送付</Link></li>
@@ -104,6 +119,14 @@ function NavLinks({ role }: { role: string | null }) {
         </>
       )}
       <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
+      <li>
+        <Link
+          href={`/portal/monthly-meeting-check?ym=${currentYm}`}
+          className="text-blue-300 hover:underline"
+        >
+          月例会議参加チェック
+        </Link>
+      </li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
       <li><Link href="/portal/shift" className="text-blue-300 hover:underline">シフト・訪問記録</Link></li>
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
