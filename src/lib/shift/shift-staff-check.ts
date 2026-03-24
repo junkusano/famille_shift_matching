@@ -44,6 +44,17 @@ export type ShiftStaffCheckResult = {
     errors?: Array<{ message: string; code?: string; details?: string; hint?: string }>;
 };
 
+function parseAlertLine(line: string) {
+    // 【最優先】2026/03/24 11:00 ...
+    const m = line.match(/(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}:\d{2})/);
+    if (!m) return { date: "", time: "" };
+
+    return {
+        date: `${m[1]}-${m[2]}-${m[3]}`,
+        time: m[4],
+    };
+}
+
 function toIsoDateJst(d: Date) {
     // YYYY-MM-DD (JST)
     const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
@@ -596,14 +607,40 @@ export async function runShiftStaffCheck(opts: {
 
 
         // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
+        // alertLines 先頭に "・YYYY/MM/DD" / "【最優先】YYYY/MM/DD" が来る想定で
+        // 日付 → 時刻 の昇順に並べる
         alertLines.sort((a, b) => {
-            const ka = (a.match(/・(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})/)?.slice(1, 3).join(" ") ?? "");
-            const kb = (b.match(/・(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})/)?.slice(1, 3).join(" ") ?? "");
-            return ka.localeCompare(kb);
+            const pa = parseAlertLine(a);
+            const pb = parseAlertLine(b);
+
+            if (pa.date !== pb.date) return pa.date.localeCompare(pb.date);
+            return pa.time.localeCompare(pb.time);
         });
 
-        const criticalLines = alertLines.filter((x) => x.startsWith("【最優先】"));
-        const normalLines = alertLines.filter((x) => !x.startsWith("【最優先】"));
+        // 表示は最大10日分まで
+        const MAX_DAYS = 10;
+        const seenDates = new Set<string>();
+        const limitedLines: string[] = [];
+
+        for (const line of alertLines) {
+            const { date } = parseAlertLine(line);
+
+            // 日付が取れない行は一応そのまま通す
+            if (!date) {
+                limitedLines.push(line);
+                continue;
+            }
+
+            if (!seenDates.has(date)) {
+                if (seenDates.size >= MAX_DAYS) break;
+                seenDates.add(date);
+            }
+
+            limitedLines.push(line);
+        }
+
+        const criticalLines = limitedLines.filter((x) => x.startsWith("【最優先】"));
+        const normalLines = limitedLines.filter((x) => !x.startsWith("【最優先】"));
 
         const header =
             `【★★★シフト漏れチェック】確認放置しないこと\n` +
