@@ -574,10 +574,6 @@ export default function MonthlyMeetingCheckPage() {
                     </button>
                 </div>
 
-                <div className="text-xs text-gray-600">
-                    参加チェック：10日以降に未入力（空欄）があればLINEWORKS通知。確認：10日以降に未入力（空欄）があればアラートバー通知。
-                </div>
-
                 {msg && <div className="text-sm">{msg}</div>}
             </div>
 
