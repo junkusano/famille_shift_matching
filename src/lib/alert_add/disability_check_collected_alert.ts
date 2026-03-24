@@ -57,9 +57,32 @@ function formatYmJa(ym: string) {
     return `${m[1]}年${Number(m[2])}月`;
 }
 
-async function cancelLegacyCollectedAlerts(targetYm: string) {
-    const prefix = `disability_check:collect:${targetYm}:`;
+function parseYmToDate(ym: string) {
+    const m = /^(\d{4})-(\d{2})$/.exec(ym);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, 1);
+}
 
+function isAlertTargetMonth(ym: string, now: Date) {
+    const target = parseYmToDate(ym);
+    if (!target) return false;
+
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const targetMonthStart = new Date(target.getFullYear(), target.getMonth(), 1);
+
+    if (targetMonthStart > currentMonthStart) return false;
+
+    if (
+        targetMonthStart.getFullYear() === currentMonthStart.getFullYear() &&
+        targetMonthStart.getMonth() === currentMonthStart.getMonth()
+    ) {
+        return now.getDate() >= 20;
+    }
+
+    return true;
+}
+
+async function cancelLegacyCollectedAlerts() {
     const { error } = await supabaseAdmin
         .from("alert_log")
         .update({
@@ -68,7 +91,7 @@ async function cancelLegacyCollectedAlerts(targetYm: string) {
         .eq("status", "open")
         .eq("status_source", "system")
         .is("kaipoke_cs_id", null)
-        .like("shift_id", `${prefix}%`);
+        .like("shift_id", "disability_check:collect:%");
 
     if (error) {
         throw new Error(`legacy alert cancel failed: ${error.message}`);
@@ -113,29 +136,13 @@ export async function runDisabilityCheckCollectedAlert(args: {
     const dryRun = args.dryRun ?? false;
 
     const now = new Date();
-    const day = now.getDate();
-
-    // 「前月分」を見る（既存ロジック踏襲）
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const targetYm = ymNow(prev);
-
-    if (day < 20 && !args.forceDay20Rule) {
-        return {
-            enabled: true,
-            scanned: 0,
-            targetRows: 0,
-            alertManagers: 0,
-            alertRows: 0,
-            errors: 0,
-            dryRun,
-            targetYearMonth: targetYm,
-            skippedBecauseDay: true,
-        };
-    }
+    //const day = now.getDate();
+    const currentYm = ymNow(now);
+    const MIN_ALERT_YM = "2026-01";
 
     // ★追加：古い形式（kaipoke_cs_id なし）の回収アラートを閉じる
     if (!dryRun) {
-        await cancelLegacyCollectedAlerts(targetYm);
+        await cancelLegacyCollectedAlerts();
     }
 
     let q = supabaseAdmin
@@ -153,7 +160,8 @@ export async function runDisabilityCheckCollectedAlert(args: {
                 "asigned_jisseki_staff_name",
             ].join(","),
         )
-        .eq("year_month", targetYm)
+        .gte("year_month", MIN_ALERT_YM) // ★ 2026-01より前は出さない
+        .lte("year_month", currentYm)
         .in("kaipoke_servicek", ["障害", "移動支援"])
         .eq("is_checked", false);
 
@@ -162,7 +170,14 @@ export async function runDisabilityCheckCollectedAlert(args: {
     const { data, error } = await q;
     if (error) throw new Error(`disability_check select failed: ${error.message}`);
 
-    const rows = (data ?? []) as unknown as DisabilityCheckViewRow[];
+    const fetchedRows = (data ?? []) as unknown as DisabilityCheckViewRow[];
+
+    const rows = fetchedRows.filter((r) => {
+        if (args.targetKaipokeCsId && r.kaipoke_cs_id !== args.targetKaipokeCsId) return false;
+        if (args.forceDay20Rule) return true;
+        return isAlertTargetMonth(r.year_month, now);
+    });
+
     const scanned = rows.length;
 
     if (!rows.length) {
@@ -174,7 +189,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
             alertRows: 0,
             errors: 0,
             dryRun,
-            targetYearMonth: targetYm,
+            targetYearMonth: currentYm,
             skippedBecauseDay: false,
         };
     }
@@ -186,10 +201,11 @@ export async function runDisabilityCheckCollectedAlert(args: {
 
     // mgr_user_id × 利用者（kaipoke_cs_id）でまとめる（＝利用者別アラート）
     type Pack = {
+        yearMonth: string;
         orgName: string;
         kaipokeCsId: string;
-        clientName: string; // "○○様" or "CS:xxxx"
-        items: DisabilityCheckViewRow[]; // 障害/移動支援を同一利用者で列挙
+        clientName: string;
+        items: DisabilityCheckViewRow[];
     };
 
     const byClient = new Map<string, Pack>();
@@ -202,13 +218,14 @@ export async function runDisabilityCheckCollectedAlert(args: {
         const clientNameRaw = (r.client_name ?? "").trim();
         const clientLabel = clientNameRaw ? `${clientNameRaw}様` : `CS:${kaipokeCsId}`;
         const clientUrl =
-            `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`;
-        const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
+            `https://myfamille.shi-on.net/portal/disability-check?ym=${r.year_month}&kaipoke_cs_id=${encodeURIComponent(kaipokeCsId)}`; const clientName = `<a href="${clientUrl}">${clientLabel}</a>`;
 
-        const cur = byClient.get(kaipokeCsId);
+        const packKey = `${r.year_month}:${kaipokeCsId}`;
+        const cur = byClient.get(packKey);
 
         if (!cur) {
-            byClient.set(kaipokeCsId, {
+            byClient.set(packKey, {
+                yearMonth: r.year_month,
                 orgName,
                 kaipokeCsId,
                 clientName,
@@ -233,15 +250,14 @@ export async function runDisabilityCheckCollectedAlert(args: {
 
             const labelText = `[${it.kaipoke_servicek}] 担当:${staffName}さん`;
             const detailUrl = staffId
-                ? `https://myfamille.shi-on.net/portal/disability-check?ym=${targetYm}&user_id=${encodeURIComponent(staffId)}`
+                ? `https://myfamille.shi-on.net/portal/disability-check?ym=${pack.yearMonth}&user_id=${encodeURIComponent(staffId)}`
                 : "";
 
             return detailUrl ? `<a href="${detailUrl}">${labelText}</a>` : labelText;
         });
 
         const message =
-            `【実績記録 未チェック】 回収 〈${formatYmJa(targetYm)}分〉\n` +
-            `${pack.clientName}\n` +
+            `【実績記録 未チェック】 回収 〈${formatYmJa(pack.yearMonth)}分〉\n` + `${pack.clientName}\n` +
             `回収チェックが、20日以降で未完了の状態です。\n` +
             `至急ご確認ください。\n\n` +
             `チーム: ${pack.orgName}\n\n` +
@@ -249,7 +265,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
 
         console.log("[disability_check_collected] payload", {
             kaipoke_cs_id: pack.kaipokeCsId,
-            shift_id: `disability_check:collect:${targetYm}:${pack.kaipokeCsId}`,
+            shift_id: `disability_check:collect:${pack.yearMonth}:${pack.kaipokeCsId}`,
         });
 
         try {
@@ -257,7 +273,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
                 await ensureSystemAlert({
                     message,
                     kaipoke_cs_id: pack.kaipokeCsId,
-                    shift_id: `disability_check:collect:${targetYm}:${pack.kaipokeCsId}`,
+                    shift_id: `disability_check:collect:${pack.yearMonth}:${pack.kaipokeCsId}`,
                     user_id: null,
                     rpa_request_id: null,
                 });
@@ -282,7 +298,7 @@ export async function runDisabilityCheckCollectedAlert(args: {
         alertRows,
         errors: errorsCount,
         dryRun,
-        targetYearMonth: targetYm,
+        targetYearMonth: currentYm,
         skippedBecauseDay: false,
     };
 }
