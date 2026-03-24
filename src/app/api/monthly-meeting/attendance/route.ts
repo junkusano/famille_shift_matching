@@ -248,7 +248,13 @@ export async function PATCH(req: NextRequest) {
 
         // ✅ コメント（本人のみ、という運用ならこれを維持）
         if ("staff_comment" in body) {
-            if (myUserId !== user_id) throw new Error("forbidden: only self can update staff_comment");
+            const canEditComment =
+                myUserId === user_id || role === "MANAGER" || role === "ADMIN" || role === "FULL";
+
+            if (!canEditComment) {
+                throw new Error("forbidden: cannot update staff_comment");
+            }
+
             const v = body["staff_comment"];
             patch.staff_comment = v == null ? null : String(v);
         }

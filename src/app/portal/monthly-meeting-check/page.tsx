@@ -408,7 +408,37 @@ export default function MonthlyMeetingCheckPage() {
         }
     }
 
-    async function saveAll() {
+    async function saveComment(user_id: string) {
+        setMsg("");
+
+        try {
+            const v = edit[user_id];
+            if (!v) throw new Error("保存対象のコメントがありません");
+
+            const res = await fetchWithBearer("/api/monthly-meeting/attendance", {
+                method: "PATCH",
+                body: JSON.stringify({
+                    target_month: `${ym}-01`,
+                    user_id,
+                    staff_comment: v.staff_comment,
+                }),
+            });
+
+            const j: unknown = await res.json();
+            if (!isRecord(j) || readBoolean(j.ok) !== true) {
+                throw new Error(
+                    isRecord(j) ? (readString(j.error) ?? "comment save failed") : "comment save failed"
+                );
+            }
+
+            setMsg("コメントを保存しました");
+            await load();
+        } catch (e: unknown) {
+            setMsg(toErrorMessage(e));
+        }
+    }
+
+    /*async function saveAll() {
         setMsg("");
         setLoading(true);
 
@@ -463,7 +493,7 @@ export default function MonthlyMeetingCheckPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }*/
 
     useEffect(() => {
         let mounted = true;
@@ -567,10 +597,6 @@ export default function MonthlyMeetingCheckPage() {
                     </select>
                     <button className="border rounded px-3 py-1" onClick={load} disabled={loading}>
                         再読込
-                    </button>
-
-                    <button className="border rounded px-3 py-1" onClick={saveAll} disabled={loading}>
-                        コメントを保存
                     </button>
                 </div>
 
@@ -728,17 +754,33 @@ export default function MonthlyMeetingCheckPage() {
 
                                         {/* コメント（入力） */}
                                         <td className="border p-2">
-                                            <input
-                                                className="border rounded px-2 py-1 w-full"
-                                                value={e.staff_comment}
-                                                onChange={(ev) =>
-                                                    setEdit((p) => ({
-                                                        ...p,
-                                                        [r.user_id]: { ...e, staff_comment: ev.target.value },
-                                                    }))
-                                                }
-                                                placeholder="コメント"
-                                            />
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    className="border rounded px-2 py-1 w-full"
+                                                    value={e.staff_comment}
+                                                    onChange={(ev) =>
+                                                        setEdit((p) => ({
+                                                            ...p,
+                                                            [r.user_id]: { ...e, staff_comment: ev.target.value },
+                                                        }))
+                                                    }
+                                                    placeholder="コメント"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="border rounded px-2 py-1 text-xs whitespace-nowrap bg-white"
+                                                    onClick={async () => {
+                                                        try {
+                                                            await saveComment(r.user_id);
+                                                        } catch (err: unknown) {
+                                                            setMsg(toErrorMessage(err));
+                                                        }
+                                                    }}
+                                                    disabled={loading}
+                                                >
+                                                    保存
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
