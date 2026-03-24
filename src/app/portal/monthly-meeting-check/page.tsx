@@ -149,11 +149,13 @@ export default function MonthlyMeetingCheckPage() {
     const [authReady, setAuthReady] = useState(false); // ★追加
     const normalizedRole = myRole.trim().toUpperCase();
 
-    // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
-    const canManagerEdit =
+    const canViewAll =
         normalizedRole === "MANAGER" ||
         normalizedRole === "ADMIN" ||
         normalizedRole === "FULL";
+
+    // ✅ manager / admin（＋念のためFULLも）だけ「確認（月例）/追加/確認（追加）」を操作できる
+    const canManagerEdit = canViewAll;
 
     // ★追加：編集状態（user_id -> 入力中の値）
     const [edit, setEdit] = useState<Record<string, EditRow>>({});
@@ -608,54 +610,56 @@ export default function MonthlyMeetingCheckPage() {
                 )}
             </div>
 
-            <div className="rounded border bg-gray-50 p-3 space-y-3">
-                <div className="font-semibold text-sm">会議情報登録</div>
+            {canViewAll && (
+                <div className="rounded border bg-gray-50 p-3 space-y-3">
+                    <div className="font-semibold text-sm">会議情報登録</div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                    <label className="text-sm">
-                        会議日
-                        <input
-                            type="date"
-                            className="border rounded px-2 py-1 ml-2"
-                            value={meetingDate}
-                            onChange={(e) => setMeetingDate(e.target.value)}
-                        />
-                    </label>
-
-                    <label className="text-sm flex-1 min-w-[320px]">
-                        議事録リンク
-                        <div className="flex items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <label className="text-sm">
+                            会議日
                             <input
-                                className="border rounded px-2 py-1 w-full"
-                                value={sharedMinutesUrl}
-                                onChange={(e) => setSharedMinutesUrl(e.target.value)}
-                                placeholder="https://..."
+                                type="date"
+                                className="border rounded px-2 py-1 ml-2"
+                                value={meetingDate}
+                                onChange={(e) => setMeetingDate(e.target.value)}
                             />
-                            {sharedMinutesUrl.startsWith("http") && (
-                                <a
-                                    className="text-blue-600 underline whitespace-nowrap"
-                                    href={sharedMinutesUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    開く
-                                </a>
-                            )}
-                        </div>
-                    </label>
-                </div>
+                        </label>
 
-                <div>
-                    <button
-                        className="border rounded px-3 py-1 bg-white"
-                        onClick={saveMeetingInfo}
-                        disabled={loading || rows.length === 0}
-                        type="button"
-                    >
-                        会議情報を保存
-                    </button>
+                        <label className="text-sm flex-1 min-w-[320px]">
+                            議事録リンク
+                            <div className="flex items-center gap-2 mt-1">
+                                <input
+                                    className="border rounded px-2 py-1 w-full"
+                                    value={sharedMinutesUrl}
+                                    onChange={(e) => setSharedMinutesUrl(e.target.value)}
+                                    placeholder="https://..."
+                                />
+                                {sharedMinutesUrl.startsWith("http") && (
+                                    <a
+                                        className="text-blue-600 underline whitespace-nowrap"
+                                        href={sharedMinutesUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        開く
+                                    </a>
+                                )}
+                            </div>
+                        </label>
+                    </div>
+
+                    <div>
+                        <button
+                            className="border rounded px-3 py-1 bg-white"
+                            onClick={saveMeetingInfo}
+                            disabled={loading || rows.length === 0}
+                            type="button"
+                        >
+                            会議情報を保存
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* 下段：表 */}
             <div className="rounded border p-3">

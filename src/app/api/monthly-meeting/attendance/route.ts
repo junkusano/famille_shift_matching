@@ -85,7 +85,7 @@ type StaffRow = {
 
 export async function GET(req: NextRequest) {
     try {
-        await readMyRole(req);
+        const { myUserId, role } = await readMyRole(req);
 
         const ym = req.nextUrl.searchParams.get("ym") ?? "";
         if (!ym) return json({ ok: false, error: "ym is required (YYYY-MM)" }, 400);
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
         const attMap = new Map((att ?? []).map((r) => [r.user_id, r]));
 
         // 5) rows を作って返す（名前は姓+名）
-        const rows = (staffData ?? [])
+        const allRows = (staffData ?? [])
             .map((s: StaffRow) => {
                 const userId = String(s.user_id ?? "").trim();
                 if (!userId) return null;
@@ -181,18 +181,22 @@ export async function GET(req: NextRequest) {
                     attended_regular: r?.attended_regular ?? false,
                     attended_extra: r?.attended_extra ?? false,
 
-                    checked_regular: r?.checked_regular ?? false, // ★追加
-                    checked_extra: r?.checked_extra ?? false,     // ★追加
-                    meeting_date: r?.meeting_date ?? null,   // ★追加
+                    checked_regular: r?.checked_regular ?? false,
+                    checked_extra: r?.checked_extra ?? false,
+                    meeting_date: r?.meeting_date ?? null,
                     minutes_url: r?.minutes_url ?? null,
                     staff_comment: r?.staff_comment ?? null,
                     manager_checked: r?.manager_checked ?? null,
                 };
             })
             .filter((v): v is NonNullable<typeof v> => v !== null);
-        const { role } = await readMyRole(req); // すでに readMyRole はある想定
 
-        return json({ ok: true, ym, rows, role }); // ★role を返す
+        const rows =
+            role === "MEMBER"
+                ? allRows.filter((r) => r.user_id === myUserId)
+                : allRows;
+
+        return json({ ok: true, ym, rows, role });
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return json({ ok: false, error: msg }, 500);
