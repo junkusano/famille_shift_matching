@@ -57,6 +57,24 @@ function formatYmJa(ym: string) {
     return `${m[1]}年${Number(m[2])}月`;
 }
 
+async function cancelLegacyCollectedAlerts(targetYm: string) {
+    const prefix = `disability_check:collect:${targetYm}:`;
+
+    const { error } = await supabaseAdmin
+        .from("alert_log")
+        .update({
+            status: "cancelled",
+        })
+        .eq("status", "open")
+        .eq("status_source", "system")
+        .is("kaipoke_cs_id", null)
+        .like("shift_id", `${prefix}%`);
+
+    if (error) {
+        throw new Error(`legacy alert cancel failed: ${error.message}`);
+    }
+}
+
 /*async function loadOrgMap(orgunitids: string[]) {
     if (!orgunitids.length) return new Map<string, OrgRow>();
 
@@ -113,6 +131,11 @@ export async function runDisabilityCheckCollectedAlert(args: {
             targetYearMonth: targetYm,
             skippedBecauseDay: true,
         };
+    }
+
+    // ★追加：古い形式（kaipoke_cs_id なし）の回収アラートを閉じる
+    if (!dryRun) {
+        await cancelLegacyCollectedAlerts(targetYm);
     }
 
     let q = supabaseAdmin
