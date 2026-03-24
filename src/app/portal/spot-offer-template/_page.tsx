@@ -554,7 +554,7 @@ export default function SpotOfferTemplatePage() {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所名</div>
-                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="待ち合わせ場所"/>
+                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所番地</div>
@@ -575,19 +575,19 @@ export default function SpotOfferTemplatePage() {
               <div className="text-sm font-semibold">勤務条件</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">交通費</div>
+                  <div className="text-[11px] text-muted-foreground">commute_fee</div>
                   <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">時給</div>
+                  <div className="text-[11px] text-muted-foreground">unit_amount</div>
                   <Input value={fUnitAmount} onChange={(e) => setFUnitAmount(e.target.value)} placeholder="例：1500" inputMode="numeric" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">開始時間</div>
+                  <div className="text-[11px] text-muted-foreground">start_at</div>
                   <Input value={fStartAt} onChange={(e) => setFStartAt(e.target.value)} placeholder="0930 / 09:30" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">終了時間</div>
+                  <div className="text-[11px] text-muted-foreground">end_at</div>
                   <Input value={fEndAt} onChange={(e) => setFEndAt(e.target.value)} placeholder="1730 / 17:30" />
                 </div>
               </div>
@@ -596,20 +596,20 @@ export default function SpotOfferTemplatePage() {
             <div>
               <div className="text-sm font-semibold">資格・喫煙・メッセージ</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <BoolSelect label="資格必須" value={fRequiresLicense} onChange={setFRequiresLicense} />
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">必要資格（required_licenses / 改行区切り）</div>
-                  <Textarea value={fRequiredLicensesText} onChange={(e) => setFRequiredLicensesText(e.target.value)} rows={3} />
-                </div>
-                <BoolSelect label="喫煙可能エリアでの作業" value={fSmokingAreaWork} onChange={setFSmokingAreaWork} />
-                 <div>
-                  <div className="text-[11px] text-muted-foreground">受動喫煙防止措置</div>
+                <BoolSelect label="requires_license" value={fRequiresLicense} onChange={setFRequiresLicense} />
+                <BoolSelect label="smoking_area_work" value={fSmokingAreaWork} onChange={setFSmokingAreaWork} />
+                <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
+                <div>
+                  <div className="text-[11px] text-muted-foreground">smoking_policy</div>
                   <Input value={fSmokingPolicy} onChange={(e) => setFSmokingPolicy(e.target.value)} />
                 </div>
-                <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
                 <div className="md:col-span-2 xl:col-span-2">
                   <div className="text-[11px] text-muted-foreground">matching_msg</div>
                   <Textarea value={fMatchingMsg} onChange={(e) => setFMatchingMsg(e.target.value)} rows={3} />
+                </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <div className="text-[11px] text-muted-foreground">必要資格（required_licenses / 改行区切り）</div>
+                  <Textarea value={fRequiredLicensesText} onChange={(e) => setFRequiredLicensesText(e.target.value)} rows={3} />
                 </div>
               </div>
             </div>
