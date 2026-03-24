@@ -134,7 +134,8 @@ export async function runShiftStaffCheck(opts: {
     const now = opts.now ?? new Date();
     const dryRun = opts.dryRun ?? false;
     //const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 21;
-    const daysAhead = 15; // 要望：今日〜直近15日以内に固定
+    //const daysAhead = 15; // 要望：今日〜直近15日以内に固定
+    const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 15;
     const inactiveDays = Number.isFinite(opts.inactiveDays) ? (opts.inactiveDays as number) : 15;
 
     const result: ShiftStaffCheckResult = {
@@ -148,7 +149,7 @@ export async function runShiftStaffCheck(opts: {
     try {
         const today = toIsoDateJst(now);
         const endDate = addDaysIsoDate(today, daysAhead);
-        const tomorrow = addDaysIsoDate(today, 1); // ← ★これを追加
+        //const tomorrow = addDaysIsoDate(today, 1); // ← ★これを追加
 
         // 1) これからのシフト（対象期間）
         const { data: upcomingRaw, error: upcomingErr } = await supabaseAdmin
@@ -296,22 +297,17 @@ export async function runShiftStaffCheck(opts: {
         }
 
         // ------------------------------
-        // （ロジック2）直近1か月の「曜日＋開始時刻」代表パターンと、今日以降の差分チェック（代表1つ方式）
-        //  - 利用者×曜日ごとに「最頻の開始時刻」を1つ決める（MIN_OCC以上）
-        //  - 未来の同じ曜日の日に、その開始時刻が存在しない場合だけ通知する
+        // （ロジック2 改訂版）
+        // 直近1か月の「曜日＋開始時刻」代表パターンから、今後daysAhead日分の期待日を作って
+        // 「その日まるごと欠落」と「時間変更」を分けて検知する
         // ------------------------------
         {
             const PATTERN_DAYS = 30;
-            const MIN_OCC = 2; // 直近1か月で2回以上のパターンのみ採用
-
-            // 「その日シフトが無い」も通知するか？
-            // 量が多いので、要望どおり “通常の同曜日同時刻が存在しない” に絞るなら false 推奨
-            const ALERT_IF_NO_SHIFT = false;
+            const MIN_OCC = 2;
 
             const pastStart = addDays(today, -PATTERN_DAYS);
             const yesterday = addDays(today, -1);
 
-            // 直近1か月（過去30日） ※ 99999999%除外
             const { data: pastRaw, error: pastErr } = await supabaseAdmin
                 .from("shift_csinfo_roster_view")
                 .select("shift_date, start_at, client_name, kaipoke_cs_id")
@@ -324,10 +320,7 @@ export async function runShiftStaffCheck(opts: {
             type PastRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
             const past = (pastRaw as PastRow[]) ?? [];
 
-            // 利用者表示名
             const clientNameMap = new Map<string, string>();
-
-            // count: (clientKey|weekday|HH:mm) -> count
             const cnt = new Map<string, number>();
 
             for (const r of past) {
@@ -342,84 +335,80 @@ export async function runShiftStaffCheck(opts: {
                 cnt.set(key, (cnt.get(key) ?? 0) + 1);
             }
 
-            // representative: (clientKey|weekday) -> { time, count }
             const rep = new Map<string, { time: string; count: number }>();
-
             for (const [k, c] of cnt.entries()) {
                 if (c < MIN_OCC) continue;
                 const [clientKey, wdStr, st] = k.split("|");
                 const wkKey = `${clientKey}|${wdStr}`;
                 const cur = rep.get(wkKey);
-                if (!cur || c > cur.count) {
-                    rep.set(wkKey, { time: st, count: c });
-                }
+                if (!cur || c > cur.count) rep.set(wkKey, { time: st, count: c });
             }
 
-            if (rep.size === 0) {
-                // 代表パターンが作れないなら何もしない
-            } else {
-                // 未来（upcoming）を 利用者×日付 にまとめる
-                type UpRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
-                const up = (upcomingRaw as UpRow[]) ?? [];
+            type UpRow = Pick<RosterRow, "shift_date" | "start_at" | "client_name" | "kaipoke_cs_id">;
+            const up = (upcomingRaw as UpRow[]) ?? [];
 
-                const upMap = new Map<string, Map<string, Set<string>>>();
+            // 未来データ: clientKey -> date -> starts
+            const upMap = new Map<string, Map<string, Set<string>>>();
+            for (const r of up) {
+                const csid = (r.kaipoke_cs_id ?? "").trim();
+                if (csid.startsWith("99999999")) continue;
 
-                for (const r of up) {
-                    // ※ 99999999%除外（念のため二重）
-                    const csid = (r.kaipoke_cs_id ?? "").trim();
-                    if (csid.startsWith("99999999")) continue;
+                const clientKey = csid || (r.client_name ?? "").trim();
+                if (!clientKey) continue;
 
-                    const clientKey = csid || (r.client_name ?? "").trim();
-                    if (!clientKey) continue;
+                clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
 
-                    clientNameMap.set(clientKey, (r.client_name ?? "").trim() || clientKey);
+                const date = r.shift_date;
+                const st = hhmm(r.start_at);
 
-                    const date = r.shift_date;
-                    const st = hhmm(r.start_at);
+                if (!upMap.has(clientKey)) upMap.set(clientKey, new Map());
+                const dateMap = upMap.get(clientKey)!;
+                if (!dateMap.has(date)) dateMap.set(date, new Set());
+                dateMap.get(date)!.add(st);
+            }
 
-                    if (!upMap.has(clientKey)) upMap.set(clientKey, new Map());
-                    const dateMap = upMap.get(clientKey)!;
-                    if (!dateMap.has(date)) dateMap.set(date, new Set());
-                    dateMap.get(date)!.add(st);
-                }
+            const criticalMissingLines: string[] = [];
+            const patternDiffLines: string[] = [];
+            const dedupe2 = new Set<string>();
 
-                const alert2Dedupe = new Set<string>();
+            for (const [wkKey, r] of rep.entries()) {
+                const [clientKey, wdStr] = wkKey.split("|");
+                const wd = Number(wdStr);
+                const expected = r.time;
 
-                // 未来の実データがある日だけチェック（総当たりしない）
-                const targetDates = new Set([today, tomorrow]);
+                for (let i = 0; i <= daysAhead; i++) {
+                    const date = addDays(today, i);
+                    if (weekdayIndexJst(date) !== wd) continue;
 
-                for (const [clientKey, dateMap] of upMap.entries()) {
-                    for (const [date, startsSet] of dateMap.entries()) {
-                        if (!targetDates.has(date)) continue; // ✅ ②は今日＋明日だけ
+                    const dateMap = upMap.get(clientKey);
+                    const startsSet = dateMap?.get(date) ?? new Set<string>();
+                    const actualList = Array.from(startsSet).sort();
 
-                        const wd = weekdayIndexJst(date);
-                        const wkKey = `${clientKey}|${wd}`;
-                        const r = rep.get(wkKey);
-                        if (!r) continue;
+                    const k = `${clientKey}|${date}|${expected}`;
+                    if (dedupe2.has(k)) continue;
+                    dedupe2.add(k);
 
-                        const expected = r.time;
-                        const hasExpected = startsSet.has(expected);
-                        if (hasExpected) continue;
+                    const clientDisp = clientDisplay(clientNameMap.get(clientKey) ?? clientKey);
+                    const wdJa = WEEKDAY_JA[wd];
 
-                        // その日が無シフトも通知するか（今は false の想定）
-                        if (!ALERT_IF_NO_SHIFT && startsSet.size === 0) continue;
+                    if (startsSet.size === 0) {
+                        criticalMissingLines.push(
+                            `【最優先】${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同曜日シフト（${wdJa} ${expected}）が丸ごと存在しません。シフト漏れの可能性が高いため至急確認してください。`
+                        );
+                        continue;
+                    }
 
-                        const k = `${clientKey}|${date}|${expected}`;
-                        if (alert2Dedupe.has(k)) continue;
-                        alert2Dedupe.add(k);
-
-                        const actualList = Array.from(startsSet).sort();
-                        const clientDisp = clientDisplay(clientNameMap.get(clientKey) ?? clientKey);
-                        const wdJa = WEEKDAY_JA[wd];
-
-                        alertLines.push(
-                            `・${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同じ曜日のシフト（${wdJa} ${expected}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ") || "なし"}）`
+                    if (!startsSet.has(expected)) {
+                        patternDiffLines.push(
+                            `・${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同じ曜日のシフト（${wdJa} ${expected}）が、この日は見当たりません（時間が変更されています）。間違いありませんか？（当日登録: ${actualList.join(", ")}）`
                         );
                     }
                 }
             }
-        }
 
+            // 最優先を先頭へ
+            alertLines.push(...criticalMissingLines, ...patternDiffLines);
+        }
 
         // ------------------------------
         // （追加ロジック②）シフト担当者が未設定 / 特定できない（staff_01_user_id 起点）
@@ -613,25 +602,29 @@ export async function runShiftStaffCheck(opts: {
             return ka.localeCompare(kb);
         });
 
-        result.alerts = alertLines.length;
-
-        // 6) 送信
-        if (alertLines.length === 0) {
-            return result; // 何も無ければ送らない
-        }
+        const criticalLines = alertLines.filter((x) => x.startsWith("【最優先】"));
+        const normalLines = alertLines.filter((x) => !x.startsWith("【最優先】"));
 
         const header =
             `【★★★シフト漏れチェック】確認放置しないこと\n` +
             `対象: ${today}〜${endDate}\n` +
+            `最優先: 通常あるはずのシフトが丸ごと欠落している可能性\n` +
             `① 直近${inactiveDays}日シフトなしスタッフが未来シフト入り\n` +
             `② 直近1か月の「曜日＋開始時刻」パターン差分\n\n`;
 
-        const maxLines = 80;
-        const body =
-            alertLines.length <= maxLines
-                ? alertLines.join("\n")
-                : alertLines.slice(0, maxLines).join("\n") + `\n…他${alertLines.length - maxLines}件`;
+        const bodyParts: string[] = [];
+        if (criticalLines.length > 0) {
+            bodyParts.push(
+                "【最優先アラート】シフト漏れの可能性が高いもの",
+                ...criticalLines,
+                ""
+            );
+        }
+        if (normalLines.length > 0) {
+            bodyParts.push("【通常アラート】", ...normalLines);
+        }
 
+        const body = bodyParts.join("\n");
         const message = header + body;
 
         if (dryRun) {
