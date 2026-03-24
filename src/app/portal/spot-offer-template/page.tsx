@@ -530,39 +530,27 @@ export default function SpotOfferTemplatePage() {
                   <div className="text-[11px] text-muted-foreground">仕事内容</div>
                   <Textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} rows={4} />
                 </div>
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">注意事項</div>
-                  <Textarea value={fCautions} onChange={(e) => setFCautions(e.target.value)} rows={3} />
-                </div>
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">自動メッセージ</div>
-                  <Textarea value={fAutoMsg} onChange={(e) => setFAutoMsg(e.target.value)} rows={3} />
-                </div>
               </div>
             </div>
 
             <div>
               <div className="text-sm font-semibold">勤務地 / 集合情報</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">住所</div>
-                  <Input value={fAddress} onChange={(e) => setFAddress(e.target.value)} placeholder="例：名古屋市熱田区" />
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所</div>
-                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} />
-                </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所名</div>
                   <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="待ち合わせ場所"/>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所番地</div>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
+                  <div className="text-[11px] text-muted-foreground">郵便番号</div>
+                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所 郵便番号</div>
-                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
+                  <div className="text-[11px] text-muted-foreground">住所</div>
+                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">集合場所番地</div>
+                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">緊急連絡先</div>
@@ -575,12 +563,12 @@ export default function SpotOfferTemplatePage() {
               <div className="text-sm font-semibold">勤務条件</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">交通費</div>
-                  <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
-                </div>
-                <div>
                   <div className="text-[11px] text-muted-foreground">時給</div>
                   <Input value={fUnitAmount} onChange={(e) => setFUnitAmount(e.target.value)} placeholder="例：1500" inputMode="numeric" />
+                </div>                
+                <div>
+                  <div className="text-[11px] text-muted-foreground">交通費</div>
+                  <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">開始時間</div>
@@ -629,6 +617,14 @@ export default function SpotOfferTemplatePage() {
                   <div className="text-[11px] text-muted-foreground">写真URL（photo_urls / 改行区切り）</div>
                   <Textarea value={fPhotoUrlsText} onChange={(e) => setFPhotoUrlsText(e.target.value)} rows={4} />
                 </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <div className="text-[11px] text-muted-foreground">注意事項</div>
+                  <Textarea value={fCautions} onChange={(e) => setFCautions(e.target.value)} rows={3} />
+                </div>
+                <div className="md:col-span-2 xl:col-span-3">
+                  <div className="text-[11px] text-muted-foreground">自動メッセージ</div>
+                  <Textarea value={fAutoMsg} onChange={(e) => setFAutoMsg(e.target.value)} rows={3} />
+                </div>                
               </div>
             </div>
 
