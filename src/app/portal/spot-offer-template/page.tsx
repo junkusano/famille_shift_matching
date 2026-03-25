@@ -13,6 +13,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
+const REQUIRED_LICENSE_OPTIONS = [
+  "初任者研修",
+  "実務者研修",
+  "介護福祉士",
+  "看護師",
+  "准看護師",
+  "普通自動車免許",
+  "同行援護従業者養成研修",
+  "行動援護従業者養成研修",
+  "喀痰吸引等研修",
+];
 
 type NullableBoolean = boolean | null;
 
@@ -157,7 +168,7 @@ export default function SpotOfferTemplatePage() {
   const [fSmokingPolicy, setFSmokingPolicy] = useState("");
   const [fSmokingAreaWork, setFSmokingAreaWork] = useState<NullableBoolean>(null);
   const [fRequiresLicense, setFRequiresLicense] = useState<NullableBoolean>(null);
-  const [fRequiredLicensesText, setFRequiredLicensesText] = useState("");
+  const [fRequiredLicenses, setFRequiredLicenses] = useState<string[]>([]);
   const [fBenefitsText, setFBenefitsText] = useState("");
   const [fBelongingsText, setFBelongingsText] = useState("");
   const [fInternalLabel, setFInternalLabel] = useState("");
@@ -294,7 +305,7 @@ type ParkingPreview = {
     setFSmokingPolicy("");
     setFSmokingAreaWork(null);
     setFRequiresLicense(null);
-    setFRequiredLicensesText("");
+    setFRequiredLicenses([]);
     setFBenefitsText("");
     setFBelongingsText("");
     setFInternalLabel("");
@@ -391,7 +402,7 @@ type ParkingPreview = {
         smoking_policy: fSmokingPolicy.trim() || null,
         smoking_area_work: fSmokingAreaWork,
         requires_license: fRequiresLicense,
-        required_licenses: toArrayFromTextarea(fRequiredLicensesText),
+        required_licenses: fRequiredLicenses,
         benefits: toArrayFromTextarea(fBenefitsText),
         belongings: toArrayFromTextarea(fBelongingsText),
         internal_label: fInternalLabel.trim() || null,
@@ -721,10 +732,6 @@ type ParkingPreview = {
                    <FieldLabel required>番地</FieldLabel>
                   <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
                 </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">緊急連絡先</div>
-                  <Input value={fEmergencyPhone} onChange={(e) => setFEmergencyPhone(e.target.value)} placeholder="例：052-xxx-xxxx" />
-                </div>
               </div>
             </div>
 
@@ -751,25 +758,62 @@ type ParkingPreview = {
             </div>
 
             <div>
-              <div className="text-sm font-semibold">資格・喫煙・メッセージ</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <BoolSelect label="資格必須" value={fRequiresLicense} onChange={setFRequiresLicense} />
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">必要資格（required_licenses / 改行区切り）</div>
-                  <Textarea value={fRequiredLicensesText} onChange={(e) => setFRequiredLicensesText(e.target.value)} rows={3} />
-                </div>
-                <BoolSelect label="喫煙可能エリアでの作業" value={fSmokingAreaWork} onChange={setFSmokingAreaWork} />
-                 <div>
-                  <div className="text-[11px] text-muted-foreground">受動喫煙防止措置</div>
-                  <Input value={fSmokingPolicy} onChange={(e) => setFSmokingPolicy(e.target.value)} />
-                </div>
+              <div className="text-sm font-semibold">資格</div>
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <BoolSelect
+                    label="資格必須"
+                    value={fRequiresLicense}
+                    onChange={setFRequiresLicense}
+                    trueLabel="必要"
+                    falseLabel="不要"  />
+
+                  <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel>必要資格</FieldLabel>
+      <select
+        multiple
+        className="flex min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+        value={fRequiredLicenses}
+        onChange={(e) => {
+          const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+          setFRequiredLicenses(values);
+        }}
+      >
+        {REQUIRED_LICENSE_OPTIONS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {fRequiredLicenses.length === 0 ? (
+          <span className="text-xs text-muted-foreground">未選択</span>
+        ) : (
+          fRequiredLicenses.map((license) => (
+            <span
+              key={license}
+              className="inline-flex items-center rounded-full border px-2 py-1 text-xs bg-background"
+            >
+              {license}
+            </span>
+          ))
+        )}
+      </div>
+
+      <div className="mt-1 text-xs text-muted-foreground">
+        Ctrl または Command を押しながらクリックすると複数選択できます
+      </div>
+    </div>
+</div>
+
+            <div>
+              <div className="text-sm font-semibold">メッセージ</div>
                 <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
                 <div className="md:col-span-2 xl:col-span-2">
                   <div className="text-[11px] text-muted-foreground">matching_msg</div>
                   <Textarea value={fMatchingMsg} onChange={(e) => setFMatchingMsg(e.target.value)} rows={3} />
                 </div>
               </div>
-            </div>
 
             <div>
               <div className="text-sm font-semibold">配列項目</div>
