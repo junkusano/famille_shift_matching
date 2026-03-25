@@ -577,12 +577,10 @@ export default function SpotOfferTemplatePage() {
                   <div className="text-[11px] text-muted-foreground">郵便番号</div>
                   <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
                 </div>
-                <div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>住所</FieldLabel> 
                   <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
                 </div>
-                <div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>番地</FieldLabel>
                   <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
@@ -717,7 +715,7 @@ export default function SpotOfferTemplatePage() {
             <Button onClick={saveTemplate}>{editing ? "更新" : "追加"}</Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+     </Dialog>
 
       <Dialog open={openRpa} onOpenChange={setOpenRpa}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
