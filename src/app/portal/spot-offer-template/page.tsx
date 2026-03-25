@@ -177,8 +177,26 @@ export default function SpotOfferTemplatePage() {
   const [fMatchingPlaceName, setFMatchingPlaceName] = useState("");
   const [fMeetingPlaceBanchi, setFMeetingPlaceBanchi] = useState("");
 
+  type ClientPreview = {
+  name: string | null;
+  address: string | null;
+};
+
+type ParkingPreview = {
+  id: string;
+  label: string | null;
+  parking_orientation: string | null;
+  permit_required: boolean | null;
+  remarks: string | null;
+};
   const [breakStartTime, setBreakStartTime] = useState("");
   const [breakEndTime, setBreakEndTime] = useState("");
+
+  const [clientPreview, setClientPreview] = useState<ClientPreview | null>(null);
+  const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
+  const [loadingClientPreview, setLoadingClientPreview] = useState(false);
+
+  const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
@@ -196,6 +214,69 @@ export default function SpotOfferTemplatePage() {
   };
 
   useEffect(() => {
+    const csId = fKaipokeCsId.trim();
+
+  if (!csId) {
+    setClientPreview(null);
+    setParkingPreview([]);
+    return;
+  }
+
+  let cancelled = false;
+
+  const fetchClientPreview = async () => {
+    try {
+      setLoadingClientPreview(true);
+
+      const [{ data: clientData, error: clientError }, { data: parkingData, error: parkingError }] =
+        await Promise.all([
+          supabase
+            .from("cs_kaipoke_info")
+            .select("name, address")
+            .eq("kaipoke_cs_id", csId)
+            .maybeSingle(),
+
+          supabase
+            .from("parking_cs_places_admin_view")
+            .select("id, label, parking_orientation, permit_required, remarks")
+            .eq("kaipoke_cs_id", csId)
+            .order("serial", { ascending: true }),
+        ]);
+
+      if (clientError) throw clientError;
+      if (parkingError) throw parkingError;
+
+      if (cancelled) return;
+
+      setClientPreview(
+        clientData
+          ? {
+              name: clientData.name ?? null,
+              address: clientData.address ?? null,
+            }
+          : null
+      );
+
+      setParkingPreview(parkingData ?? []);
+    } catch (e) {
+      if (cancelled) return;
+      console.error("利用者情報取得エラー:", e);
+      setClientPreview(null);
+      setParkingPreview([]);
+    } finally {
+      if (!cancelled) {
+        setLoadingClientPreview(false);
+      }
+    }
+  };
+
+  void fetchClientPreview();
+
+  return () => {
+    cancelled = true;
+  };
+}, [fKaipokeCsId]);
+
     void fetchList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -548,7 +629,7 @@ export default function SpotOfferTemplatePage() {
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
                   <div className="md:col-span-2 xl:col-span-3"></div>
-                  <FieldLabel required>タイトル</FieldLabel>
+                  <FieldLabel required>タイトル　※ここに個人名は入れないでください</FieldLabel>
                   <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
                 </div>
                 <div>
@@ -559,6 +640,61 @@ export default function SpotOfferTemplatePage() {
                   <div className="text-[11px] text-muted-foreground">内部ラベル</div>
                   <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：急募/夜勤" />
                 </div>
+                <div>
+                 <FieldLabel>カイポケCS ID</FieldLabel>
+                  <Input
+                  value={fKaipokeCsId}
+                  onChange={(e) => setFKaipokeCsId(e.target.value)} placeholder="入力例：123456" />
+                </div>
+                
+                <div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
+                  <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
+
+                  {!fKaipokeCsId.trim() ? (
+                    <div className="text-xs text-muted-foreground">
+                      カイポケCS IDを入力すると、利用者名・住所・駐車場情報を表示します。
+                     </div>
+                  ) : loadingClientPreview ? (
+                     <div className="text-xs text-muted-foreground">取得中...</div>
+  ) : (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="text-[11px] text-muted-foreground">利用者名</div>
+          <div className="text-sm">{clientPreview?.name ?? "-"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-muted-foreground">住所</div>
+          <div className="text-sm whitespace-pre-wrap">{clientPreview?.address ?? "-"}</div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] text-muted-foreground mb-1">駐車場情報</div>
+        {parkingPreview.length === 0 ? (
+          <div className="text-sm text-muted-foreground">駐車場情報なし</div>
+        ) : (
+          <div className="space-y-2">
+            {parkingPreview.map((p, index) => (
+              <div key={p.id} className="rounded border p-2 bg-background">
+                <div className="text-sm font-medium">
+                  {p.label || `駐車場${index + 1}`}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  向き: {p.parking_orientation ?? "-"} / 許可証:{" "}
+                  {p.permit_required == null ? "-" : p.permit_required ? "必要" : "不要"}
+                </div>
+                <div className="text-sm whitespace-pre-wrap">
+                  備考: {p.remarks ?? "-"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )}    
+                </div>
                 <div className="md:col-span-2 xl:col-span-3">
                   <div className="text-[11px] text-muted-foreground">仕事内容</div>
                   <Textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} rows={4} />
@@ -567,11 +703,11 @@ export default function SpotOfferTemplatePage() {
             </div>
 
             <div>
-              <div className="text-sm font-semibold">勤務地 / 集合情報</div>
+              <div className="text-sm font-semibold">集合情報</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所名</div>
-                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="待ち合わせ場所"/>
+                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="例：〇〇公園"/>
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">郵便番号</div>
@@ -676,10 +812,7 @@ export default function SpotOfferTemplatePage() {
                   <div className="text-[11px] text-muted-foreground">kaiteku_offer_id</div>
                   <Input value={fKaitekuOfferId} onChange={(e) => setFKaitekuOfferId(e.target.value)} />
                 </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">kaipoke_cs_id</div>
-                  <Input value={fKaipokeCsId} onChange={(e) => setFKaipokeCsId(e.target.value)} />
-                </div>
+
                 {editing && (
                   <div className="md:col-span-2 xl:col-span-2 text-xs text-muted-foreground self-end">
                     core_id: {editing.core_id}
