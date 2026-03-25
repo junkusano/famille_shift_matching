@@ -294,9 +294,17 @@ export async function runShiftStaffCheck(opts: {
 
                 const shifts = staffShiftMs.get(sid) ?? [];
                 const prevMs = findPrevMs(shifts, shiftMs);
-                const refMs = prevMs ?? entryMs;
 
-                if (!refMs) continue;
+                let refMs = prevMs;
+
+                if (!refMs && entryMs) {
+                    refMs = entryMs;
+                }
+
+                // ★ここ追加（超重要）
+                if (!refMs) {
+                    refMs = shiftMs - (inactiveDays + 1) * 24 * 60 * 60 * 1000;
+                }
 
                 if (shiftMs - refMs >= thresholdMs) {
                     const who = staffMention(u);
@@ -314,7 +322,7 @@ export async function runShiftStaffCheck(opts: {
         // ------------------------------
         {
             const PATTERN_DAYS = 30;
-            const MIN_OCC = 2;
+            const MIN_OCC = 1;
 
             const pastStart = addDays(today, -PATTERN_DAYS);
             const yesterday = addDays(today, -1);
@@ -404,7 +412,7 @@ export async function runShiftStaffCheck(opts: {
 
                     if (startsSet.size === 0) {
                         criticalMissingLines.push(
-                            `【最優先】${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同曜日シフト（${wdJa} ${expected}）が丸ごと存在しません。シフト漏れの可能性が高いため至急確認してください。`
+                            `【最優先】${yyyymmddSlash(date)} ${expected}　${clientDisp}　通常の同曜日シフト（${wdJa} ${expected}）が存在しません。シフト漏れの可能性高い`
                         );
                         continue;
                     }
@@ -618,7 +626,7 @@ export async function runShiftStaffCheck(opts: {
         });
 
         // 表示は最大10日分まで
-        const MAX_DAYS = 10;
+        const MAX_DAYS = 7;
         const seenDates = new Set<string>();
         const limitedLines: string[] = [];
 
