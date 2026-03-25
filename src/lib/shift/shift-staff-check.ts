@@ -104,8 +104,8 @@ function hhmm(startAt: string | null | undefined) {
 }
 
 function weekdayIndexJst(isoDate: string) {
-    // isoDate: YYYY-MM-DD
-    return new Date(`${isoDate}T00:00:00${JST_OFFSET}`).getDay(); // 0=Sun
+    const [y, m, d] = isoDate.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun
 }
 
 const WEEKDAY_JA = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -322,7 +322,7 @@ export async function runShiftStaffCheck(opts: {
         // ------------------------------
         {
             const PATTERN_DAYS = 30;
-            const MIN_OCC = 1;
+            const MIN_OCC = 2;
 
             const pastStart = addDays(today, -PATTERN_DAYS);
             const yesterday = addDays(today, -1);
@@ -614,8 +614,9 @@ export async function runShiftStaffCheck(opts: {
         }
 
 
-        // alertLines 先頭に "・YYYY/MM/DD" が来る想定で日付昇順ソート
-        // alertLines 先頭に "・YYYY/MM/DD" / "【最優先】YYYY/MM/DD" が来る想定で
+        // 件数
+        result.alerts = alertLines.length;
+
         // 日付 → 時刻 の昇順に並べる
         alertLines.sort((a, b) => {
             const pa = parseAlertLine(a);
@@ -625,17 +626,26 @@ export async function runShiftStaffCheck(opts: {
             return pa.time.localeCompare(pb.time);
         });
 
-        // 表示は最大10日分まで
+        // ①「直近N日シフト勤務がない」は必ず表示する
+        const inactiveLines = alertLines.filter((x) =>
+            x.includes(`直近${inactiveDays}日はシフト勤務がありません`)
+        );
+
+        // それ以外だけ日付制限をかける
+        const otherLines = alertLines.filter((x) =>
+            !x.includes(`直近${inactiveDays}日はシフト勤務がありません`)
+        );
+
+        // 表示は最大7日分まで
         const MAX_DAYS = 7;
         const seenDates = new Set<string>();
-        const limitedLines: string[] = [];
+        const limitedOtherLines: string[] = [];
 
-        for (const line of alertLines) {
+        for (const line of otherLines) {
             const { date } = parseAlertLine(line);
 
-            // 日付が取れない行は一応そのまま通す
             if (!date) {
-                limitedLines.push(line);
+                limitedOtherLines.push(line);
                 continue;
             }
 
@@ -644,11 +654,14 @@ export async function runShiftStaffCheck(opts: {
                 seenDates.add(date);
             }
 
-            limitedLines.push(line);
+            limitedOtherLines.push(line);
         }
 
-        const criticalLines = limitedLines.filter((x) => x.startsWith("【最優先】"));
-        const normalLines = limitedLines.filter((x) => !x.startsWith("【最優先】"));
+        // ①は必ず先頭に残す
+        const mergedLines = [...inactiveLines, ...limitedOtherLines];
+
+        const criticalLines = mergedLines.filter((x) => x.startsWith("【最優先】"));
+        const normalLines = mergedLines.filter((x) => !x.startsWith("【最優先】"));
 
         const header =
             `【★★★シフト漏れチェック】確認放置しないこと\n` +
