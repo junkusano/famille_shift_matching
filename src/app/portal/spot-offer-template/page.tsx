@@ -110,6 +110,21 @@ function BoolSelect({
   );
 }
 
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <div className="text-[11px] text-muted-foreground">
+      {children}
+      {required && <span className="ml-1 text-red-600 font-semibold">*</span>}
+    </div>
+  );
+}
+
 export default function SpotOfferTemplatePage() {
   const role = useUserRole();
 
@@ -264,6 +279,23 @@ export default function SpotOfferTemplatePage() {
   const saveTemplate = async () => {
     try {
       setError(null);
+
+      if (!fTitle.trim()) {
+      throw new Error("タイトルは必須です");
+    }
+    if (!fMeetingPlace.trim()) {
+      throw new Error("住所は必須です");
+    }
+    if (!fMeetingPlaceBanchi.trim()) {
+      throw new Error("番地は必須です");
+    }
+    if (!fStartAt.trim()) {
+      throw new Error("開始時間は必須です");
+    }
+    if (!fEndAt.trim()) {
+      throw new Error("終了時間は必須です");
+    }
+
 
       const payload: Partial<SpotOfferTemplateUnified> = {
         timee_offer_id: fTimeeOfferId.trim() || null,
@@ -515,7 +547,8 @@ export default function SpotOfferTemplatePage() {
               <div className="text-sm font-semibold">基本情報</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">タイトル</div>
+                  <div className="md:col-span-2 xl:col-span-3"></div>
+                  <FieldLabel required>タイトル</FieldLabel>
                   <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
                 </div>
                 <div>
@@ -545,11 +578,13 @@ export default function SpotOfferTemplatePage() {
                   <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">住所</div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <FieldLabel required>住所</FieldLabel> 
                   <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所番地</div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <FieldLabel required>番地</FieldLabel>
                   <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
                 </div>
                 <div>
@@ -571,11 +606,11 @@ export default function SpotOfferTemplatePage() {
                   <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">開始時間</div>
+                  <FieldLabel required>開始時間</FieldLabel>
                   <Input value={fStartAt} onChange={(e) => setFStartAt(e.target.value)} placeholder="0930 / 09:30" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">終了時間</div>
+                  <FieldLabel required>終了時間</FieldLabel>
                   <Input value={fEndAt} onChange={(e) => setFEndAt(e.target.value)} placeholder="1730 / 17:30" />
                 </div>
               </div>
