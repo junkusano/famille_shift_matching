@@ -18,6 +18,7 @@ type StaffInfoRow = {
     user_id: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
+    org_unit_id: string | null;
     orgunitname: string | null;
 };
 
@@ -58,12 +59,34 @@ function buildStaffName(row?: StaffInfoRow) {
     return `${row.last_name_kanji ?? ""}${row.first_name_kanji ?? ""}`.trim();
 }
 
+async function loadOrgMap(orgUnitIds: string[]): Promise<Map<string, string>> {
+    if (!orgUnitIds.length) return new Map();
+
+    const { data, error } = await supabaseAdmin
+        .from("orgs")
+        .select("orgunitid, orgunitname")
+        .in("orgunitid", orgUnitIds);
+
+    if (error) {
+        throw new Error(`orgs select failed: ${error.message}`);
+    }
+
+    const map = new Map<string, string>();
+    for (const row of (data ?? []) as Array<{ orgunitid: string; orgunitname: string }>) {
+        const orgId = String(row.orgunitid ?? "").trim();
+        const orgName = String(row.orgunitname ?? "").trim();
+        if (!orgId) continue;
+        map.set(orgId, orgName);
+    }
+    return map;
+}
+
 async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInfoRow>> {
     if (!userIds.length) return new Map();
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, last_name_kanji, first_name_kanji, orgunitname")
+        .select("user_id, last_name_kanji, first_name_kanji, org_unit_id, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -87,14 +110,19 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     const dryRun = args.dryRun ?? false;
 
     const now = new Date();
-    const day = now.getDate();
 
-    // 例: 2026-04-20 なら 2026-03 分を対象
+    // 実装開始日：2026-04-20
+    const rolloutDate = new Date(2026, 3, 20, 0, 0, 0, 0); // 2026-04-20
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // 2026-04時点で最初に見る対象月
+    const firstTargetMonth = "2026-03-01";
+
+    // 戻り値用
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
-    const targetMonth = monthStartStrFromYm(targetYm);
 
-    if (day < 20 && !args.forceDay20Rule) {
+    if (now < rolloutDate && !args.forceDay20Rule) {
         return {
             enabled: true,
             scanned: 0,
@@ -112,7 +140,8 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
         .select(
             "target_month, user_id, attended_regular, attended_extra, checked_regular, checked_extra, staff_comment"
         )
-        .eq("target_month", targetMonth)
+        .gte("target_month", firstTargetMonth)
+        .lt("target_month", monthStartStrFromYm(ymNow(currentMonthStart)))
         .eq("attended_regular", false)
         .eq("attended_extra", false);
 
@@ -146,6 +175,15 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     );
     const staffMap = await loadStaffInfoMap(userIds);
 
+    const orgUnitIds = Array.from(
+        new Set(
+            Array.from(staffMap.values())
+                .map((s) => String(s.org_unit_id ?? "").trim())
+                .filter(Boolean)
+        )
+    );
+    const orgMap = await loadOrgMap(orgUnitIds);
+
     let alertCount = 0;
     let errors = 0;
 
@@ -156,8 +194,12 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
         try {
             const staff = staffMap.get(userId);
             const staffName = buildStaffName(staff) || userId;
-            const orgName = String(staff?.orgunitname ?? "").trim();
 
+            const orgUnitId = String(staff?.org_unit_id ?? "").trim();
+            const orgName =
+                (orgUnitId ? String(orgMap.get(orgUnitId) ?? "").trim() : "") ||
+                String(staff?.orgunitname ?? "").trim();
+                
             const detailUrl =
                 `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
 
