@@ -18,6 +18,7 @@ type AttendanceRow = {
 type StaffInfoRow = {
     user_id: string | null;
     channel_id: string | null; // 人事労務サポートルーム
+    lw_userid: string | null;  // メンション用
     last_name_kanji: string | null;
     first_name_kanji: string | null;
     orgunitname: string | null;
@@ -71,7 +72,7 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
-        .select("user_id, channel_id, last_name_kanji, first_name_kanji, orgunitname")
+        .select("user_id, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
         .in("user_id", userIds);
 
     if (error) {
@@ -173,18 +174,24 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
 
             const staffName = buildStaffName(staff) || userId;
             const orgName = String(staff.orgunitname ?? "").trim();
+            const lwUserId = String(staff.lw_userid ?? "").trim();
 
             const detailUrl =
                 `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
 
+            const mentionLine = lwUserId
+                ? `<m userId="${lwUserId}">${staffName}さん</m>`
+                : `${staffName}さん`;
+
             const message =
-                `【月例会議 未対応】〈${formatYmJa(targetYm)}分〉\n` +
-                `${staffName}さん\n` +
-                `前月分の月例会議について、「月例」にチェックが入っていません。\n` +
-                `月例会議に参加できていない場合は、追加開催をお願いします。\n\n` +
-                `追加開催後は、月例会議ページで「追加」にチェックし、コメントを記入してください。\n` +
+                `【月例会議 未参加】〈${formatYmJa(targetYm)}分〉\n` +
+                `${mentionLine}\n` +
+                `前月分の月例会議について、参加が確認できていません。\n` +
+                `月例会議に参加している場合は、「月例」にチェックをお願いします。\n\n` +
+                `月例会議に参加できていない場合は、追加開催をお願いします。\n` +
+                `追加開催が終わっている場合は、マネージャーに「追加」を押してもらうよう依頼してください。\n` +
                 `コメントは、会議内容に対する所感や気づきを記入してください。\n\n` +
-                `チーム: ${orgName || "未設定"}\n` +
+                `チーム: ${orgName || "未設定"}\n\n` +
                 `${detailUrl}`;
 
             if (!dryRun) {
