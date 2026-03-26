@@ -180,16 +180,16 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
                 `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
 
             const mentionLine = lwUserId
-                ? `<m userId="${lwUserId}">${staffName}さん</m>`
-                : `${staffName}さん`;
+                ? `<m userId="${lwUserId}">さん`
+                : `＠${staffName}さん`;
 
             const message =
                 `【月例会議 未参加】〈${formatYmJa(targetYm)}分〉\n` +
                 `${mentionLine}\n` +
                 `前月分の月例会議について、参加が確認できていません。\n` +
                 `月例会議に参加している場合は、「月例」にチェックをお願いします。\n\n` +
-                `月例会議に参加できていない場合は、追加開催をお願いします。\n` +
-                `追加開催が終わっている場合は、マネージャーに「追加」を押してもらうよう依頼してください。\n` +
+                `月例会議に参加できていない場合は、マネージャーと話して追加開催を行ってください。\n` +
+                `追加開催が終わっている場合は、マネージャーに「追加」のチェックを入れてもらうよう依頼してください。\n` +
                 `コメントは、会議内容に対する所感や気づきを記入してください。\n\n` +
                 `チーム: ${orgName || "未設定"}\n\n` +
                 `${detailUrl}`;
