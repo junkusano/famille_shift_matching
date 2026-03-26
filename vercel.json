@@ -75,6 +75,14 @@
     {
       "path": "/api/cron/disability-check-collected",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/cron/monthly-meeting-unchecked-lineworks",
+      "schedule": "3 0 * * *"
+    },
+    {
+      "path": "/api/cron/monthly-meeting-unchecked-alertbar",
+      "schedule": "8 0 * * *"
     }
   ]
 }
