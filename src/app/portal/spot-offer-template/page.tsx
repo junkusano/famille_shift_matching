@@ -209,7 +209,6 @@ type ParkingPreview = {
 
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
-  const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
   const fetchList = async () => {
     try {
@@ -288,6 +287,7 @@ type ParkingPreview = {
   };
 }, [fKaipokeCsId]);
 
+useEffect(() => {
     void fetchList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -346,7 +346,7 @@ type ParkingPreview = {
     setFSmokingPolicy(row.smoking_policy ?? "");
     setFSmokingAreaWork(row.smoking_area_work ?? null);
     setFRequiresLicense(row.requires_license ?? null);
-    setFRequiredLicensesText((row.required_licenses ?? []).join("\n"));
+    setFRequiredLicenses(row.required_licenses ?? []);
     setFBenefitsText((row.benefits ?? []).join("\n"));
     setFBelongingsText((row.belongings ?? []).join("\n"));
     setFInternalLabel(row.internal_label ?? "");
@@ -763,9 +763,7 @@ type ParkingPreview = {
                   <BoolSelect
                     label="資格必須"
                     value={fRequiresLicense}
-                    onChange={setFRequiresLicense}
-                    trueLabel="必要"
-                    falseLabel="不要"  />
+                    onChange={setFRequiresLicense} />
 
                   <div className="md:col-span-2 xl:col-span-3">
       <FieldLabel>必要資格</FieldLabel>
@@ -804,8 +802,8 @@ type ParkingPreview = {
         Ctrl または Command を押しながらクリックすると複数選択できます
       </div>
     </div>
-</div>
-
+  </div>
+ </div>
             <div>
               <div className="text-sm font-semibold">メッセージ</div>
                 <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
