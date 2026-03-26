@@ -59,28 +59,6 @@ function buildStaffName(row?: StaffInfoRow) {
     return `${row.last_name_kanji ?? ""}${row.first_name_kanji ?? ""}`.trim();
 }
 
-async function loadOrgMap(orgUnitIds: string[]): Promise<Map<string, string>> {
-    if (!orgUnitIds.length) return new Map();
-
-    const { data, error } = await supabaseAdmin
-        .from("orgs")
-        .select("orgunitid, orgunitname")
-        .in("orgunitid", orgUnitIds);
-
-    if (error) {
-        throw new Error(`orgs select failed: ${error.message}`);
-    }
-
-    const map = new Map<string, string>();
-    for (const row of (data ?? []) as Array<{ orgunitid: string; orgunitname: string }>) {
-        const orgId = String(row.orgunitid ?? "").trim();
-        const orgName = String(row.orgunitname ?? "").trim();
-        if (!orgId) continue;
-        map.set(orgId, orgName);
-    }
-    return map;
-}
-
 async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInfoRow>> {
     if (!userIds.length) return new Map();
 
@@ -175,15 +153,6 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     );
     const staffMap = await loadStaffInfoMap(userIds);
 
-    const orgUnitIds = Array.from(
-        new Set(
-            Array.from(staffMap.values())
-                .map((s) => String(s.org_unit_id ?? "").trim())
-                .filter(Boolean)
-        )
-    );
-    const orgMap = await loadOrgMap(orgUnitIds);
-
     let alertCount = 0;
     let errors = 0;
 
@@ -194,12 +163,8 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
         try {
             const staff = staffMap.get(userId);
             const staffName = buildStaffName(staff) || userId;
+            const orgName = String(staff?.orgunitname ?? "").trim();
 
-            const orgUnitId = String(staff?.org_unit_id ?? "").trim();
-            const orgName =
-                (orgUnitId ? String(orgMap.get(orgUnitId) ?? "").trim() : "") ||
-                String(staff?.orgunitname ?? "").trim();
-                
             const detailUrl =
                 `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
 
@@ -211,12 +176,15 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
                 `チーム: ${orgName || "未設定"}`;
 
             if (!dryRun) {
+                const orgUnitId = String(staff?.org_unit_id ?? "").trim();
+
                 await ensureSystemAlert({
                     message,
                     shift_id: `monthly_meeting:unchecked:${targetYm}:${userId}`,
                     user_id: userId,
                     kaipoke_cs_id: null,
                     rpa_request_id: null,
+                    assigned_org_id: orgUnitId || null,
                 });
             }
 
