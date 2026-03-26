@@ -578,7 +578,10 @@ export default function MonthlyMeetingCheckPage() {
                     <div>マネージャー確認 → 「月例（確認）」にチェック（※マネージャーのみ）</div>
 
                     <div className="mt-3 font-semibold text-black">月例に参加できない場合</div>
-                    <div>追加会議に参加 → 「追加」にチェック</div>
+                    <div>追加会議に参加 → 「追加」にチェックし、コメントを記入</div>
+                    <div className="text-gray-600 ml-2">
+                        ※コメント内容：会議内容に対する所感や気づきを記入してください
+                    </div>
                     <div>マネージャー確認 → 「追加（確認）」にチェック（※マネージャーのみ）</div>
                 </div>
 
@@ -763,7 +766,13 @@ export default function MonthlyMeetingCheckPage() {
 
                                         {/* コメント（入力） */}
                                         <td className="border p-2">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-1">
+                                                {e.attended_extra && (
+                                                    <div className="text-red-500 text-xs font-semibold">
+                                                        ※必須
+                                                    </div>
+                                                )}
+
                                                 <input
                                                     className="border rounded px-2 py-1 w-full"
                                                     value={e.staff_comment}
@@ -773,7 +782,11 @@ export default function MonthlyMeetingCheckPage() {
                                                             [r.user_id]: { ...e, staff_comment: ev.target.value },
                                                         }))
                                                     }
-                                                    placeholder="コメント"
+                                                    placeholder={
+                                                        e.attended_extra
+                                                            ? "※必須：会議内容に対する所感や気づきを記入"
+                                                            : "コメント"
+                                                    }
                                                 />
                                                 <button
                                                     type="button"
