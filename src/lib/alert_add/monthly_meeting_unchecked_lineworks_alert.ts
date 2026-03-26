@@ -96,14 +96,19 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     const dryRun = args.dryRun ?? false;
 
     const now = new Date();
-    const day = now.getDate();
 
-    // 例: 2026-04-15 なら 2026-03 分を対象
+    // 実装開始日：2026-04-15
+    const rolloutDate = new Date(2026, 3, 15, 0, 0, 0, 0); // 2026-04-15
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // 通知対象の最古月：2026-03-01
+    const firstTargetMonth = "2026-03-01";
+
+    // 画面表示用（戻り値用）
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
-    const targetMonth = monthStartStrFromYm(targetYm);
 
-    if (day < 15 && !args.forceDay15Rule) {
+    if (now < rolloutDate && !args.forceDay15Rule) {
         return {
             enabled: true,
             scanned: 0,
@@ -121,8 +126,10 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
         .select(
             "target_month, user_id, attended_regular, attended_extra, checked_regular, checked_extra, staff_comment"
         )
-        .eq("target_month", targetMonth)
-        .eq("attended_regular", false);
+        .gte("target_month", firstTargetMonth)
+        .lt("target_month", monthStartStrFromYm(ymNow(currentMonthStart)))
+        .eq("attended_regular", false)
+        .eq("attended_extra", false);
 
     if (args.targetUserId) {
         q = q.eq("user_id", args.targetUserId);
