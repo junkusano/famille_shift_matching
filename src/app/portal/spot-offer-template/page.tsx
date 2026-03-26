@@ -451,13 +451,13 @@ useEffect(() => {
 
   const openRpaDialog = (row: SpotOfferTemplateUnified) => {
     setRpaTarget(row);
-    setShiftStartDate("");
-    setShiftStartTime("");
-    setShiftEndDate("");
-    setShiftEndTime("");
+     if (!shiftStartTime && fStartAt) {
+      setShiftStartTime(fStartAt);
+     }
+      if (!shiftEndTime && fEndAt) {
+      setShiftEndTime(fEndAt);
+     }  
     setOpenRpa(true);
-    setBreakStartTime("");
-    setBreakEndTime("");
   };
 
   const sendRpaRequest = async () => {
@@ -649,7 +649,7 @@ useEffect(() => {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">内部ラベル</div>
-                  <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：急募/夜勤" />
+                  <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
                 </div>
                 <div>
                  <FieldLabel>カイポケCS ID</FieldLabel>
@@ -746,16 +746,57 @@ useEffect(() => {
                   <div className="text-[11px] text-muted-foreground">交通費</div>
                   <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
                 </div>
+             </div>
+             </div>
+             
+             <div>
+              <div className="text-sm font-semibold">勤務時間</div>
+             <div>
+                <FieldLabel>シフト開始日</FieldLabel>
+                <Input
+                  type="date"
+                  value={shiftStartDate}
+                  onChange={(e) => setShiftStartDate(e.target.value)}
+               />
+              </div>
+              </div>
+
+             <div>
+             <FieldLabel>シフト終了日</FieldLabel>
+             <Input
+               type="date"
+               value={shiftEndDate}
+               onChange={(e) => setShiftEndDate(e.target.value)}
+              />
+                      </div>
+ 
                 <div>
                   <FieldLabel required>開始時間</FieldLabel>
-                  <Input value={fStartAt} onChange={(e) => setFStartAt(e.target.value)} placeholder="0930 / 09:30" />
+                  <Input value={fStartAt} onChange={(e) => { setFStartAt(e.target.value);setShiftStartTime(e.target.value); }} placeholder="0930 / 09:30" />
                 </div>
                 <div>
                   <FieldLabel required>終了時間</FieldLabel>
-                  <Input value={fEndAt} onChange={(e) => setFEndAt(e.target.value)} placeholder="1730 / 17:30" />
+                  <Input value={fEndAt} onChange={(e) => { setFEndAt(e.target.value);setShiftEndTime(e.target.value); }} placeholder="1730 / 17:30" />
                 </div>
+
+               <div>
+                <FieldLabel>休憩開始時間</FieldLabel>
+                <Input
+                  value={breakStartTime}
+                  onChange={(e) => setBreakStartTime(e.target.value)}
+                  placeholder="1200 / 12:00"
+                />
               </div>
-            </div>
+
+              <div>
+                <FieldLabel>休憩終了時間</FieldLabel>
+                <Input
+                  value={breakEndTime}
+                  onChange={(e) => setBreakEndTime(e.target.value)}
+                  placeholder="1230 / 12:30"
+                />
+              </div>
+
 
             <div>
               <div className="text-sm font-semibold">資格</div>
@@ -808,36 +849,12 @@ useEffect(() => {
               <div className="text-sm font-semibold">メッセージ</div>
                 <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
                 <div className="md:col-span-2 xl:col-span-2">
-                  <div className="text-[11px] text-muted-foreground">matching_msg</div>
+                  <div className="text-[11px] text-muted-foreground">マッチングメッセージ
+                  </div>
                   <Textarea value={fMatchingMsg} onChange={(e) => setFMatchingMsg(e.target.value)} rows={3} />
                 </div>
               </div>
 
-            <div>
-              <div className="text-sm font-semibold">配列項目</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <div className="text-[11px] text-muted-foreground">福利厚生（benefits / 改行区切り）</div>
-                  <Textarea value={fBenefitsText} onChange={(e) => setFBenefitsText(e.target.value)} rows={4} />
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">持ち物（belongings / 改行区切り）</div>
-                  <Textarea value={fBelongingsText} onChange={(e) => setFBelongingsText(e.target.value)} rows={4} />
-                </div>
-                <div className="md:col-span-2">
-                  <div className="text-[11px] text-muted-foreground">写真URL（photo_urls / 改行区切り）</div>
-                  <Textarea value={fPhotoUrlsText} onChange={(e) => setFPhotoUrlsText(e.target.value)} rows={4} />
-                </div>
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">注意事項</div>
-                  <Textarea value={fCautions} onChange={(e) => setFCautions(e.target.value)} rows={3} />
-                </div>
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">自動メッセージ</div>
-                  <Textarea value={fAutoMsg} onChange={(e) => setFAutoMsg(e.target.value)} rows={3} />
-                </div>                
-              </div>
-            </div>
 
             <div>
               <div className="text-sm font-semibold">ID / 連携情報</div>
