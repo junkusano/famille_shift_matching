@@ -163,11 +163,10 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
 
             const message =
                 `【月例会議 未対応】〈${formatYmJa(targetYm)}分〉\n` +
-                `${staffName}さん\n` +
+                `<a href="${detailUrl}">${staffName}さん</a>\n` +
                 `20日を過ぎても、月例会議の「月例」または「追加」にチェックが入っていません。\n` +
                 `追加開催が未実施の可能性があります。至急ご確認ください。\n\n` +
-                `チーム: ${orgName || "未設定"}\n` +
-                `<a href="${detailUrl}">月例会議ページを開く</a>`;
+                `チーム: ${orgName || "未設定"}`;
 
             if (!dryRun) {
                 await ensureSystemAlert({
