@@ -38,7 +38,15 @@ export type CmOperationLog = {
   env: string;
 };
 
-/** audit.data_change_logs の行 */
+/**
+ * audit.data_change_logs の行
+ *
+ * old_data / new_data はオプショナル:
+ *   - タイムライン一覧取得時はメモリ削減のため除外して取得する
+ *   - 詳細表示時に cmGetDataChangeDetail() で1件ずつ遅延読み込みする
+ *   - 変更経緯: Supabase Nano プラン（512MB）でメモリ制約が顕在化したため、
+ *     設計書の「全取得」方針を見直し遅延読み込みに変更（2026-03）
+ */
 export type CmDataChangeLog = {
   id: number;
   timestamp: string;
@@ -46,8 +54,8 @@ export type CmDataChangeLog = {
   table_name: string;
   operation: "INSERT" | "UPDATE" | "DELETE";
   record_id: string | null;
-  old_data: Record<string, unknown> | null;
-  new_data: Record<string, unknown> | null;
+  old_data?: Record<string, unknown> | null;
+  new_data?: Record<string, unknown> | null;
   changed_fields: string[] | null;
   context_user_id: string | null;
   context_action: string | null;

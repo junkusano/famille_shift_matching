@@ -66,7 +66,9 @@ const CM_TIMELINE_DC_LIMIT_WITHOUT_DATE = 2000;
  * - page_views + operation_logs を時系列マージ
  * - trace_id で data_change_logs を紐付け
  * - user_id + 30分間隔でセッションに分割
- * - old_data / new_data は最初から全取得（遅延ロードしない — 設計書の決定）
+ * - old_data / new_data は一覧取得時に除外し、詳細表示時に
+ *   cmGetDataChangeDetail() で1件ずつ遅延読み込みする
+ *   （Supabase Nano プランのメモリ制約対応 — 2026-03 方針見直し）
  */
 export async function cmGetTimeline(
   filter: CmAuditLogFilter,
@@ -232,13 +234,20 @@ async function fetchOperationLogs(
   return { data: (data as CmOperationLog[]) ?? [], error: error?.message ?? null };
 }
 
+/**
+ * data_change_logs を取得する
+ *
+ * old_data / new_data はメモリ消費が大きいため除外し、
+ * 詳細表示時に cmGetDataChangeDetail() で1件ずつ遅延読み込みする。
+ * （旧: select("*") で全カラム取得 → メモリ制約で見直し 2026-03）
+ */
 async function fetchDataChangeLogs(
   filter: CmAuditLogFilter
 ): Promise<QueryResult<CmDataChangeLog>> {
   let query = supabaseAdmin
     .schema("audit")
     .from("data_change_logs")
-    .select("*");
+    .select("id, timestamp, schema_name, table_name, operation, record_id, changed_fields, context_user_id, context_action, context_trace_id");
 
   if (filter.start_date) query = query.gte("timestamp", filter.start_date);
   if (filter.end_date) query = query.lte("timestamp", filter.end_date);

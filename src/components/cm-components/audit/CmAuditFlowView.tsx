@@ -18,7 +18,11 @@ import {
   Database,
   Bot,
   Activity,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { cmGetDataChangeDetail } from "@/lib/cm/audit/getDataChangeDetail";
 import type {
   CmAuditSession,
   CmTimelineEvent,
@@ -178,6 +182,12 @@ function extractPathSub(path: string): string {
 /** セッションの表示名を取得する */
 function getDisplayName(session: CmAuditSession): string {
   return session.user_name ?? session.user_email ?? session.user_id.substring(0, 8);
+}
+
+/** アクセストークンを取得する */
+async function getAccessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? "";
 }
 
 // =============================================================
@@ -437,67 +447,134 @@ function CmDbDetailPanel({
   );
 }
 
+/**
+ * DB変更カード
+ *
+ * old_data / new_data が未取得（undefined）の場合は「詳細を表示」ボタンを表示し、
+ * クリック時に cmGetDataChangeDetail() で1件取得して展開する。
+ */
 function CmDbChangeCard({ change }: { change: CmDataChangeLog }) {
+  const [loadedChange, setLoadedChange] = useState<CmDataChangeLog | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // 表示に使用するデータ: 遅延読み込み済みならそちらを優先
+  const displayChange = loadedChange ?? change;
+
+  // old_data / new_data が未取得かどうか判定
+  // undefined = 未取得（遅延読み込み対象）、null = DBに値なし（取得済み）
+  const needsLazyLoad =
+    change.old_data === undefined && change.new_data === undefined && !loadedChange;
+
+  const handleLoadDetail = async () => {
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const token = await getAccessToken();
+      const result = await cmGetDataChangeDetail(change.id, token);
+      if (result.ok && result.data) {
+        setLoadedChange(result.data);
+      } else {
+        setDetailError(result.error ?? "詳細の取得に失敗しました");
+      }
+    } catch {
+      setDetailError("詳細の取得に失敗しました");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const fields =
-    change.changed_fields ??
-    (change.new_data ? Object.keys(change.new_data) : []);
+    displayChange.changed_fields ??
+    (displayChange.new_data ? Object.keys(displayChange.new_data) : []);
 
   return (
     <div className="rounded-lg border border-slate-200 overflow-hidden">
       {/* ヘッダー */}
       <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-100">
-        <CmOpBadge op={change.operation} />
+        <CmOpBadge op={displayChange.operation} />
         <span className="text-xs font-mono font-semibold text-slate-700">
-          {change.table_name}
+          {displayChange.table_name}
         </span>
       </div>
 
-      {/* UPDATE: 差分テーブル */}
-      {change.operation === "UPDATE" && change.old_data && change.new_data && (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-slate-100">
-              <th className="px-3 py-2 text-left font-medium text-slate-500">
-                フィールド
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-rose-400">
-                変更前
-              </th>
-              <th className="px-3 py-2 text-left font-medium text-emerald-500">
-                変更後
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {fields.map((field) => (
-              <tr key={field}>
-                <td className="px-3 py-2 font-mono text-slate-600">
-                  {field}
-                </td>
-                <td className="px-3 py-2 text-rose-600 bg-rose-50 break-all">
-                  {formatValue(change.old_data?.[field])}
-                </td>
-                <td className="px-3 py-2 text-emerald-700 bg-emerald-50 break-all">
-                  {formatValue(change.new_data?.[field])}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* 遅延読み込みが必要な場合: 「詳細を表示」ボタン */}
+      {needsLazyLoad && (
+        <div className="px-3 py-3">
+          {detailError && (
+            <p className="text-xs text-rose-600 mb-2">{detailError}</p>
+          )}
+          <button
+            onClick={handleLoadDetail}
+            disabled={detailLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 transition-colors disabled:opacity-50"
+          >
+            {detailLoading ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                読み込み中…
+              </>
+            ) : (
+              <>
+                <ChevronDown size={12} />
+                詳細を表示
+              </>
+            )}
+          </button>
+        </div>
       )}
 
-      {/* INSERT: 新規データJSON */}
-      {change.operation === "INSERT" && change.new_data && (
-        <pre className="text-xs font-mono text-slate-600 p-3 bg-slate-50 whitespace-pre-wrap break-all">
-          {JSON.stringify(change.new_data, null, 2)}
-        </pre>
-      )}
+      {/* 読み込み済み: データ表示 */}
+      {!needsLazyLoad && (
+        <>
+          {/* UPDATE: 差分テーブル */}
+          {displayChange.operation === "UPDATE" && displayChange.old_data && displayChange.new_data && (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="px-3 py-2 text-left font-medium text-slate-500">
+                    フィールド
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-rose-400">
+                    変更前
+                  </th>
+                  <th className="px-3 py-2 text-left font-medium text-emerald-500">
+                    変更後
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {fields.map((field) => (
+                  <tr key={field}>
+                    <td className="px-3 py-2 font-mono text-slate-600">
+                      {field}
+                    </td>
+                    <td className="px-3 py-2 text-rose-600 bg-rose-50 break-all">
+                      {formatValue(displayChange.old_data?.[field])}
+                    </td>
+                    <td className="px-3 py-2 text-emerald-700 bg-emerald-50 break-all">
+                      {formatValue(displayChange.new_data?.[field])}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
-      {/* DELETE: 削除データJSON */}
-      {change.operation === "DELETE" && change.old_data && (
-        <pre className="text-xs font-mono text-slate-600 p-3 bg-slate-50 whitespace-pre-wrap break-all">
-          {JSON.stringify(change.old_data, null, 2)}
-        </pre>
+          {/* INSERT: 新規データJSON */}
+          {displayChange.operation === "INSERT" && displayChange.new_data && (
+            <pre className="text-xs font-mono text-slate-600 p-3 bg-slate-50 whitespace-pre-wrap break-all">
+              {JSON.stringify(displayChange.new_data, null, 2)}
+            </pre>
+          )}
+
+          {/* DELETE: 削除データJSON */}
+          {displayChange.operation === "DELETE" && displayChange.old_data && (
+            <pre className="text-xs font-mono text-slate-600 p-3 bg-slate-50 whitespace-pre-wrap break-all">
+              {JSON.stringify(displayChange.old_data, null, 2)}
+            </pre>
+          )}
+        </>
       )}
     </div>
   );
