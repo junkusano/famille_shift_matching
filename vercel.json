@@ -78,11 +78,11 @@
     },
     {
       "path": "/api/cron/monthly-meeting-unchecked-lineworks",
-      "schedule": "3 0 * * *"
+      "schedule": "3 0 5 * *"
     },
     {
       "path": "/api/cron/monthly-meeting-unchecked-alertbar",
-      "schedule": "8 0 * * *"
+      "schedule": "8 0 5 * *"
     }
   ]
 }
