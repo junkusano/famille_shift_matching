@@ -659,8 +659,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                         <div
                                             style={{
                                                 position: "absolute",
-                                                right: 10,
-                                                bottom: 6,
+                                                right: 1,
+                                                bottom: 1,
                                                 minWidth: 22,
                                                 height: 22,
                                                 padding: "0 4px",
