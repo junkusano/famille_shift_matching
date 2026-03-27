@@ -52,7 +52,6 @@ const dispHHmm = (t: string) => {
     return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t.slice(0, 5);
 };
 
-
 function parseCardCompositeId(id: string) {
     const idx = id.lastIndexOf("_");
     if (idx < 0) return { shiftId: Number(id), staffId: "" };
@@ -466,6 +465,21 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         const rowIdx = rowIndexByStaff.get(c.staff_id);
         // ★ カードのtopに HEADER_H を二重加算しない
         const topPx = rowIdx != null ? rowIdx * ROW_HEIGHT + CARD_VPAD : CARD_VPAD;
+
+        const bg =
+            c.staff_slot === 2
+                ? "rgba(134, 239, 172, 0.45)"   // 薄い緑
+                : c.staff_slot === 3
+                    ? "rgba(216, 180, 254, 0.45)" // 薄い紫
+                    : "rgba(59, 130, 246, 0.28)"; // 既存の青
+
+        const bd =
+            c.staff_slot === 2
+                ? "1px solid rgba(34, 197, 94, 0.65)"
+                : c.staff_slot === 3
+                    ? "1px solid rgba(168, 85, 247, 0.65)"
+                    : "1px solid rgba(59, 130, 246, 0.55)";
+
         return {
             position: "absolute",
             top: topPx,
@@ -473,8 +487,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             width: widthPx(dispHHmm(c.start_at), dispHHmm(c.end_at)),
             height: ROW_HEIGHT - CARD_VPAD * 2,
             borderRadius: 6,
-            background: "rgba(59, 130, 246, 0.28)",    // 青系をやや透過
-            border: "1px solid rgba(59, 130, 246, 0.55)",
+            background: bg,
+            border: bd,
             mixBlendMode: "multiply",
             overflow: "hidden",
             display: "flex",
@@ -628,7 +642,10 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
                                     onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                 >
-                                    <div className="text-[15px] font-semibold">{dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}</div>
+                                    <div className="text-[15px] font-semibold">
+                                        {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
+                                    </div>
+
                                     <a
                                         href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(c.kaipoke_cs_id))}&month=${encodeURIComponent(monthStr)}`}
                                         rel="noreferrer"
@@ -637,7 +654,35 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                     >
                                         {c.client_name}：{c.service_code ?? ''}
                                     </a>
+
+                                    {c.dsp_short ? (
+                                        <div
+                                            style={{
+                                                position: "absolute",
+                                                right: 10,
+                                                bottom: 6,
+                                                minWidth: 22,
+                                                height: 22,
+                                                padding: "0 4px",
+                                                borderRadius: 9999,
+                                                border: "1px solid #9ca3af",
+                                                background: "rgba(255,255,255,0.92)",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                fontSize: 11,
+                                                fontWeight: 700,
+                                                lineHeight: 1,
+                                                color: "#374151",
+                                                pointerEvents: "none",
+                                            }}
+                                        >
+                                            {c.dsp_short}
+                                        </div>
+                                    ) : null}
+
                                     <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
+
                                     {deletable && (
                                         <button
                                             type="button"

@@ -11,14 +11,16 @@ export type RosterStaff = {
 
 
 export type RosterShiftCard = {
-    id: string; // `${shift_id}_${staff_id}`
-    staff_id: string; // 表示行のスタッフID（= RosterStaff.id と一致必須）
-    start_at: string; // HH:mm
-    end_at: string; // HH:mm
-    client_name: string; // 利用者名
-    service_code: string; // サービスコード
-    service_name: string; // サービス名
-    kaipoke_cs_id?: string | number; // カイポケ顧客サービスID
+    id: string;
+    staff_id: string;
+    start_at: string;
+    end_at: string;
+    client_name: string;
+    service_code: string;
+    service_name: string;
+    kaipoke_cs_id?: string | number;
+    dsp_short?: string | null;
+    staff_slot?: 1 | 2 | 3;
 };
 
 

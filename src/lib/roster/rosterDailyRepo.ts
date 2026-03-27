@@ -34,6 +34,7 @@ interface ShiftRowView {
   service_name: string | null;
   service_code: string | null;
   kaipoke_cs_id?: string | number;
+  dsp_short?: string | null;
 }
 
 interface ShiftRowFallback {
@@ -48,6 +49,7 @@ interface ShiftRowFallback {
   kaipoke_servicecode: string | null; // service_name
   service_code: string | null;
   kaipoke_cs_id?: string | number;
+  dsp_short?: string | null;
 }
 
 const makeFullName = (last?: string | null, first?: string | null) => `${last ?? ""}${first ?? ""}`;
@@ -94,9 +96,10 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   // -- 2) shifts：既存ロジックのまま（まず roster_view、無ければ postalname_view）
   const shiftSel = [
-    "shift_id","shift_date","start_at","end_at",
-    "staff_id_1","staff_id_2","staff_id_3",
-    "client_name","service_name","service_code","kaipoke_cs_id",
+    "shift_id", "shift_date", "start_at", "end_at",
+    "staff_id_1", "staff_id_2", "staff_id_3",
+    "client_name", "service_name", "service_code", "kaipoke_cs_id",
+    "dsp_short",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
@@ -114,9 +117,10 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   if (!shiftRows) {
     const fbSel = [
-      "shift_id","shift_start_date","shift_start_time","shift_end_time",
-      "staff_01_user_id","staff_02_user_id","staff_03_user_id",
-      "name","kaipoke_servicecode","service_code","kaipoke_cs_id",
+      "shift_id", "shift_start_date", "shift_start_time", "shift_end_time",
+      "staff_01_user_id", "staff_02_user_id", "staff_03_user_id",
+      "name", "kaipoke_servicecode", "service_code", "kaipoke_cs_id",
+      "dsp_short",
     ].join(",");
 
     const { data, error } = await SB
@@ -141,6 +145,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         service_name: r.kaipoke_servicecode,
         service_code: r.service_code,
         kaipoke_cs_id: r.kaipoke_cs_id,
+        dsp_short: r.dsp_short,
       }));
     }
   }
@@ -155,6 +160,8 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     sn: string | null,
     sc: string | null,
     kcid?: string | number,
+    dspShort?: string | null,
+    staffSlot?: 1 | 2 | 3,
   ): RosterShiftCard => ({
     id: `${sid}_${uid ?? ""}`,
     staff_id: String(uid),
@@ -164,13 +171,15 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     service_name: sn ?? "",
     service_code: sc ?? "",
     kaipoke_cs_id: kcid ?? "",
+    dsp_short: dspShort ?? null,
+    staff_slot: staffSlot,
   });
 
   const shifts: RosterShiftCard[] = [];
   for (const r of shiftRows ?? []) {
-    if (r.staff_id_1) shifts.push(makeCard(r.shift_id, r.staff_id_1, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
-    if (r.staff_id_2) shifts.push(makeCard(r.shift_id, r.staff_id_2, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
-    if (r.staff_id_3) shifts.push(makeCard(r.shift_id, r.staff_id_3, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code,r.kaipoke_cs_id ));
+    if (r.staff_id_1) shifts.push(makeCard(r.shift_id, r.staff_id_1, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code, r.kaipoke_cs_id, r.dsp_short, 1));
+    if (r.staff_id_2) shifts.push(makeCard(r.shift_id, r.staff_id_2, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code, r.kaipoke_cs_id, r.dsp_short, 2));
+    if (r.staff_id_3) shifts.push(makeCard(r.shift_id, r.staff_id_3, r.start_at, r.end_at, r.client_name, r.service_name, r.service_code, r.kaipoke_cs_id, r.dsp_short, 3));
   }
 
   if (shifts.length === 0) console.warn("[roster] no shifts for", date);
