@@ -246,7 +246,6 @@ type ParkingPreview = {
 
        setRows(merged);
 
-      setRows(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -768,65 +767,82 @@ useEffect(() => {
 
             <div>
               <div className="text-sm font-semibold">勤務条件</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] text-muted-foreground">時給</div>
-                  <Input value={fUnitAmount} onChange={(e) => setFUnitAmount(e.target.value)} placeholder="例：1500" inputMode="numeric" />
-                </div>                
-                <div>
-                  <div className="text-[11px] text-muted-foreground">交通費</div>
-                  <Input value={fCommuteFee} onChange={(e) => setFCommuteFee(e.target.value)} placeholder="例：200" inputMode="numeric" />
-                </div>
-             </div>
-             </div>
-             
-             <div>
-              <div className="text-sm font-semibold">勤務時間</div>
-             <div>
-                <FieldLabel>シフト開始日</FieldLabel>
-                <Input
-                  type="date"
-                  value={shiftStartDate}
-                  onChange={(e) => setShiftStartDate(e.target.value)}
-               />
-              </div>
-              </div>
+  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+    <div>
+      <div className="text-[11px] text-muted-foreground">時給</div>
+      <Input
+        value={fUnitAmount}
+        onChange={(e) => setFUnitAmount(e.target.value)}
+        placeholder="例：1500"
+        inputMode="numeric"
+      />
+    </div>
 
-             <div>
-             <FieldLabel>シフト終了日</FieldLabel>
-             <Input
-               type="date"
-               value={shiftEndDate}
-               onChange={(e) => setShiftEndDate(e.target.value)}
-              />
-                      </div>
- 
-                <div>
-                  <FieldLabel required>開始時間</FieldLabel>
-                  <Input value={fStartAt} onChange={(e) => { setFStartAt(e.target.value);setShiftStartTime(e.target.value); }} placeholder="0930 / 09:30" />
-                </div>
-                <div>
-                  <FieldLabel required>終了時間</FieldLabel>
-                  <Input value={fEndAt} onChange={(e) => { setFEndAt(e.target.value);setShiftEndTime(e.target.value); }} placeholder="1730 / 17:30" />
-                </div>
+    <div>
+      <div className="text-[11px] text-muted-foreground">交通費</div>
+      <Input
+        value={fCommuteFee}
+        onChange={(e) => setFCommuteFee(e.target.value)}
+        placeholder="例：200"
+        inputMode="numeric"
+      />
+    </div>
 
-               <div>
-                <FieldLabel>休憩開始時間</FieldLabel>
-                <Input
-                  value={breakStartTime}
-                  onChange={(e) => setBreakStartTime(e.target.value)}
-                  placeholder="1200 / 12:00"
-                />
-              </div>
+    <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel>シフト日程</FieldLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+          type="date"
+          value={shiftStartDate}
+          onChange={(e) => setShiftStartDate(e.target.value)}
+        />
+        <Input
+          type="date"
+          value={shiftEndDate}
+          onChange={(e) => setShiftEndDate(e.target.value)}
+        />
+      </div>
+    </div>
 
-              <div>
-                <FieldLabel>休憩終了時間</FieldLabel>
-                <Input
-                  value={breakEndTime}
-                  onChange={(e) => setBreakEndTime(e.target.value)}
-                  placeholder="1230 / 12:30"
-                />
-              </div>
+    <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel required>勤務時間 ※リクエスト作成時に変更可</FieldLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+          value={fStartAt}
+          onChange={(e) => {
+            setFStartAt(e.target.value);
+            setShiftStartTime(e.target.value);
+          }}
+          placeholder="開始時間 例：0930 / 09:30"
+        />
+        <Input
+          value={fEndAt}
+          onChange={(e) => {
+            setFEndAt(e.target.value);
+            setShiftEndTime(e.target.value);
+          }}
+          placeholder="終了時間 例：1730 / 17:30"
+        />
+      </div>
+    </div>
+
+    <div className="md:col-span-2 xl:col-span-3">
+      <FieldLabel>休憩時間</FieldLabel>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Input
+          value={breakStartTime}
+          onChange={(e) => setBreakStartTime(e.target.value)}
+          placeholder="休憩開始 例：1200 / 12:00"
+        />
+        <Input
+          value={breakEndTime}
+          onChange={(e) => setBreakEndTime(e.target.value)}
+          placeholder="休憩終了 例：1230 / 12:30"
+        />
+      </div>
+    </div>
+  </div>
+</div>  
 
 
             <div>
