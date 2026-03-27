@@ -140,7 +140,11 @@ export default function SpotOfferTemplatePage() {
   const role = useUserRole();
 
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<SpotOfferTemplateUnified[]>([]);
+  type RowWithClient = SpotOfferTemplateUnified & {
+    client_name?: string;
+  };
+
+  const [rows, setRows] = useState<RowWithClient[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
@@ -214,7 +218,34 @@ type ParkingPreview = {
     try {
       setLoading(true);
       setError(null);
-      const data = await spotApi.listTemplates({ q: q.trim() || undefined, limit: 300 });
+      const data = await spotApi.listTemplates();
+
+      const csIds = Array.from(
+        new Set(data.map((r) => r.kaipoke_cs_id).filter(Boolean))
+      );
+
+    let clientMap: Record<string, string> = {};
+    
+    if (csIds.length > 0) {
+      const { data: clients } = await supabase
+      .from("cs_kaipoke_info")
+      .select("kaipoke_cs_id, name")
+      .in("kaipoke_cs_id", csIds);
+
+      clientMap = Object.fromEntries(
+        (clients ?? []).map((c) => [c.kaipoke_cs_id, c.name])
+       );
+     } 
+
+     const merged = data.map((r) => ({
+      ...r,
+      client_name: r.kaipoke_cs_id
+       ? clientMap[r.kaipoke_cs_id] ?? "-"
+       : "-",
+       }));
+
+       setRows(merged);
+
       setRows(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -567,23 +598,22 @@ useEffect(() => {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[240px]">タイトル</TableHead>
+              <TableHead className="w-[180px]">利用者名</TableHead>
               <TableHead className="w-[260px]">住所</TableHead>
-              <TableHead className="w-[220px] whitespace-nowrap">給与</TableHead>
               <TableHead className="w-[180px] whitespace-nowrap">時間</TableHead>
-              <TableHead className="w-[160px] whitespace-nowrap">状態</TableHead>
               <TableHead className="w-[220px]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   データなし
                 </TableCell>
               </TableRow>
@@ -598,16 +628,17 @@ useEffect(() => {
                       core_id: {r.core_id}
                     </div>
                   </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {r.client_name ?? "-"}
+                  </TableCell>
                   <TableCell className="max-w-[260px]">
                     <div className="truncate" title={r.work_address ?? ""}>
                       {r.work_address ?? "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{r.salary ?? "-"}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     {timeForInput(r.start_at) || "-"} ～ {timeForInput(r.end_at) || "-"}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{r.status ?? "-"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => openUpdate(r)}>
