@@ -1,3 +1,4 @@
+//app/login/page.tsx
 'use client'
 
 import { useState } from 'react'
@@ -8,7 +9,9 @@ import { Button } from '@/components/ui/button'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState("");
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -62,6 +65,34 @@ export default function LoginPage() {
     setError('OAuth の開始に失敗しました（URLが取得できません）')
   }
 
+  const handlePasswordResetReinvite = async () => {
+    setResetLoading(true);
+    setResetMsg("");
+
+    try {
+      const res = await fetch("/api/auth/reset-password-reinvite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      setResetMsg(
+        json?.message ||
+        "該当するアカウントが存在する場合、パスワード設定メールを送信しました。メールをご確認ください。"
+      );
+    } catch {
+      setResetMsg(
+        "該当するアカウントが存在する場合、パスワード設定メールを送信しました。メールをご確認ください。"
+      );
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 max-w-md mx-auto">
       <h1 className="text-xl font-bold mb-4">ログイン</h1>
@@ -75,7 +106,7 @@ export default function LoginPage() {
           disabled={loading}
         >
           <img src="/icons/google.png" alt="" className="h-5 w-5" />
-          Googleでログイン
+          Googleでログイン（@shi-on.ne アカウントのみ使用可能）
         </Button>
 
         <Button
@@ -110,6 +141,23 @@ export default function LoginPage() {
         />
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={handlePasswordResetReinvite}
+            disabled={resetLoading}
+            className="w-full border border-gray-300 bg-white text-gray-700 py-2 rounded hover:bg-gray-50 transition disabled:opacity-60"
+          >
+            {resetLoading ? "送信中..." : "パスワード再設定メールを送る"}
+          </button>
+
+          <p className="text-xs text-gray-500">
+            入力したメールアドレス宛に、該当するアカウントが存在する場合のみ再設定メールを送信します。
+          </p>
+
+          {resetMsg && <p className="text-sm text-green-600">{resetMsg}</p>}
+        </div>
 
         <button
           type="submit"
