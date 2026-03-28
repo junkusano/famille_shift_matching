@@ -1,8 +1,11 @@
+//lib/lineworks/sendLWBotMessage.ts
 import { supabaseAdmin } from "@/lib/supabase/service";
 
-export async function sendLWBotMessage(channelId: string, text: string, accessToken: string) {
-  //lib/lineworks/sendLWBotMessage.ts
-
+export async function sendLWBotMessage(
+  channelId: string,
+  text: string,
+  accessToken: string
+) {
   let effectiveChannelId = channelId;
 
   const { data: secondaryMatch, error: secondaryError } = await supabaseAdmin
@@ -18,26 +21,22 @@ export async function sendLWBotMessage(channelId: string, text: string, accessTo
     );
   }
 
-  if (secondaryMatch && secondaryMatch.channel_id) {
-    // 渡された channelId は「隠し部屋」の ID だったので、
-    // メイン部屋の channel_id に差し替える
+  if (secondaryMatch?.channel_id) {
     effectiveChannelId = secondaryMatch.channel_id;
   }
 
-  //const botId = "6807147";  //ヘルパーサービス管理者
-  
-  const botId ="6807751"; //すまーとアイさん
+  const botId = "6807751";
   const url = `https://www.worksapis.com/v1.0/bots/${botId}/channels/${effectiveChannelId}/messages`;
 
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       content: {
-        type: 'text',
+        type: "text",
         text,
       },
     }),
@@ -46,5 +45,8 @@ export async function sendLWBotMessage(channelId: string, text: string, accessTo
   if (!res.ok) {
     const err = await res.text();
     console.error(`❌ メッセージ送信失敗: ${err}`);
+    throw new Error(`LINE WORKS message send failed: ${err}`);
   }
+
+  return true;
 }

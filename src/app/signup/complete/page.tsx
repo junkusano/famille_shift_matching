@@ -175,7 +175,8 @@ export default function SignupCompletePage() {
       {linked && !isOAuthUser && (
         <div className="border-t pt-4">
           <p className="text-sm text-gray-600 mb-2">
-            OAuthではないため、初回ログイン時にパスワード設定が必要です。
+            初回利用のため、パスワードを設定してください。
+            今後マイ・ファミーユへログインする際は、LINE WORKS に送信される認証コードの入力が必要です。
           </p>
 
           {/* 👇 ここが追加部分 */}
