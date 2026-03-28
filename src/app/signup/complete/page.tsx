@@ -15,6 +15,7 @@ export default function SignupCompletePage() {
   const router = useRouter();
 
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // ← 追加
   const [statusMsg, setStatusMsg] = useState("");
   const [statusType, setStatusType] = useState<StatusType>("");
   const [loading, setLoading] = useState(false);
@@ -40,8 +41,6 @@ export default function SignupCompletePage() {
 
         const user = session.user;
 
-        // 今回の判定方針:
-        // identities の provider に email 以外があれば OAuth ユーザー扱い
         const providers = (user.identities ?? [])
           .map((i) => i.provider)
           .filter(Boolean);
@@ -58,7 +57,6 @@ export default function SignupCompletePage() {
 
         setLoading(true);
 
-        // form_entries に該当メールがあるか確認
         const { data: entry, error: findErr } = await supabase
           .from("form_entries")
           .select("id,email,auth_uid")
@@ -82,8 +80,6 @@ export default function SignupCompletePage() {
           return;
         }
 
-        // auth_uid を紐付け
-        // 既存値が違っていても、現在のログイン user.id にそろえる
         const { error: updateErr } = await supabase
           .from("form_entries")
           .update({ auth_uid: user.id })
@@ -100,7 +96,7 @@ export default function SignupCompletePage() {
         if (oauthUser) {
           setStatusMsg("認証が完了しました。ポータルへ進めます。");
         } else {
-          setStatusMsg("初回ログインのため、パスワードを設定してください。");
+          setStatusMsg("初回ログイン／パスワード設定のため、パスワードを設定してください。");
         }
         setStatusType("success");
       } catch (e: unknown) {
@@ -182,13 +178,24 @@ export default function SignupCompletePage() {
             OAuthではないため、初回ログイン時にパスワード設定が必要です。
           </p>
 
-          <input
-            type="password"
-            placeholder="新しいパスワード（10文字以上）"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border rounded px-3 py-2 mb-2"
-          />
+          {/* 👇 ここが追加部分 */}
+          <div className="relative mb-2">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="新しいパスワード（10文字以上）"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border rounded px-3 py-2 pr-16"
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+            >
+              {showPassword ? "非表示" : "表示"}
+            </button>
+          </div>
 
           <button
             onClick={handleSetPassword}
