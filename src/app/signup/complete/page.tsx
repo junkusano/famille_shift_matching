@@ -20,10 +20,7 @@ export default function SignupCompletePage() {
   const [loading, setLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
 
-  // ✅ entry と紐付いたか
   const [linked, setLinked] = useState(false);
-
-  // ✅ OAuthっぽい（identity provider が email 以外）なら「パスワード設定は任意」にする
   const [isOAuthUser, setIsOAuthUser] = useState(false);
 
   useEffect(() => {
@@ -43,9 +40,14 @@ export default function SignupCompletePage() {
 
         const user = session.user;
 
-        // provider 判定（Supabaseは identities に provider が入る）
-        const providers = (user.identities ?? []).map((i) => i.provider).filter(Boolean);
-        setIsOAuthUser(providers.some((p) => p !== "email"));
+        // 今回の判定方針:
+        // identities の provider に email 以外があれば OAuth ユーザー扱い
+        const providers = (user.identities ?? [])
+          .map((i) => i.provider)
+          .filter(Boolean);
+
+        const oauthUser = providers.some((p) => p !== "email");
+        setIsOAuthUser(oauthUser);
 
         const email = user.email;
         if (!email) {
@@ -54,13 +56,12 @@ export default function SignupCompletePage() {
           return;
         }
 
-        // ✅ form_entries に該当メールがあるか確認 → auth_uid 更新（1件も無ければ弾く）
         setLoading(true);
 
-        // まず存在確認（select）
+        // form_entries に該当メールがあるか確認
         const { data: entry, error: findErr } = await supabase
           .from("form_entries")
-          .select("id,email")
+          .select("id,email,auth_uid")
           .eq("email", email)
           .maybeSingle();
 
@@ -71,18 +72,18 @@ export default function SignupCompletePage() {
         }
 
         if (!entry) {
-          // ＝ entry が無いメールで OAuth しちゃった
           setStatusMsg(
             "このメールアドレスはエントリーに存在しません。エントリーメールでログインしてください。"
           );
           setStatusType("error");
 
-          // ここでサインアウトしてログイン画面へ戻す（事故防止）
           await supabase.auth.signOut();
           router.push("/login");
           return;
         }
 
+        // auth_uid を紐付け
+        // 既存値が違っていても、現在のログイン user.id にそろえる
         const { error: updateErr } = await supabase
           .from("form_entries")
           .update({ auth_uid: user.id })
@@ -96,8 +97,11 @@ export default function SignupCompletePage() {
 
         setLinked(true);
 
-        // OAuth の場合はパスワード不要なので、ここで成功メッセージだけ出す
-        setStatusMsg("認証が完了しました。ポータルへ進めます。");
+        if (oauthUser) {
+          setStatusMsg("認証が完了しました。ポータルへ進めます。");
+        } else {
+          setStatusMsg("初回ログインのため、パスワードを設定してください。");
+        }
         setStatusType("success");
       } catch (e: unknown) {
         setStatusMsg(`エラー: ${errMsg(e)}`);
@@ -129,13 +133,15 @@ export default function SignupCompletePage() {
     if (error) {
       setStatusMsg(`エラー: ${error.message}`);
       setStatusType("error");
-    } else {
-      setStatusMsg("パスワードが設定されました。ポータルへ移動します...");
-      setStatusType("success");
-      setTimeout(() => {
-        router.push("/portal");
-      }, 700);
+      return;
     }
+
+    setStatusMsg("パスワードが設定されました。ポータルへ移動します...");
+    setStatusType("success");
+
+    setTimeout(() => {
+      router.push("/portal");
+    }, 700);
   };
 
   if (!sessionChecked) {
@@ -143,8 +149,10 @@ export default function SignupCompletePage() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow space-y-3">
-      <h1 className="text-xl font-bold">初回ログイン完了</h1>
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded shadow space-y-4">
+      <h1 className="text-xl font-bold">
+        {linked ? (isOAuthUser ? "認証完了" : "初回ログイン設定") : "認証確認"}
+      </h1>
 
       {statusMsg && (
         <p className={`text-sm ${statusType === "error" ? "text-red-500" : "text-green-600"}`}>
@@ -152,24 +160,26 @@ export default function SignupCompletePage() {
         </p>
       )}
 
-      {/* ✅ OAuthユーザーはパスワード不要：すぐポータルへ */}
-      {linked && (
-        <button
-          onClick={() => router.push("/portal")}
-          disabled={loading}
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-60"
-        >
-          {loading ? "処理中..." : "ポータルへ進む"}
-        </button>
+      {linked && isOAuthUser && (
+        <>
+          <p className="text-sm text-gray-600">
+            OAuth認証ユーザーのため、パスワード設定なしでポータルへ進めます。
+          </p>
+
+          <button
+            onClick={() => router.push("/portal")}
+            disabled={loading}
+            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-60"
+          >
+            {loading ? "処理中..." : "ポータルへ進む"}
+          </button>
+        </>
       )}
 
-      {/* ✅ メール/パスワードでもログインしたい人向け（任意） */}
-      {linked && (
+      {linked && !isOAuthUser && (
         <div className="border-t pt-4">
           <p className="text-sm text-gray-600 mb-2">
-            {isOAuthUser
-              ? "（任意）今後メール/パスワードでもログインしたい場合のみ、パスワードを設定してください。"
-              : "新しいパスワードを設定してください。"}
+            OAuthではないため、初回ログイン時にパスワード設定が必要です。
           </p>
 
           <input
@@ -185,12 +195,11 @@ export default function SignupCompletePage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-60"
           >
-            {loading ? "設定中..." : "パスワードを設定（任意）"}
+            {loading ? "設定中..." : "パスワードを設定して進む"}
           </button>
         </div>
       )}
 
-      {/* 紐付け失敗時 */}
       {!linked && statusType === "error" && (
         <button
           onClick={() => router.push("/login")}
