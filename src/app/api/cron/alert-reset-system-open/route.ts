@@ -40,23 +40,24 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const messages = [...new Set((openRows ?? []).map((row) => row.message).filter(Boolean))];
+        let updatedCount = 0;
+        let skipAlreadyDoneCount = 0;
 
-        let doneRows: Array<{ message: string }> = [];
-
-        if (messages.length > 0) {
-            const { data, error: doneError } = await supabaseAdmin
+        for (const row of openRows ?? []) {
+            const { data: doneRow, error: doneError } = await supabaseAdmin
                 .from('alert_log')
-                .select('message')
+                .select('id')
+                .eq('message', row.message)
                 .eq('status', 'done')
-                .in('message', messages);
+                .maybeSingle();
 
             if (doneError) {
-                console.error('[cron][alert-reset-system-open] doneRows error detail', {
+                console.error('[cron][alert-reset-system-open] doneRow error detail', {
                     message: doneError.message,
                     details: doneError.details,
                     hint: doneError.hint,
                     code: doneError.code,
+                    targetId: row.id,
                 });
 
                 throw new Error(
@@ -64,29 +65,19 @@ export async function GET(req: NextRequest) {
                 );
             }
 
-            doneRows = data ?? [];
-        }
+            if (doneRow) {
+                skipAlreadyDoneCount++;
+                continue;
+            }
 
-        const doneMessageSet = new Set(doneRows.map((row) => row.message));
-        const targetIds = (openRows ?? [])
-            .filter((row) => !doneMessageSet.has(row.message))
-            .map((row) => row.id);
-
-        // 2) done が未存在のものだけ更新
-        let updatedCount = 0;
-
-        if (targetIds.length > 0) {
-            const { count, error: updateError } = await supabaseAdmin
+            const { error: updateError } = await supabaseAdmin
                 .from('alert_log')
-                .update(
-                    {
-                        status: 'done',
-                        status_source: 'auto_done',
-                        updated_at: nowIso,
-                    },
-                    { count: 'exact' }
-                )
-                .in('id', targetIds);
+                .update({
+                    status: 'done',
+                    status_source: 'auto_done',
+                    updated_at: nowIso,
+                })
+                .eq('id', row.id);
 
             if (updateError) {
                 console.error('[cron][alert-reset-system-open] update error detail', {
@@ -94,6 +85,7 @@ export async function GET(req: NextRequest) {
                     details: updateError.details,
                     hint: updateError.hint,
                     code: updateError.code,
+                    targetId: row.id,
                 });
 
                 throw new Error(
@@ -101,12 +93,12 @@ export async function GET(req: NextRequest) {
                 );
             }
 
-            updatedCount = count ?? 0;
+            updatedCount++;
         }
 
         console.info('[cron][alert-reset-system-open] end', {
             openCount: openRows?.length ?? 0,
-            skipAlreadyDoneCount: (openRows?.length ?? 0) - targetIds.length,
+            skipAlreadyDoneCount,
             updatedCount,
         });
 
