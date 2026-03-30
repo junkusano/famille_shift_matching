@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
             .from('alert_log')
             .select('id, message')
             .eq('status', 'open')
-            .in('status_source', ['system']);
+            .in('status_source', ['system'])
+            .like('message', '%郵便番号が未入力%');
 
         if (openError) {
             console.error('[cron][alert-reset-system-open] openRows error detail', {
