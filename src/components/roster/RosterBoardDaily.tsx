@@ -461,6 +461,19 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         height: ROW_HEIGHT,
         borderBottom: "1px solid #f1f5f9",
     });
+
+    const getGenderBorder = (c: RosterShiftCard): string => {
+        if (c.female_flg === true && c.male_flg === false) {
+            return "2px solid #ef4444"; // 女性希望 → 赤
+        }
+        if (c.male_flg === true && c.female_flg === false) {
+            return "2px solid #3b82f6"; // 男性希望 → 青
+        }
+        if (c.male_flg === true && c.female_flg === true) {
+            return "2px solid #111827"; // 男女問わず → 黒
+        }
+        return "1px solid rgba(59, 130, 246, 0.55)"; // fallback
+    };
     const cardStyle = (c: RosterShiftCard): React.CSSProperties => {
         const rowIdx = rowIndexByStaff.get(c.staff_id);
         // ★ カードのtopに HEADER_H を二重加算しない
@@ -473,12 +486,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                     ? "rgba(216, 180, 254, 0.45)" // 薄い紫
                     : "rgba(59, 130, 246, 0.28)"; // 既存の青
 
-        const bd =
-            c.staff_slot === 2
-                ? "1px solid rgba(34, 197, 94, 0.65)"
-                : c.staff_slot === 3
-                    ? "1px solid rgba(168, 85, 247, 0.65)"
-                    : "1px solid rgba(59, 130, 246, 0.55)";
+        const bd = getGenderBorder(c);
 
         return {
             position: "absolute",

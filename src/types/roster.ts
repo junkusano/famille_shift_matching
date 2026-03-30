@@ -21,8 +21,11 @@ export type RosterShiftCard = {
     kaipoke_cs_id?: string | number;
     dsp_short?: string | null;
     staff_slot?: 1 | 2 | 3;
-};
 
+    gender_request_name?: string | null;
+    male_flg?: boolean | null;
+    female_flg?: boolean | null;
+};
 
 export type RosterDailyView = {
     date: string; // YYYY-MM-DD
