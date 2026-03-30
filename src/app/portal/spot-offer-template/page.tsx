@@ -736,58 +736,12 @@ useEffect(() => {
     </div>
   )}    
                 </div>
-                <div className="md:col-span-2 xl:col-span-3">
-                  <div className="text-[11px] text-muted-foreground">仕事内容</div>
-                  <Textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} rows={4} />
-                </div>
               </div>
             </div>
 
             <div>
-              <div className="text-sm font-semibold">集合情報</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所名</div>
-                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="例：〇〇公園"/>
-                </div>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">郵便番号</div>
-                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
-                </div>
-                  <div className="md:col-span-2 xl:col-span-3">
-                   <FieldLabel required>住所</FieldLabel> 
-                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
-                </div>
-                  <div className="md:col-span-2 xl:col-span-3">
-                   <FieldLabel required>番地</FieldLabel>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-sm font-semibold">勤務条件</div>
+              <div className="text-sm font-semibold">勤務情報</div>
   <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-    <div>
-      <div className="text-[11px] text-muted-foreground">時給</div>
-      <Input
-        value={fUnitAmount}
-        onChange={(e) => setFUnitAmount(e.target.value)}
-        placeholder="例：1500"
-        inputMode="numeric"
-      />
-    </div>
-
-    <div>
-      <div className="text-[11px] text-muted-foreground">交通費</div>
-      <Input
-        value={fCommuteFee}
-        onChange={(e) => setFCommuteFee(e.target.value)}
-        placeholder="例：200"
-        inputMode="numeric"
-      />
-    </div>
-
     <div className="md:col-span-2 xl:col-span-3">
       <FieldLabel>シフト日程</FieldLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -841,9 +795,53 @@ useEffect(() => {
         />
       </div>
     </div>
-  </div>
-</div>  
+    <div>
+      <div className="text-[11px] text-muted-foreground">時給</div>
+      <Input
+        value={fUnitAmount}
+        onChange={(e) => setFUnitAmount(e.target.value)}
+        placeholder="例：1500"
+        inputMode="numeric"
+      />
+    </div>
 
+    <div>
+      <div className="text-[11px] text-muted-foreground">交通費</div>
+      <Input
+        value={fCommuteFee}
+        onChange={(e) => setFCommuteFee(e.target.value)}
+        placeholder="例：200"
+        inputMode="numeric"
+      />
+    </div>
+     <div className="md:col-span-2 xl:col-span-3">
+        <div className="text-[11px] text-muted-foreground">仕事内容</div>
+        <Textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} rows={4} />
+     </div>
+   </div>
+   
+</div>  
+            <div>
+              <div className="text-sm font-semibold">集合情報</div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">集合場所名</div>
+                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="例：〇〇公園"/>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">郵便番号</div>
+                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
+                </div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <FieldLabel required>住所</FieldLabel> 
+                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
+                </div>
+                  <div className="md:col-span-2 xl:col-span-3">
+                   <FieldLabel required>番地</FieldLabel>
+                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
+                </div>
+              </div>
+            </div>
 
             <div>
               <div className="text-sm font-semibold">資格</div>
