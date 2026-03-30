@@ -1,5 +1,6 @@
 //api/auth/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -9,11 +10,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "code がありません" }, { status: 400 });
   }
 
+  const appBaseUrl = getAppBaseUrl();
+
   const params = new URLSearchParams();
   params.append("code", code);
   params.append("client_id", process.env.GOOGLE_CLIENT_ID || "");
   params.append("client_secret", process.env.GOOGLE_CLIENT_SECRET || "");
-  params.append("redirect_uri", "https://myfamille.shi-on.net/api/auth/callback");
+  params.append("redirect_uri", `${appBaseUrl}/api/auth/callback`);
   params.append("grant_type", "authorization_code");
 
   try {
@@ -25,22 +28,19 @@ export async function GET(req: NextRequest) {
 
     const tokenData = await tokenRes.json();
 
-    if (!tokenRes.ok || !tokenData.access_token) {
+    if (!tokenRes.ok) {
       return NextResponse.json(
-        { error: "トークン取得失敗", detail: tokenData },
-        { status: 500 }
+        { error: "token exchange failed", detail: tokenData },
+        { status: 400 }
       );
     }
 
-    // ✅ トークン取得成功 → クエリパラメータ付きでエントリーページへリダイレクト
-    const redirectUrl = new URL("https://myfamille.shi-on.net/entry");
+    const redirectUrl = new URL("/entry", req.url);
     redirectUrl.searchParams.set("token", tokenData.access_token);
 
-    return NextResponse.redirect(redirectUrl.toString());
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
-    return NextResponse.json(
-      { error: "トークン取得中に例外", detail: String(error) },
-      { status: 500 }
-    );
+    console.error(error);
+    return NextResponse.json({ error: "unexpected error" }, { status: 500 });
   }
 }

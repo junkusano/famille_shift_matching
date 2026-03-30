@@ -1,6 +1,7 @@
 //api/auth/reset-password-reinvite/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAppBaseUrl } from "@/lib/env/getAppBaseUrl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: GENERIC_OK_MESSAGE }, { status: 200 });
     }
 
-    const redirectTo = "https://myfamille.shi-on.net/signup/complete";
+    const redirectTo = `${getAppBaseUrl()}/signup/complete`;
 
     // 3-A) 既存 auth_user_id がある → パスワード再設定メール
     if (userRow?.auth_user_id) {
