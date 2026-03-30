@@ -18,7 +18,15 @@
     },
     {
       "path": "/api/cron/alert-check-excuse",
-      "schedule": "9 3 * * *"
+      "schedule": "9 18 * * *"
+    },
+    {
+      "path": "/api/cron/alert-reset-system-open",
+      "schedule": "17 18 * * *"
+    },
+    {
+      "path": "/api/cron/alert-postal-code",
+      "schedule": "21 18 * * *"
     },
     {
       "path": "/api/cron/shift-record-check",
