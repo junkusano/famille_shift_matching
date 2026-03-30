@@ -37,6 +37,14 @@
       "schedule": "29 18 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-lw-user-group-missing",
+      "schedule": "33 18 * * *"
+    },
+    {
+      "path": "/api/cron/alert-lw-user-group-missing",
+      "schedule": "37 18 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
