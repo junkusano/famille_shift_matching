@@ -33,7 +33,18 @@ export async function GET(req: NextRequest) {
             .eq('status', 'open')
             .in('status_source', ['system']);
 
-        if (error) throw error;
+        if (error) {
+            console.error('[cron][alert-reset-system-open] supabase error detail', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            });
+
+            throw new Error(
+                `message=${error.message}, details=${error.details ?? ''}, hint=${error.hint ?? ''}, code=${error.code ?? ''}`
+            );
+        }
 
         console.info('[cron][alert-reset-system-open] end', {
             updatedCount: count ?? 0,
@@ -46,7 +57,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json(result, { status: 200 });
     } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = e instanceof Error ? e.message : JSON.stringify(e);
         console.error('[cron][alert-reset-system-open] error', msg);
 
         const result: Body = {
