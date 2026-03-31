@@ -436,40 +436,53 @@ useEffect(() => {
     setOpenEdit(true);
   };
 
-      const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
-      const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
+  const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
+  const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
 
-      if (!postalCode) {
-        setPostalError(null);
-        return;
-      }
+  if (!postalCode) {
+    setPostalError(null);
+    return;
+  }
 
-      if (!/^\d{7}$/.test(postalCode)) {
-        setPostalError("郵便番号は7桁で入力してください");
-        return;
-      }
+  if (!/^\d{7}$/.test(postalCode)) {
+    setPostalError("郵便番号は7桁で入力してください");
+    return;
+  }
 
-      try {
-        setPostalLoading(true);
-        setPostalError(null);
+  try {
+    setPostalLoading(true);
+    setPostalError(null);
 
-        const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`);
-        const json = await res.json();
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`);
+    const json = await res.json();
 
-        if (!res.ok) {
-          throw new Error("住所検索に失敗しました");
-        }
+    if (!res.ok) {
+      throw new Error("住所検索に失敗しました");
+    }
 
-        if (!json.results || json.results.length === 0) {
-          setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
-          return;
-        }
+    if (!json.results || json.results.length === 0) {
+      setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
+      return;
+    }
 
-  const saveTemplate = async () => {
-    try {
-      setError(null);
+    const result = json.results[0];
+    const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
 
-      if (!fTitle.trim()) {
+    if (autoAddress.trim()) {
+      setFMeetingPlace(autoAddress);
+    }
+  } catch (e) {
+    setPostalError(e instanceof Error ? e.message : "住所検索に失敗しました");
+  } finally {
+    setPostalLoading(false);
+  }
+};
+
+const saveTemplate = async () => {
+  try {
+    setError(null);
+
+    if (!fTitle.trim()) {
       throw new Error("タイトルは必須です");
     }
     if (!fMeetingPlace.trim()) {
@@ -485,65 +498,52 @@ useEffect(() => {
       throw new Error("終了時間は必須です");
     }
 
-        const result = json.results[0];
-        const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
-
-        if (autoAddress.trim()) {
-          setFMeetingPlace(autoAddress);
-        }
-      } catch (e) {
-        setPostalError(e instanceof Error ? e.message : "住所検索に失敗しました");
-      } finally {
-        setPostalLoading(false);
-      }
+    const payload: Partial<SpotOfferTemplateUnified> = {
+      timee_offer_id: fTimeeOfferId.trim() || null,
+      ucare_offer_id: fUcareOfferId.trim() || null,
+      kaiteku_offer_id: fKaitekuOfferId.trim() || null,
+      template_title: fTitle.trim() || null,
+      work_description: fDesc.trim() || null,
+      cautions: fCautions.trim() || null,
+      auto_message: fAutoMsg.trim() || null,
+      work_address: fAddress.trim() || null,
+      emergency_phone: fEmergencyPhone.trim() || null,
+      smoking_policy: fSmokingPolicy.trim() || null,
+      smoking_area_work: fSmokingAreaWork,
+      requires_license: fRequiresLicense,
+      required_licenses: fRequiredLicenses,
+      benefits: toArrayFromTextarea(fBenefitsText),
+      belongings: toArrayFromTextarea(fBelongingsText),
+      internal_label: fInternalLabel.trim() || null,
+      photo_urls: toArrayFromTextarea(fPhotoUrlsText),
+      salary: fSalary.trim() || null,
+      fare: fFare.trim() || null,
+      kaipoke_cs_id: fKaipokeCsId.trim() || null,
+      start_at: toNullableTime(fStartAt),
+      end_at: toNullableTime(fEndAt),
+      status: fStatus.trim() || null,
+      unit_amount: toNullableNumber(fUnitAmount),
+      commute_fee: toNullableNumber(fCommuteFee),
+      send_msg_flg: fSendMsgFlg,
+      matching_msg: fMatchingMsg.trim() || null,
+      meeting_place: fMeetingPlace.trim() || null,
+      meeting_yuubinn: fMeetingYuubinn.trim() || null,
+      matching_place_name: fMatchingPlaceName.trim() || null,
+      meeting_place_banchi: fMeetingPlaceBanchi.trim() || null,
     };
 
-      const payload: Partial<SpotOfferTemplateUnified> = {
-        timee_offer_id: fTimeeOfferId.trim() || null,
-        ucare_offer_id: fUcareOfferId.trim() || null,
-        kaiteku_offer_id: fKaitekuOfferId.trim() || null,
-        template_title: fTitle.trim() || null,
-        work_description: fDesc.trim() || null,
-        cautions: fCautions.trim() || null,
-        auto_message: fAutoMsg.trim() || null,
-        work_address: fAddress.trim() || null,
-        emergency_phone: fEmergencyPhone.trim() || null,
-        smoking_policy: fSmokingPolicy.trim() || null,
-        smoking_area_work: fSmokingAreaWork,
-        requires_license: fRequiresLicense,
-        required_licenses: fRequiredLicenses,
-        benefits: toArrayFromTextarea(fBenefitsText),
-        belongings: toArrayFromTextarea(fBelongingsText),
-        internal_label: fInternalLabel.trim() || null,
-        photo_urls: toArrayFromTextarea(fPhotoUrlsText),
-        salary: fSalary.trim() || null,
-        fare: fFare.trim() || null,
-        kaipoke_cs_id: fKaipokeCsId.trim() || null,
-        start_at: toNullableTime(fStartAt),
-        end_at: toNullableTime(fEndAt),
-        status: fStatus.trim() || null,
-        unit_amount: toNullableNumber(fUnitAmount),
-        commute_fee: toNullableNumber(fCommuteFee),
-        send_msg_flg: fSendMsgFlg,
-        matching_msg: fMatchingMsg.trim() || null,
-        meeting_place: fMeetingPlace.trim() || null,
-        meeting_yuubinn: fMeetingYuubinn.trim() || null,
-        matching_place_name: fMatchingPlaceName.trim() || null,
-        meeting_place_banchi: fMeetingPlaceBanchi.trim() || null,
-      };
-
-      if (editing) {
-        await spotApi.updateTemplate(editing.core_id, payload);
-      } else {
-        await spotApi.createTemplate(payload);
-      }
-
-      setOpenEdit(false);
-      await fetchList();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    if (editing) {
+      await spotApi.updateTemplate(editing.core_id, payload);
+    } else {
+      await spotApi.createTemplate(payload);
     }
-  };
+
+    setOpenEdit(false);
+    await fetchList();
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+  }
+};
 
   const deleteTemplate = async (row: SpotOfferTemplateUnified) => {
     const ok = window.confirm(`削除しますか？\n\n${row.template_title ?? "(無題)"}\ncore_id=${row.core_id}`);
