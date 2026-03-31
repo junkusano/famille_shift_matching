@@ -192,6 +192,8 @@ export default function SpotOfferTemplatePage() {
   const [fMeetingYuubinn, setFMeetingYuubinn] = useState("");
   const [fMatchingPlaceName, setFMatchingPlaceName] = useState("");
   const [fMeetingPlaceBanchi, setFMeetingPlaceBanchi] = useState("");
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [postalError, setPostalError] = useState<string | null>(null);
 
   type ClientPreview = {
   name: string | null;
@@ -454,6 +456,47 @@ useEffect(() => {
       throw new Error("終了時間は必須です");
     }
 
+    const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
+      const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
+
+      if (!postalCode) {
+        setPostalError(null);
+        return;
+      }
+
+      if (!/^\d{7}$/.test(postalCode)) {
+        setPostalError("郵便番号は7桁で入力してください");
+        return;
+      }
+
+      try {
+        setPostalLoading(true);
+        setPostalError(null);
+
+        const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`);
+        const json = await res.json();
+
+        if (!res.ok) {
+          throw new Error("住所検索に失敗しました");
+        }
+
+        if (!json.results || json.results.length === 0) {
+          setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
+          return;
+        }
+
+        const result = json.results[0];
+        const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
+
+        if (autoAddress.trim()) {
+          setFMeetingPlace(autoAddress);
+        }
+      } catch (e) {
+        setPostalError(e instanceof Error ? e.message : "住所検索に失敗しました");
+      } finally {
+        setPostalLoading(false);
+      }
+    };
 
       const payload: Partial<SpotOfferTemplateUnified> = {
         timee_offer_id: fTimeeOfferId.trim() || null,
@@ -892,15 +935,38 @@ useEffect(() => {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">郵便番号</div>
-                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
+                  <div className="flex gap-2">
+                    <Input
+                     value={fMeetingYuubinn}
+                     onChange={(e) => {
+                      setFMeetingYuubinn(e.target.value);
+                      setPostalError(null);
+                     }}
+                     onBlur={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+                     placeholder="例：4560018　ハイフンなしで入力"
+                     inputMode="numeric" 
+                  />
+                  <Button
+                   type="button"
+                   variant="outline"
+                   onClick={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+                   disabled={postalLoading}
+                >
+                  {postalLoading ? "検索中..." : "住所検索"}
+                </Button>
+                  </div>
+                  {postalError && (
+                   <div className="mt-1 text-xs text-red-600">{postalError}</div>
+                )}
+                
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>住所</FieldLabel> 
-                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
+                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区新尾頭"/>
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>番地</FieldLabel>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
+                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：３丁目1-18 WIZ金山602"/>
                 </div>
               </div>
             </div>
