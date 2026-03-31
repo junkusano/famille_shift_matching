@@ -271,33 +271,6 @@ type ParkingPreview = {
     return;
   }
 
-  useEffect(() => {
-  const loadClientOptions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id, name")
-        .not("kaipoke_cs_id", "is", null)
-        .not("name", "is", null)
-        .order("name", { ascending: true });
-
-      if (error) throw error;
-
-      setClientOptions(
-        (data ?? []).map((row) => ({
-          kaipoke_cs_id: row.kaipoke_cs_id,
-          name: row.name,
-        }))
-      );
-    } catch (e) {
-      console.error("利用者一覧取得エラー:", e);
-      setClientOptions([]);
-    }
-  };
-
-  void loadClientOptions();
-}, []);
-
   let cancelled = false;
 
   const fetchClientPreview = async () => {
