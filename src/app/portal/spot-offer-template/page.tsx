@@ -193,7 +193,6 @@ export default function SpotOfferTemplatePage() {
   const [fKaipokeCsId, setFKaipokeCsId] = useState("");
   const [fStartAt, setFStartAt] = useState("");
   const [fEndAt, setFEndAt] = useState("");
-  const [fStatus, setFStatus] = useState("");
   const [fStatusChecked, setFStatusChecked] = useState(true);
   const [fUnitAmount, setFUnitAmount] = useState("");
   const [fCommuteFee, setFCommuteFee] = useState("");
@@ -280,6 +279,7 @@ type ParkingPreview = {
       }
 
       if (requestMap[coreId].length < 5) {
+        requestMap[coreId].push(requestedAt);
       }
     }
 
@@ -288,6 +288,7 @@ type ParkingPreview = {
       client_name: r.kaipoke_cs_id
        ? clientMap[r.kaipoke_cs_id] ?? "-"
        : "-",
+       recent_rpa_requested_at: requestMap[r.core_id] ?? [],
        }));
 
        setRows(merged);
@@ -418,7 +419,6 @@ useEffect(() => {
     setFKaipokeCsId("");
     setFStartAt("");
     setFEndAt("");
-    setFStatus("active");
     setFStatusChecked(true);
     setFUnitAmount("");
     setFCommuteFee("");
@@ -460,7 +460,6 @@ useEffect(() => {
     setFKaipokeCsId(row.kaipoke_cs_id ?? "");
     setFStartAt(timeForInput(row.start_at));
     setFEndAt(timeForInput(row.end_at));
-    setFStatus(row.status ?? "");
     setFStatusChecked((row.status ?? "active") === "active");
     setFUnitAmount(numberToInput(row.unit_amount));
     setFCommuteFee(numberToInput(row.commute_fee));
@@ -1047,26 +1046,32 @@ const saveTemplate = async () => {
     </div>
   </div>
  </div>
-            <div>
-              <div className="text-sm font-semibold">メッセージ</div>
-              <div className="mt-2 space-y-3">
-                <div>
-                  <FieldLabel>send_msg_flg</FieldLabel> 
-                  <label className="flex items-center gap-2 h-9">
-                    <input
-                       type="checkbox"
-                       checked={!!fSendMsgFlg}
-                       onChange={(e) => setFSendMsgFlg(e.target.checked)}
-                    />
-                   <span>{fSendMsgFlg ? "送信する" : "送信しない"}</span> 
-                  </label>
-                </div>
-                <div className="md:col-span-2 xl:col-span-2">
-                  <div className="text-[11px] text-muted-foreground">マッチングメッセージ
-                  </div>
-                  <Textarea value={fMatchingMsg} onChange={(e) => setFMatchingMsg(e.target.value)} rows={3} />
-                </div>
-              </div>
+
+  <div>
+  <div className="text-sm font-semibold">メッセージ</div>
+  <div className="mt-2 space-y-3">
+    <div>
+      <FieldLabel>send_msg_flg</FieldLabel>
+      <label className="flex items-center gap-2 h-9">
+        <input
+          type="checkbox"
+          checked={!!fSendMsgFlg}
+          onChange={(e) => setFSendMsgFlg(e.target.checked)}
+        />
+        <span>{fSendMsgFlg ? "送信する" : "送信しない"}</span>
+      </label>
+    </div>
+
+    <div>
+      <div className="text-[11px] text-muted-foreground">マッチングメッセージ</div>
+      <Textarea
+        value={fMatchingMsg}
+        onChange={(e) => setFMatchingMsg(e.target.value)}
+        rows={3}
+      />
+    </div>
+  </div>
+</div>
 
 
             <div>
