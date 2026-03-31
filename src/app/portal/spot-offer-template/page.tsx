@@ -28,6 +28,15 @@ const REQUIRED_LICENSE_OPTIONS = [
 
 type NullableBoolean = boolean | null;
 
+type RpaRequestRow = {
+  status: string | null;
+  requested_at: string | null;
+  created_at: string | null;
+  request_details: {
+    core_id?: string | null;
+  } | null;
+};
+
 function toArrayFromTextarea(value: string): string[] {
   return value
     .split("\n")
@@ -143,6 +152,7 @@ export default function SpotOfferTemplatePage() {
   const [loading, setLoading] = useState(true);
   type RowWithClient = SpotOfferTemplateUnified & {
     client_name?: string;
+    recent_rpa_requested_at?: string[];
   };
 
   const [rows, setRows] = useState<RowWithClient[]>([]);
@@ -184,6 +194,7 @@ export default function SpotOfferTemplatePage() {
   const [fStartAt, setFStartAt] = useState("");
   const [fEndAt, setFEndAt] = useState("");
   const [fStatus, setFStatus] = useState("");
+  const [fStatusChecked, setFStatusChecked] = useState(true);
   const [fUnitAmount, setFUnitAmount] = useState("");
   const [fCommuteFee, setFCommuteFee] = useState("");
   const [fSendMsgFlg, setFSendMsgFlg] = useState<NullableBoolean>(null);
@@ -228,7 +239,7 @@ type ParkingPreview = {
     try {
       setLoading(true);
       setError(null);
-      const data = await spotApi.listTemplates();
+      const data = await spotApi.listTemplates({ q });
 
       const csIds = Array.from(
         new Set(data.map((r) => r.kaipoke_cs_id).filter(Boolean))
@@ -246,6 +257,31 @@ type ParkingPreview = {
         (clients ?? []).map((c) => [c.kaipoke_cs_id, c.name])
        );
      } 
+
+     const { data: rpaRequests, error: rpaError } = await supabase
+      .from("rpa_command_requests")
+      .select("status, requested_at, created_at, request_details")
+      .eq("template_id", RPA_TEMPLATE_ID)
+      .in("status", ["approved", "processing", "completed"])
+      .order("requested_at", { ascending: false });
+
+    if (rpaError) throw rpaError;
+
+    const requestMap: Record<string, string[]> = {};
+
+    for (const req of (rpaRequests ?? []) as RpaRequestRow[]) {
+      const coreId = req.request_details?.core_id;
+      const requestedAt = req.requested_at ?? req.created_at;
+
+      if (!coreId || !requestedAt) continue;
+
+      if (!requestMap[coreId]) {
+        requestMap[coreId] = [];
+      }
+
+      if (requestMap[coreId].length < 5) {
+      }
+    }
 
      const merged = data.map((r) => ({
       ...r,
@@ -382,10 +418,11 @@ useEffect(() => {
     setFKaipokeCsId("");
     setFStartAt("");
     setFEndAt("");
-    setFStatus("");
+    setFStatus("active");
+    setFStatusChecked(true);
     setFUnitAmount("");
     setFCommuteFee("");
-    setFSendMsgFlg(null);
+    setFSendMsgFlg(true);
     setFMatchingMsg("");
     setFMeetingPlace("");
     setFMeetingYuubinn("");
@@ -424,9 +461,10 @@ useEffect(() => {
     setFStartAt(timeForInput(row.start_at));
     setFEndAt(timeForInput(row.end_at));
     setFStatus(row.status ?? "");
+    setFStatusChecked((row.status ?? "active") === "active");
     setFUnitAmount(numberToInput(row.unit_amount));
     setFCommuteFee(numberToInput(row.commute_fee));
-    setFSendMsgFlg(row.send_msg_flg ?? null);
+    setFSendMsgFlg(row.send_msg_flg ?? true);
     setFMatchingMsg(row.matching_msg ?? "");
     setFMeetingPlace(row.meeting_place ?? "");
     setFMeetingYuubinn(row.meeting_yuubinn ?? "");
@@ -520,10 +558,10 @@ const saveTemplate = async () => {
       kaipoke_cs_id: fKaipokeCsId.trim() || null,
       start_at: toNullableTime(fStartAt),
       end_at: toNullableTime(fEndAt),
-      status: fStatus.trim() || null,
+      status: fStatusChecked ? "active" : "inactive",
       unit_amount: toNullableNumber(fUnitAmount),
       commute_fee: toNullableNumber(fCommuteFee),
-      send_msg_flg: fSendMsgFlg,
+      send_msg_flg: !!fSendMsgFlg,
       matching_msg: fMatchingMsg.trim() || null,
       meeting_place: fMeetingPlace.trim() || null,
       meeting_yuubinn: fMeetingYuubinn.trim() || null,
@@ -678,25 +716,29 @@ const saveTemplate = async () => {
               <TableHead className="w-[180px]">利用者名</TableHead>
               <TableHead className="w-[260px]">住所</TableHead>
               <TableHead className="w-[180px] whitespace-nowrap">時間</TableHead>
+              <TableHead className="w-[220px]">リクエスト作成日</TableHead>
               <TableHead className="w-[220px]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   データなし
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((r) => (
                 <TableRow key={r.core_id}>
+                  <TableCell className="whitespace-nowrap">
+                     {r.status === "active" ? "アクティブ" : r.status === "inactive" ? "非アクティブ" : "-"}
+                  </TableCell>
                   <TableCell className="font-medium">
                     <div className="truncate" title={r.template_title ?? ""}>
                       {r.template_title ?? "(無題)"}
@@ -752,9 +794,16 @@ const saveTemplate = async () => {
                   <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">状態</div>
-                  <Input value={fStatus} onChange={(e) => setFStatus(e.target.value)} placeholder="例：active / draft" />
-                </div>
+                  <FieldLabel>状態</FieldLabel>
+                  <label className="flex items-center gap-2 h-9">
+                    <input
+                        type="checkbox"
+                        checked={fStatusChecked}
+                        onChange={(e) => setFStatusChecked(e.target.checked)}
+                      />
+                      <span>{fStatusChecked ? "アクティブ" : "非アクティブ"}</span>
+                  </label>
+               </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">内部ラベル</div>
                   <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
@@ -1000,7 +1049,18 @@ const saveTemplate = async () => {
  </div>
             <div>
               <div className="text-sm font-semibold">メッセージ</div>
-                <BoolSelect label="send_msg_flg" value={fSendMsgFlg} onChange={setFSendMsgFlg} />
+              <div className="mt-2 space-y-3">
+                <div>
+                  <FieldLabel>send_msg_flg</FieldLabel> 
+                  <label className="flex items-center gap-2 h-9">
+                    <input
+                       type="checkbox"
+                       checked={!!fSendMsgFlg}
+                       onChange={(e) => setFSendMsgFlg(e.target.checked)}
+                    />
+                   <span>{fSendMsgFlg ? "送信する" : "送信しない"}</span> 
+                  </label>
+                </div>
                 <div className="md:col-span-2 xl:col-span-2">
                   <div className="text-[11px] text-muted-foreground">マッチングメッセージ
                   </div>
