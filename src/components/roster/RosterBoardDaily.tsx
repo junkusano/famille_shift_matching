@@ -3,7 +3,13 @@
 
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
+import type {
+    RosterDailyView,
+    RosterShiftCard,
+    RosterShiftDialogData,
+    RosterStaff,
+} from "@/types/roster";
+import ShiftDialog from "@/components/roster/ShiftDialog";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
@@ -122,6 +128,9 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     // ====== 表示データ（カードはドラッグ反映のため state に） ======
     const [cards, setCards] = useState<RosterShiftCard[]>(initialView.shifts);
 
+    const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
+
     useEffect(() => {
         setCards(initialView.shifts);
     }, [initialView.shifts, date]);
@@ -186,6 +195,38 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             alert('削除時にエラーが発生しました');
             setDeletingIds(prev => { const n = new Set(prev); n.delete(shiftId); return n; });
         }
+    };
+
+    const openShiftDialog = (card: RosterShiftCard) => {
+        if (!card.dialog) return;
+        setSelectedShift(card.dialog);
+        setDialogOpen(true);
+    };
+
+    const handleDialogSaved = (next: RosterShiftDialogData) => {
+        setSelectedShift(next);
+
+        setCards((prev) =>
+            prev.map((c) => {
+                if (c.dialog?.shift_id !== next.shift_id) return c;
+
+                let nextStaffId = c.staff_id;
+                if (c.staff_slot === 1) nextStaffId = String(next.staff_id_1 ?? "");
+                if (c.staff_slot === 2) nextStaffId = String(next.staff_id_2 ?? "");
+                if (c.staff_slot === 3) nextStaffId = String(next.staff_id_3 ?? "");
+
+                return {
+                    ...c,
+                    staff_id: nextStaffId,
+                    start_at: next.start_at,
+                    end_at: next.end_at,
+                    service_code: next.service_code,
+                    service_name: next.service_name,
+                    client_name: next.client_name,
+                    dialog: next,
+                };
+            })
+        );
     };
 
     // 並び順：roster_sort → 氏名
@@ -536,186 +577,198 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
     // ====== UI ======
     return (
-        <div className="p-2 space-y-2">
-            {/* ヘッダー（シンプル） */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
-                    <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
-                    <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
-                </div>
-                <div className="flex items-center gap-2">
-                    {/* チームフィルタ（ポップアップ） */}
-                    <div className="relative">
-                        <button onClick={() => setTeamFilterOpen((v) => !v)} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="チーム（org）で絞り込み">チーム</button>
-                        {teamFilterOpen && (
-                            <div className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs text-gray-500">チームで絞り込み</span>
-                                    <div className="space-x-2">
-                                        <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams(allTeams)}>全選択</button>
-                                        {/* クリア = 選択ゼロ = 全表示 */}
-                                        <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams([])}>クリア</button>
+        <>
+            <div className="p-2 space-y-2">
+                {/* ヘッダー（シンプル） */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">前日</button>
+                        <input type="date" className="px-2 py-1 rounded border text-sm" value={date} onChange={onPickDate} />
+                        <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* チームフィルタ（ポップアップ） */}
+                        <div className="relative">
+                            <button onClick={() => setTeamFilterOpen((v) => !v)} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="チーム（org）で絞り込み">チーム</button>
+                            {teamFilterOpen && (
+                                <div className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-gray-500">チームで絞り込み</span>
+                                        <div className="space-x-2">
+                                            <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams(allTeams)}>全選択</button>
+                                            {/* クリア = 選択ゼロ = 全表示 */}
+                                            <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams([])}>クリア</button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {allTeams.length === 0 ? (
+                                            <div className="text-xs text-gray-400">（チーム情報なし）</div>
+                                        ) : (
+                                            allTeams.map((t) => (
+                                                <label key={t} className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedTeams.length === 0 ? true : selectedTeams.includes(t)}
+                                                        onChange={(e) => {
+                                                            if (selectedTeams.length === 0) {
+                                                                // 全表示状態（選択ゼロ）で個別操作したときは、
+                                                                // いったん全選択にしてから当該項目だけ外す/入れる
+                                                                if (!e.target.checked) {
+                                                                    setSelectedTeams(allTeams.filter((x) => x !== t));
+                                                                } else {
+                                                                    setSelectedTeams([t]);
+                                                                }
+                                                                return;
+                                                            }
+                                                            setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)));
+                                                        }}
+                                                    />
+                                                    <span className="truncate" title={t}>{t}</span>
+                                                </label>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
-                                <div className="space-y-1">
-                                    {allTeams.length === 0 ? (
-                                        <div className="text-xs text-gray-400">（チーム情報なし）</div>
-                                    ) : (
-                                        allTeams.map((t) => (
-                                            <label key={t} className="flex items-center gap-2 text-sm">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedTeams.length === 0 ? true : selectedTeams.includes(t)}
-                                                    onChange={(e) => {
-                                                        if (selectedTeams.length === 0) {
-                                                            // 全表示状態（選択ゼロ）で個別操作したときは、
-                                                            // いったん全選択にしてから当該項目だけ外す/入れる
-                                                            if (!e.target.checked) {
-                                                                setSelectedTeams(allTeams.filter((x) => x !== t));
-                                                            } else {
-                                                                setSelectedTeams([t]);
-                                                            }
-                                                            return;
-                                                        }
-                                                        setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)));
-                                                    }}
-                                                />
-                                                <span className="truncate" title={t}>{t}</span>
-                                            </label>
-                                        ))
-                                    )}
+                            )}
+                        </div>
+
+                        {/* 右上「メニュー」ボタンは不要のため削除 */}
+                    </div>
+                </div>
+
+                {/* 盤面（★ このコンテナに縦スクロールを付けた） */}
+                <div style={gridStyle} ref={outerScrollRef}>
+                    {/* 左：氏名列 */}
+                    <div style={leftColStyle}>
+                        <div style={headerNameStyle}>スタッフ</div>
+                        <div style={{ position: "relative" }}>
+                            {displayStaff.map((st) => (
+                                <div key={st.id} style={nameRowStyle} title={st.name}>
+                                    {/* ✅ スタッフ詳細（シフトビュー）へのリンク */}
+                                    <a
+                                        href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="truncate text-blue-700 hover:underline text-[17px]"
+                                    >
+                                        {st.name}
+                                    </a>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 右上「メニュー」ボタンは不要のため削除 */}
-                </div>
-            </div>
-
-            {/* 盤面（★ このコンテナに縦スクロールを付けた） */}
-            <div style={gridStyle} ref={outerScrollRef}>
-                {/* 左：氏名列 */}
-                <div style={leftColStyle}>
-                    <div style={headerNameStyle}>スタッフ</div>
-                    <div style={{ position: "relative" }}>
-                        {displayStaff.map((st) => (
-                            <div key={st.id} style={nameRowStyle} title={st.name}>
-                                {/* ✅ スタッフ詳細（シフトビュー）へのリンク */}
-                                <a
-                                    href={`/portal/shift-view?user_id=${encodeURIComponent(st.id)}&date=${encodeURIComponent(monthFirst)}&per=50&page=1`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="truncate text-blue-700 hover:underline text-[17px]"
-                                >
-                                    {st.name}
-                                </a>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* 右：タイムライン（横スクロールのみ、時間ヘッダー固定） */}
-                <div style={rightColStyle} ref={rightScrollRef}>
-                    <div style={headerTimeWrap}>
-                        <div style={timeTicksStyle}>
-                            {hours.map((h) => (
-                                <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 1, background: "#e5e7eb" }} />
-                            ))}
-                            {hours.map((h) => (
-                                <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 4, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
                             ))}
                         </div>
                     </div>
 
-                    {/* 盤面：高さは行数ぶんのみ（ヘッダーは別DOM） */}
-                    <div style={{ position: "relative", minWidth: TIMELINE_WIDTH, height: boardHeight }}>
-                        {/* 背景グリッド */}
-                        <div style={{ ...timeGridStyle, position: "absolute", inset: 0 }} />
+                    {/* 右：タイムライン（横スクロールのみ、時間ヘッダー固定） */}
+                    <div style={rightColStyle} ref={rightScrollRef}>
+                        <div style={headerTimeWrap}>
+                            <div style={timeTicksStyle}>
+                                {hours.map((h) => (
+                                    <div key={h.label} style={{ position: "absolute", left: h.left, top: 0, height: HEADER_H, width: 1, background: "#e5e7eb" }} />
+                                ))}
+                                {hours.map((h) => (
+                                    <div key={`${h.label}-text`} style={{ position: "absolute", left: h.left + 4, top: 10, fontSize: 12, color: "#6b7280" }}>{h.label}</div>
+                                ))}
+                            </div>
+                        </div>
 
-                        {/* 行罫線 */}
-                        {displayStaff.map((_, idx) => (
-                            <div key={idx} style={staffRowBgStyle(idx)} />
-                        ))}
+                        {/* 盤面：高さは行数ぶんのみ（ヘッダーは別DOM） */}
+                        <div style={{ position: "relative", minWidth: TIMELINE_WIDTH, height: boardHeight }}>
+                            {/* 背景グリッド */}
+                            <div style={{ ...timeGridStyle, position: "absolute", inset: 0 }} />
 
-                        {/* カード */}
-                        {cards.map((c) => {
-                            const rowIdx = rowIndexByStaff.get(c.staff_id);
-                            if (rowIdx == null) return null;
-                            return (
-                                <div
-                                    key={c.id}
-                                    style={cardStyle(c)}
-                                    title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
-                                    onMouseDown={(e) => onCardMouseDownMove(e, c)}
-                                >
-                                    <div className="text-[15px] font-semibold">
-                                        {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
-                                    </div>
+                            {/* 行罫線 */}
+                            {displayStaff.map((_, idx) => (
+                                <div key={idx} style={staffRowBgStyle(idx)} />
+                            ))}
 
-                                    <a
-                                        href={`/portal/roster/monthly?kaipoke_cs_id=${encodeURIComponent(String(c.kaipoke_cs_id))}&month=${encodeURIComponent(monthStr)}`}
-                                        rel="noreferrer"
-                                        onClick={(e) => e.stopPropagation()} // ドラッグ抑止
-                                        className="text-[17px] truncate text-blue-700 hover:underline"
+                            {/* カード */}
+                            {cards.map((c) => {
+                                const rowIdx = rowIndexByStaff.get(c.staff_id);
+                                if (rowIdx == null) return null;
+                                return (
+                                    <div
+                                        key={c.id}
+                                        style={cardStyle(c)}
+                                        title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
+                                        onMouseDown={(e) => onCardMouseDownMove(e, c)}
                                     >
-                                        {c.client_name}：{c.service_code ?? ''}
-                                    </a>
-
-                                    {c.dsp_short ? (
-                                        <div
-                                            style={{
-                                                position: "absolute",
-                                                right: 1,
-                                                bottom: 1,
-                                                minWidth: 22,
-                                                height: 22,
-                                                padding: "0 4px",
-                                                borderRadius: 9999,
-                                                border: "1px solid #9ca3af",
-                                                background: "rgba(255,255,255,0.92)",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                fontSize: 11,
-                                                fontWeight: 700,
-                                                lineHeight: 1,
-                                                color: "#374151",
-                                                pointerEvents: "none",
-                                            }}
-                                        >
-                                            {c.dsp_short}
+                                        <div className="text-[15px] font-semibold">
+                                            {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
                                         </div>
-                                    ) : null}
 
-                                    <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
-
-                                    {deletable && (
                                         <button
                                             type="button"
-                                            aria-label="削除"
-                                            title="削除"
-                                            onClick={(e) => { e.stopPropagation(); void handleDelete(c.id); }}
-                                            disabled={deletingIds.has(parseCardCompositeId(c.id).shiftId)}
-                                            className={[
-                                                "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
-                                                "bg-red-600 text-white text-sm leading-6 text-center",
-                                                "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
-                                            ].join(' ')}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openShiftDialog(c);
+                                            }}
+                                            className="text-[17px] truncate text-blue-700 hover:underline text-left"
                                         >
-                                            ×
+                                            {c.client_name}：{c.service_code ?? ""}
                                         </button>
-                                    )}
-                                </div>
-                            );
-                        })}
 
-                        {/* ゴースト */}
-                        {drag && <div style={ghostStyle(drag)} />}
+                                        {c.dsp_short ? (
+                                            <div
+                                                style={{
+                                                    position: "absolute",
+                                                    right: 1,
+                                                    bottom: 1,
+                                                    minWidth: 22,
+                                                    height: 22,
+                                                    padding: "0 4px",
+                                                    borderRadius: 9999,
+                                                    border: "1px solid #9ca3af",
+                                                    background: "rgba(255,255,255,0.92)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    fontSize: 11,
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                    color: "#374151",
+                                                    pointerEvents: "none",
+                                                }}
+                                            >
+                                                {c.dsp_short}
+                                            </div>
+                                        ) : null}
+
+                                        <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
+
+                                        {deletable && (
+                                            <button
+                                                type="button"
+                                                aria-label="削除"
+                                                title="削除"
+                                                onClick={(e) => { e.stopPropagation(); void handleDelete(c.id); }}
+                                                disabled={deletingIds.has(parseCardCompositeId(c.id).shiftId)}
+                                                className={[
+                                                    "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
+                                                    "bg-red-600 text-white text-sm leading-6 text-center",
+                                                    "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
+                                                ].join(' ')}
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {/* ゴースト */}
+                            {drag && <div style={ghostStyle(drag)} />}
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div >
+            </div >
+            <ShiftDialog
+                open={dialogOpen}
+                onClose={() => setDialogOpen(false)}
+                shift={selectedShift}
+                staffOptions={initialView.staff}
+                onSaved={handleDialogSaved}
+            />
+        </>
     );
 }
