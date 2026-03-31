@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
 const REQUIRED_LICENSE_OPTIONS = [
@@ -211,6 +212,14 @@ type ParkingPreview = {
   const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
   const [loadingClientPreview, setLoadingClientPreview] = useState(false);
 
+    type ClientOption = {
+   kaipoke_cs_id: string;
+   name: string;
+  };
+  
+  const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+  const [clientSearchKeyword, setClientSearchKeyword] = useState("");
+
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
 
@@ -261,6 +270,33 @@ type ParkingPreview = {
     setParkingPreview([]);
     return;
   }
+
+  useEffect(() => {
+  const loadClientOptions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id, name")
+        .not("kaipoke_cs_id", "is", null)
+        .not("name", "is", null)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+
+      setClientOptions(
+        (data ?? []).map((row) => ({
+          kaipoke_cs_id: row.kaipoke_cs_id,
+          name: row.name,
+        }))
+      );
+    } catch (e) {
+      console.error("利用者一覧取得エラー:", e);
+      setClientOptions([]);
+    }
+  };
+
+  void loadClientOptions();
+}, []);
 
   let cancelled = false;
 
@@ -316,6 +352,33 @@ type ParkingPreview = {
     cancelled = true;
   };
 }, [fKaipokeCsId]);
+
+useEffect(() => {
+  const loadClientOptions = async () => {
+    try {
+      const { data, error } = await supabase
+       .from("cs_kaipoke_info")
+       .select("kaipoke_cs_id, name")
+       .not("kaipoke_cs_id", "is", null)
+       .not("name", "is", null)
+       .order("name", { ascending: true });
+
+     if (error) throw error;
+
+     setClientOptions(
+      (data ?? []).map((row) => ({
+       kaipoke_cs_id: row.kaipoke_cs_id,
+       name: row.name,
+     }))
+   );
+   } catch (e) {
+    console.error("利用者一覧取得エラー:", e);
+     setClientOptions([]);
+    }
+ };
+
+  void loadClientOptions();
+  }, []);
 
 useEffect(() => {
     void fetchList();
@@ -681,12 +744,38 @@ useEffect(() => {
                   <div className="text-[11px] text-muted-foreground">内部ラベル</div>
                   <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
                 </div>
-                <div>
-                 <FieldLabel>カイポケCS ID</FieldLabel>
-                  <Input
-                  value={fKaipokeCsId}
-                  onChange={(e) => setFKaipokeCsId(e.target.value)} placeholder="入力例：123456" />
-                </div>
+
+
+              <div className="md:col-span-2">
+               <FieldLabel>利用者選択</FieldLabel>
+
+               <div className="space-y-2">
+                <Input
+                  value={clientSearchKeyword}
+                  onChange={(e) => setClientSearchKeyword(e.target.value)}
+                 placeholder="利用者名検索"
+              />
+
+           <Select value={fKaipokeCsId} onValueChange={setFKaipokeCsId}>
+            <SelectTrigger>
+             <SelectValue placeholder="利用者を選択" />
+             </SelectTrigger>
+         <SelectContent>
+           {clientOptions
+             .filter((c) =>
+              !clientSearchKeyword.trim()
+                ? true
+                : c.name.toLowerCase().includes(clientSearchKeyword.trim().toLowerCase())
+          )
+          .map((c) => (
+             <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+              {c.name}
+             </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>  
                 
                 <div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
                   <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
