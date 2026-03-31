@@ -105,16 +105,8 @@
       "schedule": "38 * * * *"
     },
     {
-      "path": "/api/cron/cm/alert-batch",
-      "schedule": "0 21 * * *"
-    },
-    {
       "path": "/api/cron/cs_docs_sync_to_kaipokeinfo",
       "schedule": "47 * * * *"
-    },
-    {
-      "path": "/api/cron/cm/scheduled-jobs",
-      "schedule": "30 15 * * *"
     },
     {
       "path": "/api/cron/disability-check-daily",
@@ -131,6 +123,18 @@
     {
       "path": "/api/cron/monthly-meeting-unchecked-alertbar",
       "schedule": "8 0 5 * *"
+    },
+    {
+      "path": "/api/cron/cm/alert-batch",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/cm/scheduled-jobs",
+      "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/cm/log-retention",
+      "schedule": "0 14 * * *"
     }
   ]
 }
