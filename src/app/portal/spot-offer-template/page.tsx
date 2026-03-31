@@ -436,27 +436,7 @@ useEffect(() => {
     setOpenEdit(true);
   };
 
-  const saveTemplate = async () => {
-    try {
-      setError(null);
-
-      if (!fTitle.trim()) {
-      throw new Error("タイトルは必須です");
-    }
-    if (!fMeetingPlace.trim()) {
-      throw new Error("住所は必須です");
-    }
-    if (!fMeetingPlaceBanchi.trim()) {
-      throw new Error("番地は必須です");
-    }
-    if (!fStartAt.trim()) {
-      throw new Error("開始時間は必須です");
-    }
-    if (!fEndAt.trim()) {
-      throw new Error("終了時間は必須です");
-    }
-
-    const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
+      const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
       const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
 
       if (!postalCode) {
@@ -484,6 +464,26 @@ useEffect(() => {
           setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
           return;
         }
+
+  const saveTemplate = async () => {
+    try {
+      setError(null);
+
+      if (!fTitle.trim()) {
+      throw new Error("タイトルは必須です");
+    }
+    if (!fMeetingPlace.trim()) {
+      throw new Error("住所は必須です");
+    }
+    if (!fMeetingPlaceBanchi.trim()) {
+      throw new Error("番地は必須です");
+    }
+    if (!fStartAt.trim()) {
+      throw new Error("開始時間は必須です");
+    }
+    if (!fEndAt.trim()) {
+      throw new Error("終了時間は必須です");
+    }
 
         const result = json.results[0];
         const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
