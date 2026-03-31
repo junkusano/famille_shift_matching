@@ -61,6 +61,14 @@
       "schedule": "51 18 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-resigner-shift",
+      "schedule": "54 18 * * *"
+    },
+    {
+      "path": "/api/cron/alert-resigner-shift",
+      "schedule": "58 19 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
