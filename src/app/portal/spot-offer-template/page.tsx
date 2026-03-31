@@ -220,7 +220,6 @@ type ParkingPreview = {
   };
   
   const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
-  const [clientSearchKeyword, setClientSearchKeyword] = useState("");
 
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
@@ -761,54 +760,35 @@ const saveTemplate = async () => {
                   <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
                 </div>
 
+                <div className="md:col-span-2">
+                  <FieldLabel>利用者選択</FieldLabel>
 
-              <div className="md:col-span-2">
-               <FieldLabel>利用者選択</FieldLabel>
-
-               <div className="space-y-2">
-                <Input
-                  value={clientSearchKeyword}
-                  onChange={(e) => setClientSearchKeyword(e.target.value)}
-                 placeholder="利用者名検索"
-              />
-
-           <Select value={fKaipokeCsId} onValueChange={setFKaipokeCsId}>
-            <SelectTrigger>
-             <SelectValue placeholder="利用者を選択" />
-             </SelectTrigger>
-         <SelectContent>
-           {clientOptions
-             .filter((c) =>
-              !clientSearchKeyword.trim()
-                ? true
-                : c.name.toLowerCase().includes(clientSearchKeyword.trim().toLowerCase())
-          )
-          .map((c) => (
-             <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
-              {c.name}
-             </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>  
+               <Select value={fKaipokeCsId} onValueChange={setFKaipokeCsId}>
+                <SelectTrigger>
+                 <SelectValue placeholder="利用者を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {clientOptions.map((c) => (
+                <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+                 {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+           </Select>
+          </div>
                 
                 <div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
                   <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
 
                   {!fKaipokeCsId.trim() ? (
                     <div className="text-xs text-muted-foreground">
-                      カイポケCS IDを入力すると、利用者名・住所・駐車場情報を表示します。
+                      利用者様を選択すると、住所・駐車場情報を表示します。
                      </div>
                   ) : loadingClientPreview ? (
                      <div className="text-xs text-muted-foreground">取得中...</div>
   ) : (
     <div className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <div className="text-[11px] text-muted-foreground">利用者名</div>
-          <div className="text-sm">{clientPreview?.name ?? "-"}</div>
-        </div>
         <div>
           <div className="text-[11px] text-muted-foreground">住所</div>
           <div className="text-sm whitespace-pre-wrap">{clientPreview?.address ?? "-"}</div>
