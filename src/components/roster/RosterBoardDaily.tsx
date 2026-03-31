@@ -242,6 +242,21 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         return sorted.filter((st) => (st.team ? selectedTeams.includes(st.team) : false));
     }, [initialView.staff, selectedTeams]);
 
+    const serviceOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        cards.forEach((c) => {
+            const code = c.dialog?.service_code ?? c.service_code ?? '';
+            const name = c.dialog?.service_name ?? c.service_name ?? '';
+            if (code) {
+                map.set(code, name ? `${name} (${code})` : code);
+            }
+        });
+
+        return Array.from(map.entries())
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+    }, [cards]);
+
     const rowIndexByStaff = useMemo(() => {
         const m = new Map<string, number>();
         displayStaff.forEach((st, i) => m.set(st.id, i));
@@ -766,7 +781,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                 open={dialogOpen}
                 onClose={() => setDialogOpen(false)}
                 shift={selectedShift}
-                staffOptions={initialView.staff}
+                staffOptions={displayStaff}
+                serviceOptions={serviceOptions}
                 onSaved={handleDialogSaved}
             />
         </>

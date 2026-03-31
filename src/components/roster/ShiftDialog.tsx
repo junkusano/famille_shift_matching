@@ -5,11 +5,17 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { RosterShiftDialogData, RosterStaff } from '@/types/roster';
 
+type ServiceOption = {
+  value: string;
+  label: string;
+};
+
 type Props = {
   open: boolean;
   onClose: () => void;
   shift: RosterShiftDialogData | null;
   staffOptions: RosterStaff[];
+  serviceOptions: ServiceOption[];
   onSaved?: (next: RosterShiftDialogData) => void;
 };
 
@@ -19,6 +25,7 @@ type FormState = {
   shift_start_time: string;
   shift_end_time: string;
   service_code: string;
+  gender_request: string;
   staff_01_user_id: string;
   staff_02_user_id: string;
   staff_03_user_id: string;
@@ -30,12 +37,20 @@ type FormState = {
   cs_note: string;
 };
 
+const GENDER_OPTIONS = [
+  { id: '', label: '未設定' },
+  { id: '9b32a1f0-f711-4ab4-92fb-0331f0c86d42', label: '男性希望' },
+  { id: '42224870-c644-48a5-87e2-7df9c24bca5b', label: '女性希望' },
+  { id: '554d705b-85ec-4437-9352-4b026e2e904f', label: '男女問わず' },
+];
+
 const emptyForm: FormState = {
   shift_id: null,
   shift_start_date: '',
   shift_start_time: '',
   shift_end_time: '',
   service_code: '',
+  gender_request: '',
   staff_01_user_id: '',
   staff_02_user_id: '',
   staff_03_user_id: '',
@@ -47,11 +62,19 @@ const emptyForm: FormState = {
   cs_note: '',
 };
 
+const dispTime = (v?: string | null) => {
+  if (!v) return '';
+  const m = String(v).match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(v);
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+};
+
 export default function ShiftDialog({
   open,
   onClose,
   shift,
   staffOptions,
+  serviceOptions,
   onSaved,
 }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -66,9 +89,10 @@ export default function ShiftDialog({
     setForm({
       shift_id: shift.shift_id,
       shift_start_date: shift.shift_date ?? '',
-      shift_start_time: shift.start_at ?? '',
-      shift_end_time: shift.end_at ?? '',
+      shift_start_time: dispTime(shift.start_at),
+      shift_end_time: dispTime(shift.end_at),
       service_code: shift.service_code ?? '',
+      gender_request: shift.gender_request ?? '',
       staff_01_user_id: String(shift.staff_id_1 ?? ''),
       staff_02_user_id: String(shift.staff_id_2 ?? ''),
       staff_03_user_id: String(shift.staff_id_3 ?? ''),
@@ -119,7 +143,8 @@ export default function ShiftDialog({
           shift_start_date: form.shift_start_date,
           shift_start_time: form.shift_start_time,
           shift_end_time: form.shift_end_time,
-          service_code: form.service_code,
+          service_code: form.service_code || null,
+          gender_request: form.gender_request || null,
           staff_01_user_id: form.staff_01_user_id || null,
           staff_02_user_id: form.staff_02_user_id || null,
           staff_03_user_id: form.staff_03_user_id || null,
@@ -128,6 +153,7 @@ export default function ShiftDialog({
           required_staff_count: Number(form.required_staff_count || 1),
           two_person_work_flg: form.two_person_work_flg,
           judo_ido: form.judo_ido || null,
+          cs_note: form.cs_note || null,
         }),
       });
 
@@ -144,6 +170,13 @@ export default function ShiftDialog({
         start_at: form.shift_start_time,
         end_at: form.shift_end_time,
         service_code: form.service_code,
+        service_name:
+          serviceOptions.find((o) => o.value === form.service_code)?.label ??
+          shift.service_name ??
+          '',
+        gender_request: form.gender_request || null,
+        gender_request_name:
+          GENDER_OPTIONS.find((g) => g.id === form.gender_request)?.label ?? null,
         staff_id_1: form.staff_01_user_id || null,
         staff_id_2: form.staff_02_user_id || null,
         staff_id_3: form.staff_03_user_id || null,
@@ -170,9 +203,6 @@ export default function ShiftDialog({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <div className="text-lg font-bold">シフト簡易編集</div>
-            <div className="text-sm text-gray-500">
-              クリック時の追加API取得はしていません
-            </div>
           </div>
           <button
             type="button"
@@ -207,7 +237,7 @@ export default function ShiftDialog({
               ) : null}
             </div>
 
-            <div>
+            <label className="block">
               <div className="text-xs text-gray-500">備考</div>
               <textarea
                 value={form.cs_note}
@@ -215,12 +245,22 @@ export default function ShiftDialog({
                 rows={4}
                 className="w-full rounded border p-2"
               />
-            </div>
+            </label>
 
-            <div>
-              <div className="text-xs text-gray-500">性別リクエスト</div>
-              <div>{shift.gender_request_name || '—'}</div>
-            </div>
+            <label className="block">
+              <div className="text-xs text-gray-500">希望性別</div>
+              <select
+                value={form.gender_request}
+                onChange={(e) => setField('gender_request', e.target.value)}
+                className="w-full rounded border p-2"
+              >
+                {GENDER_OPTIONS.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </section>
 
           <section className="space-y-3 rounded-lg border p-3">
@@ -247,17 +287,24 @@ export default function ShiftDialog({
             </div>
 
             <label className="block">
-              <div className="text-xs text-gray-500">service_code</div>
-              <input
+              <div className="text-xs text-gray-500">サービス</div>
+              <select
                 value={form.service_code}
                 onChange={(e) => setField('service_code', e.target.value)}
                 className="w-full rounded border p-2"
-              />
+              >
+                <option value="">未設定</option>
+                {serviceOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <div className="grid grid-cols-1 gap-3">
               <label className="block">
-                <div className="text-xs text-gray-500">staff_01</div>
+                <div className="text-xs text-gray-500">スタッフ1</div>
                 <select
                   value={form.staff_01_user_id}
                   onChange={(e) => setField('staff_01_user_id', e.target.value)}
@@ -274,7 +321,7 @@ export default function ShiftDialog({
 
               <div className="grid grid-cols-[1fr_auto] gap-3">
                 <label className="block">
-                  <div className="text-xs text-gray-500">staff_02</div>
+                  <div className="text-xs text-gray-500">スタッフ2</div>
                   <select
                     value={form.staff_02_user_id}
                     onChange={(e) => setField('staff_02_user_id', e.target.value)}
@@ -300,7 +347,7 @@ export default function ShiftDialog({
 
               <div className="grid grid-cols-[1fr_auto] gap-3">
                 <label className="block">
-                  <div className="text-xs text-gray-500">staff_03</div>
+                  <div className="text-xs text-gray-500">スタッフ3</div>
                   <select
                     value={form.staff_03_user_id}
                     onChange={(e) => setField('staff_03_user_id', e.target.value)}
@@ -327,7 +374,7 @@ export default function ShiftDialog({
 
             <div className="grid grid-cols-3 gap-3">
               <label className="block">
-                <div className="text-xs text-gray-500">required_staff_count</div>
+                <div className="text-xs text-gray-500">派遣人数</div>
                 <input
                   value={form.required_staff_count}
                   onChange={(e) => setField('required_staff_count', e.target.value)}
@@ -341,11 +388,11 @@ export default function ShiftDialog({
                   checked={form.two_person_work_flg}
                   onChange={(e) => setField('two_person_work_flg', e.target.checked)}
                 />
-                two_person_work_flg
+                二人同時作業
               </label>
 
               <label className="block">
-                <div className="text-xs text-gray-500">judo_ido</div>
+                <div className="text-xs text-gray-500">重度移動</div>
                 <input
                   value={form.judo_ido}
                   onChange={(e) => setField('judo_ido', e.target.value)}
@@ -356,7 +403,18 @@ export default function ShiftDialog({
           </section>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+          {errorMsg ? <span className="text-sm text-red-600">{errorMsg}</span> : null}
+          {doneMsg ? <span className="text-sm text-green-600">{doneMsg}</span> : null}
+
+          <Link href={clientDetailHref} className="text-blue-600 underline">
+            利用者情報（詳細）へ
+          </Link>
+
+          <Link href={monthlyHref} className="text-blue-600 underline">
+            月間シフトへ
+          </Link>
+
           <button
             type="button"
             onClick={saveShiftOnly}
@@ -365,17 +423,6 @@ export default function ShiftDialog({
           >
             {saving ? '保存中...' : '保存'}
           </button>
-
-          <Link href={monthlyHref} className="text-blue-600 underline">
-            月間シフトへ
-          </Link>
-
-          <Link href={clientDetailHref} className="text-blue-600 underline">
-            利用者情報（詳細）へ
-          </Link>
-
-          {errorMsg ? <span className="text-sm text-red-600">{errorMsg}</span> : null}
-          {doneMsg ? <span className="text-sm text-green-600">{doneMsg}</span> : null}
         </div>
       </div>
     </div>
