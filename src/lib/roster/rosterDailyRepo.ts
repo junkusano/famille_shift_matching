@@ -1,15 +1,19 @@
-// lib/roster/rosterDailyRepo.ts
-// ▼ 目的
-// ・/portal/roster/daily のスタッフ並び替えを「① roster_sort → ② 氏名」にするため、
-//   staff データに roster_sort を付与する。
-// ・加えて、シフトカードに gender_request 系を流す。
-// ・最小変更：このファイルだけ。DBや他ファイルは変更不要。
-// ・やること：users から (user_id, roster_sort) を別取得して合流する。
+// src/lib/roster/rosterDailyRepo.ts
+// /portal/roster/daily 用
+// 方針:
+// - staff は従来どおり user_entry_united_view_single + users.roster_sort を合流
+// - shifts は新設した shift_daily_dialog_view から取得
+// - クリック時追加APIは使わず、dialog に必要なデータを初回ロードで持たせる
+// - fallback は既存 shift_csinfo_postalname_view を維持
 
 import { supabaseAdmin as SB } from "@/lib/supabase/service";
-import type { RosterDailyView, RosterShiftCard, RosterStaff } from "@/types/roster";
+import type {
+  RosterDailyView,
+  RosterShiftCard,
+  RosterShiftDialogData,
+  RosterStaff,
+} from "@/types/roster";
 
-// ==== 追加: users.roster_sort を受ける型 ====
 interface RosterSortRow {
   user_id: string | number;
   roster_sort: string | null;
@@ -26,21 +30,35 @@ interface StaffRow {
 
 interface ShiftRowView {
   shift_id: number;
-  shift_date: string; // YYYY-MM-DD
-  start_at: string;   // HH:MM
-  end_at: string;     // HH:MM
+  shift_date: string;
+  start_at: string;
+  end_at: string;
+
   staff_id_1: string | number | null;
   staff_id_2: string | number | null;
   staff_id_3: string | number | null;
+  staff_02_attend_flg?: boolean | null;
+  staff_03_attend_flg?: boolean | null;
+
   client_name: string | null;
   service_name: string | null;
   service_code: string | null;
   kaipoke_cs_id?: string | number;
-  dsp_short?: string | null;
 
+  postal_code?: string | null;
+  dsp_short?: string | null;
+  address?: string | null;
+  cs_note?: string | null;
+  map_url?: string | null;
+
+  gender_request?: string | null;
   gender_request_name?: string | null;
   male_flg?: boolean | null;
   female_flg?: boolean | null;
+
+  required_staff_count?: number | null;
+  two_person_work_flg?: boolean | null;
+  judo_ido?: string | null;
 }
 
 interface ShiftRowFallback {
@@ -48,11 +66,13 @@ interface ShiftRowFallback {
   shift_start_date: string;
   shift_start_time: string;
   shift_end_time: string;
+
   staff_01_user_id: string | number | null;
   staff_02_user_id: string | number | null;
   staff_03_user_id: string | number | null;
-  name: string | null;                 // client_name
-  kaipoke_servicecode: string | null; // service_name
+
+  name: string | null;
+  kaipoke_servicecode: string | null;
   service_code: string | null;
   kaipoke_cs_id?: string | number;
   dsp_short?: string | null;
@@ -65,38 +85,73 @@ interface ShiftRowFallback {
 const makeFullName = (last?: string | null, first?: string | null) =>
   `${last ?? ""}${first ?? ""}`;
 
+const toBool = (v: unknown): boolean | null => {
+  if (v == null) return null;
+  if (typeof v === "boolean") return v;
+  const s = String(v).trim().toLowerCase();
+  if (["true", "1", "t"].includes(s)) return true;
+  if (["false", "0", "f"].includes(s)) return false;
+  return null;
+};
+
+const makeDialog = (r: ShiftRowView): RosterShiftDialogData => ({
+  shift_id: r.shift_id,
+  shift_date: r.shift_date,
+  start_at: r.start_at,
+  end_at: r.end_at,
+
+  kaipoke_cs_id: r.kaipoke_cs_id ?? "",
+  client_name: r.client_name ?? "",
+
+  postal_code: r.postal_code ?? null,
+  dsp_short: r.dsp_short ?? null,
+  address: r.address ?? null,
+  cs_note: r.cs_note ?? null,
+  map_url: r.map_url ?? null,
+
+  gender_request: r.gender_request ?? null,
+  gender_request_name: r.gender_request_name ?? null,
+  male_flg: r.male_flg ?? null,
+  female_flg: r.female_flg ?? null,
+
+  service_code: r.service_code ?? "",
+  service_name: r.service_name ?? "",
+
+  staff_id_1: r.staff_id_1 != null ? String(r.staff_id_1) : null,
+  staff_id_2: r.staff_id_2 != null ? String(r.staff_id_2) : null,
+  staff_id_3: r.staff_id_3 != null ? String(r.staff_id_3) : null,
+  staff_02_attend_flg: toBool(r.staff_02_attend_flg),
+  staff_03_attend_flg: toBool(r.staff_03_attend_flg),
+
+  required_staff_count:
+    typeof r.required_staff_count === "number" ? r.required_staff_count : null,
+  two_person_work_flg: toBool(r.two_person_work_flg),
+  judo_ido: r.judo_ido ?? null,
+});
+
 const makeCard = (
-  sid: number,
+  r: ShiftRowView,
   uid: string | number | null,
-  s: string,
-  e: string,
-  cn: string | null,
-  sn: string | null,
-  sc: string | null,
-  kcid?: string | number,
-  dspShort?: string | null,
-  staffSlot?: 1 | 2 | 3,
-  genderRequestName?: string | null,
-  maleFlg?: boolean | null,
-  femaleFlg?: boolean | null,
+  staffSlot?: 1 | 2 | 3
 ): RosterShiftCard => ({
-  id: `${sid}_${uid ?? ""}`,
+  id: `${r.shift_id}_${uid ?? ""}`,
   staff_id: String(uid),
-  start_at: s,
-  end_at: e,
-  client_name: cn ?? "",
-  service_name: sn ?? "",
-  service_code: sc ?? "",
-  kaipoke_cs_id: kcid ?? "",
-  dsp_short: dspShort ?? null,
+  start_at: r.start_at,
+  end_at: r.end_at,
+  client_name: r.client_name ?? "",
+  service_name: r.service_name ?? "",
+  service_code: r.service_code ?? "",
+  kaipoke_cs_id: r.kaipoke_cs_id ?? "",
+  dsp_short: r.dsp_short ?? null,
   staff_slot: staffSlot,
-  gender_request_name: genderRequestName ?? null,
-  male_flg: maleFlg ?? null,
-  female_flg: femaleFlg ?? null,
+  gender_request_name: r.gender_request_name ?? null,
+  male_flg: r.male_flg ?? null,
+  female_flg: r.female_flg ?? null,
+  dialog: makeDialog(r),
 });
 
 export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
-  // -- 1) staff（既存）
+  // 1) staff
   const staffSel = [
     "user_id",
     "last_name_kanji",
@@ -114,7 +169,6 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   const staffRows: StaffRow[] = (staffRaw ?? []) as unknown as StaffRow[];
 
-  // -- 1') users から roster_sort を取得して合流
   const { data: sortRaw, error: sortErr } = await SB
     .from("users")
     .select("user_id,roster_sort");
@@ -127,9 +181,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     sortMap.set(String(row.user_id), row.roster_sort ?? "9999");
   });
 
-  type RosterStaffEx = RosterStaff & { roster_sort?: string };
-
-  const staff: RosterStaffEx[] = staffRows.map((r): RosterStaffEx => ({
+  const staff: RosterStaff[] = staffRows.map((r): RosterStaff => ({
     id: String(r.user_id),
     name: makeFullName(r.last_name_kanji, r.first_name_kanji),
     team: r.orgunitname ?? null,
@@ -146,7 +198,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
 
   if (staff.length === 0) console.warn("[roster] no staff records");
 
-  // -- 2) shifts：まず roster_view、無ければ postalname_view
+  // 2) shifts: まず新view、失敗時のみ旧view fallback
   const shiftSel = [
     "shift_id",
     "shift_date",
@@ -155,29 +207,36 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
     "staff_id_1",
     "staff_id_2",
     "staff_id_3",
+    "staff_02_attend_flg",
+    "staff_03_attend_flg",
     "client_name",
     "service_name",
     "service_code",
     "kaipoke_cs_id",
+    "postal_code",
     "dsp_short",
+    "address",
+    "cs_note",
+    "map_url",
+    "gender_request",
     "gender_request_name",
     "male_flg",
     "female_flg",
+    "required_staff_count",
+    "two_person_work_flg",
+    "judo_ido",
   ].join(",");
 
   let shiftRows: ShiftRowView[] | null = null;
 
   {
     const { data, error } = await SB
-      .from("shift_csinfo_roster_view")
+      .from("shift_daily_dialog_view")
       .select(shiftSel)
       .eq("shift_date", date);
 
     if (error) {
-      console.warn(
-        "[roster] roster_view query error → fallback to postalname_view",
-        error
-      );
+      console.warn("[roster] shift_daily_dialog_view query error → fallback", error);
     } else {
       shiftRows = (data ?? []) as unknown as ShiftRowView[];
     }
@@ -208,7 +267,7 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
       .eq("shift_start_date", date);
 
     if (error) {
-      console.warn("[roster] postalname_view query error", error);
+      console.warn("[roster] shift_csinfo_postalname_view query error", error);
       shiftRows = [];
     } else {
       const rows = (data ?? []) as unknown as ShiftRowFallback[];
@@ -220,84 +279,38 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
         staff_id_1: r.staff_01_user_id,
         staff_id_2: r.staff_02_user_id,
         staff_id_3: r.staff_03_user_id,
+        staff_02_attend_flg: null,
+        staff_03_attend_flg: null,
         client_name: r.name,
         service_name: r.kaipoke_servicecode,
         service_code: r.service_code,
         kaipoke_cs_id: r.kaipoke_cs_id,
-        dsp_short: r.dsp_short,
-        gender_request_name: r.gender_request_name,
-        male_flg: r.male_flg,
-        female_flg: r.female_flg,
+        postal_code: null,
+        dsp_short: r.dsp_short ?? null,
+        address: null,
+        cs_note: null,
+        map_url: null,
+        gender_request: null,
+        gender_request_name: r.gender_request_name ?? null,
+        male_flg: r.male_flg ?? null,
+        female_flg: r.female_flg ?? null,
+        required_staff_count: null,
+        two_person_work_flg: null,
+        judo_ido: null,
       }));
     }
   }
 
-  // -- 3) map to cards
+  // 3) cards
   const shifts: RosterShiftCard[] = [];
 
   for (const r of shiftRows ?? []) {
-    if (r.staff_id_1) {
-      shifts.push(
-        makeCard(
-          r.shift_id,
-          r.staff_id_1,
-          r.start_at,
-          r.end_at,
-          r.client_name,
-          r.service_name,
-          r.service_code,
-          r.kaipoke_cs_id,
-          r.dsp_short,
-          1,
-          r.gender_request_name,
-          r.male_flg,
-          r.female_flg
-        )
-      );
-    }
-
-    if (r.staff_id_2) {
-      shifts.push(
-        makeCard(
-          r.shift_id,
-          r.staff_id_2,
-          r.start_at,
-          r.end_at,
-          r.client_name,
-          r.service_name,
-          r.service_code,
-          r.kaipoke_cs_id,
-          r.dsp_short,
-          2,
-          r.gender_request_name,
-          r.male_flg,
-          r.female_flg
-        )
-      );
-    }
-
-    if (r.staff_id_3) {
-      shifts.push(
-        makeCard(
-          r.shift_id,
-          r.staff_id_3,
-          r.start_at,
-          r.end_at,
-          r.client_name,
-          r.service_name,
-          r.service_code,
-          r.kaipoke_cs_id,
-          r.dsp_short,
-          3,
-          r.gender_request_name,
-          r.male_flg,
-          r.female_flg
-        )
-      );
-    }
+    if (r.staff_id_1) shifts.push(makeCard(r, r.staff_id_1, 1));
+    if (r.staff_id_2) shifts.push(makeCard(r, r.staff_id_2, 2));
+    if (r.staff_id_3) shifts.push(makeCard(r, r.staff_id_3, 3));
   }
 
   if (shifts.length === 0) console.warn("[roster] no shifts for", date);
 
-  return { date, staff, shifts } as RosterDailyView;
+  return { date, staff, shifts };
 }
