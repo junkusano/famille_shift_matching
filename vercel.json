@@ -66,7 +66,15 @@
     },
     {
       "path": "/api/cron/alert-resigner-shift",
-      "schedule": "58 19 * * *"
+      "schedule": "58 18 * * *"
+    },
+    {
+      "path": "/api/cron/alert-reset-kaipoke-cs-fax",
+      "schedule": "02 19 * * *"
+    },
+    {
+      "path": "/api/cron/alert-kaipoke-cs-fax",
+      "schedule": "06 19 * * *"
     },
     {
       "path": "/api/cron/shift-record-check",
