@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
 const REQUIRED_LICENSE_OPTIONS = [
@@ -191,6 +192,8 @@ export default function SpotOfferTemplatePage() {
   const [fMeetingYuubinn, setFMeetingYuubinn] = useState("");
   const [fMatchingPlaceName, setFMatchingPlaceName] = useState("");
   const [fMeetingPlaceBanchi, setFMeetingPlaceBanchi] = useState("");
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [postalError, setPostalError] = useState<string | null>(null);
 
   type ClientPreview = {
   name: string | null;
@@ -210,6 +213,14 @@ type ParkingPreview = {
   const [clientPreview, setClientPreview] = useState<ClientPreview | null>(null);
   const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
   const [loadingClientPreview, setLoadingClientPreview] = useState(false);
+
+    type ClientOption = {
+   kaipoke_cs_id: string;
+   name: string;
+  };
+  
+  const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+  const [clientSearchKeyword, setClientSearchKeyword] = useState("");
 
   const canAccess = useMemo(() => ["admin", "manager"].includes(role), [role]);
 
@@ -318,6 +329,33 @@ type ParkingPreview = {
 }, [fKaipokeCsId]);
 
 useEffect(() => {
+  const loadClientOptions = async () => {
+    try {
+      const { data, error } = await supabase
+       .from("cs_kaipoke_info")
+       .select("kaipoke_cs_id, name")
+       .not("kaipoke_cs_id", "is", null)
+       .not("name", "is", null)
+       .order("name", { ascending: true });
+
+     if (error) throw error;
+
+     setClientOptions(
+      (data ?? []).map((row) => ({
+       kaipoke_cs_id: row.kaipoke_cs_id,
+       name: row.name,
+     }))
+   );
+   } catch (e) {
+    console.error("利用者一覧取得エラー:", e);
+     setClientOptions([]);
+    }
+ };
+
+  void loadClientOptions();
+  }, []);
+
+useEffect(() => {
     void fetchList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -398,11 +436,53 @@ useEffect(() => {
     setOpenEdit(true);
   };
 
-  const saveTemplate = async () => {
-    try {
-      setError(null);
+  const lookupAddressByPostalCode = async (postalCodeRaw: string) => {
+  const postalCode = postalCodeRaw.replace(/[^\d]/g, "");
 
-      if (!fTitle.trim()) {
+  if (!postalCode) {
+    setPostalError(null);
+    return;
+  }
+
+  if (!/^\d{7}$/.test(postalCode)) {
+    setPostalError("郵便番号は7桁で入力してください");
+    return;
+  }
+
+  try {
+    setPostalLoading(true);
+    setPostalError(null);
+
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`);
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error("住所検索に失敗しました");
+    }
+
+    if (!json.results || json.results.length === 0) {
+      setPostalError("該当する住所が見つかりませんでした。住所を直接入力してください。");
+      return;
+    }
+
+    const result = json.results[0];
+    const autoAddress = `${result.address1 ?? ""}${result.address2 ?? ""}${result.address3 ?? ""}`;
+
+    if (autoAddress.trim()) {
+      setFMeetingPlace(autoAddress);
+    }
+  } catch (e) {
+    setPostalError(e instanceof Error ? e.message : "住所検索に失敗しました");
+  } finally {
+    setPostalLoading(false);
+  }
+};
+
+const saveTemplate = async () => {
+  try {
+    setError(null);
+
+    if (!fTitle.trim()) {
       throw new Error("タイトルは必須です");
     }
     if (!fMeetingPlace.trim()) {
@@ -418,53 +498,52 @@ useEffect(() => {
       throw new Error("終了時間は必須です");
     }
 
+    const payload: Partial<SpotOfferTemplateUnified> = {
+      timee_offer_id: fTimeeOfferId.trim() || null,
+      ucare_offer_id: fUcareOfferId.trim() || null,
+      kaiteku_offer_id: fKaitekuOfferId.trim() || null,
+      template_title: fTitle.trim() || null,
+      work_description: fDesc.trim() || null,
+      cautions: fCautions.trim() || null,
+      auto_message: fAutoMsg.trim() || null,
+      work_address: fAddress.trim() || null,
+      emergency_phone: fEmergencyPhone.trim() || null,
+      smoking_policy: fSmokingPolicy.trim() || null,
+      smoking_area_work: fSmokingAreaWork,
+      requires_license: fRequiresLicense,
+      required_licenses: fRequiredLicenses,
+      benefits: toArrayFromTextarea(fBenefitsText),
+      belongings: toArrayFromTextarea(fBelongingsText),
+      internal_label: fInternalLabel.trim() || null,
+      photo_urls: toArrayFromTextarea(fPhotoUrlsText),
+      salary: fSalary.trim() || null,
+      fare: fFare.trim() || null,
+      kaipoke_cs_id: fKaipokeCsId.trim() || null,
+      start_at: toNullableTime(fStartAt),
+      end_at: toNullableTime(fEndAt),
+      status: fStatus.trim() || null,
+      unit_amount: toNullableNumber(fUnitAmount),
+      commute_fee: toNullableNumber(fCommuteFee),
+      send_msg_flg: fSendMsgFlg,
+      matching_msg: fMatchingMsg.trim() || null,
+      meeting_place: fMeetingPlace.trim() || null,
+      meeting_yuubinn: fMeetingYuubinn.trim() || null,
+      matching_place_name: fMatchingPlaceName.trim() || null,
+      meeting_place_banchi: fMeetingPlaceBanchi.trim() || null,
+    };
 
-      const payload: Partial<SpotOfferTemplateUnified> = {
-        timee_offer_id: fTimeeOfferId.trim() || null,
-        ucare_offer_id: fUcareOfferId.trim() || null,
-        kaiteku_offer_id: fKaitekuOfferId.trim() || null,
-        template_title: fTitle.trim() || null,
-        work_description: fDesc.trim() || null,
-        cautions: fCautions.trim() || null,
-        auto_message: fAutoMsg.trim() || null,
-        work_address: fAddress.trim() || null,
-        emergency_phone: fEmergencyPhone.trim() || null,
-        smoking_policy: fSmokingPolicy.trim() || null,
-        smoking_area_work: fSmokingAreaWork,
-        requires_license: fRequiresLicense,
-        required_licenses: fRequiredLicenses,
-        benefits: toArrayFromTextarea(fBenefitsText),
-        belongings: toArrayFromTextarea(fBelongingsText),
-        internal_label: fInternalLabel.trim() || null,
-        photo_urls: toArrayFromTextarea(fPhotoUrlsText),
-        salary: fSalary.trim() || null,
-        fare: fFare.trim() || null,
-        kaipoke_cs_id: fKaipokeCsId.trim() || null,
-        start_at: toNullableTime(fStartAt),
-        end_at: toNullableTime(fEndAt),
-        status: fStatus.trim() || null,
-        unit_amount: toNullableNumber(fUnitAmount),
-        commute_fee: toNullableNumber(fCommuteFee),
-        send_msg_flg: fSendMsgFlg,
-        matching_msg: fMatchingMsg.trim() || null,
-        meeting_place: fMeetingPlace.trim() || null,
-        meeting_yuubinn: fMeetingYuubinn.trim() || null,
-        matching_place_name: fMatchingPlaceName.trim() || null,
-        meeting_place_banchi: fMeetingPlaceBanchi.trim() || null,
-      };
-
-      if (editing) {
-        await spotApi.updateTemplate(editing.core_id, payload);
-      } else {
-        await spotApi.createTemplate(payload);
-      }
-
-      setOpenEdit(false);
-      await fetchList();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    if (editing) {
+      await spotApi.updateTemplate(editing.core_id, payload);
+    } else {
+      await spotApi.createTemplate(payload);
     }
-  };
+
+    setOpenEdit(false);
+    await fetchList();
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+  }
+};
 
   const deleteTemplate = async (row: SpotOfferTemplateUnified) => {
     const ok = window.confirm(`削除しますか？\n\n${row.template_title ?? "(無題)"}\ncore_id=${row.core_id}`);
@@ -681,12 +760,38 @@ useEffect(() => {
                   <div className="text-[11px] text-muted-foreground">内部ラベル</div>
                   <Input value={fInternalLabel} onChange={(e) => setFInternalLabel(e.target.value)} placeholder="例：〇〇様 行動援護　など" />
                 </div>
-                <div>
-                 <FieldLabel>カイポケCS ID</FieldLabel>
-                  <Input
-                  value={fKaipokeCsId}
-                  onChange={(e) => setFKaipokeCsId(e.target.value)} placeholder="入力例：123456" />
-                </div>
+
+
+              <div className="md:col-span-2">
+               <FieldLabel>利用者選択</FieldLabel>
+
+               <div className="space-y-2">
+                <Input
+                  value={clientSearchKeyword}
+                  onChange={(e) => setClientSearchKeyword(e.target.value)}
+                 placeholder="利用者名検索"
+              />
+
+           <Select value={fKaipokeCsId} onValueChange={setFKaipokeCsId}>
+            <SelectTrigger>
+             <SelectValue placeholder="利用者を選択" />
+             </SelectTrigger>
+         <SelectContent>
+           {clientOptions
+             .filter((c) =>
+              !clientSearchKeyword.trim()
+                ? true
+                : c.name.toLowerCase().includes(clientSearchKeyword.trim().toLowerCase())
+          )
+          .map((c) => (
+             <SelectItem key={c.kaipoke_cs_id} value={c.kaipoke_cs_id}>
+              {c.name}
+             </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>  
                 
                 <div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
                   <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
@@ -830,15 +935,38 @@ useEffect(() => {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">郵便番号</div>
-                  <Input value={fMeetingYuubinn} onChange={(e) => setFMeetingYuubinn(e.target.value)} placeholder="例：4560018　ハイフンなしで入力"/>
+                  <div className="flex gap-2">
+                    <Input
+                     value={fMeetingYuubinn}
+                     onChange={(e) => {
+                      setFMeetingYuubinn(e.target.value);
+                      setPostalError(null);
+                     }}
+                     onBlur={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+                     placeholder="例：4560018　ハイフンなしで入力"
+                     inputMode="numeric" 
+                  />
+                  <Button
+                   type="button"
+                   variant="outline"
+                   onClick={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+                   disabled={postalLoading}
+                >
+                  {postalLoading ? "検索中..." : "住所検索"}
+                </Button>
+                  </div>
+                  {postalError && (
+                   <div className="mt-1 text-xs text-red-600">{postalError}</div>
+                )}
+                
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>住所</FieldLabel> 
-                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区"/>
+                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区新尾頭"/>
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>番地</FieldLabel>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：新尾頭３丁目1-18 WIZ金山602"/>
+                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：３丁目1-18 WIZ金山602"/>
                 </div>
               </div>
             </div>
