@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
       // ここで止めたければ return してもOK（今は継続させるなら throwしない）
     }
 
-    /*// ★AUTO DONE 一括クローズ（system の open だけ）
+    // ★AUTO DONE 一括クローズ（system の open だけ）
     console.info("[cron][auto_done] start");
 
     const nowIso = new Date().toISOString();
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
         .in("status_source", ["system"]);
 
       console.info("[cron][auto_done] updated count =", count ?? 0, "err=", error?.message);
-    }*/
+    }
 
     // 3) post-count
     {
