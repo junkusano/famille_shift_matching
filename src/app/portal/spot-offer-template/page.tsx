@@ -286,10 +286,20 @@ type ParkingPreview = {
      const merged = data.map((r) => ({
       ...r,
       client_name: r.kaipoke_cs_id
-       ? clientMap[r.kaipoke_cs_id] ?? "-"
+        ? clientMap[String(r.kaipoke_cs_id)] ?? "-"
        : "-",
        recent_rpa_requested_at: requestMap[r.core_id] ?? [],
        }));
+
+       console.log("spot rows preview", merged.slice(0, 5).map((r) => ({
+        core_id: r.core_id,
+        title: r.template_title,
+        client_name: r.client_name,
+        work_address: r.work_address,
+        start_at: r.start_at,
+        end_at: r.end_at,
+        status: r.status
+      })));
 
        setRows(merged);
 
