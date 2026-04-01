@@ -253,7 +253,7 @@ type ParkingPreview = {
       .in("kaipoke_cs_id", csIds);
 
       clientMap = Object.fromEntries(
-        (clients ?? []).map((c) => [c.kaipoke_cs_id, c.name])
+        (clients ?? []).map((c) => [String(c.kaipoke_cs_id), c.name])
        );
      } 
 
