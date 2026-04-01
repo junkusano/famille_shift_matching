@@ -711,6 +711,7 @@ const saveTemplate = async () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[120px]">状態</TableHead>
               <TableHead className="w-[240px]">タイトル</TableHead>
               <TableHead className="w-[180px]">利用者名</TableHead>
               <TableHead className="w-[260px]">住所</TableHead>
@@ -756,6 +757,17 @@ const saveTemplate = async () => {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {timeForInput(r.start_at) || "-"} ～ {timeForInput(r.end_at) || "-"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {r.recent_rpa_requested_at?.length ? (
+                      <div className="space-y-1">
+                        {r.recent_rpa_requested_at.map((dt, idx) => (
+                          <div key={idx}>{new Date(dt).toLocaleDateString("ja-JP")}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      "-"
+                   )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
