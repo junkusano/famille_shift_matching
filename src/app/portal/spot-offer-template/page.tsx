@@ -249,8 +249,9 @@ type ParkingPreview = {
     if (csIds.length > 0) {
       const { data: clients } = await supabase
       .from("cs_kaipoke_info")
-      .select("kaipoke_cs_id, name")
-      .in("kaipoke_cs_id", csIds);
+      .select("kaipoke_cs_id, name, name_kana")
+      .in("kaipoke_cs_id", csIds)
+      .order("name_kana", { ascending: true });
 
       clientMap = Object.fromEntries(
         (clients ?? []).map((c) => [String(c.kaipoke_cs_id), c.name])
