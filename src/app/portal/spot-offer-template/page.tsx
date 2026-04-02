@@ -811,7 +811,7 @@ const saveTemplate = async () => {
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
                   <div className="md:col-span-2 xl:col-span-3"></div>
-                  <FieldLabel required>タイトル　※ここに個人名は入れないでください</FieldLabel>
+                  <FieldLabel required>タイトル　※ここに個人名は入れないでください。</FieldLabel>
                   <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
                 </div>
                 <div>
