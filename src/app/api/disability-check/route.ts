@@ -19,6 +19,7 @@ type ViewRow = {
   client_name: string | null;
   client_kana: string | null; // ★追加
   ido_jukyusyasho: string | null;
+  shogai_jukyusha_no: string | null;
   is_checked: boolean | null;
   district: string | null;
   asigned_jisseki_staff_id: string | null;
@@ -384,18 +385,17 @@ export async function POST(req: NextRequest) {
 
     const merged = rows.map((r: ViewRow) => {
       const csId = String(r.kaipoke_cs_id);
-      const any = submittedAnyByCs.get(csId) ?? false;
+      const isSubmitted = submittedAnyByCs.get(csId) ?? false;
 
       const shogaiNo = (shogaiMap.get(csId) ?? "").trim();
       const idoNo = (r.ido_jukyusyasho ?? "").trim();
 
       return {
         ...r,
-        // ★ shogai_jukyusha_no があればそれを優先して表示
-        ido_jukyusyasho: shogaiNo || idoNo || null,
-        client_kana: kanaMap.get(csId) ?? null,
-        is_submitted: any,
-        application_check: any,
+        shogai_jukyusha_no: shogaiNo || null,
+        ido_jukyusyasho: idoNo || null,
+        is_submitted: isSubmitted,
+        application_check: isSubmitted,
       };
     });
 

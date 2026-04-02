@@ -13,6 +13,7 @@ interface Row {
   client_kana: string | null; // ★追加
   year_month: string;         // YYYY-MM
   kaipoke_servicek: string;   // "障害" | "移動支援" など
+  shogai_jukyusha_no: string | null;
   ido_jukyusyasho: string | null;
   is_checked: boolean | null;
   district: string | null;
@@ -142,12 +143,12 @@ const DisabilityCheckPage: React.FC = () => {
     | "district"
     | "kaipoke_cs_id"
     | "client_name"
+    | "shogai_jukyusha_no"
     | "ido_jukyusyasho"
     | "asigned_jisseki_staff_name"
     | "asigned_org_name"
     | "is_submitted"
     | "is_checked";
-
   type SortOrder = "none" | "asc" | "desc";
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -338,6 +339,14 @@ const DisabilityCheckPage: React.FC = () => {
             "ja",
             { numeric: true }
           ) * dir;
+        }
+
+        case "shogai_jukyusha_no": {
+          const av = Number(a.shogai_jukyusha_no ?? "");
+          const bv = Number(b.shogai_jukyusha_no ?? "");
+          const an = Number.isNaN(av) ? -1 : av;
+          const bn = Number.isNaN(bv) ? -1 : bv;
+          return (an - bn) * dir;
         }
 
         case "ido_jukyusyasho": {
@@ -1221,9 +1230,22 @@ const DisabilityCheckPage: React.FC = () => {
 
             <th
               style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
+              onClick={() => toggleSort("shogai_jukyusha_no")}
+            >
+              受給者証番号（障害）
+              <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
+                {sortMark("shogai_jukyusha_no")}
+              </span>
+              <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
+                昇順/降順
+              </span>
+            </th>
+
+            <th
+              style={{ cursor: "pointer", whiteSpace: "nowrap", padding: 8 }}
               onClick={() => toggleSort("ido_jukyusyasho")}
             >
-              受給者証番号
+              受給者証番号（移動）
               <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
                 {sortMark("ido_jukyusyasho")}
               </span>
@@ -1296,6 +1318,10 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
 
                 <td style={{ padding: 8 }}>
+                  {r.shogai_jukyusha_no ?? ""}
+                </td>
+
+                <td style={{ padding: 8 }}>
                   <input
                     type="text"
                     value={r.ido_jukyusyasho ?? ""}
@@ -1364,7 +1390,7 @@ const DisabilityCheckPage: React.FC = () => {
           })}
           {uniqueFilteredRecords.length === 0 && (
             <tr>
-              <td colSpan={8} style={{ textAlign: "center", padding: 12 }}>
+              <td colSpan={9} style={{ textAlign: "center", padding: 12 }}>
                 該当データがありません
               </td>
             </tr>
