@@ -115,6 +115,7 @@ export default function ShiftDialog({
     }, [shift]);
 
     const [clientDetailHref, setClientDetailHref] = useState('#');
+    const [clientInfoId, setClientInfoId] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -122,6 +123,7 @@ export default function ShiftDialog({
         const loadClientDetailHref = async () => {
             if (!open || !shift?.kaipoke_cs_id) {
                 setClientDetailHref('#');
+                setClientInfoId(null);
                 return;
             }
 
@@ -129,6 +131,7 @@ export default function ShiftDialog({
                 const res = await fetch('/api/kaipoke-info', {
                     credentials: 'same-origin',
                 });
+
                 const rows = (await res.json().catch(() => [])) as Array<{
                     id?: string | null;
                     kaipoke_cs_id?: string | number | null;
@@ -139,6 +142,7 @@ export default function ShiftDialog({
                 );
 
                 if (!cancelled) {
+                    setClientInfoId(hit?.id ? String(hit.id) : null);
                     setClientDetailHref(
                         hit?.id
                             ? `/portal/kaipoke-info-detail/${encodeURIComponent(String(hit.id))}`
@@ -146,11 +150,15 @@ export default function ShiftDialog({
                     );
                 }
             } catch {
-                if (!cancelled) setClientDetailHref('#');
+                if (!cancelled) {
+                    setClientInfoId(null);
+                    setClientDetailHref('#');
+                }
             }
         };
 
         loadClientDetailHref();
+
         return () => {
             cancelled = true;
         };
@@ -179,17 +187,17 @@ export default function ShiftDialog({
             }
 
             const token = sessionData.session?.access_token ?? null;
-
             if (!token) {
                 throw new Error('ログインセッションが取得できません。再ログイン後にお試しください。');
             }
 
+            // ① shift 側を保存
             const res = await fetch('/api/shifts', {
                 method: 'PUT',
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     shift_id: form.shift_id,
@@ -197,7 +205,6 @@ export default function ShiftDialog({
                     shift_start_time: form.shift_start_time,
                     shift_end_time: form.shift_end_time,
                     service_code: form.service_code || null,
-                    gender_request: form.gender_request || null,
                     staff_01_user_id: form.staff_01_user_id || null,
                     staff_02_user_id: form.staff_02_user_id || null,
                     staff_03_user_id: form.staff_03_user_id || null,
@@ -206,7 +213,6 @@ export default function ShiftDialog({
                     required_staff_count: Number(form.required_staff_count || 1),
                     two_person_work_flg: form.two_person_work_flg,
                     judo_ido: form.judo_ido || null,
-                    cs_note: form.cs_note || null,
                 }),
             });
 
@@ -216,6 +222,21 @@ export default function ShiftDialog({
                 throw new Error(json?.error?.message ?? json?.error ?? '保存に失敗しました');
             }
 
+            // ② 利用者情報側を保存（希望性別・備考）
+            if (clientInfoId) {
+                const { error: clientUpdateError } = await supabase
+                    .from('cs_kaipoke_info')
+                    .update({
+                        gender_request: form.gender_request || null,
+                        biko: form.cs_note.trim() || null,
+                    })
+                    .eq('id', clientInfoId);
+
+                if (clientUpdateError) {
+                    throw new Error(`利用者情報の保存に失敗しました: ${clientUpdateError.message}`);
+                }
+            }
+
             const next: RosterShiftDialogData = {
                 ...shift,
                 shift_id: form.shift_id,
@@ -223,6 +244,10 @@ export default function ShiftDialog({
                 start_at: form.shift_start_time,
                 end_at: form.shift_end_time,
                 service_code: form.service_code,
+                service_name:
+                    serviceOptions.find((o) => o.value === form.service_code)?.label ??
+                    shift.service_name ??
+                    '',
                 gender_request: form.gender_request || null,
                 gender_request_name:
                     GENDER_OPTIONS.find((g) => g.id === form.gender_request)?.label ?? null,
