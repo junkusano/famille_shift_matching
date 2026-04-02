@@ -1401,7 +1401,7 @@ const DisabilityCheckPage: React.FC = () => {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      受給者証番号保存
+                      保存
                     </button>
                   </div>
                 </td>
