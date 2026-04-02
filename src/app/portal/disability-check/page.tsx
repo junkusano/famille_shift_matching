@@ -767,7 +767,7 @@ const DisabilityCheckPage: React.FC = () => {
   };
 
   /** 受給者証番号 更新 */
-  const handleIdoChange = async (row: Row, value: string) => {
+  /*const handleIdoChange = async (row: Row, value: string) => {
     setRecords((prev) =>
       prev.map((r) =>
         r.kaipoke_cs_id === row.kaipoke_cs_id ? { ...r, ido_jukyusyasho: value } : r
@@ -782,7 +782,7 @@ const DisabilityCheckPage: React.FC = () => {
     } catch {
       console.error("Failed to update ido_jukyusyasho");
     }
-  };
+  };*/
 
   // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
   const handleBulkPrint = () => {
@@ -1236,9 +1236,6 @@ const DisabilityCheckPage: React.FC = () => {
               <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
                 {sortMark("shogai_jukyusha_no")}
               </span>
-              <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
-                昇順/降順
-              </span>
             </th>
 
             <th
@@ -1248,9 +1245,6 @@ const DisabilityCheckPage: React.FC = () => {
               受給者証番号（移動）
               <span style={{ fontSize: 12, color: "#666", marginLeft: 4 }}>
                 {sortMark("ido_jukyusyasho")}
-              </span>
-              <span style={{ fontSize: 11, color: "#999", marginLeft: 6 }}>
-                昇順/降順
               </span>
             </th>
 
@@ -1322,19 +1316,9 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
 
                 <td style={{ padding: 8 }}>
-                  <input
-                    type="text"
-                    value={r.ido_jukyusyasho ?? ""}
-                    onChange={(e) => handleIdoChange(r, e.target.value)}
-                    style={{
-                      height: 28,
-                      lineHeight: "28px",
-                      padding: "2px 6px",
-                      boxSizing: "border-box",
-                      width: "100%",
-                    }}
-                  />
+                  {r.ido_jukyusyasho ?? ""}
                 </td>
+
                 {/* ① 実績担当者表示 */}
                 <td style={{ padding: 8 }}>
                   <select
