@@ -9,6 +9,8 @@ import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const TRUSTED_DEVICE_COOKIE_NAME = "trusted_device";
+
 const supabaseAuthClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -30,6 +32,14 @@ function generateCode() {
 
 function sha256(value: string) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function getClientIp(req: NextRequest): string {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() ?? "";
+  }
+  return req.headers.get("x-real-ip")?.trim() ?? "";
 }
 
 async function getRecruitContact() {
@@ -58,6 +68,30 @@ async function getRecruitContact() {
   };
 }
 
+async function findTrustedDevice(req: NextRequest, authUserId: string) {
+  const rawToken = req.cookies.get(TRUSTED_DEVICE_COOKIE_NAME)?.value?.trim() ?? "";
+  if (!rawToken) return null;
+
+  const tokenHash = sha256(rawToken);
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from("login_trusted_devices")
+    .select("id, auth_user_id, expires_at, revoked_at")
+    .eq("auth_user_id", authUserId)
+    .eq("token_hash", tokenHash)
+    .is("revoked_at", null)
+    .gt("expires_at", nowIso)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[lineworks-2fa/request] trusted device lookup error", error);
+    return null;
+  }
+
+  return data ?? null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -78,7 +112,7 @@ export async function POST(req: NextRequest) {
         password,
       });
 
-    if (signInError || !signInData.user) {
+    if (signInError || !signInData.user || !signInData.session) {
       return NextResponse.json(
         {
           ok: false,
@@ -89,6 +123,27 @@ export async function POST(req: NextRequest) {
     }
 
     const authUserId = signInData.user.id;
+
+    // 1.5) trusted device ならOTP省略
+    const trustedDevice = await findTrustedDevice(req, authUserId);
+    if (trustedDevice) {
+      await supabaseAdmin
+        .from("login_trusted_devices")
+        .update({
+          last_used_at: new Date().toISOString(),
+          last_ip: getClientIp(req) || null,
+          user_agent: req.headers.get("user-agent") || null,
+        })
+        .eq("id", trustedDevice.id);
+
+      return NextResponse.json({
+        ok: true,
+        skipTwoFactor: true,
+        message: "この端末では追加認証を省略しました。",
+        session: signInData.session,
+      });
+    }
+
     const recruit = await getRecruitContact();
 
     // 2) LINE WORKS 送信先取得
@@ -178,6 +233,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      skipTwoFactor: false,
       message: "LINE WORKS に認証コードを送信しました。コードを入力してください。",
     });
   } catch (e) {

@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [rememberDevice, setRememberDevice] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,6 +41,22 @@ export default function LoginPage() {
 
       if (!res.ok || !json?.ok) {
         setError(json?.message || '認証コード送信に失敗しました。')
+        return
+      }
+
+      // trusted device により2FA省略
+      if (json?.skipTwoFactor && json?.session) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: json.session.access_token,
+          refresh_token: json.session.refresh_token,
+        })
+
+        if (sessionError) {
+          setError(sessionError.message)
+          return
+        }
+
+        router.push('/portal')
         return
       }
 
@@ -62,7 +79,12 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/lineworks-2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, code }),
+        body: JSON.stringify({
+          email,
+          password,
+          code,
+          rememberDevice,
+        }),
       })
 
       const json = await res.json().catch(() => null)
@@ -162,7 +184,7 @@ export default function LoginPage() {
 
       setResetMsg(
         json?.message ||
-          '該当するアカウントが存在する場合、メールを送信しました。メールをご確認ください。'
+        '該当するアカウントが存在する場合、メールを送信しました。メールをご確認ください。'
       )
     } catch {
       setResetMsg(
@@ -279,6 +301,15 @@ export default function LoginPage() {
             maxLength={6}
             className="w-full border px-3 py-2 rounded tracking-widest"
           />
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(e) => setRememberDevice(e.target.checked)}
+              className="mt-1"
+            />
+            <span>この端末では2週間、追加認証を省略する</span>
+          </label>
 
           {error && <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>}
           {info && <p className="text-green-600 text-sm whitespace-pre-line">{info}</p>}
