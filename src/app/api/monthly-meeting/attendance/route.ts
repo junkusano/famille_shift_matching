@@ -115,9 +115,49 @@ export async function GET(req: NextRequest) {
         }
         const staffIdsFromShift = Array.from(staffSet);
 
-        // ★shiftで0件でも、既存 attendance から復元できるようにする
-        let staffIds = [...staffIdsFromShift];
+        // meeting_must=true の org を取得
+        const { data: orgs, error: orgErr } = await supabaseAdmin
+            .from("orgs")
+            .select("orgunitid")
+            .eq("meeting_must", true);
 
+        if (orgErr) throw orgErr;
+
+        const meetingOrgIds = Array.from(
+            new Set(
+                (orgs ?? [])
+                    .map((r) => String(r.orgunitid ?? "").trim())
+                    .filter((v) => v.length > 0)
+            )
+        );
+
+        let meetingUserIds: string[] = [];
+
+        if (meetingOrgIds.length > 0) {
+            const { data: users, error: userErr } = await supabaseAdmin
+                .from("users")
+                .select("user_id, status, org_unit_id")
+                .in("org_unit_id", meetingOrgIds);
+
+            if (userErr) throw userErr;
+
+            meetingUserIds = Array.from(
+                new Set(
+                    (users ?? [])
+                        .filter((u) => {
+                            const status = String(u.status ?? "").toLowerCase();
+                            return !status.startsWith("removed");
+                        })
+                        .map((u) => String(u.user_id ?? "").trim())
+                        .filter((v) => v.length > 0)
+                )
+            );
+        }
+
+        // 既存shift対象 + meeting_must対象 を合体
+        let staffIds = Array.from(new Set([...staffIdsFromShift, ...meetingUserIds]));
+
+        // ★それでも0件なら attendance から復元
         if (staffIds.length === 0) {
             const { data: attOnly, error: attOnlyErr } = await supabaseAdmin
                 .from("monthly_meeting_attendance")

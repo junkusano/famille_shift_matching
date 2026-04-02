@@ -101,9 +101,51 @@ export async function POST(req: NextRequest) {
             if (s3) staffSet.add(s3);
         }
 
-        const staffIds = Array.from(staffSet);
+        const shiftStaffIds = Array.from(staffSet);
 
-        // shiftに誰もいない月は何もしない
+        // meeting_must=true の org を取得
+        const { data: orgs, error: orgErr } = await supabaseAdmin
+            .from("orgs")
+            .select("orgunitid")
+            .eq("meeting_must", true);
+
+        if (orgErr) throw orgErr;
+
+        const meetingOrgIds = Array.from(
+            new Set(
+                (orgs ?? [])
+                    .map((r) => String(r.orgunitid ?? "").trim())
+                    .filter((v) => v.length > 0)
+            )
+        );
+
+        let meetingUserIds: string[] = [];
+
+        if (meetingOrgIds.length > 0) {
+            const { data: users, error: userErr } = await supabaseAdmin
+                .from("users")
+                .select("user_id, status, org_unit_id")
+                .in("org_unit_id", meetingOrgIds);
+
+            if (userErr) throw userErr;
+
+            meetingUserIds = Array.from(
+                new Set(
+                    (users ?? [])
+                        .filter((u) => {
+                            const status = String(u.status ?? "").toLowerCase();
+                            return !status.startsWith("removed");
+                        })
+                        .map((u) => String(u.user_id ?? "").trim())
+                        .filter((v) => v.length > 0)
+                )
+            );
+        }
+
+        // 既存のshift対象 + meeting_must対象 を合体
+        const staffIds = Array.from(new Set([...shiftStaffIds, ...meetingUserIds]));
+
+        // 対象者が0人なら何もしない（shift + meeting_must 合算）
         if (staffIds.length === 0) {
             return json({
                 ok: true,
