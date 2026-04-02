@@ -898,23 +898,7 @@ const saveTemplate = async () => {
             <div>
               <div className="text-sm font-semibold">勤務情報</div>
   <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-    <div className="md:col-span-2 xl:col-span-3">
-      <FieldLabel>シフト日程</FieldLabel>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Input
-          type="date"
-          value={shiftStartDate}
-          onChange={(e) => setShiftStartDate(e.target.value)}
-        />
-        <Input
-          type="date"
-          value={shiftEndDate}
-          onChange={(e) => setShiftEndDate(e.target.value)}
-        />
-      </div>
-    </div>
-
-    <div className="md:col-span-2 xl:col-span-3">
+     <div className="md:col-span-2 xl:col-span-3">
       <FieldLabel required>勤務時間 ※リクエスト作成時に変更可</FieldLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Input
@@ -1165,7 +1149,15 @@ const saveTemplate = async () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="text-[11px] text-muted-foreground">shift_start_date（必須）</div>
-                <Input type="date" value={shiftStartDate} onChange={(e) => setShiftStartDate(e.target.value)} />
+                <Input type="date" 
+                 value={shiftStartDate}
+                 onChange={(e) => {
+                  const v = e.target.value;
+                  setShiftStartDate(v);
+                  setShiftEndDate(v);
+               }}
+            />
+
               </div>
               <div>
                 <div className="text-[11px] text-muted-foreground">shift_start_time（任意）</div>
