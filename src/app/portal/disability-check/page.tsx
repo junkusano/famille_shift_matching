@@ -177,7 +177,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   const sortMark = (key: SortKey) => {
     if (sortKey !== key || sortOrder === "none") return "⇅";
-    return sortOrder === "asc" ? "昇順▲" : "降順▼";
+    return sortOrder === "asc" ? "▲" : "▼";
   };
   // 未使用のため一旦コメントアウト
   // ★追加：実績担当者リンククリック時に “実際に絞り込み状態” にする
@@ -784,6 +784,50 @@ const DisabilityCheckPage: React.FC = () => {
     }
   };*/
 
+  const handleJukyushaFieldChange = (
+    row: Row,
+    field: "shogai_jukyusha_no" | "ido_jukyusyasho",
+    value: string
+  ) => {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.kaipoke_cs_id === row.kaipoke_cs_id
+          ? { ...r, [field]: value }
+          : r
+      )
+    );
+  };
+
+  const handleSaveJukyushaNos = async (row: Row) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const res = await fetch("/api/disability-check/update-jukyusha-nos", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          kaipoke_cs_id: row.kaipoke_cs_id,
+          shogai_jukyusha_no: row.shogai_jukyusha_no ?? "",
+          ido_jukyusyasho: row.ido_jukyusyasho ?? "",
+        }),
+      });
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(`save failed: ${res.status} ${t}`);
+      }
+
+      alert("保存しました");
+    } catch (e) {
+      alert(`保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   // ★追加：表示中（=担当分）の利用者をまとめて一括印刷
   const handleBulkPrint = () => {
     const payload = {
@@ -1312,11 +1356,54 @@ const DisabilityCheckPage: React.FC = () => {
                 </td>
 
                 <td style={{ padding: 8 }}>
-                  {r.shogai_jukyusha_no ?? ""}
+                  <input
+                    type="text"
+                    value={r.shogai_jukyusha_no ?? ""}
+                    onChange={(e) =>
+                      handleJukyushaFieldChange(r, "shogai_jukyusha_no", e.target.value)
+                    }
+                    style={{
+                      width: 120,
+                      height: 28,
+                      lineHeight: "28px",
+                      padding: "2px 6px",
+                      boxSizing: "border-box",
+                    }}
+                  />
                 </td>
 
                 <td style={{ padding: 8 }}>
-                  {r.ido_jukyusyasho ?? ""}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      value={r.ido_jukyusyasho ?? ""}
+                      onChange={(e) =>
+                        handleJukyushaFieldChange(r, "ido_jukyusyasho", e.target.value)
+                      }
+                      style={{
+                        width: 120,
+                        height: 28,
+                        lineHeight: "28px",
+                        padding: "2px 6px",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveJukyushaNos(r)}
+                      style={{
+                        height: 28,
+                        padding: "0 10px",
+                        border: "1px solid #999",
+                        borderRadius: 4,
+                        background: "#fff",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      受給者証番号保存
+                    </button>
+                  </div>
                 </td>
 
                 {/* ① 実績担当者表示 */}
