@@ -11,15 +11,6 @@ type ServiceOption = {
     label: string;
 };
 
-type Props = {
-    open: boolean;
-    onClose: () => void;
-    shift: RosterShiftDialogData | null;
-    staffOptions: RosterStaff[];
-    serviceOptions: ServiceOption[];
-    onSaved?: (next: RosterShiftDialogData) => void;
-};
-
 type FormState = {
     shift_id: number | null;
     shift_start_date: string;
@@ -36,6 +27,15 @@ type FormState = {
     two_person_work_flg: boolean;
     judo_ido: string;
     cs_note: string;
+};
+
+type Props = {
+    open: boolean;
+    onClose: () => void;
+    shift: RosterShiftDialogData | null;
+    staffOptions: RosterStaff[];
+    serviceOptions: ServiceOption[];
+    onSaved?: (next: RosterShiftDialogData) => void;
 };
 
 const GENDER_OPTIONS = [
@@ -114,10 +114,47 @@ export default function ShiftDialog({
         )}&month=${encodeURIComponent(month)}`;
     }, [shift]);
 
-    const clientDetailHref = useMemo(() => {
-        if (!shift?.kaipoke_cs_id) return '#';
-        return `/portal/kaipoke-info?kaipoke_cs_id=${encodeURIComponent(String(shift.kaipoke_cs_id))}`;
-    }, [shift]);
+    const [clientDetailHref, setClientDetailHref] = useState('#');
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadClientDetailHref = async () => {
+            if (!open || !shift?.kaipoke_cs_id) {
+                setClientDetailHref('#');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/kaipoke-info', {
+                    credentials: 'same-origin',
+                });
+                const rows = (await res.json().catch(() => [])) as Array<{
+                    id?: string | null;
+                    kaipoke_cs_id?: string | number | null;
+                }>;
+
+                const hit = rows.find(
+                    (r) => String(r.kaipoke_cs_id ?? '') === String(shift.kaipoke_cs_id ?? '')
+                );
+
+                if (!cancelled) {
+                    setClientDetailHref(
+                        hit?.id
+                            ? `/portal/kaipoke-info-detail/${encodeURIComponent(String(hit.id))}`
+                            : '#'
+                    );
+                }
+            } catch {
+                if (!cancelled) setClientDetailHref('#');
+            }
+        };
+
+        loadClientDetailHref();
+        return () => {
+            cancelled = true;
+        };
+    }, [open, shift?.kaipoke_cs_id]);
 
     if (!open || !shift) return null;
 
@@ -186,10 +223,6 @@ export default function ShiftDialog({
                 start_at: form.shift_start_time,
                 end_at: form.shift_end_time,
                 service_code: form.service_code,
-                service_name:
-                    serviceOptions.find((o) => o.value === form.service_code)?.label ??
-                    shift.service_name ??
-                    '',
                 gender_request: form.gender_request || null,
                 gender_request_name:
                     GENDER_OPTIONS.find((g) => g.id === form.gender_request)?.label ?? null,
