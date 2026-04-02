@@ -374,7 +374,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ★追加：同一CS内で「どれかtrue」を集約（同じyearMonthで取ってるのでcs_idだけでOK）
+    // ★追加：同一CS内で「どれかtrue」を集約（同じyearMonthで取ってるのでcs_idだけでOK）。
     const submittedAnyByCs = new Map<string, boolean>();
     for (const r of rows) {
       const csId = String(r.kaipoke_cs_id);
