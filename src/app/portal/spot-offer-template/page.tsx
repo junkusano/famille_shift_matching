@@ -227,6 +227,7 @@ type ParkingPreview = {
     type ClientOption = {
    kaipoke_cs_id: string;
    name: string;
+   name_kana?: string | null;
   };
   
   const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
@@ -380,9 +381,10 @@ useEffect(() => {
     try {
       const { data, error } = await supabase
        .from("cs_kaipoke_info")
-       .select("kaipoke_cs_id, name")
+       .select("kaipoke_cs_id, name, name_kana")
        .not("kaipoke_cs_id", "is", null)
        .not("name", "is", null)
+       .order("name_kana", { ascending: true })
        .order("name", { ascending: true });
 
      if (error) throw error;
@@ -391,6 +393,7 @@ useEffect(() => {
       (data ?? []).map((row) => ({
        kaipoke_cs_id: row.kaipoke_cs_id,
        name: row.name,
+       name_kana: row.name_kana ?? null,
      }))
    );
    } catch (e) {
