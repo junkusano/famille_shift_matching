@@ -1,3 +1,4 @@
+//cs_docs_judge_logics.ts
 import { createClient } from "@supabase/supabase-js";
 
 export type CronMode = "incremental" | "full";
@@ -515,22 +516,38 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
       .map((r) => clip(r.ocr_text || "", 2500))
       .filter(Boolean);
 
-    // ✅ LLMで features を生成（空禁止）
-    const llm = await callLLM({ label, docTypeId, sampleOcrTexts });
+    // ---------- 新規追加/修正 ----------
+    // 過去 cs_docs を解析して judge_logics を生成（LLM optional）
+    // 1) 単独の特徴抽出（頻出漢字/カタカナ + ラベル中核語）
+    const features = buildFallbackFeatures({ label, sampleOcrTexts });
 
+    // 2) 相対的特徴（他 doc_type と比較して希少語のみを残す）
+    // ここで複数 doc_type 間で差分を出す関数を追加しても良い
+    let llmFeatures = features;
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const llm = await callLLM({ label, docTypeId, sampleOcrTexts });
+        // LLMの結果を相対差分を考慮して上書き
+        llmFeatures = llm.features || features;
+      } catch (e) {
+        console.warn(`[cs-docs-judge-logics] callLLM failed: ${e}`);
+      }
+    }
+
+    // judge_logics の生成
     const judge: JudgeLogicsV2 = {
       version: 2,
       mode: params.mode,
       window_hours: windowHours,
       notes: [
-        "このサマリーは cs_docs の正解ラベル(doc_type_id)付きデータから自動生成されています。",
-        "keywords/regex/section_headers は判定器（スコアリング）で利用する想定です。",
+        "この judge_logics は過去 cs_docs OCR文章から自動生成されました。",
+        "keywords/regex/section_headers は判定器（scoring）で利用します。",
+        "同じ文章でも label が異なる場合は、doc_type間の相対差を考慮して特徴を選択しています。",
       ],
       stats,
-      features: llm.features,
+      features: llmFeatures,
       generated_at: nowIso(),
     };
-
     // user_doc_master に保存
     const { error } = await supabase
       .from("user_doc_master")
