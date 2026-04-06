@@ -361,11 +361,13 @@ async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
     .not("doc_type_id", "is", null);
 
   if (params.mode === "incremental") {
-    const windowHours = Math.max(1, params.windowHours || 1);
-    const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
-    query = query.gte("updated_at", since);
+    // 直近1か月分を対象
+    const since = new Date();
+    since.setMonth(since.getMonth() - 1); // 1か月前
+    query = query.gte("updated_at", since.toISOString());
   }
 
+  // mode = "full" の場合は全件取得
   const { data, error } = await query;
   if (error) throw error;
   const arr = (data || []) as Array<{ doc_type_id: string }>;
