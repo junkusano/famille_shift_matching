@@ -354,17 +354,19 @@ function buildJudgeLogicsPromptV2(params: {
 async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
   const supabase = getSupabaseAdmin();
 
-  const windowHours = Math.max(1, params.windowHours || 1);
-  const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
-
-  // doc_type_id がある、かつ updated_at がwindow内
-  // ※SQLの方が簡単だが、ここはREST/JSで寄せる
-  const { data, error } = await supabase
+  // 直近 windowHours 条件は optional。null または full モードなら全件対象
+  let query = supabase
     .from("cs_docs")
     .select("doc_type_id")
-    .not("doc_type_id", "is", null)
-    .gte("updated_at", since);
+    .not("doc_type_id", "is", null);
 
+  if (params.mode === "incremental") {
+    const windowHours = Math.max(1, params.windowHours || 1);
+    const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+    query = query.gte("updated_at", since);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   const arr = (data || []) as Array<{ doc_type_id: string }>;
 
@@ -375,11 +377,7 @@ async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
     map.set(id, (map.get(id) || 0) + 1);
   }
 
-  const list: DocTypeAgg[] = Array.from(map.entries()).map(([doc_type_id, cnt]) => ({
-    doc_type_id,
-    cnt,
-  }));
-
+  const list: DocTypeAgg[] = Array.from(map.entries()).map(([doc_type_id, cnt]) => ({ doc_type_id, cnt }));
   list.sort((a, b) => b.cnt - a.cnt);
 
   if (params.limitDocTypes > 0) return list.slice(0, params.limitDocTypes);
