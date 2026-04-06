@@ -77,6 +77,14 @@
       "schedule": "06 19 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-shift-cert",
+      "schedule": "11 19 * * *"
+    },
+    {
+      "path": "/api/cron/alert-shift-cert",
+      "schedule": "16 19 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
