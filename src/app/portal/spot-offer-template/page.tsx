@@ -263,7 +263,7 @@ type ParkingPreview = {
       .from("rpa_command_requests")
       .select("status, requested_at, created_at, request_details")
       .eq("template_id", RPA_TEMPLATE_ID)
-      .in("status", ["approved", "processing", "completed"])
+      .in("status", ["approved", "processing", "completed", "running"])
       .order("requested_at", { ascending: false });
 
     if (rpaError) throw rpaError;
