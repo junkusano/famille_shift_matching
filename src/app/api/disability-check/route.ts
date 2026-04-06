@@ -164,7 +164,6 @@ export async function POST(req: NextRequest) {
           "year_month",
           "kaipoke_servicek",
           "client_name",
-          "client_kana",
           "ido_jukyusyasho",
           "is_checked",
           "district",
@@ -390,7 +389,7 @@ export async function POST(req: NextRequest) {
 
       const shogaiNo = (shogaiMap.get(csId) ?? "").trim();
       const idoNo = (r.ido_jukyusyasho ?? "").trim();
-      const kana = (kanaMap.get(csId) ?? r.client_kana ?? "").trim();
+      const kana = (kanaMap.get(csId) ?? "").trim();
 
       return {
         ...r,
