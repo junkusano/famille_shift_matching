@@ -354,26 +354,24 @@ function buildJudgeLogicsPromptV2(params: {
 async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
   const supabase = getSupabaseAdmin();
 
-  // 直近 windowHours 条件は optional。null または full モードなら全件対象
   let query = supabase
     .from("cs_docs")
     .select("doc_type_id")
     .not("doc_type_id", "is", null);
 
   if (params.mode === "incremental") {
-    // 直近1か月分を対象
+    // 直近1か月分に変更
     const since = new Date();
-    since.setMonth(since.getMonth() - 1); // 1か月前
+    since.setMonth(since.getMonth() - 1);
     query = query.gte("updated_at", since.toISOString());
   }
 
   // mode = "full" の場合は全件取得
   const { data, error } = await query;
   if (error) throw error;
-  const arr = (data || []) as Array<{ doc_type_id: string }>;
 
   const map = new Map<string, number>();
-  for (const r of arr) {
+  for (const r of data || []) {
     const id = r.doc_type_id;
     if (!id) continue;
     map.set(id, (map.get(id) || 0) + 1);
@@ -385,7 +383,6 @@ async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
   if (params.limitDocTypes > 0) return list.slice(0, params.limitDocTypes);
   return list;
 }
-
 /**
  * doc_type_id の master（user_doc_master）から label などを取得
  */
