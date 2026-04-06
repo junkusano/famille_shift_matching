@@ -25,11 +25,6 @@ type CsDocRow = {
   updated_at: string;
 };
 
-type DocTypeAgg = {
-  doc_type_id: string;
-  cnt: number;
-};
-
 type BackfillResult = {
   mode: CronMode;
   windowHours: number;
@@ -351,38 +346,8 @@ function buildJudgeLogicsPromptV2(params: {
 /**
  * 直近 windowHours で doc_type_id が付いた cs_docs をdocType毎に集計
  */
-async function listTargetDocTypes(params: CronParams): Promise<DocTypeAgg[]> {
-  const supabase = getSupabaseAdmin();
 
-  let query = supabase
-    .from("cs_docs")
-    .select("doc_type_id")
-    .not("doc_type_id", "is", null);
 
-  if (params.mode === "incremental") {
-    // 直近1か月分に変更
-    const since = new Date();
-    since.setMonth(since.getMonth() - 1);
-    query = query.gte("updated_at", since.toISOString());
-  }
-
-  // mode = "full" の場合は全件取得
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const map = new Map<string, number>();
-  for (const r of data || []) {
-    const id = r.doc_type_id;
-    if (!id) continue;
-    map.set(id, (map.get(id) || 0) + 1);
-  }
-
-  const list: DocTypeAgg[] = Array.from(map.entries()).map(([doc_type_id, cnt]) => ({ doc_type_id, cnt }));
-  list.sort((a, b) => b.cnt - a.cnt);
-
-  if (params.limitDocTypes > 0) return list.slice(0, params.limitDocTypes);
-  return list;
-}
 /**
  * doc_type_id の master（user_doc_master）から label などを取得
  */
@@ -410,21 +375,17 @@ async function fetchDocTypeMaster(docTypeIds: string[]) {
 /**
  * doc_type_id ごとのサンプルcs_docsを取る（OCR本文メイン）
  */
-async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string, label: string): Promise<CsDocRow[]> {
+async function fetchSampleDocsByLabel(params: CronParams, label: string): Promise<CsDocRow[]> {
   const supabase = getSupabaseAdmin();
 
-  const base = supabase
+  const { data, error } = await supabase
     .from("cs_docs")
-    .select(
-      "id,doc_type_id,ocr_text,summary,source,url,doc_name,applicable_date,doc_date_raw,created_at,updated_at"
-    )
-    .eq("doc_type_id", docTypeId)
-    .eq("doc_name", label)  // 追加: label に紐づく OCR のみ抽出
+    .select("*")
+    .eq("doc_name", label)
     .not("ocr_text", "is", null)
     .order("updated_at", { ascending: false })
     .limit(Math.max(1, params.samplePerDocType || 30));
 
-  const { data, error } = await base;
   if (error) throw error;
   return (data || []) as CsDocRow[];
 }
@@ -476,15 +437,17 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
   const windowHours = Math.max(1, params.windowHours || 1);
   const sinceIso = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
-  const targets = await listTargetDocTypes(params);
+  // ① targets は doc_type_id 配列を返す関数を新規作成
+  const targets = await listTargetDocTypes(params); // 例: [{ doc_type_id: "123" }, ...]
+
   console.info(`${LOG_PREFIX}[v2] targets`, {
     targetCount: targets.length,
     mode: params.mode,
     windowHours,
   });
 
-  const docTypeIds = targets.map((t) => t.doc_type_id);
-  const masterMap = await fetchDocTypeMaster(docTypeIds);
+  // ② masterMap を生成
+  const masterMap = await fetchDocTypeMaster(targets.map((t) => t.doc_type_id));
 
   let updated = 0;
   const skippedTop: Array<{ docTypeId: string; reason: string }> = [];
@@ -495,41 +458,31 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
     const master = masterMap.get(docTypeId);
     const label = master?.label || "(no label)";
 
-    // サンプルOCRを取得
-    const sampleDocs = await fetchSampleDocsByDocType(params, docTypeId, label);
-    // fetchSampleDocsByDocType に label を渡すように変更
+    // ③ sampleDocs を取得
+    const sampleDocs = await fetchSampleDocsByLabel(params, label);
     if (!sampleDocs.length) {
       skippedCount++;
-      if (skippedTop.length < 20) skippedTop.push({ docTypeId, reason: "no sample docs (ocr_text missing or empty)" });
+      if (skippedTop.length < 20)
+        skippedTop.push({ docTypeId, reason: "no sample docs (ocr_text missing or empty)" });
       continue;
     }
 
     const stats = summarizeStats(sampleDocs, sinceIso);
 
     // OCR本文は“URL参照なし”でそのまま材料にする
-    const sampleOcrTexts = sampleDocs
-      .map((r) => clip(r.ocr_text || "", 2500))
-      .filter(Boolean);
+    const sampleOcrTexts = sampleDocs.map((r) => clip(r.ocr_text || "", 2500)).filter(Boolean);
 
-    // ---------- 新規追加/修正 ----------
-    // 過去 cs_docs を解析して judge_logics を生成（LLM optional）
-    // 1) 単独の特徴抽出（頻出漢字/カタカナ + ラベル中核語）
-    const features = buildFallbackFeatures({ label, sampleOcrTexts });
-
-    // 2) 相対的特徴（他 doc_type と比較して希少語のみを残す）
-    // ここで複数 doc_type 間で差分を出す関数を追加しても良い
-    let llmFeatures = features;
+    // LLM or fallback features
+    let features = buildFallbackFeatures({ label, sampleOcrTexts });
     if (process.env.OPENAI_API_KEY) {
       try {
         const llm = await callLLM({ label, docTypeId, sampleOcrTexts });
-        // LLMの結果を相対差分を考慮して上書き
-        llmFeatures = llm.features || features;
+        features = llm.features || features;
       } catch (e) {
         console.warn(`[cs-docs-judge-logics] callLLM failed: ${e}`);
       }
     }
 
-    // judge_logics の生成
     const judge: JudgeLogicsV2 = {
       version: 2,
       mode: params.mode,
@@ -537,24 +490,21 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
       notes: [
         "この judge_logics は過去 cs_docs OCR文章から自動生成されました。",
         "keywords/regex/section_headers は判定器（scoring）で利用します。",
-        "同じ文章でも label が異なる場合は、doc_type間の相対差を考慮して特徴を選択しています。",
       ],
       stats,
-      features: llmFeatures,
+      features,
       generated_at: nowIso(),
     };
-    // user_doc_master に保存
+
     const { error } = await supabase
       .from("user_doc_master")
-      .update({
-        judge_logics: judge,
-        updated_at: nowIso(),
-      })
+      .update({ judge_logics: judge, updated_at: nowIso() })
       .eq("id", docTypeId);
 
     if (error) {
       skippedCount++;
-      if (skippedTop.length < 20) skippedTop.push({ docTypeId, reason: `update error: ${error.message}` });
+      if (skippedTop.length < 20)
+        skippedTop.push({ docTypeId, reason: `update error: ${error.message}` });
       continue;
     }
 
@@ -573,6 +523,18 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
     skippedCount,
     skippedTop,
   };
+}
+
+// 新規追加: listTargetDocTypes を簡易実装
+async function listTargetDocTypes(params: CronParams): Promise<{ doc_type_id: string }[]> {
+  const supabase = getSupabaseAdmin();
+  let query = supabase.from("user_doc_master").select("id").eq("is_active", true);
+  if (params.limitDocTypes && params.limitDocTypes > 0) {
+    query = query.limit(params.limitDocTypes);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map((r) => ({ doc_type_id: r.id }));
 }
 
 /**
