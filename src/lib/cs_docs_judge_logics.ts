@@ -410,11 +410,8 @@ async function fetchDocTypeMaster(docTypeIds: string[]) {
 /**
  * doc_type_id ごとのサンプルcs_docsを取る（OCR本文メイン）
  */
-async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string): Promise<CsDocRow[]> {
+async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string, label: string): Promise<CsDocRow[]> {
   const supabase = getSupabaseAdmin();
-
-  //const windowHours = Math.max(1, params.windowHours || 1);
-  //const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
   const base = supabase
     .from("cs_docs")
@@ -422,11 +419,11 @@ async function fetchSampleDocsByDocType(params: CronParams, docTypeId: string): 
       "id,doc_type_id,ocr_text,summary,source,url,doc_name,applicable_date,doc_date_raw,created_at,updated_at"
     )
     .eq("doc_type_id", docTypeId)
+    .eq("doc_name", label)  // 追加: label に紐づく OCR のみ抽出
     .not("ocr_text", "is", null)
     .order("updated_at", { ascending: false })
     .limit(Math.max(1, params.samplePerDocType || 30));
 
-  // ルール生成の材料は「直近N件」を常に使う（windowに縛らない）
   const { data, error } = await base;
   if (error) throw error;
   return (data || []) as CsDocRow[];
@@ -499,7 +496,8 @@ async function rebuildJudgeLogicsV2ForDocTypes(params: CronParams): Promise<Rebu
     const label = master?.label || "(no label)";
 
     // サンプルOCRを取得
-    const sampleDocs = await fetchSampleDocsByDocType(params, docTypeId);
+    const sampleDocs = await fetchSampleDocsByDocType(params, docTypeId, label);
+    // fetchSampleDocsByDocType に label を渡すように変更
     if (!sampleDocs.length) {
       skippedCount++;
       if (skippedTop.length < 20) skippedTop.push({ docTypeId, reason: "no sample docs (ocr_text missing or empty)" });
