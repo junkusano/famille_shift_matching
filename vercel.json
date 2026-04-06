@@ -85,6 +85,14 @@
       "schedule": "16 19 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-disability-check-collected",
+      "schedule": "21 19 * * *"
+    },
+    {
+      "path": "/api/cron/alert-disability-check-collected",
+      "schedule": "26 19 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
