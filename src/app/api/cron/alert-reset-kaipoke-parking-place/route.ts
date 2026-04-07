@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
         const { data: openRows, error: openError } = await supabaseAdmin
             .from('alert_log')
-            .select('id, message, kaipoke_cs_id, shift_id')
+            .select('id, message, kaipoke_cs_id')
             .eq('status', 'open')
             .eq('status_source', 'system')
             .like('message', '%【駐車場所未入力】%');
@@ -48,47 +48,41 @@ export async function GET(req: NextRequest) {
 
         for (const row of openRows ?? []) {
             let shouldClose = false;
-
-            if (!row.kaipoke_cs_id || !row.shift_id) {
+            if (!row.kaipoke_cs_id) {
                 shouldClose = true;
             } else {
-                const { data: shiftRow, error: shiftError } = await supabaseAdmin
+                const { data: futureShiftRows, error: futureShiftError } = await supabaseAdmin
                     .from('shift')
-                    .select('shift_id, shift_start_date')
-                    .eq('shift_id', Number(row.shift_id))
-                    .maybeSingle();
+                    .select('shift_id')
+                    .eq('kaipoke_cs_id', row.kaipoke_cs_id)
+                    .gte('shift_start_date', startDate)
+                    .lte('shift_start_date', endDate)
+                    .limit(1);
 
-                if (shiftError) {
+                if (futureShiftError) {
                     throw new Error(
-                        `message=${shiftError.message}, details=${shiftError.details ?? ''}, hint=${shiftError.hint ?? ''}, code=${shiftError.code ?? ''}`
+                        `message=${futureShiftError.message}, details=${futureShiftError.details ?? ''}, hint=${futureShiftError.hint ?? ''}, code=${futureShiftError.code ?? ''}`
                     );
                 }
 
-                if (!shiftRow) {
-                    shouldClose = true;
-                } else if (
-                    !shiftRow.shift_start_date ||
-                    shiftRow.shift_start_date < startDate ||
-                    shiftRow.shift_start_date > endDate
-                ) {
-                    shouldClose = true;
-                } else {
-                    const { data: parkingRows, error: parkingError } = await supabaseAdmin
-                        .from('parking_cs_places')
-                        .select('id')
-                        .eq('kaipoke_cs_id', row.kaipoke_cs_id)
-                        .eq('is_active', true)
-                        .limit(1);
+                const { data: parkingRows, error: parkingError } = await supabaseAdmin
+                    .from('parking_cs_places')
+                    .select('id')
+                    .eq('kaipoke_cs_id', row.kaipoke_cs_id)
+                    .eq('is_active', true)
+                    .limit(1);
 
-                    if (parkingError) {
-                        throw new Error(
-                            `message=${parkingError.message}, details=${parkingError.details ?? ''}, hint=${parkingError.hint ?? ''}, code=${parkingError.code ?? ''}`
-                        );
-                    }
+                if (parkingError) {
+                    throw new Error(
+                        `message=${parkingError.message}, details=${parkingError.details ?? ''}, hint=${parkingError.hint ?? ''}, code=${parkingError.code ?? ''}`
+                    );
+                }
 
-                    if ((parkingRows ?? []).length > 0) {
-                        shouldClose = true;
-                    }
+                const hasFutureShift = (futureShiftRows ?? []).length > 0;
+                const hasParking = (parkingRows ?? []).length > 0;
+
+                if (!hasFutureShift || hasParking) {
+                    shouldClose = true;
                 }
             }
 

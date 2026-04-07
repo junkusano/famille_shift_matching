@@ -35,12 +35,11 @@ function toYmd(date: Date) {
     return `${y}-${m}-${d}`;
 }
 
-function formatJpMd(dateStr: string | null) {
+function formatJpMonth(dateStr: string | null) {
     if (!dateStr) return '';
     const d = new Date(`${dateStr}T00:00:00+09:00`);
     const m = d.getMonth() + 1;
-    const day = d.getDate();
-    return `${m}月${day}日`;
+    return `${m}月`;
 }
 
 export async function runKaipokeParkingPlaceCheck() {
@@ -122,34 +121,50 @@ export async function runKaipokeParkingPlaceCheck() {
             .map((r) => r.kaipoke_cs_id)
             .filter((v): v is string => !!v)
     );
+    type ClientTarget = {
+        kaipoke_cs_id: string;
+        firstShiftDate: string;
+    };
 
-    let alertsCreated = 0;
-    let alertsUpdated = 0;
+    const targetMap = new Map<string, ClientTarget>();
 
     for (const shift of shiftRows) {
         if (!shift.kaipoke_cs_id) continue;
+        if (!shift.shift_start_date) continue;
 
         // 駐車場所が1件でもあれば対象外
         if (parkingSet.has(shift.kaipoke_cs_id)) continue;
 
-        const cs = csMap.get(shift.kaipoke_cs_id);
+        const existing = targetMap.get(shift.kaipoke_cs_id);
+        if (!existing || shift.shift_start_date < existing.firstShiftDate) {
+            targetMap.set(shift.kaipoke_cs_id, {
+                kaipoke_cs_id: shift.kaipoke_cs_id,
+                firstShiftDate: shift.shift_start_date,
+            });
+        }
+    }
+
+    let alertsCreated = 0;
+    let alertsUpdated = 0;
+
+    for (const target of targetMap.values()) {
+        const cs = csMap.get(target.kaipoke_cs_id);
         if (!cs?.id || !cs?.name || !cs.asigned_org) continue;
 
         const detailUrl = `https://myfamille.shi-on.net/portal/kaipoke-info-detail/${cs.id}`;
-        const shiftDateLabel = formatJpMd(shift.shift_start_date);
+        const shiftMonthLabel = formatJpMonth(target.firstShiftDate);
 
         const message =
             `【駐車場所未入力】` +
             `<a href="${detailUrl}" class="text-blue-600 underline">${cs.name}様</a>` +
-            `には ${shiftDateLabel}にサービスを実施する予定ですが、駐車場所の情報が入力されていません。至急入力してください。`;
+            `には ${shiftMonthLabel}にサービスを実施する予定ですが、駐車場所の情報が入力されていません。至急入力してください。`;
 
-        // 4) 同じ shift_id の open/system アラートがあるか確認
         const { data: existingOpen, error: existingOpenError } = await supabaseAdmin
             .from('alert_log')
             .select('id, message')
             .eq('status', 'open')
             .eq('status_source', 'system')
-            .eq('shift_id', String(shift.shift_id))
+            .eq('kaipoke_cs_id', target.kaipoke_cs_id)
             .like('message', '%【駐車場所未入力】%')
             .maybeSingle();
 
@@ -161,15 +176,15 @@ export async function runKaipokeParkingPlaceCheck() {
 
         const existing = (existingOpen ?? null) as ExistingAlertRow | null;
 
-        // 5) 既存 open があれば必要なら文面だけ更新
         if (existing) {
             if (existing.message !== message) {
                 const { error: updateError } = await supabaseAdmin
                     .from('alert_log')
                     .update({
                         message,
-                        kaipoke_cs_id: shift.kaipoke_cs_id,
+                        kaipoke_cs_id: target.kaipoke_cs_id,
                         assigned_org_id: cs.asigned_org,
+                        shift_id: null,
                     })
                     .eq('id', existing.id);
 
@@ -184,7 +199,6 @@ export async function runKaipokeParkingPlaceCheck() {
             continue;
         }
 
-        // 6) 新規作成
         const { error: insertError } = await supabaseAdmin
             .from('alert_log')
             .insert({
@@ -193,8 +207,8 @@ export async function runKaipokeParkingPlaceCheck() {
                 status: 'open',
                 status_source: 'system',
                 severity: 3,
-                kaipoke_cs_id: shift.kaipoke_cs_id,
-                shift_id: String(shift.shift_id),
+                kaipoke_cs_id: target.kaipoke_cs_id,
+                shift_id: null,
                 assigned_org_id: cs.asigned_org,
                 created_by: 'system',
             });
@@ -210,10 +224,7 @@ export async function runKaipokeParkingPlaceCheck() {
         alertsCreated++;
     }
 
-    const targetClientCount = shiftRows.filter((shift) => {
-        if (!shift.kaipoke_cs_id) return false;
-        return !parkingSet.has(shift.kaipoke_cs_id);
-    }).length;
+    const targetClientCount = targetMap.size;
 
     return {
         scannedShiftCount: shiftRows.length,
