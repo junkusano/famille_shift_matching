@@ -109,6 +109,14 @@
       "schedule": "46 19 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-shift-trans-info",
+      "schedule": "51 19 * * *"
+    },
+    {
+      "path": "/api/cron/alert-shift-trans-info",
+      "schedule": "56 19 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
