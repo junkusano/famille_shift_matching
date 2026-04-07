@@ -125,6 +125,14 @@
       "schedule": "06 20 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-kaipoke-parking-place",
+      "schedule": "11 20 * * *"
+    },
+    {
+      "path": "/api/cron/alert-kaipoke-parking-place",
+      "schedule": "16 20 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
