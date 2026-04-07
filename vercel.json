@@ -117,6 +117,14 @@
       "schedule": "56 19 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-cs-contract-plan",
+      "schedule": "01 20 * * *"
+    },
+    {
+      "path": "/api/cron/alert-cs-contract-plan",
+      "schedule": "06 20 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
