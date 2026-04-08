@@ -6,14 +6,12 @@ function isAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
 
-  // 1) Authorization: Bearer xxx
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) {
     const token = auth.slice("Bearer ".length).trim();
     if (token === secret) return true;
   }
 
-  // 2) ?key=xxx でもOKにする（Vercel設定が面倒なとき）
   const url = new URL(req.url);
   const key = url.searchParams.get("key");
   if (key && key === secret) return true;
@@ -28,12 +26,17 @@ export async function GET(req: Request) {
     }
 
     const startedAt = Date.now();
-    const { updatedInfos } = await runCsDocsSyncToKaipokeInfo();
+    const result = await runCsDocsSyncToKaipokeInfo();
     const ms = Date.now() - startedAt;
 
     return NextResponse.json({
       ok: true,
-      updated_infos: updatedInfos,
+      updated_infos: result.updatedInfos,
+      relabeled_documents: result.relabeledDocuments,
+      fixed_doc_names: result.fixedDocNames,
+      matched_kaipoke_ids: result.matchedKaipokeIds,
+      filled_doc_dates: result.filledDocDates,
+      unresolved: result.unresolved,
       elapsed_ms: ms,
       ran_at: new Date().toISOString(),
     });
@@ -44,7 +47,6 @@ export async function GET(req: Request) {
   }
 }
 
-// POSTでも叩けるように（手動実行用）
 export async function POST(req: Request) {
   return GET(req);
 }
