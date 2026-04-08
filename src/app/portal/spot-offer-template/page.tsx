@@ -595,6 +595,29 @@ const saveTemplate = async () => {
   }
 };
 
+  const toggleRowStatus = async (row: SpotOfferTemplateUnified) => {
+    const nextChecked = row.status !== "active";
+    const nextStatus = nextChecked ? "active" : "inactive";
+
+    try {
+      setError(null);
+
+      await spotApi.updateTemplate(row.core_id, {
+        status: nextStatus,
+      });
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.core_id === row.core_id
+          ? { ...r, status: nextStatus }
+          : r
+        ) 
+       );
+     } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  
   const deleteTemplate = async (row: SpotOfferTemplateUnified) => {
     const ok = window.confirm(`削除しますか？\n\n${row.template_title ?? "(無題)"}\ncore_id=${row.core_id}`);
     if (!ok) return;
@@ -751,8 +774,18 @@ const saveTemplate = async () => {
               rows.map((r) => (
                 <TableRow key={r.core_id}>
                   <TableCell className="whitespace-nowrap">
-                     {r.status === "active" ? "アクティブ" : r.status === "inactive" ? "非アクティブ" : "-"}
+                     <label className="flex items-center gap-2">
+                       <input
+                         type="checkbox"
+                         checked={r.status === "active"}
+                         onChange={() => void toggleRowStatus(r)}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {r.status === "active" ? "有効" : "無効"}
+                      </span>
+                     </label>
                   </TableCell>
+
                   <TableCell className="font-medium">
                     <div className="truncate" title={r.template_title ?? ""}>
                       {r.template_title ?? "(無題)"}
