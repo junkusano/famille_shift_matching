@@ -718,6 +718,15 @@ const saveTemplate = async () => {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>;
   }
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const aActive = a.status === "active" ? 0 : 1;
+    const bActive = b.status === "active" ? 0 : 1;
+
+    if (aActive !== bActive) return aActive - bActive;
+
+    return (a.template_title ?? "").localeCompare(b.template_title ?? "", "ja");
+  });
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -771,7 +780,7 @@ const saveTemplate = async () => {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r) => (
+              sortedRows.map((r) => (
                 <TableRow key={r.core_id}>
                   <TableCell className="whitespace-nowrap">
                      <label className="flex items-center gap-2">
