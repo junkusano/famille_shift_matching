@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
         const { data: openRows, error: openError } = await supabaseAdmin
             .from('alert_log')
-            .select('id, message')
+            .select('id, message, kaipoke_cs_id')
             .eq('status', 'open')
             .in('status_source', ['system'])
             .like('message', '%【駐車場所未入力】%');
@@ -44,6 +44,25 @@ export async function GET(req: NextRequest) {
         let skipAlreadyDoneCount = 0;
 
         for (const row of openRows ?? []) {
+
+            if (!row.kaipoke_cs_id) continue;
+
+            const { data: parkingRows, error: parkingError } = await supabaseAdmin
+                .from('parking_cs_places')
+                .select('id')
+                .eq('kaipoke_cs_id', row.kaipoke_cs_id)
+                .eq('is_active', true)
+                .limit(1);
+
+            if (parkingError) {
+                throw new Error(parkingError.message);
+            }
+
+            const hasParking = (parkingRows ?? []).length > 0;
+
+            // 駐車場がないなら消さない
+            if (!hasParking) continue;
+            
             const { data: doneRow, error: doneError } = await supabaseAdmin
                 .from('alert_log')
                 .select('id')

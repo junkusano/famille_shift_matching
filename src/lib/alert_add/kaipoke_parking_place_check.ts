@@ -22,11 +22,11 @@ type ExistingAlertRow = {
     message: string;
 };
 
-function addMonths(date: Date, months: number) {
+/*function addMonths(date: Date, months: number) {
     const d = new Date(date);
     d.setMonth(d.getMonth() + months);
     return d;
-}
+}*/
 
 function toYmd(date: Date) {
     const y = date.getFullYear();
@@ -42,12 +42,21 @@ function formatJpMonth(dateStr: string | null) {
     return `${m}月`;
 }
 
+function ymKey(dateStr: string) {
+    const d = new Date(`${dateStr}T00:00:00+09:00`);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+}
+
 export async function runKaipokeParkingPlaceCheck() {
     const today = new Date();
-    const end = addMonths(today, 2);
 
-    const startDate = toYmd(today);
-    const endDate = toYmd(end);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+
+    const startDate = toYmd(monthStart);
+    const endDate = toYmd(nextMonthEnd);
 
     // 1) 今日〜2か月先のシフトを取得
     const { data: shifts, error: shiftError } = await supabaseAdmin
@@ -121,25 +130,29 @@ export async function runKaipokeParkingPlaceCheck() {
             .map((r) => r.kaipoke_cs_id)
             .filter((v): v is string => !!v)
     );
-    type ClientTarget = {
+    type ClientMonthTarget = {
         kaipoke_cs_id: string;
         firstShiftDate: string;
+        ym: string;
     };
 
-    const targetMap = new Map<string, ClientTarget>();
+    const targetMap = new Map<string, ClientMonthTarget>();
 
     for (const shift of shiftRows) {
         if (!shift.kaipoke_cs_id) continue;
         if (!shift.shift_start_date) continue;
 
-        // 駐車場所が1件でもあれば対象外
         if (parkingSet.has(shift.kaipoke_cs_id)) continue;
 
-        const existing = targetMap.get(shift.kaipoke_cs_id);
+        const ym = ymKey(shift.shift_start_date);
+        const mapKey = `${shift.kaipoke_cs_id}:${ym}`;
+
+        const existing = targetMap.get(mapKey);
         if (!existing || shift.shift_start_date < existing.firstShiftDate) {
-            targetMap.set(shift.kaipoke_cs_id, {
+            targetMap.set(mapKey, {
                 kaipoke_cs_id: shift.kaipoke_cs_id,
                 firstShiftDate: shift.shift_start_date,
+                ym,
             });
         }
     }
