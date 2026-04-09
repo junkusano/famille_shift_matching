@@ -41,35 +41,8 @@ export async function GET(req: NextRequest) {
         }
 
         let updatedCount = 0;
-        let skipAlreadyDoneCount = 0;
 
         for (const row of openRows ?? []) {
-            const { data: doneRow, error: doneError } = await supabaseAdmin
-                .from('alert_log')
-                .select('id')
-                .eq('message', row.message)
-                .eq('status', 'done')
-                .maybeSingle();
-
-            if (doneError) {
-                console.error('[cron][alert-reset-kaipoke-parking-place] doneRow error detail', {
-                    message: doneError.message,
-                    details: doneError.details,
-                    hint: doneError.hint,
-                    code: doneError.code,
-                    targetId: row.id,
-                });
-
-                throw new Error(
-                    `message=${doneError.message}, details=${doneError.details ?? ''}, hint=${doneError.hint ?? ''}, code=${doneError.code ?? ''}`
-                );
-            }
-
-            if (doneRow) {
-                skipAlreadyDoneCount++;
-                continue;
-            }
-
             const { error: updateError } = await supabaseAdmin
                 .from('alert_log')
                 .update({
@@ -98,7 +71,6 @@ export async function GET(req: NextRequest) {
 
         console.info('[cron][alert-reset-kaipoke-parking-place] end', {
             openCount: openRows?.length ?? 0,
-            skipAlreadyDoneCount,
             updatedCount,
         });
 
