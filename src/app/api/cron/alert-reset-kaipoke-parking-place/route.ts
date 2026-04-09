@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
         }
 
         let updatedCount = 0;
+        let duplicateDoneCount = 0;
 
         for (const row of openRows ?? []) {
             const { error: updateError } = await supabaseAdmin
@@ -53,6 +54,11 @@ export async function GET(req: NextRequest) {
                 .eq('id', row.id);
 
             if (updateError) {
+                if (updateError.code === '23505') {
+                    duplicateDoneCount++;
+                    continue;
+                }
+
                 console.error('[cron][alert-reset-kaipoke-parking-place] update error detail', {
                     message: updateError.message,
                     details: updateError.details,
@@ -72,6 +78,7 @@ export async function GET(req: NextRequest) {
         console.info('[cron][alert-reset-kaipoke-parking-place] end', {
             openCount: openRows?.length ?? 0,
             updatedCount,
+            duplicateDoneCount,
         });
 
         const result: Body = {
