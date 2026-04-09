@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         }
 
         let updatedCount = 0;
-        let skipAlreadyDoneCount = 0;
+        let deletedDuplicateOpenCount = 0;
 
         for (const row of openRows ?? []) {
             const { data: doneRow, error: doneError } = await supabaseAdmin
@@ -66,7 +66,26 @@ export async function GET(req: NextRequest) {
             }
 
             if (doneRow) {
-                skipAlreadyDoneCount++;
+                const { error: deleteError } = await supabaseAdmin
+                    .from('alert_log')
+                    .delete()
+                    .eq('id', row.id);
+
+                if (deleteError) {
+                    console.error('[cron][alert-reset-kaipoke-parking-place] delete duplicate open error detail', {
+                        message: deleteError.message,
+                        details: deleteError.details,
+                        hint: deleteError.hint,
+                        code: deleteError.code,
+                        targetId: row.id,
+                    });
+
+                    throw new Error(
+                        `message=${deleteError.message}, details=${deleteError.details ?? ''}, hint=${deleteError.hint ?? ''}, code=${deleteError.code ?? ''}`
+                    );
+                }
+
+                deletedDuplicateOpenCount++;
                 continue;
             }
 
@@ -98,7 +117,7 @@ export async function GET(req: NextRequest) {
 
         console.info('[cron][alert-reset-kaipoke-parking-place] end', {
             openCount: openRows?.length ?? 0,
-            skipAlreadyDoneCount,
+            deletedDuplicateOpenCount,
             updatedCount,
         });
 
