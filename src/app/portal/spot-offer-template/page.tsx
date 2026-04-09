@@ -703,8 +703,8 @@ const saveTemplate = async () => {
       });
 
       if (insertError) throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
-
-      alert("RPAリクエストを送信しました");
+     
+           alert("RPAリクエストを送信しました");
       setOpenRpa(false);
       setRpaTarget(null);
     } catch (e) {
