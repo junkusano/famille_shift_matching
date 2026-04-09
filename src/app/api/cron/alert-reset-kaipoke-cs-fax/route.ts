@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     try {
         assertCronAuth(req);
 
-        console.info('[cron][alert-reset-kaipoke-parking-place] start');
+        console.info('[cron][alert-reset-kaipoke-cs-fax] start');
 
         const nowIso = new Date().toISOString();
 
@@ -25,10 +25,10 @@ export async function GET(req: NextRequest) {
             .select('id, message')
             .eq('status', 'open')
             .in('status_source', ['system'])
-            .like('message', '%【駐車場所未入力】%');
+            .or('message.like.%【ケアマネ 未登録】%,message.like.%【相談支援 連絡先未登録】%');
 
         if (openError) {
-            console.error('[cron][alert-reset-kaipoke-parking-place] openRows error detail', {
+            console.error('[cron][alert-reset-kaipoke-cs-fax] openRows error detail', {
                 message: openError.message,
                 details: openError.details,
                 hint: openError.hint,
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
                 .maybeSingle();
 
             if (doneError) {
-                console.error('[cron][alert-reset-kaipoke-parking-place] doneRow error detail', {
+                console.error('[cron][alert-reset-kaipoke-cs-fax] doneRow error detail', {
                     message: doneError.message,
                     details: doneError.details,
                     hint: doneError.hint,
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
                 .eq('id', row.id);
 
             if (updateError) {
-                console.error('[cron][alert-reset-kaipoke-parking-place] update error detail', {
+                console.error('[cron][alert-reset-kaipoke-cs-fax] update error detail', {
                     message: updateError.message,
                     details: updateError.details,
                     hint: updateError.hint,
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
             updatedCount++;
         }
 
-        console.info('[cron][alert-reset-kaipoke-parking-place] end', {
+        console.info('[cron][alert-reset-kaipoke-cs-fax] end', {
             openCount: openRows?.length ?? 0,
             skipAlreadyDoneCount,
             updatedCount,
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(result, { status: 200 });
     } catch (e) {
         const msg = e instanceof Error ? e.message : JSON.stringify(e);
-        console.error('[cron][alert-reset-kaipoke-parking-place] error', msg);
+        console.error('[cron][alert-reset-kaipoke-cs-fax] error', msg);
 
         const result: Body = {
             ok: false,
