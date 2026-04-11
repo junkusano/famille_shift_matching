@@ -47,6 +47,8 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [saving, setSaving] = useState(false);
     const [generating, setGenerating] = useState(false);
 
+    const [planGenerating, setPlanGenerating] = useState(false);
+
     const selectedFromList = useMemo(
         () => list.find((r) => r.assessment_id === selectedId) ?? null,
         [list, selectedId]
@@ -241,6 +243,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                     assessed_on: detail.assessed_on,
                     author_name: detail.author_name,
                     content: detail.content,
+                    meeting_minutes: detail.meeting_minutes ?? "",
                 }),
             });
             const j = await res.json();
@@ -272,6 +275,79 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         }
     }
 
+    async function generatePlans() {
+        if (!detail) return;
+
+        setPlanGenerating(true);
+        try {
+            const bearer = await getBearer();
+
+            // 1) まず保存して、最新の内容をDBに反映
+            const saveRes = await fetch(`/api/assessment/${detail.assessment_id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessed_on: detail.assessed_on,
+                    author_name: detail.author_name,
+                    content: detail.content,
+                    meeting_minutes: detail.meeting_minutes ?? "",
+                }),
+            });
+
+            const saveJson = await saveRes.json();
+
+            if (!saveJson?.ok || !saveJson?.data?.assessment_id) {
+                window.alert(`保存に失敗したため、プラン生成を中止しました: ${saveJson?.error ?? "unknown error"}`);
+                return;
+            }
+
+            // 保存後の最新detailを反映
+            setDetail(saveJson.data);
+            setList((prev) =>
+                prev.map((r) => (r.assessment_id === saveJson.data.assessment_id ? saveJson.data : r))
+            );
+
+            const latestAssessmentId = saveJson.data.assessment_id as string;
+
+            // 2) 保存済み最新データを元にプラン生成
+            const res = await fetch(`/api/plans/generate`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    assessment_id: latestAssessmentId,
+                    replace_existing: false,
+                }),
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                window.alert(`プラン生成に失敗: ${j?.error ?? "unknown error"}`);
+                return;
+            }
+
+            const msg = [
+                `プラン生成完了: ${j?.plans?.length ?? 0}件`,
+                ...(Array.isArray(j?.plans)
+                    ? j.plans.map((p: { title?: string }) => `- ${p.title ?? "無題"}`)
+                    : []),
+                ...(Array.isArray(j?.warnings) && j.warnings.length
+                    ? ["", "警告:", ...j.warnings.map((w: string) => `- ${w}`)]
+                    : []),
+            ].join("\n");
+
+            window.alert(msg);
+        } finally {
+            setPlanGenerating(false);
+        }
+    }
+    
     function setCheck(sheetKey: string, rowKey: string, check: AssessmentCheck) {
         if (!detail) return;
         setDetail({
@@ -458,6 +534,20 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                         onChange={(e) => setDetail({ ...detail, assessed_on: e.target.value })}
                                     />
                                 </div>
+                                <div>
+                                    <div className="text-sm mb-1">担当者会議議事録</div>
+                                    <textarea
+                                        className="border rounded px-2 py-2 w-full min-h-[160px]"
+                                        value={detail.meeting_minutes ?? ""}
+                                        onChange={(e) =>
+                                            setDetail({
+                                                ...detail,
+                                                meeting_minutes: e.target.value,
+                                            })
+                                        }
+                                        placeholder="担当者会議の内容を入力"
+                                    />
+                                </div>
                                 <div className="flex-1 min-w-[240px]">
                                     <div className="text-sm mb-1">アセスメント作成者氏名（初期値：ログインユーザー）</div>
                                     <input
@@ -476,6 +566,15 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                 >
                                     保存
                                 </button>
+
+                                <button
+                                    className="border rounded px-3 py-1 bg-green-600 text-white disabled:opacity-40"
+                                    disabled={planGenerating}
+                                    onClick={generatePlans}
+                                >
+                                    {planGenerating ? "プラン生成中..." : "プラン生成"}
+                                </button>
+
                                 <button className="border rounded px-3 py-1" onClick={del}>
                                     削除
                                 </button>
