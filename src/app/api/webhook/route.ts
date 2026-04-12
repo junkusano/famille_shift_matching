@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/getAccessToken";
+import crypto from "crypto";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,7 +26,6 @@ function normalizeString(v: unknown): string | null {
 }
 
 function buildDialogflowSessionId(channelId: string, requesterLwUserid: string | null) {
-    const crypto = require("crypto");
     const raw = `${channelId}--${requesterLwUserid ?? "unknown"}`;
     return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 36);
 }
