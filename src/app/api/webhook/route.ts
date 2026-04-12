@@ -256,7 +256,6 @@ function shouldRunDialogflowForGroup(groupType: string | null): boolean {
     return groupType === "利用者様情報連携グループ";
 }
 
-/*
 async function sendLineworksMessage(params: {
     channelId: string;
     text: string;
@@ -295,8 +294,6 @@ async function sendLineworksMessage(params: {
         return { ok: true, raw };
     }
 }
-
-*/
 
 async function upsertGroupAndChannel(params: {
     groupId: string;
@@ -643,11 +640,10 @@ export async function POST(req: NextRequest) {
                 if (replyText) {
                     console.log("[lw webhook] dialogflow reply preview=", replyText);
 
-                    // まずはログ確認だけにする
-                    // await sendLineworksMessage({
-                    //     channelId,
-                    //     text: replyText,
-                    // });
+                    await sendLineworksMessage({
+                        channelId,
+                        text: replyText,
+                    });
                 } else {
                     console.warn("[lw webhook] dialogflow reply text empty");
                 }
