@@ -62,24 +62,34 @@ function extractDialogflowReplyText(dfResponse: Record<string, unknown>): string
     if (!queryResult) return null;
 
     const responseMessages = queryResult.responseMessages;
-    if (!Array.isArray(responseMessages)) return null;
+    if (Array.isArray(responseMessages)) {
+        const texts: string[] = [];
 
-    const texts: string[] = [];
+        for (const msg of responseMessages) {
+            const obj = msg as Record<string, unknown>;
+            const textObj = obj.text as Record<string, unknown> | undefined;
+            const textArr = textObj?.text;
 
-    for (const msg of responseMessages) {
-        const obj = msg as Record<string, unknown>;
-        const textObj = obj.text as Record<string, unknown> | undefined;
-        const textArr = textObj?.text;
-
-        if (Array.isArray(textArr)) {
-            for (const t of textArr) {
-                const s = normalizeString(t);
-                if (s) texts.push(s);
+            if (Array.isArray(textArr)) {
+                for (const t of textArr) {
+                    const s = normalizeString(t);
+                    if (s) texts.push(s);
+                }
             }
+        }
+
+        if (texts.length > 0) {
+            return texts.join("\n");
         }
     }
 
-    return texts.length > 0 ? texts.join("\n") : null;
+    const match = queryResult.match as Record<string, unknown> | undefined;
+    const intent = normalizeString(match?.intent);
+    if (intent) {
+        return `[intent matched] ${intent}`;
+    }
+
+    return null;
 }
 
 async function getGoogleAccessToken(): Promise<string> {
