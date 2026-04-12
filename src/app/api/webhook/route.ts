@@ -84,9 +84,15 @@ function extractDialogflowReplyText(dfResponse: Record<string, unknown>): string
     }
 
     const match = queryResult.match as Record<string, unknown> | undefined;
-    const intent = normalizeString(match?.intent);
-    if (intent) {
-        return `[intent matched] ${intent}`;
+    const intentObj = match?.intent as Record<string, unknown> | undefined;
+    const displayName = normalizeString(intentObj?.displayName);
+    const intentName = normalizeString(intentObj?.name);
+
+    if (displayName) {
+        return `[intent matched] ${displayName}`;
+    }
+    if (intentName) {
+        return `[intent matched] ${intentName}`;
     }
 
     return null;
@@ -609,6 +615,14 @@ export async function POST(req: NextRequest) {
                     mentionLwUserids,
                     originalMessage: message,
                 });
+
+                const queryResult = dfResult.queryResult as Record<string, unknown> | undefined;
+                const match = queryResult?.match as Record<string, unknown> | undefined;
+                const intentObj = match?.intent as Record<string, unknown> | undefined;
+
+                console.log("[dialogflow] matched intent displayName=", intentObj?.displayName ?? null);
+                console.log("[dialogflow] matched intent name=", intentObj?.name ?? null);
+                console.log("[dialogflow] responseMessages=", JSON.stringify(queryResult?.responseMessages ?? null));
 
                 const replyText = extractDialogflowReplyText(dfResult);
 
