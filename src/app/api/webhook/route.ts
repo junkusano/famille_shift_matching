@@ -25,7 +25,9 @@ function normalizeString(v: unknown): string | null {
 }
 
 function buildDialogflowSessionId(channelId: string, requesterLwUserid: string | null) {
-    return `${channelId}--${requesterLwUserid ?? "unknown"}`;
+    const crypto = require("crypto");
+    const raw = `${channelId}--${requesterLwUserid ?? "unknown"}`;
+    return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 36);
 }
 
 function extractMentionLwUserIds(data: Record<string, unknown>): string[] {
@@ -241,12 +243,21 @@ async function sendLineworksMessage(params: {
         }),
     });
 
+    const raw = await res.text();
+
     if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`LINE WORKS send message failed: ${errText}`);
+        throw new Error(`LINE WORKS send message failed: ${raw}`);
     }
 
-    return await res.json();
+    if (!raw.trim()) {
+        return { ok: true };
+    }
+
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return { ok: true, raw };
+    }
 }
 
 async function upsertGroupAndChannel(params: {
