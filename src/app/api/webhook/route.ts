@@ -221,6 +221,26 @@ async function callDialogflowDetectIntent(params: {
     }
 }
 
+async function getGroupTypeFromChannelId(channelId: string): Promise<string | null> {
+    const { data, error } = await supabaseAdmin
+        .from("group_lw_channel_view")
+        .select("group_type")
+        .eq("channel_id", channelId)
+        .maybeSingle();
+
+    if (error) {
+        console.error("[lw webhook] getGroupTypeFromChannelId error", error);
+        return null;
+    }
+
+    return data?.group_type ?? null;
+}
+
+function shouldRunDialogflowForGroup(groupType: string | null): boolean {
+    return groupType === "利用者様情報連携グループ";
+}
+
+/*
 async function sendLineworksMessage(params: {
     channelId: string;
     text: string;
@@ -259,6 +279,8 @@ async function sendLineworksMessage(params: {
         return { ok: true, raw };
     }
 }
+
+*/
 
 async function upsertGroupAndChannel(params: {
     groupId: string;
@@ -554,12 +576,18 @@ export async function POST(req: NextRequest) {
             console.warn(`resolvedGroupId is null, skip upsertGroupAndChannel: channelId=${channelId}`);
         }
 
+        const groupType = await getGroupTypeFromChannelId(channelId);
+
+        console.log("[lw webhook] groupType=", groupType);
+
+
         if (
             shouldReplyToMessage({
                 eventType,
                 text: message,
                 userId,
-            })
+            }) &&
+            shouldRunDialogflowForGroup(groupType)
         ) {
             try {
                 const mentionLwUserids = extractMentionLwUserIds(data);
@@ -589,20 +617,36 @@ export async function POST(req: NextRequest) {
                 ]);
 
                 if (replyText) {
-                    await sendLineworksMessage({
-                        channelId,
-                        text: replyText,
-                    });
+                    console.log("[lw webhook] dialogflow reply preview=", replyText);
+
+                    // まずはログ確認だけにする
+                    // await sendLineworksMessage({
+                    //     channelId,
+                    //     text: replyText,
+                    // });
                 } else {
                     console.warn("[lw webhook] dialogflow reply text empty");
                 }
             } catch (dialogflowError) {
                 console.error("[lw webhook] dialogflow flow error", dialogflowError);
 
-                await sendLineworksMessage({
-                    channelId,
-                    text: "すみません。処理中にエラーが発生しました。もう一度お願いします。",
-                });
+                if (
+                    shouldReplyToMessage({
+                        eventType,
+                        text: message,
+                        userId,
+                    }) &&
+                    shouldRunDialogflowForGroup(groupType)
+                ) {
+                    // ...
+                } else {
+                    console.log("[lw webhook] skip dialogflow", {
+                        eventType,
+                        channelId,
+                        groupType,
+                        hasMessage: !!message,
+                    });
+                }
             }
         }
 
