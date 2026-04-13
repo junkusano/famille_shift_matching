@@ -1526,7 +1526,6 @@ async function handleConfirmNo(params: { sessionKey: string }) {
     );
 }
 export async function POST(req: NextRequest) {
-    console.info("[dialogflow webhook] session params raw", JSON.stringify(body.sessionInfo?.parameters ?? {}, null, 2));
     try {
         const secret = req.headers.get("x-dialogflow-secret");
         if (secret !== process.env.DIALOGFLOW_WEBHOOK_SECRET) {
@@ -1534,6 +1533,15 @@ export async function POST(req: NextRequest) {
         }
 
         const body = (await req.json()) as Record<string, unknown>;
+        console.info(
+            "[dialogflow webhook] session params raw",
+            JSON.stringify(
+                ((body.sessionInfo as Record<string, unknown> | undefined)?.parameters ?? {}),
+                null,
+                2
+            )
+        );
+
         const intentName = extractIntentName(body);
         const dialogflowParams = ((body.sessionInfo as Record<string, unknown> | undefined)?.parameters ?? {}) as DialogflowParams;
 
