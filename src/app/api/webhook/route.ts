@@ -89,10 +89,10 @@ function extractDialogflowReplyText(dfResponse: Record<string, unknown>): string
     const intentName = normalizeString(intentObj?.name);
 
     if (displayName) {
-        return `[intent matched] ${displayName}`;
+        //return `[intent matched] ${displayName}`;
     }
     if (intentName) {
-        return `[intent matched] ${intentName}`;
+        //return `[intent matched] ${intentName}`;
     }
 
     return null;
