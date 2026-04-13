@@ -634,6 +634,70 @@ function buildDeleteShiftNotFoundMessage(params: {
     ].join("\n");
 }
 
+function buildDeleteShiftCandidatesMessage(params: {
+    shiftDate: string;
+    sameDayShifts: ShiftRow[];
+}) {
+    if (params.sameDayShifts.length === 0) {
+        return {
+            text: `${params.shiftDate} にはシフトがありません。`,
+            autoSelectedStartTime: null as string | null,
+            autoSelectedEndTime: null as string | null,
+            autoSelectedServiceCode: null as string | null,
+            autoSelectedShiftId: null as number | null,
+            confirmSummary: null as string | null,
+        };
+    }
+
+    if (params.sameDayShifts.length === 1) {
+        const row = params.sameDayShifts[0];
+        const start = normalizeTime(row.shift_start_time) ?? "未指定";
+        const end = normalizeTime(row.shift_end_time) ?? "未指定";
+        const svc = row.service_code ?? "未指定";
+
+        const summary = [
+            "次のシフトを削除してよいですか？",
+            `日付: ${params.shiftDate}`,
+            `開始: ${start}`,
+            `終了: ${end}`,
+            `サービス: ${svc}`,
+            "",
+            "よろしければ「はい」、やめるなら「いいえ」と入力してください。",
+        ].join("\n");
+
+        return {
+            text: summary,
+            autoSelectedStartTime: start,
+            autoSelectedEndTime: end,
+            autoSelectedServiceCode: svc,
+            autoSelectedShiftId: row.shift_id,
+            confirmSummary: summary,
+        };
+    }
+
+    const candidates = params.sameDayShifts
+        .map((row) => {
+            const start = normalizeTime(row.shift_start_time) ?? "??:??";
+            const end = normalizeTime(row.shift_end_time) ?? "??:??";
+            const svc = row.service_code ?? "サービス不明";
+            return `・${start}-${end}（${svc}）`;
+        })
+        .join("\n");
+
+    return {
+        text: [
+            `${params.shiftDate} には次のシフトがあります。`,
+            candidates,
+            "何時からのシフトを削除しますか？",
+        ].join("\n"),
+        autoSelectedStartTime: null as string | null,
+        autoSelectedEndTime: null as string | null,
+        autoSelectedServiceCode: null as string | null,
+        autoSelectedShiftId: null as number | null,
+        confirmSummary: null as string | null,
+    };
+}
+
 async function loadTargetShiftFromPending(pending: PendingRow): Promise<ShiftRow | null> {
     if (pending.target_shift_id) {
         const { data, error } = await supabaseAdmin
@@ -1261,6 +1325,85 @@ async function handleUpdateShift(params: {
     return jsonText(summary);
 }
 
+async function handleDeleteShiftDateReady(params: {
+    sessionKey: string;
+    pending: PendingRow;
+    dialogflowParams: DialogflowParams;
+    resolvedTarget: ResolvedTarget;
+}) {
+    const shiftDate =
+        normalizeDate(params.dialogflowParams.shift_date) ??
+        params.pending.shift_date ??
+        null;
+
+    if (!shiftDate) {
+        return jsonText("いつのシフトですか？", {
+            operation_type: "delete",
+            shift_date: null,
+            start_time: null,
+            target_shift_id: null,
+            confirm_summary: null,
+        });
+    }
+
+    const patchedBase = await patchPending(params.sessionKey, {
+        intent_name: "delete_shift",
+        status: "collecting",
+        target_kaipoke_cs_id:
+            params.resolvedTarget?.kaipoke_cs_id ??
+            params.pending.target_kaipoke_cs_id,
+        shift_date: shiftDate,
+        start_time: null,
+        end_time: null,
+        service_code: null,
+        target_shift_id: null,
+        confirm_summary: null,
+    });
+
+    const sameDayShifts = await listShiftsOnDate({
+        kaipokeCsId: patchedBase.target_kaipoke_cs_id,
+        shiftDate,
+    });
+
+    const built = buildDeleteShiftCandidatesMessage({
+        shiftDate,
+        sameDayShifts,
+    });
+
+    if (built.autoSelectedShiftId) {
+        await patchPending(params.sessionKey, {
+            intent_name: "delete_shift",
+            status: "confirming",
+            shift_date: shiftDate,
+            start_time: built.autoSelectedStartTime,
+            end_time: built.autoSelectedEndTime,
+            service_code: built.autoSelectedServiceCode,
+            target_shift_id: built.autoSelectedShiftId,
+            confirm_summary: built.confirmSummary,
+        });
+
+        return jsonText(built.text, {
+            operation_type: "delete",
+            shift_date: shiftDate,
+            start_time: built.autoSelectedStartTime,
+            end_time: built.autoSelectedEndTime,
+            service_code: built.autoSelectedServiceCode,
+            target_shift_id: built.autoSelectedShiftId,
+            confirm_summary: built.confirmSummary,
+        });
+    }
+
+    return jsonText(built.text, {
+        operation_type: "delete",
+        shift_date: shiftDate,
+        start_time: null,
+        end_time: null,
+        service_code: null,
+        target_shift_id: null,
+        confirm_summary: null,
+    });
+}
+
 async function handleDeleteShift(params: {
     sessionKey: string;
     pending: PendingRow;
@@ -1517,7 +1660,13 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
         });
 
         return jsonText(
-            `削除しました。shift_id=${targetShift.shift_id}`,
+            [
+                "次のシフトを削除しました。",
+                `日付: ${pending.shift_date ?? "未指定"}`,
+                `開始: ${pending.start_time ?? "未指定"}`,
+                `終了: ${pending.end_time ?? "未指定"}`,
+                `サービス: ${pending.service_code ?? "未指定"}`,
+            ].join("\n"),
             buildClearedSessionParams()
         );
     }
@@ -1641,6 +1790,13 @@ export async function POST(req: NextRequest) {
         }
 
         switch (intentName) {
+            case "delete_shift_date_ready":
+                return await handleDeleteShiftDateReady({
+                    sessionKey,
+                    pending,
+                    dialogflowParams,
+                    resolvedTarget,
+                });
             case "create_shift":
                 return await handleCreateShift({
                     sessionKey,
