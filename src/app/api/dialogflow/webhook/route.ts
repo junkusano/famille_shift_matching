@@ -1040,32 +1040,59 @@ async function handleDeleteShift(params: {
   dialogflowParams: DialogflowParams;
   resolvedTarget: ResolvedTarget;
 }) {
-  const shiftDate = normalizeDate(params.dialogflowParams.shift_date) ?? params.pending.shift_date ?? null;
+  const shiftDate =
+    normalizeDate(params.dialogflowParams.shift_date) ??
+    params.pending.shift_date ??
+    null;
+
   const startTime =
     normalizeTime(params.dialogflowParams.start_time) ??
     normalizeTime(params.dialogflowParams.date_time) ??
     params.pending.start_time ??
     null;
 
+  if (!shiftDate) {
+    return jsonText("いつのシフトですか？");
+  }
+
+  if (!startTime) {
+    return jsonText("何時開始のシフトですか？");
+  }
+
   const base = await patchPending(params.sessionKey, {
     intent_name: "delete_shift",
-    target_kaipoke_cs_id: params.resolvedTarget?.kaipoke_cs_id ?? params.pending.target_kaipoke_cs_id,
+    status: "collecting",
+    target_kaipoke_cs_id:
+      params.resolvedTarget?.kaipoke_cs_id ??
+      params.pending.target_kaipoke_cs_id,
     shift_date: shiftDate,
     start_time: startTime,
-    status: "collecting",
   });
 
   const ensured = await ensureTargetShiftForOperation(params.sessionKey, base);
-  if (!ensured.ok) return ensured.response;
+  if (!ensured.ok) {
+    return jsonText(
+      "対象シフトを特定できませんでした。日付と開始時刻をもう一度教えてください。",
+      {
+        operation_type: "delete",
+        shift_date: null,
+        start_time: null,
+        target_shift_id: null,
+        confirm_summary: null,
+      }
+    );
+  }
 
   const patched = ensured.patched;
+
   const summary = [
-    "このシフトを削除します。",
-    `shift_id: ${patched.target_shift_id ?? "未特定"}`,
+    "次のシフトを削除してよいですか？",
     `日付: ${patched.shift_date ?? "未指定"}`,
-    `時間: ${patched.start_time ?? "未指定"}-${patched.end_time ?? "未指定"}`,
-    `サービスコード: ${patched.service_code ?? "未指定"}`,
-    "この内容で削除しますか？",
+    `開始: ${patched.start_time ?? "未指定"}`,
+    `終了: ${patched.end_time ?? "未指定"}`,
+    `サービス: ${patched.service_code ?? "未指定"}`,
+    "",
+    "よろしければ「はい」、やめるなら「いいえ」と入力してください。",
   ].join("\n");
 
   await patchPending(params.sessionKey, {
@@ -1073,9 +1100,16 @@ async function handleDeleteShift(params: {
     confirm_summary: summary,
   });
 
-  return jsonText(summary);
+  return jsonText(summary, {
+    operation_type: "delete",
+    shift_date: patched.shift_date,
+    start_time: patched.start_time,
+    end_time: patched.end_time,
+    service_code: patched.service_code,
+    target_shift_id: patched.target_shift_id,
+    confirm_summary: summary,
+  });
 }
-
 async function handleStaffUnavailable(params: {
   sessionKey: string;
   pending: PendingRow;
