@@ -139,8 +139,23 @@ function normalizeBoolean(v: unknown): boolean | null {
 }
 
 function normalizeDate(v: unknown): string | null {
+    if (v === null || v === undefined) return null;
+
+    if (typeof v === "object") {
+        const obj = v as Record<string, unknown>;
+
+        const year = Number(obj.year);
+        const month = Number(obj.month);
+        const day = Number(obj.day);
+
+        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+            return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+    }
+
     const s = normalizeString(v);
     if (!s) return null;
+
     const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
     return m ? m[1] : null;
 }
@@ -1511,6 +1526,7 @@ async function handleConfirmNo(params: { sessionKey: string }) {
     );
 }
 export async function POST(req: NextRequest) {
+    console.info("[dialogflow webhook] session params raw", JSON.stringify(body.sessionInfo?.parameters ?? {}, null, 2));
     try {
         const secret = req.headers.get("x-dialogflow-secret");
         if (secret !== process.env.DIALOGFLOW_WEBHOOK_SECRET) {
