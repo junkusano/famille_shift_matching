@@ -105,6 +105,22 @@ function jsonText(text: string, extraSessionParams?: Record<string, unknown>) {
     });
 }
 
+function buildClearedSessionParams() {
+    return {
+        operation_type: null,
+        shift_date: null,
+        start_time: null,
+        end_time: null,
+        service_code: null,
+        target_shift_id: null,
+        confirm_summary: null,
+        support_type: null,
+        staff_position: null,
+        is_judo_ido: null,
+        judo_ido_time: null,
+    };
+}
+
 function normalizeString(v: unknown): string | null {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
@@ -930,7 +946,10 @@ async function handleCorrectTime(params: {
         status: "collecting",
     });
 
+    const operationType = normalizeString(params.dialogflowParams.operation_type);
+
     const isDeleteFlow =
+        operationType === "delete" ||
         params.pending.intent_name === "delete_shift" ||
         params.pending.status === "confirming";
 
@@ -1428,7 +1447,10 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
             status: "completed",
         });
 
-        return jsonText(`削除しました。shift_id=${targetShift.shift_id}`);
+        return jsonText(
+            `削除しました。shift_id=${targetShift.shift_id}`,
+            buildClearedSessionParams()
+        );
     }
 
     if (pending.intent_name === "staff_unavailable") {
@@ -1483,9 +1505,11 @@ async function handleConfirmNo(params: { sessionKey: string }) {
         status: "cancelled",
     });
 
-    return jsonText("この依頼は取り消しました。");
+    return jsonText(
+        "この依頼は取り消しました。",
+        buildClearedSessionParams()
+    );
 }
-
 export async function POST(req: NextRequest) {
     try {
         const secret = req.headers.get("x-dialogflow-secret");
