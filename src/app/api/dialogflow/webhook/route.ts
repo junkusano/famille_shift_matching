@@ -170,15 +170,24 @@ function normalizeTime(v: unknown): string | null {
     if (typeof v === "object") {
         const obj = v as Record<string, unknown>;
 
-        const past = obj.past as Record<string, unknown> | undefined;
-        if (past) {
-            const hh = Number(past.hours);
-            const mm = Number(past.minutes);
+        // 1) まずトップレベルの hours/minutes を優先
+        const hh0 = Number(obj.hours);
+        const mm0 = Number(obj.minutes);
+        if (!Number.isNaN(hh0) && !Number.isNaN(mm0)) {
+            return `${String(hh0).padStart(2, "0")}:${String(mm0).padStart(2, "0")}`;
+        }
+
+        // 2) 次に partial
+        const partial = obj.partial as Record<string, unknown> | undefined;
+        if (partial) {
+            const hh = Number(partial.hours);
+            const mm = Number(partial.minutes);
             if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
                 return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
             }
         }
 
+        // 3) 次に future
         const future = obj.future as Record<string, unknown> | undefined;
         if (future) {
             const hh = Number(future.hours);
@@ -188,10 +197,14 @@ function normalizeTime(v: unknown): string | null {
             }
         }
 
-        const hh = Number(obj.hours);
-        const mm = Number(obj.minutes);
-        if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
-            return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        // 4) 最後に past
+        const past = obj.past as Record<string, unknown> | undefined;
+        if (past) {
+            const hh = Number(past.hours);
+            const mm = Number(past.minutes);
+            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+            }
         }
     }
 
@@ -205,6 +218,13 @@ function normalizeTime(v: unknown): string | null {
     if (t) {
         const hh = String(Number(t[1])).padStart(2, "0");
         return `${hh}:${t[2]}`;
+    }
+
+    // 1230 形式も拾う
+    const compact = s.match(/^(\d{1,2})(\d{2})$/);
+    if (compact) {
+        const hh = String(Number(compact[1])).padStart(2, "0");
+        return `${hh}:${compact[2]}`;
     }
 
     return null;
