@@ -44,7 +44,7 @@ type FormProps = {
 };
 
 const OFFICE_NO = "2360181545";
-const OFFICE_NAME_LINES = ["合同会社施恩", "ファミーユヘルパーサービス", "名北"];
+const OFFICE_NAME_LINES = ["ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知"];
 // 同行援護（様式19）用
 const DOKO_OFFICE_NO = "2311100974";
 const DOKO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
@@ -2149,9 +2149,7 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         事業者事業所の名称
                                     </div>
                                     <div style={{ padding: "2px 4px", textAlign: "left" }}>
-                                        {OFFICE_NAME_LINES[0]}<br />
-                                        {OFFICE_NAME_LINES[1]}<br />
-                                        {OFFICE_NAME_LINES[2]}
+                                        {OFFICE_NAME_LINES[0]}
                                     </div>
                                 </div>
                             </td>
