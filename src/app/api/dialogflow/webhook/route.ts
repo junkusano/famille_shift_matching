@@ -640,7 +640,7 @@ function buildDeleteShiftCandidatesMessage(params: {
 }) {
     if (params.sameDayShifts.length === 0) {
         return {
-            text: `${params.shiftDate} にはシフトがありません。`,
+            text: `${params.shiftDate} にはシフトがありません。\nシフトは削除されませんでした。`,
             autoSelectedStartTime: null as string | null,
             autoSelectedEndTime: null as string | null,
             autoSelectedServiceCode: null as string | null,
@@ -1369,6 +1369,23 @@ async function handleDeleteShiftDateReady(params: {
         shiftDate,
         sameDayShifts,
     });
+
+    if (sameDayShifts.length === 0) {
+        await patchPending(params.sessionKey, {
+            status: "cancelled",
+            shift_date: null,
+            start_time: null,
+            end_time: null,
+            service_code: null,
+            target_shift_id: null,
+            confirm_summary: null,
+        });
+
+        return jsonText(
+            built.text,
+            buildClearedSessionParams()
+        );
+    }
 
     if (built.autoSelectedShiftId) {
         await patchPending(params.sessionKey, {
