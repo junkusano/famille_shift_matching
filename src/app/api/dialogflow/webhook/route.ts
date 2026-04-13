@@ -141,6 +141,10 @@ function normalizeBoolean(v: unknown): boolean | null {
 function normalizeDate(v: unknown): string | null {
     if (v === null || v === undefined) return null;
 
+    if (Array.isArray(v)) {
+        return normalizeDate(v[0]);
+    }
+
     if (typeof v === "object") {
         const obj = v as Record<string, unknown>;
 
@@ -161,6 +165,36 @@ function normalizeDate(v: unknown): string | null {
 }
 
 function normalizeTime(v: unknown): string | null {
+    if (v === null || v === undefined) return null;
+
+    if (typeof v === "object") {
+        const obj = v as Record<string, unknown>;
+
+        const past = obj.past as Record<string, unknown> | undefined;
+        if (past) {
+            const hh = Number(past.hours);
+            const mm = Number(past.minutes);
+            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+            }
+        }
+
+        const future = obj.future as Record<string, unknown> | undefined;
+        if (future) {
+            const hh = Number(future.hours);
+            const mm = Number(future.minutes);
+            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+            }
+        }
+
+        const hh = Number(obj.hours);
+        const mm = Number(obj.minutes);
+        if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+            return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        }
+    }
+
     const s = normalizeString(v);
     if (!s) return null;
 
