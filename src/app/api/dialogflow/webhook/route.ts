@@ -90,6 +90,20 @@ type ShiftRow = {
     judo_ido: string | null;
 };
 
+type ServiceCodeCandidate = {
+    service_code: string;
+    plan_display_name: string | null;
+    plan_service_category: string | null;
+    score: number;
+};
+
+type StaffDisplayRow = {
+    user_id: string;
+    lw_userid: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+};
+
 function jsonText(text: string, extraSessionParams?: Record<string, unknown>) {
     return NextResponse.json({
         fulfillment_response: {
@@ -240,6 +254,20 @@ function compactToDisplayHHMM(v: string | null): string {
     if (/^\d{4}$/.test(v)) return `${v.slice(0, 2)}:${v.slice(2, 4)}`;
     if (/^\d{2}:\d{2}$/.test(v)) return v;
     return v;
+}
+
+function displayOrUnknown(v: string | null): string {
+    return v ?? "不明";
+}
+
+function displayStaffName(row: StaffDisplayRow | null, fallbackUserId?: string | null): string {
+    if (!row) return fallbackUserId ?? "不明";
+    const full = `${row.last_name_kanji ?? ""}${row.first_name_kanji ?? ""}`.trim();
+    return full || fallbackUserId || row.user_id || "不明";
+}
+
+function normalizeForMatch(s: string): string {
+    return s.replace(/[ 　\t\r\n\-ー_]/g, "").toLowerCase();
 }
 
 function normalizeDurationToHHMM(v: unknown): string | null {
@@ -433,6 +461,19 @@ async function resolveStaffUsers(params: {
     };
 }
 
+async function getStaffDisplayByUserId(userId: string | null): Promise<StaffDisplayRow | null> {
+    if (!userId) return null;
+
+    const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("user_id, lw_userid, last_name_kanji, first_name_kanji")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+    if (error || !data?.user_id) return null;
+    return data as StaffDisplayRow;
+}
+
 async function getPendingBySessionKey(sessionKey: string): Promise<PendingRow | null> {
     const { data, error } = await supabaseAdmin
         .from("dialogflow_pending_shift_requests")
@@ -595,6 +636,111 @@ async function listShiftsOnDate(params: {
 
     if (error || !data) return [];
     return data as ShiftRow[];
+}
+
+async function findPreviousShiftForSuggestion(params: {
+    kaipokeCsId: string | null;
+    shiftDate: string | null;
+    startTime: string | null;
+}): Promise<ShiftRow | null> {
+    if (!params.kaipokeCsId || !params.shiftDate) return null;
+
+    const sameDayTimeFilter =
+        params.startTime && /^\d{2}:\d{2}$/.test(params.startTime)
+            ? `and(shift_start_date.eq.${params.shiftDate},shift_start_time.lt.${params.startTime})`
+            : null;
+
+    const orFilter = [
+        `shift_start_date.lt.${params.shiftDate}`,
+        sameDayTimeFilter,
+    ]
+        .filter(Boolean)
+        .join(",");
+
+    const { data, error } = await supabaseAdmin
+        .from("shift")
+        .select("*")
+        .eq("kaipoke_cs_id", params.kaipokeCsId)
+        .or(orFilter)
+        .order("shift_start_date", { ascending: false })
+        .order("shift_start_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error || !data) return null;
+    return data as ShiftRow;
+}
+
+async function findServiceCodeCandidates(params: {
+    sourceMessage: string | null;
+    limit?: number;
+}): Promise<ServiceCodeCandidate[]> {
+    const text = normalizeString(params.sourceMessage);
+    if (!text) return [];
+
+    const tokens = Array.from(
+        new Set(
+            text
+                .split(/[、。\s\n\r\t]+/)
+                .map((x) => x.trim())
+                .filter((x) => x.length >= 2)
+        )
+    ).slice(0, 8);
+
+    const { data, error } = await supabaseAdmin
+        .from("shift_service_code")
+        .select("service_code, plan_display_name, plan_service_category")
+        .not("service_code", "is", null)
+        .limit(300);
+
+    if (error || !data?.length) {
+        console.error("[dialogflow webhook] findServiceCodeCandidates error", error);
+        return [];
+    }
+
+    const scored = (data as Array<{
+        service_code: string | null;
+        plan_display_name?: string | null;
+        plan_service_category?: string | null;
+    }>)
+        .filter((row) => !!row.service_code)
+        .map((row) => {
+            const serviceCode = String(row.service_code);
+            const fields = [
+                serviceCode,
+                row.plan_display_name ?? "",
+                row.plan_service_category ?? "",
+            ];
+            const joinedNorm = normalizeForMatch(fields.join(" "));
+            let score = 0;
+
+            for (const token of tokens) {
+                const tokenNorm = normalizeForMatch(token);
+                if (!tokenNorm) continue;
+
+                if (normalizeForMatch(serviceCode).includes(tokenNorm)) score += 10;
+                if (normalizeForMatch(row.plan_display_name ?? "").includes(tokenNorm)) score += 30;
+                if (normalizeForMatch(row.plan_service_category ?? "").includes(tokenNorm)) score += 20;
+                if (joinedNorm.includes(tokenNorm)) score += 5;
+            }
+
+            if (joinedNorm.includes("通院") && normalizeForMatch(text).includes("通院")) score += 20;
+            if (joinedNorm.includes("同行") && normalizeForMatch(text).includes("同行")) score += 20;
+            if (joinedNorm.includes("家事") && normalizeForMatch(text).includes("家事")) score += 20;
+            if (joinedNorm.includes("身体") && normalizeForMatch(text).includes("身体")) score += 20;
+
+            return {
+                service_code: serviceCode,
+                plan_display_name: row.plan_display_name ?? null,
+                plan_service_category: row.plan_service_category ?? null,
+                score,
+            };
+        })
+        .filter((row) => row.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, params.limit ?? 3);
+
+    return scored;
 }
 
 function buildDeleteShiftNotFoundMessage(params: {
@@ -808,6 +954,106 @@ async function buildConfirmSummary(pending: PendingRow) {
         .join("\n");
 }
 
+async function buildCreateShiftMissingMessage(params: {
+    pending: PendingRow;
+}) {
+    const missing = requiredMissing({
+        targetKaipokeCsId: params.pending.target_kaipoke_cs_id,
+        shiftDate: params.pending.shift_date,
+        startTime: params.pending.start_time,
+        endTime: params.pending.end_time,
+        serviceCode: params.pending.service_code,
+        staff01UserId: params.pending.staff_01_user_id,
+    });
+
+    const prev = await findPreviousShiftForSuggestion({
+        kaipokeCsId: params.pending.target_kaipoke_cs_id,
+        shiftDate: params.pending.shift_date,
+        startTime: params.pending.start_time,
+    });
+
+    const prevStaffDisplay = await getStaffDisplayByUserId(prev?.staff_01_user_id ?? null);
+    const currentStaffDisplay = await getStaffDisplayByUserId(params.pending.staff_01_user_id ?? null);
+
+    const serviceCandidates =
+        !params.pending.service_code
+            ? await findServiceCodeCandidates({
+                sourceMessage: params.pending.last_message,
+                limit: 3,
+            })
+            : [];
+
+    console.info("[dialogflow webhook] create_shift_missing_ready normalized", {
+        shift_date: params.pending.shift_date,
+        start_time: params.pending.start_time,
+        end_time: params.pending.end_time,
+        service_code: params.pending.service_code,
+        staff_01_user_id: params.pending.staff_01_user_id,
+        missing,
+    });
+
+    console.info("[dialogflow webhook] create_shift_missing_ready previous_shift", {
+        found: !!prev,
+        shift_id: prev?.shift_id ?? null,
+        shift_date: normalizeDate(prev?.shift_start_date ?? null),
+        start_time: normalizeTime(prev?.shift_start_time ?? null),
+        end_time: normalizeTime(prev?.shift_end_time ?? null),
+        service_code: prev?.service_code ?? null,
+        staff_01_user_id: prev?.staff_01_user_id ?? null,
+    });
+
+    console.info("[dialogflow webhook] create_shift_missing_ready service_candidates", {
+        source_message: params.pending.last_message,
+        candidates: serviceCandidates,
+    });
+
+    const lines: string[] = [
+        "内容を確認しました。",
+        "",
+        `日付：${displayOrUnknown(params.pending.shift_date)}`,
+        `開始：${displayOrUnknown(params.pending.start_time)}`,
+        `終了：${displayOrUnknown(params.pending.end_time)}`,
+        `サービスコード：${displayOrUnknown(params.pending.service_code)}`,
+        `担当者：${displayStaffName(currentStaffDisplay, params.pending.staff_01_user_id)}`,
+        "",
+    ];
+
+    const canSuggestPrevService = !params.pending.service_code && !!prev?.service_code;
+    const canSuggestPrevStaff = !params.pending.staff_01_user_id && !!prev?.staff_01_user_id;
+
+    if (canSuggestPrevService || canSuggestPrevStaff) {
+        const prevDate = normalizeDate(prev?.shift_start_date ?? null) ?? "不明";
+        const prevStart = normalizeTime(prev?.shift_start_time ?? null) ?? "不明";
+        const prevEnd = normalizeTime(prev?.shift_end_time ?? null) ?? "不明";
+        const prevService = prev?.service_code ?? "不明";
+        const prevStaffName = displayStaffName(prevStaffDisplay, prev?.staff_01_user_id ?? null);
+
+        lines.push(
+            `一つ前のシフト（${prevDate} ${prevStart}～${prevEnd}）は`,
+            `サービスコード：${prevService}`,
+            `担当者：${prevStaffName}`,
+            "です。",
+            "サービスコード・担当者は、同じにしますか？",
+            ""
+        );
+    } else if (!params.pending.service_code && serviceCandidates.length > 0) {
+        lines.push("候補のサービスコードがあります。");
+        for (const candidate of serviceCandidates) {
+            const label =
+                candidate.plan_display_name ??
+                candidate.plan_service_category ??
+                candidate.service_code;
+            lines.push(`・${candidate.service_code}${label ? `（${label}）` : ""}`);
+        }
+        lines.push("この中に近いものがあれば指定してください。", "");
+    }
+
+    lines.push(`不足している項目：${missing.join("、")}`);
+    lines.push("不足している項目を教えてください。");
+
+    return lines.join("\n");
+}
+
 async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messagePrefix?: string) {
     const missing = requiredMissing({
         targetKaipokeCsId: patched.target_kaipoke_cs_id,
@@ -835,6 +1081,93 @@ async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messag
     });
 
     return jsonText(messagePrefix ? `${messagePrefix}\n${summary}` : summary);
+}
+
+async function handleCreateShiftMissingReady(params: {
+    sessionKey: string;
+    pending: PendingRow;
+    dialogflowParams: DialogflowParams;
+    resolvedTarget: ResolvedTarget;
+    resolvedStaff: ResolvedStaff;
+}) {
+    const p = params.dialogflowParams;
+
+    const shiftDate =
+        normalizeDate(p.shift_date) ??
+        params.pending.shift_date ??
+        null;
+
+    const startTime =
+        normalizeTime(p.start_time) ??
+        normalizeTime(p.date_time) ??
+        params.pending.start_time ??
+        null;
+
+    const endTime =
+        normalizeTime(p.end_time) ??
+        params.pending.end_time ??
+        null;
+
+    let serviceCode =
+        normalizeString(p.service_code) ??
+        params.pending.service_code ??
+        null;
+
+    if (serviceCode) {
+        const exists = await serviceCodeExists(serviceCode);
+        if (!exists) {
+            serviceCode = null;
+        }
+    }
+
+    const staffPosition = normalizeString(p.staff_position);
+
+    const mentionedUser = params.resolvedStaff.mentionPrimaryUserId ?? null;
+
+    const changed = applyStaffChangeByPosition({
+        pending: params.pending,
+        newUserId: mentionedUser,
+        staffPosition,
+    });
+
+    const staff01 = changed.staff01 ?? params.pending.staff_01_user_id ?? null;
+
+    const patched = await patchPending(params.sessionKey, {
+        intent_name: "create_shift",
+        status: "collecting",
+        target_kaipoke_cs_id:
+            params.resolvedTarget?.kaipoke_cs_id ??
+            params.pending.target_kaipoke_cs_id,
+        shift_date: shiftDate,
+        start_time: startTime,
+        end_time: endTime,
+        service_code: serviceCode,
+        staff_01_user_id: staff01,
+    });
+
+    console.info("[dialogflow webhook] create_shift_missing_ready source", {
+        session_key: params.sessionKey,
+        source_message: params.pending.last_message,
+        raw_start_time: p.start_time ?? p.date_time ?? null,
+        normalized_start_time: startTime,
+        raw_end_time: p.end_time ?? null,
+        normalized_end_time: endTime,
+        mentioned_lw_userids: params.pending.mentioned_lw_userids,
+        mention_resolved_user_ids: params.resolvedStaff.mentionResolvedUserIds,
+    });
+
+    const message = await buildCreateShiftMissingMessage({
+        pending: patched,
+    });
+
+    return jsonText(message, {
+        operation_type: "create",
+        shift_date: patched.shift_date,
+        start_time: patched.start_time,
+        end_time: patched.end_time,
+        service_code: patched.service_code,
+        staff_name: patched.staff_01_user_id,
+    });
 }
 
 async function handleCreateShift(params: {
@@ -870,14 +1203,14 @@ async function handleCreateShift(params: {
         : "0000";
 
     const staffPosition = normalizeString(p.staff_position);
-    const mentionedUser = params.resolvedStaff.mentionPrimaryUserId ?? params.resolvedStaff.requesterUserId ?? null;
+    const mentionedUser = params.resolvedStaff.mentionPrimaryUserId ?? null;
     const changed = applyStaffChangeByPosition({
         pending: params.pending,
         newUserId: mentionedUser,
         staffPosition,
     });
 
-    const staff01 = changed.staff01 ?? params.pending.staff_01_user_id ?? params.resolvedStaff.requesterUserId ?? null;
+    const staff01 = changed.staff01 ?? params.pending.staff_01_user_id ?? null;
     const staff02 = changed.staff02 ?? params.pending.staff_02_user_id ?? null;
     const staff03 = changed.staff03 ?? params.pending.staff_03_user_id ?? null;
 
@@ -1816,6 +2149,24 @@ export async function POST(req: NextRequest) {
                 });
             case "create_shift":
                 return await handleCreateShift({
+                    sessionKey,
+                    pending,
+                    dialogflowParams,
+                    resolvedTarget,
+                    resolvedStaff,
+                });
+
+            case "create_shift_missing_ready":
+                return await handleCreateShiftMissingReady({
+                    sessionKey,
+                    pending,
+                    dialogflowParams,
+                    resolvedTarget,
+                    resolvedStaff,
+                });
+
+            case "create_shift_missing_ready":
+                return await handleCreateShiftMissingReady({
                     sessionKey,
                     pending,
                     dialogflowParams,
