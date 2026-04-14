@@ -90,6 +90,7 @@ type ShiftRow = {
     judo_ido: string | null;
 };
 
+
 type ServiceCodeCandidate = {
     service_code: string;
     plan_display_name: string | null;
@@ -103,7 +104,6 @@ type StaffDisplayRow = {
     last_name_kanji: string | null;
     first_name_kanji: string | null;
 };
-
 function jsonText(text: string, extraSessionParams?: Record<string, unknown>) {
     return NextResponse.json({
         fulfillment_response: {
@@ -132,6 +132,9 @@ function buildClearedSessionParams() {
         staff_position: null,
         is_judo_ido: null,
         judo_ido_time: null,
+        awaiting_missing_fields: null,
+        flow_stage: null,
+        staff_name: null,
     };
 }
 
@@ -244,6 +247,73 @@ function normalizeTime(v: unknown): string | null {
     return null;
 }
 
+function normalizeTimeForCreate(v: unknown, sourceMessage: string | null): string | null {
+    if (v === null || v === undefined) return null;
+
+    if (typeof v === "object") {
+        const obj = v as Record<string, unknown>;
+
+        const topH = Number(obj.hours);
+        const topM = Number(obj.minutes);
+
+        const future = obj.future as Record<string, unknown> | undefined;
+        const futureH = Number(future?.hours);
+        const futureM = Number(future?.minutes);
+
+        const past = obj.past as Record<string, unknown> | undefined;
+        const pastH = Number(past?.hours);
+        const pastM = Number(past?.minutes);
+
+        const partial = obj.partial as Record<string, unknown> | undefined;
+        const partialH = Number(partial?.hours);
+        const partialM = Number(partial?.minutes);
+
+        const topOk = !Number.isNaN(topH) && !Number.isNaN(topM);
+        const futureOk = !Number.isNaN(futureH) && !Number.isNaN(futureM);
+        const pastOk = !Number.isNaN(pastH) && !Number.isNaN(pastM);
+        const partialOk = !Number.isNaN(partialH) && !Number.isNaN(partialM);
+
+        if (hasMorningHint(sourceMessage)) {
+            if (pastOk && pastH >= 0 && pastH < 12) {
+                return `${String(pastH).padStart(2, "0")}:${String(pastM).padStart(2, "0")}`;
+            }
+            if (partialOk && partialH >= 0 && partialH < 12) {
+                return `${String(partialH).padStart(2, "0")}:${String(partialM).padStart(2, "0")}`;
+            }
+            if (topOk && topH >= 0 && topH < 12) {
+                return `${String(topH).padStart(2, "0")}:${String(topM).padStart(2, "0")}`;
+            }
+        }
+
+        if (hasAfternoonHint(sourceMessage)) {
+            if (futureOk) {
+                return `${String(futureH).padStart(2, "0")}:${String(futureM).padStart(2, "0")}`;
+            }
+            if (topOk) {
+                return `${String(topH).padStart(2, "0")}:${String(topM).padStart(2, "0")}`;
+            }
+        }
+
+        // 9:30 が 21:30 に倒れるケースを補正
+        if (topOk && pastOk) {
+            const diff = topH - pastH;
+            if (diff === 12 && topH >= 12 && pastH >= 0 && pastH < 12) {
+                return `${String(pastH).padStart(2, "0")}:${String(pastM).padStart(2, "0")}`;
+            }
+        }
+
+        if (partialOk && pastOk) {
+            const diff = partialH - pastH;
+            if (diff === 12 && partialH >= 12 && pastH >= 0 && pastH < 12) {
+                return `${String(pastH).padStart(2, "0")}:${String(pastM).padStart(2, "0")}`;
+            }
+        }
+    }
+
+    return normalizeTime(v);
+}
+
+
 function hhmmToCompact(v: string | null): string {
     if (!v) return "0000";
     return v.replace(":", "");
@@ -255,6 +325,7 @@ function compactToDisplayHHMM(v: string | null): string {
     if (/^\d{2}:\d{2}$/.test(v)) return v;
     return v;
 }
+
 
 function displayOrUnknown(v: string | null): string {
     return v ?? "不明";
@@ -268,6 +339,16 @@ function displayStaffName(row: StaffDisplayRow | null, fallbackUserId?: string |
 
 function normalizeForMatch(s: string): string {
     return s.replace(/[ 　\t\r\n\-ー_]/g, "").toLowerCase();
+}
+
+function hasMorningHint(text: string | null): boolean {
+    if (!text) return false;
+    return /(午前|朝|am|AM|a\.m\.)/.test(text);
+}
+
+function hasAfternoonHint(text: string | null): boolean {
+    if (!text) return false;
+    return /(午後|夕方|夜|pm|PM|p\.m\.)/.test(text);
 }
 
 function normalizeDurationToHHMM(v: unknown): string | null {
@@ -637,7 +718,6 @@ async function listShiftsOnDate(params: {
     if (error || !data) return [];
     return data as ShiftRow[];
 }
-
 async function findPreviousShiftForSuggestion(params: {
     kaipokeCsId: string | null;
     shiftDate: string | null;
@@ -706,12 +786,9 @@ async function findServiceCodeCandidates(params: {
         .filter((row) => !!row.service_code)
         .map((row) => {
             const serviceCode = String(row.service_code);
-            const fields = [
-                serviceCode,
-                row.plan_display_name ?? "",
-                row.plan_service_category ?? "",
-            ];
-            const joinedNorm = normalizeForMatch(fields.join(" "));
+            const joinedNorm = normalizeForMatch(
+                `${serviceCode} ${row.plan_display_name ?? ""} ${row.plan_service_category ?? ""}`
+            );
             let score = 0;
 
             for (const token of tokens) {
@@ -1002,11 +1079,6 @@ async function buildCreateShiftMissingMessage(params: {
         staff_01_user_id: prev?.staff_01_user_id ?? null,
     });
 
-    console.info("[dialogflow webhook] create_shift_missing_ready service_candidates", {
-        source_message: params.pending.last_message,
-        candidates: serviceCandidates,
-    });
-
     const lines: string[] = [
         "内容を確認しました。",
         "",
@@ -1019,9 +1091,8 @@ async function buildCreateShiftMissingMessage(params: {
     ];
 
     const canSuggestPrevService = !params.pending.service_code && !!prev?.service_code;
-    const canSuggestPrevStaff = !params.pending.staff_01_user_id && !!prev?.staff_01_user_id;
 
-    if (canSuggestPrevService || canSuggestPrevStaff) {
+    if (canSuggestPrevService || !!prev?.staff_01_user_id) {
         const prevDate = normalizeDate(prev?.shift_start_date ?? null) ?? "不明";
         const prevStart = normalizeTime(prev?.shift_start_time ?? null) ?? "不明";
         const prevEnd = normalizeTime(prev?.shift_end_time ?? null) ?? "不明";
@@ -1032,10 +1103,13 @@ async function buildCreateShiftMissingMessage(params: {
             `一つ前のシフト（${prevDate} ${prevStart}～${prevEnd}）は`,
             `サービスコード：${prevService}`,
             `担当者：${prevStaffName}`,
-            "です。",
-            "サービスコード・担当者は、同じにしますか？",
-            ""
+            "です。"
         );
+
+        if (!params.pending.service_code) {
+            lines.push("サービスコードは同じにしますか？");
+        }
+        lines.push("担当者は @メンション で指定してください。", "");
     } else if (!params.pending.service_code && serviceCandidates.length > 0) {
         lines.push("候補のサービスコードがあります。");
         for (const candidate of serviceCandidates) {
@@ -1045,7 +1119,10 @@ async function buildCreateShiftMissingMessage(params: {
                 candidate.service_code;
             lines.push(`・${candidate.service_code}${label ? `（${label}）` : ""}`);
         }
-        lines.push("この中に近いものがあれば指定してください。", "");
+        lines.push("この中に近いものがあれば指定してください。");
+        lines.push("担当者は @メンション で指定してください。", "");
+    } else if (!params.pending.staff_01_user_id) {
+        lines.push("担当者は @メンション で指定してください。", "");
     }
 
     lines.push(`不足している項目：${missing.join("、")}`);
@@ -1065,13 +1142,24 @@ async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messag
     });
 
     if (missing.length > 0) {
-        const extra =
-            !patched.service_code && patched.inferred_service_code
-                ? `\n参考: サービスコードは ${patched.inferred_service_code} を候補にしています。`
-                : "";
-
+        const message = await buildCreateShiftMissingMessage({ pending: patched });
         const prefix = messagePrefix ? `${messagePrefix}\n` : "";
-        return jsonText(`${prefix}不足項目があります: ${missing.join("、")} を教えてください。${extra}`);
+
+        await patchPending(sessionKey, {
+            status: "collecting",
+            confirm_summary: null,
+        });
+
+        return jsonText(`${prefix}${message}`, {
+            operation_type: "create",
+            awaiting_missing_fields: true,
+            flow_stage: "missing",
+            shift_date: patched.shift_date,
+            start_time: patched.start_time,
+            end_time: patched.end_time,
+            service_code: patched.service_code,
+            staff_name: patched.staff_01_user_id,
+        });
     }
 
     const summary = await buildConfirmSummary(patched);
@@ -1080,7 +1168,17 @@ async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messag
         confirm_summary: summary,
     });
 
-    return jsonText(messagePrefix ? `${messagePrefix}\n${summary}` : summary);
+    return jsonText(messagePrefix ? `${messagePrefix}\n${summary}` : summary, {
+        operation_type: "create",
+        awaiting_missing_fields: false,
+        flow_stage: "confirm",
+        shift_date: patched.shift_date,
+        start_time: patched.start_time,
+        end_time: patched.end_time,
+        service_code: patched.service_code,
+        staff_name: patched.staff_01_user_id,
+        confirm_summary: summary,
+    });
 }
 
 async function handleCreateShiftMissingReady(params: {
@@ -1091,6 +1189,7 @@ async function handleCreateShiftMissingReady(params: {
     resolvedStaff: ResolvedStaff;
 }) {
     const p = params.dialogflowParams;
+    const sourceMessage = params.pending.last_message ?? normalizeString(p.original_message) ?? null;
 
     const shiftDate =
         normalizeDate(p.shift_date) ??
@@ -1098,13 +1197,13 @@ async function handleCreateShiftMissingReady(params: {
         null;
 
     const startTime =
-        normalizeTime(p.start_time) ??
-        normalizeTime(p.date_time) ??
+        normalizeTimeForCreate(p.start_time, sourceMessage) ??
+        normalizeTimeForCreate(p.date_time, sourceMessage) ??
         params.pending.start_time ??
         null;
 
     const endTime =
-        normalizeTime(p.end_time) ??
+        normalizeTimeForCreate(p.end_time, sourceMessage) ??
         params.pending.end_time ??
         null;
 
@@ -1122,6 +1221,7 @@ async function handleCreateShiftMissingReady(params: {
 
     const staffPosition = normalizeString(p.staff_position);
 
+    // mention 必須
     const mentionedUser = params.resolvedStaff.mentionPrimaryUserId ?? null;
 
     const changed = applyStaffChangeByPosition({
@@ -1130,7 +1230,10 @@ async function handleCreateShiftMissingReady(params: {
         staffPosition,
     });
 
-    const staff01 = changed.staff01 ?? params.pending.staff_01_user_id ?? null;
+    const staff01 =
+        changed.staff01 ??
+        params.pending.staff_01_user_id ??
+        null;
 
     const patched = await patchPending(params.sessionKey, {
         intent_name: "create_shift",
@@ -1147,7 +1250,7 @@ async function handleCreateShiftMissingReady(params: {
 
     console.info("[dialogflow webhook] create_shift_missing_ready source", {
         session_key: params.sessionKey,
-        source_message: params.pending.last_message,
+        source_message: sourceMessage,
         raw_start_time: p.start_time ?? p.date_time ?? null,
         normalized_start_time: startTime,
         raw_end_time: p.end_time ?? null,
@@ -1162,6 +1265,8 @@ async function handleCreateShiftMissingReady(params: {
 
     return jsonText(message, {
         operation_type: "create",
+        awaiting_missing_fields: true,
+        flow_stage: "missing",
         shift_date: patched.shift_date,
         start_time: patched.start_time,
         end_time: patched.end_time,
@@ -2165,14 +2270,6 @@ export async function POST(req: NextRequest) {
                     resolvedStaff,
                 });
 
-            case "create_shift_missing_ready":
-                return await handleCreateShiftMissingReady({
-                    sessionKey,
-                    pending,
-                    dialogflowParams,
-                    resolvedTarget,
-                    resolvedStaff,
-                });
 
             case "update_shift":
                 return await handleUpdateShift({
