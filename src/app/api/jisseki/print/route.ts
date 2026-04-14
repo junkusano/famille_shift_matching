@@ -203,11 +203,12 @@ export async function GET(req: NextRequest) {
 
     // ⑥ 片道支援加算判定（service_code と calc_hour を使う）
     const isKatamichiService =
-      (s.service_code ?? "") === "移：必要不可欠な外出（片道加算）";
+      (s.service_code ?? "") === "移：必要不可欠な外出（片道加算）" ||
+      (s.service_code ?? "") === "移：必要不可欠な外出（片道支援）";
 
     const katamichi_addon: 0 | 1 =
-      isKatamichiService && typeof minutes === "number" && minutes > 90 ? 1 : 0;
-
+      isKatamichiService && typeof minutes === "number" && minutes >= 90 ? 1 : 0;
+      
     // ⑧ staffNames（01/02/03 を氏名化）
     const staffNames = [
       s.staff_01_user_id ? staffNameMap.get(s.staff_01_user_id) ?? "" : "",
