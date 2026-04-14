@@ -2252,11 +2252,14 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                             const isUphit =
                                 r.service_code === "移：必要不可欠な外出" ||
-                                r.service_code === "移：必要不可欠な外出（片道加算）";
+                                r.service_code === "移：必要不可欠な外出（片道加算）" ||
+                                r.service_code === "移：必要不可欠な外出（片道支援）";
 
                             const isOther =
                                 r.service_code === "移：その他" ||
-                                r.service_code === "移：その他（片道加算）";
+                                r.service_code === "移：その他（片道加算）" ||
+                                r.service_code === "移：その他の外出" ||
+                                r.service_code === "移：その他の外出（片道支援）";
 
                             const uphitMin = isUphit ? mins : null;
                             const otherMin = isOther ? mins : null;
