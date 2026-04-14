@@ -1973,17 +1973,43 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
     ].slice(0, MAX);
 
     // ★合計（要望：サービス提供「分」＝計画時間（分）＝内訳（不可欠）を同じにする）
+    const isUphitService = (serviceCode?: string) =>
+        serviceCode === "移：必要不可欠な外出" ||
+        serviceCode === "移：必要不可欠な外出（片道加算）" ||
+        serviceCode === "移：必要不可欠な外出（片道支援）";
+
+    const isOtherService = (serviceCode?: string) =>
+        serviceCode === "移：その他" ||
+        serviceCode === "移：その他（片道加算）" ||
+        serviceCode === "移：その他の外出" ||
+        serviceCode === "移：その他の外出（片道支援）";
+
+    const isKatamichiUphit = (serviceCode?: string) =>
+        serviceCode === "移：必要不可欠な外出（片道加算）" ||
+        serviceCode === "移：必要不可欠な外出（片道支援）";
+
     const sumPlanMin = src.reduce((a, r) => a + getMinutes(r), 0);
-    const sumUphitMin = sumPlanMin; // 不可欠（分）＝同じ数
-    const sumOtherMin = 0;
+
+    const sumUphitMin = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isUphitService(r.service_code) ? mins : 0);
+    }, 0);
+
+    const sumOtherMin = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isOtherService(r.service_code) ? mins : 0);
+    }, 0);
+
+    const sumKatamichi = src.reduce((a, r) => {
+        const mins = getMinutes(r);
+        return a + (isKatamichiUphit(r.service_code) && mins > 90 ? 1 : 0);
+    }, 0);
 
     // ★算定時間(時間) 合計：明細の calc_hour を合計
     const sumSanteiHour = src.reduce((a, r) => {
         const h = r.calc_hour;
         return a + (typeof h === "number" ? h : 0);
     }, 0);
-
-    const sumKatamichi = 0;
 
     // ★修正：利用者負担額（cs_pay）は「IDOU 全行」の合計にする（ページ分割の影響を受けない）
     const allIdouRows =
@@ -2224,6 +2250,17 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                             const mins = getMinutes(r);
 
+                            const isUphit =
+                                r.service_code === "移：必要不可欠な外出" ||
+                                r.service_code === "移：必要不可欠な外出（片道加算）";
+
+                            const isOther =
+                                r.service_code === "移：その他" ||
+                                r.service_code === "移：その他（片道加算）";
+
+                            const uphitMin = isUphit ? mins : null;
+                            const otherMin = isOther ? mins : null;
+
                             return (
                                 <tr key={`row-${i}`} className="detail-row">
                                     {/* 日付 */}
@@ -2244,9 +2281,9 @@ function IdoShienForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                     {/* 計画時間（分）＝サービス提供「分」と同じ */}
                                     <td className="right">{mins}</td>
 
-                                    {/* 内訳（分）不可欠＝同じ、その他は空欄 */}
-                                    <td className="right">{mins}</td>
-                                    <td>&nbsp;</td>
+                                    {/* 内訳（分） */}
+                                    <td className="right">{uphitMin ?? "\u00A0"}</td>
+                                    <td className="right">{otherMin ?? "\u00A0"}</td>
 
                                     {/* 算定時間(時間)：内訳(分)を0.5h単位で丸めた値（route.tsのcalc_hour） */}
                                     <td className="right">
