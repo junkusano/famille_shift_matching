@@ -50,6 +50,7 @@ type ResolvedStaff = {
     requesterUserId: string | null;
     mentionResolvedUserIds: string[];
     mentionPrimaryUserId: string | null;
+    staffNameResolvedUserId: string | null;
 };
 
 type DialogflowParams = Record<string, unknown>;
@@ -775,9 +776,44 @@ async function resolveUserIdFromLwUserid(lwUserid: string | null): Promise<strin
     return String(data.user_id);
 }
 
+async function resolveUserIdFromStaffName(staffName: string | null): Promise<string | null> {
+    const raw = normalizeString(staffName);
+    if (!raw) return null;
+
+    const normalized = raw
+        .replace(/^@/, "")
+        .replace(/\s+/g, "")
+        .replace(/さん$/u, "")
+        .trim();
+
+    if (!normalized) return null;
+
+    const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("user_id, last_name_kanji, first_name_kanji")
+        .limit(500);
+
+    if (error || !data?.length) return null;
+
+    for (const row of data as Array<Record<string, unknown>>) {
+        const fullName =
+            `${normalizeString(row.last_name_kanji) ?? ""}${normalizeString(row.first_name_kanji) ?? ""}`
+                .replace(/\s+/g, "")
+                .trim();
+
+        if (!fullName) continue;
+        if (fullName === normalized) {
+            return normalizeString(row.user_id);
+        }
+    }
+
+    return null;
+}
+
 async function resolveStaffUsers(params: {
     requesterLwUserid: string | null;
     mentionLwUserids: string[];
+    staffName: string | null;
 }): Promise<ResolvedStaff> {
     const mentionResolvedUserIds: string[] = [];
 
@@ -788,10 +824,16 @@ async function resolveStaffUsers(params: {
 
     const requesterUserId = await resolveUserIdFromLwUserid(params.requesterLwUserid);
 
+    const staffNameResolvedUserId =
+        mentionResolvedUserIds[0]
+            ? null
+            : await resolveUserIdFromStaffName(params.staffName);
+
     return {
         requesterUserId,
         mentionResolvedUserIds,
         mentionPrimaryUserId: mentionResolvedUserIds[0] ?? null,
+        staffNameResolvedUserId,
     };
 }
 
@@ -1536,14 +1578,19 @@ async function handleCreateShiftMissingReady(params: {
 
     const staffPosition = normalizeString(p.staff_position);
 
+    const explicitStaffUserId =
+        params.resolvedStaff.mentionPrimaryUserId ??
+        params.resolvedStaff.staffNameResolvedUserId ??
+        null;
+
     const selfStaff =
-        !params.resolvedStaff.mentionPrimaryUserId &&
+        !explicitStaffUserId &&
             messageImpliesRequesterIsStaff(sourceMessage)
             ? params.resolvedStaff.requesterUserId
             : null;
 
     const previousStaff =
-        !params.resolvedStaff.mentionPrimaryUserId && !selfStaff
+        !explicitStaffUserId && !selfStaff
             ? await getPreviousPrimaryStaffUserId({
                 kaipokeCsId:
                     params.resolvedTarget?.kaipoke_cs_id ??
@@ -1554,7 +1601,7 @@ async function handleCreateShiftMissingReady(params: {
             : null;
 
     const chosenStaffUserId =
-        params.resolvedStaff.mentionPrimaryUserId ??
+        explicitStaffUserId ??
         selfStaff ??
         previousStaff ??
         params.pending.staff_01_user_id ??
@@ -1579,6 +1626,7 @@ async function handleCreateShiftMissingReady(params: {
         end_time: endTime,
         service_code: serviceCode,
         staff_01_user_id: staff01,
+        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         inferred_service_code: serviceCode,
         inferred_service_reason: inferredServiceReason,
     });
@@ -1593,6 +1641,7 @@ async function handleCreateShiftMissingReady(params: {
         normalized_end_time: endTime,
         raw_service_code: p.service_code ?? null,
         normalized_service_code: serviceCode,
+        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         mentioned_lw_userids: params.pending.mentioned_lw_userids,
         mention_resolved_user_ids: params.resolvedStaff.mentionResolvedUserIds,
         requester_user_id: params.resolvedStaff.requesterUserId,
@@ -1768,6 +1817,7 @@ async function handleCreateShift(params: {
         raw_end_time: p.end_time ?? null,
         normalized_end_time: endTime,
         requester_user_id: params.resolvedStaff.requesterUserId,
+        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         chosen_staff_user_id: staff01,
         inferred_service_reason: inferredServiceReason,
     });
@@ -2624,15 +2674,18 @@ export async function POST(req: NextRequest) {
         const resolvedStaff = await resolveStaffUsers({
             requesterLwUserid,
             mentionLwUserids,
+            staffName: normalizeString(dialogflowParams.staff_name),
         });
 
         console.info("[dialogflow webhook] mention lookup", {
             requester_lw_userid: requesterLwUserid,
             source_message: sourceMessage,
+            staff_name_raw: normalizeString(dialogflowParams.staff_name),
             mention_lw_userids_from_dialogflow: asStringArray(dialogflowParams.mention_lw_userids),
             mention_lw_userids_final: mentionLwUserids,
             mention_resolved_user_ids: resolvedStaff.mentionResolvedUserIds,
             mention_primary_user_id: resolvedStaff.mentionPrimaryUserId,
+            staff_name_resolved_user_id: resolvedStaff.staffNameResolvedUserId,
         });
 
         const currentPending = await getPendingBySessionKey(sessionKey);
