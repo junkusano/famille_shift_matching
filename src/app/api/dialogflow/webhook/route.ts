@@ -1,4 +1,5 @@
 //api/dialogflow/webhook/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
@@ -2647,6 +2648,13 @@ export async function POST(req: NextRequest) {
         }
 
         const body = (await req.json()) as Record<string, unknown>;
+        console.info("[dialogflow webhook] routing debug", {
+            tag: (body.fulfillmentInfo as any)?.tag ?? null,
+            displayName: (body.intentInfo as any)?.displayName ?? null,
+            lastMatchedIntent: (body.intentInfo as any)?.lastMatchedIntent ?? null,
+            sessionParams: (body.sessionInfo as any)?.parameters ?? {},
+        });
+
         console.info(
             "[dialogflow webhook] session params raw",
             JSON.stringify(
