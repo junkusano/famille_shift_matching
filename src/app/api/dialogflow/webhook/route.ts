@@ -2648,11 +2648,17 @@ export async function POST(req: NextRequest) {
         }
 
         const body = (await req.json()) as Record<string, unknown>;
+
+        const fulfillmentInfo = body.fulfillmentInfo as Record<string, unknown> | undefined;
+        const intentInfo = body.intentInfo as Record<string, unknown> | undefined;
+        const sessionInfo = body.sessionInfo as Record<string, unknown> | undefined;
+        const sessionParams = (sessionInfo?.parameters ?? {}) as Record<string, unknown>;
+
         console.info("[dialogflow webhook] routing debug", {
-            tag: (body.fulfillmentInfo as any)?.tag ?? null,
-            displayName: (body.intentInfo as any)?.displayName ?? null,
-            lastMatchedIntent: (body.intentInfo as any)?.lastMatchedIntent ?? null,
-            sessionParams: (body.sessionInfo as any)?.parameters ?? {},
+            tag: normalizeString(fulfillmentInfo?.tag),
+            displayName: normalizeString(intentInfo?.displayName),
+            lastMatchedIntent: normalizeString(intentInfo?.lastMatchedIntent),
+            sessionParams,
         });
 
         console.info(
