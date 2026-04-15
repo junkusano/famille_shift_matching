@@ -541,6 +541,9 @@ const saveTemplate = async () => {
     if (!fMeetingPlaceBanchi.trim()) {
       throw new Error("番地は必須です");
     }
+   if (!fMatchingPlaceName.trim()) {
+      throw new Error("集合場所名は必須です");
+    }
     if (!fStartAt.trim()) {
       throw new Error("開始時間は必須です");
     }
@@ -1010,7 +1013,7 @@ const saveTemplate = async () => {
               <div className="text-sm font-semibold">集合情報</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">集合場所名</div>
+                  <div className="text-[11px] text-muted-foreground">集合場所名<span className="text-red-500 ml-1">*</span></div>
                   <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="例：〇〇公園"/>
                 </div>
                 <div>
