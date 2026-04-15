@@ -2,8 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
-console.info("🔥 WEBHOOK HIT");
-
 type PendingRow = {
     id: string;
     session_key: string;
@@ -2637,10 +2635,9 @@ async function handleConfirmNo(params: { sessionKey: string }) {
 export async function POST(req: NextRequest) {
     try {
         const secret = req.headers.get("x-dialogflow-secret");
-        void secret
-        /*if (secret !== process.env.DIALOGFLOW_WEBHOOK_SECRET) {
+        if (secret !== process.env.DIALOGFLOW_WEBHOOK_SECRET) {
             return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-        }*/
+        }
 
         const body = (await req.json()) as Record<string, unknown>;
         console.info(
