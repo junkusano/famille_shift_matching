@@ -301,10 +301,16 @@ function normalizeTimeForCreate(v: unknown, sourceMessage: string | null): strin
 
         if (hasAfternoonHint(sourceMessage)) {
             if (futureOk) {
-                return `${String(futureH).padStart(2, "0")}:${String(futureM).padStart(2, "0")}`;
+                const hh = futureH === 0 ? 12 : futureH;
+                return `${String(hh).padStart(2, "0")}:${String(futureM).padStart(2, "0")}`;
             }
             if (topOk) {
-                return `${String(topH).padStart(2, "0")}:${String(topM).padStart(2, "0")}`;
+                const hh = topH === 0 ? 12 : topH;
+                return `${String(hh).padStart(2, "0")}:${String(topM).padStart(2, "0")}`;
+            }
+            if (pastOk) {
+                const hh = pastH === 0 ? 12 : pastH;
+                return `${String(hh).padStart(2, "0")}:${String(pastM).padStart(2, "0")}`;
             }
         }
 
@@ -448,6 +454,20 @@ function cleanServiceCodeInput(text: string | null): string | null {
         .trim();
 
     return s;
+}
+
+function extractLabeledServiceCode(text: string | null): string | null {
+    if (!text) return null;
+
+    const normalized = text
+        .replace(/：/g, ":")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const m = normalized.match(/サービスコード[は:： ]*([^\n\r。]+?)(?:です|でした|でお願いします|にしたい)?$/u);
+    if (!m) return null;
+
+    return cleanServiceCodeInput(m[1] ?? null);
 }
 
 function pickPreferredStartTime(params: {
@@ -785,6 +805,35 @@ function normalizeMessageForLookup(text: string | null): string | null {
         .toLowerCase();
 }
 
+function extractMentionLwUserIds(data: Record<string, unknown>): string[] {
+    const ids = new Set<string>();
+
+    const content = (data.content ?? {}) as Record<string, unknown>;
+    const mentions = content.mentions;
+
+    if (Array.isArray(mentions)) {
+        for (const m of mentions) {
+            const obj = m as Record<string, unknown>;
+            const userId =
+                normalizeString(obj.userId) ??
+                normalizeString(obj.userid) ??
+                normalizeString(obj.user_id) ??
+                normalizeString(obj.mentionedUserId);
+
+            if (userId) ids.add(userId);
+        }
+    }
+
+    const sourceUserId = normalizeString(
+        (data.source as Record<string, unknown> | undefined)?.userId
+    );
+    if (sourceUserId) {
+        ids.delete(sourceUserId);
+    }
+
+    return Array.from(ids);
+}
+
 async function findRecentMentionLwUseridsFromLog(params: {
     channelId: string;
     requesterLwUserid: string | null;
@@ -795,7 +844,7 @@ async function findRecentMentionLwUseridsFromLog(params: {
 
     const { data, error } = await supabaseAdmin
         .from("msg_lw_log")
-        .select("message, mention_lw_userids, user_id, channel_id, timestamp")
+        .select("message, mention_lw_userids, raw_event, user_id, channel_id, timestamp")
         .eq("channel_id", params.channelId)
         .eq("user_id", params.requesterLwUserid)
         .order("timestamp", { ascending: false })
@@ -811,8 +860,16 @@ async function findRecentMentionLwUseridsFromLog(params: {
         if (message !== normalized) continue;
 
         const mentionIds = row.mention_lw_userids;
-        if (Array.isArray(mentionIds)) {
+        if (Array.isArray(mentionIds) && mentionIds.length > 0) {
             return mentionIds.filter((x): x is string => typeof x === "string");
+        }
+
+        const rawEvent = (row.raw_event ?? null) as Record<string, unknown> | null;
+        if (rawEvent) {
+            const recovered = extractMentionLwUserIds(rawEvent);
+            if (recovered.length > 0) {
+                return recovered;
+            }
         }
     }
 
@@ -1432,19 +1489,34 @@ async function handleCreateShiftMissingReady(params: {
         });
     }
 
-    const serviceCodeInput =
+    const explicitServiceCode =
+        extractLabeledServiceCode(sourceMessage) ??
         cleanServiceCodeInput(normalizeString(p.service_code)) ??
-        cleanServiceCodeInput(sourceMessage) ??
+        null;
+
+    let serviceCode =
+        explicitServiceCode ??
         params.pending.service_code ??
         null;
 
-    let serviceCode = serviceCodeInput;
     let inferredServiceReason: string | null = params.pending.inferred_service_reason ?? null;
 
     if (serviceCode) {
         const exists = await serviceCodeExists(serviceCode);
         if (!exists) {
-            serviceCode = null;
+            const inferred = await inferServiceCodeFromTextOrPrevious({
+                sourceMessage: serviceCode,
+                pending: params.pending,
+                kaipokeCsId:
+                    params.resolvedTarget?.kaipoke_cs_id ??
+                    params.pending.target_kaipoke_cs_id,
+                shiftDate,
+                startTime,
+            });
+            serviceCode = inferred.serviceCode;
+            inferredServiceReason = inferred.reason;
+        } else {
+            inferredServiceReason = "本文明示指定";
         }
     }
 

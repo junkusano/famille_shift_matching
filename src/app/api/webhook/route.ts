@@ -535,6 +535,14 @@ export async function POST(req: NextRequest) {
 
         const mentionLwUserids = extractMentionLwUserIds(data);
 
+        console.info("[lw webhook] mention extracted", {
+            channelId,
+            userId,
+            message,
+            mentionLwUserids,
+            rawMentions: (content as Record<string, unknown>)?.mentions ?? null,
+        });
+
         if (!eventType || !channelId || !domainId) {
             console.log("skip: missing required fields");
             return NextResponse.json({ status: "skipped" }, { status: 200 });
