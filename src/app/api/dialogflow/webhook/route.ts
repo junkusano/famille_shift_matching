@@ -2484,9 +2484,9 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
             staff_03_attend_flg: !!pending.staff_03_attend_flg,
             required_staff_count: pending.required_staff_count ?? 1,
             two_person_work_flg: !!pending.two_person_work_flg,
-            staff_01_role_code: "primary",
-            staff_02_role_code: pending.staff_02_role,
-            staff_03_role_code: pending.staff_03_role,
+            staff_01_role_code: "01",
+            staff_02_role_code: pending.staff_02_user_id ? "02" : null,
+            staff_03_role_code: pending.staff_03_user_id ? "02" : null,
             judo_ido: pending.judo_ido ?? "0000",
         };
 
@@ -2528,9 +2528,9 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
             staff_03_attend_flg: !!pending.staff_03_attend_flg,
             required_staff_count: pending.required_staff_count ?? 1,
             two_person_work_flg: !!pending.two_person_work_flg,
-            staff_01_role_code: "primary",
-            staff_02_role_code: pending.staff_02_role,
-            staff_03_role_code: pending.staff_03_role,
+            staff_01_role_code: "01",
+            staff_02_role_code: pending.staff_02_user_id ? "02" : null,
+            staff_03_role_code: pending.staff_03_user_id ? "02" : null,
             judo_ido: pending.judo_ido ?? "0000",
         };
 
