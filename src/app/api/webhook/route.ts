@@ -533,6 +533,8 @@ export async function POST(req: NextRequest) {
         const fileId = normalizeString(content?.fileId);
         const members = eventType === "joined" ? (data?.members ?? null) : null;
 
+        const mentionLwUserids = extractMentionLwUserIds(data);
+
         if (!eventType || !channelId || !domainId) {
             console.log("skip: missing required fields");
             return NextResponse.json({ status: "skipped" }, { status: 200 });
@@ -548,6 +550,8 @@ export async function POST(req: NextRequest) {
                 message,
                 file_id: fileId,
                 members,
+                mention_lw_userids: mentionLwUserids,
+                raw_event: data,
                 status: 0,
             },
         ]);
