@@ -104,10 +104,24 @@ type StaffDisplayRow = {
     last_name_kanji: string | null;
     first_name_kanji: string | null;
 };
-function jsonText(text: string, extraSessionParams?: Record<string, unknown>) {
+
+function jsonText(
+    text: string,
+    extraSessionParams?: Record<string, unknown>,
+    agentType: "create" | "delete" | "update" | "common" = "common"
+) {
+    const prefix =
+        agentType === "create"
+            ? "（追加処理エージェント） "
+            : agentType === "delete"
+                ? "（削除処理エージェント） "
+                : agentType === "update"
+                    ? "（更新処理エージェント） "
+                    : "（汎用エージェント） ";
+
     return NextResponse.json({
         fulfillment_response: {
-            messages: [{ text: { text: [text] } }],
+            messages: [{ text: { text: [`${prefix}${text}`] } }],
         },
         ...(extraSessionParams
             ? {
@@ -761,6 +775,51 @@ async function resolveStaffUsers(params: {
     };
 }
 
+function normalizeMessageForLookup(text: string | null): string | null {
+    if (!text) return null;
+    return text
+        .replace(/\s+/g, " ")
+        .replace(/（/g, "(")
+        .replace(/）/g, ")")
+        .trim()
+        .toLowerCase();
+}
+
+async function findRecentMentionLwUseridsFromLog(params: {
+    channelId: string;
+    requesterLwUserid: string | null;
+    sourceMessage: string | null;
+}): Promise<string[]> {
+    const normalized = normalizeMessageForLookup(params.sourceMessage);
+    if (!normalized) return [];
+
+    const { data, error } = await supabaseAdmin
+        .from("msg_lw_log")
+        .select("message, mention_lw_userids, user_id, channel_id, timestamp")
+        .eq("channel_id", params.channelId)
+        .eq("user_id", params.requesterLwUserid)
+        .order("timestamp", { ascending: false })
+        .limit(20);
+
+    if (error || !data?.length) return [];
+
+    for (const row of data as Array<Record<string, unknown>>) {
+        const message = normalizeMessageForLookup(
+            typeof row.message === "string" ? row.message : null
+        );
+        if (!message) continue;
+        if (message !== normalized) continue;
+
+        const mentionIds = row.mention_lw_userids;
+        if (Array.isArray(mentionIds)) {
+            return mentionIds.filter((x): x is string => typeof x === "string");
+        }
+    }
+
+    return [];
+}
+
+
 async function getStaffDisplayByUserId(userId: string | null): Promise<StaffDisplayRow | null> {
     if (!userId) return null;
 
@@ -1407,26 +1466,26 @@ async function handleCreateShiftMissingReady(params: {
 
     const selfStaff =
         !params.resolvedStaff.mentionPrimaryUserId &&
-        messageImpliesRequesterIsStaff(sourceMessage)
+            messageImpliesRequesterIsStaff(sourceMessage)
             ? params.resolvedStaff.requesterUserId
             : null;
 
     const previousStaff =
         !params.resolvedStaff.mentionPrimaryUserId && !selfStaff
             ? await getPreviousPrimaryStaffUserId({
-                  kaipokeCsId:
-                      params.resolvedTarget?.kaipoke_cs_id ??
-                      params.pending.target_kaipoke_cs_id,
-                  shiftDate,
-                  startTime,
-              })
+                kaipokeCsId:
+                    params.resolvedTarget?.kaipoke_cs_id ??
+                    params.pending.target_kaipoke_cs_id,
+                shiftDate,
+                startTime,
+            })
             : null;
 
     const chosenStaffUserId =
         params.resolvedStaff.mentionPrimaryUserId ??
         selfStaff ??
-        params.pending.staff_01_user_id ??
         previousStaff ??
+        params.pending.staff_01_user_id ??
         null;
 
     const changed = applyStaffChangeByPosition({
@@ -1482,7 +1541,7 @@ async function handleCreateShiftMissingReady(params: {
         end_time: patched.end_time,
         service_code: patched.service_code,
         staff_name: patched.staff_01_user_id,
-    });
+    }, "create");
 }
 
 async function handleCreateShift(params: {
@@ -1825,13 +1884,13 @@ async function handleCorrectTime(params: {
 
         return jsonText(summary, {
             operation_type: "delete",
-            shift_date: matched.shift_date,
-            start_time: matched.start_time,
-            end_time: matched.end_time,
-            service_code: matched.service_code,
-            target_shift_id: matched.target_shift_id,
+            shift_date: patched.shift_date,
+            start_time: patched.start_time,
+            end_time: patched.end_time,
+            service_code: patched.service_code,
+            target_shift_id: patched.target_shift_id,
             confirm_summary: summary,
-        });
+        }, "delete");
     }
 
     return await finalizeToConfirm(params.sessionKey, patched, "日時を変更しました。");
@@ -2026,7 +2085,7 @@ async function handleUpdateShift(params: {
         confirm_summary: summary,
     });
 
-    return jsonText(summary);
+    return jsonText(summary, undefined, "update");
 }
 
 async function handleDeleteShiftDateReady(params: {
@@ -2471,7 +2530,7 @@ export async function POST(req: NextRequest) {
 
         const channelId = normalizeString(dialogflowParams.channel_id);
         const requesterLwUserid = normalizeString(dialogflowParams.requester_lw_userid);
-        const mentionLwUserids = asStringArray(dialogflowParams.mention_lw_userids);
+        let mentionLwUserids = asStringArray(dialogflowParams.mention_lw_userids);
         const sourceMessage =
             normalizeString(dialogflowParams.original_message) ??
             extractOriginalText(body);
@@ -2480,11 +2539,28 @@ export async function POST(req: NextRequest) {
             return jsonText("channel_id が取得できませんでした。");
         }
 
+        if (mentionLwUserids.length === 0) {
+            mentionLwUserids = await findRecentMentionLwUseridsFromLog({
+                channelId,
+                requesterLwUserid,
+                sourceMessage,
+            });
+        }
+
         const sessionKey = buildSessionKey(channelId, requesterLwUserid);
         const resolvedTarget = await resolveTargetFromChannel(channelId);
         const resolvedStaff = await resolveStaffUsers({
             requesterLwUserid,
             mentionLwUserids,
+        });
+
+        console.info("[dialogflow webhook] mention lookup", {
+            requester_lw_userid: requesterLwUserid,
+            source_message: sourceMessage,
+            mention_lw_userids_from_dialogflow: asStringArray(dialogflowParams.mention_lw_userids),
+            mention_lw_userids_final: mentionLwUserids,
+            mention_resolved_user_ids: resolvedStaff.mentionResolvedUserIds,
+            mention_primary_user_id: resolvedStaff.mentionPrimaryUserId,
         });
 
         const currentPending = await getPendingBySessionKey(sessionKey);
@@ -2620,7 +2696,9 @@ export async function POST(req: NextRequest) {
 
             default:
                 return jsonText(
-                    "内容を理解できませんでした。シフト追加・修正・削除・担当変更・確認のいずれかとして入力してください。"
+                    "内容を理解できませんでした。シフト追加・修正・削除・担当変更・確認のいずれかとして入力してください。",
+                    undefined,
+                    "common"
                 );
         }
     } catch (error) {
