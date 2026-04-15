@@ -1626,7 +1626,7 @@ async function handleCreateShiftMissingReady(params: {
         end_time: endTime,
         service_code: serviceCode,
         staff_01_user_id: staff01,
-        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
+        //staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         inferred_service_code: serviceCode,
         inferred_service_reason: inferredServiceReason,
     });
@@ -1641,7 +1641,7 @@ async function handleCreateShiftMissingReady(params: {
         normalized_end_time: endTime,
         raw_service_code: p.service_code ?? null,
         normalized_service_code: serviceCode,
-        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
+        //staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         mentioned_lw_userids: params.pending.mentioned_lw_userids,
         mention_resolved_user_ids: params.resolvedStaff.mentionResolvedUserIds,
         requester_user_id: params.resolvedStaff.requesterUserId,
@@ -1817,7 +1817,7 @@ async function handleCreateShift(params: {
         raw_end_time: p.end_time ?? null,
         normalized_end_time: endTime,
         requester_user_id: params.resolvedStaff.requesterUserId,
-        staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
+        //staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         chosen_staff_user_id: staff01,
         inferred_service_reason: inferredServiceReason,
     });
