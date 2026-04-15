@@ -411,8 +411,8 @@ function extractSingleLabeledTime(text: string | null, label: "開始" | "終了
         .replace(/\s+/g, " ");
 
     const re = label === "開始"
-        ? /開始[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/
-        : /終了[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/;
+        ? /開始(?:時間)?[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/
+        : /終了(?:時間)?[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/;
 
     const m = normalized.match(re);
     if (!m) return null;
@@ -479,10 +479,16 @@ function pickPreferredStartTime(params: {
 }): string | null {
     const text = params.sourceMessage ?? "";
 
-    // 「終了」「担当者」「サービスコード」だけを直している発話では、
-    // Dialogflow が現在時刻を start_time に誤認することがあるので既存値を優先
+    const explicitStartCorrection =
+        /開始|開始時間|から/.test(text) && !!params.textRangeStart;
+
+    if (explicitStartCorrection) {
+        return params.textRangeStart;
+    }
+
     const looksLikePartialCorrection =
-        /終了|担当者|サービスコード/.test(text) && !/開始|サービス時間|から|~|〜|-/.test(text);
+        /終了|担当者|サービスコード/.test(text) &&
+        !/開始|開始時間|サービス時間|から|~|〜|-/.test(text);
 
     if (looksLikePartialCorrection) {
         return params.currentStartTime ?? params.dialogflowStartTime ?? params.textRangeStart ?? null;
@@ -1491,6 +1497,9 @@ async function handleCreateShiftMissingReady(params: {
         params.pending.shift_date ??
         null;
 
+    const labeledStart =
+        extractSingleLabeledTime(sourceMessage, "開始");
+
     const rawDialogflowStart =
         normalizeTimeForCreate(p.start_time, sourceMessage) ??
         normalizeTimeForCreate(p.date_time, sourceMessage) ??
@@ -1500,7 +1509,7 @@ async function handleCreateShiftMissingReady(params: {
         sourceMessage,
         currentStartTime: params.pending.start_time,
         dialogflowStartTime: rawDialogflowStart,
-        textRangeStart: textRange.start,
+        textRangeStart: labeledStart ?? textRange.start,
     });
 
     const prev = await findPreviousShiftForSuggestion({
