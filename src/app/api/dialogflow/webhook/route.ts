@@ -381,6 +381,81 @@ function extractTimeRangeFromText(text: string | null): { start: string | null; 
     return { start: null, end: null };
 }
 
+function extractSingleLabeledTime(text: string | null, label: "開始" | "終了"): string | null {
+    if (!text) return null;
+
+    const normalized = text
+        .replace(/：/g, ":")
+        .replace(/[〜～ｰ－—ー−-]/g, "~")
+        .replace(/\s+/g, " ");
+
+    const re = label === "開始"
+        ? /開始[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/
+        : /終了[^0-9午前午後]*(午前|午後)?\s*(\d{1,2}:\d{2})/;
+
+    const m = normalized.match(re);
+    if (!m) return null;
+
+    const ampm = m[1] ?? null;
+    const hhmm = normalizeTime(m[2]);
+    if (!hhmm) return null;
+
+    const [hh, mm] = hhmm.split(":").map(Number);
+
+    if (ampm === "午後" && hh < 12) {
+        return `${String(hh + 12).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    }
+    if (ampm === "午前" && hh === 12) {
+        return `00:${String(mm).padStart(2, "0")}`;
+    }
+
+    return hhmm;
+}
+
+function cleanServiceCodeInput(text: string | null): string | null {
+    if (!text) return null;
+
+    let s = text
+        .replace(/^サービスコード[は:： ]*/u, "")
+        .replace(/[。．]$/u, "")
+        .replace(/です$/u, "")
+        .replace(/でした$/u, "")
+        .replace(/にしたい$/u, "")
+        .replace(/でお願いします$/u, "")
+        .trim();
+
+    if (!s) return null;
+
+    // 全角カッコ・空白ゆれを少し寄せる
+    s = s
+        .replace(/（/g, "(")
+        .replace(/）/g, ")")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return s;
+}
+
+function pickPreferredStartTime(params: {
+    sourceMessage: string | null;
+    currentStartTime: string | null;
+    dialogflowStartTime: string | null;
+    textRangeStart: string | null;
+}): string | null {
+    const text = params.sourceMessage ?? "";
+
+    // 「終了」「担当者」「サービスコード」だけを直している発話では、
+    // Dialogflow が現在時刻を start_time に誤認することがあるので既存値を優先
+    const looksLikePartialCorrection =
+        /終了|担当者|サービスコード/.test(text) && !/開始|サービス時間|から|~|〜|-/.test(text);
+
+    if (looksLikePartialCorrection) {
+        return params.currentStartTime ?? params.dialogflowStartTime ?? params.textRangeStart ?? null;
+    }
+
+    return params.dialogflowStartTime ?? params.textRangeStart ?? params.currentStartTime ?? null;
+}
+
 function toMinutes(hhmm: string | null): number | null {
     if (!hhmm) return null;
     const m = hhmm.match(/^(\d{2}):(\d{2})$/);
@@ -434,12 +509,14 @@ async function inferServiceCodeFromTextOrPrevious(params: {
     shiftDate: string | null;
     startTime: string | null;
 }): Promise<{ serviceCode: string | null; reason: string | null }> {
+    const cleaned = cleanServiceCodeInput(params.sourceMessage);
+
     const candidates = await findServiceCodeCandidates({
-        sourceMessage: params.sourceMessage,
+        sourceMessage: cleaned ?? params.sourceMessage,
         limit: 3,
     });
 
-    if (candidates.length > 0 && candidates[0].score >= 25) {
+    if (candidates.length > 0) {
         return {
             serviceCode: candidates[0].service_code,
             reason: `本文近似一致: ${candidates[0].service_code}`,
@@ -1256,12 +1333,17 @@ async function handleCreateShiftMissingReady(params: {
         params.pending.shift_date ??
         null;
 
-    const startTime =
+    const rawDialogflowStart =
         normalizeTimeForCreate(p.start_time, sourceMessage) ??
         normalizeTimeForCreate(p.date_time, sourceMessage) ??
-        textRange.start ??
-        params.pending.start_time ??
         null;
+
+    const startTime = pickPreferredStartTime({
+        sourceMessage,
+        currentStartTime: params.pending.start_time,
+        dialogflowStartTime: rawDialogflowStart,
+        textRangeStart: textRange.start,
+    });
 
     const prev = await findPreviousShiftForSuggestion({
         kaipokeCsId:
@@ -1272,10 +1354,16 @@ async function handleCreateShiftMissingReady(params: {
     });
 
     let endTime =
+        extractSingleLabeledTime(sourceMessage, "終了") ??
         normalizeTimeForCreate(p.end_time, sourceMessage) ??
         textRange.end ??
         params.pending.end_time ??
         null;
+
+    // 「午後 0:00」は 12:00 扱いに寄せる
+    if (sourceMessage && /終了.*午後\s*0:00/.test(sourceMessage) && endTime === "00:00") {
+        endTime = "12:00";
+    }
 
     if (!endTime) {
         endTime = inferEndTimeByPreviousDuration({
@@ -1285,12 +1373,21 @@ async function handleCreateShiftMissingReady(params: {
         });
     }
 
-    let serviceCode =
-        normalizeString(p.service_code) ??
+    const serviceCodeInput =
+        cleanServiceCodeInput(normalizeString(p.service_code)) ??
+        cleanServiceCodeInput(sourceMessage) ??
         params.pending.service_code ??
         null;
 
+    let serviceCode = serviceCodeInput;
     let inferredServiceReason: string | null = params.pending.inferred_service_reason ?? null;
+
+    if (serviceCode) {
+        const exists = await serviceCodeExists(serviceCode);
+        if (!exists) {
+            serviceCode = null;
+        }
+    }
 
     if (!serviceCode) {
         const inferred = await inferServiceCodeFromTextOrPrevious({
@@ -1306,31 +1403,23 @@ async function handleCreateShiftMissingReady(params: {
         inferredServiceReason = inferred.reason;
     }
 
-    if (serviceCode) {
-        const exists = await serviceCodeExists(serviceCode);
-        if (!exists) {
-            serviceCode = prev?.service_code ?? null;
-            inferredServiceReason = serviceCode ? "前回シフトのサービスコード" : inferredServiceReason;
-        }
-    }
-
     const staffPosition = normalizeString(p.staff_position);
 
     const selfStaff =
         !params.resolvedStaff.mentionPrimaryUserId &&
-            messageImpliesRequesterIsStaff(sourceMessage)
+        messageImpliesRequesterIsStaff(sourceMessage)
             ? params.resolvedStaff.requesterUserId
             : null;
 
     const previousStaff =
         !params.resolvedStaff.mentionPrimaryUserId && !selfStaff
             ? await getPreviousPrimaryStaffUserId({
-                kaipokeCsId:
-                    params.resolvedTarget?.kaipoke_cs_id ??
-                    params.pending.target_kaipoke_cs_id,
-                shiftDate,
-                startTime,
-            })
+                  kaipokeCsId:
+                      params.resolvedTarget?.kaipoke_cs_id ??
+                      params.pending.target_kaipoke_cs_id,
+                  shiftDate,
+                  startTime,
+              })
             : null;
 
     const chosenStaffUserId =
@@ -1371,6 +1460,8 @@ async function handleCreateShiftMissingReady(params: {
         normalized_start_time: startTime,
         raw_end_time: p.end_time ?? null,
         normalized_end_time: endTime,
+        raw_service_code: p.service_code ?? null,
+        normalized_service_code: serviceCode,
         mentioned_lw_userids: params.pending.mentioned_lw_userids,
         mention_resolved_user_ids: params.resolvedStaff.mentionResolvedUserIds,
         requester_user_id: params.resolvedStaff.requesterUserId,
