@@ -50,6 +50,14 @@ function formatYmJa(ym: string): string {
     return `${y}年${Number(m)}月`;
 }
 
+function monthDiff(base: Date, targetMonthStr: string): number {
+    const target = new Date(`${targetMonthStr}T00:00:00`);
+    return (
+        (base.getFullYear() - target.getFullYear()) * 12 +
+        (base.getMonth() - target.getMonth())
+    );
+}
+
 function toErrorMessage(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
@@ -88,30 +96,10 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     const dryRun = args.dryRun ?? false;
 
     const now = new Date();
-
-    // 実装開始日：2026-04-20
-    const rolloutDate = new Date(2026, 3, 20, 0, 0, 0, 0); // 2026-04-20
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // 2026-04時点で最初に見る対象月
     const firstTargetMonth = "2026-03-01";
-
-    // 戻り値用
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
-
-    if (now < rolloutDate && !args.forceDay20Rule) {
-        return {
-            enabled: true,
-            scanned: 0,
-            targetRows: 0,
-            alertCount: 0,
-            errors: 0,
-            dryRun,
-            targetYearMonth: targetYm,
-            skippedBecauseDay: true,
-        };
-    }
 
     let q = supabaseAdmin
         .from("monthly_meeting_attendance")
@@ -135,7 +123,21 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     const rows = (data ?? []) as AttendanceRow[];
     const scanned = rows.length;
 
-    if (!rows.length) {
+    const filteredRows = rows.filter((row) => {
+        if (row.target_month < "2026-03-01") return false;
+
+        const diff = monthDiff(now, row.target_month);
+
+        if (diff <= 0) return false;
+
+        if (diff === 1) {
+            return now.getDate() >= 20;
+        }
+
+        return true;
+    });
+
+    if (!filteredRows.length) {
         return {
             enabled: true,
             scanned,
@@ -149,14 +151,14 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     }
 
     const userIds = Array.from(
-        new Set(rows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
+        new Set(filteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
     );
     const staffMap = await loadStaffInfoMap(userIds);
 
     let alertCount = 0;
     let errors = 0;
 
-    for (const row of rows) {
+    for (const row of filteredRows) {
         const userId = String(row.user_id ?? "").trim();
         if (!userId) continue;
 
@@ -165,11 +167,13 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
             const staffName = buildStaffName(staff) || userId;
             const orgName = String(staff?.orgunitname ?? "").trim();
 
+            const monthYm = row.target_month.slice(0, 7);
+
             const detailUrl =
-                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
+                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
 
             const message =
-                `【月例会議 未対応】〈${formatYmJa(targetYm)}分〉\n` +
+                `【月例会議 未対応】〈${formatYmJa(monthYm)}分〉\n` +
                 `<a href="${detailUrl}">${staffName}さん</a>\n` +
                 `20日を過ぎても、月例会議の「月例」または「追加」にチェックが入っていません。\n` +
                 `追加開催が未実施の可能性があります。至急ご確認ください。\n\n` +
@@ -180,7 +184,7 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
 
                 await ensureSystemAlert({
                     message,
-                    shift_id: `monthly_meeting:unchecked:${targetYm}:${userId}`,
+                    shift_id: `monthly_meeting:unchecked:${monthYm}:${userId}`,
                     user_id: userId,
                     kaipoke_cs_id: null,
                     rpa_request_id: null,
@@ -201,7 +205,7 @@ export async function runMonthlyMeetingUncheckedAlertbar(args: {
     return {
         enabled: true,
         scanned,
-        targetRows: rows.length,
+        targetRows: filteredRows.length,
         alertCount,
         errors,
         dryRun,

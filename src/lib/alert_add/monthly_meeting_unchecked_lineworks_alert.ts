@@ -52,6 +52,22 @@ function formatYmJa(ym: string): string {
     return `${y}年${Number(m)}月`;
 }
 
+function monthDiff(base: Date, targetMonthStr: string): number {
+    const target = new Date(`${targetMonthStr}T00:00:00`);
+    return (
+        (base.getFullYear() - target.getFullYear()) * 12 +
+        (base.getMonth() - target.getMonth())
+    );
+}
+
+function shouldRunEvery7Days(now: Date): boolean {
+    const anchor = new Date(2026, 3, 15); // 2026-04-15
+    const base = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.floor((today.getTime() - base.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays % 7 === 0;
+}
+
 function toErrorMessage(e: unknown): string {
     if (e instanceof Error) return e.message;
     if (typeof e === "string") return e;
@@ -96,19 +112,12 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     const dryRun = args.dryRun ?? false;
 
     const now = new Date();
-
-    // 実装開始日：2026-04-15
-    const rolloutDate = new Date(2026, 3, 15, 0, 0, 0, 0); // 2026-04-15
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // 通知対象の最古月：2026-03-01
     const firstTargetMonth = "2026-03-01";
-
-    // 画面表示用（戻り値用）
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const targetYm = ymNow(prev);
 
-    if (now < rolloutDate && !args.forceDay15Rule) {
+    if (!shouldRunEvery7Days(now) && !args.forceDay15Rule) {
         return {
             enabled: true,
             scanned: 0,
@@ -143,7 +152,21 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     const rows = (data ?? []) as AttendanceRow[];
     const scanned = rows.length;
 
-    if (!rows.length) {
+    const filteredRows = rows.filter((row) => {
+        if (row.target_month < "2026-03-01") return false;
+
+        const diff = monthDiff(now, row.target_month);
+
+        if (diff <= 0) return false;
+
+        if (diff === 1) {
+            return now.getDate() >= 15;
+        }
+
+        return true;
+    });
+
+    if (!filteredRows.length) {
         return {
             enabled: true,
             scanned,
@@ -157,7 +180,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     }
 
     const userIds = Array.from(
-        new Set(rows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
+        new Set(filteredRows.map((r) => String(r.user_id ?? "").trim()).filter(Boolean))
     );
 
     const staffMap = await loadStaffInfoMap(userIds);
@@ -166,7 +189,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     let sentUsers = 0;
     let errors = 0;
 
-    for (const row of rows) {
+    for (const row of filteredRows) {
         const userId = String(row.user_id ?? "").trim();
         if (!userId) continue;
 
@@ -183,9 +206,10 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
             const orgName = String(staff.orgunitname ?? "").trim();
             const lwUserId = String(staff.lw_userid ?? "").trim();
 
+            const monthYm = row.target_month.slice(0, 7);
             const detailUrl =
-                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(targetYm)}`;
-
+                `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
+                
             const mentionLine = lwUserId
                 ? `<m userId="${lwUserId}">さん`
                 : `＠${staffName}さん`;
@@ -218,7 +242,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     return {
         enabled: true,
         scanned,
-        targetRows: rows.length,
+        targetRows: filteredRows.length,
         sentUsers,
         errors,
         dryRun,
