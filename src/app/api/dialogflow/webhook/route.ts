@@ -107,6 +107,139 @@ type StaffDisplayRow = {
     first_name_kanji: string | null;
 };
 
+type InitialOperationDecision = {
+    operation: "create_shift" | "delete_shift" | "update_shift" | "staff_unavailable" | "unknown";
+    reason: string;
+};
+
+async function classifyInitialOperationWithOpenAI(message: string): Promise<InitialOperationDecision | null> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+
+    const prompt = `
+次の日本語メッセージを、訪問介護シフト操作の初回意図に分類してください。
+返答はJSONのみ。
+許可される operation は:
+- create_shift
+- delete_shift
+- update_shift
+- staff_unavailable
+- unknown
+
+例:
+"4/21 18:15~ サービスキャンセルになりました" => delete_shift
+"4/22 7:30-13:30 同行援護あります" => create_shift
+"担当者は私です" => unknown（初回なら）
+"自分は行けません" => staff_unavailable
+
+message:
+${message}
+`.trim();
+
+    const res = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            model: "gpt-5.4",
+            input: [
+                {
+                    role: "system",
+                    content: [
+                        {
+                            type: "input_text",
+                            text: "あなたは訪問介護のシフト操作分類器です。必ずJSONのみ返してください。"
+                        }
+                    ]
+                },
+                {
+                    role: "user",
+                    content: [
+                        {
+                            type: "input_text",
+                            text: prompt
+                        }
+                    ]
+                }
+            ]
+        }),
+    });
+
+    if (!res.ok) {
+        console.error("[dialogflow webhook] openai classify failed", await res.text());
+        return null;
+    }
+
+    const json = await res.json() as Record<string, unknown>;
+    const outputText =
+        Array.isArray(json.output)
+            ? JSON.stringify(json.output)
+            : normalizeString((json as Record<string, unknown>).output_text);
+
+    if (!outputText) return null;
+
+    const text =
+        normalizeString((json as Record<string, unknown>).output_text) ??
+        "";
+
+    try {
+        const parsed = JSON.parse(text) as Record<string, unknown>;
+        const operation = normalizeString(parsed.operation) as InitialOperationDecision["operation"] | null;
+        const reason = normalizeString(parsed.reason) ?? "OpenAI classification";
+        if (!operation) return null;
+        return {
+            operation,
+            reason,
+        };
+    } catch (e) {
+        console.error("[dialogflow webhook] openai classify parse error", e, text);
+        return null;
+    }
+}
+
+const SESSION_TTL_MS = 7 * 60 * 1000;
+
+const FINALIZATION_INTENTS = new Set([
+    "confirm_yes",
+    "confirm_no",
+]);
+
+const CREATE_FOLLOWUP_INTENTS = new Set([
+    "correct_staff",
+    "correct_time",
+    "correct_service_code",
+    "set_second_staff",
+    "set_third_staff",
+    "set_support_structure",
+]);
+
+function isExpired(expiresAt: string | null): boolean {
+    if (!expiresAt) return false;
+    return new Date(expiresAt).getTime() <= Date.now();
+}
+
+function normalizeInitialOperationIntent(intentName: string | null): string | null {
+    if (!intentName) return null;
+    if (intentName === "create_shift_missing_ready") return "create_shift";
+    return intentName;
+}
+
+function isAllowedFollowupForLockedOperation(
+    lockedOperation: string | null,
+    incomingIntent: string | null
+): boolean {
+    if (!incomingIntent) return false;
+    if (FINALIZATION_INTENTS.has(incomingIntent)) return true;
+
+    if (lockedOperation === "create_shift") {
+        return CREATE_FOLLOWUP_INTENTS.has(incomingIntent);
+    }
+
+    return false;
+}
+
 function jsonText(
     text: string,
     extraSessionParams?: Record<string, unknown>,
@@ -974,7 +1107,7 @@ async function upsertPendingBase(params: {
         last_message: params.sourceMessage,
         source_message: params.sourceMessage,
         raw_dialogflow: params.rawDialogflow,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
     };
 
     const { data, error } = await supabaseAdmin
@@ -992,9 +1125,14 @@ async function upsertPendingBase(params: {
 }
 
 async function patchPending(sessionKey: string, patch: Record<string, unknown>): Promise<PendingRow> {
+    const patchWithExpiry = {
+        ...patch,
+        expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+    };
+
     const { data, error } = await supabaseAdmin
         .from("dialogflow_pending_shift_requests")
-        .update(patch)
+        .update(patchWithExpiry)
         .eq("session_key", sessionKey)
         .select("*")
         .single();
@@ -1845,7 +1983,10 @@ async function handleCorrectStaff(params: {
     resolvedStaff: ResolvedStaff;
 }) {
     const staffPosition = normalizeString(params.dialogflowParams.staff_position);
-    const newUserId = params.resolvedStaff.mentionPrimaryUserId ?? params.resolvedStaff.requesterUserId ?? null;
+    const newUserId =
+        params.resolvedStaff.mentionPrimaryUserId ??
+        params.resolvedStaff.requesterUserId ??
+        null;
 
     const changed = applyStaffChangeByPosition({
         pending: params.pending,
@@ -1859,6 +2000,7 @@ async function handleCorrectStaff(params: {
     );
 
     const patched = await patchPending(params.sessionKey, {
+        intent_name: "create_shift", // ← 固定
         staff_01_user_id: changed.staff01,
         staff_02_user_id: changed.staff02,
         staff_03_user_id: changed.staff03,
@@ -2670,7 +2812,6 @@ export async function POST(req: NextRequest) {
             )
         );
 
-        const intentName = extractIntentName(body);
         const dialogflowParams = ((body.sessionInfo as Record<string, unknown> | undefined)?.parameters ?? {}) as DialogflowParams;
 
         const channelId = normalizeString(dialogflowParams.channel_id);
@@ -2693,6 +2834,42 @@ export async function POST(req: NextRequest) {
         }
 
         const sessionKey = buildSessionKey(channelId, requesterLwUserid);
+
+        const currentPendingRaw = await getPendingBySessionKey(sessionKey);
+
+        const currentPending =
+            currentPendingRaw && !isExpired(currentPendingRaw.expires_at)
+                ? currentPendingRaw
+                : null;
+
+        if (currentPendingRaw && isExpired(currentPendingRaw.expires_at)) {
+            await patchPending(sessionKey, {
+                status: "cancelled",
+            });
+
+            return jsonText(
+                "前回の操作は期限切れになりました。もう一度最初からお願いします。",
+                buildClearedSessionParams()
+            );
+        }
+
+        const detectedIntentName = extractIntentName(body);
+        let initialIntentName = normalizeInitialOperationIntent(detectedIntentName);
+
+        if (!currentPending && sourceMessage) {
+            const aiDecision = await classifyInitialOperationWithOpenAI(sourceMessage);
+
+            console.info("[dialogflow webhook] initial operation decision", {
+                detectedIntentName,
+                aiDecision,
+                sourceMessage,
+            });
+
+            if (aiDecision?.operation && aiDecision.operation !== "unknown") {
+                initialIntentName = aiDecision.operation;
+            }
+        }
+
         const resolvedTarget = await resolveTargetFromChannel(channelId);
         const resolvedStaff = await resolveStaffUsers({
             requesterLwUserid,
@@ -2711,7 +2888,32 @@ export async function POST(req: NextRequest) {
             staff_name_resolved_user_id: resolvedStaff.staffNameResolvedUserId,
         });
 
-        const currentPending = await getPendingBySessionKey(sessionKey);
+        if (currentPendingRaw && isExpired(currentPendingRaw.expires_at)) {
+            await patchPending(sessionKey, {
+                status: "cancelled",
+            });
+
+            return jsonText(
+                "前回の操作は期限切れになりました。もう一度最初からお願いします。",
+                buildClearedSessionParams()
+            );
+        }
+
+        const incomingIntentName = initialIntentName;
+        let effectiveIntentName = incomingIntentName;
+        const lockedOperation = currentPending?.intent_name ?? null;
+
+        if (lockedOperation) {
+            if (isAllowedFollowupForLockedOperation(lockedOperation, incomingIntentName)) {
+                if (FINALIZATION_INTENTS.has(incomingIntentName ?? "")) {
+                    effectiveIntentName = incomingIntentName;
+                } else {
+                    effectiveIntentName = incomingIntentName;
+                }
+            } else {
+                effectiveIntentName = lockedOperation;
+            }
+        }
 
         const pending = currentPending
             ? await patchPending(sessionKey, {
@@ -2734,7 +2936,7 @@ export async function POST(req: NextRequest) {
             return jsonText("このグループから利用者を特定できませんでした。");
         }
 
-        switch (intentName) {
+        switch (effectiveIntentName) {
             case "delete_shift_date_ready":
                 return await handleDeleteShiftDateReady({
                     sessionKey,
