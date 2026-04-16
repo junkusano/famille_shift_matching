@@ -173,10 +173,6 @@
       "schedule": "17 4 * * *"
     },
     {
-      "path": "/api/cron/monthly-meeting-unchecked-lineworks",
-      "schedule": "0 0 31 2 *"
-    },
-    {
       "path": "/api/cron/monthly-meeting-unchecked-alertbar",
       "schedule": "8 0 * * *"
     },
