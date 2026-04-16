@@ -211,6 +211,9 @@ export async function GET(req: NextRequest) {
                 const name = `${s.last_name_kanji ?? ""}${s.first_name_kanji ?? ""}`.trim() || userId;
                 const r = attMap.get(userId);
 
+                const attendedRegular = r?.attended_regular ?? false;
+                const attendedExtra = r?.attended_extra ?? false;
+
                 return {
                     target_month: monthStartStr,
                     user_id: userId,
@@ -218,8 +221,9 @@ export async function GET(req: NextRequest) {
                     orgunitname: s.orgunitname ?? null,
 
                     required: r?.required ?? true,
-                    attended_regular: r?.attended_regular ?? false,
-                    attended_extra: r?.attended_extra ?? false,
+                    attended_regular: attendedRegular,
+                    attended_extra: attendedExtra,
+                    is_unattended: !attendedRegular && !attendedExtra,
 
                     checked_regular: r?.checked_regular ?? false,
                     checked_extra: r?.checked_extra ?? false,

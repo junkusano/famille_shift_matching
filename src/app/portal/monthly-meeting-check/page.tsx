@@ -163,9 +163,40 @@ export default function MonthlyMeetingCheckPage() {
     const [meetingDate, setMeetingDate] = useState<string>("");
     const [sharedMinutesUrl, setSharedMinutesUrl] = useState<string>("");
     const initDoneRef = useRef<string>(""); // ★追加：同じ月のinit多重実行防止
+    const [teamFilter, setTeamFilter] = useState<string>("ALL");
+    const [attendanceFilter, setAttendanceFilter] = useState<string>("ALL");
 
     // ★追加：行ごとの保存中フラグ
-    const visibleRows = useMemo(() => rows, [rows]); // とりあえず全件表示
+    const teamOptions = useMemo(() => {
+        return Array.from(
+            new Set(
+                rows
+                    .map((r) => r.orgunitname?.trim())
+                    .filter((v): v is string => Boolean(v))
+            )
+        ).sort((a, b) => a.localeCompare(b, "ja"));
+    }, [rows]);
+
+    const visibleRows = useMemo(() => {
+        return rows.filter((r) => {
+            const matchTeam =
+                teamFilter === "ALL" ? true : (r.orgunitname ?? "") === teamFilter;
+
+            const isUnattended = !r.attended_regular && !r.attended_extra;
+
+            const matchAttendance =
+                attendanceFilter === "ALL"
+                    ? true
+                    : attendanceFilter === "UNATTENDED"
+                        ? isUnattended
+                        : attendanceFilter === "ATTENDED"
+                            ? !isUnattended
+                            : true;
+
+            return matchTeam && matchAttendance;
+        });
+    }, [rows, teamFilter, attendanceFilter]);
+
     // ★追加：過去12ヶ月＋今月の選択肢を作る
     const monthOptions = useMemo(() => {
         const list: string[] = [];
@@ -606,6 +637,37 @@ export default function MonthlyMeetingCheckPage() {
                     </select>
                 </div>
 
+                <div className="flex flex-wrap items-center gap-4">
+                    <label className="text-sm">
+                        チーム名
+                        <select
+                            className="border rounded px-2 py-1 ml-2"
+                            value={teamFilter}
+                            onChange={(e) => setTeamFilter(e.target.value)}
+                        >
+                            <option value="ALL">すべて</option>
+                            {teamOptions.map((team) => (
+                                <option key={team} value={team}>
+                                    {team}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label className="text-sm">
+                        参加状況
+                        <select
+                            className="border rounded px-2 py-1 ml-2"
+                            value={attendanceFilter}
+                            onChange={(e) => setAttendanceFilter(e.target.value)}
+                        >
+                            <option value="ALL">すべて</option>
+                            <option value="UNATTENDED">未参加</option>
+                            <option value="ATTENDED">参加</option>
+                        </select>
+                    </label>
+                </div>
+
                 {msg && (
                     <div className="text-sm rounded border border-green-300 bg-green-50 text-green-800 px-3 py-2">
                         {msg}
@@ -673,6 +735,7 @@ export default function MonthlyMeetingCheckPage() {
                         <thead>
                             <tr className="bg-gray-50 sticky top-0 z-10">
                                 <th className="border p-2 text-left bg-gray-50">従業員</th>
+                                <th className="border p-2 text-left bg-gray-50">チーム名</th>
                                 <th className="border p-2 bg-gray-50">月例</th>
                                 <th className="border p-2 bg-gray-50">確認（月例）</th>
                                 <th className="border p-2 bg-gray-50">追加</th>
@@ -695,6 +758,9 @@ export default function MonthlyMeetingCheckPage() {
                                     <tr key={`${r.target_month}-${r.user_id}`}>
                                         <td className="border p-2">
                                             {r.full_name_kanji}
+                                        </td>
+                                        <td className="border p-2">
+                                            {r.orgunitname ?? "-"}
                                         </td>
 
                                         {/* 月例 */}
@@ -810,7 +876,7 @@ export default function MonthlyMeetingCheckPage() {
 
                             {visibleRows.length === 0 && (
                                 <tr>
-                                    <td className="border p-3 text-sm text-gray-600" colSpan={6}>
+                                    <td className="border p-3 text-sm text-gray-600" colSpan={7}>
                                         従業員データが0件です（在籍者の取得条件をご確認ください）
                                     </td>
                                 </tr>
