@@ -2469,12 +2469,16 @@ async function handleDeleteShift(params: {
         params.pending.shift_date ??
         null;
 
-    const startTime =
-        normalizeTime(params.dialogflowParams.start_time) ??
-        normalizeTime(params.dialogflowParams.date_time) ??
-        params.pending.start_time ??
+    const sourceMessage =
+        params.pending.last_message ??
+        normalizeString(params.dialogflowParams.original_message) ??
         null;
 
+    const startTime =
+        normalizeTimeForCreate(params.dialogflowParams.start_time, sourceMessage) ??
+        normalizeTimeForCreate(params.dialogflowParams.date_time, sourceMessage) ??
+        params.pending.start_time ??
+        null;
     if (!shiftDate) {
         return jsonText("いつのシフトですか？", {
             operation_type: "delete",
