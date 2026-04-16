@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
 
         const result = await runMonthlyMeetingUncheckedLineworksAlert({
             dryRun: false,
+            targetUserId: "junkusano",
         });
 
         return NextResponse.json({

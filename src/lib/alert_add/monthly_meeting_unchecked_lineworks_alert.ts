@@ -209,7 +209,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
             const monthYm = row.target_month.slice(0, 7);
             const detailUrl =
                 `https://myfamille.shi-on.net/portal/monthly-meeting-check?ym=${encodeURIComponent(monthYm)}`;
-                
+
             const mentionLine = lwUserId
                 ? `<m userId="${lwUserId}">さん`
                 : `＠${staffName}さん`;
