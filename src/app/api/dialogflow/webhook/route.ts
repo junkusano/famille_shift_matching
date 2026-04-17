@@ -226,6 +226,24 @@ function normalizeInitialOperationIntent(intentName: string | null): string | nu
     return intentName;
 }
 
+function isTopLevelOperationIntent(intentName: string | null): boolean {
+    return (
+        intentName === "create_shift" ||
+        intentName === "delete_shift" ||
+        intentName === "update_shift" ||
+        intentName === "staff_unavailable"
+    );
+}
+
+function mapDialogflowIntentToInitialOperation(intentName: string | null): string | null {
+    if (!intentName) return null;
+
+    if (intentName === "create_shift_missing_ready") return "create_shift";
+    if (isTopLevelOperationIntent(intentName)) return intentName;
+
+    return null;
+}
+
 function isAllowedFollowupForLockedOperation(
     lockedOperation: string | null,
     incomingIntent: string | null
@@ -2858,19 +2876,29 @@ export async function POST(req: NextRequest) {
         }
 
         const detectedIntentName = extractIntentName(body);
-        let initialIntentName = normalizeInitialOperationIntent(detectedIntentName);
+        let initialIntentName: string | null = detectedIntentName;
 
-        if (!currentPending && sourceMessage) {
-            const aiDecision = await classifyInitialOperationWithOpenAI(sourceMessage);
+        if (!currentPending) {
+            const aiDecision = sourceMessage
+                ? await classifyInitialOperationWithOpenAI(sourceMessage)
+                : null;
+
+            const mappedDialogflowOperation =
+                mapDialogflowIntentToInitialOperation(detectedIntentName);
 
             console.info("[dialogflow webhook] initial operation decision", {
                 detectedIntentName,
+                mappedDialogflowOperation,
                 aiDecision,
                 sourceMessage,
             });
 
             if (aiDecision?.operation && aiDecision.operation !== "unknown") {
                 initialIntentName = aiDecision.operation;
+            } else if (mappedDialogflowOperation) {
+                initialIntentName = mappedDialogflowOperation;
+            } else {
+                initialIntentName = normalizeInitialOperationIntent(detectedIntentName);
             }
         }
 
@@ -2909,13 +2937,14 @@ export async function POST(req: NextRequest) {
 
         if (lockedOperation) {
             if (isAllowedFollowupForLockedOperation(lockedOperation, incomingIntentName)) {
-                if (FINALIZATION_INTENTS.has(incomingIntentName ?? "")) {
-                    effectiveIntentName = incomingIntentName;
-                } else {
-                    effectiveIntentName = incomingIntentName;
-                }
+                effectiveIntentName = incomingIntentName;
             } else {
                 effectiveIntentName = lockedOperation;
+            }
+        } else {
+            const mappedInitialOperation = mapDialogflowIntentToInitialOperation(incomingIntentName);
+            if (mappedInitialOperation) {
+                effectiveIntentName = mappedInitialOperation;
             }
         }
 
@@ -2938,6 +2967,13 @@ export async function POST(req: NextRequest) {
 
         if (!resolvedTarget?.kaipoke_cs_id) {
             return jsonText("このグループから利用者を特定できませんでした。");
+        }
+
+        if (!lockedOperation && !isTopLevelOperationIntent(effectiveIntentName)) {
+            return jsonText(
+                "依頼内容の判定が不安定でした。追加・削除・更新・担当不可のどれかをもう一度お願いします。",
+                buildClearedSessionParams()
+            );
         }
 
         switch (effectiveIntentName) {
