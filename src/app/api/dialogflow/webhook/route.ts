@@ -150,7 +150,7 @@ ${message}
                     content: [
                         {
                             type: "input_text",
-                            text: "あなたは訪問介護のシフト操作分類器です。必ずJSONのみ返してください。"
+                            text: "あなたは訪問介護のシフト操作分類器です。"
                         }
                     ]
                 },
@@ -163,7 +163,33 @@ ${message}
                         }
                     ]
                 }
-            ]
+            ],
+            text: {
+                format: {
+                    type: "json_schema",
+                    name: "initial_operation_decision",
+                    schema: {
+                        type: "object",
+                        additionalProperties: false,
+                        properties: {
+                            operation: {
+                                type: "string",
+                                enum: [
+                                    "create_shift",
+                                    "delete_shift",
+                                    "update_shift",
+                                    "staff_unavailable",
+                                    "unknown"
+                                ]
+                            },
+                            reason: {
+                                type: "string"
+                            }
+                        },
+                        required: ["operation", "reason"]
+                    }
+                }
+            }
         }),
     });
 
@@ -233,6 +259,8 @@ function mapDialogflowIntentToInitialOperation(intentName: string | null): strin
     if (!intentName) return null;
 
     if (intentName === "create_shift_missing_ready") return "create_shift";
+    if (intentName === "delete_shift_date_ready") return "delete_shift";
+
     if (isTopLevelOperationIntent(intentName)) return intentName;
 
     return null;
