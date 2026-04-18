@@ -255,11 +255,18 @@ function isTopLevelOperationIntent(intentName: string | null): boolean {
     );
 }
 
+function isAllowedInitialIntent(intentName: string | null): boolean {
+    return (
+        isTopLevelOperationIntent(intentName) ||
+        intentName === "delete_shift_date_ready" ||
+        intentName === "create_shift_missing_ready"
+    );
+}
+
 function mapDialogflowIntentToInitialOperation(intentName: string | null): string | null {
     if (!intentName) return null;
 
     if (intentName === "create_shift_missing_ready") return "create_shift";
-    if (intentName === "delete_shift_date_ready") return "delete_shift";
 
     if (isTopLevelOperationIntent(intentName)) return intentName;
 
@@ -2481,7 +2488,7 @@ async function handleDeleteShiftDateReady(params: {
             service_code: built.autoSelectedServiceCode,
             target_shift_id: built.autoSelectedShiftId,
             confirm_summary: built.confirmSummary,
-        });
+        }, "delete");
     }
 
     return jsonText(built.text, {
@@ -2523,7 +2530,7 @@ async function handleDeleteShift(params: {
             start_time: null,
             target_shift_id: null,
             confirm_summary: null,
-        });
+        }, "delete");
     }
 
     if (!startTime) {
@@ -2533,7 +2540,7 @@ async function handleDeleteShift(params: {
             start_time: null,
             target_shift_id: null,
             confirm_summary: null,
-        });
+        }, "delete");
     }
 
     const base = await patchPending(params.sessionKey, {
@@ -2999,7 +3006,7 @@ export async function POST(req: NextRequest) {
             return jsonText("このグループから利用者を特定できませんでした。");
         }
 
-        if (!lockedOperation && !isTopLevelOperationIntent(effectiveIntentName)) {
+        if (!lockedOperation && !isAllowedInitialIntent(effectiveIntentName)) {
             return jsonText(
                 "依頼内容の判定が不安定でした。追加・削除・更新・担当不可のどれかをもう一度お願いします。",
                 buildClearedSessionParams()
