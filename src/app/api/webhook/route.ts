@@ -618,9 +618,17 @@ export async function POST(req: NextRequest) {
                 const match = queryResult?.match as Record<string, unknown> | undefined;
                 const intentObj = match?.intent as Record<string, unknown> | undefined;
 
-                console.log("[dialogflow] matched intent displayName=", intentObj?.displayName ?? null);
-                console.log("[dialogflow] matched intent name=", intentObj?.name ?? null);
+                const matchedDisplayName = normalizeString(intentObj?.displayName);
+                const matchedIntentName = normalizeString(intentObj?.name);
+
+                console.log("[dialogflow] matched intent displayName=", matchedDisplayName ?? null);
+                console.log("[dialogflow] matched intent name=", matchedIntentName ?? null);
                 console.log("[dialogflow] responseMessages=", JSON.stringify(queryResult?.responseMessages ?? null));
+
+                if (!matchedDisplayName && !matchedIntentName) {
+                    console.log("[lw webhook] ignore dialogflow no-match response");
+                    return NextResponse.json({ status: "ok" }, { status: 200 });
+                }
 
                 const replyText = extractDialogflowReplyText(dfResult);
 
