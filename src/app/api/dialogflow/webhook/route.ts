@@ -220,12 +220,6 @@ function isExpired(expiresAt: string | null): boolean {
     return new Date(expiresAt).getTime() <= Date.now();
 }
 
-function normalizeInitialOperationIntent(intentName: string | null): string | null {
-    if (!intentName) return null;
-    if (intentName === "create_shift_missing_ready") return "create_shift";
-    return intentName;
-}
-
 function isTopLevelOperationIntent(intentName: string | null): boolean {
     return (
         intentName === "create_shift" ||
@@ -284,6 +278,18 @@ function jsonText(
             }
             : {}),
     });
+}
+
+function jsonNoReply(extraSessionParams?: Record<string, unknown>) {
+    return NextResponse.json(
+        extraSessionParams
+            ? {
+                sessionInfo: {
+                    parameters: extraSessionParams,
+                },
+            }
+            : {}
+    );
 }
 
 function buildClearedSessionParams() {
@@ -354,42 +360,28 @@ function normalizeTime(v: unknown): string | null {
     if (typeof v === "object") {
         const obj = v as Record<string, unknown>;
 
-        // 1) まずトップレベルの hours/minutes を優先
-        const hh0 = Number(obj.hours);
-        const mm0 = Number(obj.minutes);
-        if (!Number.isNaN(hh0) && !Number.isNaN(mm0)) {
-            return `${String(hh0).padStart(2, "0")}:${String(mm0).padStart(2, "0")}`;
-        }
-
-        // 2) 次に partial
         const partial = obj.partial as Record<string, unknown> | undefined;
-        if (partial) {
-            const hh = Number(partial.hours);
-            const mm = Number(partial.minutes);
-            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
-                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-            }
-        }
-
-        // 3) 次に future
-        const future = obj.future as Record<string, unknown> | undefined;
-        if (future) {
-            const hh = Number(future.hours);
-            const mm = Number(future.minutes);
-            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
-                return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-            }
-        }
-
-        // 4) 最後に past
         const past = obj.past as Record<string, unknown> | undefined;
-        if (past) {
-            const hh = Number(past.hours);
-            const mm = Number(past.minutes);
+        const future = obj.future as Record<string, unknown> | undefined;
+
+        const pick = (o?: Record<string, unknown>) => {
+            if (!o) return null;
+            const hh = Number(o.hours);
+            const mm = Number(o.minutes);
             if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
                 return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
             }
-        }
+            return null;
+        };
+
+        // ★ 優先順位変更
+        return (
+            pick(partial) ??
+            pick(past) ??
+            pick(future) ??
+            pick(obj) ??  // ← 最後に top
+            null
+        );
     }
 
     const s = normalizeString(v);
@@ -404,7 +396,6 @@ function normalizeTime(v: unknown): string | null {
         return `${hh}:${t[2]}`;
     }
 
-    // 1230 形式も拾う
     const compact = s.match(/^(\d{1,2})(\d{2})$/);
     if (compact) {
         const hh = String(Number(compact[1])).padStart(2, "0");
@@ -2877,9 +2868,10 @@ export async function POST(req: NextRequest) {
 
         const detectedIntentName = extractIntentName(body);
         let initialIntentName: string | null = detectedIntentName;
+        let initialAiDecision: InitialOperationDecision | null = null;
 
         if (!currentPending) {
-            const aiDecision = sourceMessage
+            initialAiDecision = sourceMessage
                 ? await classifyInitialOperationWithOpenAI(sourceMessage)
                 : null;
 
@@ -2889,17 +2881,27 @@ export async function POST(req: NextRequest) {
             console.info("[dialogflow webhook] initial operation decision", {
                 detectedIntentName,
                 mappedDialogflowOperation,
-                aiDecision,
+                aiDecision: initialAiDecision,
                 sourceMessage,
             });
 
-            if (aiDecision?.operation && aiDecision.operation !== "unknown") {
-                initialIntentName = aiDecision.operation;
+            if (initialAiDecision?.operation && initialAiDecision.operation !== "unknown") {
+                initialIntentName = initialAiDecision.operation;
             } else if (mappedDialogflowOperation) {
                 initialIntentName = mappedDialogflowOperation;
             } else {
-                initialIntentName = normalizeInitialOperationIntent(detectedIntentName);
+                initialIntentName = null;
             }
+        }
+
+        if (!currentPending && !initialIntentName) {
+            console.info("[dialogflow webhook] no actionable operation; ignore", {
+                sourceMessage,
+                detectedIntentName,
+                aiDecision: initialAiDecision,
+            });
+
+            return jsonNoReply();
         }
 
         const resolvedTarget = await resolveTargetFromChannel(channelId);
