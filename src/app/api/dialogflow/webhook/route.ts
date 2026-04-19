@@ -268,6 +268,9 @@ function mapDialogflowIntentToInitialOperation(intentName: string | null): strin
 
     if (intentName === "create_shift_missing_ready") return "create_shift";
 
+    // delete は date_ready をそのまま初回有効intentとして扱う
+    if (intentName === "delete_shift_date_ready") return "delete_shift_date_ready";
+
     if (isTopLevelOperationIntent(intentName)) return intentName;
 
     return null;
@@ -361,6 +364,11 @@ function normalizeBoolean(v: unknown): boolean | null {
     if (["true", "1", "yes", "y", "on"].includes(s)) return true;
     if (["false", "0", "no", "n", "off"].includes(s)) return false;
     return null;
+}
+
+function messageImpliesCancellation(text: string | null): boolean {
+    if (!text) return false;
+    return /(キャンセル|中止|休み|取り消し|なしになりました|なくなりました)/.test(text);
 }
 
 function normalizeDate(v: unknown): string | null {
@@ -1972,6 +1980,33 @@ async function handleCreateShift(params: {
     let inferredServiceReason: string | null =
         params.pending.inferred_service_reason ?? null;
 
+    if (messageImpliesCancellation(sourceMessage)) {
+        const patched = await patchPending(params.sessionKey, {
+            intent_name: "delete_shift",
+            status: "collecting",
+            shift_date: shiftDate,
+            start_time: startTime,
+            end_time: null,
+            service_code: null,
+            target_shift_id: null,
+            confirm_summary: null,
+        });
+
+        return jsonText(
+            "キャンセルの連絡として読めます。削除対象の日付・開始時刻を確認してください。",
+            {
+                operation_type: "delete",
+                shift_date: patched.shift_date,
+                start_time: patched.start_time,
+                end_time: null,
+                service_code: null,
+                target_shift_id: null,
+                confirm_summary: null,
+            },
+            "delete"
+        );
+    }
+
     if (!serviceCode) {
         const inferred = await inferServiceCodeFromTextOrPrevious({
             sourceMessage,
@@ -2052,28 +2087,28 @@ async function handleCreateShift(params: {
     const normalizedJudo = normalizeDurationToHHMM(p.judo_ido_time);
     const judoIdo = isJudoIdo
         ? hhmmToCompact(
-              normalizedJudo ??
-                  compactToDisplayHHMM(params.pending.judo_ido)
-          )
+            normalizedJudo ??
+            compactToDisplayHHMM(params.pending.judo_ido)
+        )
         : "0000";
 
     const staffPosition = normalizeString(p.staff_position);
 
     const selfStaff =
         !params.resolvedStaff.mentionPrimaryUserId &&
-        messageImpliesRequesterIsStaff(sourceMessage)
+            messageImpliesRequesterIsStaff(sourceMessage)
             ? params.resolvedStaff.requesterUserId
             : null;
 
     const previousStaff =
         !params.resolvedStaff.mentionPrimaryUserId && !selfStaff
             ? await getPreviousPrimaryStaffUserId({
-                  kaipokeCsId:
-                      params.resolvedTarget?.kaipoke_cs_id ??
-                      params.pending.target_kaipoke_cs_id,
-                  shiftDate,
-                  startTime,
-              })
+                kaipokeCsId:
+                    params.resolvedTarget?.kaipoke_cs_id ??
+                    params.pending.target_kaipoke_cs_id,
+                shiftDate,
+                startTime,
+            })
             : null;
 
     const chosenStaffUserId =
@@ -2812,6 +2847,26 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
             judo_ido: pending.judo_ido ?? "0000",
         };
 
+        const existing = await findShiftByExactKey({
+            kaipokeCsId: pending.target_kaipoke_cs_id,
+            shiftDate: pending.shift_date,
+            startTime: pending.start_time,
+        });
+
+        if (existing) {
+            return jsonText(
+                [
+                    "同じ利用者・日付・開始時刻のシフトが既にあります。",
+                    `日付: ${pending.shift_date ?? "未指定"}`,
+                    `開始: ${pending.start_time ?? "未指定"}`,
+                    `既存サービス: ${existing.service_code ?? "未指定"}`,
+                    "追加ではなく、削除または更新として扱う必要がある可能性があります。",
+                ].join("\n"),
+                undefined,
+                "common"
+            );
+        }
+
         const { data, error } = await supabaseAdmin
             .from("shift")
             .insert(insertPayload)
@@ -2820,7 +2875,7 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
 
         if (error) {
             console.error("[dialogflow webhook] shift insert error", error);
-            return jsonText(`登録に失敗しました。${error.message}`);
+            return jsonText(`登録に失敗しました。${error.message}`, undefined, "create");
         }
 
         await patchPending(params.sessionKey, {
@@ -2828,7 +2883,7 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
             target_shift_id: data?.shift_id ?? null,
         });
 
-        return jsonText(`登録しました。shift_id=${data?.shift_id ?? "不明"}`);
+        return jsonText(`登録しました。shift_id=${data?.shift_id ?? "不明"}`, buildClearedSessionParams(), "create");
     }
 
     if (pending.intent_name === "update_shift") {
@@ -3056,6 +3111,8 @@ export async function POST(req: NextRequest) {
                 initialIntentName = initialAiDecision.operation;
             } else if (mappedDialogflowOperation) {
                 initialIntentName = mappedDialogflowOperation;
+            } else if (isAllowedInitialIntent(detectedIntentName)) {
+                initialIntentName = detectedIntentName;
             } else {
                 initialIntentName = null;
             }
