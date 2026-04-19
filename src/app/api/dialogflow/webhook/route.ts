@@ -1189,6 +1189,59 @@ async function patchPending(sessionKey: string, patch: Record<string, unknown>):
     return data as PendingRow;
 }
 
+async function findPreviousShiftForCreateInference(params: {
+    kaipokeCsId: string | null;
+    shiftDate: string | null;
+    startTime: string | null;
+    serviceCode: string | null;
+}): Promise<ShiftRow | null> {
+    if (!params.kaipokeCsId || !params.shiftDate) return null;
+
+    const sameDayTimeFilter =
+        params.startTime && /^\d{2}:\d{2}$/.test(params.startTime)
+            ? `and(shift_start_date.eq.${params.shiftDate},shift_start_time.lt.${params.startTime})`
+            : null;
+
+    const orFilter = [
+        `shift_start_date.lt.${params.shiftDate}`,
+        sameDayTimeFilter,
+    ]
+        .filter(Boolean)
+        .join(",");
+
+    // ① まず同じサービスコードで探す
+    if (params.serviceCode) {
+        const { data: sameSvc, error: sameSvcError } = await supabaseAdmin
+            .from("shift")
+            .select("*")
+            .eq("kaipoke_cs_id", params.kaipokeCsId)
+            .eq("service_code", params.serviceCode)
+            .or(orFilter)
+            .order("shift_start_date", { ascending: false })
+            .order("shift_start_time", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (!sameSvcError && sameSvc) {
+            return sameSvc as ShiftRow;
+        }
+    }
+
+    // ② なければ従来どおり直近シフト
+    const { data, error } = await supabaseAdmin
+        .from("shift")
+        .select("*")
+        .eq("kaipoke_cs_id", params.kaipokeCsId)
+        .or(orFilter)
+        .order("shift_start_date", { ascending: false })
+        .order("shift_start_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error || !data) return null;
+    return data as ShiftRow;
+}
+
 async function serviceCodeExists(serviceCode: string): Promise<boolean> {
     const { data, error } = await supabaseAdmin
         .from("shift_service_code")
@@ -1561,59 +1614,74 @@ async function buildConfirmSummary(pending: PendingRow) {
 async function buildCreateShiftMissingMessage(params: {
     pending: PendingRow;
 }) {
-    const prev = await findPreviousShiftForSuggestion({
+    const prev = await findPreviousShiftForCreateInference({
         kaipokeCsId: params.pending.target_kaipoke_cs_id,
         shiftDate: params.pending.shift_date,
         startTime: params.pending.start_time,
+        serviceCode: params.pending.service_code,
     });
 
-    const currentStaffDisplay = await getStaffDisplayByUserId(params.pending.staff_01_user_id ?? null);
+    const currentStaffDisplay = await getStaffDisplayByUserId(
+        params.pending.staff_01_user_id ?? null
+    );
+
+    let inferredStartTime = params.pending.start_time;
+    let inferredEndTime = params.pending.end_time;
+
+    if (!inferredStartTime && prev?.shift_start_time) {
+        inferredStartTime = normalizeTime(prev.shift_start_time);
+    }
+
+    if (!inferredEndTime) {
+        if (prev?.shift_start_time && prev?.shift_end_time) {
+            inferredEndTime =
+                inferEndTimeByPreviousDuration({
+                    startTime: inferredStartTime,
+                    prevStartTime: normalizeTime(prev.shift_start_time),
+                    prevEndTime: normalizeTime(prev.shift_end_time),
+                }) ??
+                normalizeTime(prev.shift_end_time);
+        }
+    }
 
     const reasons: string[] = [];
 
     if (params.pending.staff_01_user_id) {
         reasons.push("担当者はメンション・自分指定・前回担当を優先して補完");
     }
+
     if (params.pending.service_code) {
         reasons.push(
             params.pending.inferred_service_reason ??
             "サービスコードは本文近似または前回シフトから補完"
         );
     }
-    if (params.pending.end_time && prev?.shift_start_time && prev?.shift_end_time) {
-        reasons.push("終了時間は本文または前回シフトの所要時間を参考に補完");
+
+    if (!params.pending.start_time && inferredStartTime && prev?.service_code === params.pending.service_code) {
+        reasons.push("開始時間は前回の同一サービスの時刻を参考に補完");
     }
 
-    console.info("[dialogflow webhook] create_shift_missing_ready normalized", {
-        shift_date: params.pending.shift_date,
-        start_time: params.pending.start_time,
-        end_time: params.pending.end_time,
-        service_code: params.pending.service_code,
-        staff_01_user_id: params.pending.staff_01_user_id,
-        inferred_service_reason: params.pending.inferred_service_reason,
-    });
-
-    console.info("[dialogflow webhook] create_shift_missing_ready previous_shift", {
-        found: !!prev,
-        shift_id: prev?.shift_id ?? null,
-        shift_date: normalizeDate(prev?.shift_start_date ?? null),
-        start_time: normalizeTime(prev?.shift_start_time ?? null),
-        end_time: normalizeTime(prev?.shift_end_time ?? null),
-        service_code: prev?.service_code ?? null,
-        staff_01_user_id: prev?.staff_01_user_id ?? null,
-    });
+    if (!params.pending.end_time && inferredEndTime && prev?.shift_start_time && prev?.shift_end_time) {
+        reasons.push("終了時間は前回の同一サービスの所要時間を参考に補完");
+    }
 
     return buildCreateShiftProposalMessage({
         shiftDate: params.pending.shift_date,
-        startTime: params.pending.start_time,
-        endTime: params.pending.end_time,
+        startTime: inferredStartTime,
+        endTime: inferredEndTime,
         serviceCode: params.pending.service_code,
-        staffDisplayName: displayStaffName(currentStaffDisplay, params.pending.staff_01_user_id),
+        staffDisplayName: displayStaffName(
+            currentStaffDisplay,
+            params.pending.staff_01_user_id
+        ),
         reasons,
     });
 }
-
-async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messagePrefix?: string) {
+async function finalizeToConfirm(
+    sessionKey: string,
+    patched: PendingRow,
+    messagePrefix?: string
+) {
     const missing = requiredMissing({
         targetKaipokeCsId: patched.target_kaipoke_cs_id,
         shiftDate: patched.shift_date,
@@ -1632,37 +1700,45 @@ async function finalizeToConfirm(sessionKey: string, patched: PendingRow, messag
             confirm_summary: null,
         });
 
-        return jsonText(`${prefix}${message}`, {
-            operation_type: "create",
-            awaiting_missing_fields: true,
-            flow_stage: "missing",
-            shift_date: patched.shift_date,
-            start_time: patched.start_time,
-            end_time: patched.end_time,
-            service_code: patched.service_code,
-            staff_name: patched.staff_01_user_id,
-        });
+        return jsonText(
+            `${prefix}${message}`,
+            {
+                operation_type: "create",
+                awaiting_missing_fields: true,
+                flow_stage: "missing",
+                shift_date: patched.shift_date,
+                start_time: patched.start_time,
+                end_time: patched.end_time,
+                service_code: patched.service_code,
+                staff_name: patched.staff_01_user_id,
+            },
+            "create"
+        );
     }
 
     const summary = await buildConfirmSummary(patched);
+
     await patchPending(sessionKey, {
         status: "confirming",
         confirm_summary: summary,
     });
 
-    return jsonText(messagePrefix ? `${messagePrefix}\n${summary}` : summary, {
-        operation_type: "create",
-        awaiting_missing_fields: false,
-        flow_stage: "confirm",
-        shift_date: patched.shift_date,
-        start_time: patched.start_time,
-        end_time: patched.end_time,
-        service_code: patched.service_code,
-        staff_name: patched.staff_01_user_id,
-        confirm_summary: summary,
-    });
+    return jsonText(
+        messagePrefix ? `${messagePrefix}\n${summary}` : summary,
+        {
+            operation_type: "create",
+            awaiting_missing_fields: false,
+            flow_stage: "confirm",
+            shift_date: patched.shift_date,
+            start_time: patched.start_time,
+            end_time: patched.end_time,
+            service_code: patched.service_code,
+            staff_name: patched.staff_01_user_id,
+            confirm_summary: summary,
+        },
+        "create"
+    );
 }
-
 async function handleCreateShiftMissingReady(params: {
     sessionKey: string;
     pending: PendingRow;
@@ -1865,25 +1941,74 @@ async function handleCreateShift(params: {
     resolvedStaff: ResolvedStaff;
 }) {
     const p = params.dialogflowParams;
-    const sourceMessage = params.pending.last_message ?? normalizeString(p.original_message) ?? null;
+    const sourceMessage =
+        params.pending.last_message ??
+        normalizeString(p.original_message) ??
+        null;
+
     const textRange = extractTimeRangeFromText(sourceMessage);
 
-    const shiftDate = normalizeDate(p.shift_date) ?? params.pending.shift_date ?? null;
-    const startTime =
+    const shiftDate =
+        normalizeDate(p.shift_date) ??
+        params.pending.shift_date ??
+        null;
+
+    // ① 本文・Dialogflow・pending から開始時刻候補
+    let startTime =
         normalizeTimeForCreate(p.start_time, sourceMessage) ??
         normalizeTimeForCreate(p.date_time, sourceMessage) ??
         textRange.start ??
         params.pending.start_time ??
         null;
 
-    const prev = await findPreviousShiftForSuggestion({
-        kaipokeCsId: params.resolvedTarget?.kaipoke_cs_id ?? params.pending.target_kaipoke_cs_id,
+    // ② サービスコードは先に決める
+    let serviceCode =
+        normalizeString(p.service_code) ??
+        params.pending.service_code ??
+        null;
+
+    let inferredServiceCode: string | null =
+        params.pending.inferred_service_code ?? null;
+    let inferredServiceReason: string | null =
+        params.pending.inferred_service_reason ?? null;
+
+    if (!serviceCode) {
+        const inferred = await inferServiceCodeFromTextOrPrevious({
+            sourceMessage,
+            pending: params.pending,
+            kaipokeCsId:
+                params.resolvedTarget?.kaipoke_cs_id ??
+                params.pending.target_kaipoke_cs_id,
+            shiftDate,
+            startTime,
+        });
+
+        serviceCode = inferred.serviceCode;
+        inferredServiceCode = inferred.serviceCode;
+        inferredServiceReason = inferred.reason;
+    }
+
+    // ③ 同一サービス優先で前回シフトを探す
+    const prev = await findPreviousShiftForCreateInference({
+        kaipokeCsId:
+            params.resolvedTarget?.kaipoke_cs_id ??
+            params.pending.target_kaipoke_cs_id,
         shiftDate,
         startTime,
+        serviceCode,
     });
 
+    // ④ 開始時刻がまだ無ければ、前回同一サービスの開始を採用
+    if (!startTime) {
+        startTime = normalizeTime(prev?.shift_start_time ?? null);
+        if (startTime && !inferredServiceReason) {
+            inferredServiceReason = "開始時間は前回の同一サービスの時刻を参考に補完";
+        }
+    }
+
+    // ⑤ 終了時刻は Dialogflow より本文と duration 推定を優先
     let endTime =
-        normalizeTimeForCreate(p.end_time, sourceMessage) ??
+        extractSingleLabeledTime(sourceMessage, "終了") ??
         textRange.end ??
         params.pending.end_time ??
         null;
@@ -1896,33 +2021,27 @@ async function handleCreateShift(params: {
         });
     }
 
-    let serviceCode = normalizeString(p.service_code) ?? params.pending.service_code ?? null;
-    let inferredServiceCode: string | null = params.pending.inferred_service_code ?? null;
-    let inferredServiceReason: string | null = params.pending.inferred_service_reason ?? null;
-
-    if (!serviceCode) {
-        const inferred = await inferServiceCodeFromTextOrPrevious({
-            sourceMessage,
-            pending: params.pending,
-            kaipokeCsId: params.resolvedTarget?.kaipoke_cs_id ?? params.pending.target_kaipoke_cs_id,
-            shiftDate,
-            startTime,
-        });
-        serviceCode = inferred.serviceCode;
-        inferredServiceCode = inferred.serviceCode;
-        inferredServiceReason = inferred.reason;
+    if (!endTime) {
+        endTime = normalizeTime(prev?.shift_end_time ?? null);
     }
 
+    // ⑥ サービスコードが未登録なら前回同一サービス/直近に寄せる
     if (serviceCode) {
         const exists = await serviceCodeExists(serviceCode);
         if (!exists) {
             serviceCode = prev?.service_code ?? null;
             inferredServiceCode = serviceCode;
-            if (serviceCode) inferredServiceReason = "前回シフトのサービスコード";
+            if (serviceCode) {
+                inferredServiceReason = "前回シフトのサービスコード";
+            }
         }
     }
 
-    const supportType = normalizeString(p.support_type) ?? params.pending.support_type ?? null;
+    const supportType =
+        normalizeString(p.support_type) ??
+        params.pending.support_type ??
+        null;
+
     const supportCfg = buildRolesFromSupportType(supportType);
 
     const isJudoIdo =
@@ -1932,24 +2051,29 @@ async function handleCreateShift(params: {
 
     const normalizedJudo = normalizeDurationToHHMM(p.judo_ido_time);
     const judoIdo = isJudoIdo
-        ? hhmmToCompact(normalizedJudo ?? compactToDisplayHHMM(params.pending.judo_ido))
+        ? hhmmToCompact(
+              normalizedJudo ??
+                  compactToDisplayHHMM(params.pending.judo_ido)
+          )
         : "0000";
 
     const staffPosition = normalizeString(p.staff_position);
 
     const selfStaff =
         !params.resolvedStaff.mentionPrimaryUserId &&
-            messageImpliesRequesterIsStaff(sourceMessage)
+        messageImpliesRequesterIsStaff(sourceMessage)
             ? params.resolvedStaff.requesterUserId
             : null;
 
     const previousStaff =
         !params.resolvedStaff.mentionPrimaryUserId && !selfStaff
             ? await getPreviousPrimaryStaffUserId({
-                kaipokeCsId: params.resolvedTarget?.kaipoke_cs_id ?? params.pending.target_kaipoke_cs_id,
-                shiftDate,
-                startTime,
-            })
+                  kaipokeCsId:
+                      params.resolvedTarget?.kaipoke_cs_id ??
+                      params.pending.target_kaipoke_cs_id,
+                  shiftDate,
+                  startTime,
+              })
             : null;
 
     const chosenStaffUserId =
@@ -1977,7 +2101,9 @@ async function handleCreateShift(params: {
     const patched = await patchPending(params.sessionKey, {
         intent_name: "create_shift",
         status: "collecting",
-        target_kaipoke_cs_id: params.resolvedTarget?.kaipoke_cs_id ?? params.pending.target_kaipoke_cs_id,
+        target_kaipoke_cs_id:
+            params.resolvedTarget?.kaipoke_cs_id ??
+            params.pending.target_kaipoke_cs_id,
         shift_date: shiftDate,
         start_time: startTime,
         end_time: endTime,
@@ -1997,7 +2123,7 @@ async function handleCreateShift(params: {
         staff_02_role: staff02 ? supportCfg.staff02Role : null,
         staff_03_role: staff03 ? "third_staff" : null,
 
-        inferred_service_code: inferredServiceCode,
+        inferred_service_code: inferredServiceCode ?? serviceCode,
         inferred_service_reason: inferredServiceReason,
     });
 
@@ -2009,17 +2135,23 @@ async function handleCreateShift(params: {
         raw_end_time: p.end_time ?? null,
         normalized_end_time: endTime,
         requester_user_id: params.resolvedStaff.requesterUserId,
-        //staff_name_resolved_user_id: params.resolvedStaff.staffNameResolvedUserId,
         chosen_staff_user_id: staff01,
         inferred_service_reason: inferredServiceReason,
+        prev_shift_id: prev?.shift_id ?? null,
+        prev_service_code: prev?.service_code ?? null,
     });
 
     if (isJudoIdo && (!normalizedJudo && (!patched.judo_ido || patched.judo_ido === "0000"))) {
-        return jsonText("重度移動の時間を教えてください。例: 2時間、1時間半、90分");
+        return jsonText(
+            "重度移動の時間を教えてください。例: 2時間、1時間半、90分",
+            undefined,
+            "create"
+        );
     }
 
     return await finalizeToConfirm(params.sessionKey, patched);
 }
+
 async function handleCorrectStaff(params: {
     sessionKey: string;
     pending: PendingRow;
