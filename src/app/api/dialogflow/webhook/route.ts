@@ -3104,22 +3104,14 @@ export async function POST(req: NextRequest) {
                 ? await classifyInitialOperationWithOpenAI(sourceMessage)
                 : null;
 
-            const mappedDialogflowOperation =
-                mapDialogflowIntentToInitialOperation(detectedIntentName);
-
             console.info("[dialogflow webhook] initial operation decision", {
                 detectedIntentName,
-                mappedDialogflowOperation,
                 aiDecision: initialAiDecision,
                 sourceMessage,
             });
 
             if (initialAiDecision?.operation && initialAiDecision.operation !== "unknown") {
                 initialIntentName = initialAiDecision.operation;
-            } else if (mappedDialogflowOperation) {
-                initialIntentName = mappedDialogflowOperation;
-            } else if (isAllowedInitialIntent(detectedIntentName)) {
-                initialIntentName = detectedIntentName;
             } else {
                 initialIntentName = null;
             }
