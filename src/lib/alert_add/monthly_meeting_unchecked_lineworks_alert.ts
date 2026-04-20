@@ -89,8 +89,8 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select("user_id, channel_id, lw_userid, last_name_kanji, first_name_kanji, orgunitname")
-        .in("user_id", userIds)
-        .neq("orgunitname", "サービスサポート");
+        .in("user_id", userIds);
+
     if (error) {
         throw new Error(`user_entry_united_view_single select failed: ${error.message}`);
     }
@@ -98,9 +98,12 @@ async function loadStaffInfoMap(userIds: string[]): Promise<Map<string, StaffInf
     const map = new Map<string, StaffInfoRow>();
     for (const row of (data ?? []) as StaffInfoRow[]) {
         const userId = String(row.user_id ?? "").trim();
+        const org = String(row.orgunitname ?? "").trim();
         if (!userId) continue;
+        if (org === "サービスサポート" || org.includes("サービスサポート")) continue;
         map.set(userId, row);
     }
+
     return map;
 }
 
@@ -196,7 +199,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
         try {
             const staff = staffMap.get(userId);
             if (!staff) continue;
-            
+
             const channelId = String(staff.channel_id ?? "").trim();
             if (!channelId) {
                 throw new Error(`channel_id not found for user_id="${userId}"`);
