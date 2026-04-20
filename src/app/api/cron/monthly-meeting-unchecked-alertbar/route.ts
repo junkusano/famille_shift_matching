@@ -9,10 +9,9 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
     try {
         assertCronAuth(req);
-        
+
         const result = await runMonthlyMeetingUncheckedAlertbar({
             dryRun: false,
-            targetUserId: "junkusano",
             forceDay20Rule: true,
         });
 
