@@ -185,6 +185,7 @@ export async function GET(req: NextRequest) {
             .from("user_entry_united_view_single")
             .select("user_id,last_name_kanji,first_name_kanji,orgunitname,roster_sort")
             .in("user_id", staffIds)
+            .neq("orgunitname", "サービスサポート")
             .order("roster_sort", { ascending: true })      // ★これが本命（最優先）
             .order("user_id", { ascending: true })          // ★同順位の安定化
             .returns<StaffRow[]>();
