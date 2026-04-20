@@ -177,6 +177,10 @@
       "schedule": "8 0 * * *"
     },
     {
+      "path": "/api/cron/monthly-meeting-unchecked-lineworks",
+      "schedule": "3 0 * * *"
+    },
+    {
       "path": "/api/cron/cm/alert-batch",
       "schedule": "0 21 * * *"
     },
