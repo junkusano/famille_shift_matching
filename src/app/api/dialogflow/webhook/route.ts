@@ -2196,15 +2196,22 @@ async function handleCorrectStaff(params: {
     const staffPosition = normalizeString(params.dialogflowParams.staff_position);
     const newUserId =
         params.resolvedStaff.mentionPrimaryUserId ??
-        params.resolvedStaff.requesterUserId ??
+        params.resolvedStaff.staffNameResolvedUserId ??
         null;
+
+    if (!newUserId) {
+        return jsonText(
+            "変更先の担当者を認識できませんでした。@名前 でもう一度お願いします。",
+            undefined,
+            "create"
+        );
+    }
 
     const changed = applyStaffChangeByPosition({
         pending: params.pending,
         newUserId,
         staffPosition,
     });
-
     const requiredStaffCount = Math.max(
         params.pending.support_type === "two_person_care" ? 2 : 1,
         changed.staff03 ? 3 : changed.staff02 ? 2 : changed.staff01 ? 1 : 0
