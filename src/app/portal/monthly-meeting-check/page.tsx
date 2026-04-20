@@ -279,6 +279,7 @@ export default function MonthlyMeetingCheckPage() {
                     typeof r["target_month"] === "string" &&
                     typeof r["full_name_kanji"] === "string"
                 )
+                .filter((r) => (r["orgunitname"] ?? "") !== "サービスサポート")
                 .map((r) => ({
                     target_month: r["target_month"] as string,
                     user_id: r["user_id"] as string,
