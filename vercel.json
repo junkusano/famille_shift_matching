@@ -125,6 +125,14 @@
       "schedule": "16 20 * * *"
     },
     {
+      "path": "/api/cron/alert-reset-monthly-meeting-unchecked",
+      "schedule": "21 20 * * *"
+    },
+    {
+      "path": "/api/cron/alert-monthly-meeting-unchecked",
+      "schedule": "26 20 * * *"
+    },
+    {
       "path": "/api/cron/shift-record-check",
       "schedule": "4 2,8 * * *"
     },
@@ -171,10 +179,6 @@
     {
       "path": "/api/cron/disability-check-collected",
       "schedule": "17 4 * * *"
-    },
-    {
-      "path": "/api/cron/monthly-meeting-unchecked-alertbar",
-      "schedule": "8 0 * * *"
     },
     {
       "path": "/api/cron/monthly-meeting-unchecked-lineworks",
