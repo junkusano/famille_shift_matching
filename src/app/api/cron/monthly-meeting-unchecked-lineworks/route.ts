@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
 
         const result = await runMonthlyMeetingUncheckedLineworksAlert({
             dryRun: false,
-            forceDay15Rule: true,
         });
 
         return NextResponse.json({
