@@ -43,6 +43,8 @@ type JoinedRow = TrainingGoalRow & {
 
 export default function TrainingGoalsPage() {
     const role = useUserRole();
+    const [debugRole, setDebugRole] = useState<'admin' | 'member' | ''>('');
+    const effectiveRole = debugRole || role;
 
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -50,6 +52,7 @@ export default function TrainingGoalsPage() {
     const [showOnlySelected, setShowOnlySelected] = useState(false);
     const [employees, setEmployees] = useState<EmployeeRow[]>([]);
     const [selectedEntryId, setSelectedEntryId] = useState<string>('');
+    const [debugMemberEntryId, setDebugMemberEntryId] = useState<string>('');
 
     useEffect(() => {
         const load = async () => {
@@ -98,13 +101,17 @@ export default function TrainingGoalsPage() {
 
             let targetEntryId = selectedEntryId;
 
-            if (role === 'member') {
-                const me = employeeRows.find((e) => e.auth_uid === authUid);
-                targetEntryId = me?.entry_id ?? '';
-                if (targetEntryId !== selectedEntryId) {
-                    setSelectedEntryId(targetEntryId);
+            if (effectiveRole === 'member') {
+                if (debugRole === 'member') {
+                    targetEntryId = debugMemberEntryId || employeeRows[0]?.entry_id || '';
+                    if (targetEntryId && targetEntryId !== debugMemberEntryId) {
+                        setDebugMemberEntryId(targetEntryId);
+                    }
+                } else {
+                    const me = employeeRows.find((e) => e.auth_uid === authUid);
+                    targetEntryId = me?.entry_id ?? '';
                 }
-            } else if ((role === 'admin' || role === 'manager') && !targetEntryId) {
+            } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
                 targetEntryId = employeeRows[0]?.entry_id ?? '';
                 if (targetEntryId) {
                     setSelectedEntryId(targetEntryId);
@@ -164,7 +171,7 @@ export default function TrainingGoalsPage() {
         }
 
         void load();
-    }, [role, selectedEntryId]);
+    }, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId]);
 
     const filteredRows = useMemo(() => {
         const q = searchText.trim();
@@ -223,7 +230,7 @@ export default function TrainingGoalsPage() {
         );
     };
 
-    if (!['admin', 'manager', 'member'].includes(role)) {
+    if (!['admin', 'manager', 'member'].includes(effectiveRole)) {
         return <p className="p-6">このページは利用できません。</p>;
     }
 
@@ -231,13 +238,53 @@ export default function TrainingGoalsPage() {
         <div className="content p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">職員の目標・研修確認</h1>
+                <div className="mb-4 p-3 border rounded bg-yellow-50">
+                    <div className="text-sm font-semibold mb-2">確認用表示切替（今だけ）</div>
+
+                    <div className="flex flex-col md:flex-row gap-3 md:items-center">
+                        <div>
+                            <label className="block text-sm mb-1">表示ロール</label>
+                            <select
+                                className="border rounded px-3 py-2"
+                                value={debugRole}
+                                onChange={(e) => setDebugRole(e.target.value as 'admin' | 'member' | '')}
+                            >
+                                <option value="">実際の権限を使う</option>
+                                <option value="admin">admin表示</option>
+                                <option value="member">member表示</option>
+                            </select>
+                        </div>
+
+                        {debugRole === 'member' && (
+                            <div>
+                                <label className="block text-sm mb-1">memberとして表示する従業員</label>
+                                <select
+                                    className="border rounded px-3 py-2 min-w-[280px]"
+                                    value={debugMemberEntryId}
+                                    onChange={(e) => setDebugMemberEntryId(e.target.value)}
+                                >
+                                    {employees.map((emp) => (
+                                        <option key={emp.entry_id} value={emp.entry_id}>
+                                            {(emp.last_name_kanji ?? '')} {(emp.first_name_kanji ?? '')}
+                                            {emp.orgunitname ? ` / ${emp.orgunitname}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="text-sm text-gray-600 md:mt-6">
+                            現在の表示: <span className="font-semibold">{effectiveRole}</span>
+                        </div>
+                    </div>
+                </div>
                 <Link href="/portal/entry-list" className="px-3 py-2 border rounded">
                     エントリー一覧へ戻る
                 </Link>
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-                {['admin', 'manager'].includes(role) && (
+                {['admin', 'manager'].includes(effectiveRole) && (
                     <div className="mb-4">
                         <label className="block text-sm font-medium mb-1">従業員を選択</label>
                         <select
