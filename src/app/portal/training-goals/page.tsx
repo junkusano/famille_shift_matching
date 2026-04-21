@@ -17,10 +17,20 @@ type TrainingGoalRow = {
     sort_order: number;
     created_at: string;
     updated_at: string;
+    category: string | null;
+    group_code: string | null;
+    target_condition: string | null;
+    training_goal: string | null;
+    row_type: 'goal' | 'remark';
 };
 
-type FormEntryRow = {
-    id: string;
+type EmployeeRow = {
+    entry_id: string;
+    auth_user_id: string | null;
+    auth_uid: string | null;
+    system_role: string | null;
+    status: string | null;
+    orgunitname: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
     last_name_kana: string | null;
@@ -28,7 +38,7 @@ type FormEntryRow = {
 };
 
 type JoinedRow = TrainingGoalRow & {
-    entry?: FormEntryRow | null;
+    entry?: EmployeeRow | null;
 };
 
 export default function TrainingGoalsPage() {
@@ -37,34 +47,99 @@ export default function TrainingGoalsPage() {
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    const [showOnlySelected, setShowOnlySelected] = useState(true);
+    const [showOnlySelected, setShowOnlySelected] = useState(false);
+    const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+    const [selectedEntryId, setSelectedEntryId] = useState<string>('');
 
     useEffect(() => {
         const load = async () => {
-            if (!['admin', 'manager'].includes(role)) {
+            setLoading(true);
+
+            const {
+                data: { user },
+                error: userError,
+            } = await supabase.auth.getUser();
+
+            if (userError) {
+                console.error('auth.getUser error:', userError);
                 setLoading(false);
                 return;
             }
 
-            setLoading(true);
+            const authUid = user?.id ?? null;
+
+            const { data: employeeData, error: employeeError } = await supabase
+                .from('user_entry_united_view_single')
+                .select(`
+                entry_id,
+                auth_user_id,
+                auth_uid,
+                system_role,
+                status,
+                orgunitname,
+                last_name_kanji,
+                first_name_kanji,
+                last_name_kana,
+                first_name_kana
+            `)
+                .neq('status', 'removed_from_lineworks_kaipoke')
+                .order('orgunitname', { ascending: true })
+                .order('last_name_kana', { ascending: true });
+
+            if (employeeError) {
+                console.error('user_entry_united_view_single load error:', employeeError);
+                setRows([]);
+                setLoading(false);
+                return;
+            }
+
+            const employeeRows = (employeeData ?? []) as EmployeeRow[];
+            setEmployees(employeeRows);
+
+            let targetEntryId = selectedEntryId;
+
+            if (role === 'member') {
+                const me = employeeRows.find((e) => e.auth_uid === authUid);
+                targetEntryId = me?.entry_id ?? '';
+                if (targetEntryId !== selectedEntryId) {
+                    setSelectedEntryId(targetEntryId);
+                }
+            } else if ((role === 'admin' || role === 'manager') && !targetEntryId) {
+                targetEntryId = employeeRows[0]?.entry_id ?? '';
+                if (targetEntryId) {
+                    setSelectedEntryId(targetEntryId);
+                }
+            }
+
+            if (!targetEntryId) {
+                setRows([]);
+                setLoading(false);
+                return;
+            }
 
             const { data: goalData, error: goalError } = await supabase
                 .from('employee_training_goals')
                 .select(`
-          id,
-          entry_id,
-          goal_key,
-          goal_title,
-          video_url,
-          selected,
-          watched,
-          remark,
-          sort_order,
-          created_at,
-          updated_at
-        `)
-                .order('updated_at', { ascending: false })
-                .order('sort_order', { ascending: true });
+                id,
+                entry_id,
+                goal_key,
+                goal_title,
+                video_url,
+                selected,
+                watched,
+                remark,
+                sort_order,
+                created_at,
+                updated_at,
+                category,
+                group_code,
+                target_condition,
+                training_goal,
+                row_type
+            `)
+                .eq('entry_id', targetEntryId)
+                .order('sort_order', { ascending: true })
+                .order('goal_key', { ascending: true });
 
             if (goalError) {
                 console.error('employee_training_goals load error:', goalError);
@@ -73,44 +148,23 @@ export default function TrainingGoalsPage() {
                 return;
             }
 
-            const goals = (goalData ?? []) as TrainingGoalRow[];
-
-            const entryIds = Array.from(new Set(goals.map((g) => g.entry_id).filter(Boolean)));
-
-            let entryMap = new Map<string, FormEntryRow>();
-
-            if (entryIds.length > 0) {
-                const { data: entryData, error: entryError } = await supabase
-                    .from('form_entries')
-                    .select(`
-            id,
-            last_name_kanji,
-            first_name_kanji,
-            last_name_kana,
-            first_name_kana
-          `)
-                    .in('id', entryIds);
-
-                if (entryError) {
-                    console.error('form_entries load error:', entryError);
-                } else {
-                    entryMap = new Map(
-                        ((entryData ?? []) as FormEntryRow[]).map((entry) => [entry.id, entry])
-                    );
-                }
-            }
-
-            const joined: JoinedRow[] = goals.map((goal) => ({
+            const entry = employeeRows.find((e) => e.entry_id === targetEntryId) ?? null;
+            const joined: JoinedRow[] = ((goalData ?? []) as TrainingGoalRow[]).map((goal) => ({
                 ...goal,
-                entry: entryMap.get(goal.entry_id) ?? null,
+                entry,
             }));
 
             setRows(joined);
             setLoading(false);
         };
 
+        if (!['admin', 'manager', 'member'].includes(role)) {
+            setLoading(false);
+            return;
+        }
+
         void load();
-    }, [role]);
+    }, [role, selectedEntryId]);
 
     const filteredRows = useMemo(() => {
         const q = searchText.trim();
@@ -125,19 +179,52 @@ export default function TrainingGoalsPage() {
             const goalTitle = row.goal_title ?? '';
             const remark = row.remark ?? '';
             const goalKey = row.goal_key ?? '';
+            const category = row.category ?? '';
+            const groupCode = row.group_code ?? '';
+            const trainingGoal = row.training_goal ?? '';
 
             return (
                 fullNameKanji.includes(q) ||
                 fullNameKana.includes(q) ||
                 goalTitle.includes(q) ||
                 remark.includes(q) ||
-                goalKey.includes(q)
+                goalKey.includes(q) ||
+                category.includes(q) ||
+                groupCode.includes(q) ||
+                trainingGoal.includes(q)
             );
         });
     }, [rows, searchText, showOnlySelected]);
 
-    if (!['admin', 'manager'].includes(role)) {
-        return <p className="p-6">このページは管理者およびマネジャーのみがアクセスできます。</p>;
+    const updateGoal = async (id: string, patch: Partial<TrainingGoalRow>) => {
+        const { error } = await supabase
+            .from('employee_training_goals')
+            .update({
+                ...patch,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
+
+        if (error) {
+            console.error('employee_training_goals update error:', error);
+            return;
+        }
+
+        setRows((prev) =>
+            prev.map((row) =>
+                row.id === id
+                    ? {
+                        ...row,
+                        ...patch,
+                        updated_at: new Date().toISOString(),
+                    }
+                    : row
+            )
+        );
+    };
+
+    if (!['admin', 'manager', 'member'].includes(role)) {
+        return <p className="p-6">このページは利用できません。</p>;
     }
 
     return (
@@ -150,6 +237,23 @@ export default function TrainingGoalsPage() {
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+                {['admin', 'manager'].includes(role) && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">従業員を選択</label>
+                        <select
+                            className="border rounded px-3 py-2 w-full md:max-w-md"
+                            value={selectedEntryId}
+                            onChange={(e) => setSelectedEntryId(e.target.value)}
+                        >
+                            {employees.map((emp) => (
+                                <option key={emp.entry_id} value={emp.entry_id}>
+                                    {(emp.last_name_kanji ?? '')} {(emp.first_name_kanji ?? '')}
+                                    {emp.orgunitname ? ` / ${emp.orgunitname}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
                 <input
                     type="text"
                     placeholder="氏名・目標・備考で検索"
@@ -204,39 +308,50 @@ export default function TrainingGoalsPage() {
 
                                     <td className="border px-2 py-1">{row.goal_title}</td>
 
-                                    <td className="border px-2 py-1">
-                                        {row.selected ? (
-                                            <span className="text-green-600 font-medium">選択済み</span>
-                                        ) : (
-                                            <span className="text-gray-500">未選択</span>
-                                        )}
+                                    <td className="border px-2 py-1 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={row.selected}
+                                            onChange={(e) => void updateGoal(row.id, { selected: e.target.checked })}
+                                        />
                                     </td>
 
                                     <td className="border px-2 py-1">
-                                        {row.video_url ? (
+                                        <input
+                                            type="url"
+                                            value={row.video_url ?? ''}
+                                            onChange={(e) => void updateGoal(row.id, { video_url: e.target.value })}
+                                            placeholder="https://..."
+                                            className="w-full border rounded px-2 py-1"
+                                        />
+                                        {row.video_url && (
                                             <a
                                                 href={row.video_url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-blue-600 underline break-all"
+                                                className="text-blue-600 underline break-all text-sm mt-1 inline-block"
                                             >
-                                                {row.video_url}
+                                                動画を開く
                                             </a>
-                                        ) : (
-                                            '―'
                                         )}
+                                    </td>
+
+                                    <td className="border px-2 py-1 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={row.watched}
+                                            onChange={(e) => void updateGoal(row.id, { watched: e.target.checked })}
+                                        />
                                     </td>
 
                                     <td className="border px-2 py-1">
-                                        {row.watched ? (
-                                            <span className="text-green-600 font-medium">視聴完了</span>
-                                        ) : (
-                                            <span className="text-gray-600">未完了</span>
-                                        )}
-                                    </td>
-
-                                    <td className="border px-2 py-1 whitespace-pre-wrap">
-                                        {row.remark?.trim() ? row.remark : '―'}
+                                        <textarea
+                                            value={row.remark ?? ''}
+                                            onChange={(e) => void updateGoal(row.id, { remark: e.target.value })}
+                                            rows={2}
+                                            className="w-full border rounded px-2 py-1"
+                                            placeholder="メモがあれば入力"
+                                        />
                                     </td>
 
                                     <td className="border px-2 py-1">
