@@ -642,11 +642,12 @@ const saveTemplate = async () => {
   const openRpaDialog = (row: SpotOfferTemplateUnified) => {
     setRpaTarget(row);
 
-     setShiftStartTime(fStartAt || "");
-     setShiftEndTime(fEndAt || "");
-     // 休憩時間は今の入力値をそのまま表示
-     setBreakStartTime(fBreakStartTime || "");
-     setBreakEndTime(fBreakEndTime || "");
+     setShiftStartTime(timeForInput(row.start_at) || "");
+     setShiftEndTime(timeForInput(row.end_at) || "");
+
+     // 休憩時間はテンプレに保存していないので毎回クリア
+     setBreakStartTime("");
+     setBreakEndTime("");
   
     setOpenRpa(true);
   };
