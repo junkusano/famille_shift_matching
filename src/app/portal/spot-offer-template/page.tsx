@@ -204,6 +204,9 @@ export default function SpotOfferTemplatePage() {
   const [fMeetingPlaceBanchi, setFMeetingPlaceBanchi] = useState("");
   const [postalLoading, setPostalLoading] = useState(false);
   const [postalError, setPostalError] = useState<string | null>(null);
+  const [fBreakStartTime, setFBreakStartTime] = useState("");
+  const [fBreakEndTime, setFBreakEndTime] = useState("");
+
 
   type ClientPreview = {
   name: string | null;
@@ -433,6 +436,8 @@ useEffect(() => {
     setFKaipokeCsId("");
     setFStartAt("");
     setFEndAt("");
+    setFBreakStartTime("");
+    setFBreakEndTime("");
     setFStatusChecked(true);
     setFUnitAmount("");
     setFCommuteFee("");
@@ -636,12 +641,13 @@ const saveTemplate = async () => {
 
   const openRpaDialog = (row: SpotOfferTemplateUnified) => {
     setRpaTarget(row);
-     if (!shiftStartTime && fStartAt) {
-      setShiftStartTime(fStartAt);
-     }
-      if (!shiftEndTime && fEndAt) {
-      setShiftEndTime(fEndAt);
-     }  
+
+     setShiftStartTime(fStartAt || "");
+     setShiftEndTime(fEndAt || "");
+     // 休憩時間は今の入力値をそのまま表示
+     setBreakStartTime(fBreakStartTime || "");
+     setBreakEndTime(fBreakEndTime || "");
+  
     setOpenRpa(true);
   };
 
@@ -972,13 +978,13 @@ const saveTemplate = async () => {
       <FieldLabel>休憩時間</FieldLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Input
-          value={breakStartTime}
-          onChange={(e) => setBreakStartTime(e.target.value)}
+          value={fBreakStartTime}
+          onChange={(e) => setFBreakStartTime(e.target.value)}
           placeholder="休憩開始 例：1200 / 12:00"
         />
         <Input
-          value={breakEndTime}
-          onChange={(e) => setBreakEndTime(e.target.value)}
+          value={fBreakEndTime}
+          onChange={(e) => setFBreakEndTime(e.target.value)}
           placeholder="休憩終了 例：1230 / 12:30"
         />
       </div>
