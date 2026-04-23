@@ -21,20 +21,22 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     entryId: string;
     remark: string;
 }) {
-    const { entryId, remark } = args;
+    const { remark } = args;
+
+    const TEST_TARGET_LW_USERID = "jundakusanoda";
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(`
-      entry_id,
-      user_id,
-      channel_id,
-      lw_userid,
-      last_name_kanji,
-      first_name_kanji,
-      orgunitname
-    `)
-        .eq("entry_id", entryId)
+            entry_id,
+            user_id,
+            channel_id,
+            lw_userid,
+            last_name_kanji,
+            first_name_kanji,
+            orgunitname
+        `)
+        .eq("lw_userid", TEST_TARGET_LW_USERID)
         .maybeSingle();
 
     if (error) {
@@ -55,9 +57,8 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     const orgName = String(staff.orgunitname ?? "").trim();
 
     const accessToken = await getAccessToken();
-
     const message =
-        `【目標設定 追加連絡】\n` +
+        `【目標設定 追加連絡：テスト送信】\n` +
         `${staffName}さんが目標設定を新しく追加しました。マネージャーはご確認ください。\n\n` +
         `氏名: ${staffName}\n` +
         `チーム: ${orgName || "未設定"}\n` +
