@@ -3079,7 +3079,7 @@ export async function POST(req: NextRequest) {
 
         const currentPendingRaw = await getPendingBySessionKey(sessionKey);
 
-        const currentPending =
+        let currentPending: PendingRow | null =
             currentPendingRaw && !isExpired(currentPendingRaw.expires_at)
                 ? currentPendingRaw
                 : null;
@@ -3089,10 +3089,8 @@ export async function POST(req: NextRequest) {
                 status: "cancelled",
             });
 
-            return jsonText(
-                "前回の操作は期限切れになりました。もう一度最初からお願いします。",
-                buildClearedSessionParams()
-            );
+            // 期限切れはユーザーに見せず、新規依頼として自然に処理する
+            currentPending = null;
         }
 
         const detectedIntentName = extractIntentName(body);
@@ -3135,16 +3133,6 @@ export async function POST(req: NextRequest) {
             return jsonNoReply();
         }
 
-        if (!currentPending && !initialIntentName) {
-            console.info("[dialogflow webhook] no actionable operation; ignore", {
-                sourceMessage,
-                detectedIntentName,
-                aiDecision: initialAiDecision,
-            });
-
-            return jsonNoReply();
-        }
-
         const resolvedTarget = await resolveTargetFromChannel(channelId);
         const resolvedStaff = await resolveStaffUsers({
             requesterLwUserid,
@@ -3162,17 +3150,6 @@ export async function POST(req: NextRequest) {
             mention_primary_user_id: resolvedStaff.mentionPrimaryUserId,
             staff_name_resolved_user_id: resolvedStaff.staffNameResolvedUserId,
         });
-
-        if (currentPendingRaw && isExpired(currentPendingRaw.expires_at)) {
-            await patchPending(sessionKey, {
-                status: "cancelled",
-            });
-
-            return jsonText(
-                "前回の操作は期限切れになりました。もう一度最初からお願いします。",
-                buildClearedSessionParams()
-            );
-        }
 
         const incomingIntentName = initialIntentName;
         let effectiveIntentName = incomingIntentName;
