@@ -194,49 +194,64 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const rows: PrintRow[] = (shifts ?? []).map((s: ShiftRow): PrintRow => {
-    const startHHmm = (s.shift_start_time ?? "").slice(0, 5);
-    const endHHmm = (s.shift_end_time ?? "").slice(0, 5);
+  const rows: PrintRow[] = (shifts ?? [])
+    .filter((s: ShiftRow) => {
+      const serviceCode = s.service_code ?? "";
+      const startHHmm = (s.shift_start_time ?? "").slice(0, 5);
+      const endHHmm = (s.shift_end_time ?? "").slice(0, 5);
 
-    const minutes = startHHmm && endHHmm ? calcMinutes(startHHmm, endHHmm) : undefined;
-    const calc_hour = typeof minutes === "number" ? calcHalfHourRoundedHours(minutes) : undefined;
+      const minutes =
+        startHHmm && endHHmm
+          ? calcMinutes(startHHmm, endHHmm)
+          : undefined;
 
-    // ⑥ 片道支援加算判定（service_code と calc_hour を使う）
-    const isKatamichiService =
-      (s.service_code ?? "") === "移：必要不可欠な外出（片道加算）" ||
-      (s.service_code ?? "") === "移：必要不可欠な外出（片道支援）";
+      // 👇ここが追加ポイント
+      const isCancelZero =
+        serviceCode.includes("キャンセル") &&
+        (minutes ?? 0) === 0;
 
-    const katamichi_addon: 0 | 1 =
-      isKatamichiService && typeof minutes === "number" && minutes >= 90 ? 1 : 0;
-      
-    // ⑧ staffNames（01/02/03 を氏名化）
-    const staffNames = [
-      s.staff_01_user_id ? staffNameMap.get(s.staff_01_user_id) ?? "" : "",
-      s.staff_02_user_id ? staffNameMap.get(s.staff_02_user_id) ?? "" : "",
-      s.staff_03_user_id ? staffNameMap.get(s.staff_03_user_id) ?? "" : "",
-    ].filter((v) => v.trim().length > 0);
+      return !isCancelZero;
+    })
+    .map((s: ShiftRow): PrintRow => {
+      const startHHmm = (s.shift_start_time ?? "").slice(0, 5);
+      const endHHmm = (s.shift_end_time ?? "").slice(0, 5);
 
-    // ⑦ 利用者負担額（名古屋市以外は空）
-    const cs_pay =
-      insurer && typeof calc_hour === "number"
-        ? (csPayByHour.get(calc_hour) ?? "")
-        : "";
+      const minutes = startHHmm && endHHmm ? calcMinutes(startHHmm, endHHmm) : undefined;
+      const calc_hour = typeof minutes === "number" ? calcHalfHourRoundedHours(minutes) : undefined;
 
-    return {
-      date: s.shift_start_date ?? "",
-      start: startHHmm,
-      end: endHHmm,
-      service_code: s.service_code ?? "",
-      minutes,
-      required_staff_count: s.required_staff_count ?? 1,
-      judo_ido: s.judo_ido ?? "0000",
+      const isKatamichiService =
+        (s.service_code ?? "") === "移：必要不可欠な外出（片道加算）" ||
+        (s.service_code ?? "") === "移：必要不可欠な外出（片道支援）";
 
-      calc_hour,
-      katamichi_addon, // ⑥
-      cs_pay,          // ⑦
-      staffNames,      // ⑧
-    };
-  });
+      const katamichi_addon: 0 | 1 =
+        isKatamichiService && typeof minutes === "number" && minutes >= 90 ? 1 : 0;
+
+      const staffNames = [
+        s.staff_01_user_id ? staffNameMap.get(s.staff_01_user_id) ?? "" : "",
+        s.staff_02_user_id ? staffNameMap.get(s.staff_02_user_id) ?? "" : "",
+        s.staff_03_user_id ? staffNameMap.get(s.staff_03_user_id) ?? "" : "",
+      ].filter((v) => v.trim().length > 0);
+
+      const cs_pay =
+        insurer && typeof calc_hour === "number"
+          ? (csPayByHour.get(calc_hour) ?? "")
+          : "";
+
+      return {
+        date: s.shift_start_date ?? "",
+        start: startHHmm,
+        end: endHHmm,
+        service_code: s.service_code ?? "",
+        minutes,
+        required_staff_count: s.required_staff_count ?? 1,
+        judo_ido: s.judo_ido ?? "0000",
+
+        calc_hour,
+        katamichi_addon,
+        cs_pay,
+        staffNames,
+      };
+    });
 
   const map = new Map<FormType, { service_codes: Set<string>; rows: PrintRow[] }>();
 
