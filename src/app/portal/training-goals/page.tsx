@@ -183,7 +183,7 @@ export default function TrainingGoalsPage() {
             }
 
             const { data: selectionData, error: selectionError } = await supabase
-                .from('training_goal_catalog')
+                .from('employee_training_goals')
                 .select(`
         id,
         entry_id,
@@ -210,7 +210,6 @@ export default function TrainingGoalsPage() {
                 setLoading(false);
                 return;
             }
-
             const entry = employeeRows.find((e) => e.entry_id === targetEntryId) ?? null;
 
             const selectionMap = new Map(
@@ -221,7 +220,7 @@ export default function TrainingGoalsPage() {
                 if (effectiveRole === 'member') {
                     return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
                 }
-                if (effectiveRole === 'manager') {
+                if (effectiveRole === 'manager' || effectiveRole === 'admin') {
                     return row.target_role === 'manager' || row.target_role === 'both' || row.target_role === null;
                 }
                 return true;
@@ -314,7 +313,7 @@ export default function TrainingGoalsPage() {
         };
 
         const { data, error } = await supabase
-            .from('training_goal_catalog')
+            .from('employee_training_goals')
             .upsert(payload, { onConflict: 'entry_id,goal_key' })
             .select('id')
             .single();
