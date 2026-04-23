@@ -84,6 +84,9 @@ export default function TrainingGoalsPage() {
     const [employees, setEmployees] = useState<EmployeeRow[]>([]);
     const [selectedEntryId, setSelectedEntryId] = useState<string>('');
     const [debugMemberEntryId, setDebugMemberEntryId] = useState<string>('');
+    const [remarkText, setRemarkText] = useState('');
+    const [remarkSending, setRemarkSending] = useState(false);
+    const [remarkMessage, setRemarkMessage] = useState('');
 
     useEffect(() => {
         const load = async () => {
@@ -211,6 +214,12 @@ export default function TrainingGoalsPage() {
                 return;
             }
             const entry = employeeRows.find((e) => e.entry_id === targetEntryId) ?? null;
+
+            const remarkRow = ((selectionData ?? []) as TrainingGoalSelectionRow[]).find(
+                (row) => row.row_type === 'remark'
+            );
+
+            setRemarkText(remarkRow?.remark ?? '');
 
             const selectionMap = new Map(
                 ((selectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [row.goal_key, row])
@@ -357,6 +366,52 @@ export default function TrainingGoalsPage() {
                     : r
             )
         );
+    };
+
+    const submitRemark = async () => {
+        const entryId =
+            effectiveRole === 'member'
+                ? rows[0]?.entry_id || debugMemberEntryId
+                : selectedEntryId;
+
+        const remark = remarkText.trim();
+
+        if (!entryId) {
+            alert('対象職員が特定できません。');
+            return;
+        }
+
+        if (!remark) {
+            alert('備考を入力してください。');
+            return;
+        }
+
+        try {
+            setRemarkSending(true);
+            setRemarkMessage('');
+
+            const res = await fetch('/api/training-goals/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    entry_id: entryId,
+                    remark,
+                }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json.ok) {
+                throw new Error(json.error ?? '送信に失敗しました');
+            }
+
+            setRemarkMessage('送信しました。LINEWORKSへ通知しています。');
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : '送信に失敗しました';
+            setRemarkMessage(msg);
+        } finally {
+            setRemarkSending(false);
+        }
     };
 
     if (!['admin', 'manager', 'member'].includes(effectiveRole)) {
@@ -547,17 +602,33 @@ export default function TrainingGoalsPage() {
                     ))}
 
                     <div className="border rounded p-4 bg-white">
-                        <div className="font-semibold mb-2">備考</div>
-                        <div className="text-sm text-gray-600 mb-2">
+                        <div className="font-semibold mb-2">追加したい目標・研修</div>
+                        <div className="text-sm text-gray-600 mb-3">
                             一覧にない目標や、今後受けたい研修がある場合はここに入力してください。
                         </div>
+
                         <textarea
-                            value=""
-                            readOnly
+                            value={remarkText}
+                            onChange={(e) => setRemarkText(e.target.value)}
                             rows={4}
-                            className="w-full border rounded px-2 py-2 bg-gray-50 text-gray-400"
-                            placeholder="備考欄は必要になったら別で追加できます"
+                            className="w-full border rounded px-3 py-2"
+                            placeholder="どんな目標・研修を追加したいか入力してください"
                         />
+
+                        <div className="mt-3 flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={submitRemark}
+                                disabled={remarkSending}
+                                className="px-4 py-2 rounded bg-blue-600 text-white disabled:bg-gray-400"
+                            >
+                                {remarkSending ? '送信中...' : '送信'}
+                            </button>
+
+                            {remarkMessage && (
+                                <span className="text-sm text-gray-700">{remarkMessage}</span>
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : (
