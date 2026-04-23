@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
 
-type TrainingGoalRow = {
+type TrainingGoalSelectionRow = {
     id: string;
     entry_id: string;
     goal_key: string;
@@ -24,6 +24,41 @@ type TrainingGoalRow = {
     row_type: 'goal' | 'remark';
 };
 
+type TrainingGoalCatalogRow = {
+    id: string;
+    training_type: string;
+    training_code: string;
+    training_key: string;
+    target_role: 'manager' | 'member' | 'both' | null;
+    target_group: string | null;
+    training_title: string;
+    training_goal: string | null;
+    training_month: number | null;
+    video_url: string | null;
+    sort_order: number;
+    is_active: boolean;
+};
+
+type JoinedRow = {
+    id: string;
+    entry_id: string;
+    goal_key: string;
+    goal_title: string;
+    video_url: string | null;
+    selected: boolean;
+    watched: boolean;
+    remark: string | null;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+    category: string | null;
+    group_code: string | null;
+    target_condition: string | null;
+    training_goal: string | null;
+    row_type: 'goal' | 'remark';
+    entry?: EmployeeRow | null;
+};
+
 type EmployeeRow = {
     entry_id: string;
     auth_user_id: string | null;
@@ -35,10 +70,6 @@ type EmployeeRow = {
     first_name_kanji: string | null;
     last_name_kana: string | null;
     first_name_kana: string | null;
-};
-
-type JoinedRow = TrainingGoalRow & {
-    entry?: EmployeeRow | null;
 };
 
 export default function TrainingGoalsPage() {
@@ -124,42 +155,101 @@ export default function TrainingGoalsPage() {
                 return;
             }
 
-            const { data: goalData, error: goalError } = await supabase
-                .from('employee_training_goals')
+            const { data: catalogData, error: catalogError } = await supabase
+                .from('training_goal_catalog')
                 .select(`
-                id,
-                entry_id,
-                goal_key,
-                goal_title,
-                video_url,
-                selected,
-                watched,
-                remark,
-                sort_order,
-                created_at,
-                updated_at,
-                category,
-                group_code,
-                target_condition,
-                training_goal,
-                row_type
-            `)
-                .eq('entry_id', targetEntryId)
+        id,
+        training_type,
+        training_code,
+        training_key,
+        target_role,
+        target_group,
+        training_title,
+        training_goal,
+        training_month,
+        video_url,
+        sort_order,
+        is_active
+    `)
+                .eq('is_active', true)
                 .order('sort_order', { ascending: true })
-                .order('goal_key', { ascending: true });
+                .order('training_key', { ascending: true });
 
-            if (goalError) {
-                console.error('employee_training_goals load error:', goalError);
+            if (catalogError) {
+                console.error('training_goal_catalog load error:', catalogError);
+                setRows([]);
+                setLoading(false);
+                return;
+            }
+
+            const { data: selectionData, error: selectionError } = await supabase
+                .from('training_goal_catalog')
+                .select(`
+        id,
+        entry_id,
+        goal_key,
+        goal_title,
+        video_url,
+        selected,
+        watched,
+        remark,
+        sort_order,
+        created_at,
+        updated_at,
+        category,
+        group_code,
+        target_condition,
+        training_goal,
+        row_type
+    `)
+                .eq('entry_id', targetEntryId);
+
+            if (selectionError) {
+                console.error('employee_training_goals load error:', selectionError);
                 setRows([]);
                 setLoading(false);
                 return;
             }
 
             const entry = employeeRows.find((e) => e.entry_id === targetEntryId) ?? null;
-            const joined: JoinedRow[] = ((goalData ?? []) as TrainingGoalRow[]).map((goal) => ({
-                ...goal,
-                entry,
-            }));
+
+            const selectionMap = new Map(
+                ((selectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [row.goal_key, row])
+            );
+
+            const roleFiltered = ((catalogData ?? []) as TrainingGoalCatalogRow[]).filter((row) => {
+                if (effectiveRole === 'member') {
+                    return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
+                }
+                if (effectiveRole === 'manager') {
+                    return row.target_role === 'manager' || row.target_role === 'both' || row.target_role === null;
+                }
+                return true;
+            });
+
+            const joined: JoinedRow[] = roleFiltered.map((catalog) => {
+                const selected = selectionMap.get(catalog.training_key);
+
+                return {
+                    id: selected?.id ?? `virtual-${catalog.training_key}`,
+                    entry_id: targetEntryId,
+                    goal_key: catalog.training_key,
+                    goal_title: catalog.training_title,
+                    video_url: catalog.video_url,
+                    selected: selected?.selected ?? false,
+                    watched: selected?.watched ?? false,
+                    remark: selected?.remark ?? '',
+                    sort_order: catalog.sort_order,
+                    created_at: selected?.created_at ?? '',
+                    updated_at: selected?.updated_at ?? '',
+                    category: catalog.training_type,
+                    group_code: catalog.training_code,
+                    target_condition: catalog.target_group,
+                    training_goal: catalog.training_goal,
+                    row_type: 'goal',
+                    entry,
+                };
+            });
 
             setRows(joined);
             setLoading(false);
@@ -203,29 +293,47 @@ export default function TrainingGoalsPage() {
         });
     }, [rows, searchText, showOnlySelected]);
 
-    const updateGoal = async (id: string, patch: Partial<TrainingGoalRow>) => {
-        const { error } = await supabase
-            .from('employee_training_goals')
-            .update({
-                ...patch,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', id);
+    const updateGoal = async (row: JoinedRow, patch: Partial<JoinedRow>) => {
+        const now = new Date().toISOString();
+
+        const payload = {
+            entry_id: row.entry_id,
+            goal_key: row.goal_key,
+            goal_title: row.goal_title,
+            video_url: row.video_url ?? null,
+            selected: patch.selected ?? row.selected,
+            watched: patch.watched ?? row.watched,
+            remark: patch.remark ?? row.remark ?? null,
+            sort_order: row.sort_order,
+            category: row.category ?? null,
+            group_code: row.group_code ?? null,
+            target_condition: row.target_condition ?? null,
+            training_goal: row.training_goal ?? null,
+            row_type: 'goal' as const,
+            updated_at: now,
+        };
+
+        const { data, error } = await supabase
+            .from('training_goal_catalog')
+            .upsert(payload, { onConflict: 'entry_id,goal_key' })
+            .select('id')
+            .single();
 
         if (error) {
-            console.error('employee_training_goals update error:', error);
+            console.error('employee_training_goals upsert error:', error);
             return;
         }
 
         setRows((prev) =>
-            prev.map((row) =>
-                row.id === id
+            prev.map((r) =>
+                r.entry_id === row.entry_id && r.goal_key === row.goal_key
                     ? {
-                        ...row,
+                        ...r,
                         ...patch,
-                        updated_at: new Date().toISOString(),
+                        id: data?.id ?? r.id,
+                        updated_at: now,
                     }
-                    : row
+                    : r
             )
         );
     };
@@ -323,99 +431,94 @@ export default function TrainingGoalsPage() {
                 <p>読み込み中...</p>
             ) : filteredRows.length === 0 ? (
                 <p>登録された目標・研修情報はありません。</p>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse border border-gray-300">
-                        <thead>
-                            <tr className="bg-gray-100 text-left">
-                                <th className="border px-2 py-1">氏名</th>
-                                <th className="border px-2 py-1">目標キー</th>
-                                <th className="border px-2 py-1">目標</th>
-                                <th className="border px-2 py-1">選択</th>
-                                <th className="border px-2 py-1">動画URL</th>
-                                <th className="border px-2 py-1">視聴状況</th>
-                                <th className="border px-2 py-1">備考</th>
-                                <th className="border px-2 py-1">更新日時</th>
-                                <th className="border px-2 py-1">詳細</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredRows.map((row) => (
-                                <tr key={row.id}>
-                                    <td className="border px-2 py-1">
-                                        <div className="text-sm text-gray-500">
-                                            {(row.entry?.last_name_kana ?? '')} {(row.entry?.first_name_kana ?? '')}
+            ) : effectiveRole === 'member' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h2 className="text-lg font-bold mb-3">目標一覧</h2>
+
+                        {filteredRows.map((row) => (
+                            <div key={row.id} className="border rounded p-3 mb-3">
+                                <label className="flex items-start gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={row.selected}
+                                        onChange={(e) => void updateGoal(row, { selected: e.target.checked })}
+                                    />
+                                    <div>
+                                        <div className="font-semibold">
+                                            {row.category ?? ''} {row.group_code ? ` / ${row.group_code}` : ''}
                                         </div>
-                                        <div>
-                                            {(row.entry?.last_name_kanji ?? '')} {(row.entry?.first_name_kanji ?? '')}
-                                        </div>
-                                    </td>
-
-                                    <td className="border px-2 py-1">{row.goal_key}</td>
-
-                                    <td className="border px-2 py-1">{row.goal_title}</td>
-
-                                    <td className="border px-2 py-1 text-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={row.selected}
-                                            onChange={(e) => void updateGoal(row.id, { selected: e.target.checked })}
-                                        />
-                                    </td>
-
-                                    <td className="border px-2 py-1">
-                                        <input
-                                            type="url"
-                                            value={row.video_url ?? ''}
-                                            onChange={(e) => void updateGoal(row.id, { video_url: e.target.value })}
-                                            placeholder="https://..."
-                                            className="w-full border rounded px-2 py-1"
-                                        />
-                                        {row.video_url && (
-                                            <a
-                                                href={row.video_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 underline break-all text-sm mt-1 inline-block"
-                                            >
-                                                動画を開く
-                                            </a>
+                                        <div>{row.goal_title}</div>
+                                        {row.training_goal && (
+                                            <div className="text-sm text-gray-600 mt-1">
+                                                {row.training_goal}
+                                            </div>
                                         )}
-                                    </td>
+                                    </div>
+                                </label>
 
-                                    <td className="border px-2 py-1 text-center">
+                                <div className="mt-3">
+                                    <div className="text-sm font-medium mb-1">動画</div>
+
+                                    {row.video_url ? (
+                                        <a
+                                            href={row.video_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 underline break-all text-sm inline-block"
+                                        >
+                                            動画を開く
+                                        </a>
+                                    ) : (
+                                        <span className="text-gray-400 text-sm">未登録</span>
+                                    )}
+                                </div>
+
+                                <div className="mt-3">
+                                    <label className="flex items-center gap-2 text-sm">
                                         <input
                                             type="checkbox"
                                             checked={row.watched}
-                                            onChange={(e) => void updateGoal(row.id, { watched: e.target.checked })}
+                                            onChange={(e) => void updateGoal(row, { watched: e.target.checked })}
                                         />
-                                    </td>
+                                        研修受講完了
+                                    </label>
+                                </div>
+                            </div>
+                        ))}
 
-                                    <td className="border px-2 py-1">
-                                        <textarea
-                                            value={row.remark ?? ''}
-                                            onChange={(e) => void updateGoal(row.id, { remark: e.target.value })}
-                                            rows={2}
-                                            className="w-full border rounded px-2 py-1"
-                                            placeholder="メモがあれば入力"
-                                        />
-                                    </td>
+                        <div className="border rounded p-3 mt-4">
+                            <div className="font-semibold mb-2">備考</div>
+                            <div className="text-sm text-gray-600 mb-2">
+                                一覧にない目標や受けたい研修がある場合は入力してください。
+                            </div>
 
-                                    <td className="border px-2 py-1">
-                                        {new Date(row.updated_at).toLocaleString()}
-                                    </td>
+                            {filteredRows
+                                .filter((row) => row.row_type === 'remark')
+                                .map((row) => (
+                                    <textarea
+                                        key={row.id}
+                                        value={row.remark ?? ''}
+                                        onChange={(e) => void updateGoal(row, { remark: e.target.value })}
+                                        rows={4}
+                                        className="w-full border rounded px-2 py-2"
+                                        placeholder="どんな目標・研修にしたいか入力してください"
+                                    />
+                                ))}
+                        </div>
+                    </div>
 
-                                    <td className="border px-2 py-1">
-                                        <Link
-                                            href={`/portal/entry-detail/${row.entry_id}`}
-                                            className="px-3 py-1 bg-blue-600 text-white rounded inline-block"
-                                        >
-                                            詳細
-                                        </Link>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
+                    <div>
+                        <h2 className="text-lg font-bold mb-3">動画URL表示</h2>
+                        <div className="border rounded p-4 text-sm text-gray-600">
+                            左の目標から選んだ研修の動画URLを確認して受講します。
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse border border-gray-300">
+                        ...
                     </table>
                 </div>
             )}
