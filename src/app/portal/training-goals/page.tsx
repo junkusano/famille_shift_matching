@@ -292,6 +292,28 @@ export default function TrainingGoalsPage() {
         });
     }, [rows, searchText, showOnlySelected]);
 
+    const groupedRows = useMemo(() => {
+        const map = new Map<string, JoinedRow[]>();
+
+        for (const row of filteredRows) {
+            if (row.row_type !== 'goal') continue;
+
+            const sectionKey = `${row.category ?? 'その他'}__${row.group_code ?? ''}`;
+            const current = map.get(sectionKey) ?? [];
+            current.push(row);
+            map.set(sectionKey, current);
+        }
+
+        return Array.from(map.entries()).map(([key, items]) => {
+            const [category, groupCode] = key.split('__');
+            return {
+                category,
+                groupCode,
+                items,
+            };
+        });
+    }, [filteredRows]);
+
     const updateGoal = async (row: JoinedRow, patch: Partial<JoinedRow>) => {
         const now = new Date().toISOString();
 
@@ -431,87 +453,111 @@ export default function TrainingGoalsPage() {
             ) : filteredRows.length === 0 ? (
                 <p>登録された目標・研修情報はありません。</p>
             ) : effectiveRole === 'member' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h2 className="text-lg font-bold mb-3">目標一覧</h2>
-
-                        {filteredRows.map((row) => (
-                            <div key={row.id} className="border rounded p-3 mb-3">
-                                <label className="flex items-start gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={row.selected}
-                                        onChange={(e) => void updateGoal(row, { selected: e.target.checked })}
-                                    />
-                                    <div>
-                                        <div className="font-semibold">
-                                            {row.category ?? ''} {row.group_code ? ` / ${row.group_code}` : ''}
-                                        </div>
-                                        <div>{row.goal_title}</div>
-                                        {row.training_goal && (
-                                            <div className="text-sm text-gray-600 mt-1">
-                                                {row.training_goal}
-                                            </div>
-                                        )}
-                                    </div>
-                                </label>
-
-                                <div className="mt-3">
-                                    <div className="text-sm font-medium mb-1">動画</div>
-
-                                    {row.video_url ? (
-                                        <a
-                                            href={row.video_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 underline break-all text-sm inline-block"
-                                        >
-                                            動画を開く
-                                        </a>
-                                    ) : (
-                                        <span className="text-gray-400 text-sm">未登録</span>
-                                    )}
-                                </div>
-
-                                <div className="mt-3">
-                                    <label className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="checkbox"
-                                            checked={row.watched}
-                                            onChange={(e) => void updateGoal(row, { watched: e.target.checked })}
-                                        />
-                                        研修受講完了
-                                    </label>
-                                </div>
-                            </div>
-                        ))}
-
-                        <div className="border rounded p-3 mt-4">
-                            <div className="font-semibold mb-2">備考</div>
-                            <div className="text-sm text-gray-600 mb-2">
-                                一覧にない目標や受けたい研修がある場合は入力してください。
-                            </div>
-
-                            {filteredRows
-                                .filter((row) => row.row_type === 'remark')
-                                .map((row) => (
-                                    <textarea
-                                        key={row.id}
-                                        value={row.remark ?? ''}
-                                        onChange={(e) => void updateGoal(row, { remark: e.target.value })}
-                                        rows={4}
-                                        className="w-full border rounded px-2 py-2"
-                                        placeholder="どんな目標・研修にしたいか入力してください"
-                                    />
-                                ))}
+                <div className="space-y-6">
+                    <div className="rounded-lg border bg-blue-50 px-4 py-3">
+                        <div className="font-semibold text-blue-900">目標・研修一覧</div>
+                        <div className="text-sm text-blue-800 mt-1">
+                            自分が見るべき研修を選んで、動画があるものはそのまま視聴できます。
                         </div>
                     </div>
 
-                    <div>
-                        <h2 className="text-lg font-bold mb-3">動画URL表示</h2>
-                        <div className="border rounded p-4 text-sm text-gray-600">
-                            左の目標から選んだ研修の動画URLを確認して受講します。
+                    {groupedRows.map((section) => (
+                        <section key={`${section.category}-${section.groupCode}`} className="rounded-xl border bg-white shadow-sm">
+                            <div className="border-b bg-gray-50 px-4 py-3">
+                                <div className="text-lg font-bold text-gray-900">
+                                    【{section.category}】
+                                </div>
+                                {section.groupCode && (
+                                    <div className="text-sm text-gray-600 mt-1">
+                                        区分: {section.category}{section.groupCode}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-4 space-y-4">
+                                {section.items.map((row) => (
+                                    <div
+                                        key={row.id}
+                                        className={`rounded-lg border p-4 transition ${row.selected ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'
+                                            }`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <input
+                                                type="checkbox"
+                                                className="mt-1 h-4 w-4"
+                                                checked={row.selected}
+                                                onChange={(e) => void updateGoal(row, { selected: e.target.checked })}
+                                            />
+
+                                            <div className="flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                                                        {row.category}
+                                                    </span>
+                                                    {row.group_code && (
+                                                        <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                                                            {row.category}{row.group_code}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-2 text-base font-semibold text-gray-900">
+                                                    {row.goal_title}
+                                                </div>
+
+                                                {row.target_condition && (
+                                                    <div className="mt-2 text-sm text-gray-600">
+                                                        対象: {row.target_condition}
+                                                    </div>
+                                                )}
+
+                                                {row.training_goal && (
+                                                    <div className="mt-2 text-sm text-gray-700 leading-6">
+                                                        目標: {row.training_goal}
+                                                    </div>
+                                                )}
+
+                                                <div className="mt-4 flex flex-wrap items-center gap-4">
+                                                    {row.video_url && (
+                                                        <a
+                                                            href={row.video_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                                        >
+                                                            動画を開く
+                                                        </a>
+                                                    )}
+
+                                                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={row.watched}
+                                                            onChange={(e) => void updateGoal(row, { watched: e.target.checked })}
+                                                        />
+                                                        研修受講完了
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    ))}
+
+                    <div className="border rounded p-4 bg-white">
+                        <div className="font-semibold mb-2">備考</div>
+                        <div className="text-sm text-gray-600 mb-2">
+                            一覧にない目標や、今後受けたい研修がある場合はここに入力してください。
                         </div>
+                        <textarea
+                            value=""
+                            readOnly
+                            rows={4}
+                            className="w-full border rounded px-2 py-2 bg-gray-50 text-gray-400"
+                            placeholder="備考欄は必要になったら別で追加できます"
+                        />
                     </div>
                 </div>
             ) : (
