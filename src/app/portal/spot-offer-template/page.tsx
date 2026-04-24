@@ -652,6 +652,24 @@ const saveTemplate = async () => {
     setOpenRpa(true);
   };
 
+  // 勤務時間チェック（1時間未満はNG）
+  const start = toNullableTime(shiftStartTime);
+  const end = toNullableTime(shiftEndTime);
+
+  if (start && end) {
+    const toMinutes = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+   const diff = toMinutes(end) - toMinutes(start);
+   
+   if (diff < 60) {
+    alert("勤務時間は1時間以上で入力してください");
+    return;
+    }
+  }
+
   const sendRpaRequest = async () => {
     if (!rpaTarget) return;
 
