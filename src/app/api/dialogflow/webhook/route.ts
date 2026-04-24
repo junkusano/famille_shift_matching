@@ -276,6 +276,17 @@ function mapDialogflowIntentToInitialOperation(intentName: string | null): strin
     return null;
 }
 
+function requiresDateForInitialOperation(intentName: string | null): boolean {
+    return (
+        intentName === "create_shift" ||
+        intentName === "create_shift_missing_ready" ||
+        intentName === "delete_shift" ||
+        intentName === "delete_shift_date_ready" ||
+        intentName === "update_shift" ||
+        intentName === "staff_unavailable"
+    );
+}
+
 function isAllowedFollowupForLockedOperation(
     lockedOperation: string | null,
     incomingIntent: string | null
@@ -3166,6 +3177,23 @@ export async function POST(req: NextRequest) {
             if (mappedInitialOperation) {
                 effectiveIntentName = mappedInitialOperation;
             }
+        }
+
+        // 初期状態では、日付が取れていない操作系intentは無視する
+        // Dialogflowの誤分類による暴発防止
+        if (
+            !currentPending &&
+            requiresDateForInitialOperation(effectiveIntentName) &&
+            !normalizeDate(dialogflowParams.shift_date)
+        ) {
+            console.info("[dialogflow webhook] initial operation ignored because shift_date is missing", {
+                sourceMessage,
+                detectedIntentName,
+                effectiveIntentName,
+                aiDecision: initialAiDecision,
+            });
+
+            return jsonNoReply(buildClearedSessionParams());
         }
 
         const pending = currentPending
