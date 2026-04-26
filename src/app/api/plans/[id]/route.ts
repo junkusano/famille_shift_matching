@@ -89,3 +89,63 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     return json({ ok: false, error: msg }, 500);
   }
 }
+
+export async function PUT(req: NextRequest, { params }: Ctx) {
+  try {
+    await getUserFromBearer(req);
+
+    const { id } = await params;
+    const body = await req.json();
+
+    const remarks = String(body.remarks ?? "").trim();
+    if (!remarks) {
+      return json({ ok: false, error: "備考欄は必須です" }, 400);
+    }
+
+    const patch = {
+      title: String(body.title ?? "").trim(),
+      issued_on: normalizeDateOrNull(body.issued_on),
+      plan_start_date: normalizeDateOrNull(body.plan_start_date),
+      plan_end_date: normalizeDateOrNull(body.plan_end_date),
+      author_name: nullableString(body.author_name),
+      person_family_hope: nullableString(body.person_family_hope),
+      assistance_goal: nullableString(body.assistance_goal),
+      remarks,
+      weekly_plan_comment: nullableString(body.weekly_plan_comment),
+      content: body.content && typeof body.content === "object" ? body.content : {},
+    };
+
+    if (!patch.title) {
+      return json({ ok: false, error: "タイトルは必須です" }, 400);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("plans")
+      .update(patch)
+      .eq("plan_id", id)
+      .eq("is_deleted", false)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    return json({ ok: true, data });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[api/plans/[id]][PUT] error", msg);
+    return json({ ok: false, error: msg }, 500);
+  }
+}
+
+function nullableString(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s ? s : null;
+}
+
+function normalizeDateOrNull(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (!s) return null;
+  return s;
+}

@@ -11,6 +11,7 @@ import type {
 } from "@/types/assessment";
 import { getDefaultAssessmentContent } from "@/lib/assessment/template";
 import { supabase } from "@/lib/supabaseClient";
+import PlanEditor, { type PlanDetailForEditor } from "@/components/assessment/PlanEditor";
 
 type Props = { initialAssessmentId: string | null };
 
@@ -46,45 +47,7 @@ type PlanSummary = {
     updated_at: string;
 };
 
-type PlanService = {
-    plan_service_id: string;
-    plan_id: string;
-    template_id: number | null;
-    shift_service_code_id: string | null;
-    service_code: string | null;
-    plan_document_kind: string;
-    plan_service_category: string | null;
-    display_order: number;
-    service_no: number;
-    weekday: number | null;
-    weekday_jp: string | null;
-    start_time: string | null;
-    end_time: string | null;
-    duration_minutes: number | null;
-    is_biweekly: boolean | null;
-    nth_weeks: number[] | null;
-    monthly_occurrence_factor: number | string | null;
-    monthly_minutes: number | null;
-    monthly_hours: number | string | null;
-    required_staff_count: number | null;
-    two_person_work_flg: boolean;
-    service_title: string | null;
-    service_detail: string | null;
-    procedure_notes: string | null;
-    observation_points: string | null;
-    family_action: string | null;
-    schedule_note: string | null;
-    source_snapshot: unknown;
-    generation_meta: unknown;
-    active: boolean;
-    created_at: string;
-    updated_at: string;
-};
-
-type PlanDetail = {
-    plan: PlanSummary;
-    services: PlanService[];
-};
+type PlanDetail = PlanDetailForEditor;
 
 async function getBearer() {
     const { data } = await supabase.auth.getSession();
@@ -772,89 +735,17 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                     )}
 
                                     {planDetail && (
-                                        <div className="border rounded p-3 bg-gray-50 space-y-3">
-                                            <div>
-                                                <div className="font-bold">{planDetail.plan.title}</div>
-                                                <div className="text-sm text-gray-600">
-                                                    {planDetail.plan.plan_document_kind} / {planDetail.plan.status}
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                                <div className="border rounded p-2 bg-white">
-                                                    <div className="font-semibold mb-1">本人・家族の希望</div>
-                                                    <div className="whitespace-pre-wrap">
-                                                        {planDetail.plan.person_family_hope || "未入力"}
-                                                    </div>
-                                                </div>
-
-                                                <div className="border rounded p-2 bg-white">
-                                                    <div className="font-semibold mb-1">援助目標</div>
-                                                    <div className="whitespace-pre-wrap">
-                                                        {planDetail.plan.assistance_goal || "未入力"}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <div className="font-semibold mb-2">サービス詳細</div>
-
-                                                {planDetail.services.length === 0 ? (
-                                                    <div className="text-sm text-gray-500">サービス明細がありません。</div>
-                                                ) : (
-                                                    <div className="overflow-x-auto">
-                                                        <table className="min-w-full border text-sm bg-white">
-                                                            <thead>
-                                                                <tr className="bg-gray-100">
-                                                                    <th className="border px-2 py-1 text-left">曜日</th>
-                                                                    <th className="border px-2 py-1 text-left">時間</th>
-                                                                    <th className="border px-2 py-1 text-left">カテゴリ</th>
-                                                                    <th className="border px-2 py-1 text-left">サービス</th>
-                                                                    <th className="border px-2 py-1 text-right">分</th>
-                                                                    <th className="border px-2 py-1 text-right">月時間</th>
-                                                                    <th className="border px-2 py-1 text-left">備考</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {planDetail.services.map((s) => (
-                                                                    <tr key={s.plan_service_id}>
-                                                                        <td className="border px-2 py-1">
-                                                                            {s.weekday_jp ?? ""}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1 whitespace-nowrap">
-                                                                            {(s.start_time ?? "").slice(0, 5)}
-                                                                            {s.start_time || s.end_time ? " - " : ""}
-                                                                            {(s.end_time ?? "").slice(0, 5)}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1">
-                                                                            {s.plan_service_category ?? ""}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1">
-                                                                            {s.service_title ?? s.service_code ?? ""}
-                                                                            {s.two_person_work_flg ? (
-                                                                                <span className="ml-2 text-xs text-red-600">
-                                                                                    2名
-                                                                                </span>
-                                                                            ) : null}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1 text-right">
-                                                                            {s.duration_minutes ?? ""}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1 text-right">
-                                                                            {s.monthly_hours ?? ""}
-                                                                        </td>
-                                                                        <td className="border px-2 py-1">
-                                                                            {s.schedule_note ?? ""}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                        <PlanEditor
+                                            detail={planDetail}
+                                            onReload={async (planId) => {
+                                                await fetchPlanDetail(planId);
+                                                if (detail?.assessment_id) {
+                                                    await fetchPlans(detail.assessment_id);
+                                                }
+                                            }}
+                                        />
                                     )}
+
                                 </div>
                             )}
 
