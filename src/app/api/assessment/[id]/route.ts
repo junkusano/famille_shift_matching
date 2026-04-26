@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 export async function PUT(req: NextRequest, { params }: Ctx) {
   try {
     const { user } = await getUserFromBearer(req);
+
     const { id } = await params;
 
     const body = await req.json();
@@ -44,21 +45,28 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     const author_name = String(body.author_name ?? "").trim();
     const content = body.content ?? {};
     const meeting_minutes =
-      typeof body.meeting_minutes === "string" ? body.meeting_minutes : null;
+      typeof body.meeting_minutes === "string" ? body.meeting_minutes : "";
 
-    const patch: Record<string, unknown> = {
+    const patch: {
+      content: unknown;
+      assessed_on?: string;
+      author_name?: string;
+      meeting_minutes: string;
+      meeting_minutes_updated_at: string;
+      meeting_minutes_updated_by: string | null;
+      meeting_minutes_meta: Record<string, unknown>;
+    } = {
       content,
+      meeting_minutes,
+      meeting_minutes_updated_at: new Date().toISOString(),
+      meeting_minutes_updated_by: user?.id ?? null,
+      meeting_minutes_meta: {
+        updated_from: "portal_assessment",
+      },
     };
 
     if (assessed_on) patch.assessed_on = assessed_on;
     if (author_name) patch.author_name = author_name;
-
-    patch.meeting_minutes = meeting_minutes;
-    patch.meeting_minutes_updated_at = new Date().toISOString();
-    patch.meeting_minutes_updated_by = user?.id ?? null;
-    patch.meeting_minutes_meta = {
-      updated_from: "portal_assessment",
-    };
 
     const { data, error } = await supabaseAdmin
       .from("assessments_records")

@@ -16,6 +16,76 @@ type Props = { initialAssessmentId: string | null };
 
 type ClientOption = { client_id: string; client_name: string };
 
+type PlanSummary = {
+    plan_id: string;
+    assessment_id: string;
+    client_info_id: string | null;
+    kaipoke_cs_id: string;
+    plan_document_kind: string;
+    title: string;
+    version_no: number;
+    status: string;
+    issued_on: string | null;
+    plan_start_date: string | null;
+    plan_end_date: string | null;
+    author_user_id: string | null;
+    author_name: string | null;
+    person_family_hope: string | null;
+    assistance_goal: string | null;
+    remarks: string | null;
+    weekly_plan_comment: string | null;
+    monthly_summary: unknown;
+    pdf_file_url: string | null;
+    pdf_generated_at: string | null;
+    digisign_status: string | null;
+    digisign_sent_at: string | null;
+    digisign_completed_at: string | null;
+    lineworks_sent_at: string | null;
+    is_deleted: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+type PlanService = {
+    plan_service_id: string;
+    plan_id: string;
+    template_id: number | null;
+    shift_service_code_id: string | null;
+    service_code: string | null;
+    plan_document_kind: string;
+    plan_service_category: string | null;
+    display_order: number;
+    service_no: number;
+    weekday: number | null;
+    weekday_jp: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    duration_minutes: number | null;
+    is_biweekly: boolean | null;
+    nth_weeks: number[] | null;
+    monthly_occurrence_factor: number | string | null;
+    monthly_minutes: number | null;
+    monthly_hours: number | string | null;
+    required_staff_count: number | null;
+    two_person_work_flg: boolean;
+    service_title: string | null;
+    service_detail: string | null;
+    procedure_notes: string | null;
+    observation_points: string | null;
+    family_action: string | null;
+    schedule_note: string | null;
+    source_snapshot: unknown;
+    generation_meta: unknown;
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+type PlanDetail = {
+    plan: PlanSummary;
+    services: PlanService[];
+};
+
 async function getBearer() {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -48,6 +118,12 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     const [generating, setGenerating] = useState(false);
 
     const [planGenerating, setPlanGenerating] = useState(false);
+
+    const [plans, setPlans] = useState<PlanSummary[]>([]);
+    const [plansLoading, setPlansLoading] = useState(false);
+    const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+    const [planDetail, setPlanDetail] = useState<PlanDetail | null>(null);
+    const [planDetailLoading, setPlanDetailLoading] = useState(false);
 
     const selectedFromList = useMemo(
         () => list.find((r) => r.assessment_id === selectedId) ?? null,
@@ -109,6 +185,17 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             if (j?.ok) setDetail(j.data);
         })();
     }, [selectedId]);
+
+    useEffect(() => {
+        if (!detail?.assessment_id) {
+            setPlans([]);
+            setSelectedPlanId(null);
+            setPlanDetail(null);
+            return;
+        }
+
+        fetchPlans(detail.assessment_id);
+    }, [detail?.assessment_id]);
 
     // URL→state同期
     useEffect(() => {
@@ -276,13 +363,13 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
     }
 
     async function generatePlans() {
-        if (!detail) return;
+        if (!detail?.assessment_id) return;
 
         setPlanGenerating(true);
         try {
             const bearer = await getBearer();
 
-            // 1) まず保存して、最新の内容をDBに反映
+            // 1) まず最新内容を保存
             const saveRes = await fetch(`/api/assessment/${detail.assessment_id}`, {
                 method: "PUT",
                 headers: {
@@ -304,7 +391,6 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 return;
             }
 
-            // 保存後の最新detailを反映
             setDetail(saveJson.data);
             setList((prev) =>
                 prev.map((r) => (r.assessment_id === saveJson.data.assessment_id ? saveJson.data : r))
@@ -312,7 +398,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
             const latestAssessmentId = saveJson.data.assessment_id as string;
 
-            // 2) 保存済み最新データを元にプラン生成
+            // 2) プラン生成
             const res = await fetch(`/api/plans/generate`, {
                 method: "POST",
                 headers: {
@@ -332,10 +418,15 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 return;
             }
 
+            // 3) 生成後に一覧を再取得して、画面に反映
+            await fetchPlans(latestAssessmentId);
+
             const msg = [
                 `プラン生成完了: ${j?.plans?.length ?? 0}件`,
                 ...(Array.isArray(j?.plans)
-                    ? j.plans.map((p: { title?: string }) => `- ${p.title ?? "無題"}`)
+                    ? j.plans.map((p: { title?: string; skipped?: boolean }) =>
+                        `- ${p.title ?? "無題"}${p.skipped ? "（既存あり）" : ""}`
+                    )
                     : []),
                 ...(Array.isArray(j?.warnings) && j.warnings.length
                     ? ["", "警告:", ...j.warnings.map((w: string) => `- ${w}`)]
@@ -347,7 +438,52 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             setPlanGenerating(false);
         }
     }
-    
+
+    async function fetchPlans(assessmentId: string) {
+        setPlansLoading(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans?assessment_id=${encodeURIComponent(assessmentId)}`, {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                console.log("fetchPlans error:", j);
+                setPlans([]);
+                return;
+            }
+
+            setPlans(j.data ?? []);
+        } finally {
+            setPlansLoading(false);
+        }
+    }
+
+    async function fetchPlanDetail(planId: string) {
+        setSelectedPlanId(planId);
+        setPlanDetailLoading(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans/${planId}`, {
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                window.alert(`プラン詳細の取得に失敗: ${j?.error ?? "unknown error"}`);
+                setPlanDetail(null);
+                return;
+            }
+
+            setPlanDetail(j.data);
+        } finally {
+            setPlanDetailLoading(false);
+        }
+    }
+
     function setCheck(sheetKey: string, rowKey: string, check: AssessmentCheck) {
         if (!detail) return;
         setDetail({
@@ -561,7 +697,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                             <div className="flex gap-2">
                                 <button
                                     className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
-                                    disabled={saving}
+                                    disabled={saving || planGenerating}
                                     onClick={save}
                                 >
                                     保存
@@ -569,16 +705,158 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
                                 <button
                                     className="border rounded px-3 py-1 bg-green-600 text-white disabled:opacity-40"
-                                    disabled={planGenerating}
+                                    disabled={planGenerating || saving || !detail}
                                     onClick={generatePlans}
                                 >
                                     {planGenerating ? "プラン生成中..." : "プラン生成"}
                                 </button>
 
-                                <button className="border rounded px-3 py-1" onClick={del}>
+                                <button
+                                    className="border rounded px-3 py-1"
+                                    disabled={saving || planGenerating}
+                                    onClick={del}
+                                >
                                     削除
                                 </button>
                             </div>
+
+                            {detail && (
+                                <div className="border rounded p-3 bg-white space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="font-bold">生成済みプラン</div>
+                                        <button
+                                            className="border rounded px-3 py-1 text-sm disabled:opacity-40"
+                                            disabled={plansLoading}
+                                            onClick={() => fetchPlans(detail.assessment_id)}
+                                        >
+                                            {plansLoading ? "更新中..." : "一覧更新"}
+                                        </button>
+                                    </div>
+
+                                    {plansLoading ? (
+                                        <div className="text-sm text-gray-500">プラン一覧を取得中...</div>
+                                    ) : plans.length === 0 ? (
+                                        <div className="text-sm text-gray-500">
+                                            まだプランは作成されていません。「プラン生成」を押すとここに表示されます。
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {plans.map((p) => (
+                                                <button
+                                                    key={p.plan_id}
+                                                    type="button"
+                                                    className={[
+                                                        "w-full text-left border rounded p-3 hover:bg-gray-50",
+                                                        selectedPlanId === p.plan_id ? "bg-green-50 border-green-400" : "",
+                                                    ].join(" ")}
+                                                    onClick={() => fetchPlanDetail(p.plan_id)}
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                            <div className="font-semibold">{p.title}</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {p.plan_document_kind} / status: {p.status} / version: {p.version_no}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {p.created_at ? new Date(p.created_at).toLocaleString("ja-JP") : ""}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {planDetailLoading && (
+                                        <div className="text-sm text-gray-500">プラン詳細を取得中...</div>
+                                    )}
+
+                                    {planDetail && (
+                                        <div className="border rounded p-3 bg-gray-50 space-y-3">
+                                            <div>
+                                                <div className="font-bold">{planDetail.plan.title}</div>
+                                                <div className="text-sm text-gray-600">
+                                                    {planDetail.plan.plan_document_kind} / {planDetail.plan.status}
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                                <div className="border rounded p-2 bg-white">
+                                                    <div className="font-semibold mb-1">本人・家族の希望</div>
+                                                    <div className="whitespace-pre-wrap">
+                                                        {planDetail.plan.person_family_hope || "未入力"}
+                                                    </div>
+                                                </div>
+
+                                                <div className="border rounded p-2 bg-white">
+                                                    <div className="font-semibold mb-1">援助目標</div>
+                                                    <div className="whitespace-pre-wrap">
+                                                        {planDetail.plan.assistance_goal || "未入力"}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <div className="font-semibold mb-2">サービス詳細</div>
+
+                                                {planDetail.services.length === 0 ? (
+                                                    <div className="text-sm text-gray-500">サービス明細がありません。</div>
+                                                ) : (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="min-w-full border text-sm bg-white">
+                                                            <thead>
+                                                                <tr className="bg-gray-100">
+                                                                    <th className="border px-2 py-1 text-left">曜日</th>
+                                                                    <th className="border px-2 py-1 text-left">時間</th>
+                                                                    <th className="border px-2 py-1 text-left">カテゴリ</th>
+                                                                    <th className="border px-2 py-1 text-left">サービス</th>
+                                                                    <th className="border px-2 py-1 text-right">分</th>
+                                                                    <th className="border px-2 py-1 text-right">月時間</th>
+                                                                    <th className="border px-2 py-1 text-left">備考</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {planDetail.services.map((s) => (
+                                                                    <tr key={s.plan_service_id}>
+                                                                        <td className="border px-2 py-1">
+                                                                            {s.weekday_jp ?? ""}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1 whitespace-nowrap">
+                                                                            {(s.start_time ?? "").slice(0, 5)}
+                                                                            {s.start_time || s.end_time ? " - " : ""}
+                                                                            {(s.end_time ?? "").slice(0, 5)}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1">
+                                                                            {s.plan_service_category ?? ""}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1">
+                                                                            {s.service_title ?? s.service_code ?? ""}
+                                                                            {s.two_person_work_flg ? (
+                                                                                <span className="ml-2 text-xs text-red-600">
+                                                                                    2名
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1 text-right">
+                                                                            {s.duration_minutes ?? ""}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1 text-right">
+                                                                            {s.monthly_hours ?? ""}
+                                                                        </td>
+                                                                        <td className="border px-2 py-1">
+                                                                            {s.schedule_note ?? ""}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="space-y-4">
                                 {detail.content?.sheets?.map((sheet) => (
