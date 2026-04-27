@@ -111,11 +111,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: {
+        width: 1200,
+        height: 1700,
+      },
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      headless: true,
     });
-
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
 
@@ -432,15 +434,15 @@ function buildPlanHtml(params: {
           <td>
             <div class="service-summary-grid">
               ${monthlySummary.length
-                ? monthlySummary
-                    .map(
-                      (m) =>
-                        `<div>${esc(m.checked)}${esc(m.category)} ${esc(
-                          m.monthlyHours,
-                        )}時間</div>`,
-                    )
-                    .join("")
-                : `<div>□身体　時間</div><div>□家事　時間</div><div>□通院(伴う)　時間</div>`}
+      ? monthlySummary
+        .map(
+          (m) =>
+            `<div>${esc(m.checked)}${esc(m.category)} ${esc(
+              m.monthlyHours,
+            )}時間</div>`,
+        )
+        .join("")
+      : `<div>□身体　時間</div><div>□家事　時間</div><div>□通院(伴う)　時間</div>`}
             </div>
           </td>
         </tr>
@@ -491,13 +493,13 @@ function buildPlanHtml(params: {
           <th style="width: 12%;">種類等</th>
           <td>
             ${monthlySummary
-              .map(
-                (m) =>
-                  `<span style="margin-right: 18px;">${esc(m.checked)}${esc(
-                    m.category,
-                  )}（${esc(m.monthlyHours)}時間）</span>`,
-              )
-              .join("")}
+      .map(
+        (m) =>
+          `<span style="margin-right: 18px;">${esc(m.checked)}${esc(
+            m.category,
+          )}（${esc(m.monthlyHours)}時間）</span>`,
+      )
+      .join("")}
           </td>
         </tr>
       </tbody>
@@ -514,11 +516,10 @@ function buildPlanHtml(params: {
         </tr>
       </thead>
       <tbody>
-        ${
-          services.length
-            ? services.map((s, idx) => buildServiceDetailRow(s, idx)).join("")
-            : `<tr><th>サービス1</th><td></td><td></td><td></td><td></td></tr>`
-        }
+        ${services.length
+      ? services.map((s, idx) => buildServiceDetailRow(s, idx)).join("")
+      : `<tr><th>サービス1</th><td></td><td></td><td></td><td></td></tr>`
+    }
         ${buildEmptyRows(Math.max(0, 7 - services.length))}
       </tbody>
     </table>
@@ -599,7 +600,7 @@ function buildServiceDetailRow(s: ServiceRow, idx: number) {
 function buildEmptyRows(count: number) {
   return Array.from({ length: count })
     .map(
-      (_, idx) =>
+      () =>
         `<tr><th>&nbsp;</th><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`,
     )
     .join("");
