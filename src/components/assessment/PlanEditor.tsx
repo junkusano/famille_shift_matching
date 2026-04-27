@@ -122,10 +122,6 @@ export default function PlanEditor({ detail, onReload }: Props) {
     }, [detail.plan.monthly_summary]);
 
     async function savePlan() {
-        if (!planDraft.remarks.trim()) {
-            window.alert("備考欄は必須です。");
-            return;
-        }
 
         setSavingPlan(true);
         try {
@@ -313,7 +309,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
                         className="border rounded px-2 py-1 w-full min-h-[70px]"
                         value={planDraft.remarks}
                         onChange={(e) => setPlanDraft({ ...planDraft, remarks: e.target.value })}
-                        placeholder="備考は必須です"
+                        placeholder="必要に応じて備考を入力(2名介助の場合にはその旨記載が必要です）"
                     />
                 </Field>
             </div>
