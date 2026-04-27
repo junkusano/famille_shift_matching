@@ -652,23 +652,7 @@ const saveTemplate = async () => {
     setOpenRpa(true);
   };
 
-  // 勤務時間チェック（1時間未満はNG）
-  const start = toNullableTime(shiftStartTime);
-  const end = toNullableTime(shiftEndTime);
-
-  if (start && end) {
-    const toMinutes = (t: string) => {
-      const [h, m] = t.split(":").map(Number);
-      return h * 60 + m;
-    };
-
-   const diff = toMinutes(end) - toMinutes(start);
-   
-   if (diff < 60) {
-    alert("勤務時間は1時間以上で入力してください");
-    return;
-    }
-  }
+ 
 
   const sendRpaRequest = async () => {
     if (!rpaTarget) return;
@@ -700,6 +684,61 @@ const saveTemplate = async () => {
       if (userError || !userData?.manager_auth_user_id) {
         throw new Error("承認者（マネージャー）情報取得に失敗しました");
       }
+
+     // 勤務時間・休憩時間・金額チェック
+      const start = toNullableTime(shiftStartTime);
+      const end = toNullableTime(shiftEndTime);
+      const breakStart = breakStartTime.trim() ? toNullableTime(breakStartTime) : null;
+      const breakEnd = breakEndTime.trim() ? toNullableTime(breakEndTime) : null;
+
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      };
+
+      if (start && end) {
+        let workMinutes = toMinutes(end) - toMinutes(start);
+
+       // 日跨ぎ対応
+        if (workMinutes < 0) {
+           workMinutes += 24 * 60;
+          }
+        
+        let breakMinutes = 0;
+        
+        if (breakStart && breakEnd) {
+          breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+
+          // 日跨ぎ対応
+          if (breakMinutes < 0) {
+             breakMinutes += 24 * 60;
+          }
+        }
+
+        if (workMinutes < 60) {
+          alert("勤務時間は1時間以上で入力してください");
+          return;
+        }
+
+       if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+         alert("勤務時間が8時間以上の場合、1時間以上の休憩が必要です");
+         return;
+        }
+
+       if (workMinutes >= 6 * 60 && breakMinutes < 45) {
+        alert("勤務時間が6時間以上の場合、45分以上の休憩が必要です");
+        return;
+       }
+
+       const hourlyWage = toNullableNumber(fUnitAmount);
+       const workHours = (workMinutes - breakMinutes) / 60;
+       const totalAmount = hourlyWage ? hourlyWage * workHours : 0;
+
+       if (totalAmount > 9800) {
+        alert("時給×勤務時間が9,800円を超えています。勤務時間または時給を確認してください");
+        return;
+      }
+    }
 
       const details = {
         core_id: rpaTarget.core_id,
@@ -745,14 +784,16 @@ const saveTemplate = async () => {
   if (!canAccess) {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>;
   }
-
+  
   const sortedRows = [...rows].sort((a, b) => {
     const aActive = a.status === "active" ? 0 : 1;
     const bActive = b.status === "active" ? 0 : 1;
 
-    if (aActive !== bActive) return aActive - bActive;
+    if (aActive !== bActive) {
+      return aActive - bActive;
+    }
 
-    return (a.template_title ?? "").localeCompare(b.template_title ?? "", "ja");
+    return (a.client_name ?? "").localeCompare(b.client_name ?? "", "ja");
   });
 
   return (
@@ -1239,6 +1280,9 @@ const saveTemplate = async () => {
                   onChange={(e) => setShiftStartTime(e.target.value)}
                   placeholder="0930 / 09:30（空欄OK）"
                 />
+                <div className="mt-1 text-xs text-red-600">
+                勤務時間は1時間以上にしてください
+                </div>
               </div>
 
               <div>
