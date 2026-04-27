@@ -105,7 +105,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
     const [serviceDrafts, setServiceDrafts] = useState<PlanServiceForEditor[]>(detail.services);
     const [savingPlan, setSavingPlan] = useState(false);
     const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
-    const [pdfGenerating, setPdfGenerating] = useState(false);
+    //const [pdfGenerating, setPdfGenerating] = useState(false);
 
     useEffect(() => {
         setPlanDraft(toPlanDraft(detail.plan));
@@ -160,29 +160,6 @@ export default function PlanEditor({ detail, onReload }: Props) {
             window.alert("プランを保存しました。");
         } finally {
             setSavingPlan(false);
-        }
-    }
-
-    async function generatePdf() {
-        setPdfGenerating(true);
-        try {
-            const bearer = await getBearer();
-            const res = await fetch(`/api/plans/${detail.plan.plan_id}/pdf`, {
-                method: "POST",
-                headers: bearer ? { Authorization: bearer } : {},
-            });
-
-            const j = await res.json();
-
-            if (!j?.ok) {
-                window.alert(`PDF生成に失敗: ${j?.error ?? "unknown error"}`);
-                return;
-            }
-
-            window.open(j.pdf_file_url, "_blank");
-            await onReload(detail.plan.plan_id);
-        } finally {
-            setPdfGenerating(false);
         }
     }
 
@@ -252,13 +229,13 @@ export default function PlanEditor({ detail, onReload }: Props) {
                         >
                             {savingPlan ? "保存中..." : "計画書ヘッダ保存"}
                         </button>
-
                         <button
-                            className="border rounded px-3 py-1 bg-purple-700 text-white disabled:opacity-40"
-                            disabled={pdfGenerating || savingPlan}
-                            onClick={generatePdf}
+                            className="border rounded px-3 py-1 bg-green-700 text-white"
+                            onClick={() => {
+                                window.open(`/portal/plans/${detail.plan.plan_id}/print`, "_blank");
+                            }}
                         >
-                            {pdfGenerating ? "PDF生成中..." : "PDF生成"}
+                            印刷用View
                         </button>
                     </div>
 
