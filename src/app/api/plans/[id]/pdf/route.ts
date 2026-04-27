@@ -4,12 +4,20 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import { google } from "googleapis";
+import { Readable } from "stream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const OFFICE_NAME = "ファミーユヘルパーサービス愛知";
-const DEFAULT_BUCKET = process.env.PLAN_PDF_BUCKET || "plan-pdfs";
+const DEFAULT_DRIVE_FOLDER_ID = "1N1EIT1escqpNREOfwc70YgBC8JVu78j2";
+const PLAN_PDF_DRIVE_FOLDER_ID =
+  process.env.PLAN_PDF_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+
+function bufferToStream(buffer: Buffer) {
+  return Readable.from(buffer);
+}
 
 type Ctx = {
   params: Promise<{ id: string }>;
@@ -136,29 +144,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     browser = null;
 
     const fileName = buildPdfFileName(plan as PlanRow);
-    const storagePath = `${plan.kaipoke_cs_id}/${plan.plan_id}/${fileName}`;
 
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(DEFAULT_BUCKET)
-      .upload(storagePath, pdfBuffer, {
-        contentType: "application/pdf",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      throw new Error(`PDF upload failed: ${uploadError.message}`);
-    }
-
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from(DEFAULT_BUCKET)
-      .getPublicUrl(storagePath);
-
-    const pdfUrl = publicUrlData.publicUrl;
+    const uploaded = await uploadPdfBufferToGoogleDrive({
+      buffer: Buffer.from(pdfBuffer),
+      filename: fileName,
+    });
 
     const { error: updateError } = await supabaseAdmin
       .from("plans")
       .update({
-        pdf_file_url: pdfUrl,
+        pdf_file_url: uploaded.url,
         pdf_generated_at: new Date().toISOString(),
         status: "pdf_generated",
       })
@@ -169,8 +164,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return json({
       ok: true,
       plan_id: plan.plan_id,
-      pdf_file_url: pdfUrl,
-      storage_path: storagePath,
+      pdf_file_url: uploaded.url,
+      drive_file_id: uploaded.fileId,
+      filename: fileName,
     });
   } catch (e: unknown) {
     if (browser) {
@@ -181,6 +177,65 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     console.error("[api/plans/[id]/pdf][POST] error", msg);
     return json({ ok: false, error: msg }, 500);
   }
+}
+
+async function uploadPdfBufferToGoogleDrive(params: {
+  buffer: Buffer;
+  filename: string;
+}): Promise<{
+  fileId: string;
+  url: string;
+  mimeType: string | null;
+}> {
+  const serviceAccountRaw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+
+  if (!serviceAccountRaw) {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(serviceAccountRaw),
+    scopes: ["https://www.googleapis.com/auth/drive"],
+  });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  const uploadRes = await drive.files.create({
+    requestBody: {
+      name: params.filename,
+      parents: [PLAN_PDF_DRIVE_FOLDER_ID],
+    },
+    media: {
+      mimeType: "application/pdf",
+      body: bufferToStream(params.buffer),
+    },
+    supportsAllDrives: true,
+    fields: "id,name,mimeType",
+  });
+
+  const fileId = uploadRes.data.id;
+
+  if (!fileId) {
+    throw new Error("Google Drive upload failed: fileId missing");
+  }
+
+  await drive.permissions.create({
+    fileId,
+    requestBody: {
+      role: "reader",
+      type: "anyone",
+      allowFileDiscovery: false,
+    },
+    supportsAllDrives: true,
+  });
+
+  const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
+
+  return {
+    fileId,
+    url,
+    mimeType: uploadRes.data.mimeType ?? "application/pdf",
+  };
 }
 
 function buildPlanHtml(params: {
