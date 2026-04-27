@@ -6,8 +6,9 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { google } from "googleapis";
 import { Readable } from "stream";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import { createRequire } from "module";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -816,21 +817,13 @@ function esc(v: unknown) {
 }
 
 function buildJapaneseFontCss() {
-  const regular = readFontBase64([
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2",
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-all-400-normal.woff2",
-  ]);
-
-  const bold = readFontBase64([
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-700-normal.woff2",
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-all-700-normal.woff2",
-    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2",
-  ]);
+  const regular = readFontDataUrlByWeight("400");
+  const bold = readFontDataUrlByWeight("700") ?? regular;
 
   return `
     @font-face {
       font-family: "NotoSansJPEmbedded";
-      src: url("data:font/woff2;base64,${regular}") format("woff2");
+      src: url("${regular.dataUrl}") format("${regular.format}");
       font-weight: 400;
       font-style: normal;
       font-display: swap;
@@ -838,7 +831,7 @@ function buildJapaneseFontCss() {
 
     @font-face {
       font-family: "NotoSansJPEmbedded";
-      src: url("data:font/woff2;base64,${bold}") format("woff2");
+      src: url("${bold.dataUrl}") format("${bold.format}");
       font-weight: 700;
       font-style: normal;
       font-display: swap;
@@ -846,19 +839,79 @@ function buildJapaneseFontCss() {
   `;
 }
 
-function readFontBase64(candidates: string[]) {
-  const errors: string[] = [];
+function readFontDataUrlByWeight(weight: "400" | "700"): {
+  dataUrl: string;
+  format: string;
+} | null {
+  let filesDir = "";
 
-  for (const candidate of candidates) {
-    try {
-      const fontPath = nodeRequire.resolve(candidate);
-      return readFileSync(fontPath).toString("base64");
-    } catch (e) {
-      errors.push(`${candidate}: ${e instanceof Error ? e.message : String(e)}`);
-    }
+  try {
+    const pkgJsonPath = nodeRequire.resolve("@fontsource/noto-sans-jp/package.json");
+    const pkgDir = path.dirname(pkgJsonPath);
+    filesDir = path.join(pkgDir, "files");
+  } catch (e) {
+    throw new Error(
+      `@fontsource/noto-sans-jp が見つかりません。npm install @fontsource/noto-sans-jp を実行してください。 ${e instanceof Error ? e.message : String(e)
+      }`,
+    );
   }
 
-  throw new Error(
-    `日本語フォントを読み込めませんでした。@fontsource/noto-sans-jp が入っているか確認してください。\n${errors.join("\n")}`,
-  );
+  const files = readdirSync(filesDir);
+
+  const candidates = files
+    .filter((file) => file.includes(`-${weight}-normal`))
+    .filter((file) => /\.(woff2|woff|ttf)$/i.test(file))
+    .sort((a, b) => {
+      // 日本語 subset を最優先
+      const aj = a.includes("japanese") ? 0 : 1;
+      const bj = b.includes("japanese") ? 0 : 1;
+      if (aj !== bj) return aj - bj;
+
+      // all があれば次に優先
+      const aa = a.includes("all") ? 0 : 1;
+      const ba = b.includes("all") ? 0 : 1;
+      if (aa !== ba) return aa - ba;
+
+      // woff2 優先
+      const aw2 = a.endsWith(".woff2") ? 0 : 1;
+      const bw2 = b.endsWith(".woff2") ? 0 : 1;
+      return aw2 - bw2;
+    });
+
+  const fileName = candidates[0];
+
+  // 700 がなければ 400 にフォールバック
+  if (!fileName && weight === "700") {
+    return readFontDataUrlByWeight("400");
+  }
+
+  if (!fileName) {
+    throw new Error(
+      `@fontsource/noto-sans-jp の files 内に ${weight} normal のフォントが見つかりません。files: ${files.join(", ")}`,
+    );
+  }
+
+  const fontPath = path.join(filesDir, fileName);
+  const ext = path.extname(fileName).toLowerCase();
+
+  const mime =
+    ext === ".woff2"
+      ? "font/woff2"
+      : ext === ".woff"
+        ? "font/woff"
+        : "font/ttf";
+
+  const format =
+    ext === ".woff2"
+      ? "woff2"
+      : ext === ".woff"
+        ? "woff"
+        : "truetype";
+
+  const base64 = readFileSync(fontPath).toString("base64");
+
+  return {
+    dataUrl: `data:${mime};base64,${base64}`,
+    format,
+  };
 }
