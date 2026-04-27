@@ -73,25 +73,6 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
 
-async function loadJapaneseFonts() {
-  const chromiumWithFont = chromium as typeof chromium & {
-    font?: (url: string) => Promise<string>;
-  };
-
-  if (!chromiumWithFont.font) {
-    console.warn("[plans/pdf] chromium.font is not available. Japanese font may not render.");
-    return;
-  }
-
-  await chromiumWithFont.font(
-    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
-  );
-
-  await chromiumWithFont.font(
-    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
-  );
-}
-
 export async function POST(req: NextRequest, { params }: Ctx) {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
 
@@ -130,14 +111,13 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       .eq("id", plan.client_info_id)
       .maybeSingle();
 
-    const html = buildPlanHtml({
+    const html = await buildPlanHtml({
       plan: plan as PlanRow,
       services: groupServicesForPdf((services ?? []) as ServiceRow[]),
       rawServices: (services ?? []) as ServiceRow[],
       client: client as ClientLike,
     });
 
-    await loadJapaneseFonts();
 
     browser = await puppeteer.launch({
       args: chromium.args,
@@ -260,14 +240,14 @@ async function uploadPdfBufferToGoogleDrive(params: {
   };
 }
 
-function buildPlanHtml(params: {
+async function buildPlanHtml(params: {
   plan: PlanRow;
   services: ServiceRow[];
   rawServices: ServiceRow[];
   client: ClientLike;
 }) {
   const { plan, services, rawServices, client } = params;
-
+  const fontCss = await buildJapaneseFontCss();
   const monthlySummary = normalizeMonthlySummary(plan.monthly_summary);
   const title =
     plan.plan_document_kind === "移動支援サービス"
@@ -298,13 +278,14 @@ function buildPlanHtml(params: {
 <head>
 <meta charset="utf-8" />
 <style>
+${fontCss}
   * {
     box-sizing: border-box;
   }
 
 body {
   margin: 0;
-  font-family: "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+  font-family: "NotoCJKJPEmbedded", sans-serif;
   color: #111;
   font-size: 10.5px;
   line-height: 1.45;
@@ -351,6 +332,10 @@ body {
     text-align: center;
     font-weight: 700;
     white-space: nowrap;
+  }
+
+  span {
+  font-family: "NotoCJKJPEmbedded", sans-serif;
   }
 
   .no-border {
@@ -833,3 +818,42 @@ function esc(v: unknown) {
     .replaceAll("'", "&#039;");
 }
 
+async function buildJapaneseFontCss() {
+  const regular = await fetchFontAsDataUrl(
+    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
+  );
+
+  // Bold が取れない場合も regular で代用する
+  const bold = await fetchFontAsDataUrl(
+    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
+  ).catch(() => regular);
+
+  return `
+    @font-face {
+      font-family: "NotoCJKJPEmbedded";
+      src: url("${regular}") format("opentype");
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: "NotoCJKJPEmbedded";
+      src: url("${bold}") format("opentype");
+      font-weight: 700;
+      font-style: normal;
+    }
+  `;
+}
+
+async function fetchFontAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error(`日本語フォント取得失敗: ${res.status} ${res.statusText}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+  return `data:font/otf;base64,${base64}`;
+}
