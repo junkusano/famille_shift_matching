@@ -142,36 +142,84 @@ export default function PlanPrintView({ planId }: { planId: string }) {
     return (
         <div className="bg-gray-100 print:bg-white min-h-screen">
             <style jsx global>{`
-        @page {
-          size: A4;
-          margin: 10mm 9mm;
-        }
+  @page {
+    size: A4 portrait;
+    margin: 8mm 8mm;
+  }
 
-        @media print {
-          .no-print {
-            display: none !important;
-          }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans JP", sans-serif;
+    color: #111;
+    background: #f3f4f6;
+  }
 
-          body {
-            background: white !important;
-          }
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    box-sizing: border-box;
+  }
 
-          .print-page {
-            box-shadow: none !important;
-            margin: 0 !important;
-            page-break-after: always;
-          }
+  th,
+  td {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 
-          .print-page:last-child {
-            page-break-after: auto;
-          }
-        }
+  @media print {
+    html,
+    body {
+      width: auto !important;
+      height: auto !important;
+      background: white !important;
+      color: #111 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
 
-        body {
-          font-family: "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans JP",
-            sans-serif;
-        }
-      `}</style>
+    .no-print {
+      display: none !important;
+    }
+
+    main {
+      padding: 0 !important;
+      margin: 0 !important;
+      background: white !important;
+    }
+
+    .print-page {
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      min-height: 0 !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-shadow: none !important;
+      background: white !important;
+      break-after: page;
+      page-break-after: always;
+      overflow: visible !important;
+    }
+
+    .print-page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    table {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .print-signature-spacer {
+      margin-top: 8mm !important;
+    }
+  }
+`}</style>
 
             <div className="no-print sticky top-0 z-10 bg-white border-b p-3 flex gap-2 items-center">
                 <button
@@ -191,13 +239,12 @@ export default function PlanPrintView({ planId }: { planId: string }) {
             </div>
 
             <main className="p-4 print:p-0">
-                <section className="print-page bg-white mx-auto mb-6 shadow p-4 w-[210mm] min-h-[297mm] text-[10.5px] leading-relaxed">
-                    <div className="grid grid-cols-2 mb-1 text-[11px]">
-                        <div>作成日　{formatDate(plan.plan_start_date)}</div>
-                        <div className="text-right">
-                            作成者　{getAuthorDisplayName(author, plan.author_name)}
-                        </div>
+                <section className="print-page mx-auto mb-6 shadow p-4 text-[10.5px] leading-relaxed flex flex-col">    <div className="grid grid-cols-2 mb-1 text-[11px]">
+                    <div>作成日　{formatDate(plan.plan_start_date)}</div>
+                    <div className="text-right">
+                        作成者　{getAuthorDisplayName(author, plan.author_name)}
                     </div>
+                </div>
 
                     <h1 className="text-center font-bold text-xl tracking-widest mb-2">
                         {title}
@@ -340,7 +387,7 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                         </tbody>
                     </table>
 
-                    <div className="mt-2 flex-1 flex flex-col justify-end">
+                    <div className="print-signature-spacer mt-2 flex-1 flex flex-col justify-end">
                         <div className="grid grid-cols-[90px_150px_110px_1fr] border border-black min-h-[86px]">
                             <div className="border-r border-black p-2 text-center font-bold flex items-center justify-center">
                                 交付日
@@ -364,9 +411,10 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                     </div>
                 </section>
 
-                <section className="print-page bg-white mx-auto mb-6 shadow p-4 w-[210mm] min-h-[297mm] text-[10.5px] leading-relaxed flex flex-col">    <div className="font-bold text-base mb-2">
-                    【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
-                </div>
+                <section className="print-page mx-auto mb-6 shadow p-4 text-[10.5px] leading-relaxed flex flex-col">
+                    <div className="font-bold text-base mb-2">
+                        【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
+                    </div>
 
                     <table className="w-full border-collapse border border-black mb-2">
                         <tbody>
@@ -420,11 +468,11 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                             ))}
 
                             {Array.from({
-                                length: Math.max(0, 7 - groupedServices.length),
+                                length: Math.max(0, 5 - groupedServices.length),
                             }).map((_, idx) => (
                                 <tr key={`empty-${idx}`}>
                                     <Th>&nbsp;</Th>
-                                    <Td className="h-[44px]">&nbsp;</Td>
+                                    <Td className="h-[36px]">&nbsp;</Td>
                                     <Td>&nbsp;</Td>
                                     <Td>&nbsp;</Td>
                                     <Td>&nbsp;</Td>
