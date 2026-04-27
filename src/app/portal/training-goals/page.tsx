@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { useUserRole } from '@/context/RoleContext';
@@ -61,6 +62,7 @@ type JoinedRow = {
 
 type EmployeeRow = {
     entry_id: string;
+    user_id: string | null;
     auth_user_id: string | null;
     auth_uid: string | null;
     system_role: string | null;
@@ -74,8 +76,13 @@ type EmployeeRow = {
 
 export default function TrainingGoalsPage() {
     const role = useUserRole();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
     const [debugRole, setDebugRole] = useState<'admin' | 'member' | ''>('');
     const effectiveRole = debugRole || role;
+
+    const queryUserId = searchParams.get('user_id') ?? '';
 
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -108,9 +115,10 @@ export default function TrainingGoalsPage() {
             const { data: employeeData, error: employeeError } = await supabase
                 .from('user_entry_united_view_single')
                 .select(`
-                entry_id,
-                auth_user_id,
-                auth_uid,
+    entry_id,
+    user_id,
+    auth_user_id,
+    auth_uid,
                 system_role,
                 status,
                 orgunitname,
@@ -135,9 +143,23 @@ export default function TrainingGoalsPage() {
 
             let targetEntryId = selectedEntryId;
 
-            if (effectiveRole === 'member') {
+            const queryEmployee = queryUserId
+                ? employeeRows.find((e) => e.user_id === queryUserId)
+                : null;
+
+            // ① URLクエリー最優先
+            if (queryEmployee) {
+                targetEntryId = queryEmployee.entry_id;
+
+                if (targetEntryId !== selectedEntryId) {
+                    setSelectedEntryId(targetEntryId);
+                }
+
+                // ② 確認用 member 表示
+            } else if (effectiveRole === 'member') {
                 if (debugRole === 'member') {
                     targetEntryId = debugMemberEntryId || employeeRows[0]?.entry_id || '';
+
                     if (targetEntryId && targetEntryId !== debugMemberEntryId) {
                         setDebugMemberEntryId(targetEntryId);
                     }
@@ -145,8 +167,11 @@ export default function TrainingGoalsPage() {
                     const me = employeeRows.find((e) => e.auth_uid === authUid);
                     targetEntryId = me?.entry_id ?? '';
                 }
+
+                // ③ admin / manager 表示
             } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
                 targetEntryId = employeeRows[0]?.entry_id ?? '';
+
                 if (targetEntryId) {
                     setSelectedEntryId(targetEntryId);
                 }
@@ -225,14 +250,18 @@ export default function TrainingGoalsPage() {
                 ((selectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [row.goal_key, row])
             );
 
+            const targetSystemRole = entry?.system_role ?? '';
+            const targetCatalogRole =
+                targetSystemRole === 'admin' || targetSystemRole === 'manager'
+                    ? 'manager'
+                    : 'member';
+
             const roleFiltered = ((catalogData ?? []) as TrainingGoalCatalogRow[]).filter((row) => {
-                if (effectiveRole === 'member') {
+                if (targetCatalogRole === 'member') {
                     return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
                 }
-                if (effectiveRole === 'manager' || effectiveRole === 'admin') {
-                    return row.target_role === 'manager' || row.target_role === 'both' || row.target_role === null;
-                }
-                return true;
+
+                return row.target_role === 'manager' || row.target_role === 'both' || row.target_role === null;
             });
 
             const joined: JoinedRow[] = roleFiltered.map((catalog) => {
@@ -269,7 +298,7 @@ export default function TrainingGoalsPage() {
         }
 
         void load();
-    }, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId]);
+    }, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId, queryUserId]);
 
     const filteredRows = useMemo(() => {
         const q = searchText.trim();
@@ -369,10 +398,7 @@ export default function TrainingGoalsPage() {
     };
 
     const submitRemark = async () => {
-        const entryId =
-            effectiveRole === 'member'
-                ? rows[0]?.entry_id || debugMemberEntryId
-                : selectedEntryId;
+        const entryId = rows[0]?.entry_id || selectedEntryId;
 
         const remark = remarkText.trim();
 
@@ -445,7 +471,16 @@ export default function TrainingGoalsPage() {
                                 <select
                                     className="border rounded px-3 py-2 min-w-[280px]"
                                     value={debugMemberEntryId}
-                                    onChange={(e) => setDebugMemberEntryId(e.target.value)}
+                                    onChange={(e) => {
+                                        const entryId = e.target.value;
+                                        setDebugMemberEntryId(entryId);
+
+                                        const emp = employees.find((x) => x.entry_id === entryId);
+
+                                        if (emp?.user_id) {
+                                            router.push(`?user_id=${encodeURIComponent(emp.user_id)}`);
+                                        }
+                                    }}
                                 >
                                     {employees.map((emp) => (
                                         <option key={emp.entry_id} value={emp.entry_id}>
@@ -474,7 +509,16 @@ export default function TrainingGoalsPage() {
                         <select
                             className="border rounded px-3 py-2 w-full md:max-w-md"
                             value={selectedEntryId}
-                            onChange={(e) => setSelectedEntryId(e.target.value)}
+                            onChange={(e) => {
+                                const entryId = e.target.value;
+                                setSelectedEntryId(entryId);
+
+                                const emp = employees.find((x) => x.entry_id === entryId);
+
+                                if (emp?.user_id) {
+                                    router.push(`?user_id=${encodeURIComponent(emp.user_id)}`);
+                                }
+                            }}
                         >
                             {employees.map((emp) => (
                                 <option key={emp.entry_id} value={emp.entry_id}>
@@ -633,8 +677,43 @@ export default function TrainingGoalsPage() {
                 </div>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse border border-gray-300">
-                        ...
+                    <table className="min-w-full border-collapse border border-gray-300 bg-white text-sm">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <th className="border px-3 py-2 text-left">職員名</th>
+                                <th className="border px-3 py-2 text-left">所属</th>
+                                <th className="border px-3 py-2 text-left">目標</th>
+                                <th className="border px-3 py-2 text-center">選択</th>
+                                <th className="border px-3 py-2 text-center">受講完了</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredRows.map((row) => (
+                                <tr key={`${row.entry_id}-${row.goal_key}`}>
+                                    <td className="border px-3 py-2">
+                                        {(row.entry?.last_name_kanji ?? '')}
+                                        {(row.entry?.first_name_kanji ?? '')}
+                                    </td>
+                                    <td className="border px-3 py-2">
+                                        {row.entry?.orgunitname ?? ''}
+                                    </td>
+                                    <td className="border px-3 py-2">
+                                        <div className="font-medium">{row.goal_title}</div>
+                                        {row.training_goal && (
+                                            <div className="mt-1 text-xs text-gray-600">
+                                                {row.training_goal}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="border px-3 py-2 text-center">
+                                        {row.selected ? '○' : ''}
+                                    </td>
+                                    <td className="border px-3 py-2 text-center">
+                                        {row.watched ? '○' : ''}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
                     </table>
                 </div>
             )}
