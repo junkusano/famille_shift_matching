@@ -83,6 +83,8 @@ export default function TrainingGoalsPage() {
     const effectiveRole = debugRole || role;
 
     const queryUserId = searchParams.get('user_id') ?? '';
+    const ALL_ENTRY_ID = '__all__';
+    const isAllEmployeesView = ['admin', 'manager'].includes(effectiveRole) && queryUserId === 'all';
 
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -143,9 +145,18 @@ export default function TrainingGoalsPage() {
 
             let targetEntryId = selectedEntryId;
 
-            const queryEmployee = queryUserId
-                ? employeeRows.find((e) => e.user_id === queryUserId)
-                : null;
+            if (isAllEmployeesView) {
+                targetEntryId = ALL_ENTRY_ID;
+
+                if (selectedEntryId !== ALL_ENTRY_ID) {
+                    setSelectedEntryId(ALL_ENTRY_ID);
+                }
+            }
+
+            const queryEmployee =
+                queryUserId && queryUserId !== 'all'
+                    ? employeeRows.find((e) => e.user_id === queryUserId)
+                    : null;
 
             // ① URLクエリー最優先
             if (queryEmployee) {
@@ -206,6 +217,82 @@ export default function TrainingGoalsPage() {
             if (catalogError) {
                 console.error('training_goal_catalog load error:', catalogError);
                 setRows([]);
+                setLoading(false);
+                return;
+            }
+
+            if (isAllEmployeesView) {
+                const memberCatalogRows = ((catalogData ?? []) as TrainingGoalCatalogRow[]).filter((row) => {
+                    return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
+                });
+
+                const { data: allSelectionData, error: allSelectionError } = await supabase
+                    .from('employee_training_goals')
+                    .select(`
+            id,
+            entry_id,
+            goal_key,
+            goal_title,
+            video_url,
+            selected,
+            watched,
+            remark,
+            sort_order,
+            created_at,
+            updated_at,
+            category,
+            group_code,
+            target_condition,
+            training_goal,
+            row_type
+        `)
+                    .in(
+                        'entry_id',
+                        employeeRows.map((e) => e.entry_id)
+                    )
+                    .eq('row_type', 'goal');
+
+                if (allSelectionError) {
+                    console.error('all employee_training_goals load error:', allSelectionError);
+                    setRows([]);
+                    setLoading(false);
+                    return;
+                }
+
+                const selectionMap = new Map(
+                    ((allSelectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [
+                        `${row.entry_id}-${row.goal_key}`,
+                        row,
+                    ])
+                );
+
+                const allJoined: JoinedRow[] = employeeRows.flatMap((emp) => {
+                    return memberCatalogRows.map((catalog) => {
+                        const selected = selectionMap.get(`${emp.entry_id}-${catalog.training_key}`);
+
+                        return {
+                            id: selected?.id ?? `virtual-${emp.entry_id}-${catalog.training_key}`,
+                            entry_id: emp.entry_id,
+                            goal_key: catalog.training_key,
+                            goal_title: catalog.training_title,
+                            video_url: catalog.video_url,
+                            selected: selected?.selected ?? false,
+                            watched: selected?.watched ?? false,
+                            remark: selected?.remark ?? '',
+                            sort_order: catalog.sort_order,
+                            created_at: selected?.created_at ?? '',
+                            updated_at: selected?.updated_at ?? '',
+                            category: catalog.training_type,
+                            group_code: catalog.training_code,
+                            target_condition: catalog.target_group,
+                            training_goal: catalog.training_goal,
+                            row_type: 'goal',
+                            entry: emp,
+                        };
+                    });
+                });
+
+                setRows(allJoined);
                 setLoading(false);
                 return;
             }
@@ -304,7 +391,14 @@ export default function TrainingGoalsPage() {
         const q = searchText.trim();
 
         return rows.filter((row) => {
-            if (showOnlySelected && !row.selected) return false;
+            if (isAllEmployeesView) {
+                // すべて表示では未設定も見せたいので、ここでは絞らない
+            } else if (['admin', 'manager'].includes(effectiveRole)) {
+                // admin個別表示は、選択されたものだけ表示
+                if (!row.selected) return false;
+            } else if (showOnlySelected && !row.selected) {
+                return false;
+            }
 
             if (!q) return true;
 
@@ -475,6 +569,11 @@ export default function TrainingGoalsPage() {
                                         const entryId = e.target.value;
                                         setDebugMemberEntryId(entryId);
 
+                                        if (entryId === ALL_ENTRY_ID) {
+                                            router.push('?user_id=all');
+                                            return;
+                                        }
+
                                         const emp = employees.find((x) => x.entry_id === entryId);
 
                                         if (emp?.user_id) {
@@ -508,10 +607,15 @@ export default function TrainingGoalsPage() {
                         <label className="block text-sm font-medium mb-1">従業員を選択</label>
                         <select
                             className="border rounded px-3 py-2 w-full md:max-w-md"
-                            value={selectedEntryId}
+                            value={isAllEmployeesView ? ALL_ENTRY_ID : selectedEntryId}
                             onChange={(e) => {
                                 const entryId = e.target.value;
                                 setSelectedEntryId(entryId);
+
+                                if (entryId === ALL_ENTRY_ID) {
+                                    router.push('?user_id=all');
+                                    return;
+                                }
 
                                 const emp = employees.find((x) => x.entry_id === entryId);
 
@@ -520,6 +624,7 @@ export default function TrainingGoalsPage() {
                                 }
                             }}
                         >
+                            <option value={ALL_ENTRY_ID}>すべて</option>
                             {employees.map((emp) => (
                                 <option key={emp.entry_id} value={emp.entry_id}>
                                     {(emp.last_name_kanji ?? '')} {(emp.first_name_kanji ?? '')}
@@ -675,15 +780,16 @@ export default function TrainingGoalsPage() {
                         </div>
                     </div>
                 </div>
-            ) : (
+            ) : isAllEmployeesView ? (
                 <div className="overflow-x-auto">
+                    {/* 全員分テーブル */}
                     <table className="min-w-full border-collapse border border-gray-300 bg-white text-sm">
                         <thead className="bg-gray-100">
                             <tr>
                                 <th className="border px-3 py-2 text-left">職員名</th>
                                 <th className="border px-3 py-2 text-left">所属</th>
                                 <th className="border px-3 py-2 text-left">目標</th>
-                                <th className="border px-3 py-2 text-center">選択</th>
+                                <th className="border px-3 py-2 text-center">設定状況</th>
                                 <th className="border px-3 py-2 text-center">受講完了</th>
                             </tr>
                         </thead>
@@ -697,24 +803,37 @@ export default function TrainingGoalsPage() {
                                     <td className="border px-3 py-2">
                                         {row.entry?.orgunitname ?? ''}
                                     </td>
-                                    <td className="border px-3 py-2">
-                                        <div className="font-medium">{row.goal_title}</div>
-                                        {row.training_goal && (
-                                            <div className="mt-1 text-xs text-gray-600">
-                                                {row.training_goal}
-                                            </div>
-                                        )}
+                                    <td className="border px-3 py-2">{row.goal_title}</td>
+                                    <td className="border px-3 py-2 text-center">
+                                        {row.selected ? '設定済' : '未設定'}
                                     </td>
                                     <td className="border px-3 py-2 text-center">
-                                        {row.selected ? '○' : ''}
-                                    </td>
-                                    <td className="border px-3 py-2 text-center">
-                                        {row.watched ? '○' : ''}
+                                        {row.watched ? '完了' : '-'}
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {/* 選択した職員の目標カード */}
+                    {filteredRows.map((row) => (
+                        <div key={`${row.entry_id}-${row.goal_key}`} className="rounded-lg border bg-white p-4">
+                            <div className="font-semibold">{row.goal_title}</div>
+
+                            {row.training_goal && (
+                                <div className="mt-2 text-sm text-gray-700">
+                                    目標: {row.training_goal}
+                                </div>
+                            )}
+
+                            <div className="mt-3 text-sm">
+                                選択: {row.selected ? '○' : '未選択'}
+                                受講完了: {row.watched ? '○' : '未完了'}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
