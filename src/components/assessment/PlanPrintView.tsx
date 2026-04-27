@@ -140,27 +140,56 @@ export default function PlanPrintView({ planId }: { planId: string }) {
             : "居宅介護等計画書";
 
     return (
-        <div className="bg-gray-100 print:bg-white min-h-screen">
+        <div className="print-root min-h-screen">
             <style jsx global>{`
   @page {
     size: A4 portrait;
-    margin: 8mm 8mm;
+    margin: 0mm;
   }
 
   html,
   body {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
     font-family: "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans JP", sans-serif;
     color: #111;
-    background: #f3f4f6;
+    background: #eee;
+  }
+
+  .print-root {
+    background: #eee;
+    padding: 12px;
+  }
+
+  .print-only {
+    width: 210mm;
+    margin: 0 auto;
+    background: #fff;
   }
 
   .print-page {
-    width: 210mm;
-    min-height: 297mm;
-    background: white;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    background: #fff;
     box-sizing: border-box;
+  }
+
+  .print-page + .print-page {
+    margin-top: 12px;
+  }
+
+  .formBox {
+    width: 204mm;
+    min-height: 287mm;
+    background: #fff;
+    box-sizing: border-box;
+    padding: 3mm;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
   }
 
   th,
@@ -170,12 +199,20 @@ export default function PlanPrintView({ planId }: { planId: string }) {
   }
 
   @media print {
+    body * {
+      visibility: hidden !important;
+    }
+
+    .print-only,
+    .print-only * {
+      visibility: visible !important;
+    }
+
     html,
     body {
+      background: #fff !important;
       width: auto !important;
       height: auto !important;
-      background: white !important;
-      color: #111 !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -184,30 +221,49 @@ export default function PlanPrintView({ planId }: { planId: string }) {
       display: none !important;
     }
 
-    main {
+    .print-root {
       padding: 0 !important;
       margin: 0 !important;
-      background: white !important;
+      background: #fff !important;
     }
 
-    .print-page {
-      width: auto !important;
-      min-width: 0 !important;
-      max-width: none !important;
-      min-height: 0 !important;
-      height: auto !important;
+    .print-only {
+      position: relative;
+      width: 210mm !important;
+      margin: 0 auto !important;
+      padding: 0mm 3mm 0mm 3mm !important;
+      box-sizing: border-box !important;
+      background: #fff !important;
+    }
+
+    .print-only .print-page {
+      width: 100% !important;
       margin: 0 !important;
       padding: 0 !important;
+      box-sizing: border-box !important;
+      display: flex !important;
+      justify-content: center !important;
+      background: #fff !important;
       box-shadow: none !important;
-      background: white !important;
-      break-after: page;
-      page-break-after: always;
-      overflow: visible !important;
     }
 
-    .print-page:last-child {
-      break-after: auto;
-      page-break-after: auto;
+    .print-only .print-page + .print-page {
+      margin-top: 0 !important;
+      page-break-before: always !important;
+      break-before: page !important;
+    }
+
+    .print-only .print-page > .formBox {
+      width: 204mm !important;
+      min-height: auto !important;
+      height: auto !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      padding: 2mm !important;
+      box-sizing: border-box !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      overflow: visible !important;
     }
 
     table {
@@ -216,11 +272,14 @@ export default function PlanPrintView({ planId }: { planId: string }) {
     }
 
     .print-signature-spacer {
-      margin-top: 8mm !important;
+      margin-top: 4mm !important;
+    }
+
+    .screen-only-shadow {
+      box-shadow: none !important;
     }
   }
 `}</style>
-
             <div className="no-print sticky top-0 z-10 bg-white border-b p-3 flex gap-2 items-center">
                 <button
                     className="border rounded px-4 py-2 bg-black text-white"
@@ -238,13 +297,14 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                 </div>
             </div>
 
-            <main className="p-4 print:p-0">
-                <section className="print-page mx-auto mb-6 shadow p-4 text-[10.5px] leading-relaxed flex flex-col">    <div className="grid grid-cols-2 mb-1 text-[11px]">
-                    <div>作成日　{formatDate(plan.plan_start_date)}</div>
-                    <div className="text-right">
-                        作成者　{getAuthorDisplayName(author, plan.author_name)}
+            <main className="print-only">
+                <section className="print-page">
+                    <div className="formBox screen-only-shadow text-[10.5px] leading-relaxed flex flex-col">
+                        <div>作成日　{formatDate(plan.plan_start_date)}</div>
+                        <div className="text-right">
+                            作成者　{getAuthorDisplayName(author, plan.author_name)}
+                        </div>
                     </div>
-                </div>
 
                     <h1 className="text-center font-bold text-xl tracking-widest mb-2">
                         {title}
@@ -411,8 +471,8 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                     </div>
                 </section>
 
-                <section className="print-page mx-auto mb-6 shadow p-4 text-[10.5px] leading-relaxed flex flex-col">
-                    <div className="font-bold text-base mb-2">
+                <section className="print-page">
+                    <div className="formBox screen-only-shadow text-[10.5px] leading-relaxed flex flex-col">
                         【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
                     </div>
 
