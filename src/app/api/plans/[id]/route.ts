@@ -76,11 +76,61 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 
         if (servicesError) throw servicesError;
 
+        const { data: client, error: clientError } = await supabaseAdmin
+            .from("cs_kaipoke_info")
+            .select(`
+        id,
+        kaipoke_cs_id,
+        name,
+        name_kana,
+        kana,
+        birth_yyyy_mm_dd,
+        postal_code,
+        address,
+        phone_01,
+        phone_02,
+        email,
+        gender,
+        service_kind,
+        shogai_jukyusha_no,
+        ido_jukyusyasho
+      `)
+            .eq("id", plan.client_info_id)
+            .maybeSingle();
+
+        if (clientError) throw clientError;
+
+        let author = null;
+
+        if (plan.author_user_id) {
+            const { data: authorRow, error: authorError } = await supabaseAdmin
+                .from("user_entry_united_view_single")
+                .select("user_id, lw_userid, last_name_kanji, first_name_kanji")
+                .eq("user_id", plan.author_user_id)
+                .maybeSingle();
+
+            if (authorError) throw authorError;
+
+            author = authorRow
+                ? {
+                    user_id: authorRow.user_id,
+                    lw_userid: authorRow.lw_userid,
+                    last_name_kanji: authorRow.last_name_kanji,
+                    first_name_kanji: authorRow.first_name_kanji,
+                    display_name: [authorRow.last_name_kanji, authorRow.first_name_kanji]
+                        .filter(Boolean)
+                        .join(" "),
+                }
+                : null;
+        }
+
         return json({
             ok: true,
             data: {
                 plan,
                 services: services ?? [],
+                client,
+                author,
             },
         });
     } catch (e: unknown) {

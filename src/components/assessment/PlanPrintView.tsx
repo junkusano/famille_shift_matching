@@ -49,9 +49,37 @@ type ServiceRow = {
     active: boolean;
 };
 
+type ClientRow = {
+    id: string;
+    kaipoke_cs_id: string;
+    name: string | null;
+    name_kana: string | null;
+    kana: string | null;
+    birth_yyyy_mm_dd: string | null;
+    postal_code: string | null;
+    address: string | null;
+    phone_01: string | null;
+    phone_02: string | null;
+    email: string | null;
+    gender: string | null;
+    service_kind: string | null;
+    shogai_jukyusha_no: string | null;
+    ido_jukyusyasho: string | null;
+};
+
+type AuthorRow = {
+    user_id: string;
+    lw_userid: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+    display_name: string;
+} | null;
+
 type ApiData = {
     plan: PlanRow;
     services: ServiceRow[];
+    client: ClientRow | null;
+    author: AuthorRow;
 };
 
 async function getBearer() {
@@ -104,7 +132,7 @@ export default function PlanPrintView({ planId }: { planId: string }) {
         return <div className="p-6">計画書が見つかりません。</div>;
     }
 
-    const { plan } = data;
+    const { plan, client, author } = data;
 
     const title =
         plan.plan_document_kind === "移動支援サービス"
@@ -166,7 +194,9 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                 <section className="print-page bg-white mx-auto mb-6 shadow p-4 w-[210mm] min-h-[297mm] text-[10.5px] leading-relaxed">
                     <div className="grid grid-cols-2 mb-1 text-[11px]">
                         <div>作成日　{formatDate(plan.plan_start_date)}</div>
-                        <div className="text-right">作成者　{plan.author_name ?? ""}</div>
+                        <div className="text-right">
+                            作成者　{getAuthorDisplayName(author, plan.author_name)}
+                        </div>
                     </div>
 
                     <h1 className="text-center font-bold text-xl tracking-widest mb-2">
@@ -177,23 +207,36 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                         <tbody>
                             <tr>
                                 <Th>利用者名</Th>
-                                <Td>{plan.kaipoke_cs_id}</Td>
+                                <Td>{client?.name || "\u00a0"}</Td>
+
                                 <Th>生年月日</Th>
-                                <Td>&nbsp;</Td>
+                                <Td>{formatDate(client?.birth_yyyy_mm_dd) || "\u00a0"}</Td>
+
                                 <Th>連絡先</Th>
                                 <Td>
-                                    TEL:
+                                    TEL: {client?.phone_01 || "\u00a0"}
                                     <br />
-                                    FAX:
+                                    携帯: {client?.phone_02 || "\u00a0"}
                                 </Td>
                             </tr>
+
                             <tr>
                                 <Th>住所</Th>
-                                <Td colSpan={5}>&nbsp;</Td>
+                                <Td colSpan={5}>
+                                    {client?.postal_code ? `〒${client.postal_code} ` : ""}
+                                    {client?.address || "\u00a0"}
+                                </Td>
                             </tr>
+
                             <tr>
+                                <Th>受給者番号</Th>
+                                <Td>{client?.shogai_jukyusha_no || client?.ido_jukyusyasho || "\u00a0"}</Td>
+
+                                <Th>カイポケID</Th>
+                                <Td>{client?.kaipoke_cs_id || plan.kaipoke_cs_id || "\u00a0"}</Td>
+
                                 <Th>事業所名</Th>
-                                <Td colSpan={5}>{OFFICE_NAME}</Td>
+                                <Td>{OFFICE_NAME}</Td>
                             </tr>
                         </tbody>
                     </table>
@@ -276,7 +319,7 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                                 <tr key={slot}>
                                     <Th>{slot}</Th>
                                     {["月", "火", "水", "木", "金", "土", "日"].map((w) => (
-                                        <Td key={w} className="h-[28px] text-center">
+                                        <Td key={w} className="h-[31px] text-center">
                                             {(data.services ?? [])
                                                 .filter((s) => s.weekday_jp === w)
                                                 .filter((s) => isSameSlot(s.start_time, slot))
@@ -297,29 +340,33 @@ export default function PlanPrintView({ planId }: { planId: string }) {
                         </tbody>
                     </table>
 
-                    <div className="grid grid-cols-[90px_150px_110px_1fr] border border-black border-t-0 min-h-[44px]">
-                        <div className="border-r border-black p-2 text-center font-bold">
-                            交付日
-                        </div>
-                        <div className="border-r border-black p-2 text-center">
-                            {formatDate(plan.issued_on)}
-                        </div>
-                        <div className="border-r border-black p-2 text-center font-bold">
-                            利用者サイン
-                        </div>
-                        <div className="p-2">&nbsp;</div>
-                    </div>
+                    <div className="mt-2 flex-1 flex flex-col justify-end">
+                        <div className="grid grid-cols-[90px_150px_110px_1fr] border border-black min-h-[86px]">
+                            <div className="border-r border-black p-2 text-center font-bold flex items-center justify-center">
+                                交付日
+                            </div>
 
-                    <div className="mt-2 text-[9.5px]">
-                        計画期間　{formatDate(plan.plan_start_date)} -{" "}
-                        {formatDate(plan.plan_end_date)}
+                            <div className="border-r border-black p-2 text-center flex items-center justify-center">
+                                {formatDate(plan.issued_on)}
+                            </div>
+
+                            <div className="border-r border-black p-2 text-center font-bold flex items-center justify-center">
+                                利用者サイン
+                            </div>
+
+                            <div className="p-2">&nbsp;</div>
+                        </div>
+
+                        <div className="mt-2 text-[9.5px]">
+                            計画期間　{formatDate(plan.plan_start_date)} -{" "}
+                            {formatDate(plan.plan_end_date)}
+                        </div>
                     </div>
                 </section>
 
-                <section className="print-page bg-white mx-auto mb-6 shadow p-4 w-[210mm] min-h-[297mm] text-[10.5px] leading-relaxed">
-                    <div className="font-bold text-base mb-2">
-                        【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
-                    </div>
+                <section className="print-page bg-white mx-auto mb-6 shadow p-4 w-[210mm] min-h-[297mm] text-[10.5px] leading-relaxed flex flex-col">    <div className="font-bold text-base mb-2">
+                    【サービス内容】以下の方法で、居宅介護等サービスを提供していきます。
+                </div>
 
                     <table className="w-full border-collapse border border-black mb-2">
                         <tbody>
@@ -506,4 +553,9 @@ function isSameSlot(startTime: string | null, slot: string) {
 
 function formatDate(v: string | null | undefined) {
     return v ?? "";
+}
+
+function getAuthorDisplayName(author: AuthorRow, fallback: string | null | undefined) {
+    if (author?.display_name?.trim()) return author.display_name.trim();
+    return fallback ?? "";
 }
