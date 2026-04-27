@@ -6,6 +6,8 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { google } from "googleapis";
 import { Readable } from "stream";
+import { readFileSync } from "fs";
+import { createRequire } from "module";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,7 @@ const OFFICE_NAME = "ファミーユヘルパーサービス愛知";
 const DEFAULT_DRIVE_FOLDER_ID = "1N1EIT1escqpNREOfwc70YgBC8JVu78j2";
 const PLAN_PDF_DRIVE_FOLDER_ID =
   process.env.PLAN_PDF_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+const nodeRequire = createRequire(import.meta.url);
 
 function bufferToStream(buffer: Buffer) {
   return Readable.from(buffer);
@@ -269,19 +272,21 @@ function buildPlanHtml(params: {
     plan.plan_start_date || plan.plan_end_date
       ? `${formatDate(plan.plan_start_date)} - ${formatDate(plan.plan_end_date)}`
       : "";
+  const fontCss = buildJapaneseFontCss();
 
   return `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
 <style>
+  ${fontCss}
   * {
     box-sizing: border-box;
   }
 
   body {
     margin: 0;
-    font-family: "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+    font-family: "NotoSansJPEmbedded", sans-serif;
     color: #111;
     font-size: 10.5px;
     line-height: 1.45;
@@ -808,4 +813,52 @@ function esc(v: unknown) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function buildJapaneseFontCss() {
+  const regular = readFontBase64([
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2",
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-all-400-normal.woff2",
+  ]);
+
+  const bold = readFontBase64([
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-700-normal.woff2",
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-all-700-normal.woff2",
+    "@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2",
+  ]);
+
+  return `
+    @font-face {
+      font-family: "NotoSansJPEmbedded";
+      src: url("data:font/woff2;base64,${regular}") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "NotoSansJPEmbedded";
+      src: url("data:font/woff2;base64,${bold}") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+  `;
+}
+
+function readFontBase64(candidates: string[]) {
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      const fontPath = nodeRequire.resolve(candidate);
+      return readFileSync(fontPath).toString("base64");
+    } catch (e) {
+      errors.push(`${candidate}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  throw new Error(
+    `日本語フォントを読み込めませんでした。@fontsource/noto-sans-jp が入っているか確認してください。\n${errors.join("\n")}`,
+  );
 }
