@@ -35,12 +35,20 @@ interface DistrictRow {
 
 type StaffOption = { id: string; name: string; roster_sort: number | null };
 
-/** 前月 YYYY-MM を返す */
-const getPrevMonth = (): string => {
+/** デフォルト表示月 YYYY-MM を返す
+ * 1日〜10日: 前月
+ * 11日以降: 当月
+ */
+const getDefaultYearMonth = (): string => {
   const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const y = prev.getFullYear();
-  const m = String(prev.getMonth() + 1).padStart(2, "0");
+
+  const target =
+    now.getDate() <= 10
+      ? new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const y = target.getFullYear();
+  const m = String(target.getMonth() + 1).padStart(2, "0");
   return `${y}-${m}`;
 };
 
@@ -102,8 +110,8 @@ const DisabilityCheckPage: React.FC = () => {
     return "その他";
   };
 
-  // ① 初期フィルタ：前月 × 障害
-  const [yearMonth, setYearMonth] = useState<string>(getPrevMonth());
+  // ① 初期フィルタ：10日までは前月、11日以降は当月
+  const [yearMonth, setYearMonth] = useState<string>(getDefaultYearMonth());
   // サービス区分（デフォルトは全て）
   const [kaipokeServicek, setKaipokeServicek] = useState<string>("");
   // ③ Districtは未選択（全件）
@@ -846,7 +854,7 @@ const DisabilityCheckPage: React.FC = () => {
 
   // ★追加：検索条件をデフォルトに戻す
   const handleClearFilters = () => {
-    setYearMonth(getPrevMonth());
+    setYearMonth(getDefaultYearMonth());
     setKaipokeServicek("");
     setDistricts([]);
     setFilterKaipokeCsId("");
