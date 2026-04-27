@@ -6,9 +6,6 @@ import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
 import { google } from "googleapis";
 import { Readable } from "stream";
-import { readFileSync, readdirSync } from "fs";
-import { createRequire } from "module";
-import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +14,7 @@ const OFFICE_NAME = "ファミーユヘルパーサービス愛知";
 const DEFAULT_DRIVE_FOLDER_ID = "1N1EIT1escqpNREOfwc70YgBC8JVu78j2";
 const PLAN_PDF_DRIVE_FOLDER_ID =
   process.env.PLAN_PDF_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
-const nodeRequire = createRequire(import.meta.url);
+
 
 function bufferToStream(buffer: Buffer) {
   return Readable.from(buffer);
@@ -76,6 +73,25 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
 
+async function loadJapaneseFonts() {
+  const chromiumWithFont = chromium as typeof chromium & {
+    font?: (url: string) => Promise<string>;
+  };
+
+  if (!chromiumWithFont.font) {
+    console.warn("[plans/pdf] chromium.font is not available. Japanese font may not render.");
+    return;
+  }
+
+  await chromiumWithFont.font(
+    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
+  );
+
+  await chromiumWithFont.font(
+    "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
+  );
+}
+
 export async function POST(req: NextRequest, { params }: Ctx) {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
 
@@ -120,6 +136,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       rawServices: (services ?? []) as ServiceRow[],
       client: client as ClientLike,
     });
+
+    await loadJapaneseFonts();
 
     browser = await puppeteer.launch({
       args: chromium.args,
@@ -273,25 +291,24 @@ function buildPlanHtml(params: {
     plan.plan_start_date || plan.plan_end_date
       ? `${formatDate(plan.plan_start_date)} - ${formatDate(plan.plan_end_date)}`
       : "";
-  const fontCss = buildJapaneseFontCss();
+
 
   return `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
 <style>
-  ${fontCss}
   * {
     box-sizing: border-box;
   }
 
-  body {
-    margin: 0;
-    font-family: "NotoSansJPEmbedded", sans-serif;
-    color: #111;
-    font-size: 10.5px;
-    line-height: 1.45;
-  }
+body {
+  margin: 0;
+  font-family: "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
+  color: #111;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
 
   .page {
     page-break-after: always;
@@ -816,102 +833,3 @@ function esc(v: unknown) {
     .replaceAll("'", "&#039;");
 }
 
-function buildJapaneseFontCss() {
-  const regular = readFontDataUrlByWeight("400");
-  const bold = readFontDataUrlByWeight("700") ?? regular;
-
-  return `
-    @font-face {
-      font-family: "NotoSansJPEmbedded";
-      src: url("${regular.dataUrl}") format("${regular.format}");
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: "NotoSansJPEmbedded";
-      src: url("${bold.dataUrl}") format("${bold.format}");
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-  `;
-}
-
-function readFontDataUrlByWeight(weight: "400" | "700"): {
-  dataUrl: string;
-  format: string;
-} | null {
-  let filesDir = "";
-
-  try {
-    const pkgJsonPath = nodeRequire.resolve("@fontsource/noto-sans-jp/package.json");
-    const pkgDir = path.dirname(pkgJsonPath);
-    filesDir = path.join(pkgDir, "files");
-  } catch (e) {
-    throw new Error(
-      `@fontsource/noto-sans-jp が見つかりません。npm install @fontsource/noto-sans-jp を実行してください。 ${e instanceof Error ? e.message : String(e)
-      }`,
-    );
-  }
-
-  const files = readdirSync(filesDir);
-
-  const candidates = files
-    .filter((file) => file.includes(`-${weight}-normal`))
-    .filter((file) => /\.(woff2|woff|ttf)$/i.test(file))
-    .sort((a, b) => {
-      // 日本語 subset を最優先
-      const aj = a.includes("japanese") ? 0 : 1;
-      const bj = b.includes("japanese") ? 0 : 1;
-      if (aj !== bj) return aj - bj;
-
-      // all があれば次に優先
-      const aa = a.includes("all") ? 0 : 1;
-      const ba = b.includes("all") ? 0 : 1;
-      if (aa !== ba) return aa - ba;
-
-      // woff2 優先
-      const aw2 = a.endsWith(".woff2") ? 0 : 1;
-      const bw2 = b.endsWith(".woff2") ? 0 : 1;
-      return aw2 - bw2;
-    });
-
-  const fileName = candidates[0];
-
-  // 700 がなければ 400 にフォールバック
-  if (!fileName && weight === "700") {
-    return readFontDataUrlByWeight("400");
-  }
-
-  if (!fileName) {
-    throw new Error(
-      `@fontsource/noto-sans-jp の files 内に ${weight} normal のフォントが見つかりません。files: ${files.join(", ")}`,
-    );
-  }
-
-  const fontPath = path.join(filesDir, fileName);
-  const ext = path.extname(fileName).toLowerCase();
-
-  const mime =
-    ext === ".woff2"
-      ? "font/woff2"
-      : ext === ".woff"
-        ? "font/woff"
-        : "font/ttf";
-
-  const format =
-    ext === ".woff2"
-      ? "woff2"
-      : ext === ".woff"
-        ? "woff"
-        : "truetype";
-
-  const base64 = readFileSync(fontPath).toString("base64");
-
-  return {
-    dataUrl: `data:${mime};base64,${base64}`,
-    format,
-  };
-}
