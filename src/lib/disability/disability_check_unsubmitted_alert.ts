@@ -271,7 +271,8 @@ async function runSubmittedUncheckLineworksOnly(args: {
                 "application_check",
             ].join(",")
         )
-        .eq("year_month", targetYm)
+        .gte("year_month", "2025-11")
+        .lte("year_month", targetYm)
         .in("kaipoke_servicek", ["障害", "移動支援"])
         .eq("application_check", false);
 
@@ -307,12 +308,16 @@ async function runSubmittedUncheckLineworksOnly(args: {
     const infoRenkeiGroups = await loadActiveInfoRenkeiGroups();
     const channelCache = new Map<string, string>();
 
-    // ★利用者(kaipoke_cs_id)ごとにまとめる（ここが最重要）
+    // ★利用者(kaipoke_cs_id)＋年月(year_month)ごとにまとめる
     const byClient = new Map<string, DisabilityCheckViewRow[]>();
+
     for (const r of rows) {
         const id = String(r.kaipoke_cs_id ?? "").trim();
-        if (!id) continue;
-        byClient.set(id, [...(byClient.get(id) ?? []), r]);
+        const ym = String(r.year_month ?? "").trim();
+        if (!id || !ym) continue;
+
+        const key = `${id}::${ym}`;
+        byClient.set(key, [...(byClient.get(key) ?? []), r]);
     }
 
     let sentRooms = 0;
@@ -321,7 +326,8 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
     const token = await getAccessToken();
 
-    for (const [kaipokeCsId, items] of byClient) {
+    for (const [clientMonthKey, items] of byClient) {
+        const [kaipokeCsId, messageYm] = clientMonthKey.split("::");
         try {
             const first = items[0];
             const clientName = (first?.client_name ?? "").trim();
@@ -376,7 +382,7 @@ async function runSubmittedUncheckLineworksOnly(args: {
 
             const message =
                 (mentionLines ? `${mentionLines}\n` : "") +
-                `【実績記録 未提出】 〈${formatYmJa(targetYm)}分〉\n` +
+                `【実績記録 未提出】 〈${formatYmJa(messageYm)}分〉\n` +
                 `提出チェックが、完了していません。\n` +
                 `至急、利用者様から実績記録票をいただき、事業所へ提出（郵送もしくは持参）してください。\n\n` +
                 `完了しましたら、実績記録の「提出」にチェックをしてください。\n\n` +
