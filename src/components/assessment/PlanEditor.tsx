@@ -105,6 +105,7 @@ export default function PlanEditor({ detail, onReload }: Props) {
     const [serviceDrafts, setServiceDrafts] = useState<PlanServiceForEditor[]>(detail.services);
     const [savingPlan, setSavingPlan] = useState(false);
     const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
+    const [pdfGenerating, setPdfGenerating] = useState(false);
 
     useEffect(() => {
         setPlanDraft(toPlanDraft(detail.plan));
@@ -159,6 +160,29 @@ export default function PlanEditor({ detail, onReload }: Props) {
             window.alert("プランを保存しました。");
         } finally {
             setSavingPlan(false);
+        }
+    }
+
+    async function generatePdf() {
+        setPdfGenerating(true);
+        try {
+            const bearer = await getBearer();
+            const res = await fetch(`/api/plans/${detail.plan.plan_id}/pdf`, {
+                method: "POST",
+                headers: bearer ? { Authorization: bearer } : {},
+            });
+
+            const j = await res.json();
+
+            if (!j?.ok) {
+                window.alert(`PDF生成に失敗: ${j?.error ?? "unknown error"}`);
+                return;
+            }
+
+            window.open(j.pdf_file_url, "_blank");
+            await onReload(detail.plan.plan_id);
+        } finally {
+            setPdfGenerating(false);
         }
     }
 
@@ -220,13 +244,24 @@ export default function PlanEditor({ detail, onReload }: Props) {
                         </div>
                     </div>
 
-                    <button
-                        className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
-                        disabled={savingPlan}
-                        onClick={savePlan}
-                    >
-                        {savingPlan ? "保存中..." : "計画書ヘッダ保存"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            className="border rounded px-3 py-1 bg-black text-white disabled:opacity-40"
+                            disabled={savingPlan}
+                            onClick={savePlan}
+                        >
+                            {savingPlan ? "保存中..." : "計画書ヘッダ保存"}
+                        </button>
+
+                        <button
+                            className="border rounded px-3 py-1 bg-purple-700 text-white disabled:opacity-40"
+                            disabled={pdfGenerating || savingPlan}
+                            onClick={generatePdf}
+                        >
+                            {pdfGenerating ? "PDF生成中..." : "PDF生成"}
+                        </button>
+                    </div>
+
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -628,9 +663,7 @@ function PlanPreview({
                                     {s.service_detail || s.service_title || s.service_code || ""}
                                 </Td>
                                 <Td className="align-top whitespace-pre-wrap">
-                                    {[s.procedure_notes, s.observation_points]
-                                        .filter(Boolean)
-                                        .join("\n")}
+                                    {s.procedure_notes ?? s.observation_points ?? ""}
                                 </Td>
                                 <Td className="align-top whitespace-pre-wrap">
                                     {s.family_action ?? ""}

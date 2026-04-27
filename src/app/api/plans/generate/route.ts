@@ -869,7 +869,7 @@ export async function POST(req: NextRequest) {
             null,
           service_detail: draft.service_detail,
           procedure_notes: draft.procedure_notes,
-          observation_points: draft.procedure_notes,
+          observation_points: null,
           family_action: draft.family_action,
           schedule_note: buildScheduleNote(row),
           source_snapshot: {
