@@ -456,6 +456,7 @@ function PlanPreview({
         occurrence_factor?: number | string;
     }>;
 }) {
+    const groupedServices = groupServicesForPreview(services);
     return (
         <div className="border rounded p-3 bg-white space-y-4">
             <div className="flex items-center justify-between">
@@ -484,7 +485,7 @@ function PlanPreview({
                         </tr>
                         <tr>
                             <Th>作成日</Th>
-                            <Td>{formatDateJa(plan.created_at)}</Td>
+                            <Td>{formatDate(planDraft.plan_start_date)}</Td>
                             <Th>交付日</Th>
                             <Td>{formatDate(planDraft.issued_on)}</Td>
                             <Th>計画期間</Th>
@@ -611,12 +612,13 @@ function PlanPreview({
                         </tr>
                     </thead>
                     <tbody>
-                        {services.map((s, idx) => (
+                        {groupedServices.map((s, idx) => (
                             <tr key={s.plan_service_id}>
                                 <Th>サービス{idx + 1}</Th>
                                 <Td className="align-top">
                                     {s.duration_minutes ? `${s.duration_minutes}分` : ""}
                                     <div>
+                                        {s.weekday_jp ? `${s.weekday_jp} ` : ""}
                                         {(s.start_time ?? "").slice(0, 5)}
                                         {s.start_time || s.end_time ? " - " : ""}
                                         {(s.end_time ?? "").slice(0, 5)}
@@ -636,7 +638,7 @@ function PlanPreview({
                             </tr>
                         ))}
 
-                        {Array.from({ length: Math.max(0, 7 - services.length) }).map((_, idx) => (
+                        {Array.from({ length: Math.max(0, 7 - groupedServices.length) }).map((_, idx) => (
                             <tr key={`empty-${idx}`}>
                                 <Th>&nbsp;</Th>
                                 <Td className="h-[44px]">&nbsp;</Td>
@@ -720,17 +722,61 @@ function formatDate(v: string | null | undefined) {
     return v;
 }
 
-function formatDateJa(v: string | null | undefined) {
-    if (!v) return "";
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    return d.toLocaleDateString("ja-JP");
-}
-
 function isSameSlot(startTime: string | null, slot: string) {
     if (!startTime) return false;
     const hour = Number(startTime.slice(0, 2));
     const slotHour = Number(slot.split(":")[0]);
     if (!Number.isFinite(hour) || !Number.isFinite(slotHour)) return false;
     return hour >= slotHour && hour < slotHour + 2;
+}
+
+function groupServicesForPreview(
+    services: PlanServiceForEditor[],
+): PlanServiceForEditor[] {
+    const map = new Map<string, PlanServiceForEditor>();
+
+    for (const s of services) {
+        const key = [
+            s.start_time ?? "",
+            s.end_time ?? "",
+            s.duration_minutes ?? "",
+            s.service_title ?? "",
+            s.service_detail ?? "",
+            s.procedure_notes ?? "",
+            s.observation_points ?? "",
+            s.family_action ?? "",
+            s.schedule_note ?? "",
+            s.plan_service_category ?? "",
+        ].join("|");
+
+        const existing = map.get(key);
+
+        if (!existing) {
+            map.set(key, {
+                ...s,
+                weekday_jp: s.weekday_jp ?? "",
+            });
+            continue;
+        }
+
+        const weekdays = new Set(
+            [
+                ...(existing.weekday_jp ?? "").split("・").filter(Boolean),
+                s.weekday_jp ?? "",
+            ].filter(Boolean),
+        );
+
+        existing.weekday_jp = sortWeekdays([...weekdays]).join("・");
+    }
+
+    return [...map.values()].sort((a, b) => {
+        const aTime = `${a.start_time ?? ""}-${a.end_time ?? ""}`;
+        const bTime = `${b.start_time ?? ""}-${b.end_time ?? ""}`;
+        return aTime.localeCompare(bTime);
+    });
+}
+
+function sortWeekdays(days: string[]): string[] {
+    const order = ["月", "火", "水", "木", "金", "土", "日"];
+    return [...days].sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }

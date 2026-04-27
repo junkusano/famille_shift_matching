@@ -75,6 +75,11 @@ type ServiceTextDraft = {
   family_action: string;
 };
 
+type PlanHeaderDraft = {
+  person_family_hope: string;
+  assistance_goal: string;
+};
+
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
   障害福祉サービス: "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
   移動支援サービス: "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
@@ -255,6 +260,135 @@ function flattenAssessmentContent(content: Record<string, unknown>): string {
   return lines.length ? `【アセスメント】\n${lines.join("\n")}` : "";
 }
 
+async function buildPlanHeaderDraft(params: {
+  sourceText: string;
+  extracted: {
+    person_family_hope: string | null;
+    assistance_goal: string | null;
+  };
+}): Promise<PlanHeaderDraft> {
+  const fallback = buildPlanHeaderFallback(params.extracted);
+
+  if (!process.env.OPENAI_API_KEY || !params.sourceText.trim()) {
+    return fallback;
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const prompt = `
+あなたは障害福祉サービスの個別支援計画・居宅介護計画書を作成する専門職です。
+以下の資料から、計画書に記載する「本人（家族）の希望」と「援助目標」を作成してください。
+
+重要ルール:
+- JSONのみ返してください。
+- person_family_hope は150文字程度。
+- assistance_goal は150文字程度。
+- 「援助目標」は課題の説明ではなく、支援によって目指す状態を書くこと。
+- 例: 「掃除が困難」ではなく「支援を受けながら住環境を整え、安心して在宅生活を継続できるようにする。」
+- 本人の希望が読み取れない場合も、資料から自然な希望文を補ってください。
+- 医療判断・診断・過度な断定は禁止です。
+
+返却形式:
+{
+  "person_family_hope": "....",
+  "assistance_goal": "...."
+}
+
+資料:
+${params.sourceText}
+`;
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: "返答はJSONのみ。説明文やMarkdownは禁止。",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const raw = resp.choices[0]?.message?.content ?? "";
+    const parsed = safeJsonParse(raw);
+
+    if (!parsed || typeof parsed !== "object") return fallback;
+
+    const obj = parsed as Record<string, unknown>;
+
+    return {
+      person_family_hope: limitJapaneseText(
+        typeof obj.person_family_hope === "string"
+          ? obj.person_family_hope
+          : fallback.person_family_hope,
+        170,
+      ),
+      assistance_goal: normalizeGoalText(
+        limitJapaneseText(
+          typeof obj.assistance_goal === "string"
+            ? obj.assistance_goal
+            : fallback.assistance_goal,
+          170,
+        ),
+      ),
+    };
+  } catch (e) {
+    console.warn("[plans/generate] header draft LLM failed", e);
+    return fallback;
+  }
+}
+
+function buildPlanHeaderFallback(extracted: {
+  person_family_hope: string | null;
+  assistance_goal: string | null;
+}): PlanHeaderDraft {
+  const hopeBase =
+    extracted.person_family_hope?.trim() ||
+    "住み慣れた地域や自宅で、必要な支援を受けながら安心して生活を続けたい。";
+
+  const remarksBase =
+    extracted.assistance_goal?.trim() ||
+    "本人の生活状況に応じて、必要な家事援助、見守り、声かけ等を行う。";
+
+  return {
+    person_family_hope: limitJapaneseText(hopeBase, 170),
+    assistance_goal: normalizeGoalText(
+      limitJapaneseText(
+        `本人の意向と生活状況を踏まえ、必要な支援を受けながら生活環境を整え、安心して在宅生活を継続できるようにする。${remarksBase ? ` ${remarksBase}` : ""}`,
+        170,
+      ),
+    ),
+  };
+}
+
+function normalizeGoalText(text: string): string {
+  const t = text.trim();
+
+  const badPatterns = [
+    "困難とされている",
+    "難しいとされている",
+    "できない",
+    "困難である",
+  ];
+
+  if (!badPatterns.some((p) => t.includes(p))) {
+    return t;
+  }
+
+  return "本人の生活状況に応じて必要な支援を行い、住環境を整えながら、安心して在宅生活を継続できるようにする。";
+}
+
+function limitJapaneseText(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max);
+}
+
 async function buildServiceDraftsByCategory(params: {
   sourceText: string;
   assessmentContent: Record<string, unknown>;
@@ -293,6 +427,10 @@ async function buildServiceDraftsByCategory(params: {
 - 本人・家族にやっていただくことも、可能な限り具体化してください。
 - 医療判断、診断、過度な断定は禁止です。
 - 空欄にせず、資料不足の場合でも安全で一般的な表現を入れてください。
+- service_detail は50〜100文字程度。
+- procedure_notes は50〜100文字程度。
+- family_action は50〜100文字程度。
+- 長文にせず、計画書の表に入る短い文章にしてください。
 
 service_keys:
 ${keys.map((k) => `- ${k}`).join("\n")}
@@ -330,18 +468,24 @@ ${sourceText}
 
       const obj = v as Record<string, unknown>;
       const merged = {
-        service_detail:
+        service_detail: limitJapaneseText(
           typeof obj.service_detail === "string" && obj.service_detail.trim()
             ? obj.service_detail.trim()
             : fallback[key].service_detail,
-        procedure_notes:
+          100,
+        ),
+        procedure_notes: limitJapaneseText(
           typeof obj.procedure_notes === "string" && obj.procedure_notes.trim()
             ? obj.procedure_notes.trim()
             : fallback[key].procedure_notes,
-        family_action:
+          100,
+        ),
+        family_action: limitJapaneseText(
           typeof obj.family_action === "string" && obj.family_action.trim()
             ? obj.family_action.trim()
             : fallback[key].family_action,
+          100,
+        ),
       };
 
       result[key] = enforceServiceBoundary(key, merged);
@@ -392,32 +536,32 @@ function fallbackServiceDraft(row: SourceRow): ServiceTextDraft {
 
   if (key === "家事") {
     return {
-      service_detail: "掃除、整理整頓、洗濯、買い物、調理等、本人の生活状況に応じた家事援助を行う。",
+      service_detail: "掃除、整理整頓、洗濯、買い物、調理等の家事援助を行う。",
       procedure_notes:
-        "本人の意向を確認しながら、必要な範囲で居室・水回り等の清掃、整理整頓、買い物等を行う。体調や生活環境の変化、困りごとの有無を確認する。",
+        "本人の意向と体調を確認し、居室・水回り等の清掃や必要な家事を安全に行う。",
       family_action:
-        "必要物品や買い物内容を確認できるよう準備していただく。本人ができる部分は無理のない範囲で一緒に行っていただく。",
+        "必要物品や買い物内容を確認し、本人ができる部分は無理なく一緒に行う。",
     };
   }
 
   if (key === "身体") {
     return {
       service_detail:
-        "体調確認、声かけ、見守り、必要に応じた身体介護を行う。家事的支援が必要な場合も、掃除（共に行う）等、本人の動作確認や共同実践として行う。",
+        "体調確認、声かけ、見守り、必要に応じた身体介護を行う。",
       procedure_notes:
-        "支援前後の体調、表情、ふらつき、疲労感を確認する。本人のペースを尊重し、できる動作は声かけ・見守りのもと共に行う。転倒や事故に注意する。",
+        "体調、ふらつき、疲労感を確認し、本人のペースに合わせて安全に支援する。",
       family_action:
-        "体調変化や注意点がある場合は事前に共有していただく。本人ができることは継続できるよう、無理のない範囲で声かけをしていただく。",
+        "体調変化や注意点を共有し、本人ができることは継続できるよう声かけする。",
     };
   }
 
   if (key === "移動支援" || key === "同行援護" || key === "通院") {
     return {
-      service_detail: "外出時の移動支援、経路確認、安全確認、必要な声かけ・見守りを行う。",
+      service_detail: "外出時の移動支援、経路確認、安全確認、声かけを行う。",
       procedure_notes:
-        "出発前に体調、持ち物、目的地、移動経路を確認する。移動中は転倒、交通、周囲との接触に注意し、本人のペースに合わせて支援する。",
+        "体調、持ち物、目的地を確認し、移動中の転倒や交通安全に注意する。",
       family_action:
-        "外出目的、行き先、必要な持ち物、連絡事項を事前に共有していただく。",
+        "行き先、持ち物、連絡事項を事前に共有していただく。",
     };
   }
 
@@ -584,6 +728,12 @@ export async function POST(req: NextRequest) {
     );
 
     const extracted = extractAssessmentTexts(a.content ?? {});
+    const sourceText = await buildPlanSourceText(a);
+    const headerDraft = await buildPlanHeaderDraft({
+      sourceText,
+      extracted,
+    });
+
     const results: unknown[] = [];
 
     for (const kind of targets) {
@@ -661,8 +811,8 @@ export async function POST(req: NextRequest) {
           plan_end_date: null,
           author_user_id: a.author_user_id,
           author_name: a.author_name,
-          person_family_hope: extracted.person_family_hope,
-          assistance_goal: extracted.assistance_goal,
+          person_family_hope: headerDraft.person_family_hope,
+          assistance_goal: headerDraft.assistance_goal,
           remarks: null,
           weekly_plan_comment: null,
           monthly_summary: monthlySummary,
@@ -687,6 +837,7 @@ export async function POST(req: NextRequest) {
         const duration = row.duration_minutes ?? 0;
         const factor = calcFactor(row);
         const monthlyMinutes = Math.round(duration * factor);
+
         const draftKey = buildServiceDraftKey(row);
         const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft(row);
 
