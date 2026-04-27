@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ type AssessmentRow = {
   author_name: string;
   content: Record<string, unknown>;
   is_deleted: boolean;
+  meeting_minutes: string | null;
 };
 
 type SourceRow = {
@@ -58,6 +60,19 @@ type SourceRow = {
   plan_document_kind: PlanDocumentKind | null;
   plan_service_category: string | null;
   plan_display_name: string | null;
+};
+
+type CsDocRow = {
+  doc_name: string | null;
+  summary: string | null;
+  ocr_text: string | null;
+  created_at: string | null;
+};
+
+type ServiceTextDraft = {
+  service_detail: string;
+  procedure_notes: string;
+  family_action: string;
 };
 
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
@@ -153,6 +168,328 @@ function buildWarnings(rows: SourceRow[]) {
   if (rows.some((r) => (r.nth_weeks?.length ?? 0) > 0)) warnings.push("nth_weeks を含みます。帳票化前に確認してください。");
   if (rows.some((r) => r.two_person_work_flg)) warnings.push("2名同時作業を含みます。帳票明記を確認してください。");
   return warnings;
+}
+
+async function buildPlanSourceText(a: AssessmentRow): Promise<string> {
+  const { data: docs, error } = await supabaseAdmin
+    .from("cs_docs")
+    .select("doc_name, summary, ocr_text, created_at")
+    .eq("kaipoke_cs_id", a.kaipoke_cs_id)
+    .in("doc_name", [
+      "基本情報(ステップ２）",
+      "サービス等利用計画",
+      "情報連携・看護サマリー等",
+    ])
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (error) {
+    console.warn("[plans/generate] cs_docs fetch failed", error.message);
+  }
+
+  const docText = ((docs ?? []) as CsDocRow[])
+    .map((d) => {
+      const text = [
+        d.summary ?? "",
+        d.ocr_text ? d.ocr_text.slice(0, 2500) : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return text ? `【${d.doc_name ?? "資料"}】\n${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
+  const assessmentText = flattenAssessmentContent(a.content ?? {});
+  const meetingMinutes = a.meeting_minutes?.trim()
+    ? `【担当者会議議事録】\n${a.meeting_minutes.trim()}`
+    : "";
+
+  return [meetingMinutes, assessmentText, docText]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 14000);
+}
+
+function flattenAssessmentContent(content: Record<string, unknown>): string {
+  const sheets = Array.isArray(content.sheets) ? content.sheets : [];
+  const lines: string[] = [];
+
+  for (const sheet of sheets) {
+    if (!sheet || typeof sheet !== "object") continue;
+    const s = sheet as { title?: unknown; rows?: unknown };
+    const title = typeof s.title === "string" ? s.title : "";
+
+    if (title) lines.push(`【${title}】`);
+
+    const rows = Array.isArray(s.rows) ? s.rows : [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as {
+        label?: unknown;
+        check?: unknown;
+        remark?: unknown;
+        hope?: unknown;
+      };
+
+      const label = typeof r.label === "string" ? r.label : "";
+      const check = r.check === "CIRCLE" ? "○" : "";
+      const remark = typeof r.remark === "string" ? r.remark.trim() : "";
+      const hope = typeof r.hope === "string" ? r.hope.trim() : "";
+
+      if (check || remark || hope) {
+        lines.push(
+          [
+            label ? `・${label}` : "",
+            check ? `チェック:${check}` : "",
+            remark ? `備考:${remark}` : "",
+            hope ? `希望:${hope}` : "",
+          ]
+            .filter(Boolean)
+            .join(" / "),
+        );
+      }
+    }
+  }
+
+  return lines.length ? `【アセスメント】\n${lines.join("\n")}` : "";
+}
+
+async function buildServiceDraftsByCategory(params: {
+  sourceText: string;
+  assessmentContent: Record<string, unknown>;
+  targetRows: SourceRow[];
+}): Promise<Record<string, ServiceTextDraft>> {
+  const { sourceText, targetRows } = params;
+
+  const keys = [...new Set(targetRows.map(buildServiceDraftKey))];
+
+  const fallback: Record<string, ServiceTextDraft> = {};
+  for (const row of targetRows) {
+    const key = buildServiceDraftKey(row);
+    fallback[key] = fallbackServiceDraft(row);
+  }
+
+  if (!process.env.OPENAI_API_KEY || !sourceText.trim()) {
+    return fallback;
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const prompt = `
+あなたは訪問介護・障害福祉サービスの個別計画書を作成する専門職です。
+以下の資料から、サービス種別ごとに「サービスの内容」「手順・留意事項・観察ポイント」「本人・家族にやっていただくこと」を作成してください。
+
+重要ルール:
+- JSONのみ返してください。
+- キーは指定された service_keys のみ使ってください。
+- 各キーに service_detail, procedure_notes, family_action を入れてください。
+- 家事系には掃除、洗濯、調理、買い物、整理整頓などを入れてよいです。
+- 身体系には家事だけを入れてはいけません。
+- 身体系で家事的内容しか資料から取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
+- ③〜⑤は同じカテゴリ内では同じ内容で構いません。
+- 手順・留意事項・観察ポイントは可能な限り具体化してください。
+- 本人・家族にやっていただくことも、可能な限り具体化してください。
+- 医療判断、診断、過度な断定は禁止です。
+- 空欄にせず、資料不足の場合でも安全で一般的な表現を入れてください。
+
+service_keys:
+${keys.map((k) => `- ${k}`).join("\n")}
+
+資料:
+${sourceText}
+`;
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: "返答はJSONのみ。説明文やMarkdownは禁止。",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const raw = resp.choices[0]?.message?.content ?? "";
+    const parsed = safeJsonParse(raw);
+
+    if (!parsed || typeof parsed !== "object") {
+      return fallback;
+    }
+
+    const result: Record<string, ServiceTextDraft> = { ...fallback };
+    for (const key of keys) {
+      const v = (parsed as Record<string, unknown>)[key];
+      if (!v || typeof v !== "object") continue;
+
+      const obj = v as Record<string, unknown>;
+      const merged = {
+        service_detail:
+          typeof obj.service_detail === "string" && obj.service_detail.trim()
+            ? obj.service_detail.trim()
+            : fallback[key].service_detail,
+        procedure_notes:
+          typeof obj.procedure_notes === "string" && obj.procedure_notes.trim()
+            ? obj.procedure_notes.trim()
+            : fallback[key].procedure_notes,
+        family_action:
+          typeof obj.family_action === "string" && obj.family_action.trim()
+            ? obj.family_action.trim()
+            : fallback[key].family_action,
+      };
+
+      result[key] = enforceServiceBoundary(key, merged);
+    }
+
+    return result;
+  } catch (e) {
+    console.warn("[plans/generate] service draft LLM failed", e);
+    return fallback;
+  }
+}
+
+function safeJsonParse(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function buildServiceDraftKey(row: SourceRow): string {
+  const category = row.plan_service_category ?? row.plan_display_name ?? row.service_code ?? "未分類";
+  return normalizeServiceKey(category);
+}
+
+function normalizeServiceKey(v: string): string {
+  if (isHouseworkLike(v)) return "家事";
+  if (isBodyLike(v)) return "身体";
+  if (v.includes("通院")) return "通院";
+  if (v.includes("同行")) return "同行援護";
+  if (v.includes("移動")) return "移動支援";
+  if (v.includes("重度") || v.includes("重訪")) return "重度訪問";
+  if (v.includes("行動")) return "行動援護";
+  return v;
+}
+
+function fallbackServiceDraft(row: SourceRow): ServiceTextDraft {
+  const key = buildServiceDraftKey(row);
+
+  if (key === "家事") {
+    return {
+      service_detail: "掃除、整理整頓、洗濯、買い物、調理等、本人の生活状況に応じた家事援助を行う。",
+      procedure_notes:
+        "本人の意向を確認しながら、必要な範囲で居室・水回り等の清掃、整理整頓、買い物等を行う。体調や生活環境の変化、困りごとの有無を確認する。",
+      family_action:
+        "必要物品や買い物内容を確認できるよう準備していただく。本人ができる部分は無理のない範囲で一緒に行っていただく。",
+    };
+  }
+
+  if (key === "身体") {
+    return {
+      service_detail:
+        "体調確認、声かけ、見守り、必要に応じた身体介護を行う。家事的支援が必要な場合も、掃除（共に行う）等、本人の動作確認や共同実践として行う。",
+      procedure_notes:
+        "支援前後の体調、表情、ふらつき、疲労感を確認する。本人のペースを尊重し、できる動作は声かけ・見守りのもと共に行う。転倒や事故に注意する。",
+      family_action:
+        "体調変化や注意点がある場合は事前に共有していただく。本人ができることは継続できるよう、無理のない範囲で声かけをしていただく。",
+    };
+  }
+
+  if (key === "移動支援" || key === "同行援護" || key === "通院") {
+    return {
+      service_detail: "外出時の移動支援、経路確認、安全確認、必要な声かけ・見守りを行う。",
+      procedure_notes:
+        "出発前に体調、持ち物、目的地、移動経路を確認する。移動中は転倒、交通、周囲との接触に注意し、本人のペースに合わせて支援する。",
+      family_action:
+        "外出目的、行き先、必要な持ち物、連絡事項を事前に共有していただく。",
+    };
+  }
+
+  if (key === "重度訪問") {
+    return {
+      service_detail: "本人の状態に応じて、見守り、声かけ、身体介護、生活上必要な支援を行う。",
+      procedure_notes:
+        "体調、姿勢、表情、疲労、環境変化を確認し、本人の意思を尊重しながら安全に支援する。",
+      family_action:
+        "体調変化、生活上の注意点、支援時の希望があれば共有していただく。",
+    };
+  }
+
+  return {
+    service_detail: `${key}に関する必要な支援を行う。`,
+    procedure_notes:
+      "本人の状態、意向、生活環境を確認し、安全に配慮しながら支援する。変化がある場合は関係者へ共有する。",
+    family_action:
+      "支援に必要な情報や注意点がある場合は事前に共有していただく。",
+  };
+}
+
+function enforceServiceBoundary(key: string, draft: ServiceTextDraft): ServiceTextDraft {
+  if (key !== "身体") return draft;
+
+  const text = `${draft.service_detail}\n${draft.procedure_notes}`;
+  if (!isHouseworkLike(text)) return draft;
+
+  const hasBodyWord =
+    text.includes("体調") ||
+    text.includes("見守り") ||
+    text.includes("声かけ") ||
+    text.includes("身体") ||
+    text.includes("移乗") ||
+    text.includes("排泄") ||
+    text.includes("入浴") ||
+    text.includes("更衣");
+
+  if (hasBodyWord) return draft;
+
+  return {
+    ...draft,
+    service_detail:
+      "掃除（共に行う）、整理整頓（声かけ・見守りのもと共に行う）等、本人の動作確認や共同実践として必要な支援を行う。",
+    procedure_notes:
+      "本人の体調、疲労感、ふらつき等を確認しながら、できる動作は声かけ・見守りのもと共に行う。転倒や無理な動作に注意する。",
+  };
+}
+
+function isHouseworkLike(text: string): boolean {
+  return (
+    text.includes("家事") ||
+    text.includes("掃除") ||
+    text.includes("清掃") ||
+    text.includes("洗濯") ||
+    text.includes("買い物") ||
+    text.includes("買物") ||
+    text.includes("調理") ||
+    text.includes("整理整頓")
+  );
+}
+
+function isBodyLike(text: string): boolean {
+  return (
+    text.includes("身体") ||
+    text.includes("入浴") ||
+    text.includes("排泄") ||
+    text.includes("更衣") ||
+    text.includes("移乗") ||
+    text.includes("体調") ||
+    text.includes("見守り")
+  );
 }
 
 function buildScheduleNote(row: SourceRow) {
@@ -302,6 +639,13 @@ export async function POST(req: NextRequest) {
 
       const monthlySummary = calcMonthlySummary(targetRows);
 
+      const sourceText = await buildPlanSourceText(a);
+      const serviceDraftByCategory = await buildServiceDraftsByCategory({
+        sourceText,
+        assessmentContent: a.content ?? {},
+        targetRows,
+      });
+
       const { data: insertedPlan, error: pErr } = await supabaseAdmin
         .from("plans")
         .insert({
@@ -313,7 +657,7 @@ export async function POST(req: NextRequest) {
           version_no: 1,
           status: "generated",
           issued_on: null,
-          plan_start_date: null,
+          plan_start_date: a.assessed_on,
           plan_end_date: null,
           author_user_id: a.author_user_id,
           author_name: a.author_name,
@@ -343,6 +687,9 @@ export async function POST(req: NextRequest) {
         const duration = row.duration_minutes ?? 0;
         const factor = calcFactor(row);
         const monthlyMinutes = Math.round(duration * factor);
+        const draftKey = buildServiceDraftKey(row);
+        const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft(row);
+
         return {
           plan_id: insertedPlan.plan_id,
           template_id: row.template_id ?? null,
@@ -369,10 +716,10 @@ export async function POST(req: NextRequest) {
             row.plan_service_category ??
             row.service_code ??
             null,
-          service_detail: null,
-          procedure_notes: null,
-          observation_points: null,
-          family_action: null,
+          service_detail: draft.service_detail,
+          procedure_notes: draft.procedure_notes,
+          observation_points: draft.procedure_notes,
+          family_action: draft.family_action,
           schedule_note: buildScheduleNote(row),
           source_snapshot: {
             template_id: row.template_id,
@@ -388,6 +735,7 @@ export async function POST(req: NextRequest) {
             generated_at: new Date().toISOString(),
             invalid_time: row.invalid_time ?? false,
             overlaps_same_weekday: row.overlaps_same_weekday ?? false,
+            service_draft_key: draftKey,
           },
           active: true,
         };

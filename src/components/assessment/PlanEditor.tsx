@@ -583,14 +583,15 @@ function PlanPreview({
                     </tbody>
                 </table>
 
-                <div className="grid grid-cols-3 border border-black mt-2">
+                <div className="grid grid-cols-[140px_180px_140px_1fr] border border-black mt-2">
                     <div className="border-r border-black p-2 font-bold text-center">交付日</div>
                     <div className="border-r border-black p-2 text-center">
                         {formatDate(planDraft.issued_on)}
                     </div>
-                    <div className="p-2 text-center font-bold">
-                        利用者確認印　　　　　印
+                    <div className="border-r border-black p-2 font-bold text-center">
+                        利用者サイン
                     </div>
+                    <div className="p-2 min-h-[44px]">&nbsp;</div>
                 </div>
             </div>
 
