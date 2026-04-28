@@ -493,6 +493,29 @@ export default function TrainingGoalsPage() {
             console.error('employee_training_goals upsert error:', error);
             return;
         }
+        const becameSelected =
+            patch.selected === true && row.selected !== true;
+
+        const becameWatched =
+            patch.watched === true && row.watched !== true;
+
+        if (becameSelected || becameWatched) {
+            try {
+                await fetch('/api/training-goals/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        entry_id: row.entry_id,
+                        notify_type: becameWatched ? 'watched' : 'selected',
+                        goal_title: row.goal_title,
+                        training_goal: row.training_goal,
+                        remark: '',
+                    }),
+                });
+            } catch (e) {
+                console.error('training goal lineworks notify error:', e);
+            }
+        }
 
         setRows((prev) =>
             prev.map((r) =>

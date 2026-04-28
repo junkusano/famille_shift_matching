@@ -7,6 +7,9 @@ export const runtime = "nodejs";
 type Body = {
     entry_id?: string;
     remark?: string;
+    notify_type?: "remark" | "selected" | "watched";
+    goal_title?: string;
+    training_goal?: string | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -15,12 +18,15 @@ export async function POST(req: NextRequest) {
 
         const entryId = String(body.entry_id ?? "").trim();
         const remark = String(body.remark ?? "").trim();
+        const notifyType = body.notify_type ?? "remark";
+        const goalTitle = String(body.goal_title ?? "").trim();
+        const trainingGoal = body.training_goal ?? null;
 
         if (!entryId) {
             return NextResponse.json({ ok: false, error: "entry_id required" }, { status: 400 });
         }
 
-        if (!remark) {
+        if (notifyType === "remark" && !remark) {
             return NextResponse.json({ ok: false, error: "remark required" }, { status: 400 });
         }
 
@@ -55,6 +61,9 @@ export async function POST(req: NextRequest) {
         const notifyResult = await sendTrainingGoalRemarkToLineworks({
             entryId,
             remark,
+            notifyType,
+            goalTitle,
+            trainingGoal,
         });
 
         return NextResponse.json({
