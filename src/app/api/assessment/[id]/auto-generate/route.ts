@@ -66,7 +66,14 @@ type GeneratedContentPartial = {
     sheets?: unknown;
 };
 
-const CORE_DOC_NAMES = ["基本情報(ステップ２）", "サービス等利用計画"] as const;
+const CORE_DOC_NAMES = [
+    "基本情報(ステップ２）",
+    "基本情報",
+    "サービス等利用計画",
+    "障害福祉サービス等利用計画",
+    "サービス等利用計画案",
+] as const;
+
 const OPTIONAL_DOC_NAMES = ["情報連携・看護サマリー等"] as const;
 
 function trimOrEmpty(v: unknown) {
@@ -217,6 +224,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         if (aErr) throw aErr;
         if (!assessment) return json({ ok: false, error: "assessment not found" }, 404);
 
+        const meetingMinutes = trimOrEmpty(assessment.meeting_minutes);
+
         const kaipokeCsId = trimOrEmpty(assessment.kaipoke_cs_id);
         if (!kaipokeCsId) return json({ ok: false, error: "kaipoke_cs_id is empty" }, 400);
 
@@ -274,37 +283,48 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             };
         };
 
-        // ★必須条件（緩和）：2つのうちどちらか1つでも “テキストあり” ならOK
-        const corePicked: SelectedDoc[] = CORE_DOC_NAMES
-            .map((n) => pickLatestByName(n, 12000))
-            .filter((x): x is SelectedDoc => x !== null);
-
-        if (corePicked.length === 0) {
-            const missingByName = CORE_DOC_NAMES.filter((n) => !(byName.get(n)?.length));
-            const emptyTextNames = CORE_DOC_NAMES.filter((n) => (byName.get(n)?.length ? pickLatestByName(n, 10) === null : false));
-
-            return json(
-                {
-                    ok: false,
-                    error: "core cs_docs are missing (need either 基本情報(ステップ２） or サービス等利用計画 with non-empty text)",
-                    missing_doc_names: missingByName,
-                    empty_text_doc_names: emptyTextNames,
-                    core_doc_names: CORE_DOC_NAMES,
-                    optional_doc_names: OPTIONAL_DOC_NAMES,
-                    kaipoke_cs_id: kaipokeCsId,
-                },
-                400
-            );
+        // 基本情報・サービス等利用計画・任意資料を、取れるものだけ取得する
+        for (const name of CORE_DOC_NAMES) {
+            const picked = pickLatestByName(name, 12000);
+            if (picked) selectedDocs.push(picked);
         }
 
-        selectedDocs.push(...corePicked);
-
         const missingOptional = OPTIONAL_DOC_NAMES.filter((n) => !(byName.get(n)?.length));
+
         for (const name of OPTIONAL_DOC_NAMES) {
             const opt = pickLatestByName(name, 8000);
             if (opt) selectedDocs.push(opt);
         }
 
+        const hasCoreDoc = selectedDocs.some((d) => {
+            const name = d.doc_name ?? "";
+            return (
+                name.includes("基本情報") ||
+                name.includes("サービス等利用計画") ||
+                name.includes("利用計画")
+            );
+        });
+
+        const hasMeetingMinutes = !!meetingMinutes;
+
+        // 今回の要件:
+        // 基本情報・サービス等利用計画がなくても、議事録があれば生成OK。
+        // どれもなければ生成NG。
+        if (!hasCoreDoc && !hasMeetingMinutes) {
+            return json(
+                {
+                    ok: false,
+                    error:
+                        "基本情報、サービス等利用計画、担当者会議議事録のいずれも無いため、アセスメントを自動生成できません。",
+                    source_labels: selectedDocs.map((d) => d.doc_name),
+                    core_doc_names: CORE_DOC_NAMES,
+                    optional_doc_names: OPTIONAL_DOC_NAMES,
+                    has_meeting_minutes: hasMeetingMinutes,
+                    kaipoke_cs_id: kaipokeCsId,
+                },
+                400,
+            );
+        }
         const docsText = selectedDocs
             .map(
                 (d) =>
@@ -339,12 +359,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         const visitNotes = visitNotesRaw ? take(visitNotesRaw, 12000) : "(直近1か月の訪問記録はありません)";
 
         const materials = [
-            "## 必須/任意資料(cs_docs)",
-            docsText,
+            meetingMinutes ? "## 担当者会議議事録" : "",
+            meetingMinutes ? meetingMinutes : "",
+            meetingMinutes ? "" : "",
+            "## 基本情報・サービス等利用計画等(cs_docs)",
+            docsText || "(基本情報・サービス等利用計画等の資料はありません)",
             "",
             "## 直近1か月の訪問記録(shift.tokutei_comment)",
             visitNotes,
-        ].join("\n");
+        ]
+            .filter((x) => x !== "")
+            .join("\n");
 
         const materialsChars = materials.length;
 
@@ -353,9 +378,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             kaipoke_cs_id: kaipokeCsId,
             docs_used: selectedDocs.map((d) => d.doc_name),
             missing_optional: missingOptional,
+            has_meeting_minutes: hasMeetingMinutes,
+            meeting_minutes_chars: meetingMinutes.length,
             materials_chars: materialsChars,
-            shift_range: { from: ymd(fromDate), to: ymd(baseDate) },
-            shifts_total: (shifts ?? []).length,
         });
 
         // 4) OpenAI生成
@@ -363,20 +388,27 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
         const system = `
 あなたは介護/障害福祉のアセスメント作成補助AIです。
-与えられた資料（cs_docsと訪問記録）だけを根拠に、アセスメント票の各項目を埋めます。
+与えられた資料だけを根拠に、アセスメント票の各項目を埋めます。
 
-必須:
-- 出力は JSONのみ（説明禁止）
-- 返すJSONは template_content と同じ階層構造を目標にする（version/sheets/rows）
-- sheets[].key と rows[].key は必ず出力する
-- rows[].check は "CIRCLE" または "NONE"
-- 根拠がある項目は check="CIRCLE" にし、remark/hope を短く埋める
-- 根拠が薄い項目は check="NONE" でもよいが、関連が少しでもあれば remark を短く入れる
-- 推測で断定しない（資料にある表現を要約して入れる）
-remark: 現状/観察/留意点
-hope: 本人・家族の希望/要望
+重要ルール:
+- 出力は JSONのみ。説明文は禁止。
+- 返すJSONは template_content と同じ階層構造を目標にする。
+- sheets[].key と rows[].key は必ず出力する。
+- rows[].check は "CIRCLE" または "NONE"。
+- 資料に明確な根拠がある項目のみ check="CIRCLE" にしてください。
+- 資料から読み取れる現状、観察、留意点がある場合のみ remark に短く記載してください。
+- 資料から読み取れる本人・家族の希望や要望がある場合のみ hope に短く記載してください。
+- 推測、創作、一般論による補完は禁止です。
+- 空欄を避けるために一般的な介護文を作ることは禁止です。
+- 資料から読み取れない項目は check="NONE", remark:"", hope:"" のままにしてください。
+- 利用者本人の氏名、家族氏名、職員名は remark や hope に入れないでください。
+- 「困難である」「できない」だけで終わる記述は避け、資料にある内容を現状・留意点として簡潔に要約してください。
+- 担当者会議議事録がある場合は、基本情報やサービス等利用計画がなくても、議事録の内容だけを根拠に生成してよいです。
+- 医療判断、診断、過度な断定は禁止です。
+
+remark: 資料から読み取れる現状/観察/留意点
+hope: 資料から読み取れる本人・家族の希望/要望
 `.trim();
-
         const user = {
             materials,
             template_content: templateContent,
@@ -441,6 +473,9 @@ hope: 本人・家族の希望/要望
                         docs_used: selectedDocs.map((d) => ({ doc_name: d.doc_name, use: d.use, chars: d.text.length })),
                         missing_optional_doc_names: missingOptional,
                         visit_notes_chars: visitNotes.length,
+                        missing_optional: missingOptional,
+                        has_meeting_minutes: hasMeetingMinutes,
+                        meeting_minutes_chars: meetingMinutes.length,
                         materials_chars: materialsChars,
                         model: resp.model,
                         finish_reason: finishReason,
@@ -466,6 +501,8 @@ hope: 本人・家族の希望/要望
             meta: {
                 docs_used: selectedDocs.map((d) => ({ doc_name: d.doc_name, use: d.use, chars: d.text.length })),
                 missing_optional_doc_names: missingOptional,
+                has_meeting_minutes: hasMeetingMinutes,
+                meeting_minutes_chars: meetingMinutes.length,
                 shift_range: { from: ymd(fromDate), to: ymd(baseDate) },
                 shifts_total: (shifts ?? []).length,
                 visit_notes_chars: visitNotes.length,

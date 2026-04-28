@@ -80,6 +80,12 @@ type PlanHeaderDraft = {
   assistance_goal: string;
 };
 
+type PlanSourceTextResult = {
+  text: string;
+  hasUsableSource: boolean;
+  sourceLabels: string[];
+};
+
 const TITLE_MAP: Record<PlanDocumentKind, string> = {
   障害福祉サービス: "障害福祉サービス　ファミーユヘルパーサービス愛知　個別計画書",
   移動支援サービス: "移動支援サービス　ファミーユヘルパーサービス愛知　個別計画書",
@@ -175,14 +181,17 @@ function buildWarnings(rows: SourceRow[]) {
   return warnings;
 }
 
-async function buildPlanSourceText(a: AssessmentRow): Promise<string> {
+async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResult> {
   const { data: docs, error } = await supabaseAdmin
     .from("cs_docs")
     .select("doc_name, summary, ocr_text, created_at")
     .eq("kaipoke_cs_id", a.kaipoke_cs_id)
     .in("doc_name", [
       "基本情報(ステップ２）",
+      "基本情報",
       "サービス等利用計画",
+      "障害福祉サービス等利用計画",
+      "サービス等利用計画案",
       "情報連携・看護サマリー等",
     ])
     .order("created_at", { ascending: false })
@@ -192,28 +201,60 @@ async function buildPlanSourceText(a: AssessmentRow): Promise<string> {
     console.warn("[plans/generate] cs_docs fetch failed", error.message);
   }
 
+  const sourceLabels: string[] = [];
+
   const docText = ((docs ?? []) as CsDocRow[])
     .map((d) => {
+      const docName = d.doc_name ?? "資料";
+
+      const isCoreDoc =
+        docName.includes("基本情報") ||
+        docName.includes("サービス等利用計画") ||
+        docName.includes("利用計画");
+
+      if (isCoreDoc) {
+        sourceLabels.push(docName);
+      }
+
       const text = [
         d.summary ?? "",
         d.ocr_text ? d.ocr_text.slice(0, 2500) : "",
       ]
         .filter(Boolean)
         .join("\n");
-      return text ? `【${d.doc_name ?? "資料"}】\n${text}` : "";
+
+      return text ? `【${docName}】\n${text}` : "";
     })
     .filter(Boolean)
     .join("\n\n");
 
-  const assessmentText = flattenAssessmentContent(a.content ?? {});
   const meetingMinutes = a.meeting_minutes?.trim()
     ? `【担当者会議議事録】\n${a.meeting_minutes.trim()}`
     : "";
 
-  return [meetingMinutes, assessmentText, docText]
+  if (meetingMinutes) {
+    sourceLabels.push("担当者会議議事録");
+  }
+
+  const assessmentText = flattenAssessmentContent(a.content ?? {});
+
+  const text = [meetingMinutes, docText, assessmentText]
     .filter(Boolean)
     .join("\n\n")
     .slice(0, 14000);
+
+  const hasUsableSource = sourceLabels.some((x) =>
+    x.includes("基本情報") ||
+    x.includes("サービス等利用計画") ||
+    x.includes("利用計画") ||
+    x.includes("担当者会議議事録")
+  );
+
+  return {
+    text,
+    hasUsableSource,
+    sourceLabels: [...new Set(sourceLabels)],
+  };
 }
 
 function flattenAssessmentContent(content: Record<string, unknown>): string {
@@ -277,22 +318,35 @@ async function buildPlanHeaderDraft(params: {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const prompt = `
-あなたは障害福祉サービスの個別支援計画・居宅介護計画書を作成する専門職です。
+あなたは障害福祉サービス・訪問介護の計画書作成を補助する専門職です。
 以下の資料から、計画書に記載する「本人（家族）の希望」と「援助目標」を作成してください。
 
 重要ルール:
 - JSONのみ返してください。
-- person_family_hope は150文字程度。
+- 資料に書かれている事実・意向・会議内容だけを使ってください。
+- 推測、創作、一般論による補完は禁止です。
+- 利用者本人の氏名、家族氏名、職員名は本文に入れないでください。
+- person_family_hope は150文字程度。ただし資料から読み取れなければ空文字にしてください。
 - assistance_goal は150文字程度。
-- 「援助目標」は課題の説明ではなく、支援によって目指す状態を書くこと。
-- 例: 「掃除が困難」ではなく「支援を受けながら住環境を整え、安心して在宅生活を継続できるようにする。」
-- 本人の希望が読み取れない場合も、資料から自然な希望文を補ってください。
-- 医療判断・診断・過度な断定は禁止です。
+- 援助目標は「困難である」「できない」などの課題説明ではなく、支援によって目指す状態を書いてください。
+- ただし、資料に根拠がない目標を創作しないでください。
+- 資料から目標が十分に読み取れない場合は、空文字にしてください。
+- 医療判断、診断、過度な断定は禁止です。
+
+悪い例:
+{
+  "assistance_goal": "掃除が困難である。"
+}
+
+良い例:
+{
+  "assistance_goal": "必要な支援を受けながら住環境を整え、安心して在宅生活を継続できるようにする。"
+}
 
 返却形式:
 {
-  "person_family_hope": "....",
-  "assistance_goal": "...."
+  "person_family_hope": "",
+  "assistance_goal": ""
 }
 
 資料:
@@ -347,20 +401,13 @@ function buildPlanHeaderFallback(extracted: {
   person_family_hope: string | null;
   assistance_goal: string | null;
 }): PlanHeaderDraft {
-  const hopeBase =
-    extracted.person_family_hope?.trim() ||
-    "住み慣れた地域や自宅で、必要な支援を受けながら安心して生活を続けたい。";
-
-  const remarksBase =
-    extracted.assistance_goal?.trim() ||
-    "本人の生活状況に応じて、必要な家事援助、見守り、声かけ等を行う。";
-
   return {
-    person_family_hope: limitJapaneseText(hopeBase, 170),
+    person_family_hope: removePersonNames(
+      limitJapaneseText(extracted.person_family_hope?.trim() ?? "", 170),
+    ),
     assistance_goal: normalizeGoalText(
-      limitJapaneseText(
-        `本人の意向と生活状況を踏まえ、必要な支援を受けながら生活環境を整え、安心して在宅生活を継続できるようにする。${remarksBase ? ` ${remarksBase}` : ""}`,
-        170,
+      removePersonNames(
+        limitJapaneseText(extracted.assistance_goal?.trim() ?? "", 170),
       ),
     ),
   };
@@ -412,28 +459,42 @@ async function buildServiceDraftsByCategory(params: {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const prompt = `
-あなたは訪問介護・障害福祉サービスの個別計画書を作成する専門職です。
+あなたは訪問介護・障害福祉サービスの個別計画書作成を補助する専門職です。
 以下の資料から、サービス種別ごとに「サービスの内容」「手順・留意事項・観察ポイント」「本人・家族にやっていただくこと」を作成してください。
 
 重要ルール:
 - JSONのみ返してください。
-- キーは指定された service_keys のみ使ってください。
-- 各キーに service_detail, procedure_notes, family_action を入れてください。
-- 家事系には掃除、洗濯、調理、買い物、整理整頓などを入れてよいです。
-- 身体系には家事だけを入れてはいけません。
-- 身体系で家事的内容しか資料から取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
-- ③〜⑤は同じカテゴリ内では同じ内容で構いません。
-- 手順・留意事項・観察ポイントは可能な限り具体化してください。
-- 本人・家族にやっていただくことも、可能な限り具体化してください。
-- 医療判断、診断、過度な断定は禁止です。
-- 空欄にせず、資料不足の場合でも安全で一般的な表現を入れてください。
+- 資料に書かれている事実・意向・会議内容だけを使ってください。
+- 推測、創作、一般論による補完は禁止です。
+- 利用者本人の氏名、家族氏名、職員名は本文に入れないでください。
 - service_detail は50〜100文字程度。
 - procedure_notes は50〜100文字程度。
 - family_action は50〜100文字程度。
-- 長文にせず、計画書の表に入る短い文章にしてください。
+- service_detail は、資料から読み取れるサービス内容がある場合のみ入れてください。読み取れなければ空文字。
+- procedure_notes は、資料から読み取れる手順・留意事項・観察ポイントがある場合のみ入れてください。読み取れなければ空文字。
+- family_action は、資料から本人または家族に依頼・協力してもらう内容が読み取れる場合のみ入れてください。読み取れなければ空文字。
+- 家事系には掃除、洗濯、調理、買い物、整理整頓など、資料から読み取れるものだけを入れてください。
+- 身体系には家事だけを入れてはいけません。
+- 身体系で家事的内容しか資料から読み取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
+- 空欄を避けるための一般文補完は禁止です。
+- 医療判断、診断、過度な断定は禁止です。
 
 service_keys:
 ${keys.map((k) => `- ${k}`).join("\n")}
+
+返却形式:
+{
+  "家事": {
+    "service_detail": "",
+    "procedure_notes": "",
+    "family_action": ""
+  },
+  "身体": {
+    "service_detail": "",
+    "procedure_notes": "",
+    "family_action": ""
+  }
+}
 
 資料:
 ${sourceText}
@@ -469,21 +530,15 @@ ${sourceText}
       const obj = v as Record<string, unknown>;
       const merged = {
         service_detail: limitJapaneseText(
-          typeof obj.service_detail === "string" && obj.service_detail.trim()
-            ? obj.service_detail.trim()
-            : fallback[key].service_detail,
+          typeof obj.service_detail === "string" ? obj.service_detail.trim() : "",
           100,
         ),
         procedure_notes: limitJapaneseText(
-          typeof obj.procedure_notes === "string" && obj.procedure_notes.trim()
-            ? obj.procedure_notes.trim()
-            : fallback[key].procedure_notes,
+          typeof obj.procedure_notes === "string" ? obj.procedure_notes.trim() : "",
           100,
         ),
         family_action: limitJapaneseText(
-          typeof obj.family_action === "string" && obj.family_action.trim()
-            ? obj.family_action.trim()
-            : fallback[key].family_action,
+          typeof obj.family_action === "string" ? obj.family_action.trim() : "",
           100,
         ),
       };
@@ -531,56 +586,11 @@ function normalizeServiceKey(v: string): string {
   return v;
 }
 
-function fallbackServiceDraft(row: SourceRow): ServiceTextDraft {
-  const key = buildServiceDraftKey(row);
-
-  if (key === "家事") {
-    return {
-      service_detail: "掃除、整理整頓、洗濯、買い物、調理等の家事援助を行う。",
-      procedure_notes:
-        "本人の意向と体調を確認し、居室・水回り等の清掃や必要な家事を安全に行う。",
-      family_action:
-        "必要物品や買い物内容を確認し、本人ができる部分は無理なく一緒に行う。",
-    };
-  }
-
-  if (key === "身体") {
-    return {
-      service_detail:
-        "体調確認、声かけ、見守り、必要に応じた身体介護を行う。",
-      procedure_notes:
-        "体調、ふらつき、疲労感を確認し、本人のペースに合わせて安全に支援する。",
-      family_action:
-        "体調変化や注意点を共有し、本人ができることは継続できるよう声かけする。",
-    };
-  }
-
-  if (key === "移動支援" || key === "同行援護" || key === "通院") {
-    return {
-      service_detail: "外出時の移動支援、経路確認、安全確認、声かけを行う。",
-      procedure_notes:
-        "体調、持ち物、目的地を確認し、移動中の転倒や交通安全に注意する。",
-      family_action:
-        "行き先、持ち物、連絡事項を事前に共有していただく。",
-    };
-  }
-
-  if (key === "重度訪問") {
-    return {
-      service_detail: "本人の状態に応じて、見守り、声かけ、身体介護、生活上必要な支援を行う。",
-      procedure_notes:
-        "体調、姿勢、表情、疲労、環境変化を確認し、本人の意思を尊重しながら安全に支援する。",
-      family_action:
-        "体調変化、生活上の注意点、支援時の希望があれば共有していただく。",
-    };
-  }
-
+function fallbackServiceDraft(_row: SourceRow): ServiceTextDraft {
   return {
-    service_detail: `${key}に関する必要な支援を行う。`,
-    procedure_notes:
-      "本人の状態、意向、生活環境を確認し、安全に配慮しながら支援する。変化がある場合は関係者へ共有する。",
-    family_action:
-      "支援に必要な情報や注意点がある場合は事前に共有していただく。",
+    service_detail: "",
+    procedure_notes: "",
+    family_action: "",
   };
 }
 
@@ -728,9 +738,22 @@ export async function POST(req: NextRequest) {
     );
 
     const extracted = extractAssessmentTexts(a.content ?? {});
-    const sourceText = await buildPlanSourceText(a);
+    const source = await buildPlanSourceText(a);
+
+    if (!source.hasUsableSource) {
+      return json(
+        {
+          ok: false,
+          error:
+            "基本情報、サービス等利用計画、担当者会議議事録のいずれも無いため、プランを自動生成できません。",
+          source_labels: source.sourceLabels,
+        },
+        400,
+      );
+    }
+
     const headerDraft = await buildPlanHeaderDraft({
-      sourceText,
+      sourceText: source.text,
       extracted,
     });
 
@@ -789,9 +812,8 @@ export async function POST(req: NextRequest) {
 
       const monthlySummary = calcMonthlySummary(targetRows);
 
-      const sourceText = await buildPlanSourceText(a);
       const serviceDraftByCategory = await buildServiceDraftsByCategory({
-        sourceText,
+        sourceText: source.text,
         assessmentContent: a.content ?? {},
         targetRows,
       });
@@ -920,4 +942,12 @@ export async function POST(req: NextRequest) {
     console.error("[plans/generate] error", msg);
     return json({ ok: false, error: msg }, 500);
   }
+}
+
+function removePersonNames(text: string): string {
+  return text
+    .replace(/[一-龥ぁ-んァ-ヶー]{2,10}様/g, "本人")
+    .replace(/[一-龥ぁ-んァ-ヶー]{2,10}さん/g, "本人")
+    .replace(/\s+/g, " ")
+    .trim();
 }
