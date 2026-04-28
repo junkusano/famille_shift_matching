@@ -21,9 +21,7 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     entryId: string;
     remark: string;
 }) {
-    const { remark } = args;
-
-    const TEST_TARGET_LW_USERID = "jundakusanoda";
+    const { entryId, remark } = args;
 
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
@@ -36,7 +34,7 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
         first_name_kanji,
         orgunitname
     `)
-        .eq("lw_userid", TEST_TARGET_LW_USERID)
+        .eq("entry_id", entryId)
         .maybeSingle();
 
     if (error) {
