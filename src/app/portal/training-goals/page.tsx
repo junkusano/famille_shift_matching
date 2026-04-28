@@ -222,9 +222,6 @@ export default function TrainingGoalsPage() {
             }
 
             if (isAllEmployeesView) {
-                const memberCatalogRows = ((catalogData ?? []) as TrainingGoalCatalogRow[]).filter((row) => {
-                    return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
-                });
 
                 const { data: allSelectionData, error: allSelectionError } = await supabase
                     .from('employee_training_goals')
@@ -259,37 +256,51 @@ export default function TrainingGoalsPage() {
                     return;
                 }
 
-                const selectionMap = new Map(
-                    ((allSelectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [
-                        `${row.entry_id}-${row.goal_key}`,
-                        row,
-                    ])
-                );
+                const selectionsByEntryId = new Map<string, TrainingGoalSelectionRow[]>();
 
-                const allJoined: JoinedRow[] = employeeRows.flatMap((emp) => {
-                    return memberCatalogRows.map((catalog) => {
-                        const selected = selectionMap.get(`${emp.entry_id}-${catalog.training_key}`);
+                for (const row of (allSelectionData ?? []) as TrainingGoalSelectionRow[]) {
+                    if (!row.selected) continue;
 
-                        return {
-                            id: selected?.id ?? `virtual-${emp.entry_id}-${catalog.training_key}`,
-                            entry_id: emp.entry_id,
-                            goal_key: catalog.training_key,
-                            goal_title: catalog.training_title,
-                            video_url: catalog.video_url,
-                            selected: selected?.selected ?? false,
-                            watched: selected?.watched ?? false,
-                            remark: selected?.remark ?? '',
-                            sort_order: catalog.sort_order,
-                            created_at: selected?.created_at ?? '',
-                            updated_at: selected?.updated_at ?? '',
-                            category: catalog.training_type,
-                            group_code: catalog.training_code,
-                            target_condition: catalog.target_group,
-                            training_goal: catalog.training_goal,
-                            row_type: 'goal',
-                            entry: emp,
-                        };
-                    });
+                    const current = selectionsByEntryId.get(row.entry_id) ?? [];
+                    current.push(row);
+                    selectionsByEntryId.set(row.entry_id, current);
+                }
+
+                const allJoined: JoinedRow[] = employeeRows.map((emp) => {
+                    const selectedGoals = selectionsByEntryId.get(emp.entry_id) ?? [];
+
+                    const goalText =
+                        selectedGoals.length > 0
+                            ? selectedGoals
+                                .map((goal) => goal.training_goal || goal.goal_title)
+                                .filter(Boolean)
+                                .join('\n')
+                            : '未設定';
+
+                    const watchedText =
+                        selectedGoals.length === 0
+                            ? false
+                            : selectedGoals.every((goal) => goal.watched);
+
+                    return {
+                        id: `summary-${emp.entry_id}`,
+                        entry_id: emp.entry_id,
+                        goal_key: `summary-${emp.entry_id}`,
+                        goal_title: goalText,
+                        video_url: null,
+                        selected: selectedGoals.length > 0,
+                        watched: watchedText,
+                        remark: null,
+                        sort_order: 0,
+                        created_at: '',
+                        updated_at: '',
+                        category: null,
+                        group_code: null,
+                        target_condition: null,
+                        training_goal: null,
+                        row_type: 'goal',
+                        entry: emp,
+                    };
                 });
 
                 setRows(allJoined);
