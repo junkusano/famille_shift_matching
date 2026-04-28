@@ -99,10 +99,10 @@ export default function TrainingGoalsPage() {
     const [remarkMessage, setRemarkMessage] = useState('');
 
     type AdminSortKey = 'selected' | 'watched';
-    type SortDirection = 'asc' | 'desc';
+    type AdminSortOrder = 'none' | 'asc' | 'desc';
 
-    const [adminSortKey, setAdminSortKey] = useState<AdminSortKey>('selected');
-    const [adminSortDirection, setAdminSortDirection] = useState<SortDirection>('asc');
+    const [adminSortKey, setAdminSortKey] = useState<AdminSortKey | null>(null);
+    const [adminSortOrder, setAdminSortOrder] = useState<AdminSortOrder>('none');
 
     useEffect(() => {
         const load = async () => {
@@ -218,11 +218,9 @@ export default function TrainingGoalsPage() {
 
                 // ③ admin / manager 表示
             } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
-                targetEntryId = employeeRows[0]?.entry_id ?? '';
-
-                if (targetEntryId) {
-                    setSelectedEntryId(targetEntryId);
-                }
+                targetEntryId = ALL_ENTRY_ID;
+                setSelectedEntryId(ALL_ENTRY_ID);
+                router.replace('?user_id=all', { scroll: false });
             }
 
             if (!targetEntryId) {
@@ -493,13 +491,24 @@ export default function TrainingGoalsPage() {
     }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole]);
 
     const toggleAdminSort = (key: AdminSortKey) => {
-        if (adminSortKey === key) {
-            setAdminSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        if (adminSortKey !== key) {
+            setAdminSortKey(key);
+            setAdminSortOrder('asc');
             return;
         }
 
-        setAdminSortKey(key);
-        setAdminSortDirection('asc');
+        if (adminSortOrder === 'asc') {
+            setAdminSortOrder('desc');
+            return;
+        }
+
+        setAdminSortKey(null);
+        setAdminSortOrder('none');
+    };
+
+    const adminSortMark = (key: AdminSortKey) => {
+        if (adminSortKey !== key || adminSortOrder === 'none') return '⇅';
+        return adminSortOrder === 'asc' ? '▲' : '▼';
     };
 
     const adminSortedRows = useMemo(() => {
@@ -529,9 +538,13 @@ export default function TrainingGoalsPage() {
                 result = String(av).localeCompare(String(bv), 'ja');
             }
 
-            return adminSortDirection === 'asc' ? result : -result;
+            if (!adminSortKey || adminSortOrder === 'none') {
+                return 0;
+            }
+
+            return adminSortOrder === 'asc' ? result : -result;
         });
-    }, [filteredRows, isAllEmployeesView, adminSortKey, adminSortDirection]);
+    }, [filteredRows, isAllEmployeesView, adminSortKey, adminSortOrder]);
 
     const groupedRows = useMemo(() => {
         const map = new Map<string, JoinedRow[]>();
@@ -943,12 +956,12 @@ export default function TrainingGoalsPage() {
                                 <th className="border px-3 py-2 text-left">目標</th>
                                 <th className="border px-3 py-2 text-center">
                                     <button type="button" onClick={() => toggleAdminSort('selected')}>
-                                        設定状況 {adminSortKey === 'selected' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                        設定状況 {adminSortMark('selected')}
                                     </button>
                                 </th>
                                 <th className="border px-3 py-2 text-center">
                                     <button type="button" onClick={() => toggleAdminSort('watched')}>
-                                        受講完了 {adminSortKey === 'watched' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                        受講完了 {adminSortMark('watched')}
                                     </button>
                                 </th>
                             </tr>
