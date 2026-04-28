@@ -120,7 +120,7 @@ function NavLinks({ role }: { role: string | null }) {
       )}
       <li>
         <Link href="/portal/training-goals" className="text-blue-300 hover:underline">
-          目標・研修・評価（開発中）
+          目標・研修・評価
         </Link>
       </li>
       <li><Link href="/portal/disability-check" className="text-blue-300 hover:underline">実績記録チェック</Link></li>
