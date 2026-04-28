@@ -225,9 +225,8 @@ export default function TrainingGoalsPage() {
                 targetEntryId = ALL_ENTRY_ID;
                 setSelectedEntryId(ALL_ENTRY_ID);
 
-                // ★これを追加
-                if (!searchParams.get('user_id')) {
-                    router.replace('?user_id=all', { scroll: false });
+                if (!queryUserId) {
+                    router.replace('/portal/training-goals?user_id=all', { scroll: false });
                 }
             }
 
