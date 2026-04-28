@@ -448,7 +448,7 @@ async function buildServiceDraftsByCategory(params: {
   const fallback: Record<string, ServiceTextDraft> = {};
   for (const row of targetRows) {
     const key = buildServiceDraftKey(row);
-    fallback[key] = fallbackServiceDraft(row);
+    fallback[key] = fallbackServiceDraft();
   }
 
   if (!process.env.OPENAI_API_KEY || !sourceText.trim()) {
@@ -464,6 +464,8 @@ async function buildServiceDraftsByCategory(params: {
 
 重要ルール:
 - JSONのみ返してください。
+- キーは指定された service_keys のみ使ってください。
+- 各キーに service_detail, procedure_notes, family_action を入れてください。
 - 資料に書かれている事実・意向・会議内容だけを使ってください。
 - 推測、創作、一般論による補完は禁止です。
 - 利用者本人の氏名、家族氏名、職員名は本文に入れないでください。
@@ -473,7 +475,7 @@ async function buildServiceDraftsByCategory(params: {
 - service_detail は、資料から読み取れるサービス内容がある場合のみ入れてください。読み取れなければ空文字。
 - procedure_notes は、資料から読み取れる手順・留意事項・観察ポイントがある場合のみ入れてください。読み取れなければ空文字。
 - family_action は、資料から本人または家族に依頼・協力してもらう内容が読み取れる場合のみ入れてください。読み取れなければ空文字。
-- 家事系には掃除、洗濯、調理、買い物、整理整頓など、資料から読み取れるものだけを入れてください。
+- 家事系には、資料から読み取れる掃除、洗濯、調理、買い物、整理整頓などだけを入れてください。
 - 身体系には家事だけを入れてはいけません。
 - 身体系で家事的内容しか資料から読み取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
 - 空欄を避けるための一般文補完は禁止です。
@@ -523,11 +525,13 @@ ${sourceText}
     }
 
     const result: Record<string, ServiceTextDraft> = { ...fallback };
+
     for (const key of keys) {
       const v = (parsed as Record<string, unknown>)[key];
       if (!v || typeof v !== "object") continue;
 
       const obj = v as Record<string, unknown>;
+
       const merged = {
         service_detail: limitJapaneseText(
           typeof obj.service_detail === "string" ? obj.service_detail.trim() : "",
@@ -586,7 +590,7 @@ function normalizeServiceKey(v: string): string {
   return v;
 }
 
-function fallbackServiceDraft(_row: SourceRow): ServiceTextDraft {
+function fallbackServiceDraft(): ServiceTextDraft {
   return {
     service_detail: "",
     procedure_notes: "",
@@ -861,7 +865,7 @@ export async function POST(req: NextRequest) {
         const monthlyMinutes = Math.round(duration * factor);
 
         const draftKey = buildServiceDraftKey(row);
-        const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft(row);
+        const draft = serviceDraftByCategory[draftKey] ?? fallbackServiceDraft();
 
         return {
           plan_id: insertedPlan.plan_id,
