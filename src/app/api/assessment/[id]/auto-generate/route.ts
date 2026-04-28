@@ -51,6 +51,7 @@ type AssessmentContent = {
 // OpenAIが返してきがちな “不足フィールドあり” JSON を受ける型
 type GeneratedRowPartial = {
     key?: unknown;
+    label?: unknown;
     check?: unknown;
     remark?: unknown;
     hope?: unknown;
@@ -138,55 +139,60 @@ function isAssessmentContent(v: unknown): v is AssessmentContent {
 }
 
 // OpenAIの “部分JSON” を読み取り、templateにマージして正規化
+// OpenAIの “部分JSON” を読み取り、templateにマージして正規化
+// key完全一致を優先し、失敗した場合は label 一致でも拾う
 function normalizeByTemplate(template: AssessmentContent, generatedUnknown: unknown): AssessmentContent {
     const gen = generatedUnknown as GeneratedContentPartial;
 
-    const genSheets: GeneratedSheetPartial[] = Array.isArray(gen?.sheets) ? (gen.sheets as GeneratedSheetPartial[]) : [];
+    const genSheets: GeneratedSheetPartial[] = Array.isArray(gen?.sheets)
+        ? (gen.sheets as GeneratedSheetPartial[])
+        : [];
 
-    // sheetKey -> (rowKey -> {check,remark,hope})
-    const rowMap = new Map<string, Map<string, { check?: "NONE" | "CIRCLE"; remark?: string; hope?: string }>>();
+    const allGeneratedRows: GeneratedRowPartial[] = [];
 
     for (const s of genSheets) {
-        const sk = typeof s?.key === "string" ? s.key : "";
-        if (!sk) continue;
-
         const rowsUnknown = s?.rows;
-        const rows: GeneratedRowPartial[] = Array.isArray(rowsUnknown) ? (rowsUnknown as GeneratedRowPartial[]) : [];
+        const rows: GeneratedRowPartial[] = Array.isArray(rowsUnknown)
+            ? (rowsUnknown as GeneratedRowPartial[])
+            : [];
 
-        const rm = new Map<string, { check?: "NONE" | "CIRCLE"; remark?: string; hope?: string }>();
         for (const r of rows) {
-            const rk = typeof r?.key === "string" ? (r.key as string) : "";
-            if (!rk) continue;
-
-            const check = r.check === "NONE" || r.check === "CIRCLE" ? (r.check as "NONE" | "CIRCLE") : undefined;
-            const remark = typeof r.remark === "string" ? r.remark : undefined;
-            const hope = typeof r.hope === "string" ? r.hope : undefined;
-
-            rm.set(rk, { check, remark, hope });
+            if (r && typeof r === "object") {
+                allGeneratedRows.push(r);
+            }
         }
-        rowMap.set(sk, rm);
     }
 
     const merged: AssessmentContent = {
         version: template.version,
         sheets: template.sheets.map((ts) => {
-            const rm = rowMap.get(ts.key);
             return {
                 key: ts.key,
                 title: ts.title,
                 printTarget: ts.printTarget,
                 rows: ts.rows.map((tr) => {
-                    const hit = rm?.get(tr.key);
-                    const nextCheck = hit?.check ?? tr.check;
-                    const nextRemark = typeof hit?.remark === "string" ? hit.remark : tr.remark;
-                    const nextHope = typeof hit?.hope === "string" ? hit.hope : tr.hope;
+                    const hit =
+                        allGeneratedRows.find((r) => typeof r.key === "string" && r.key === tr.key) ??
+                        allGeneratedRows.find((r) => typeof r.label === "string" && r.label === tr.label);
+
+                    const remark = typeof hit?.remark === "string" ? hit.remark.trim() : "";
+                    const hope = typeof hit?.hope === "string" ? hit.hope.trim() : "";
+
+                    const generatedCheck =
+                        hit?.check === "CIRCLE" || hit?.check === "NONE"
+                            ? hit.check
+                            : "NONE";
+
+                    // remark / hope があるなら check=CIRCLE に補正
+                    const check: "NONE" | "CIRCLE" =
+                        remark || hope ? "CIRCLE" : generatedCheck;
 
                     return {
                         key: tr.key,
                         label: tr.label,
-                        check: nextCheck,
-                        remark: nextRemark,
-                        hope: nextHope,
+                        check,
+                        remark,
+                        hope,
                     };
                 }),
             };
@@ -282,7 +288,6 @@ export async function POST(req: NextRequest, { params }: Ctx) {
                 text: picked.text,
             };
         };
-
         // 基本情報・サービス等利用計画・任意資料を、取れるものだけ取得する
         for (const name of CORE_DOC_NAMES) {
             const picked = pickLatestByName(name, 12000);
@@ -307,9 +312,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
         const hasMeetingMinutes = !!meetingMinutes;
 
-        // 今回の要件:
-        // 基本情報・サービス等利用計画がなくても、議事録があれば生成OK。
-        // どれもなければ生成NG。
+        // 基本情報・サービス等利用計画がなくても、議事録があれば生成OK
         if (!hasCoreDoc && !hasMeetingMinutes) {
             return json(
                 {
@@ -322,7 +325,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
                     has_meeting_minutes: hasMeetingMinutes,
                     kaipoke_cs_id: kaipokeCsId,
                 },
-                400,
+                400
             );
         }
         const docsText = selectedDocs
@@ -381,6 +384,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
             has_meeting_minutes: hasMeetingMinutes,
             meeting_minutes_chars: meetingMinutes.length,
             materials_chars: materialsChars,
+            shift_range: { from: ymd(fromDate), to: ymd(baseDate) },
+            shifts_total: (shifts ?? []).length,
         });
 
         // 4) OpenAI生成
@@ -392,10 +397,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
 重要ルール:
 - 出力は JSONのみ。説明文は禁止。
-- 返すJSONは template_content と同じ階層構造を目標にする。
-- sheets[].key と rows[].key は必ず出力する。
+- 返すJSONは template_content と同じ階層構造を目標にしてください。
+- sheets[].key は、入力テンプレートの sheets[].key と完全一致させてください。
+- rows[].key は、入力テンプレートの rows[].key と完全一致させてください。
+- key を日本語名、ラベル名、別名に変更してはいけません。
+- label は変更してはいけません。
 - rows[].check は "CIRCLE" または "NONE"。
 - 資料に明確な根拠がある項目のみ check="CIRCLE" にしてください。
+- remark または hope を入れる場合は、原則 check も "CIRCLE" にしてください。
 - 資料から読み取れる現状、観察、留意点がある場合のみ remark に短く記載してください。
 - 資料から読み取れる本人・家族の希望や要望がある場合のみ hope に短く記載してください。
 - 推測、創作、一般論による補完は禁止です。
@@ -468,14 +477,14 @@ hope: 資料から読み取れる本人・家族の希望/要望
                 {
                     ok: false,
                     error: "generated content is empty (no rows filled)",
-                    hint: "資料テキストが薄い/空/切れている可能性があります。metaを確認してください。",
+                    hint: "OpenAIは返答していますが、templateへのマージ結果が0件です。raw_previewとkey/labelを確認してください。",
+                    raw_preview: txt.slice(0, 1500),
                     meta: {
                         docs_used: selectedDocs.map((d) => ({ doc_name: d.doc_name, use: d.use, chars: d.text.length })),
                         missing_optional_doc_names: missingOptional,
-                        visit_notes_chars: visitNotes.length,
-                        missing_optional: missingOptional,
                         has_meeting_minutes: hasMeetingMinutes,
                         meeting_minutes_chars: meetingMinutes.length,
+                        visit_notes_chars: visitNotes.length,
                         materials_chars: materialsChars,
                         model: resp.model,
                         finish_reason: finishReason,
