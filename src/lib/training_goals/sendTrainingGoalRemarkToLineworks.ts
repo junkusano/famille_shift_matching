@@ -28,14 +28,14 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(`
-            entry_id,
-            user_id,
-            channel_id,
-            lw_userid,
-            last_name_kanji,
-            first_name_kanji,
-            orgunitname
-        `)
+        entry_id,
+        user_id,
+        channel_id,
+        lw_userid,
+        last_name_kanji,
+        first_name_kanji,
+        orgunitname
+    `)
         .eq("lw_userid", TEST_TARGET_LW_USERID)
         .maybeSingle();
 
