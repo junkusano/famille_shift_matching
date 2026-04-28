@@ -1345,7 +1345,11 @@ const DisabilityCheckPage: React.FC = () => {
           {uniqueFilteredRecords.map((r) => {
             const key = normCsId(r.kaipoke_cs_id);
             return (
-              <tr key={key} style={{ verticalAlign: "middle" }}>
+              <tr
+                key={key}
+                className="group hover:bg-yellow-50"
+                style={{ verticalAlign: "middle" }}
+              >
                 <td style={{ padding: 8 }}>{r.district ?? "-"}</td>
                 <td style={{ padding: 8 }}>{r.kaipoke_cs_id}</td>
 
@@ -1357,7 +1361,7 @@ const DisabilityCheckPage: React.FC = () => {
                     )}&month=${encodeURIComponent(r.year_month)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 underline"
+                    className="text-blue-600 underline group-hover:text-red-600 font-medium"
                   >
                     {r.client_name}
                   </Link>
