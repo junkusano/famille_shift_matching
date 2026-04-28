@@ -24,7 +24,7 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     const { entryId, remark } = args;
 
     const { data, error } = await supabaseAdmin
-        .from("user_entry_united_view_single")
+        .from("user_entry_united_view_single_career")
         .select(`
         entry_id,
         user_id,
@@ -45,10 +45,12 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
     if (!staff) {
         throw new Error("対象職員が見つかりません");
     }
+    const to =
+        staff.channel_id ??   // 勤務キャリア・コーディネートルーム
+        staff.lw_userid;      // fallback（個人チャット）
 
-    const channelId = String(staff.channel_id ?? "").trim();
-    if (!channelId) {
-        throw new Error("通知先の channel_id が見つかりません");
+    if (!to) {
+        throw new Error("送信先が見つかりません");
     }
 
     const staffName = buildStaffName(staff) || "対象職員";
@@ -63,11 +65,11 @@ export async function sendTrainingGoalRemarkToLineworks(args: {
         `追加内容:\n${remark}\n\n` +
         `確認画面:\nhttps://myfamille.shi-on.net/portal/training-goals`;
 
-    await sendLWBotMessage(channelId, message, accessToken);
+    await sendLWBotMessage(to, message, accessToken);
 
     return {
         ok: true,
-        channelId,
+        to,
         staffName,
     };
 }
