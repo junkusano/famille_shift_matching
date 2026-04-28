@@ -97,6 +97,12 @@ export default function TrainingGoalsPage() {
     const [remarkSending, setRemarkSending] = useState(false);
     const [remarkMessage, setRemarkMessage] = useState('');
 
+    type AdminSortKey = 'staff' | 'org' | 'goal' | 'selected' | 'watched';
+    type SortDirection = 'asc' | 'desc';
+
+    const [adminSortKey, setAdminSortKey] = useState<AdminSortKey>('staff');
+    const [adminSortDirection, setAdminSortDirection] = useState<SortDirection>('asc');
+
     useEffect(() => {
         const load = async () => {
             setLoading(true);
@@ -440,6 +446,61 @@ export default function TrainingGoalsPage() {
             );
         });
     }, [rows, searchText, showOnlySelected]);
+
+    const toggleAdminSort = (key: AdminSortKey) => {
+        if (adminSortKey === key) {
+            setAdminSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+
+        setAdminSortKey(key);
+        setAdminSortDirection('asc');
+    };
+
+    const adminSortedRows = useMemo(() => {
+        if (!isAllEmployeesView) return filteredRows;
+
+        const getValue = (row: JoinedRow) => {
+            const entry = row.entry;
+
+            if (adminSortKey === 'staff') {
+                return `${entry?.last_name_kana ?? ''}${entry?.first_name_kana ?? ''}`;
+            }
+
+            if (adminSortKey === 'org') {
+                return entry?.orgunitname ?? '';
+            }
+
+            if (adminSortKey === 'goal') {
+                return row.goal_title ?? '';
+            }
+
+            if (adminSortKey === 'selected') {
+                return row.selected ? 1 : 0;
+            }
+
+            if (adminSortKey === 'watched') {
+                return row.watched ? 1 : 0;
+            }
+
+            return '';
+        };
+
+        return [...filteredRows].sort((a, b) => {
+            const av = getValue(a);
+            const bv = getValue(b);
+
+            let result = 0;
+
+            if (typeof av === 'number' && typeof bv === 'number') {
+                result = av - bv;
+            } else {
+                result = String(av).localeCompare(String(bv), 'ja');
+            }
+
+            return adminSortDirection === 'asc' ? result : -result;
+        });
+    }, [filteredRows, isAllEmployeesView, adminSortKey, adminSortDirection]);
 
     const groupedRows = useMemo(() => {
         const map = new Map<string, JoinedRow[]>();
@@ -831,19 +892,44 @@ export default function TrainingGoalsPage() {
                     <table className="min-w-full border-collapse border border-gray-300 bg-white text-sm">
                         <thead className="bg-gray-100">
                             <tr>
-                                <th className="border px-3 py-2 text-left">職員名</th>
-                                <th className="border px-3 py-2 text-left">所属</th>
-                                <th className="border px-3 py-2 text-left">目標</th>
-                                <th className="border px-3 py-2 text-center">設定状況</th>
-                                <th className="border px-3 py-2 text-center">受講完了</th>
+                                <th className="border px-3 py-2 text-left">
+                                    <button type="button" onClick={() => toggleAdminSort('staff')}>
+                                        職員名 {adminSortKey === 'staff' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="border px-3 py-2 text-left">
+                                    <button type="button" onClick={() => toggleAdminSort('org')}>
+                                        所属 {adminSortKey === 'org' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="border px-3 py-2 text-left">
+                                    <button type="button" onClick={() => toggleAdminSort('goal')}>
+                                        目標 {adminSortKey === 'goal' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="border px-3 py-2 text-center">
+                                    <button type="button" onClick={() => toggleAdminSort('selected')}>
+                                        設定状況 {adminSortKey === 'selected' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="border px-3 py-2 text-center">
+                                    <button type="button" onClick={() => toggleAdminSort('watched')}>
+                                        受講完了 {adminSortKey === 'watched' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredRows.map((row) => (
+                            {adminSortedRows.map((row) => (
                                 <tr key={`${row.entry_id}-${row.goal_key}`}>
                                     <td className="border px-3 py-2">
-                                        {(row.entry?.last_name_kanji ?? '')}
-                                        {(row.entry?.first_name_kanji ?? '')}
+                                        <Link
+                                            href={`/portal/entry-detail/${row.entry_id}`}
+                                            className="text-blue-600 underline hover:text-blue-800"
+                                        >
+                                            {(row.entry?.last_name_kanji ?? '')}
+                                            {(row.entry?.first_name_kanji ?? '')}
+                                        </Link>
                                     </td>
                                     <td className="border px-3 py-2">
                                         {row.entry?.orgunitname ?? ''}
@@ -853,7 +939,7 @@ export default function TrainingGoalsPage() {
                                         {row.selected ? '設定済' : '未設定'}
                                     </td>
                                     <td className="border px-3 py-2 text-center">
-                                        {row.watched ? '完了' : '-'}
+                                        {row.selected ? (row.watched ? '完了' : '未完了') : '未設定'}
                                     </td>
                                 </tr>
                             ))}
