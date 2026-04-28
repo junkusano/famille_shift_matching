@@ -140,7 +140,13 @@ export default function TrainingGoalsPage() {
                 return;
             }
 
-            const employeeRows = (employeeData ?? []) as EmployeeRow[];
+            const employeeRows = ((employeeData ?? []) as EmployeeRow[])
+                .sort((a, b) => {
+                    const aKana = `${a.last_name_kana ?? ''}${a.first_name_kana ?? ''}`;
+                    const bKana = `${b.last_name_kana ?? ''}${b.first_name_kana ?? ''}`;
+
+                    return aKana.localeCompare(bKana, 'ja');
+                });
             setEmployees(employeeRows);
 
             let targetEntryId = selectedEntryId;
