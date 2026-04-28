@@ -78,9 +78,7 @@ export default function TrainingGoalsPage() {
     const role = useUserRole();
     const router = useRouter();
     const searchParams = useSearchParams();
-
-    const [debugRole, setDebugRole] = useState<'admin' | 'member' | ''>('');
-    const effectiveRole = debugRole || role;
+    const effectiveRole = role;
 
     const queryUserId = searchParams.get('user_id') ?? '';
     const ALL_ENTRY_ID = '__all__';
@@ -93,7 +91,8 @@ export default function TrainingGoalsPage() {
     const [showOnlySelected, setShowOnlySelected] = useState(false);
     const [employees, setEmployees] = useState<EmployeeRow[]>([]);
     const [selectedEntryId, setSelectedEntryId] = useState<string>('');
-    const [debugMemberEntryId, setDebugMemberEntryId] = useState<string>('');
+    //adminとmember切り替えで使ったもの↓
+    //const [debugMemberEntryId, setDebugMemberEntryId] = useState<string>('');
     const [remarkText, setRemarkText] = useState('');
     const [remarkSending, setRemarkSending] = useState(false);
     const [remarkMessage, setRemarkMessage] = useState('');
@@ -204,17 +203,22 @@ export default function TrainingGoalsPage() {
                 }
 
                 // ② 確認用 member 表示
-            } else if (effectiveRole === 'member') {
-                if (debugRole === 'member') {
-                    targetEntryId = debugMemberEntryId || employeeRows[0]?.entry_id || '';
+                /*} else if (effectiveRole === 'member') {
+                    if (debugRole === 'member') {
+                        targetEntryId = debugMemberEntryId || employeeRows[0]?.entry_id || '';
+    
+                        if (targetEntryId && targetEntryId !== debugMemberEntryId) {
+                            setDebugMemberEntryId(targetEntryId);
+                        }
+                    } else {
+                        const me = employeeRows.find((e) => e.auth_uid === authUid);
+                        targetEntryId = me?.entry_id ?? '';
+                    }*/
 
-                    if (targetEntryId && targetEntryId !== debugMemberEntryId) {
-                        setDebugMemberEntryId(targetEntryId);
-                    }
-                } else {
-                    const me = employeeRows.find((e) => e.auth_uid === authUid);
-                    targetEntryId = me?.entry_id ?? '';
-                }
+                // ② member 表示
+            } else if (effectiveRole === 'member') {
+                const me = employeeRows.find((e) => e.auth_uid === authUid);
+                targetEntryId = me?.entry_id ?? '';
 
                 // ③ admin / manager 表示
             } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
@@ -435,7 +439,9 @@ export default function TrainingGoalsPage() {
         }
 
         void load();
-    }, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId, queryUserId]);
+        //adminとmember切り替えで使ったもの↓
+        //}, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId, queryUserId]);
+    }, [effectiveRole, role, selectedEntryId, queryUserId, isAllEmployeesView, router]);
 
     const orgOptions = useMemo(() => {
         return Array.from(
@@ -691,63 +697,6 @@ export default function TrainingGoalsPage() {
         <div className="content p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">職員の目標・研修確認</h1>
-                <div className="mb-4 p-3 border rounded bg-yellow-50">
-                    <div className="text-sm font-semibold mb-2">確認用表示切替（今だけ）</div>
-
-                    <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                        <div>
-                            <label className="block text-sm mb-1">表示ロール</label>
-                            <select
-                                className="border rounded px-3 py-2"
-                                value={debugRole}
-                                onChange={(e) => setDebugRole(e.target.value as 'admin' | 'member' | '')}
-                            >
-                                <option value="">実際の権限を使う</option>
-                                <option value="admin">admin表示</option>
-                                <option value="member">member表示</option>
-                            </select>
-                        </div>
-
-                        {debugRole === 'member' && (
-                            <div>
-                                <label className="block text-sm mb-1">memberとして表示する従業員</label>
-                                <select
-                                    className="border rounded px-3 py-2 min-w-[280px]"
-                                    value={debugMemberEntryId}
-                                    onChange={(e) => {
-                                        const entryId = e.target.value;
-                                        setDebugMemberEntryId(entryId);
-
-                                        if (entryId === ALL_ENTRY_ID) {
-                                            router.push('?user_id=all');
-                                            return;
-                                        }
-
-                                        const emp = employees.find((x) => x.entry_id === entryId);
-
-                                        if (emp?.user_id) {
-                                            router.push(`?user_id=${encodeURIComponent(emp.user_id)}`);
-                                        }
-                                    }}
-                                >
-                                    {employees.map((emp) => (
-                                        <option key={emp.entry_id} value={emp.entry_id}>
-                                            {(emp.last_name_kanji ?? '')} {(emp.first_name_kanji ?? '')}
-                                            {emp.orgunitname ? ` / ${emp.orgunitname}` : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        <div className="text-sm text-gray-600 md:mt-6">
-                            現在の表示: <span className="font-semibold">{effectiveRole}</span>
-                        </div>
-                    </div>
-                </div>
-                <Link href="/portal/entry-list" className="px-3 py-2 border rounded">
-                    エントリー一覧へ戻る
-                </Link>
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
