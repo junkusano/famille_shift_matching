@@ -220,7 +220,11 @@ export default function TrainingGoalsPage() {
             } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
                 targetEntryId = ALL_ENTRY_ID;
                 setSelectedEntryId(ALL_ENTRY_ID);
-                router.replace('?user_id=all', { scroll: false });
+
+                // ★これを追加
+                if (!searchParams.get('user_id')) {
+                    router.replace('?user_id=all', { scroll: false });
+                }
             }
 
             if (!targetEntryId) {
