@@ -700,8 +700,13 @@ export default function TrainingGoalsPage() {
                 <div className="space-y-6">
                     <div className="rounded-lg border bg-blue-50 px-4 py-3">
                         <div className="font-semibold text-blue-900">目標・研修一覧</div>
-                        <div className="text-sm text-blue-800 mt-1">
-                            自分が見るべき研修を選んで、動画があるものはそのまま視聴できます。
+                        <div className="text-sm text-gray-700 space-y-1 leading-relaxed">
+                            <p>■ 目標の設定方法</p>
+                            <p>・一覧から半期の目標を選び、チェックを入れてください</p>
+                            <p>・動画がある研修はそのまま視聴できます</p>
+                            <p>・視聴後は「研修受講完了」にチェックを入れてください</p>
+                            <p>・チェックすると勤務キャリア・コーディネートルームにLINE通知が送信されます</p>
+                            <p>・該当する目標がない場合は、画面下部から追加してください</p>
                         </div>
                     </div>
 
