@@ -89,6 +89,7 @@ export default function TrainingGoalsPage() {
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
+    const [selectedOrgName, setSelectedOrgName] = useState('');
     const [showOnlySelected, setShowOnlySelected] = useState(false);
     const [employees, setEmployees] = useState<EmployeeRow[]>([]);
     const [selectedEntryId, setSelectedEntryId] = useState<string>('');
@@ -97,10 +98,10 @@ export default function TrainingGoalsPage() {
     const [remarkSending, setRemarkSending] = useState(false);
     const [remarkMessage, setRemarkMessage] = useState('');
 
-    type AdminSortKey = 'staff' | 'org' | 'goal' | 'selected' | 'watched';
+    type AdminSortKey = 'selected' | 'watched';
     type SortDirection = 'asc' | 'desc';
 
-    const [adminSortKey, setAdminSortKey] = useState<AdminSortKey>('staff');
+    const [adminSortKey, setAdminSortKey] = useState<AdminSortKey>('selected');
     const [adminSortDirection, setAdminSortDirection] = useState<SortDirection>('asc');
 
     useEffect(() => {
@@ -410,10 +411,23 @@ export default function TrainingGoalsPage() {
         void load();
     }, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId, queryUserId]);
 
+    const orgOptions = useMemo(() => {
+        return Array.from(
+            new Set(
+                rows
+                    .map((row) => row.entry?.orgunitname ?? '')
+                    .filter(Boolean)
+            )
+        ).sort((a, b) => a.localeCompare(b, 'ja'));
+    }, [rows]);
+
     const filteredRows = useMemo(() => {
         const q = searchText.trim();
 
         return rows.filter((row) => {
+            if (selectedOrgName && row.entry?.orgunitname !== selectedOrgName) {
+                return false;
+            }
             if (isAllEmployeesView) {
                 // すべて表示では未設定も見せたいので、ここでは絞らない
             } else if (['admin', 'manager'].includes(effectiveRole)) {
@@ -445,7 +459,7 @@ export default function TrainingGoalsPage() {
                 trainingGoal.includes(q)
             );
         });
-    }, [rows, searchText, showOnlySelected]);
+    }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole]);
 
     const toggleAdminSort = (key: AdminSortKey) => {
         if (adminSortKey === key) {
@@ -461,20 +475,6 @@ export default function TrainingGoalsPage() {
         if (!isAllEmployeesView) return filteredRows;
 
         const getValue = (row: JoinedRow) => {
-            const entry = row.entry;
-
-            if (adminSortKey === 'staff') {
-                return `${entry?.last_name_kana ?? ''}${entry?.first_name_kana ?? ''}`;
-            }
-
-            if (adminSortKey === 'org') {
-                return entry?.orgunitname ?? '';
-            }
-
-            if (adminSortKey === 'goal') {
-                return row.goal_title ?? '';
-            }
-
             if (adminSortKey === 'selected') {
                 return row.selected ? 1 : 0;
             }
@@ -483,7 +483,7 @@ export default function TrainingGoalsPage() {
                 return row.watched ? 1 : 0;
             }
 
-            return '';
+            return 0;
         };
 
         return [...filteredRows].sort((a, b) => {
@@ -743,6 +743,21 @@ export default function TrainingGoalsPage() {
                     onChange={(e) => setSearchText(e.target.value)}
                 />
 
+                {isAllEmployeesView && (
+                    <select
+                        className="p-2 border rounded w-full md:max-w-xs"
+                        value={selectedOrgName}
+                        onChange={(e) => setSelectedOrgName(e.target.value)}
+                    >
+                        <option value="">すべての所属</option>
+                        {orgOptions.map((org) => (
+                            <option key={org} value={org}>
+                                {org}
+                            </option>
+                        ))}
+                    </select>
+                )}
+
                 <label className="flex items-center gap-2 text-sm">
                     <input
                         type="checkbox"
@@ -892,21 +907,9 @@ export default function TrainingGoalsPage() {
                     <table className="min-w-full border-collapse border border-gray-300 bg-white text-sm">
                         <thead className="bg-gray-100">
                             <tr>
-                                <th className="border px-3 py-2 text-left">
-                                    <button type="button" onClick={() => toggleAdminSort('staff')}>
-                                        職員名 {adminSortKey === 'staff' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
-                                    </button>
-                                </th>
-                                <th className="border px-3 py-2 text-left">
-                                    <button type="button" onClick={() => toggleAdminSort('org')}>
-                                        所属 {adminSortKey === 'org' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
-                                    </button>
-                                </th>
-                                <th className="border px-3 py-2 text-left">
-                                    <button type="button" onClick={() => toggleAdminSort('goal')}>
-                                        目標 {adminSortKey === 'goal' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
-                                    </button>
-                                </th>
+                                <th className="border px-3 py-2 text-left">職員名</th>
+                                <th className="border px-3 py-2 text-left">所属</th>
+                                <th className="border px-3 py-2 text-left">目標</th>
                                 <th className="border px-3 py-2 text-center">
                                     <button type="button" onClick={() => toggleAdminSort('selected')}>
                                         設定状況 {adminSortKey === 'selected' ? (adminSortDirection === 'asc' ? '▲' : '▼') : ''}
