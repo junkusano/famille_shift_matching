@@ -147,13 +147,37 @@ export default function TrainingGoalsPage() {
                 return;
             }
 
-            const employeeRows = ((employeeData ?? []) as EmployeeRow[])
-                .sort((a, b) => {
-                    const aKana = `${a.last_name_kana ?? ''}${a.first_name_kana ?? ''}`;
-                    const bKana = `${b.last_name_kana ?? ''}${b.first_name_kana ?? ''}`;
+            const employeeMap = new Map<string, EmployeeRow>();
 
-                    return aKana.localeCompare(bKana, 'ja');
-                });
+            for (const emp of (employeeData ?? []) as EmployeeRow[]) {
+                if (!emp.entry_id) continue;
+
+                const current = employeeMap.get(emp.entry_id);
+
+                if (!current) {
+                    employeeMap.set(emp.entry_id, emp);
+                    continue;
+                }
+
+                // 同じ人が重複している場合は、管理者直属チームではない方を優先
+                const currentOrg = current.orgunitname ?? '';
+                const nextOrg = emp.orgunitname ?? '';
+
+                if (
+                    currentOrg === '管理者直属チーム' &&
+                    nextOrg !== '管理者直属チーム'
+                ) {
+                    employeeMap.set(emp.entry_id, emp);
+                }
+            }
+
+            const employeeRows = Array.from(employeeMap.values()).sort((a, b) => {
+                const aKana = `${a.last_name_kana ?? ''}${a.first_name_kana ?? ''}`;
+                const bKana = `${b.last_name_kana ?? ''}${b.first_name_kana ?? ''}`;
+
+                return aKana.localeCompare(bKana, 'ja');
+            });
+
             setEmployees(employeeRows);
 
             let targetEntryId = selectedEntryId;
@@ -425,6 +449,13 @@ export default function TrainingGoalsPage() {
         const q = searchText.trim();
 
         return rows.filter((row) => {
+            if (
+                isAllEmployeesView &&
+                selectedOrgName &&
+                row.entry?.orgunitname !== selectedOrgName
+            ) {
+                return false;
+            }
             if (selectedOrgName && row.entry?.orgunitname !== selectedOrgName) {
                 return false;
             }
