@@ -3076,7 +3076,7 @@ async function handleQuitLwGroup(params: {
     });
 
     return jsonText(summary, {
-        operation_type: "quit",
+        operation_type: "quit_lw_group",
         confirm_summary: summary,
     });
 }
