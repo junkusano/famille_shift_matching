@@ -69,6 +69,14 @@ type CsDocRow = {
   created_at: string | null;
 };
 
+type VisitNoteRow = {
+  shift_start_date: string | null;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
+  tokutei_comment: string | null;
+  service_code: string | null;
+};
+
 type ServiceTextDraft = {
   service_detail: string;
   procedure_notes: string;
@@ -238,10 +246,21 @@ async function buildPlanSourceText(a: AssessmentRow): Promise<PlanSourceTextResu
 
   const assessmentText = flattenAssessmentContent(a.content ?? {});
 
-  const text = [meetingMinutes, docText, assessmentText]
+  const visitNotesText = await buildVisitNotesText(a);
+
+  if (visitNotesText) {
+    sourceLabels.push("直近の訪問介護記録・特定コメント");
+  }
+
+  const text = [
+    meetingMinutes,
+    docText,
+    assessmentText,
+    visitNotesText,
+  ]
     .filter(Boolean)
     .join("\n\n")
-    .slice(0, 14000);
+    .slice(0, 18000);
 
   const hasUsableSource = sourceLabels.some((x) =>
     x.includes("基本情報") ||
@@ -477,6 +496,9 @@ async function buildServiceDraftsByCategory(params: {
 - family_action は、資料から本人または家族に依頼・協力してもらう内容が読み取れる場合のみ入れてください。読み取れなければ空文字。
 - 家事系には、資料から読み取れる掃除、洗濯、調理、買い物、整理整頓などだけを入れてください。
 - 身体系には家事だけを入れてはいけません。
+- 「直近の訪問介護記録・特定コメント」は、実際の支援内容・手順・注意点の重要な根拠として扱ってください。
+- 訪問記録に具体的な掃除、調理、買い物、服薬確認、声かけ、見守り、移動、通院、手順、注意点があれば、それを優先して service_detail / procedure_notes に反映してください。
+- ただし、訪問記録にない内容を補って書かないでください。
 - 身体系で家事的内容しか資料から読み取れない場合は「掃除（共に行う）」「整理整頓（声かけ・見守りのもと共に行う）」のように、共同実践・声かけ・見守りと分かる表現にしてください。
 - 空欄を避けるための一般文補完は禁止です。
 - 医療判断、診断、過度な断定は禁止です。
@@ -744,6 +766,13 @@ export async function POST(req: NextRequest) {
     const extracted = extractAssessmentTexts(a.content ?? {});
     const source = await buildPlanSourceText(a);
 
+    console.info("[plans/generate] source built", {
+      assessment_id: a.assessment_id,
+      kaipoke_cs_id: a.kaipoke_cs_id,
+      source_labels: source.sourceLabels,
+      source_chars: source.text.length,
+    });
+
     if (!source.hasUsableSource) {
       return json(
         {
@@ -954,4 +983,62 @@ function removePersonNames(text: string): string {
     .replace(/[一-龥ぁ-んァ-ヶー]{2,10}さん/g, "本人")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+async function buildVisitNotesText(a: AssessmentRow): Promise<string> {
+  const baseDate = a.assessed_on ? new Date(a.assessed_on) : new Date();
+  const fromDate = new Date(baseDate);
+  fromDate.setMonth(fromDate.getMonth() - 3);
+
+  const from = ymd(fromDate);
+  const to = ymd(baseDate);
+
+  const { data, error } = await supabaseAdmin
+    .from("shift")
+    .select(`
+      shift_start_date,
+      shift_start_time,
+      shift_end_time,
+      tokutei_comment,
+      service_code
+    `)
+    .eq("kaipoke_cs_id", a.kaipoke_cs_id)
+    .gte("shift_start_date", from)
+    .lte("shift_start_date", to)
+    .not("tokutei_comment", "is", null)
+    .order("shift_start_date", { ascending: false })
+    .order("shift_start_time", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    console.warn("[plans/generate] visit notes fetch failed", error.message);
+    return "";
+  }
+
+  const rows = ((data ?? []) as VisitNoteRow[])
+    .map((r) => {
+      const comment = r.tokutei_comment?.trim();
+      if (!comment) return "";
+
+      return [
+        `日付: ${r.shift_start_date ?? ""}`,
+        `時間: ${(r.shift_start_time ?? "").slice(0, 5)}-${(r.shift_end_time ?? "").slice(0, 5)}`,
+        r.service_code ? `サービス: ${r.service_code}` : "",
+        `記録: ${comment}`,
+      ]
+        .filter(Boolean)
+        .join(" / ");
+    })
+    .filter(Boolean);
+
+  if (rows.length === 0) return "";
+
+  return `【直近の訪問介護記録・特定コメント】\n${rows.join("\n")}`;
+}
+
+function ymd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
