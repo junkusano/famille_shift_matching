@@ -259,7 +259,8 @@ function isAllowedInitialIntent(intentName: string | null): boolean {
     return (
         isTopLevelOperationIntent(intentName) ||
         intentName === "delete_shift_date_ready" ||
-        intentName === "create_shift_missing_ready"
+        intentName === "create_shift_missing_ready" ||
+        intentName === "quit_lw_group"
     );
 }
 
@@ -2831,6 +2832,42 @@ async function handleStaffUnavailable(params: {
 async function handleConfirmYes(params: { sessionKey: string; pending: PendingRow }) {
     const pending = params.pending;
 
+
+    if (pending.intent_name === "quit_lw_group") {
+        const channelId = pending.channel_id;
+        const userId = pending.requester_lw_userid;
+
+        if (!channelId || !userId) {
+            return jsonText("退出処理に必要な情報が不足しています。");
+        }
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/lineworks/quit-group`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                channelId,
+                userId,
+            }),
+        });
+
+        const result = await res.json();
+
+        if (!res.ok || !result.success) {
+            return jsonText(`退出に失敗しました。${result.error ?? ""}`);
+        }
+
+        await patchPending(params.sessionKey, {
+            status: "completed",
+        });
+
+        return jsonText(
+            "グループから退出しました。",
+            buildClearedSessionParams()
+        );
+    }
+
     if (pending.intent_name === "create_shift") {
         const missing = requiredMissing({
             targetKaipokeCsId: pending.target_kaipoke_cs_id,
@@ -3025,6 +3062,25 @@ async function handleConfirmYes(params: { sessionKey: string; pending: PendingRo
     return jsonText("現在、確定できる処理がありません。");
 }
 
+async function handleQuitLwGroup(params: {
+    sessionKey: string;
+    pending: PendingRow;
+    dialogflowParams: DialogflowParams;
+}) {
+    const summary = "このグループから退出します。よろしいですか？";
+
+    await patchPending(params.sessionKey, {
+        intent_name: "quit_lw_group",
+        status: "confirming",
+        confirm_summary: summary,
+    });
+
+    return jsonText(summary, {
+        operation_type: "quit",
+        confirm_summary: summary,
+    });
+}
+
 async function handleConfirmNo(params: { sessionKey: string }) {
     await patchPending(params.sessionKey, {
         status: "cancelled",
@@ -3213,7 +3269,7 @@ export async function POST(req: NextRequest) {
                 rawDialogflow: body,
             });
 
-        if (!resolvedTarget?.kaipoke_cs_id) {
+        if (effectiveIntentName !== "quit_lw_group" && !resolvedTarget?.kaipoke_cs_id) {
             return jsonText("このグループから利用者を特定できませんでした。");
         }
 
@@ -3225,6 +3281,13 @@ export async function POST(req: NextRequest) {
         }
 
         switch (effectiveIntentName) {
+            case "quit_lw_group":
+            case "quit_lw_group":
+                return await handleQuitLwGroup({
+                    sessionKey,
+                    pending,
+                    dialogflowParams,
+                });
             case "delete_shift_date_ready":
                 return await handleDeleteShiftDateReady({
                     sessionKey,
