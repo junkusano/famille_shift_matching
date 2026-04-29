@@ -383,6 +383,11 @@ function messageImpliesCancellation(text: string | null): boolean {
     return /(キャンセル|中止|休み|取り消し|なしになりました|なくなりました)/.test(text);
 }
 
+function messageImpliesCreate(text: string | null): boolean {
+    if (!text) return false;
+    return /(追加|入れて|入れる|サービス追加|シフト追加|お願いします|依頼)/.test(text);
+}
+
 function normalizeDate(v: unknown): string | null {
     if (v === null || v === undefined) return null;
 
@@ -3179,8 +3184,16 @@ export async function POST(req: NextRequest) {
                 sourceMessage,
             });
 
+            const sourceImpliesCreate = messageImpliesCreate(sourceMessage);
+            const sourceImpliesDelete = messageImpliesCancellation(sourceMessage);
+
             if (initialAiDecision?.operation && initialAiDecision.operation !== "unknown") {
                 initialIntentName = initialAiDecision.operation;
+            } else if (sourceImpliesCreate) {
+                // Dialogflowがdeleteに誤分類しても、本文に「追加」があればcreate優先
+                initialIntentName = "create_shift";
+            } else if (sourceImpliesDelete) {
+                initialIntentName = "delete_shift";
             } else if (mappedDialogflowOperation) {
                 initialIntentName = mappedDialogflowOperation;
             } else if (isAllowedInitialIntent(detectedIntentName)) {
@@ -3281,7 +3294,6 @@ export async function POST(req: NextRequest) {
         }
 
         switch (effectiveIntentName) {
-            case "quit_lw_group":
             case "quit_lw_group":
                 return await handleQuitLwGroup({
                     sessionKey,
