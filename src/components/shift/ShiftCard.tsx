@@ -348,6 +348,16 @@ const getString = (obj: unknown, key: string): string | undefined => {
 const pickNonEmpty = (...vals: Array<string | undefined | null>) =>
   vals.find((v): v is string => typeof v === "string" && v.trim().length > 0) ?? "";
 
+function EstimatedPayLine({ amount }: { amount?: number | null }) {
+  if (typeof amount !== "number") return null;
+
+  return (
+    <div className="text-sm mt-1 font-semibold text-emerald-700">
+      概算給与: {amount.toLocaleString()}円
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 export default function ShiftCard({
   shift,
@@ -900,6 +910,11 @@ export default function ShiftCard({
 
   const mapsUrl = addr ? `https://www.google.com/maps?q=${encodeURIComponent(addr)}` : null;
 
+  const estimatedPayAmount =
+    typeof (shift as unknown as { estimated_pay_amount?: unknown }).estimated_pay_amount === "number"
+      ? (shift as unknown as { estimated_pay_amount: number }).estimated_pay_amount
+      : null;
+
   const sr = pickNonEmpty(kaipokeInfo?.standard_route, getString(shift, "standard_route"));
   const stw = pickNonEmpty(kaipokeInfo?.standard_trans_ways, getString(shift, "standard_trans_ways"));
   const sp = pickNonEmpty(kaipokeInfo?.standard_purpose, getString(shift, "standard_purpose"));
@@ -1011,6 +1026,7 @@ export default function ShiftCard({
           )}
         </div>
         <div className="text-sm mt-1">種別: {shift.service_code}</div>
+        <EstimatedPayLine amount={estimatedPayAmount} />
         {mode === "reject" ? (
           <div className="text-sm">
             住所: {addr ? (
@@ -1026,26 +1042,39 @@ export default function ShiftCard({
             ) : "—"}
             {postal && <span className="ml-2">（{postal}）</span>}
 
-            {/* ★ 追加：駐車マーク（is_activeがある時だけ） */}
             {hasActiveParking && (
               <button
                 type="button"
                 className="
-                  inline-flex items-center gap-1
-                  rounded-md px-2 py-1 text-xs font-semibold
-                  bg-emerald-100 text-emerald-800
-                  border border-emerald-200
-                  hover:bg-emerald-200
-                  active:scale-[0.98]
-                  shadow-sm hover:shadow
-          "
+          inline-flex items-center gap-1
+          rounded-md px-2 py-1 text-xs font-semibold
+          bg-emerald-100 text-emerald-800
+          border border-emerald-200
+          hover:bg-emerald-200
+          active:scale-[0.98]
+          shadow-sm hover:shadow
+        "
                 onClick={() => { void openParkingDialog(); }}
                 title="駐車情報（許可証申請）"
               >
                 🚗 駐車
               </button>
             )}
-
+          </div>
+        ) : mode === "request" ? (
+          <div className="text-sm">
+            住所: {addr ? (
+              <a
+                href={mapsUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-blue-600"
+                title="Googleマップで開く"
+              >
+                {addr}
+              </a>
+            ) : "—"}
+            {postal && <span className="ml-2">（{postal}）</span>}
           </div>
         ) : (
           <>

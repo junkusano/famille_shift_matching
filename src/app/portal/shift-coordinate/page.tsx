@@ -66,7 +66,7 @@ export default function ShiftPage() {
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
-                    .from("shift_csinfo_postalname_view")
+                    .from("shift_self_coordinate_card_view")
                     .select("*")
                     .gte("shift_start_date", jstNow)
                     .range(i * 1000, (i + 1) * 1000 - 1);
@@ -105,7 +105,12 @@ export default function ShiftPage() {
                     staff_01_level_sort: s.staff_01_level_sort,
                     staff_02_level_sort: s.staff_01_level_sort,
                     staff_03_level_sort: s.staff_01_level_sort,
-                    address: s.postal_code || "",
+                    address: s.address || "",
+                    postal_code: s.postal_code || "",
+                    estimated_pay_amount:
+                        typeof s.estimated_pay_amount === "number"
+                            ? s.estimated_pay_amount
+                            : null,
                     client_name: s.name || "",
                     gender_request_name: s.gender_request_name || "",
                     male_flg: s.male_flg || false,
@@ -446,6 +451,12 @@ export default function ShiftPage() {
             </table>
             {/* 希望送信ウィジェット追加 */}
             <ShiftWishWidget filterOptions={filterOptions} />
+
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                表示している「概算給与」は、基本時給・サービス加算・回ごと単価・通勤費から算出した目安です。
+                実際の給与は、個人別時給、同日に複数サービスへ入る場合の移動時間加算等により変動します。
+            </div>
+
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                 {paginatedShifts.map((shift) => (
                     <ShiftCard

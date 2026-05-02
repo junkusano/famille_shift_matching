@@ -26,6 +26,8 @@ export interface SupabaseShiftRaw {
   level_sort_order?: number;
   require_doc_group?: string | null;
   tokutei_comment?: string | null;
+  address?: string | null;
+  estimated_pay_amount?: number | null;
 }
 
 export interface ShiftData {
@@ -62,4 +64,6 @@ export interface ShiftData {
   level_sort_order?: number | null;
   require_doc_group?: string | null;
   tokutei_comment?: string | null;
+  postal_code?: string | null;
+  estimated_pay_amount?: number | null;
 }
