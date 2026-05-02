@@ -539,7 +539,20 @@ export default function ShiftCard({
     const key = pickNonEmptyString(shift, ["require_doc_group"]) ?? "";
     if (!key) return true;                  // 未設定＝資格不要
     if (myServiceKeys === null) return true; // 判定不能＝警告しない
-    return myServiceKeys.includes(key as ServiceKey);
+
+    // 完全一致ならOK
+    if (myServiceKeys.includes(key as ServiceKey)) return true;
+
+    // 介護福祉士・初任者研修などの
+    // 「家事・身体・移動支援」は「移動支援」もOK扱い
+    if (
+      key === "移動支援" &&
+      myServiceKeys.includes("家事・身体・移動支援" as ServiceKey)
+    ) {
+      return true;
+    }
+
+    return false;
   }, [shift, myServiceKeys]);
 
   useEffect(() => {
