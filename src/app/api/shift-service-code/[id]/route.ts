@@ -16,6 +16,8 @@ type Body = {
   require_doc_group?: string | null
   kaipoke_servicek?: string | null
   kaipoke_servicecode?: string | null
+  additional_hourly_wage?: number | null
+  per_service_amount?: number | null
   contract_requrired?: string | null
   plan_required?: string | null
   idou_f?: boolean | null
@@ -48,6 +50,14 @@ export async function PUT(req: NextRequest) {
   }
   if ('kaipoke_servicecode' in b) {
     payload.kaipoke_servicecode = b.kaipoke_servicecode ?? null
+  }
+
+  if ('additional_hourly_wage' in b) {
+    payload.additional_hourly_wage = Number(b.additional_hourly_wage ?? 0)
+  }
+
+  if ('per_service_amount' in b) {
+    payload.per_service_amount = Number(b.per_service_amount ?? 0)
   }
 
   // ★ ここを追加（真偽値そのまま渡す）

@@ -12,12 +12,16 @@ type ShiftServiceCodeRow = {
   updated_at: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
+
+  additional_hourly_wage: number | null
+  per_service_amount: number | null
+
   summary_flg: string | null
   contract_requrired: string | null
   plan_required: string | null
   idou_f: boolean | null
   jisseki_form: string | null
-  // JOIN結果（外部キー jisseki_form → jisseki_forms）
+
   jisseki_forms?: { form_name: string } | null
 }
 
@@ -35,6 +39,8 @@ export async function GET() {
   const rows = (data ?? []).map((r: ShiftServiceCodeRow) => ({
     ...r,
     // フロント表示用にフラット化
+    additional_hourly_wage: r.additional_hourly_wage ?? 0,
+    per_service_amount: r.per_service_amount ?? 0,
     jisseki_form_name: r.jisseki_forms?.form_name ?? null,
   }))
 
@@ -49,6 +55,8 @@ export async function POST(req: Request) {
     require_doc_group: body.require_doc_group ?? null,
     kaipoke_servicek: body.kaipoke_servicek ?? null,
     kaipoke_servicecode: body.kaipoke_servicecode ?? null,
+    additional_hourly_wage: Number(body.additional_hourly_wage ?? 0),
+    per_service_amount: Number(body.per_service_amount ?? 0),
     contract_requrired: body.contract_requrired ?? null,
     plan_required: body.plan_required ?? null,
     idou_f: body.idou_f ?? false,

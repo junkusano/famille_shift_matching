@@ -16,6 +16,8 @@ type Row = {
   plan_required: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
+  additional_hourly_wage: number | null
+  per_service_amount: number | null
   created_at?: string | null
   updated_at?: string | null
   idou_f?: boolean | null
@@ -30,6 +32,8 @@ type NewRow = {
   plan_required: string | null
   kaipoke_servicek: string | null
   kaipoke_servicecode: string | null
+  additional_hourly_wage: number
+  per_service_amount: number
   idou_f: boolean
   jisseki_form: string | null
   jisseki_form_name: string | null
@@ -53,6 +57,8 @@ export default function ShiftServiceCodePage() {
     plan_required: null,
     kaipoke_servicek: '',
     kaipoke_servicecode: '',
+    additional_hourly_wage: 0,
+    per_service_amount: 0,
     idou_f: false,
     jisseki_form: null,
     jisseki_form_name: null,
@@ -156,7 +162,9 @@ export default function ShiftServiceCodePage() {
         jisseki_form_name: null,
         kaipoke_servicek: '',
         kaipoke_servicecode: '',
-        idou_f: false, // ★ 追加
+        additional_hourly_wage: 0,
+        per_service_amount: 0,
+        idou_f: false,
       })
       await fetchRows()
       alert('追加しました')
@@ -210,14 +218,17 @@ export default function ShiftServiceCodePage() {
       <div className="overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col style={{ width: '12%' }} /> {/* service_code */}
-            <col style={{ width: '8%' }} />  {/* require_doc_group ★ -4% */}
-            <col style={{ width: '9%' }} />  {/* kaipoke_servicek ★ -3% */}
-            <col style={{ width: '9%' }} />  {/* kaipoke_servicecode ★ -3% */}
-            <col style={{ width: '17%' }} /> {/* contract_requrired */}
-            <col style={{ width: '17%' }} /> {/* plan_required */}
-            <col style={{ width: '27%' }} /> {/* jisseki_form ★ +10% */}
-            <col style={{ width: '8%' }} />  {/* idou_f */}
+            <col style={{ width: '11%' }} /> {/* service_code */}
+            <col style={{ width: '7%' }} />  {/* require_doc_group */}
+            <col style={{ width: '8%' }} />  {/* kaipoke_servicek */}
+            <col style={{ width: '8%' }} />  {/* kaipoke_servicecode */}
+            <col style={{ width: '8%' }} />  {/* 加算時給 */}
+            <col style={{ width: '8%' }} />  {/* 回ごと単価 */}
+            <col style={{ width: '12%' }} /> {/* contract_requrired */}
+            <col style={{ width: '12%' }} /> {/* plan_required */}
+            <col style={{ width: '14%' }} /> {/* jisseki_form */}
+            <col style={{ width: '6%' }} />  {/* idou_f */}
+            <col style={{ width: '6%' }} />  {/* 操作 */}
           </colgroup>
 
           <TableHeader>
@@ -226,6 +237,8 @@ export default function ShiftServiceCodePage() {
               <TableHead className="px-1 py-1">require_doc_group（証明書グループ）</TableHead>
               <TableHead className="px-1 py-1">Kaipoke区分（kaipoke_servicek）</TableHead>
               <TableHead className="px-1 py-1">Kaipokeサービスコード</TableHead>
+              <TableHead className="px-1 py-1">加算時給</TableHead>
+              <TableHead className="px-1 py-1">回ごと単価</TableHead>
               <TableHead className="px-1 py-1">必要契約書</TableHead>
               <TableHead className="px-1 py-1">必要プラン</TableHead>
               <TableHead className="px-1 py-1">実績様式（jisseki_form）</TableHead>
@@ -280,6 +293,29 @@ export default function ShiftServiceCodePage() {
                     placeholder="例：112451"
                     value={r.kaipoke_servicecode ?? ''}
                     onChange={(e) => handleEdit(i, 'kaipoke_servicecode', e.target.value || null)}
+                  />
+                </TableCell>
+                <TableCell className="px-1 py-1">
+                  <Input
+                    className="h-8 px-2 text-right"
+                    type="number"
+                    inputMode="numeric"
+                    value={r.additional_hourly_wage ?? 0}
+                    onChange={(e) =>
+                      handleEdit(i, 'additional_hourly_wage', Number(e.target.value || 0))
+                    }
+                  />
+                </TableCell>
+
+                <TableCell className="px-1 py-1">
+                  <Input
+                    className="h-8 px-2 text-right"
+                    type="number"
+                    inputMode="numeric"
+                    value={r.per_service_amount ?? 0}
+                    onChange={(e) =>
+                      handleEdit(i, 'per_service_amount', Number(e.target.value || 0))
+                    }
                   />
                 </TableCell>
                 {/* 契約書（contract_requrired） */}
@@ -391,6 +427,35 @@ export default function ShiftServiceCodePage() {
                   placeholder="例：112451"
                   value={newRow.kaipoke_servicecode ?? ''}
                   onChange={(e) => setNewRow({ ...newRow, kaipoke_servicecode: e.target.value || null })}
+                />
+              </TableCell>
+              <TableCell className="px-1 py-1">
+                <Input
+                  className="h-8 px-2 text-right"
+                  type="number"
+                  inputMode="numeric"
+                  value={newRow.additional_hourly_wage}
+                  onChange={(e) =>
+                    setNewRow({
+                      ...newRow,
+                      additional_hourly_wage: Number(e.target.value || 0),
+                    })
+                  }
+                />
+              </TableCell>
+
+              <TableCell className="px-1 py-1">
+                <Input
+                  className="h-8 px-2 text-right"
+                  type="number"
+                  inputMode="numeric"
+                  value={newRow.per_service_amount}
+                  onChange={(e) =>
+                    setNewRow({
+                      ...newRow,
+                      per_service_amount: Number(e.target.value || 0),
+                    })
+                  }
                 />
               </TableCell>
 
