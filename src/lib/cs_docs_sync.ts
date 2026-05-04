@@ -20,10 +20,10 @@ export type CsDocsSyncResult = {
 };
 
 export async function runCsDocsSyncToKaipokeInfo(): Promise<CsDocsSyncResult> {
-  const { data, error } = await supabase.rpc("cron_sync_cs_documents");
+  const { data, error } = await supabase.rpc("sync_cs_docs_to_kaipoke_documents");
 
   if (error) {
-    throw new Error(`cron_sync_cs_documents RPC error: ${error.message}`);
+    throw new Error(`sync_cs_docs_to_kaipoke_documents RPC error: ${error.message}`);
   }
 
   const rows = (data ?? []) as RpcRow[];
