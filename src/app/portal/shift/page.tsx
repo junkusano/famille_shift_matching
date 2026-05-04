@@ -29,10 +29,10 @@ import GroupAddButton from "@/components/shift/GroupAddButton";
 const PAGE_SIZE = 50;
 
 const REJECT_BTN_CLASS =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
-  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
-  "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:pointer-events-none disabled:opacity-50 " +
+    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-9 px-4 py-2 " +
+    "bg-purple-600 hover:bg-purple-700 text-white border border-purple-600";
 
 type ShiftViewRow = {
     id: string;
@@ -60,6 +60,8 @@ type ShiftViewRow = {
     biko: string | null;
     level_sort_order?: number | null;
     require_doc_group: string | null; // ★追加
+    address: string | null;
+    estimated_pay_amount: number | string | null;
 };
 
 type PostalDistrictRow = {
@@ -145,7 +147,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
     const all: ShiftViewRow[] = [];
     for (let i = 0; i < 3; i++) {
         const { data, error } = await supabase
-            .from("shift_csinfo_postalname_view")
+            .from("shift_self_coordinate_card_view")
             .select("*")
             .eq("shift_start_date", dayStr)
             .order("shift_start_time", { ascending: true })
@@ -180,8 +182,11 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         staff_01_user_id: s.staff_01_user_id ?? "",
         staff_02_user_id: s.staff_02_user_id ?? "",
         staff_03_user_id: s.staff_03_user_id ?? "",
-        judo_ido: s.judo_ido ?? "", 
-        address: s.postal_code ?? "",
+        judo_ido: s.judo_ido ?? "",
+        address: s.address ?? "",
+        postal_code: s.postal_code ?? "",
+        estimated_pay_amount:
+            s.estimated_pay_amount == null ? null : Number(s.estimated_pay_amount),
         client_name: s.name ?? "",
         gender_request_name: s.gender_request_name ?? "",
         male_flg: Boolean(s.male_flg),
@@ -776,7 +781,7 @@ export default function ShiftPage() {
         const allMonth: ShiftRecord[] = [];
         for (let i = 0; i < 10; i++) {
             const { data, error } = await supabase
-                .from("shift_csinfo_postalname_view")
+                .from("shift_self_coordinate_card_view")
                 .select("kaipoke_cs_id,shift_id, shift_start_date, shift_start_time, staff_01_user_id, staff_02_user_id, staff_03_user_id,require_doc_group")
                 .gte("shift_start_date", format(start, "yyyy-MM-dd"))
                 .lte("shift_start_date", format(end, "yyyy-MM-dd"))
@@ -843,7 +848,7 @@ export default function ShiftPage() {
 
             // ★ user_id でサーバ側フィルタ（ページングなし・安定ORDER）
             const { data, error } = await supabase
-                .from("shift_csinfo_postalname_view")
+                .from("shift_self_coordinate_card_view")
                 .select("*")
                 .gte("shift_start_date", startStr)
                 .lte("shift_start_date", endStr)
