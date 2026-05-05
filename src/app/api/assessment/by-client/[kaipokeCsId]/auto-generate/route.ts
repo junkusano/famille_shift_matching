@@ -48,17 +48,33 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       return json({ ok: false, error: `未対応の service_kind です: ${requestedKind}` }, 400);
     }
 
-    const { data: client, error: clientError } = await supabaseAdmin
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    // 注意:
+    // cs_kaipoke_info.id は uuid、kaipoke_cs_id は text。
+    // 数値の kaipoke_cs_id（例: 13000512）を id.eq に入れると
+    // Supabase/PostgREST 側で "invalid input syntax for type uuid" になり 400 -> API 500 になる。
+    // そのため UUID のときだけ id も検索し、それ以外は kaipoke_cs_id のみで検索する。
+    const clientQuery = supabaseAdmin
       .from("cs_kaipoke_info")
       .select(
         "id, kaipoke_cs_id, name, kana, gender, address, phone_01, phone_02, birth_yyyy_mm_dd, service_kind, kaigo_hoken_no, kaigo_start_at, kaigo_end_at, documents",
-      )
-      // UI側の clientId は client_info_id の場合があるため、
-      // URLパラメータは kaipoke_cs_id / cs_kaipoke_info.id のどちらでも解決できるようにする。
-      .or(`kaipoke_cs_id.eq.${clientKey},id.eq.${clientKey}`)
-      .maybeSingle();
+      );
 
-    if (clientError) throw clientError;
+    const { data: client, error: clientError } = uuidRe.test(clientKey)
+      ? await clientQuery.or(`kaipoke_cs_id.eq.${clientKey},id.eq.${clientKey}`).maybeSingle()
+      : await clientQuery.eq("kaipoke_cs_id", clientKey).maybeSingle();
+
+    if (clientError) {
+      console.error("[assessment/by-client/auto-generate] client lookup failed", {
+        clientKey,
+        message: clientError.message,
+        code: clientError.code,
+        details: clientError.details,
+        hint: clientError.hint,
+      });
+      throw clientError;
+    }
     if (!client) {
       return json({ ok: false, error: "利用者が見つかりません", kaipoke_cs_id: clientKey }, 404);
     }
