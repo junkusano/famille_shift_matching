@@ -195,87 +195,87 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
 
         setGenerating(true);
         try {
-            // 1) 対象ID確定（なければ新規作成）
-            let id = detail?.assessment_id ?? null;
-
-            if (!id) {
-                // 既存の createNew と同じ処理を内包（createNew()自体をawaitしてもOKだが、
-                // その場合は selectedId/detail の更新タイミングの影響を受ける）
-                const bearer = await getBearer();
-                const res = await fetch(`/api/assessment`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(bearer ? { Authorization: bearer } : {}),
-                    },
-                    body: JSON.stringify({
-                        client_id: clientId,
-                        service_kind: serviceKind,
-                        content: getDefaultAssessmentContent(serviceKind),
-                    }),
-                });
-
-                const j = await res.json();
-                if (!j?.ok || !j?.data?.assessment_id) {
-                    window.alert(`新規作成に失敗: ${j?.error ?? "unknown error"}`);
-                    return;
-                }
-
-                const rec: AssessmentRecord = j.data;
-                id = rec.assessment_id;
-
-                setList((prev) => [rec, ...prev]);
-                setSelectedId(rec.assessment_id);
-                setDetail(rec);
-                syncQuery(clientId, serviceKind, rec.assessment_id);
-            }
-
-            // 2) 自動生成API
             const bearer = await getBearer();
-            const res2 = await fetch(`/api/assessment/${id}/auto-generate`, {
+
+            // 利用者単位で週間シフトを判定し、必要なアセスメントを複数作成する。
+            // 既存の /api/assessment/[id]/auto-generate は「選択中の1件を再生成」用として残す。
+            const res = await fetch(`/api/assessment/by-client/${encodeURIComponent(clientId)}/auto-generate`, {
                 method: "POST",
-                headers: bearer ? { Authorization: bearer } : {},
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(bearer ? { Authorization: bearer } : {}),
+                },
+                body: JSON.stringify({
+                    overwrite: false,
+                }),
             });
 
-            const j2 = await res2.json();
+            const j = await res.json();
 
-            // 422: 生成が空（metaを見せたい）
-            if (res2.status === 422) {
-                console.log("auto-generate meta:", j2?.meta ?? j2);
-                window.alert(`自動生成結果が空でした。\nconsoleの meta を確認してください。`);
+            if (!j?.ok) {
+                console.log("by-client auto-generate error body:", j);
+                window.alert(`自動生成に失敗: ${j?.error ?? "unknown error"}`);
                 return;
             }
 
-            // 必須資料不足: 400 + missing_doc_names
-            if (!res2.ok && Array.isArray(j2?.missing_doc_names)) {
+            const created = Array.isArray(j.created) ? j.created : [];
+            const updated = Array.isArray(j.updated) ? j.updated : [];
+            const skipped = Array.isArray(j.skipped) ? j.skipped : [];
+            const detectedKinds = Array.isArray(j.detected_kinds) ? j.detected_kinds : [];
+            const affected = created[0] ?? updated[0] ?? skipped[0] ?? null;
+
+            if (!affected) {
                 window.alert(
-                    `自動生成できません（必須資料不足）:\n` +
-                    j2.missing_doc_names.map((x: string) => `- ${x}`).join("\n") +
-                    `\n\ncs_docsに資料を登録してから再実行してください。`
+                    [`生成対象のアセスメントはありませんでした。`, `判定: ${detectedKinds.join(" / ") || "なし"}`].join("")
                 );
                 return;
             }
 
-            // その他エラー
-            if (!j2?.ok || !j2?.data) {
-                console.log("auto-generate error body:", j2);
-                window.alert(`自動生成に失敗: ${j2?.error ?? "unknown error"}`);
-                return;
+            const nextKind = normalizeServiceKind(String(affected.service_kind ?? serviceKind));
+            const nextId = String(affected.assessment_id ?? "") || null;
+
+            setServiceKind(nextKind);
+            syncQuery(clientId, nextKind, nextId);
+
+            const listRes = await fetch(
+                `/api/assessment?client_info_id=${encodeURIComponent(clientId)}&service_kind=${encodeURIComponent(nextKind)}`,
+                { headers: bearer ? { Authorization: bearer } : {} }
+            );
+            const listJson = await listRes.json();
+            if (listJson?.ok) setList(listJson.data ?? []);
+
+            if (nextId) {
+                setSelectedId(nextId);
+
+                const found = [...created, ...updated].find((r) => r?.assessment_id === nextId);
+                if (found) {
+                    setDetail(found as AssessmentRecord);
+                } else {
+                    const detailRes = await fetch(`/api/assessment/${nextId}`, {
+                        headers: bearer ? { Authorization: bearer } : {},
+                    });
+                    const detailJson = await detailRes.json();
+                    if (detailJson?.ok) setDetail(detailJson.data);
+                }
             }
 
-            // 成功
-            setDetail(j2.data);
-            setList((prev) =>
-                prev.map((r) => (r.assessment_id === j2.data.assessment_id ? j2.data : r))
+            window.alert(
+                [
+                    `アセスメント自動生成完了`,
+                    `判定: ${detectedKinds.join(" / ") || "なし"}`,
+                    `新規作成: ${created.length}件`,
+                    `更新: ${updated.length}件`,
+                    `既存ありスキップ: ${skipped.length}件`,
+                    skipped.length ? `※既存も作り直す場合は overwrite: true に変更してください。` : "",
+                ]
+                    .filter(Boolean)
+                    .join("")
             );
-
-            console.log("auto-generate meta:", j2?.meta);
-
-
         } finally {
             setGenerating(false);
         }
     }
+
 
 
     async function save() {
@@ -477,6 +477,22 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         });
     }
 
+    function setRowValue(sheetKey: string, rowKey: string, value: string) {
+        if (!detail) return;
+        setDetail({
+            ...detail,
+            content: {
+                ...detail.content,
+                sheets: detail.content.sheets.map((s) =>
+                    s.key !== sheetKey
+                        ? s
+                        : { ...s, rows: s.rows.map((r) => (r.key !== rowKey ? r : { ...r, value })) }
+                ),
+            },
+        });
+    }
+
+
     function setPrintTarget(sheetKey: string, v: boolean) {
         if (!detail) return;
         setDetail({
@@ -555,9 +571,9 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                     className="border rounded px-3 py-1 bg-blue-600 text-white disabled:opacity-40"
                     disabled={!clientId || generating}
                     onClick={autoGenerate}
-                    title="cs_docs（必須: 基本情報(ステップ２）, サービス等利用計画）と直近1か月の訪問記録を元に自動入力します"
+                    title="週間シフトから必要なアセスメント種別を判定し、障害・移動支援・要介護・要支援を必要分だけ自動作成します"
                 >
-                    {generating ? "自動生成中..." : "アセスメント自動生成"}
+                    {generating ? "自動生成中..." : "アセスメント自動生成（週間シフト判定）"}
                 </button>
 
                 {detail?.kaipoke_cs_id ? (
@@ -793,35 +809,64 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {sheet.rows.map((r) => (
-                                                            <tr key={r.key}>
-                                                                <td className="border px-2 py-1 align-top">
-                                                                    <select
-                                                                        className="border rounded px-2 py-1 w-full"
-                                                                        value={r.check}
-                                                                        onChange={(e) => setCheck(sheet.key, r.key, e.target.value as AssessmentCheck)}
-                                                                    >
-                                                                        <option value="NONE">－</option>
-                                                                        <option value="CIRCLE">○</option>
-                                                                    </select>
-                                                                </td>
-                                                                <td className="border px-2 py-1 align-top">{r.label}</td>
-                                                                <td className="border px-2 py-1 align-top">
-                                                                    <textarea
-                                                                        className="border rounded px-2 py-1 w-full min-h-[70px]"
-                                                                        value={r.remark}
-                                                                        onChange={(e) => setText(sheet.key, r.key, "remark", e.target.value)}
-                                                                    />
-                                                                </td>
-                                                                <td className="border px-2 py-1 align-top">
-                                                                    <textarea
-                                                                        className="border rounded px-2 py-1 w-full min-h-[70px]"
-                                                                        value={r.hope}
-                                                                        onChange={(e) => setText(sheet.key, r.key, "hope", e.target.value)}
-                                                                    />
-                                                                </td>
-                                                            </tr>
-                                                        ))}
+                                                        {sheet.rows.map((r) => {
+                                                            const rowAny = r as typeof r & {
+                                                                inputType?: string;
+                                                                value?: string;
+                                                                defaultValue?: string;
+                                                                options?: { value: string; label: string }[];
+                                                            };
+                                                            const isRadio = rowAny.inputType === "radio" && Array.isArray(rowAny.options);
+                                                            const currentValue = String(rowAny.value ?? rowAny.defaultValue ?? "01");
+
+                                                            return (
+                                                                <tr key={r.key}>
+                                                                    <td className="border px-2 py-1 align-top">
+                                                                        <select
+                                                                            className="border rounded px-2 py-1 w-full"
+                                                                            value={r.check}
+                                                                            onChange={(e) => setCheck(sheet.key, r.key, e.target.value as AssessmentCheck)}
+                                                                        >
+                                                                            <option value="NONE">－</option>
+                                                                            <option value="CIRCLE">○</option>
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="border px-2 py-1 align-top">
+                                                                        <div className="font-medium">{r.label}</div>
+                                                                        {isRadio ? (
+                                                                            <div className="mt-2 space-y-1 text-sm">
+                                                                                {rowAny.options!.map((opt) => (
+                                                                                    <label key={opt.value} className="block">
+                                                                                        <input
+                                                                                            type="radio"
+                                                                                            name={`${sheet.key}_${r.key}`}
+                                                                                            value={opt.value}
+                                                                                            checked={currentValue === opt.value}
+                                                                                            onChange={(e) => setRowValue(sheet.key, r.key, e.target.value)}
+                                                                                        />{" "}
+                                                                                        {opt.label}
+                                                                                    </label>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </td>
+                                                                    <td className="border px-2 py-1 align-top">
+                                                                        <textarea
+                                                                            className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                            value={r.remark}
+                                                                            onChange={(e) => setText(sheet.key, r.key, "remark", e.target.value)}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="border px-2 py-1 align-top">
+                                                                        <textarea
+                                                                            className="border rounded px-2 py-1 w-full min-h-[70px]"
+                                                                            value={r.hope}
+                                                                            onChange={(e) => setText(sheet.key, r.key, "hope", e.target.value)}
+                                                                        />
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
                                                     </tbody>
                                                 </table>
                                             </div>
