@@ -3,11 +3,31 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
+import { getDefaultElderCareAssessmentContent } from "@/lib/assessment/elder-care-template";
 
 export const dynamic = "force-dynamic";
 
 function json(body: unknown, status = 200) {
     return NextResponse.json(body, { status });
+}
+
+function isElderCareKind(kind: string): kind is "要介護" | "要支援" {
+    return kind === "要介護" || kind === "要支援";
+}
+
+function hasRows(content: unknown): boolean {
+    const c = content as { sheets?: Array<{ rows?: unknown[] }> } | null;
+    return Array.isArray(c?.sheets) && c.sheets.some((s) => Array.isArray(s.rows) && s.rows.length > 0);
+}
+
+function ensureAssessmentContent(serviceKind: string, content: unknown) {
+    if (hasRows(content)) return content;
+
+    if (isElderCareKind(serviceKind)) {
+        return getDefaultElderCareAssessmentContent(serviceKind);
+    }
+
+    return content;
 }
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -235,9 +255,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         const kaipokeCsId = trimOrEmpty(assessment.kaipoke_cs_id);
         if (!kaipokeCsId) return json({ ok: false, error: "kaipoke_cs_id is empty" }, 400);
 
-        const templateUnknown: unknown = assessment.content ?? null;
+        const serviceKind = trimOrEmpty(assessment.service_kind);
+
+        const baseContent = ensureAssessmentContent(
+            serviceKind,
+            assessment.content
+        );
+
+        const templateUnknown: unknown = baseContent ?? null;
         if (!isAssessmentContent(templateUnknown)) {
-            return json({ ok: false, error: "assessment.content is not valid AssessmentContent" }, 400);
+            return json({ ok: false, error: "baseContent is not valid AssessmentContent" }, 400);
         }
         const templateContent = templateUnknown;
 
