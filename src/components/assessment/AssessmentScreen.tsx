@@ -197,8 +197,39 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
         try {
             const bearer = await getBearer();
 
-            // 利用者単位で週間シフトを判定し、必要なアセスメントを複数作成する。
-            // 既存の /api/assessment/[id]/auto-generate は「選択中の1件を再生成」用として残す。
+            // 既存アセスメントを開いている場合は、従来どおり「その1件」を再生成する。
+            // by-client API は「利用者単位で未作成の種類を作る」ため、既存1件の再生成には使わない。
+            if (detail?.assessment_id) {
+                const res = await fetch(`/api/assessment/${detail.assessment_id}/auto-generate`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(bearer ? { Authorization: bearer } : {}),
+                    },
+                    body: JSON.stringify({
+                        service_kind: serviceKind,
+                    }),
+                });
+
+                const j = await res.json();
+                if (!j?.ok) {
+                    console.log("assessment [id] auto-generate error body:", j);
+                    window.alert(`自動生成に失敗: ${j?.error ?? "unknown error"}`);
+                    return;
+                }
+
+                if (j?.data) {
+                    setDetail(j.data);
+                    setList((prev) => prev.map((r) => (r.assessment_id === j.data.assessment_id ? j.data : r)));
+                }
+
+                window.alert("アセスメント自動生成完了（現在開いている1件を更新しました）");
+                return;
+            }
+
+            // 詳細を開いていない場合は、利用者単位で週間シフトを判定し、必要な種類を作成する。
+            // service_kind は「現在画面で選択中の種別を最低限作るためのフォールバック」。
+            // API側では、週間シフトで検出できた種別 + この service_kind を対象にする。
             const res = await fetch(`/api/assessment/by-client/${encodeURIComponent(clientId)}/auto-generate`, {
                 method: "POST",
                 headers: {
@@ -206,6 +237,7 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                     ...(bearer ? { Authorization: bearer } : {}),
                 },
                 body: JSON.stringify({
+                    service_kind: serviceKind,
                     overwrite: false,
                 }),
             });
@@ -222,11 +254,16 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
             const updated = Array.isArray(j.updated) ? j.updated : [];
             const skipped = Array.isArray(j.skipped) ? j.skipped : [];
             const detectedKinds = Array.isArray(j.detected_kinds) ? j.detected_kinds : [];
+            const targetKinds = Array.isArray(j.target_kinds) ? j.target_kinds : [];
             const affected = created[0] ?? updated[0] ?? skipped[0] ?? null;
 
             if (!affected) {
                 window.alert(
-                    [`生成対象のアセスメントはありませんでした。`, `判定: ${detectedKinds.join(" / ") || "なし"}`].join("")
+                    [
+                        `生成対象のアセスメントはありませんでした。`,
+                        `判定: ${detectedKinds.join(" / ") || "なし"}`,
+                        `対象: ${targetKinds.join(" / ") || "なし"}`,
+                    ].join("\n")
                 );
                 return;
             }
@@ -263,19 +300,19 @@ export default function AssessmentScreen({ initialAssessmentId }: Props) {
                 [
                     `アセスメント自動生成完了`,
                     `判定: ${detectedKinds.join(" / ") || "なし"}`,
+                    `対象: ${targetKinds.join(" / ") || "なし"}`,
                     `新規作成: ${created.length}件`,
                     `更新: ${updated.length}件`,
                     `既存ありスキップ: ${skipped.length}件`,
-                    skipped.length ? `※既存も作り直す場合は overwrite: true に変更してください。` : "",
+                    skipped.length ? `※既存を作り直す場合は、対象のアセスメントを開いてから再度「アセスメント自動生成」を押してください。` : "",
                 ]
                     .filter(Boolean)
-                    .join("")
+                    .join("\n")
             );
         } finally {
             setGenerating(false);
         }
     }
-
 
 
     async function save() {

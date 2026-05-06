@@ -22,6 +22,8 @@ export type WeeklyAssessmentSourceRow = {
   plan_document_kind?: string | null;
   plan_service_category?: string | null;
   plan_display_name?: string | null;
+  shift_start_date?: string | null;
+  status?: string | null;
 };
 
 export type ClientAssessmentSource = {
@@ -38,6 +40,11 @@ export type ClientAssessmentSource = {
   kaigo_hoken_no?: string | null;
   kaigo_start_at?: string | null;
   kaigo_end_at?: string | null;
+  shogai_jukyusha_no?: string | null;
+  shogai_start_at?: string | null;
+  shogai_end_at?: string | null;
+  ido_start_at?: string | null;
+  ido_end_at?: string | null;
   documents?: unknown;
 };
 
@@ -61,9 +68,12 @@ export function detectAssessmentKindsFromWeeklyRows(rows: WeeklyAssessmentSource
   for (const row of rows) {
     const text = rowText(row);
 
+    // 既存の障害・移動支援は plan_document_kind が最も信頼できる。
+    // ただし shift_add_status_view 由来などでは plan_document_kind が空になるため、
+    // サービス名・カイポケ区分・サービスコード文字列も見る。
     if (
       row.plan_document_kind === "障害福祉サービス" ||
-      /居宅介護|重度訪問|同行援護|行動援護|障害福祉/.test(text)
+      /障害福祉|居宅介護|重度訪問|同行援護|行動援護/.test(text)
     ) {
       kinds.add("障害" as AssessmentServiceKind);
     }
@@ -75,15 +85,36 @@ export function detectAssessmentKindsFromWeeklyRows(rows: WeeklyAssessmentSource
       kinds.add("移動支援" as AssessmentServiceKind);
     }
 
-    if (/要介護|介護保険|訪問介護|身体介護|生活援助|通院等乗降介助/.test(text)) {
+    // 介護保険。サービスコードだけの行でも拾えるように、介護保険でよく使う訪問介護系の語を広めに見る。
+    if (/要介護|介護保険|訪問介護|身体介護|生活援助|通院等乗降介助|訪介|ホームヘルプ|総合事業/.test(text)) {
       kinds.add("要介護");
     }
 
-    if (/要支援|介護予防|総合事業|予防専門型|生活支援型/.test(text)) {
+    if (/要支援|介護予防|予防訪問|予防専門型|生活支援型/.test(text)) {
       kinds.add("要支援");
     }
   }
 
+  return [...kinds];
+}
+
+export function detectAssessmentKindsFromClient(client: ClientAssessmentSource): AutoAssessmentKind[] {
+  const text = [
+    client.service_kind,
+    client.kaigo_hoken_no ? "介護保険" : "",
+    client.kaigo_start_at || client.kaigo_end_at ? "介護保険" : "",
+    client.shogai_jukyusha_no ? "障害福祉" : "",
+    client.shogai_start_at || client.shogai_end_at ? "障害福祉" : "",
+    client.ido_start_at || client.ido_end_at ? "移動支援" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const kinds = new Set<AutoAssessmentKind>();
+  if (/要介護|介護保険/.test(text)) kinds.add("要介護");
+  if (/要支援|介護予防/.test(text)) kinds.add("要支援");
+  if (/障害|障害福祉/.test(text)) kinds.add("障害" as AssessmentServiceKind);
+  if (/移動支援/.test(text)) kinds.add("移動支援" as AssessmentServiceKind);
   return [...kinds];
 }
 
