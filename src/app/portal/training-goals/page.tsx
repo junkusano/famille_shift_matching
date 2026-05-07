@@ -432,7 +432,14 @@ export default function TrainingGoalsPage() {
             setLoading(false);
         };
 
+        // role取得待ち
+        if (!role) {
+            return;
+        }
+
+        // role不正時
         if (!['admin', 'manager', 'member'].includes(role)) {
+            setRows([]);
             setLoading(false);
             return;
         }
