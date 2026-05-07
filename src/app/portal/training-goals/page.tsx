@@ -118,7 +118,14 @@ export default function TrainingGoalsPage() {
                 return;
             }
 
-            const authUid = user?.id ?? null;
+            if (!user) {
+                console.warn('auth user is not ready');
+                setRows([]);
+                setLoading(false);
+                return;
+            }
+
+            const authUid = user.id;
 
             const { data: employeeData, error: employeeError } = await supabase
                 .from('user_entry_united_view_single')
@@ -694,6 +701,10 @@ export default function TrainingGoalsPage() {
             setRemarkSending(false);
         }
     };
+
+    if (!effectiveRole) {
+        return <p className="p-6">読み込み中...</p>;
+    }
 
     if (!['admin', 'manager', 'member'].includes(effectiveRole)) {
         return <p className="p-6">このページは利用できません。</p>;
