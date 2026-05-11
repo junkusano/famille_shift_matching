@@ -62,6 +62,8 @@ type ShiftStaffRow = {
     staff_03_user_id: string | null;
 };
 
+const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio"];
+
 export async function POST(req: NextRequest) {
     try {
         // 認証確認
@@ -143,8 +145,14 @@ export async function POST(req: NextRequest) {
         }
 
         // 既存のshift対象 + meeting_must対象 を合体
-        const staffIds = Array.from(new Set([...shiftStaffIds, ...meetingUserIds]));
-
+        const staffIds = Array.from(
+            new Set([
+                ...shiftStaffIds,
+                ...meetingUserIds,
+                ...FORCE_MONTHLY_MEETING_USER_IDS,
+            ])
+        );
+        
         // 対象者が0人なら何もしない（shift + meeting_must 合算）
         if (staffIds.length === 0) {
             return json({

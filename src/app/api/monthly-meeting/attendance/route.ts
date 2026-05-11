@@ -83,6 +83,8 @@ type StaffRow = {
     roster_sort: string | null;
 };
 
+const FORCE_MONTHLY_MEETING_USER_IDS = ["shinomasuda", "satominishio"];
+
 export async function GET(req: NextRequest) {
     try {
         const { myUserId, role } = await readMyRole(req);
@@ -155,7 +157,9 @@ export async function GET(req: NextRequest) {
         }
 
         // 既存shift対象 + meeting_must対象 を合体
-        let staffIds = Array.from(new Set([...staffIdsFromShift, ...meetingUserIds]));
+        let staffIds = Array.from(
+            new Set([...staffIdsFromShift, ...meetingUserIds, ...FORCE_MONTHLY_MEETING_USER_IDS])
+        );
 
         // ★それでも0件なら attendance から復元
         if (staffIds.length === 0) {
@@ -191,6 +195,77 @@ export async function GET(req: NextRequest) {
             .returns<StaffRow[]>();
         if (staffErr) throw staffErr;
 
+        let finalStaffData: StaffRow[] = staffData ?? [];
+
+        const foundStaffIds = new Set(
+            finalStaffData
+                .map((s) => String(s.user_id ?? "").trim())
+                .filter(Boolean)
+        );
+
+        const missingForcedIds = FORCE_MONTHLY_MEETING_USER_IDS.filter(
+            (id) => !foundStaffIds.has(id)
+        );
+
+        if (missingForcedIds.length > 0) {
+            const { data: fallbackUsers, error: fallbackErr } = await supabaseAdmin
+                .from("users")
+                .select(`
+            user_id,
+            roster_sort,
+            org_unit_id,
+            form_entries!users_entry_id_fkey (
+                last_name_kanji,
+                first_name_kanji
+            )
+        `)
+                .in("user_id", missingForcedIds);
+
+            if (fallbackErr) throw fallbackErr;
+
+            const orgIds = Array.from(
+                new Set(
+                    (fallbackUsers ?? [])
+                        .map((u) => String(u.org_unit_id ?? "").trim())
+                        .filter(Boolean)
+                )
+            );
+
+            let orgNameMap = new Map<string, string>();
+
+            if (orgIds.length > 0) {
+                const { data: fallbackOrgs, error: fallbackOrgErr } = await supabaseAdmin
+                    .from("orgs")
+                    .select("orgunitid, orgunitname")
+                    .in("orgunitid", orgIds);
+
+                if (fallbackOrgErr) throw fallbackOrgErr;
+
+                orgNameMap = new Map(
+                    (fallbackOrgs ?? []).map((o) => [
+                        String(o.orgunitid ?? ""),
+                        String(o.orgunitname ?? ""),
+                    ])
+                );
+            }
+
+            const fallbackStaffRows: StaffRow[] = (fallbackUsers ?? []).map((u) => {
+                const entry = Array.isArray(u.form_entries)
+                    ? u.form_entries[0]
+                    : u.form_entries;
+
+                return {
+                    user_id: String(u.user_id ?? ""),
+                    last_name_kanji: String(entry?.last_name_kanji ?? ""),
+                    first_name_kanji: String(entry?.first_name_kanji ?? ""),
+                    orgunitname: orgNameMap.get(String(u.org_unit_id ?? "")) ?? null,
+                    roster_sort: String(u.roster_sort ?? "9999"),
+                };
+            });
+
+            finalStaffData = [...finalStaffData, ...fallbackStaffRows];
+        }
+
         // 3) attendance を取得（その月の既存値）
         const { data: att, error: attErr } = await supabaseAdmin
             .from("monthly_meeting_attendance")
@@ -204,7 +279,7 @@ export async function GET(req: NextRequest) {
         const attMap = new Map((att ?? []).map((r) => [r.user_id, r]));
 
         // 5) rows を作って返す（名前は姓+名）
-        const allRows = (staffData ?? [])
+        const allRows = finalStaffData
             .map((s: StaffRow) => {
                 const userId = String(s.user_id ?? "").trim();
                 if (!userId) return null;
