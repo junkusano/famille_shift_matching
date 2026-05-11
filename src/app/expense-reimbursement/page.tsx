@@ -62,6 +62,7 @@ export default function ExpenseReimbursementPage() {
           expense_detail: String(form.get("expenseDetail") || ""),
 
           bank_name: String(form.get("bankName") || ""),
+          bank_account_name_kana: String(form.get("bankAccountNameKana") || ""),
           branch_name: String(form.get("branchName") || ""),
           branch_number: String(form.get("branchNumber") || ""),
           bank_symbol: String(form.get("bankSymbol") || ""),
@@ -71,10 +72,11 @@ export default function ExpenseReimbursementPage() {
         };
 
       const { error } = await supabase
-        .from("expense_reimbursements")
-        .insert([payload]);
+         .from("expense_reimbursements")
+         .insert([payload]);
 
-      if (error) throw error;
+       if (error) throw error;
+
 
       // 通知は失敗しても申請自体は成立
       try {
@@ -101,6 +103,10 @@ export default function ExpenseReimbursementPage() {
     return (
       <main className="max-w-2xl mx-auto p-6">
         <h1 className="text-xl font-bold mb-4">経費精算フォーム</h1>
+
+        <p className="text-sm text-gray-600 mb-6">
+        スキマバイトで発生した交通費、食事代の精算を行います。
+        </p>
         <p>送信が完了しました。</p>
       </main>
     );
@@ -146,10 +152,10 @@ export default function ExpenseReimbursementPage() {
           <h2 className="font-semibold">口座情報</h2>
 
           <input name="bankName" className="w-full border rounded p-2" placeholder="銀行名" />
+          <input name="bankAccountNameKana" className="w-full border rounded p-2" placeholder="銀行口座名義（カナ）" />
           <input name="branchName" className="w-full border rounded p-2" placeholder="支店名" />
           <input name="branchNumber" className="w-full border rounded p-2" placeholder="支店番号" />
-          <input name="bankSymbol" className="w-full border rounded p-2" placeholder="記号" />
-          <input name="accountNumber" className="w-full border rounded p-2" placeholder="番号" />
+          <input name="accountNumber" className="w-full border rounded p-2" placeholder="口座番号" />
         </div>
 
         <div>

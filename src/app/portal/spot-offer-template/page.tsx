@@ -34,6 +34,7 @@ type RpaRequestRow = {
   created_at: string | null;
   request_details: {
     core_id?: string | null;
+    shift_start_date?: string | null;
   } | null;
 };
 
@@ -275,7 +276,7 @@ type ParkingPreview = {
 
     for (const req of (rpaRequests ?? []) as RpaRequestRow[]) {
       const coreId = req.request_details?.core_id;
-      const requestedAt = req.requested_at ?? req.created_at;
+      const requestedAt = req.request_details?.shift_start_date;
 
       if (!coreId || !requestedAt) continue;
 
