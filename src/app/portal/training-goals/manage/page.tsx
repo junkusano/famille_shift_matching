@@ -43,7 +43,7 @@ const initialForm: FormState = {
     training_goal: "",
     training_month: "",
     video_url: "",
-    sort_order: "9999",
+    sort_order: "10",
     is_active: true,
 };
 
@@ -240,6 +240,27 @@ export default function TrainingGoalsManagePage() {
                             value={form.training_month}
                             onChange={(e) => setForm({ ...form, training_month: e.target.value })}
                             placeholder="例：1"
+                        />
+                    </label>
+
+                    <label className="text-sm">
+                        動画URL
+                        <input
+                            className="mt-1 w-full border rounded px-3 py-2"
+                            value={form.video_url}
+                            onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+                            placeholder="https://..."
+                        />
+                    </label>
+
+                    <label className="text-sm">
+                        表示順
+                        <input
+                            type="number"
+                            className="mt-1 w-full border rounded px-3 py-2"
+                            value={form.sort_order}
+                            onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
+                            placeholder="10"
                         />
                     </label>
 
