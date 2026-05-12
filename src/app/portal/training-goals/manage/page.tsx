@@ -336,17 +336,6 @@ export default function TrainingGoalsManagePage() {
                             placeholder="https://..."
                         />
                     </label>
-
-                    <label className="text-sm">
-                        表示順
-                        <input
-                            type="number"
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.sort_order}
-                            onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-                            placeholder="10"
-                        />
-                    </label>
                 </div>
 
                 <button
@@ -447,21 +436,6 @@ export default function TrainingGoalsManagePage() {
                                     })
                                 }
                                 placeholder="https://..."
-                            />
-                        </label>
-
-                        <label className="text-sm">
-                            表示順
-                            <input
-                                type="number"
-                                className="mt-1 w-full border rounded px-3 py-2"
-                                value={editForm.sort_order}
-                                onChange={(e) =>
-                                    setEditForm({
-                                        ...editForm,
-                                        sort_order: e.target.value,
-                                    })
-                                }
                             />
                         </label>
 
