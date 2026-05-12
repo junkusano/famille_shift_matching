@@ -40,6 +40,15 @@ const TRAINING_TYPE_OPTIONS = [
     "介護基礎知識介護過程",
 ];
 
+const TRAINING_CODE_OPTIONS = [
+    ...Array.from({ length: 26 }, (_, i) =>
+        String.fromCharCode(65 + i)
+    ),
+    ...Array.from({ length: 20 }, (_, i) =>
+        String(i + 1)
+    ),
+];
+
 const initialForm: FormState = {
     training_type: "",
     training_code: "",
@@ -240,12 +249,24 @@ export default function TrainingGoalsManagePage() {
 
                     <label className="text-sm">
                         区分コード
-                        <input
+                        <select
                             className="mt-1 w-full border rounded px-3 py-2"
                             value={form.training_code}
-                            onChange={(e) => setForm({ ...form, training_code: e.target.value })}
-                            placeholder="例：A / B / 001"
-                        />
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    training_code: e.target.value,
+                                })
+                            }
+                        >
+                            <option value="">選択してください</option>
+
+                            {TRAINING_CODE_OPTIONS.map((code) => (
+                                <option key={code} value={code}>
+                                    {code}
+                                </option>
+                            ))}
+                        </select>
                     </label>
 
                     <label className="text-sm md:col-span-2">
