@@ -131,3 +131,49 @@ export async function POST(req: NextRequest) {
         return json({ ok: false, error: msg }, status);
     }
 }
+
+export async function PATCH(req: NextRequest) {
+    try {
+        await requireManagerOrAdmin(req);
+
+        const body = await req.json();
+        if (!isRecord(body)) {
+            return json({ ok: false, error: "invalid body" }, 400);
+        }
+
+        const id = String(body.id ?? "").trim();
+        if (!id) return json({ ok: false, error: "id required" }, 400);
+
+        const updateRow: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+        };
+
+        if ("video_url" in body) {
+            const videoUrl = String(body.video_url ?? "").trim();
+            updateRow.video_url = videoUrl ? videoUrl : null;
+        }
+
+        if ("is_active" in body) {
+            updateRow.is_active = body.is_active === true;
+        }
+
+        if (Object.keys(updateRow).length === 1) {
+            return json({ ok: false, error: "no update fields" }, 400);
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from("training_goal_catalog")
+            .update(updateRow)
+            .eq("id", id)
+            .select("*")
+            .single();
+
+        if (error) throw error;
+
+        return json({ ok: true, row: data });
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const status = msg === "unauthorized" ? 401 : msg === "forbidden" ? 403 : 500;
+        return json({ ok: false, error: msg }, status);
+    }
+}

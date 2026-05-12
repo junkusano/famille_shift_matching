@@ -69,6 +69,7 @@ export default function TrainingGoalsManagePage() {
 
     const [rows, setRows] = useState<CatalogRow[]>([]);
     const [form, setForm] = useState<FormState>(initialForm);
+    const [videoInputs, setVideoInputs] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState("");
 
@@ -87,7 +88,14 @@ export default function TrainingGoalsManagePage() {
                 throw new Error(json.error ?? "load failed");
             }
 
-            setRows(json.rows ?? []);
+            const loadedRows = json.rows ?? [];
+            setRows(loadedRows);
+
+            setVideoInputs(
+                Object.fromEntries(
+                    loadedRows.map((row: CatalogRow) => [row.id, row.video_url ?? ""])
+                )
+            );
         } catch (e) {
             setMsg(e instanceof Error ? e.message : "load failed");
         } finally {
@@ -119,6 +127,45 @@ export default function TrainingGoalsManagePage() {
         } finally {
             setLoading(false);
         }
+    }
+
+    async function updateGoal(
+        id: string,
+        patch: Partial<Pick<CatalogRow, "video_url" | "is_active">>
+    ) {
+        setLoading(true);
+        setMsg("");
+
+        try {
+            const res = await fetchWithBearer("/api/training-goals/catalog", {
+                method: "PATCH",
+                body: JSON.stringify({ id, ...patch }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json.ok) {
+                throw new Error(json.error ?? "update failed");
+            }
+
+            setMsg("更新しました");
+            await load();
+        } catch (e) {
+            setMsg(e instanceof Error ? e.message : "update failed");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function hideGoal(row: CatalogRow) {
+        const ok = window.confirm(`「${row.training_title}」を非表示にしますか？`);
+        if (!ok) return;
+
+        await updateGoal(row.id, { is_active: false });
+    }
+
+    async function saveVideo(row: CatalogRow) {
+        await updateGoal(row.id, { video_url: videoInputs[row.id] ?? "" });
     }
 
     useEffect(() => {
@@ -264,26 +311,6 @@ export default function TrainingGoalsManagePage() {
                         />
                     </label>
 
-                    <label className="text-sm">
-                        動画URL
-                        <input
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.video_url}
-                            onChange={(e) => setForm({ ...form, video_url: e.target.value })}
-                            placeholder="https://..."
-                        />
-                    </label>
-
-                    <label className="text-sm">
-                        表示順
-                        <input
-                            type="number"
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.sort_order}
-                            onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-                        />
-                    </label>
-
                     <label className="text-sm flex items-center gap-2">
                         <input
                             type="checkbox"
@@ -322,6 +349,7 @@ export default function TrainingGoalsManagePage() {
                                     <th className="border px-2 py-2 text-left">目標</th>
                                     <th className="border px-2 py-2 text-left">動画</th>
                                     <th className="border px-2 py-2 text-left">状態</th>
+                                    <th className="border px-2 py-2 text-left">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -335,29 +363,61 @@ export default function TrainingGoalsManagePage() {
                                         <td className="border px-2 py-2 whitespace-pre-wrap">
                                             {row.training_goal ?? ""}
                                         </td>
-                                        <td className="border px-2 py-2">
-                                            {row.video_url ? (
-                                                <a
-                                                    href={row.video_url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-blue-600 underline"
+                                        <td className="border px-2 py-2 min-w-[260px]">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    className="w-48 border rounded px-2 py-1"
+                                                    value={videoInputs[row.id] ?? ""}
+                                                    onChange={(e) =>
+                                                        setVideoInputs({
+                                                            ...videoInputs,
+                                                            [row.id]: e.target.value,
+                                                        })
+                                                    }
+                                                    placeholder="https://..."
+                                                />
+
+                                                <button
+                                                    type="button"
+                                                    disabled={loading}
+                                                    onClick={() => saveVideo(row)}
+                                                    className="whitespace-nowrap rounded border px-2 py-1 disabled:bg-gray-100"
                                                 >
-                                                    開く
-                                                </a>
-                                            ) : (
-                                                "-"
-                                            )}
+                                                    保存
+                                                </button>
+
+                                                {row.video_url ? (
+                                                    <a
+                                                        href={row.video_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="whitespace-nowrap text-blue-600 underline"
+                                                    >
+                                                        開く
+                                                    </a>
+                                                ) : null}
+                                            </div>
                                         </td>
                                         <td className="border px-2 py-2">
                                             {row.is_active ? "有効" : "無効"}
+                                        </td>
+
+                                        <td className="border px-2 py-2">
+                                            <button
+                                                type="button"
+                                                disabled={loading || !row.is_active}
+                                                onClick={() => hideGoal(row)}
+                                                className="whitespace-nowrap rounded bg-red-600 px-3 py-1 text-white disabled:bg-gray-300"
+                                            >
+                                                非表示
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
 
                                 {rows.length === 0 && (
                                     <tr>
-                                        <td className="border px-3 py-3 text-gray-600" colSpan={8}>
+                                        <td className="border px-3 py-3 text-gray-600" colSpan={9}>
                                             目標・研修がありません。
                                         </td>
                                     </tr>
