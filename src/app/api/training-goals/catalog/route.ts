@@ -94,15 +94,6 @@ export async function POST(req: NextRequest) {
 
         const training_key = `${training_type}_${training_code}`;
 
-        const { data: maxSort } = await supabaseAdmin
-            .from("training_goal_catalog")
-            .select("sort_order")
-            .order("sort_order", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        const nextSortOrder = (maxSort?.sort_order ?? 0) + 1;
-
         const insertRow = {
             training_type,
             training_code,
@@ -116,7 +107,10 @@ export async function POST(req: NextRequest) {
                     ? null
                     : Number(body.training_month),
             video_url: body.video_url ? String(body.video_url).trim() : null,
-            sort_order: nextSortOrder,
+            sort_order:
+                body.sort_order === null || body.sort_order === ""
+                    ? 9999
+                    : Number(body.sort_order),
             is_active: body.is_active !== false,
         };
 
