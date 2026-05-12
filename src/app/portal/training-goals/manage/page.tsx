@@ -33,6 +33,13 @@ type FormState = {
     is_active: boolean;
 };
 
+const TRAINING_TYPE_OPTIONS = [
+    "育成とマネジメント",
+    "従業員用",
+    "コミュニケーション技術",
+    "介護基礎知識介護過程",
+];
+
 const initialForm: FormState = {
     training_type: "",
     training_code: "",
@@ -157,11 +164,20 @@ export default function TrainingGoalsManagePage() {
         }
     }
 
-    async function hideGoal(row: CatalogRow) {
-        const ok = window.confirm(`「${row.training_title}」を非表示にしますか？`);
+    async function toggleGoal(row: CatalogRow) {
+        const next = !row.is_active;
+
+        const ok = window.confirm(
+            next
+                ? `「${row.training_title}」を再表示しますか？`
+                : `「${row.training_title}」を非表示にしますか？`
+        );
+
         if (!ok) return;
 
-        await updateGoal(row.id, { is_active: false });
+        await updateGoal(row.id, {
+            is_active: next,
+        });
     }
 
     async function saveVideo(row: CatalogRow) {
@@ -203,12 +219,26 @@ export default function TrainingGoalsManagePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <label className="text-sm">
                         種別
-                        <input
+                        <select
                             className="mt-1 w-full border rounded px-3 py-2"
                             value={form.training_type}
-                            onChange={(e) => setForm({ ...form, training_type: e.target.value })}
-                            placeholder="例：研修 / 目標"
-                        />
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    training_type: e.target.value,
+                                    training_key: e.target.value
+                                        ? `${e.target.value}_${Date.now()}`
+                                        : "",
+                                })
+                            }
+                        >
+                            <option value="">選択してください</option>
+                            {TRAINING_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
                     </label>
 
                     <label className="text-sm">
@@ -219,34 +249,6 @@ export default function TrainingGoalsManagePage() {
                             onChange={(e) => setForm({ ...form, training_code: e.target.value })}
                             placeholder="例：A / B / 001"
                         />
-                    </label>
-
-                    <label className="text-sm">
-                        training_key
-                        <input
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.training_key}
-                            onChange={(e) => setForm({ ...form, training_key: e.target.value })}
-                            placeholder="空欄なら自動生成"
-                        />
-                    </label>
-
-                    <label className="text-sm">
-                        対象
-                        <select
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.target_role}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    target_role: e.target.value as FormState["target_role"],
-                                })
-                            }
-                        >
-                            <option value="both">全員</option>
-                            <option value="member">メンバー</option>
-                            <option value="manager">マネージャー</option>
-                        </select>
                     </label>
 
                     <label className="text-sm md:col-span-2">
@@ -266,27 +268,6 @@ export default function TrainingGoalsManagePage() {
                             rows={3}
                             value={form.training_goal}
                             onChange={(e) => setForm({ ...form, training_goal: e.target.value })}
-                        />
-                    </label>
-
-                    <label className="text-sm">
-                        対象条件
-                        <input
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.target_group}
-                            onChange={(e) => setForm({ ...form, target_group: e.target.value })}
-                            placeholder="例：入社3ヶ月以内"
-                        />
-                    </label>
-
-                    <label className="text-sm">
-                        対象月
-                        <input
-                            type="number"
-                            className="mt-1 w-full border rounded px-3 py-2"
-                            value={form.training_month}
-                            onChange={(e) => setForm({ ...form, training_month: e.target.value })}
-                            placeholder="例：1"
                         />
                     </label>
 
@@ -344,7 +325,6 @@ export default function TrainingGoalsManagePage() {
                                     <th className="border px-2 py-2 text-left">表示順</th>
                                     <th className="border px-2 py-2 text-left">種別</th>
                                     <th className="border px-2 py-2 text-left">コード</th>
-                                    <th className="border px-2 py-2 text-left">対象</th>
                                     <th className="border px-2 py-2 text-left">タイトル</th>
                                     <th className="border px-2 py-2 text-left">目標</th>
                                     <th className="border px-2 py-2 text-left">動画</th>
@@ -358,7 +338,6 @@ export default function TrainingGoalsManagePage() {
                                         <td className="border px-2 py-2">{row.sort_order}</td>
                                         <td className="border px-2 py-2">{row.training_type}</td>
                                         <td className="border px-2 py-2">{row.training_code}</td>
-                                        <td className="border px-2 py-2">{row.target_role ?? "both"}</td>
                                         <td className="border px-2 py-2">{row.training_title}</td>
                                         <td className="border px-2 py-2 whitespace-pre-wrap">
                                             {row.training_goal ?? ""}
@@ -405,11 +384,14 @@ export default function TrainingGoalsManagePage() {
                                         <td className="border px-2 py-2">
                                             <button
                                                 type="button"
-                                                disabled={loading || !row.is_active}
-                                                onClick={() => hideGoal(row)}
-                                                className="whitespace-nowrap rounded bg-red-600 px-3 py-1 text-white disabled:bg-gray-300"
+                                                disabled={loading}
+                                                onClick={() => toggleGoal(row)}
+                                                className={`rounded px-3 py-1 text-white ${row.is_active
+                                                    ? "bg-red-600"
+                                                    : "bg-green-600"
+                                                    }`}
                                             >
-                                                非表示
+                                                {row.is_active ? "非表示" : "再表示"}
                                             </button>
                                         </td>
                                     </tr>
@@ -417,7 +399,7 @@ export default function TrainingGoalsManagePage() {
 
                                 {rows.length === 0 && (
                                     <tr>
-                                        <td className="border px-3 py-3 text-gray-600" colSpan={9}>
+                                        <td className="border px-3 py-3 text-gray-600" colSpan={8}>
                                             目標・研修がありません。
                                         </td>
                                     </tr>
