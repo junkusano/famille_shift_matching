@@ -338,104 +338,31 @@ export default function WeeklyRosterPage() {
   }, [kaipokeCs, clientSearchKeyword]);
 
   // スタッフ選択コンポーネント (SelectBox)
-const StaffSelect: React.FC<{
-  userId: string | null | undefined;
-  staffOpts: StaffOption[];
-  onChange: (value: string | null) => void;
-}> = ({ userId, staffOpts, onChange }) => {
-  const [keyword, setKeyword] = useState("");
-  const [open, setOpen] = useState(false);
-
-  const selectedLabel = userId
-    ? staffOpts.find((o) => o.value === userId)?.label ?? ""
-    : "";
-
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    if (!kw) return staffOpts.slice(0, 20);
-
-    return staffOpts
-      .filter((opt) =>
-        opt.label.toLowerCase().includes(kw) ||
-        opt.value.toLowerCase().includes(kw)
-      )
-      .slice(0, 20);
-  }, [keyword, staffOpts]);
-
-  return (
-    <div className="relative w-[150px]">
-      <Input
-        value={open ? keyword : selectedLabel}
-        placeholder="担当検索"
-        className="h-8 bg-white"
-        onFocus={() => {
-          setKeyword("");
-          setOpen(true);
-        }}
-        onChange={(e) => {
-          setKeyword(e.target.value);
-          setOpen(true);
-        }}
-        onBlur={() => {
-          setTimeout(() => setOpen(false), 150);
-        }}
-      />
-
-      {userId ? (
-        <button
-          type="button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            onChange(null);
-            setKeyword("");
-          }}
-        >
-          ×
-        </button>
-      ) : null}
-
-      {open ? (
-        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-white shadow-lg">
-          <button
-            type="button"
-            className="block w-full px-2 py-1.5 text-left text-sm hover:bg-slate-100"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onChange(null);
-              setKeyword("");
-              setOpen(false);
-            }}
-          >
-            未定
-          </button>
-
-          {filtered.length ? (
-            filtered.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                className="block w-full px-2 py-1.5 text-left text-sm hover:bg-slate-100"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange(opt.value);
-                  setKeyword("");
-                  setOpen(false);
-                }}
-              >
-                {opt.label}
-              </button>
-            ))
-          ) : (
-            <div className="px-2 py-2 text-xs text-slate-400">
-              該当なし
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-};
+  const StaffSelect: React.FC<{
+    userId: string | null | undefined;
+    staffOpts: StaffOption[];
+    onChange: (value: string | null) => void;
+  }> = ({ userId, staffOpts, onChange }) => {
+    return (
+      <Select
+        value={userId || ""}
+        onValueChange={(v) => onChange(v || null)}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="スタッフを選択" />
+        </SelectTrigger>
+        <SelectContent>
+          {staffOpts.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+          {/* 未定/未割当オプションを追加 */}
+          <SelectItem value="">未定</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const monthOptions = useMemo(() => {
     const base = nowYYYYMM();

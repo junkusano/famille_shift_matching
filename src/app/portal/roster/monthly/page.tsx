@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea'
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from '@/lib/supabaseClient'
 
-
 /*
 const getAccessToken = async (): Promise<string | null> => {
     const { data } = await supabase.auth.getSession()
@@ -1375,7 +1374,7 @@ export default function MonthlyRosterPage() {
                                                 className="h-3.5 w-3.5"
                                                 checked={selectedIds.has(row.shift_id)}
                                                 onChange={(ev) => toggleSelect(row.shift_id, ev.target.checked)}
-
+                                                disabled={readOnly}
                                             />
                                         </TableCell>
 
@@ -1388,7 +1387,7 @@ export default function MonthlyRosterPage() {
                                                         value={row.shift_start_date}
                                                         onChange={(ev) => updateRow(row.shift_id, 'shift_start_date', ev.target.value)}
                                                         className={dateInvalid ? 'border-red-500' : ''}
-
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
                                                 <span className="text-xs text-muted-foreground w-[15px]">（{weekdayJa(row.shift_start_date)}）</span>
@@ -1403,7 +1402,7 @@ export default function MonthlyRosterPage() {
                                                     onBlur={(e) => updateRow(row.shift_id, 'shift_start_time', normalizeTimeLoose(e.currentTarget.value))}
                                                     placeholder="例) 1030 → 10:30"
                                                     className={row.shift_start_time && !isValidHM(normalizeTimeLoose(row.shift_start_time)) ? 'border-red-500 h-8 text-sm' : 'h-8 text-sm'}
-
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </TableCell>
@@ -1544,7 +1543,7 @@ export default function MonthlyRosterPage() {
                                                     <div className="w-44">
 
                                                         <Select
-                                                            value={draft.staff_02_user_id}
+                                                            value={row.staff_02_user_id ?? ''}
                                                             onValueChange={(v) => updateRow(row.shift_id, 'staff_02_user_id', v || null)}
                                                         >
                                                             <SelectTrigger>
@@ -1752,7 +1751,6 @@ export default function MonthlyRosterPage() {
 }
 
 
-
 type Option = { value: string; label: string };
 
 type NewAddRowProps = {
@@ -1764,91 +1762,6 @@ type NewAddRowProps = {
     serviceOptions: Option[]  // ★追加
     staffOptions: Option[]    // ★追加
 };
-
-function StaffCombobox({
-  value,
-  onChange,
-  options,
-  disabled = false,
-}: {
-  value: string | null
-  onChange: (value: string | null) => void
-  options: Option[]
-  disabled?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [keyword, setKeyword] = useState("")
-
-  const selected = options.find((o) => o.value === value)
-
-  const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(keyword.toLowerCase())
-  )
-
-  return (
-    <div className="relative w-44">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled}
-        className="w-44 justify-between"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="truncate">
-          {selected ? selected.label : "選択"}
-        </span>
-        <span className="ml-2">▼</span>
-      </Button>
-
-      {open && !disabled && (
-        <div className="absolute z-50 mt-1 w-64 rounded-md border bg-white p-2 shadow-lg">
-          <Input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="スタッフ検索..."
-            className="mb-2 h-8"
-          />
-
-          <div className="max-h-64 overflow-y-auto">
-            <button
-              type="button"
-              className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-              onClick={() => {
-                onChange(null)
-                setKeyword("")
-                setOpen(false)
-              }}
-            >
-              未選択
-            </button>
-
-            {filtered.length === 0 && (
-              <div className="px-2 py-1 text-sm text-muted-foreground">
-                該当なし
-              </div>
-            )}
-
-            {filtered.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-gray-100"
-                onClick={() => {
-                  onChange(o.value)
-                  setKeyword("")
-                  setOpen(false)
-                }}
-              >
-                {value === o.value ? "✓ " : ""}
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function NewAddRow(props: NewAddRowProps) {
     const { onAddClick, repeatWeekdays, toggleWeekday, draft, updateDraft, serviceOptions, staffOptions } = props;
@@ -1967,29 +1880,39 @@ function NewAddRow(props: NewAddRowProps) {
             <TableRow className="bg-muted/20">
                 <TableCell colSpan={9}>
                     <div className="flex flex-wrap items-center gap-3">
+                        {/* スタッフ1 */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">スタッフ1</span>
+                            <div className="w-44">
+                                <Select
+                                    value={draft.staff_01_user_id ?? ''}
+                                    onValueChange={(v) => updateDraft('staff_01_user_id', v || null)}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                    <SelectContent>
+                                        {staffOptions.map((o) => (
+                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
-                 {/* スタッフ1 */}
-                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">スタッフ1</span>
-
-        <StaffCombobox
-              value={draft.staff_01_user_id}
-               options={staffOptions}
-              onChange={(v) =>
-            updateDraft('staff_01_user_id', v)
-              }
-            />
-          </div>
-                       
                         {/* スタッフ2 + 同 */}
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">スタッフ2</span>
                             <div className="w-44">
-                 <StaffCombobox
-                  value={draft.staff_02_user_id}
-                  options={staffOptions}
-                 onChange={(v) => updateDraft('staff_02_user_id', v)}
-                />                                
+                                <Select
+                                    value={draft.staff_02_user_id ?? ''}
+                                    onValueChange={(v) => updateDraft('staff_02_user_id', v || null)}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                    <SelectContent>
+                                        {staffOptions.map((o) => (
+                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <span className="text-sm text-muted-foreground">同</span>
                             <input
@@ -2004,13 +1927,17 @@ function NewAddRow(props: NewAddRowProps) {
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">スタッフ3</span>
                             <div className="w-44">
-                                <StaffCombobox
-                                    value={draft.staff_03_user_id}
-                                    options={staffOptions}
-
-                                    onChange={(v) => updateDraft('staff_03_user_id', v)}
-                                />
-                                    
+                                <Select
+                                    value={draft.staff_03_user_id ?? ''}
+                                    onValueChange={(v) => updateDraft('staff_03_user_id', v || null)}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="選択" /></SelectTrigger>
+                                    <SelectContent>
+                                        {staffOptions.map((o) => (
+                                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <span className="text-sm text-muted-foreground">同</span>
                             <input
