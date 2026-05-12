@@ -226,9 +226,6 @@ export default function TrainingGoalsManagePage() {
                                 setForm({
                                     ...form,
                                     training_type: e.target.value,
-                                    training_key: e.target.value
-                                        ? `${e.target.value}_${Date.now()}`
-                                        : "",
                                 })
                             }
                         >
@@ -290,15 +287,6 @@ export default function TrainingGoalsManagePage() {
                             onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
                             placeholder="10"
                         />
-                    </label>
-
-                    <label className="text-sm flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            checked={form.is_active}
-                            onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                        />
-                        有効
                     </label>
                 </div>
 

@@ -92,9 +92,7 @@ export async function POST(req: NextRequest) {
         if (!training_code) return json({ ok: false, error: "training_code required" }, 400);
         if (!training_title) return json({ ok: false, error: "training_title required" }, 400);
 
-        const training_key =
-            String(body.training_key ?? "").trim() ||
-            `${training_type}_${training_code}_${Date.now()}`;
+        const training_key = `${training_type}_${training_code}`;
 
         const insertRow = {
             training_type,
