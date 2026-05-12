@@ -85,6 +85,8 @@ export default function TrainingGoalsManagePage() {
 
     const [rows, setRows] = useState<CatalogRow[]>([]);
     const [form, setForm] = useState<FormState>(initialForm);
+    const [editId, setEditId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState<FormState>(initialForm);
     const [videoInputs, setVideoInputs] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState("");
@@ -147,7 +149,7 @@ export default function TrainingGoalsManagePage() {
 
     async function updateGoal(
         id: string,
-        patch: Partial<Pick<CatalogRow, "video_url" | "is_active">>
+        patch: Partial<CatalogRow>
     ) {
         setLoading(true);
         setMsg("");
@@ -191,6 +193,42 @@ export default function TrainingGoalsManagePage() {
 
     async function saveVideo(row: CatalogRow) {
         await updateGoal(row.id, { video_url: videoInputs[row.id] ?? "" });
+    }
+
+    function startEdit(row: CatalogRow) {
+        setEditId(row.id);
+        setEditForm({
+            training_type: row.training_type,
+            training_code: row.training_code,
+            training_key: row.training_key,
+            target_role: row.target_role ?? "both",
+            target_group: row.target_group ?? "",
+            training_title: row.training_title,
+            training_goal: row.training_goal ?? "",
+            training_month: row.training_month ? String(row.training_month) : "",
+            video_url: row.video_url ?? "",
+            sort_order: String(row.sort_order ?? 10),
+            is_active: row.is_active,
+        });
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function saveEdit() {
+        if (!editId) return;
+
+        await updateGoal(editId, {
+            training_type: editForm.training_type,
+            training_code: editForm.training_code,
+            training_title: editForm.training_title,
+            training_goal: editForm.training_goal,
+            video_url: editForm.video_url,
+            sort_order: Number(editForm.sort_order || 9999),
+            is_active: editForm.is_active,
+        } as Partial<CatalogRow>);
+
+        setEditId(null);
+        setEditForm(initialForm);
     }
 
     useEffect(() => {
@@ -321,6 +359,152 @@ export default function TrainingGoalsManagePage() {
                 </button>
             </section>
 
+            {editId && (
+                <section className="rounded border bg-yellow-50 p-4 space-y-4">
+                    <h2 className="font-bold">目標・研修を編集</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label className="text-sm">
+                            種別
+                            <select
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                value={editForm.training_type}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        training_type: e.target.value,
+                                    })
+                                }
+                            >
+                                <option value="">選択してください</option>
+                                {TRAINING_TYPE_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label className="text-sm">
+                            区分コード
+                            <select
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                value={editForm.training_code}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        training_code: e.target.value,
+                                    })
+                                }
+                            >
+                                <option value="">選択してください</option>
+                                {TRAINING_CODE_OPTIONS.map((code) => (
+                                    <option key={code} value={code}>
+                                        {code}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label className="text-sm">
+                            タイトル
+                            <input
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                value={editForm.training_title}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        training_title: e.target.value,
+                                    })
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm md:col-span-2">
+                            目標内容
+                            <textarea
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                rows={3}
+                                value={editForm.training_goal}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        training_goal: e.target.value,
+                                    })
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm">
+                            動画URL
+                            <input
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                value={editForm.video_url}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        video_url: e.target.value,
+                                    })
+                                }
+                                placeholder="https://..."
+                            />
+                        </label>
+
+                        <label className="text-sm">
+                            表示順
+                            <input
+                                type="number"
+                                className="mt-1 w-full border rounded px-3 py-2"
+                                value={editForm.sort_order}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        sort_order: e.target.value,
+                                    })
+                                }
+                            />
+                        </label>
+
+                        <label className="flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={editForm.is_active}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        is_active: e.target.checked,
+                                    })
+                                }
+                            />
+                            表示する
+                        </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            disabled={loading}
+                            onClick={saveEdit}
+                            className="rounded bg-blue-600 px-4 py-2 text-white disabled:bg-gray-400"
+                        >
+                            保存
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => {
+                                setEditId(null);
+                                setEditForm(initialForm);
+                            }}
+                            className="rounded border px-4 py-2 disabled:bg-gray-100"
+                        >
+                            キャンセル
+                        </button>
+                    </div>
+                </section>
+            )}
+
             <section className="rounded border bg-white p-4">
                 <h2 className="font-bold mb-3">既存の目標・研修一覧</h2>
 
@@ -391,6 +575,14 @@ export default function TrainingGoalsManagePage() {
                                         </td>
 
                                         <td className="border px-2 py-2">
+                                            <button
+                                                type="button"
+                                                disabled={loading}
+                                                onClick={() => startEdit(row)}
+                                                className="mr-2 rounded bg-blue-600 px-3 py-1 text-white disabled:bg-gray-300"
+                                            >
+                                                編集
+                                            </button>
                                             <button
                                                 type="button"
                                                 disabled={loading}

@@ -155,6 +155,49 @@ export async function PATCH(req: NextRequest) {
             updateRow.is_active = body.is_active === true;
         }
 
+        if ("training_type" in body) {
+            updateRow.training_type = String(body.training_type ?? "").trim();
+        }
+
+        if ("training_code" in body) {
+            updateRow.training_code = String(body.training_code ?? "").trim();
+        }
+
+        if ("training_type" in body || "training_code" in body) {
+            const nextTrainingType = String(body.training_type ?? "").trim();
+            const nextTrainingCode = String(body.training_code ?? "").trim();
+
+            if (!nextTrainingType) {
+                return json({ ok: false, error: "training_type required" }, 400);
+            }
+
+            if (!nextTrainingCode) {
+                return json({ ok: false, error: "training_code required" }, 400);
+            }
+
+            updateRow.training_key = `${nextTrainingType}_${nextTrainingCode}`;
+        }
+
+        if ("training_title" in body) {
+            const trainingTitle = String(body.training_title ?? "").trim();
+            if (!trainingTitle) {
+                return json({ ok: false, error: "training_title required" }, 400);
+            }
+            updateRow.training_title = trainingTitle;
+        }
+
+        if ("training_goal" in body) {
+            const trainingGoal = String(body.training_goal ?? "").trim();
+            updateRow.training_goal = trainingGoal ? trainingGoal : null;
+        }
+
+        if ("sort_order" in body) {
+            updateRow.sort_order =
+                body.sort_order === null || body.sort_order === ""
+                    ? 9999
+                    : Number(body.sort_order);
+        }
+
         if (Object.keys(updateRow).length === 1) {
             return json({ ok: false, error: "no update fields" }, 400);
         }
