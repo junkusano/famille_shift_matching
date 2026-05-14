@@ -34,19 +34,15 @@ type FormState = {
 };
 
 const TRAINING_TYPE_OPTIONS = [
-    "育成とマネジメント",
-    "従業員用",
-    "コミュニケーション技術",
-    "介護基礎知識介護過程",
+    "マネージャー対象",
+    "スタッフ対象",
 ];
 
 const TRAINING_CODE_OPTIONS = [
-    ...Array.from({ length: 26 }, (_, i) =>
-        String.fromCharCode(65 + i)
-    ),
-    ...Array.from({ length: 20 }, (_, i) =>
-        String(i + 1)
-    ),
+    { value: "ME", label: "ME（マネージャーエントリー）" },
+    { value: "MS", label: "MS（マネージャーシニア）" },
+    { value: "SE", label: "SE（スタッフエントリー）" },
+    { value: "SS", label: "SS（スタッフシニア）" },
 ];
 
 const initialForm: FormState = {
@@ -300,8 +296,8 @@ export default function TrainingGoalsManagePage() {
                             <option value="">選択してください</option>
 
                             {TRAINING_CODE_OPTIONS.map((code) => (
-                                <option key={code} value={code}>
-                                    {code}
+                                <option key={code.value} value={code.value}>
+                                    {code.label}
                                 </option>
                             ))}
                         </select>
@@ -399,8 +395,8 @@ export default function TrainingGoalsManagePage() {
                             >
                                 <option value="">選択してください</option>
                                 {TRAINING_CODE_OPTIONS.map((code) => (
-                                    <option key={code} value={code}>
-                                        {code}
+                                    <option key={code.value} value={code.value}>
+                                        {code.label}
                                     </option>
                                 ))}
                             </select>
