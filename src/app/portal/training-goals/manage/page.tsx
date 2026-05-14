@@ -34,8 +34,10 @@ type FormState = {
 };
 
 const TRAINING_TYPE_OPTIONS = [
-    "マネージャー対象",
-    "スタッフ対象",
+    "育成とマネジメント",
+    "従業員用",
+    "コミュニケーション技術",
+    "介護基礎知識介護過程",
 ];
 
 const TRAINING_CODE_OPTIONS = [
