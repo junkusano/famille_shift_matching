@@ -520,7 +520,7 @@ export default function TrainingGoalsPage() {
             );
         });
     }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole, displayRole]);
-    
+
     const toggleAdminSort = (key: AdminSortKey) => {
         if (adminSortKey !== key) {
             setAdminSortKey(key);
@@ -818,7 +818,7 @@ export default function TrainingGoalsPage() {
                         <div className="font-semibold text-blue-900">目標・研修一覧</div>
                         <div className="text-sm text-gray-700 space-y-1 leading-relaxed">
                             <p>■ 目標の設定方法</p>
-                            <p>・一覧から半期の目標を選び、チェックを入れてください</p>
+                            <p>・一覧から半期の目標を選び、チェックを入れてください（※複数選択可）</p>
                             <p>・動画がある研修はそのまま視聴できます</p>
                             <p>・視聴後は「研修受講完了」にチェックを入れてください</p>
                             <p>・チェックすると勤務キャリア・コーディネートルームにLINE通知が送信されます</p>
