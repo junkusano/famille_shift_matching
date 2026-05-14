@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         if (!training_code) return json({ ok: false, error: "training_code required" }, 400);
         if (!training_title) return json({ ok: false, error: "training_title required" }, 400);
 
-        const training_key = `${training_type}_${training_code}`;
+        const training_key = crypto.randomUUID();
 
         const insertRow = {
             training_type,

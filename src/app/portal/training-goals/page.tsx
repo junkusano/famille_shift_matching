@@ -79,11 +79,20 @@ export default function TrainingGoalsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const effectiveRole = role;
+    const [viewMode, setViewMode] = useState<'admin' | 'member'>('admin');
+
+    const displayRole =
+        ['admin', 'manager'].includes(effectiveRole) && viewMode === 'member'
+            ? 'member'
+            : effectiveRole;
 
     const queryUserId = searchParams.get('user_id') ?? '';
     const ALL_ENTRY_ID = '__all__';
-    const isAllEmployeesView = ['admin', 'manager'].includes(effectiveRole) && queryUserId === 'all';
 
+    const isAllEmployeesView =
+        ['admin', 'manager'].includes(effectiveRole) &&
+        viewMode === 'admin' &&
+        queryUserId === 'all';
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
@@ -412,12 +421,12 @@ export default function TrainingGoalsPage() {
             });
 
             const joined: JoinedRow[] = roleFiltered.map((catalog) => {
-                const selected = selectionMap.get(catalog.training_key);
+                const selected = selectionMap.get(catalog.id);
 
                 return {
-                    id: selected?.id ?? `virtual-${catalog.training_key}`,
+                    id: selected?.id ?? `virtual-${catalog.id}`,
                     entry_id: targetEntryId,
-                    goal_key: catalog.training_key,
+                    goal_key: catalog.id,
                     goal_title: catalog.training_title,
                     video_url: catalog.video_url,
                     selected: selected?.selected ?? false,
@@ -454,7 +463,7 @@ export default function TrainingGoalsPage() {
         void load();
         //adminとmember切り替えで使ったもの↓
         //}, [effectiveRole, role, selectedEntryId, debugRole, debugMemberEntryId, queryUserId]);
-    }, [effectiveRole, role, selectedEntryId, queryUserId, isAllEmployeesView, router]);
+    }, [effectiveRole, role, selectedEntryId, queryUserId, isAllEmployeesView, router, viewMode]);
 
     const orgOptions = useMemo(() => {
         return Array.from(
@@ -482,8 +491,7 @@ export default function TrainingGoalsPage() {
             }
             if (isAllEmployeesView) {
                 // すべて表示では未設定も見せたいので、ここでは絞らない
-            } else if (['admin', 'manager'].includes(effectiveRole)) {
-                // admin個別表示は、選択されたものだけ表示
+            } else if (displayRole !== 'member' && ['admin', 'manager'].includes(effectiveRole)) {
                 if (!row.selected) return false;
             } else if (showOnlySelected && !row.selected) {
                 return false;
@@ -511,8 +519,8 @@ export default function TrainingGoalsPage() {
                 trainingGoal.includes(q)
             );
         });
-    }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole]);
-
+    }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole, displayRole]);
+    
     const toggleAdminSort = (key: AdminSortKey) => {
         if (adminSortKey !== key) {
             setAdminSortKey(key);
@@ -714,6 +722,24 @@ export default function TrainingGoalsPage() {
         <div className="content p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">職員の目標・研修確認</h1>
+                {['admin', 'manager'].includes(effectiveRole) && (
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('admin')}
+                            className={`px-3 py-1 rounded border ${viewMode === 'admin' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+                        >
+                            管理者表示
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('member')}
+                            className={`px-3 py-1 rounded border ${viewMode === 'member' ? 'bg-blue-600 text-white' : 'bg-white'}`}
+                        >
+                            member表示
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
@@ -786,7 +812,7 @@ export default function TrainingGoalsPage() {
                 <p>読み込み中...</p>
             ) : filteredRows.length === 0 ? (
                 <p>登録された目標・研修情報はありません。</p>
-            ) : effectiveRole === 'member' ? (
+            ) : displayRole === 'member' ? (
                 <div className="space-y-6">
                     <div className="rounded-lg border bg-blue-50 px-4 py-3">
                         <div className="font-semibold text-blue-900">目標・研修一覧</div>
