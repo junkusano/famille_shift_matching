@@ -1,7 +1,7 @@
 // /portal/roster/weekly/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Save, RefreshCw, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -337,30 +337,100 @@ export default function WeeklyRosterPage() {
     );
   }, [kaipokeCs, clientSearchKeyword]);
 
-  // スタッフ選択コンポーネント (SelectBox)
+  // スタッフ選択コンポーネント
+  // 現場の操作感を大きく変えないため、担当者欄だけ「検索付きプルダウン」にする
   const StaffSelect: React.FC<{
     userId: string | null | undefined;
     staffOpts: StaffOption[];
     onChange: (value: string | null) => void;
   }> = ({ userId, staffOpts, onChange }) => {
+    const [open, setOpen] = useState(false);
+    const [keyword, setKeyword] = useState("");
+    const wrapRef = useRef<HTMLDivElement | null>(null);
+
+    const selectedLabel = useMemo(() => {
+      if (!userId) return "--選択--";
+      return staffOpts.find((opt) => opt.value === userId)?.label ?? userId;
+    }, [staffOpts, userId]);
+
+    const filteredStaffOpts = useMemo(() => {
+      const q = keyword.trim().toLowerCase();
+      if (!q) return staffOpts;
+      return staffOpts.filter((opt) =>
+        opt.label.toLowerCase().includes(q) ||
+        opt.value.toLowerCase().includes(q)
+      );
+    }, [keyword, staffOpts]);
+
+    useEffect(() => {
+      if (!open) return;
+
+      const handlePointerDown = (event: MouseEvent) => {
+        if (!wrapRef.current) return;
+        if (!wrapRef.current.contains(event.target as Node)) {
+          setOpen(false);
+          setKeyword("");
+        }
+      };
+
+      document.addEventListener("mousedown", handlePointerDown);
+      return () => document.removeEventListener("mousedown", handlePointerDown);
+    }, [open]);
+
+    const selectStaff = (value: string | null) => {
+      onChange(value);
+      setOpen(false);
+      setKeyword("");
+    };
+
     return (
-      <Select
-        value={userId || ""}
-        onValueChange={(v) => onChange(v || null)}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="スタッフを選択" />
-        </SelectTrigger>
-        <SelectContent>
-          {staffOpts.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-          {/* 未定/未割当オプションを追加 */}
-          <SelectItem value="">未定</SelectItem>
-        </SelectContent>
-      </Select>
+      <div ref={wrapRef} className="relative w-52">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1 text-left text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+        >
+          <span className={userId ? "block truncate text-slate-900" : "block truncate text-slate-500"}>
+            {selectedLabel}
+          </span>
+        </button>
+
+        {open && (
+          <div className="absolute left-0 z-50 mt-1 w-64 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+            <Input
+              autoFocus
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="担当者を検索"
+              className="mb-2 h-8"
+            />
+            <div className="max-h-60 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => selectStaff(null)}
+                className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+              >
+                --選択--
+              </button>
+
+              {filteredStaffOpts.length === 0 ? (
+                <div className="px-2 py-2 text-sm text-slate-500">該当する担当者がいません</div>
+              ) : (
+                filteredStaffOpts.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    onClick={() => selectStaff(opt.value)}
+                    className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                  >
+                    <span className="block truncate">{opt.label}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
