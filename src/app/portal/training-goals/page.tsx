@@ -96,6 +96,7 @@ export default function TrainingGoalsPage() {
     const [rows, setRows] = useState<JoinedRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
+    const [selectedTrainingCode, setSelectedTrainingCode] = useState('');
     const [selectedOrgName, setSelectedOrgName] = useState('');
     const [showOnlySelected, setShowOnlySelected] = useState(false);
     const [employees, setEmployees] = useState<EmployeeRow[]>([]);
@@ -479,6 +480,9 @@ export default function TrainingGoalsPage() {
         const q = searchText.trim();
 
         return rows.filter((row) => {
+            if (selectedTrainingCode && row.group_code !== selectedTrainingCode) {
+                return false;
+            }
             if (
                 isAllEmployeesView &&
                 selectedOrgName &&
@@ -519,8 +523,7 @@ export default function TrainingGoalsPage() {
                 trainingGoal.includes(q)
             );
         });
-    }, [rows, searchText, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole, displayRole]);
-
+    }, [rows, searchText, selectedTrainingCode, showOnlySelected, selectedOrgName, isAllEmployeesView, effectiveRole, displayRole]);
     const toggleAdminSort = (key: AdminSortKey) => {
         if (adminSortKey !== key) {
             setAdminSortKey(key);
@@ -782,6 +785,20 @@ export default function TrainingGoalsPage() {
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                 />
+
+                {displayRole === 'member' && (
+                    <select
+                        className="p-2 border rounded w-full md:max-w-xs"
+                        value={selectedTrainingCode}
+                        onChange={(e) => setSelectedTrainingCode(e.target.value)}
+                    >
+                        <option value="">すべての区分</option>
+                        <option value="ME">ME（マネージャーエントリー）</option>
+                        <option value="MS">MS（マネージャーシニア）</option>
+                        <option value="SE">SE（スタッフエントリー）</option>
+                        <option value="SS">SS（スタッフシニア）</option>
+                    </select>
+                )}
 
                 {isAllEmployeesView && (
                     <select
