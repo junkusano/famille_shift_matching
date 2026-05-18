@@ -40,15 +40,21 @@ type UserRow = {
     user_id: string;
     entry_id: string | null;
     auth_uid: string;
+    status: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
+    last_name_kana: string | null;
+    first_name_kana: string | null;
 };
 
 type MemberOption = {
     user_id: string;
     entry_id: string | null;
+    status: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
+    last_name_kana: string | null;
+    first_name_kana: string | null;
 };
 
 type Metric = {
@@ -58,21 +64,43 @@ type Metric = {
     note: string;
 };
 
-function getCurrentMonthRange() {
+function isValidYearMonth(value: string | null) {
+    return value !== null && /^\d{4}-\d{2}$/.test(value);
+}
+
+function getMonthRange(monthParam: string | null) {
     const now = new Date();
 
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const ym = isValidYearMonth(monthParam)
+        ? monthParam
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    const ym = `${now.getFullYear()}-${String(
-        now.getMonth() + 1
-    ).padStart(2, "0")}`;
+    const [yearText, monthText] = ym.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 1);
 
     return {
         ym,
         startDate: start.toISOString().slice(0, 10),
         endDate: end.toISOString().slice(0, 10),
     };
+}
+
+function buildMonthOptions(count: number) {
+    const now = new Date();
+
+    return Array.from({ length: count }, (_, index) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - index, 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+        return {
+            value: ym,
+            label: `${d.getFullYear()}年${d.getMonth() + 1}月`,
+        };
+    });
 }
 
 function calcMinutes(
@@ -119,9 +147,11 @@ export async function GET(req: NextRequest) {
         );
     }
 
-    const { ym, startDate, endDate } = getCurrentMonthRange();
+    const targetMonth = req.nextUrl.searchParams.get("month");
+    const { ym, startDate, endDate } = getMonthRange(targetMonth);
 
     const targetUserId = req.nextUrl.searchParams.get("user_id");
+    const monthOptions = buildMonthOptions(24);
 
     const { data: loginUser, error: loginUserError } = await supabaseAdmin
         .from("user_entry_united_view_single")
@@ -130,8 +160,11 @@ export async function GET(req: NextRequest) {
         user_id,
         entry_id,
         auth_uid,
+        status,
         last_name_kanji,
-        first_name_kanji
+        first_name_kanji,
+        last_name_kana,
+        first_name_kana
       `
         )
         .eq("auth_uid", authData.user.id)
@@ -150,16 +183,24 @@ export async function GET(req: NextRequest) {
             `
         user_id,
         entry_id,
+        status,
         last_name_kanji,
-        first_name_kanji
+        first_name_kanji,
+        last_name_kana,
+        first_name_kana
       `
         )
         .not("user_id", "is", null)
-        .order("last_name_kanji", { ascending: true })
+        .neq("status", "removed_from_lineworks_kaipoke")
+        .order("last_name_kana", { ascending: true })
+        .order("first_name_kana", { ascending: true })
         .returns<MemberOption[]>();
 
     const members = (memberRows ?? []).filter((member) => {
-        return Boolean(member.user_id);
+        return (
+            Boolean(member.user_id) &&
+            member.status !== "removed_from_lineworks_kaipoke"
+        );
     });
 
     const selectedMember =
@@ -406,6 +447,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
         month: ym,
+        monthOptions,
         userId,
         userName: `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,

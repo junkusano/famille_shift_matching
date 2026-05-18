@@ -16,8 +16,14 @@ type MemberOption = {
     name: string;
 };
 
+type MonthOption = {
+    value: string;
+    label: string;
+};
+
 type PortalScore = {
     month: string;
+    monthOptions: MonthOption[];
     userId: string;
     userName: string;
     totalScore: number;
@@ -29,6 +35,7 @@ type PortalScore = {
 export default function MyScorePreviewPage() {
     const [score, setScore] = useState<PortalScore | null>(null);
     const [selectedUserId, setSelectedUserId] = useState("");
+    const [selectedMonth, setSelectedMonth] = useState("");
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -46,9 +53,17 @@ export default function MyScorePreviewPage() {
                 return;
             }
 
-            const query = selectedUserId
-                ? `?user_id=${encodeURIComponent(selectedUserId)}`
-                : "";
+            const params = new URLSearchParams();
+
+            if (selectedUserId) {
+                params.set("user_id", selectedUserId);
+            }
+
+            if (selectedMonth) {
+                params.set("month", selectedMonth);
+            }
+
+            const query = params.toString() ? `?${params.toString()}` : "";
 
             const res = await fetch(`/api/portal/my-score${query}`, {
                 headers: {
@@ -69,11 +84,15 @@ export default function MyScorePreviewPage() {
                 setSelectedUserId(json.userId);
             }
 
+            if (!selectedMonth) {
+                setSelectedMonth(json.month);
+            }
+
             setLoading(false);
         };
 
         load();
-    }, [selectedUserId]);
+    }, [selectedUserId, selectedMonth]);
 
     const badgeClass =
         score?.badge === "ゴールド"
@@ -97,23 +116,47 @@ export default function MyScorePreviewPage() {
 
                     {score && (
                         <div className="rounded-lg border bg-white p-4 shadow-sm">
-                            <label className="mb-1 block text-sm font-semibold">
-                                表示する従業員
-                            </label>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label className="mb-1 block text-sm font-semibold">
+                                        表示する年月
+                                    </label>
 
-                            <select
-                                className="w-full rounded border px-3 py-2 text-sm"
-                                value={selectedUserId}
-                                onChange={(e) => {
-                                    setSelectedUserId(e.target.value);
-                                }}
-                            >
-                                {score.members.map((member) => (
-                                    <option key={member.userId} value={member.userId}>
-                                        {member.name || member.userId}
-                                    </option>
-                                ))}
-                            </select>
+                                    <select
+                                        className="w-full rounded border px-3 py-2 text-sm"
+                                        value={selectedMonth}
+                                        onChange={(e) => {
+                                            setSelectedMonth(e.target.value);
+                                        }}
+                                    >
+                                        {score.monthOptions.map((month) => (
+                                            <option key={month.value} value={month.value}>
+                                                {month.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-sm font-semibold">
+                                        表示する従業員
+                                    </label>
+
+                                    <select
+                                        className="w-full rounded border px-3 py-2 text-sm"
+                                        value={selectedUserId}
+                                        onChange={(e) => {
+                                            setSelectedUserId(e.target.value);
+                                        }}
+                                    >
+                                        {score.members.map((member) => (
+                                            <option key={member.userId} value={member.userId}>
+                                                {member.name || member.userId}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
 
                             <div className="mt-2 text-xs text-red-500">
                                 ※ 今だけの確認用です。リリース時は削除してください。
