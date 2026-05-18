@@ -21,15 +21,22 @@ type MonthOption = {
     label: string;
 };
 
+type Ranking = {
+    rank: number | null;
+    totalMembers: number;
+};
+
 type PortalScore = {
     month: string;
     monthOptions: MonthOption[];
     userId: string;
     userName: string;
     totalScore: number;
+    totalMaxScore: number;
     badge: string;
     metrics: ScoreMetric[];
     members: MemberOption[];
+    ranking: Ranking;
 };
 
 export default function MyScorePreviewPage() {
@@ -94,6 +101,15 @@ export default function MyScorePreviewPage() {
         load();
     }, [selectedUserId, selectedMonth]);
 
+    const badgeIcon =
+        score?.badge === "ゴールド"
+            ? "🥇"
+            : score?.badge === "シルバー"
+                ? "🥈"
+                : score?.badge === "ブロンズ"
+                    ? "🥉"
+                    : "🏅";
+
     const badgeClass =
         score?.badge === "ゴールド"
             ? "bg-yellow-100 text-yellow-800 border-yellow-300"
@@ -116,50 +132,48 @@ export default function MyScorePreviewPage() {
 
                     {score && (
                         <div className="rounded-lg border bg-white p-4 shadow-sm">
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                    <label className="mb-1 block text-sm font-semibold">
-                                        表示する年月
-                                    </label>
+                            <label className="mb-1 block text-sm font-semibold">
+                                表示する年月
+                            </label>
 
-                                    <select
-                                        className="w-full rounded border px-3 py-2 text-sm"
-                                        value={selectedMonth}
-                                        onChange={(e) => {
-                                            setSelectedMonth(e.target.value);
-                                        }}
-                                    >
-                                        {score.monthOptions.map((month) => (
-                                            <option key={month.value} value={month.value}>
-                                                {month.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <select
+                                className="w-full rounded border px-3 py-2 text-sm sm:max-w-xs"
+                                value={selectedMonth}
+                                onChange={(e) => {
+                                    setSelectedMonth(e.target.value);
+                                }}
+                            >
+                                {score.monthOptions.map((month) => (
+                                    <option key={month.value} value={month.value}>
+                                        {month.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
-                                <div>
-                                    <label className="mb-1 block text-sm font-semibold">
-                                        表示する従業員
-                                    </label>
+                    {score && (
+                        <div className="rounded-lg border bg-white p-4 shadow-sm">
+                            <label className="mb-1 block text-sm font-semibold">
+                                表示する従業員
+                            </label>
 
-                                    <select
-                                        className="w-full rounded border px-3 py-2 text-sm"
-                                        value={selectedUserId}
-                                        onChange={(e) => {
-                                            setSelectedUserId(e.target.value);
-                                        }}
-                                    >
-                                        {score.members.map((member) => (
-                                            <option key={member.userId} value={member.userId}>
-                                                {member.name || member.userId}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
+                            <select
+                                className="w-full rounded border px-3 py-2 text-sm"
+                                value={selectedUserId}
+                                onChange={(e) => {
+                                    setSelectedUserId(e.target.value);
+                                }}
+                            >
+                                {score.members.map((member) => (
+                                    <option key={member.userId} value={member.userId}>
+                                        {member.name || member.userId}
+                                    </option>
+                                ))}
+                            </select>
 
                             <div className="mt-2 text-xs text-red-500">
-                                ※ 今だけの確認用です。リリース時は削除してください。
+                                ※ 従業員切り替えは今だけの確認用です。リリース時は削除してください。
                             </div>
                         </div>
                     )}
@@ -192,11 +206,15 @@ export default function MyScorePreviewPage() {
                             </div>
 
                             <div className="text-left sm:text-right">
-                                <div className="text-4xl font-bold">{score.totalScore}点</div>
+                                <div className="text-4xl font-bold">
+                                    {score.totalMaxScore}点中 {score.totalScore}点
+                                </div>
+
                                 <div
-                                    className={`mt-2 inline-block rounded-full border px-4 py-1 text-sm font-semibold ${badgeClass}`}
+                                    className={`mt-2 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${badgeClass}`}
                                 >
-                                    {score.badge}
+                                    <span className="text-xl">{badgeIcon}</span>
+                                    <span>{score.badge}</span>
                                 </div>
                             </div>
                         </div>
@@ -219,10 +237,24 @@ export default function MyScorePreviewPage() {
                                     </div>
 
                                     <div className="mt-1 text-right text-xs text-gray-500">
-                                        {m.score}点
+                                        100点中 {m.score}点
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="mt-6 rounded-lg border bg-blue-50 p-4 text-sm text-blue-900">
+                            <div className="font-semibold">現在の立ち位置</div>
+
+                            <div className="mt-1">
+                                {score.ranking.rank
+                                    ? `対象従業員 ${score.ranking.totalMembers}人中 ${score.ranking.rank}番目です。`
+                                    : `対象従業員 ${score.ranking.totalMembers}人中の順位を計算できませんでした。`}
+                            </div>
+
+                            <div className="mt-1 text-xs text-blue-700">
+                                ※ 他の従業員の点数は表示せず、順位のみ表示しています。
+                            </div>
                         </div>
 
                         <div className="mt-6 rounded bg-gray-50 p-3 text-xs text-gray-500">

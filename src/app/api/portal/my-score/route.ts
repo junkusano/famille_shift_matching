@@ -119,9 +119,9 @@ function calcMinutes(
 }
 
 function getBadge(score: number) {
-    if (score >= 90) return "ゴールド";
-    if (score >= 75) return "シルバー";
-    if (score >= 60) return "ブロンズ";
+    if (score >= 70) return "ゴールド";
+    if (score >= 50) return "シルバー";
+    if (score >= 30) return "ブロンズ";
     return "通常";
 }
 
@@ -445,14 +445,214 @@ export async function GET(req: NextRequest) {
         }, 0) / metrics.length
     );
 
+    const totalMaxScore = metrics.length * 100;
+
+    const rankingScores = await Promise.all(
+        members.map(async (member) => {
+            const memberUserId = member.user_id;
+            const memberEntryId = member.entry_id;
+
+            const { data: memberShifts } = await supabaseAdmin
+                .from("shift")
+                .select(
+                    `
+                shift_id,
+                shift_start_date,
+                shift_start_time,
+                shift_end_time,
+                staff_01_user_id,
+                staff_02_user_id,
+                staff_03_user_id
+                `
+                )
+                .gte("shift_start_date", startDate)
+                .lt("shift_start_date", endDate)
+                .or(
+                    `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
+                )
+                .returns<ShiftRow[]>();
+
+            const memberShiftRows = memberShifts ?? [];
+            const memberShiftIds = memberShiftRows.map((s) => s.shift_id);
+
+            const memberTotalMinutes = memberShiftRows.reduce((sum, shift) => {
+                return (
+                    sum +
+                    calcMinutes(
+                        shift.shift_start_date,
+                        shift.shift_start_time,
+                        shift.shift_end_time
+                    )
+                );
+            }, 0);
+
+            const memberServiceHours = Math.round((memberTotalMinutes / 60) * 10) / 10;
+
+            const memberServiceScore = Math.min(
+                100,
+                Math.round((memberServiceHours / serviceTargetHours) * 100)
+            );
+
+            const { data: memberRecords } =
+                memberShiftIds.length > 0
+                    ? await supabaseAdmin
+                        .from("shift_records")
+                        .select(
+                            `
+                        shift_id,
+                        status,
+                        created_at,
+                        updated_at
+                        `
+                        )
+                        .in("shift_id", memberShiftIds)
+                        .returns<ShiftRecordRow[]>()
+                    : { data: [] as ShiftRecordRow[] };
+
+            let memberSameDayDone = 0;
+            let memberLateOrMissing = 0;
+
+            for (const shift of memberShiftRows) {
+                const record = (memberRecords ?? []).find(
+                    (r) =>
+                        r.shift_id === shift.shift_id &&
+                        completedStatuses.includes(r.status ?? "")
+                );
+
+                if (!record) {
+                    memberLateOrMissing++;
+                    continue;
+                }
+
+                const doneDate = String(
+                    record.updated_at ?? record.created_at ?? ""
+                ).slice(0, 10);
+
+                if (doneDate === shift.shift_start_date) {
+                    memberSameDayDone++;
+                } else {
+                    memberLateOrMissing++;
+                }
+            }
+
+            const memberVisitRate =
+                memberShiftIds.length > 0
+                    ? Math.round((memberSameDayDone / memberShiftIds.length) * 100)
+                    : 0;
+
+            const memberVisitScore =
+                memberLateOrMissing > 0 ? 0 : memberVisitRate;
+
+            const { data: memberMeeting } = await supabaseAdmin
+                .from("monthly_meeting_attendance")
+                .select(
+                    `
+                required,
+                attended_regular,
+                attended_extra,
+                checked_regular,
+                checked_extra
+                `
+                )
+                .eq("user_id", memberUserId)
+                .eq("target_month", `${ym}-01`)
+                .maybeSingle<MeetingAttendanceRow>();
+
+            const memberMeetingRequired = memberMeeting?.required !== false;
+
+            const memberMeetingDone =
+                !memberMeetingRequired ||
+                memberMeeting?.attended_regular === true ||
+                memberMeeting?.attended_extra === true ||
+                memberMeeting?.checked_regular === true ||
+                memberMeeting?.checked_extra === true;
+
+            const memberMeetingScore = memberMeetingDone ? 100 : 0;
+
+            const { data: memberJissekiRows } = await supabaseAdmin
+                .from("disability_check_view")
+                .select(
+                    `
+                is_checked,
+                application_check,
+                asigned_jisseki_staff_id
+                `
+                )
+                .eq("year_month", ym)
+                .eq("asigned_jisseki_staff_id", memberUserId)
+                .returns<DisabilityCheckRow[]>();
+
+            const memberJissekiTotal = memberJissekiRows?.length ?? 0;
+
+            const memberJissekiDone =
+                memberJissekiRows?.filter(
+                    (r) =>
+                        r.is_checked === true ||
+                        r.application_check === true
+                ).length ?? 0;
+
+            const memberJissekiScore =
+                memberJissekiTotal > 0
+                    ? Math.round((memberJissekiDone / memberJissekiTotal) * 100)
+                    : 0;
+
+            const { data: memberGoals } =
+                memberEntryId
+                    ? await supabaseAdmin
+                        .from("employee_training_goals")
+                        .select("id")
+                        .eq("entry_id", memberEntryId)
+                        .eq("row_type", "goal")
+                        .eq("selected", true)
+                        .returns<GoalRow[]>()
+                    : { data: [] as GoalRow[] };
+
+            const memberGoalCount = memberGoals?.length ?? 0;
+
+            const memberGoalScore =
+                memberGoalCount === 0
+                    ? 0
+                    : Math.min(100, 80 + (memberGoalCount - 1) * 10);
+
+            const memberTotalScore = Math.round(
+                (
+                    memberServiceScore +
+                    memberVisitScore +
+                    memberMeetingScore +
+                    memberJissekiScore +
+                    memberGoalScore
+                ) / 5
+            );
+
+            return {
+                userId: memberUserId,
+                totalScore: memberTotalScore,
+            };
+        })
+    );
+
+    const sortedRankingScores = rankingScores
+        .filter((row) => Number.isFinite(row.totalScore))
+        .sort((a, b) => b.totalScore - a.totalScore);
+
+    const currentRank =
+        sortedRankingScores.findIndex((row) => row.userId === userId) + 1;
+
+    const ranking = {
+        rank: currentRank > 0 ? currentRank : null,
+        totalMembers: sortedRankingScores.length,
+    };
+
     return NextResponse.json({
         month: ym,
         monthOptions,
         userId,
         userName: `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,
+        totalMaxScore,
         badge: getBadge(totalScore),
         metrics,
+        ranking,
         members: members.map((member) => ({
             userId: member.user_id,
             name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,
