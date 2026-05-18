@@ -44,6 +44,13 @@ type UserRow = {
     first_name_kanji: string | null;
 };
 
+type MemberOption = {
+    user_id: string;
+    entry_id: string | null;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+};
+
 type Metric = {
     key: string;
     label: string;
@@ -114,7 +121,9 @@ export async function GET(req: NextRequest) {
 
     const { ym, startDate, endDate } = getCurrentMonthRange();
 
-    const { data: me, error: meError } = await supabaseAdmin
+    const targetUserId = req.nextUrl.searchParams.get("user_id");
+
+    const { data: loginUser, error: loginUserError } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(
             `
@@ -128,12 +137,37 @@ export async function GET(req: NextRequest) {
         .eq("auth_uid", authData.user.id)
         .maybeSingle<UserRow>();
 
-    if (meError || !me?.user_id) {
+    if (loginUserError || !loginUser?.user_id) {
         return NextResponse.json(
             { error: "user not found" },
             { status: 404 }
         );
     }
+
+    const { data: memberRows } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select(
+            `
+        user_id,
+        entry_id,
+        last_name_kanji,
+        first_name_kanji
+      `
+        )
+        .not("user_id", "is", null)
+        .order("last_name_kanji", { ascending: true })
+        .returns<MemberOption[]>();
+
+    const members = (memberRows ?? []).filter((member) => {
+        return Boolean(member.user_id);
+    });
+
+    const selectedMember =
+        targetUserId
+            ? members.find((member) => member.user_id === targetUserId)
+            : loginUser;
+
+    const me = selectedMember ?? loginUser;
 
     const userId = me.user_id;
     const entryId = me.entry_id;
@@ -372,9 +406,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
         month: ym,
+        userId,
         userName: `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,
         badge: getBadge(totalScore),
         metrics,
+        members: members.map((member) => ({
+            userId: member.user_id,
+            name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,
+        })),
     });
 }

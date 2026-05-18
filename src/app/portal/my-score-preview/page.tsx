@@ -11,16 +11,24 @@ type ScoreMetric = {
     note: string;
 };
 
+type MemberOption = {
+    userId: string;
+    name: string;
+};
+
 type PortalScore = {
     month: string;
+    userId: string;
     userName: string;
     totalScore: number;
     badge: string;
     metrics: ScoreMetric[];
+    members: MemberOption[];
 };
 
 export default function MyScorePreviewPage() {
     const [score, setScore] = useState<PortalScore | null>(null);
+    const [selectedUserId, setSelectedUserId] = useState("");
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -38,7 +46,11 @@ export default function MyScorePreviewPage() {
                 return;
             }
 
-            const res = await fetch("/api/portal/my-score", {
+            const query = selectedUserId
+                ? `?user_id=${encodeURIComponent(selectedUserId)}`
+                : "";
+
+            const res = await fetch(`/api/portal/my-score${query}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -52,11 +64,16 @@ export default function MyScorePreviewPage() {
 
             const json = (await res.json()) as PortalScore;
             setScore(json);
+
+            if (!selectedUserId) {
+                setSelectedUserId(json.userId);
+            }
+
             setLoading(false);
         };
 
         load();
-    }, []);
+    }, [selectedUserId]);
 
     const badgeClass =
         score?.badge === "ゴールド"
@@ -77,6 +94,32 @@ export default function MyScorePreviewPage() {
                             member用の確認ページです。ポータル本体にはまだ表示していません。
                         </p>
                     </div>
+
+                    {score && (
+                        <div className="rounded-lg border bg-white p-4 shadow-sm">
+                            <label className="mb-1 block text-sm font-semibold">
+                                表示する従業員
+                            </label>
+
+                            <select
+                                className="w-full rounded border px-3 py-2 text-sm"
+                                value={selectedUserId}
+                                onChange={(e) => {
+                                    setSelectedUserId(e.target.value);
+                                }}
+                            >
+                                {score.members.map((member) => (
+                                    <option key={member.userId} value={member.userId}>
+                                        {member.name || member.userId}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <div className="mt-2 text-xs text-red-500">
+                                ※ 今だけの確認用です。リリース時は削除してください。
+                            </div>
+                        </div>
+                    )}
 
                     <Link href="/portal" className="text-sm text-blue-600 hover:underline">
                         ポータルへ戻る
