@@ -120,6 +120,108 @@ const addMonths = (month: string, diff: number) => {
 }
 const humanName = (u: StaffUser) => `${u.last_name_kanji ?? ''}${u.first_name_kanji ?? ''}`.trim() || u.user_id
 
+
+function SearchableStaffSelect({
+    value,
+    options,
+    onChange,
+    disabled,
+}: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [keyword, setKeyword] = useState("");
+    const wrapRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!open) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!wrapRef.current?.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    const selected = options.find((o) => o.value === value);
+    const filtered = options.filter((o) => {
+        const q = keyword.trim().toLowerCase();
+        if (!q) return true;
+        return (
+            o.label.toLowerCase().includes(q) ||
+            o.value.toLowerCase().includes(q)
+        );
+    });
+
+    return (
+        <div ref={wrapRef} className="relative">
+            <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setOpen((v) => !v)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                <span className={selected ? "block truncate text-slate-900" : "block truncate text-slate-500"}>
+                    {selected?.label ?? "--選択--"}
+                </span>
+            </button>
+
+            {open && !disabled && (
+                <div className="absolute z-50 mt-1 w-56 rounded-md border bg-white p-2 shadow-lg">
+                    <Input
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        placeholder="担当者を検索"
+                        className="mb-2 h-8"
+                        autoFocus
+                    />
+
+                    <div className="max-h-60 overflow-y-auto">
+                        <button
+                            type="button"
+                            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
+                            onClick={() => {
+                                onChange("");
+                                setKeyword("");
+                                setOpen(false);
+                            }}
+                        >
+                            --選択--
+                        </button>
+
+                        {filtered.map((o) => (
+                            <button
+                                key={o.value}
+                                type="button"
+                                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
+                                onClick={() => {
+                                    onChange(o.value);
+                                    setKeyword("");
+                                    setOpen(false);
+                                }}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+
+                        {filtered.length === 0 && (
+                            <div className="px-2 py-2 text-sm text-slate-500">
+                                該当する担当者がいません
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // 日付/時刻/重度移動 入力検証 & 整形
 const isValidDateStr = (s: string): boolean => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
@@ -1574,21 +1676,12 @@ export default function MonthlyRosterPage() {
                                                     <span className="text-sm text-muted-foreground">スタッフ3</span>
                                                     <div className="w-44">
 
-                                                        <Select
-                                                            value={row.staff_03_user_id ?? ''}
-                                                            onValueChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="選択" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {staffOptions.map((o) => (
-                                                                    <SelectItem key={o.value} value={o.value}>
-                                                                        {o.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <SearchableStaffSelect
+                                                            value={row.staff_03_user_id ?? ""}
+                                                            options={staffOptions}
+                                                            onChange={(v) => updateRow(row.shift_id, 'staff_03_user_id', v || null)}
+                                                            disabled={readOnly}
+                                                        />
 
                                                     </div>
                                                     <span className="text-sm text-muted-foreground">同</span>
