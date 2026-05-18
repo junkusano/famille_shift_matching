@@ -384,7 +384,32 @@ export async function GET(req: NextRequest) {
                 80 + (selectedGoalCount - 1) * 10
             );
 
+    const totalMinutes = shiftRows.reduce((sum, shift) => {
+        return (
+            sum +
+            calcMinutes(
+                shift.shift_start_date,
+                shift.shift_start_time,
+                shift.shift_end_time
+            )
+        );
+    }, 0);
+
+    const serviceHours = Math.round((totalMinutes / 60) * 10) / 10;
+
+    const serviceRate = Math.min(
+        100,
+        Math.round((serviceHours / serviceTargetHours) * 100)
+    );
+
     const metrics: Metric[] = [
+        {
+            key: "service_hours",
+            label: "サービス時間",
+            score: Math.round((serviceRate / 100) * SCORE_WEIGHTS.serviceHours),
+            maxScore: SCORE_WEIGHTS.serviceHours,
+            note: `${serviceHours}時間 / 目標${serviceTargetHours}時間`,
+        },
         {
             key: "visit_record",
             label: "訪問記録当日完了率",
