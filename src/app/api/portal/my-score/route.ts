@@ -1,0 +1,380 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/service";
+
+type ShiftRow = {
+    shift_id: number;
+    shift_start_date: string;
+    shift_start_time: string | null;
+    shift_end_time: string | null;
+    staff_01_user_id: string | null;
+    staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
+};
+
+type ShiftRecordRow = {
+    shift_id: number;
+    status: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+};
+
+type MeetingAttendanceRow = {
+    required: boolean | null;
+    attended_regular: boolean | null;
+    attended_extra: boolean | null;
+    checked_regular: boolean | null;
+    checked_extra: boolean | null;
+};
+
+type DisabilityCheckRow = {
+    is_checked: boolean | null;
+    application_check: boolean | null;
+    asigned_jisseki_staff_id: string | null;
+};
+
+type GoalRow = {
+    id: string;
+};
+
+type UserRow = {
+    user_id: string;
+    entry_id: string | null;
+    auth_uid: string;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+};
+
+type Metric = {
+    key: string;
+    label: string;
+    score: number;
+    note: string;
+};
+
+function getCurrentMonthRange() {
+    const now = new Date();
+
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const ym = `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    return {
+        ym,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+    };
+}
+
+function calcMinutes(
+    date: string,
+    start?: string | null,
+    end?: string | null
+) {
+    if (!start || !end) return 0;
+
+    const s = new Date(`${date}T${start}`);
+    const e = new Date(`${date}T${end}`);
+
+    const diff = e.getTime() - s.getTime();
+
+    return diff > 0 ? Math.round(diff / 60000) : 0;
+}
+
+function getBadge(score: number) {
+    if (score >= 90) return "ゴールド";
+    if (score >= 75) return "シルバー";
+    if (score >= 60) return "ブロンズ";
+    return "通常";
+}
+
+export async function GET(req: NextRequest) {
+    const token = req.headers
+        .get("authorization")
+        ?.replace("Bearer ", "");
+
+    if (!token) {
+        return NextResponse.json(
+            { error: "unauthorized" },
+            { status: 401 }
+        );
+    }
+
+    const { data: authData, error: authError } =
+        await supabaseAdmin.auth.getUser(token);
+
+    if (authError || !authData.user) {
+        return NextResponse.json(
+            { error: "unauthorized" },
+            { status: 401 }
+        );
+    }
+
+    const { ym, startDate, endDate } = getCurrentMonthRange();
+
+    const { data: me, error: meError } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select(
+            `
+        user_id,
+        entry_id,
+        auth_uid,
+        last_name_kanji,
+        first_name_kanji
+      `
+        )
+        .eq("auth_uid", authData.user.id)
+        .maybeSingle<UserRow>();
+
+    if (meError || !me?.user_id) {
+        return NextResponse.json(
+            { error: "user not found" },
+            { status: 404 }
+        );
+    }
+
+    const userId = me.user_id;
+    const entryId = me.entry_id;
+
+    const { data: shifts } = await supabaseAdmin
+        .from("shift")
+        .select(
+            `
+        shift_id,
+        shift_start_date,
+        shift_start_time,
+        shift_end_time,
+        staff_01_user_id,
+        staff_02_user_id,
+        staff_03_user_id
+      `
+        )
+        .gte("shift_start_date", startDate)
+        .lt("shift_start_date", endDate)
+        .or(
+            `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
+        )
+        .returns<ShiftRow[]>();
+
+    const shiftRows = shifts ?? [];
+
+    const shiftIds = shiftRows.map((s) => s.shift_id);
+
+    const totalMinutes = shiftRows.reduce((sum, shift) => {
+        return (
+            sum +
+            calcMinutes(
+                shift.shift_start_date,
+                shift.shift_start_time,
+                shift.shift_end_time
+            )
+        );
+    }, 0);
+
+    const serviceHours =
+        Math.round((totalMinutes / 60) * 10) / 10;
+
+    const serviceTargetHours = 80;
+
+    const serviceScore = Math.min(
+        100,
+        Math.round((serviceHours / serviceTargetHours) * 100)
+    );
+
+    const { data: records } =
+        shiftIds.length > 0
+            ? await supabaseAdmin
+                .from("shift_records")
+                .select(
+                    `
+              shift_id,
+              status,
+              created_at,
+              updated_at
+            `
+                )
+                .in("shift_id", shiftIds)
+                .returns<ShiftRecordRow[]>()
+            : { data: [] as ShiftRecordRow[] };
+
+    const completedStatuses = [
+        "submitted",
+        "approved",
+        "done",
+        "completed",
+    ];
+
+    let sameDayDone = 0;
+    let lateOrMissing = 0;
+
+    for (const shift of shiftRows) {
+        const record = (records ?? []).find(
+            (r) =>
+                r.shift_id === shift.shift_id &&
+                completedStatuses.includes(r.status ?? "")
+        );
+
+        if (!record) {
+            lateOrMissing++;
+            continue;
+        }
+
+        const doneDate = String(
+            record.updated_at ?? record.created_at ?? ""
+        ).slice(0, 10);
+
+        if (doneDate === shift.shift_start_date) {
+            sameDayDone++;
+        } else {
+            lateOrMissing++;
+        }
+    }
+
+    const visitRate =
+        shiftIds.length > 0
+            ? Math.round((sameDayDone / shiftIds.length) * 100)
+            : 0;
+
+    const visitScore =
+        lateOrMissing > 0 ? 0 : visitRate;
+
+    const { data: meeting } = await supabaseAdmin
+        .from("monthly_meeting_attendance")
+        .select(
+            `
+        required,
+        attended_regular,
+        attended_extra,
+        checked_regular,
+        checked_extra
+      `
+        )
+        .eq("user_id", userId)
+        .eq("target_month", `${ym}-01`)
+        .maybeSingle<MeetingAttendanceRow>();
+
+    const meetingRequired =
+        meeting?.required !== false;
+
+    const meetingDone =
+        !meetingRequired ||
+        meeting?.attended_regular === true ||
+        meeting?.attended_extra === true ||
+        meeting?.checked_regular === true ||
+        meeting?.checked_extra === true;
+
+    const meetingScore = meetingDone ? 100 : 0;
+
+    const { data: jissekiRows } = await supabaseAdmin
+        .from("disability_check_view")
+        .select(
+            `
+        is_checked,
+        application_check,
+        asigned_jisseki_staff_id
+      `
+        )
+        .eq("year_month", ym)
+        .eq("asigned_jisseki_staff_id", userId)
+        .returns<DisabilityCheckRow[]>();
+
+    const jissekiTotal =
+        jissekiRows?.length ?? 0;
+
+    const jissekiDone =
+        jissekiRows?.filter(
+            (r) =>
+                r.is_checked === true ||
+                r.application_check === true
+        ).length ?? 0;
+
+    const jissekiScore =
+        jissekiTotal > 0
+            ? Math.round(
+                (jissekiDone / jissekiTotal) * 100
+            )
+            : 0;
+
+    const { data: goals } =
+        entryId
+            ? await supabaseAdmin
+                .from("employee_training_goals")
+                .select("id")
+                .eq("entry_id", entryId)
+                .eq("row_type", "goal")
+                .eq("selected", true)
+                .returns<GoalRow[]>()
+            : { data: [] as GoalRow[] };
+
+    const selectedGoalCount =
+        goals?.length ?? 0;
+
+    const goalScore =
+        selectedGoalCount === 0
+            ? 0
+            : Math.min(
+                100,
+                80 + (selectedGoalCount - 1) * 10
+            );
+
+    const metrics: Metric[] = [
+        {
+            key: "service_hours",
+            label: "サービス時間",
+            score: serviceScore,
+            note: `${serviceHours}時間 / 目標${serviceTargetHours}時間`,
+        },
+        {
+            key: "visit_record",
+            label: "訪問記録当日完了率",
+            score: visitScore,
+            note:
+                lateOrMissing > 0
+                    ? `未完了・翌日以降が${lateOrMissing}件あるため0点`
+                    : `${sameDayDone}/${shiftIds.length}件`,
+        },
+        {
+            key: "meeting",
+            label: "会議参加率",
+            score: meetingScore,
+            note: meetingRequired
+                ? meetingDone
+                    ? "参加済み"
+                    : "未参加"
+                : "対象外",
+        },
+        {
+            key: "jisseki",
+            label: "実績記録",
+            score: jissekiScore,
+            note: `${jissekiDone}/${jissekiTotal}件`,
+        },
+        {
+            key: "training_goal",
+            label: "目標設定",
+            score: goalScore,
+            note:
+                selectedGoalCount > 1
+                    ? `${selectedGoalCount}件選択中（複数加点）`
+                    : selectedGoalCount === 1
+                        ? "1件選択中"
+                        : "未設定",
+        },
+    ];
+
+    const totalScore = Math.round(
+        metrics.reduce((sum, metric) => {
+            return sum + metric.score;
+        }, 0) / metrics.length
+    );
+
+    return NextResponse.json({
+        month: ym,
+        userName: `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
+        totalScore,
+        badge: getBadge(totalScore),
+        metrics,
+    });
+}
