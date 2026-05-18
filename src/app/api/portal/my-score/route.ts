@@ -651,6 +651,23 @@ export async function GET(req: NextRequest) {
         totalMembers: sortedRankingScores.length,
     };
 
+    const topRanking = sortedRankingScores
+        .slice(0, 10)
+        .map((row, index) => {
+            const member = members.find(
+                (m) => m.user_id === row.userId
+            );
+
+            return {
+                rank: index + 1,
+                userId: row.userId,
+                score: row.totalScore,
+                name: member
+                    ? `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`
+                    : row.userId,
+            };
+        });
+
     return NextResponse.json({
         month: ym,
         monthOptions,
@@ -661,6 +678,7 @@ export async function GET(req: NextRequest) {
         badge: getBadge(totalScore),
         metrics,
         ranking,
+        topRanking,
         members: members.map((member) => ({
             userId: member.user_id,
             name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,

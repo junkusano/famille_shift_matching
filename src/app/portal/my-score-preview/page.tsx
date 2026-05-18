@@ -27,6 +27,13 @@ type Ranking = {
     totalMembers: number;
 };
 
+type RankingUser = {
+    rank: number;
+    userId: string;
+    score: number;
+    name: string;
+};
+
 type PortalScore = {
     month: string;
     monthOptions: MonthOption[];
@@ -38,6 +45,7 @@ type PortalScore = {
     metrics: ScoreMetric[];
     members: MemberOption[];
     ranking: Ranking;
+    topRanking: RankingUser[];
 };
 
 export default function MyScorePreviewPage() {
@@ -244,33 +252,65 @@ export default function MyScorePreviewPage() {
                             ))}
                         </div>
 
-                        <div className="mt-8 rounded-2xl border-2 border-blue-300 bg-blue-50 p-6 shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-2xl text-white">
-                                    📊
-                                </div>
-
-                                <div>
-                                    <div className="text-sm font-semibold text-blue-700">
-                                        現在の立ち位置
-                                    </div>
-
-                                    <div className="mt-1 text-2xl font-bold text-blue-950">
-                                        {score.ranking.rank
-                                            ? `${score.ranking.totalMembers}人中 ${score.ranking.rank}番目`
-                                            : "順位を計算できませんでした"}
-                                    </div>
-                                </div>
+                        <div className="mt-6">
+                            <div className="mb-3 text-lg font-bold text-blue-950">
+                                上位ランキング
                             </div>
 
-                            <div className="mt-4 rounded-lg bg-white p-3 text-sm text-blue-900">
-                                {score.ranking.rank
-                                    ? `対象従業員 ${score.ranking.totalMembers}人の中で、現在 ${score.ranking.rank}番目の位置です。`
-                                    : `対象従業員 ${score.ranking.totalMembers}人中の順位を計算できませんでした。`}
-                            </div>
+                            <div className="space-y-2">
+                                {score.topRanking.map((user) => {
+                                    const isTop3 = user.rank <= 3;
 
-                            <div className="mt-2 text-xs text-blue-700">
-                                ※ 他の従業員の点数は表示せず、順位のみ表示しています。
+                                    return (
+                                        <div
+                                            key={user.userId}
+                                            className={`flex items-center justify-between rounded-xl border bg-white px-4 py-3 shadow-sm ${isTop3 ? "border-yellow-300" : "border-gray-200"
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div
+                                                    className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${user.rank === 1
+                                                            ? "bg-yellow-400 text-white"
+                                                            : user.rank === 2
+                                                                ? "bg-gray-400 text-white"
+                                                                : user.rank === 3
+                                                                    ? "bg-orange-400 text-white"
+                                                                    : "bg-blue-100 text-blue-900"
+                                                        }`}
+                                                >
+                                                    {user.rank}
+                                                </div>
+
+                                                <div>
+                                                    <div
+                                                        className={`font-bold ${isTop3
+                                                                ? "text-xl text-blue-950"
+                                                                : "text-base text-gray-900"
+                                                            }`}
+                                                    >
+                                                        {user.name}
+                                                    </div>
+
+                                                    <div className="text-xs text-gray-500">
+                                                        {user.score}点
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {user.rank === 1 && (
+                                                <div className="text-3xl">🥇</div>
+                                            )}
+
+                                            {user.rank === 2 && (
+                                                <div className="text-3xl">🥈</div>
+                                            )}
+
+                                            {user.rank === 3 && (
+                                                <div className="text-3xl">🥉</div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
 
