@@ -61,6 +61,7 @@ type Metric = {
     key: string;
     label: string;
     score: number;
+    maxScore: number;
     note: string;
 };
 
@@ -124,6 +125,14 @@ function getBadge(score: number) {
     if (score >= 30) return "ブロンズ";
     return "通常";
 }
+
+const SCORE_WEIGHTS = {
+    serviceHours: 30,
+    visitRecord: 30,
+    meeting: 10,
+    jisseki: 20,
+    trainingGoal: 10,
+};
 
 export async function GET(req: NextRequest) {
     const token = req.headers
@@ -237,26 +246,7 @@ export async function GET(req: NextRequest) {
 
     const shiftIds = shiftRows.map((s) => s.shift_id);
 
-    const totalMinutes = shiftRows.reduce((sum, shift) => {
-        return (
-            sum +
-            calcMinutes(
-                shift.shift_start_date,
-                shift.shift_start_time,
-                shift.shift_end_time
-            )
-        );
-    }, 0);
-
-    const serviceHours =
-        Math.round((totalMinutes / 60) * 10) / 10;
-
     const serviceTargetHours = 80;
-
-    const serviceScore = Math.min(
-        100,
-        Math.round((serviceHours / serviceTargetHours) * 100)
-    );
 
     const { data: records } =
         shiftIds.length > 0
@@ -396,15 +386,10 @@ export async function GET(req: NextRequest) {
 
     const metrics: Metric[] = [
         {
-            key: "service_hours",
-            label: "サービス時間",
-            score: serviceScore,
-            note: `${serviceHours}時間 / 目標${serviceTargetHours}時間`,
-        },
-        {
             key: "visit_record",
             label: "訪問記録当日完了率",
-            score: visitScore,
+            score: Math.round((visitScore / 100) * SCORE_WEIGHTS.visitRecord),
+            maxScore: SCORE_WEIGHTS.visitRecord,
             note:
                 lateOrMissing > 0
                     ? `未完了・翌日以降が${lateOrMissing}件あるため0点`
@@ -413,7 +398,8 @@ export async function GET(req: NextRequest) {
         {
             key: "meeting",
             label: "会議参加率",
-            score: meetingScore,
+            score: Math.round((meetingScore / 100) * SCORE_WEIGHTS.meeting),
+            maxScore: SCORE_WEIGHTS.meeting,
             note: meetingRequired
                 ? meetingDone
                     ? "参加済み"
@@ -423,13 +409,15 @@ export async function GET(req: NextRequest) {
         {
             key: "jisseki",
             label: "実績記録",
-            score: jissekiScore,
+            score: Math.round((jissekiScore / 100) * SCORE_WEIGHTS.jisseki),
+            maxScore: SCORE_WEIGHTS.jisseki,
             note: `${jissekiDone}/${jissekiTotal}件`,
         },
         {
             key: "training_goal",
             label: "目標設定",
-            score: goalScore,
+            score: Math.round((goalScore / 100) * SCORE_WEIGHTS.trainingGoal),
+            maxScore: SCORE_WEIGHTS.trainingGoal,
             note:
                 selectedGoalCount > 1
                     ? `${selectedGoalCount}件選択中（複数加点）`
@@ -439,13 +427,11 @@ export async function GET(req: NextRequest) {
         },
     ];
 
-    const totalScore = Math.round(
-        metrics.reduce((sum, metric) => {
-            return sum + metric.score;
-        }, 0) / metrics.length
-    );
+    const totalScore = metrics.reduce((sum, metric) => {
+        return sum + metric.score;
+    }, 0);
 
-    const totalMaxScore = metrics.length * 100;
+    const totalMaxScore = 100;
 
     const rankingScores = await Promise.all(
         members.map(async (member) => {
@@ -614,15 +600,12 @@ export async function GET(req: NextRequest) {
                     ? 0
                     : Math.min(100, 80 + (memberGoalCount - 1) * 10);
 
-            const memberTotalScore = Math.round(
-                (
-                    memberServiceScore +
-                    memberVisitScore +
-                    memberMeetingScore +
-                    memberJissekiScore +
-                    memberGoalScore
-                ) / 5
-            );
+            const memberTotalScore =
+                Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
+                Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
+                Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
+                Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
+                Math.round((memberGoalScore / 100) * SCORE_WEIGHTS.trainingGoal);
 
             return {
                 userId: memberUserId,

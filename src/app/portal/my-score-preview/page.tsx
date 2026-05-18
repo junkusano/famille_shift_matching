@@ -8,6 +8,7 @@ type ScoreMetric = {
     key: string;
     label: string;
     score: number;
+    maxScore: number;
     note: string;
 };
 
@@ -207,7 +208,7 @@ export default function MyScorePreviewPage() {
 
                             <div className="text-left sm:text-right">
                                 <div className="text-4xl font-bold">
-                                    {score.totalMaxScore}点中 {score.totalScore}点
+                                    100点満点中 {score.totalScore}点
                                 </div>
 
                                 <div
@@ -231,28 +232,44 @@ export default function MyScorePreviewPage() {
                                         <div
                                             className="h-full rounded-full bg-blue-500"
                                             style={{
-                                                width: `${Math.max(0, Math.min(100, m.score))}%`,
+                                                width: `${Math.max(0, Math.min(100, Math.round((m.score / m.maxScore) * 100)))}%`,
                                             }}
                                         />
                                     </div>
 
                                     <div className="mt-1 text-right text-xs text-gray-500">
-                                        100点中 {m.score}点
+                                        {m.maxScore}点中 {m.score}点
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="mt-6 rounded-lg border bg-blue-50 p-4 text-sm text-blue-900">
-                            <div className="font-semibold">現在の立ち位置</div>
+                        <div className="mt-8 rounded-2xl border-2 border-blue-300 bg-blue-50 p-6 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-2xl text-white">
+                                    📊
+                                </div>
 
-                            <div className="mt-1">
+                                <div>
+                                    <div className="text-sm font-semibold text-blue-700">
+                                        現在の立ち位置
+                                    </div>
+
+                                    <div className="mt-1 text-2xl font-bold text-blue-950">
+                                        {score.ranking.rank
+                                            ? `${score.ranking.totalMembers}人中 ${score.ranking.rank}番目`
+                                            : "順位を計算できませんでした"}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 rounded-lg bg-white p-3 text-sm text-blue-900">
                                 {score.ranking.rank
-                                    ? `対象従業員 ${score.ranking.totalMembers}人中 ${score.ranking.rank}番目です。`
+                                    ? `対象従業員 ${score.ranking.totalMembers}人の中で、現在 ${score.ranking.rank}番目の位置です。`
                                     : `対象従業員 ${score.ranking.totalMembers}人中の順位を計算できませんでした。`}
                             </div>
 
-                            <div className="mt-1 text-xs text-blue-700">
+                            <div className="mt-2 text-xs text-blue-700">
                                 ※ 他の従業員の点数は表示せず、順位のみ表示しています。
                             </div>
                         </div>
