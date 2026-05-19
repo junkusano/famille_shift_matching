@@ -34,6 +34,8 @@ type DisabilityCheckRow = {
 
 type GoalRow = {
     id: string;
+    selected: boolean | null;
+    watched: boolean | null;
 };
 
 type UserRow = {
@@ -366,23 +368,20 @@ export async function GET(req: NextRequest) {
         entryId
             ? await supabaseAdmin
                 .from("employee_training_goals")
-                .select("id")
+                .select("id, selected, watched")
                 .eq("entry_id", entryId)
                 .eq("row_type", "goal")
                 .eq("selected", true)
+                .eq("watched", true)
                 .returns<GoalRow[]>()
             : { data: [] as GoalRow[] };
 
-    const selectedGoalCount =
-        goals?.length ?? 0;
+    const watchedGoalCount = goals?.length ?? 0;
 
     const goalScore =
-        selectedGoalCount === 0
+        watchedGoalCount === 0
             ? 0
-            : Math.min(
-                100,
-                80 + (selectedGoalCount - 1) * 10
-            );
+            : SCORE_WEIGHTS.trainingGoal + (watchedGoalCount - 1) * 5;
 
     const totalMinutes = shiftRows.reduce((sum, shift) => {
         return (
@@ -444,11 +443,11 @@ export async function GET(req: NextRequest) {
             score: Math.round((goalScore / 100) * SCORE_WEIGHTS.trainingGoal),
             maxScore: SCORE_WEIGHTS.trainingGoal,
             note:
-                selectedGoalCount > 1
-                    ? `${selectedGoalCount}件選択中（複数加点）`
-                    : selectedGoalCount === 1
-                        ? "1件選択中"
-                        : "未設定",
+                watchedGoalCount > 1
+                    ? `${watchedGoalCount}件受講完了（追加加点あり）`
+                    : watchedGoalCount === 1
+                        ? "1件受講完了"
+                        : "受講完了なし",
         },
     ];
 
@@ -611,19 +610,20 @@ export async function GET(req: NextRequest) {
                 memberEntryId
                     ? await supabaseAdmin
                         .from("employee_training_goals")
-                        .select("id")
+                        .select("id, selected, watched")
                         .eq("entry_id", memberEntryId)
                         .eq("row_type", "goal")
                         .eq("selected", true)
+                        .eq("watched", true)
                         .returns<GoalRow[]>()
                     : { data: [] as GoalRow[] };
 
-            const memberGoalCount = memberGoals?.length ?? 0;
+            const memberWatchedGoalCount = memberGoals?.length ?? 0;
 
             const memberGoalScore =
-                memberGoalCount === 0
+                memberWatchedGoalCount === 0
                     ? 0
-                    : Math.min(100, 80 + (memberGoalCount - 1) * 10);
+                    : SCORE_WEIGHTS.trainingGoal + (memberWatchedGoalCount - 1) * 5;
 
             const memberTotalScore =
                 Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
