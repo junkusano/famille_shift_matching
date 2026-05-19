@@ -106,6 +106,7 @@ export default function TrainingGoalsPage() {
     const [remarkText, setRemarkText] = useState('');
     const [remarkSending, setRemarkSending] = useState(false);
     const [remarkMessage, setRemarkMessage] = useState('');
+    const [openedVideoKeys, setOpenedVideoKeys] = useState<Set<string>>(new Set());
 
     type AdminSortKey = 'selected' | 'watched';
     type AdminSortOrder = 'none' | 'asc' | 'desc';
@@ -910,6 +911,13 @@ export default function TrainingGoalsPage() {
                                                             href={row.video_url}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
+                                                            onClick={() => {
+                                                                setOpenedVideoKeys((prev) => {
+                                                                    const next = new Set(prev);
+                                                                    next.add(row.goal_key);
+                                                                    return next;
+                                                                });
+                                                            }}
                                                             className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                                                         >
                                                             動画を開く
@@ -920,10 +928,17 @@ export default function TrainingGoalsPage() {
                                                         <input
                                                             type="checkbox"
                                                             checked={row.watched}
+                                                            disabled={Boolean(row.video_url) && !row.watched && !openedVideoKeys.has(row.goal_key)}
                                                             onChange={(e) => void updateGoal(row, { watched: e.target.checked })}
                                                         />
                                                         研修受講完了
                                                     </label>
+
+                                                    {Boolean(row.video_url) && !row.watched && !openedVideoKeys.has(row.goal_key) && (
+                                                        <span className="text-xs text-red-600">
+                                                            動画を開いてからチェックできます
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
