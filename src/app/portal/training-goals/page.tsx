@@ -928,13 +928,19 @@ export default function TrainingGoalsPage() {
                                                         <input
                                                             type="checkbox"
                                                             checked={row.watched}
-                                                            disabled={Boolean(row.video_url) && !row.watched && !openedVideoKeys.has(row.goal_key)}
+                                                            disabled={!row.watched && (!row.video_url || !openedVideoKeys.has(row.goal_key))}
                                                             onChange={(e) => void updateGoal(row, { watched: e.target.checked })}
                                                         />
                                                         研修受講完了
                                                     </label>
 
-                                                    {Boolean(row.video_url) && !row.watched && !openedVideoKeys.has(row.goal_key) && (
+                                                    {!row.watched && !row.video_url && (
+                                                        <span className="text-xs text-red-600">
+                                                            動画URLが未登録のためチェックできません
+                                                        </span>
+                                                    )}
+
+                                                    {!row.watched && row.video_url && !openedVideoKeys.has(row.goal_key) && (
                                                         <span className="text-xs text-red-600">
                                                             動画を開いてからチェックできます
                                                         </span>
