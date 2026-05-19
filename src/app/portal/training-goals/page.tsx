@@ -403,9 +403,12 @@ export default function TrainingGoalsPage() {
 
             setRemarkText(remarkRow?.remark ?? '');
 
-            const selectionMap = new Map(
-                ((selectionData ?? []) as TrainingGoalSelectionRow[]).map((row) => [row.goal_key, row])
-            );
+            const selectionMap = new Map<string, TrainingGoalSelectionRow>();
+
+            for (const row of (selectionData ?? []) as TrainingGoalSelectionRow[]) {
+                if (row.row_type !== 'goal') continue;
+                selectionMap.set(row.goal_key, row);
+            }
 
             const targetSystemRole = entry?.system_role ?? '';
             const targetCatalogRole =
@@ -422,12 +425,14 @@ export default function TrainingGoalsPage() {
             });
 
             const joined: JoinedRow[] = roleFiltered.map((catalog) => {
-                const selected = selectionMap.get(catalog.id);
+                const selected =
+                    selectionMap.get(catalog.training_key) ??
+                    selectionMap.get(catalog.id);
 
                 return {
                     id: selected?.id ?? `virtual-${catalog.id}`,
                     entry_id: targetEntryId,
-                    goal_key: catalog.id,
+                    goal_key: selected?.goal_key ?? catalog.training_key,
                     goal_title: catalog.training_title,
                     video_url: catalog.video_url,
                     selected: selected?.selected ?? false,
