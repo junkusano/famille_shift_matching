@@ -418,6 +418,11 @@ export default function TrainingGoalsPage() {
                     : 'member';
 
             const roleFiltered = ((catalogData ?? []) as TrainingGoalCatalogRow[]).filter((row) => {
+                if (displayRole === 'member') {
+                    // member表示では、全員に全ての目標・研修を表示する
+                    return true;
+                }
+
                 if (targetCatalogRole === 'member') {
                     return row.target_role === 'member' || row.target_role === 'both' || row.target_role === null;
                 }
