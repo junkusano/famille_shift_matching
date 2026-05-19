@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from '@/lib/supabaseClient'
 
+
 /*
 const getAccessToken = async (): Promise<string | null> => {
     const { data } = await supabase.auth.getSession()
@@ -121,106 +122,7 @@ const addMonths = (month: string, diff: number) => {
 const humanName = (u: StaffUser) => `${u.last_name_kanji ?? ''}${u.first_name_kanji ?? ''}`.trim() || u.user_id
 
 
-function SearchableStaffSelect({
-    value,
-    options,
-    onChange,
-    disabled,
-}: {
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-    disabled?: boolean;
-}) {
-    const [open, setOpen] = useState(false);
-    const [keyword, setKeyword] = useState("");
-    const wrapRef = useRef<HTMLDivElement | null>(null);
 
-    useEffect(() => {
-        if (!open) return;
-
-        const handleClickOutside = (event: MouseEvent) => {
-            if (!wrapRef.current?.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [open]);
-
-    const selected = options.find((o) => o.value === value);
-    const filtered = options.filter((o) => {
-        const q = keyword.trim().toLowerCase();
-        if (!q) return true;
-        return (
-            o.label.toLowerCase().includes(q) ||
-            o.value.toLowerCase().includes(q)
-        );
-    });
-
-    return (
-        <div ref={wrapRef} className="relative">
-            <button
-                type="button"
-                disabled={disabled}
-                onClick={() => setOpen((v) => !v)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                <span className={selected ? "block truncate text-slate-900" : "block truncate text-slate-500"}>
-                    {selected?.label ?? "--選択--"}
-                </span>
-            </button>
-
-            {open && !disabled && (
-                <div className="absolute z-50 mt-1 w-56 rounded-md border bg-white p-2 shadow-lg">
-                    <Input
-                        value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
-                        placeholder="担当者を検索"
-                        className="mb-2 h-8"
-                        autoFocus
-                    />
-
-                    <div className="max-h-60 overflow-y-auto">
-                        <button
-                            type="button"
-                            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
-                            onClick={() => {
-                                onChange("");
-                                setKeyword("");
-                                setOpen(false);
-                            }}
-                        >
-                            --選択--
-                        </button>
-
-                        {filtered.map((o) => (
-                            <button
-                                key={o.value}
-                                type="button"
-                                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
-                                onClick={() => {
-                                    onChange(o.value);
-                                    setKeyword("");
-                                    setOpen(false);
-                                }}
-                            >
-                                {o.label}
-                            </button>
-                        ))}
-
-                        {filtered.length === 0 && (
-                            <div className="px-2 py-2 text-sm text-slate-500">
-                                該当する担当者がいません
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
 
 // 日付/時刻/重度移動 入力検証 & 整形
 const isValidDateStr = (s: string): boolean => {
@@ -449,8 +351,9 @@ export default function MonthlyRosterPage() {
     const readOnly = !["manager", "admin"].includes((role ?? "").toLowerCase());
     // マスタ
     const [kaipokeCs, setKaipokeCs] = useState<KaipokeCs[]>([])
-    const [staffUsers, setStaffUsers] = useState<StaffUser[]>([])
+    
     const [serviceCodes, setServiceCodes] = useState<ServiceCode[]>([])
+    const [staffOptions, setStaffOptions] = useState<Option[]>([])
 
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -731,13 +634,20 @@ export default function MonthlyRosterPage() {
             const stRes = await fetch('/api/users', { cache: 'no-store' })
             const stJson = await stRes.json()
             const stArr: StaffUser[] = Array.isArray(stJson) ? stJson : []
+
             stArr.sort((a, b) => {
                 const ra = a.roster_sort ?? Number.POSITIVE_INFINITY
                 const rb = b.roster_sort ?? Number.POSITIVE_INFINITY
                 if (ra !== rb) return ra - rb
                 return humanName(a).localeCompare(humanName(b), 'ja')
             })
-            setStaffUsers(stArr)
+            
+            setStaffOptions(
+               stArr.map((x) => ({
+                 value: x.user_id,
+                 label: `${x.last_name_kanji ?? ''}${x.first_name_kanji ?? ''}`,
+              }))
+            )
 
             // サービスコード（/api/service-codes → Fallback /api/shift-service-code）
             let scArr: ServiceCode[] = []
@@ -1215,10 +1125,84 @@ export default function MonthlyRosterPage() {
         [serviceCodes]
     );
 
-    const staffOptions = useMemo(() =>
-        staffUsers.map((u) => ({ value: u.user_id, label: humanName(u) })),
-        [staffUsers]
+function SearchableStaffSelect({
+    value,
+    options,
+    onChange,
+    disabled,
+}: {
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [keyword, setKeyword] = useState("");
+
+    const selected = options.find((o) => o.value === value);
+
+    const filtered = options.filter((o) =>
+        o.label.toLowerCase().includes(keyword.toLowerCase()) ||
+        o.value.toLowerCase().includes(keyword.toLowerCase())
     );
+
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setOpen((v) => !v)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-left text-sm"
+            >
+                <span className={selected ? "text-slate-900" : "text-slate-500"}>
+                    {selected?.label ?? "--選択--"}
+                </span>
+            </button>
+
+            {open && (
+                <div className="absolute z-50 mt-1 w-56 rounded-md border bg-white p-2 shadow-lg">
+                    <Input
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        placeholder="担当者を検索"
+                        className="mb-2 h-8"
+                        autoFocus
+                    />
+
+                    <div className="max-h-60 overflow-y-auto">
+                        <button
+                            type="button"
+                            className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
+                            onClick={() => {
+                                onChange("");
+                                setKeyword("");
+                                setOpen(false);
+                            }}
+                        >
+                            --選択--
+                        </button>
+
+                        {filtered.map((o) => (
+                            <button
+                                key={o.value}
+                                type="button"
+                                className="w-full rounded px-2 py-1 text-left text-sm hover:bg-slate-100"
+                                onClick={() => {
+                                    onChange(o.value);
+                                    setKeyword("");
+                                    setOpen(false);
+                                }}
+                            >
+                                {o.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 
     // 月リスト（過去5年〜未来12ヶ月）
     const monthOptions = useMemo(() => {
