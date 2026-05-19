@@ -82,7 +82,7 @@ export default function TrainingGoalsPage() {
     const [viewMode, setViewMode] = useState<'admin' | 'member'>('admin');
 
     const displayRole =
-        ['admin', 'manager'].includes(effectiveRole) && viewMode === 'member'
+        effectiveRole === 'admin' && viewMode === 'member'
             ? 'member'
             : effectiveRole;
 
@@ -90,7 +90,7 @@ export default function TrainingGoalsPage() {
     const ALL_ENTRY_ID = '__all__';
 
     const isAllEmployeesView =
-        ['admin', 'manager'].includes(effectiveRole) &&
+        effectiveRole === 'admin' &&
         viewMode === 'admin' &&
         queryUserId === 'all';
     const [rows, setRows] = useState<JoinedRow[]>([]);
@@ -725,7 +725,7 @@ export default function TrainingGoalsPage() {
         <div className="content p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">職員の目標・研修確認</h1>
-                {['admin', 'manager'].includes(effectiveRole) && (
+                {effectiveRole === 'admin' && (
                     <div className="flex gap-2">
                         <button
                             type="button"
