@@ -145,8 +145,8 @@ function NavLinks({ role }: { role: string | null }) {
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
       <li><Link href="/portal/parking_cs_places" className="text-blue-300 hover:underline">駐車許可証申請</Link></li>
       <li><Link href="/portal/wf-seisan-shinsei" className="text-blue-300 hover:underline">清算・申請</Link></li>
-      <li><Link href="/portal/user_advance_payment_applications"className="text-blue-300 hover:underline">先払い申請フォーム（工事中）</Link></li>
-      <li><Link href="/portal/user_advance_payment_history"className="text-blue-300 hover:underline">先払い申請履歴（工事中）</Link></li>
+      <li><Link href="/portal/user_advance_payment_applications"className="text-blue-300 hover:underline">日払い申請フォーム（工事中）</Link></li>
+      <li><Link href="/portal/user_advance_payment_history"className="text-blue-300 hover:underline">日払い申請履歴（工事中）</Link></li>
       <li><Link className="text-blue-300 hover:underline" href="/portal/badge">職員証</Link></li>
       <li>
         <Link href="/lineworks-login-guide" className="hover:underline" target="_blank" rel="noopener noreferrer">
