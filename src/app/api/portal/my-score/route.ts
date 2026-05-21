@@ -24,6 +24,7 @@ type MeetingAttendanceRow = {
     attended_extra: boolean | null;
     checked_regular: boolean | null;
     checked_extra: boolean | null;
+    updated_at: string | null;
 };
 
 type DisabilityCheckRow = {
@@ -89,6 +90,57 @@ function getMonthRange(monthParam: string | null) {
         ym,
         startDate: start.toISOString().slice(0, 10),
         endDate: end.toISOString().slice(0, 10),
+    };
+}
+
+function getPreviousYm(ym: string) {
+    const [yearText, monthText] = ym.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    const d = new Date(year, monthIndex - 1, 1);
+
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, displayYm: string) {
+    const meetingRequired = meeting?.required !== false;
+
+    if (!meetingRequired) {
+        return {
+            meetingRequired,
+            meetingScore: 100,
+            note: "対象外",
+        };
+    }
+
+    if (meeting?.attended_regular === true || meeting?.checked_regular === true) {
+        return {
+            meetingRequired,
+            meetingScore: 100,
+            note: "前月の月例参加あり",
+        };
+    }
+
+    if (meeting?.attended_extra === true || meeting?.checked_extra === true) {
+        const [yearText, monthText] = displayYm.split("-");
+        const deadline = `${yearText}-${monthText}-10`;
+        const checkedDate = String(meeting.updated_at ?? "").slice(0, 10);
+
+        return {
+            meetingRequired,
+            meetingScore: checkedDate && checkedDate <= deadline ? 100 : 50,
+            note:
+                checkedDate && checkedDate <= deadline
+                    ? "前月会議の追加開催あり（10日まで）"
+                    : "前月会議の追加開催あり（11日以降のため5点）",
+        };
+    }
+
+    return {
+        meetingRequired,
+        meetingScore: 0,
+        note: "前月会議未参加",
     };
 }
 
@@ -358,21 +410,12 @@ export async function GET(req: NextRequest) {
 
         const { data: memberMeeting } = await supabaseAdmin
             .from("monthly_meeting_attendance")
-            .select("required, attended_regular, attended_extra, checked_regular, checked_extra")
+            .select("required, attended_regular, attended_extra, checked_regular, checked_extra, updated_at")
             .eq("user_id", memberUserId)
-            .eq("target_month", `${targetYm}-01`)
+            .eq("target_month", `${getPreviousYm(targetYm)}-01`)
             .maybeSingle<MeetingAttendanceRow>();
 
-        const memberMeetingRequired = memberMeeting?.required !== false;
-
-        const memberMeetingDone =
-            !memberMeetingRequired ||
-            memberMeeting?.attended_regular === true ||
-            memberMeeting?.attended_extra === true ||
-            memberMeeting?.checked_regular === true ||
-            memberMeeting?.checked_extra === true;
-
-        const memberMeetingScore = memberMeetingDone ? 100 : 0;
+        const { meetingScore: memberMeetingScore } = calcMeetingScore(memberMeeting, targetYm);
 
         const { data: memberJissekiRows } = await supabaseAdmin
             .from("disability_check_view")
@@ -407,17 +450,13 @@ export async function GET(req: NextRequest) {
 
         const memberWatchedGoalCount = memberGoals?.length ?? 0;
 
-        const memberGoalScore =
-            memberWatchedGoalCount === 0
-                ? 0
-                : SCORE_WEIGHTS.trainingGoal + (memberWatchedGoalCount - 1) * 5;
-
+        const memberGoalScore = memberWatchedGoalCount * 5;
         return (
             Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
             Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
             Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
             Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
-            Math.round((memberGoalScore / 100) * SCORE_WEIGHTS.trainingGoal)
+            memberGoalScore
         );
     }
 
@@ -482,28 +521,21 @@ export async function GET(req: NextRequest) {
         .from("monthly_meeting_attendance")
         .select(
             `
-        required,
-        attended_regular,
-        attended_extra,
-        checked_regular,
-        checked_extra
-      `
+required,
+attended_regular,
+attended_extra,
+checked_regular,
+checked_extra,
+updated_at
+`
         )
-        .eq("user_id", userId)
-        .eq("target_month", `${ym}-01`)
+        .eq("target_month", `${getPreviousYm(ym)}-01`)
         .maybeSingle<MeetingAttendanceRow>();
 
-    const meetingRequired =
-        meeting?.required !== false;
-
-    const meetingDone =
-        !meetingRequired ||
-        meeting?.attended_regular === true ||
-        meeting?.attended_extra === true ||
-        meeting?.checked_regular === true ||
-        meeting?.checked_extra === true;
-
-    const meetingScore = meetingDone ? 100 : 0;
+    const {
+        meetingScore,
+        note: meetingNote,
+    } = calcMeetingScore(meeting, ym);
 
     const { data: jissekiRows } = await supabaseAdmin
         .from("disability_check_view")
@@ -549,11 +581,7 @@ export async function GET(req: NextRequest) {
 
     const watchedGoalCount = goals?.length ?? 0;
 
-    const goalScore =
-        watchedGoalCount === 0
-            ? 0
-            : SCORE_WEIGHTS.trainingGoal + (watchedGoalCount - 1) * 5;
-
+    const goalScore = watchedGoalCount * 5;
     const totalMinutes = shiftRows.reduce((sum, shift) => {
         return (
             sum +
@@ -595,11 +623,7 @@ export async function GET(req: NextRequest) {
             label: "会議参加率",
             score: Math.round((meetingScore / 100) * SCORE_WEIGHTS.meeting),
             maxScore: SCORE_WEIGHTS.meeting,
-            note: meetingRequired
-                ? meetingDone
-                    ? "参加済み"
-                    : "未参加"
-                : "対象外",
+            note: meetingNote,
         },
         {
             key: "jisseki",
@@ -611,8 +635,8 @@ export async function GET(req: NextRequest) {
         {
             key: "training_goal",
             label: "目標設定",
-            score: Math.round((goalScore / 100) * SCORE_WEIGHTS.trainingGoal),
-            maxScore: SCORE_WEIGHTS.trainingGoal,
+            score: goalScore,
+            maxScore: Math.max(SCORE_WEIGHTS.trainingGoal, goalScore),
             note:
                 watchedGoalCount > 1
                     ? `${watchedGoalCount}件受講完了（追加加点あり）`
@@ -736,19 +760,10 @@ export async function GET(req: NextRequest) {
                 `
                 )
                 .eq("user_id", memberUserId)
-                .eq("target_month", `${ym}-01`)
+                .eq("target_month", `${getPreviousYm(ym)}-01`)
                 .maybeSingle<MeetingAttendanceRow>();
 
-            const memberMeetingRequired = memberMeeting?.required !== false;
-
-            const memberMeetingDone =
-                !memberMeetingRequired ||
-                memberMeeting?.attended_regular === true ||
-                memberMeeting?.attended_extra === true ||
-                memberMeeting?.checked_regular === true ||
-                memberMeeting?.checked_extra === true;
-
-            const memberMeetingScore = memberMeetingDone ? 100 : 0;
+            const { meetingScore: memberMeetingScore } = calcMeetingScore(memberMeeting, ym);
 
             const { data: memberJissekiRows } = await supabaseAdmin
                 .from("disability_check_view")
@@ -791,17 +806,13 @@ export async function GET(req: NextRequest) {
 
             const memberWatchedGoalCount = memberGoals?.length ?? 0;
 
-            const memberGoalScore =
-                memberWatchedGoalCount === 0
-                    ? 0
-                    : SCORE_WEIGHTS.trainingGoal + (memberWatchedGoalCount - 1) * 5;
-
+            const memberGoalScore = memberWatchedGoalCount * 5;
             const memberTotalScore =
                 Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
                 Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
                 Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
                 Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
-                Math.round((memberGoalScore / 100) * SCORE_WEIGHTS.trainingGoal);
+                memberGoalScore;
 
             return {
                 userId: memberUserId,
