@@ -174,7 +174,10 @@ export async function GET(req: NextRequest) {
         );
     }
 
-    const targetMonth = req.nextUrl.searchParams.get("month");
+    const targetMonth =
+        req.nextUrl.searchParams.get("ym") ??
+        req.nextUrl.searchParams.get("month");
+
     const { ym, startDate, endDate } = getMonthRange(targetMonth);
 
     const targetUserId = req.nextUrl.searchParams.get("user_id");
