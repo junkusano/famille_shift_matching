@@ -529,6 +529,7 @@ checked_extra,
 updated_at
 `
         )
+        .eq("user_id", userId)
         .eq("target_month", `${getPreviousYm(ym)}-01`)
         .maybeSingle<MeetingAttendanceRow>();
 
