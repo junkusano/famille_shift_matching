@@ -170,6 +170,26 @@ function MyScorePreviewContent() {
                         : "border-gray-300 bg-gray-50 text-gray-700";
 
     const chartPoints = score?.scoreHistory ?? [];
+    const getProgressPercent = (m: ScoreMetric) => {
+        if (m.maxScore <= 0) return 0;
+        return Math.max(0, Math.min(100, Math.round((m.score / m.maxScore) * 100)));
+    };
+
+    const getServiceHoursFromScore = (scorePoint: number) => {
+        return Math.min(160, Math.floor(scorePoint / 10) * 20);
+    };
+
+    const getServiceNextMessage = (scorePoint: number) => {
+        const currentHours = getServiceHoursFromScore(scorePoint);
+
+        if (currentHours >= 160) {
+            return "160時間達成！サービス時間は満点です！";
+        }
+
+        const nextHours = currentHours + 20;
+
+        return `あと${nextHours - currentHours}時間で${nextHours}時間ライン！もうひとがんばりです！`;
+    };
     const chartWidth = 640;
     const chartHeight = 240;
     const paddingX = 48;
@@ -290,8 +310,16 @@ function MyScorePreviewContent() {
                             </div>
 
                             <div className="text-left sm:text-right">
-                                <div className="text-4xl font-bold">
-                                    合計 {score.totalScore}点
+                                <div className="text-right">
+                                    <div className="text-sm font-bold text-slate-500">合計</div>
+                                    <div>
+                                        <span className="text-5xl font-black text-blue-700">
+                                            {score.totalScore}
+                                        </span>
+                                        <span className="ml-2 text-2xl font-bold text-slate-700">
+                                            点
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div
@@ -304,27 +332,68 @@ function MyScorePreviewContent() {
                         </div>
 
                         <div className="mt-6 space-y-5">
-                            {score.metrics.map((m) => (
-                                <div key={m.key}>
-                                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                                        <span className="font-semibold">{m.label}</span>
-                                        <span className="text-right text-gray-500">{m.note}</span>
-                                    </div>
+                            {score.metrics.map((m) => {
+                                const percent = getProgressPercent(m);
 
-                                    <div className="h-4 overflow-hidden rounded-full bg-gray-200">
-                                        <div
-                                            className="h-full rounded-full bg-blue-500"
-                                            style={{
-                                                width: `${Math.max(0, Math.min(100, Math.round((m.score / m.maxScore) * 100)))}%`,
-                                            }}
-                                        />
-                                    </div>
+                                return (
+                                    <div
+                                        key={m.key}
+                                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                                    >
+                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-base font-bold text-slate-900">
+                                                    {m.label}
+                                                </div>
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    {m.note}
+                                                </div>
+                                            </div>
 
-                                    <div className="mt-1 text-right text-xs text-gray-500">
-                                        {m.score}点
+                                            <div className="shrink-0 text-right">
+                                                <span className="text-3xl font-black text-blue-700">
+                                                    {m.score}
+                                                </span>
+                                                <span className="ml-1 text-sm font-bold text-slate-600">
+                                                    点
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="h-4 overflow-hidden rounded-full bg-slate-200">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-gray-300 via-blue-300 to-blue-700 transition-all"
+                                                style={{
+                                                    width: `${percent}%`,
+                                                }}
+                                            />
+                                        </div>
+
+                                        {m.key === "service_hours" && (
+                                            <div className="mt-4">
+                                                <div className="relative h-8">
+                                                    {[20, 40, 60, 80, 100, 120, 140, 160].map((hour) => (
+                                                        <div
+                                                            key={hour}
+                                                            className="absolute top-0 -translate-x-1/2 text-center text-[10px] text-slate-500"
+                                                            style={{
+                                                                left: `${(hour / 160) * 100}%`,
+                                                            }}
+                                                        >
+                                                            <div className="mx-auto mb-1 h-2 w-px bg-slate-300" />
+                                                            {hour}h
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
+                                                    {getServiceNextMessage(m.score)}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         <div className="mt-6">
