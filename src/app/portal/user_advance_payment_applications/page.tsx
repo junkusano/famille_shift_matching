@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,40 @@ const statusStyles = {
 export default function AdvancePaymentApplicationPage() {
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
+  function getAvailableApplicationDate(
+  shiftDate: string,
+  shiftEndTime: string
+) {
+  const endTime = shiftEndTime.slice(0, 5);
+
+  if (endTime <= "18:00") {
+    return shiftDate;
+  }
+
+  const date = new Date(`${shiftDate}T00:00:00`);
+  date.setDate(date.getDate() + 1);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function isShiftApplicationAvailable(
+  shiftDate: string,
+  shiftEndTime: string
+) {
+  const today = new Date();
+  const jstToday = new Date(
+    today.getTime() + 9 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  const availableDate = getAvailableApplicationDate(
+    shiftDate,
+    shiftEndTime
+  );
+
+  return jstToday >= availableDate;
+}
   const [statusFilter, setStatusFilter] = useState("all");
   const [form, setForm] = useState({
     applicant: "",
@@ -50,6 +85,44 @@ export default function AdvancePaymentApplicationPage() {
     paymentDueDate: "",
     remarks: "",
   });
+  useEffect(() => {
+  async function fetchShifts() {
+    const todayJst = new Date(
+      Date.now() + 9 * 60 * 60 * 1000
+    )
+      .toISOString()
+      .slice(0, 10);
+
+    const { data, error } = await supabase
+      .from("shift_csinfo_postalname_view")
+      .select(`
+        shift_id,
+        shift_start_date,
+        shift_start_time,
+        shift_end_time,
+        name
+      `)
+      .lte("shift_start_date", todayJst)
+      .order("shift_start_date", { ascending: false });
+
+    if (!error) {
+      setAvailableShifts(data || []);
+    }
+  }
+
+  fetchShifts();
+}, []);
+
+  type AvailableShift = {
+  shift_id: string;
+  shift_start_date: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  name: string;
+};
+
+const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
+  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -65,6 +138,13 @@ export default function AdvancePaymentApplicationPage() {
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
+  function toggleShift(shiftId: string) {
+  setSelectedShiftIds((prev) =>
+    prev.includes(shiftId)
+      ? prev.filter((id) => id !== shiftId)
+      : [...prev, shiftId]
+  );
+}
 
   function submitApplication(e) {
     e.preventDefault();
@@ -166,6 +246,62 @@ export default function AdvancePaymentApplicationPage() {
                 </div>
                 <Textarea placeholder="備考" value={form.remarks} onChange={(e) => handleChange("remarks", e.target.value)} />
                 <Button type="submit" className="w-full rounded-2xl">申請を登録</Button>
+
+                <div className="mt-6">
+  <h3 className="mb-3 font-semibold">
+    申請対象シフト
+  </h3>
+
+  <div className="space-y-2">
+    {availableShifts.map((shift) => {
+      const available =
+        isShiftApplicationAvailable(
+          shift.shift_start_date,
+          shift.shift_end_time
+        );
+
+      return (
+        <label
+          key={shift.shift_id}
+          className="flex items-center justify-between rounded border p-3"
+        >
+          <div>
+            <div className="font-medium">
+              {shift.shift_start_date}
+            </div>
+
+            <div className="text-sm text-slate-500">
+              {shift.shift_start_time}
+              {" ～ "}
+              {shift.shift_end_time}
+            </div>
+
+            <div className="text-sm">
+              {shift.name}
+            </div>
+
+            {!available && (
+              <div className="text-xs text-red-500">
+                翌日から申請可能
+              </div>
+            )}
+          </div>
+
+          <input
+            type="checkbox"
+            disabled={!available}
+            checked={selectedShiftIds.includes(
+              shift.shift_id
+            )}
+            onChange={() =>
+              toggleShift(shift.shift_id)
+            }
+          />
+        </label>
+      );
+    })}
+  </div>
+</div>
               </form>
             </CardContent>
           </Card>
