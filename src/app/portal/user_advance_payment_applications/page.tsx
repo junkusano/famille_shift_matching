@@ -5,32 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, Plus, CheckCircle, XCircle, Clock } from "lucide-react";
-
-const initialRows = [
-  {
-    id: "AP-2026-001",
-    applicant: "山田 太郎",
-    department: "営業部",
-    amount: 50000,
-    purpose: "出張費の先払い",
-    paymentDueDate: "2026-05-31",
-    status: "申請中",
-    submittedAt: "2026-05-20",
-  },
-  {
-    id: "AP-2026-002",
-    applicant: "佐藤 花子",
-    department: "制作部",
-    amount: 30000,
-    purpose: "備品購入費",
-    paymentDueDate: "2026-06-05",
-    status: "承認済み",
-    submittedAt: "2026-05-19",
-  },
-];
+import { Search, Download, CheckCircle, XCircle, Clock } from "lucide-react";
 
 const statusStyles = {
   申請中: "bg-yellow-100 text-yellow-800",
@@ -39,6 +15,8 @@ const statusStyles = {
   支払済み: "bg-blue-100 text-blue-800",
 };
 
+  const initialRows = [];
+  
 export default function AdvancePaymentApplicationPage() {
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
@@ -135,9 +113,7 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
 
   const totalRequested = filteredRows.reduce((sum, row) => sum + row.amount, 0);
 
-  function handleChange(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
+  
   function toggleShift(shiftId: string) {
   setSelectedShiftIds((prev) =>
     prev.includes(shiftId)
@@ -187,6 +163,7 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
       row.status,
       row.submittedAt,
     ]);
+
     const csv = [header, ...body].map((line) => line.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -196,7 +173,6 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
     a.click();
     URL.revokeObjectURL(url);
   }
-
   return (
     <div className="min-h-screen bg-slate-50 p-6 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -209,7 +185,7 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Advance Payment</p>
-            <h1 className="text-3xl font-bold tracking-tight">先払い申請フォーム</h1>
+            <h1 className="text-3xl font-bold tracking-tight">日払い申請フォーム</h1>
             <p className="mt-2 text-slate-600">申請受付、承認状況、支払予定をデータベースで一元管理します。</p>
           </div>
           <Button onClick={exportCsv} className="gap-2 rounded-2xl">
@@ -223,31 +199,15 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
           <Card className="rounded-2xl shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">申請中</p><p className="mt-2 text-2xl font-bold">{rows.filter((r) => r.status === "申請中").length}件</p></CardContent></Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-          <Card className="rounded-2xl shadow-sm">
-            <CardContent className="p-6">
-              <div className="mb-5 flex items-center gap-2">
-                <Plus size={20} />
-                <h2 className="text-xl font-semibold">新規申請</h2>
-              </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+           <Card className="rounded-2xl shadow-sm">
+             <CardContent className="p-6">
               <form onSubmit={submitApplication} className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Input placeholder="申請者名" value={form.applicant} onChange={(e) => handleChange("applicant", e.target.value)} required />
-                  <Input placeholder="部署" value={form.department} onChange={(e) => handleChange("department", e.target.value)} required />
-                </div>
-                <Input type="number" placeholder="申請金額" value={form.amount} onChange={(e) => handleChange("amount", e.target.value)} required />
-                <Textarea placeholder="先払いの目的・理由" value={form.purpose} onChange={(e) => handleChange("purpose", e.target.value)} required />
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-600">支払希望日</label>
-                  <Input type="date" value={form.paymentDueDate} onChange={(e) => handleChange("paymentDueDate", e.target.value)} required />
-                </div>
-                <div className="rounded-2xl bg-slate-100 p-4 text-sm text-slate-600">
-                  振込先は、登録済みの給与振込口座を使用します。申請者による口座情報の入力は不要です。
-                </div>
-                <Textarea placeholder="備考" value={form.remarks} onChange={(e) => handleChange("remarks", e.target.value)} />
-                <Button type="submit" className="w-full rounded-2xl">申請を登録</Button>
+                 <h2 className="text-xl font-semibold">日払い申請</h2>
 
-                <div className="mt-6">
+                 <div className="mt-6">
+                 <h3 className="mb-3 font-semibold">申請対象シフト</h3>
+
   <h3 className="mb-3 font-semibold">
     申請対象シフト
   </h3>
@@ -300,8 +260,8 @@ const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
         </label>
       );
     })}
-  </div>
-</div>
+      </div>
+        </div>
               </form>
             </CardContent>
           </Card>
