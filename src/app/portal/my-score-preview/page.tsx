@@ -140,7 +140,11 @@ function MyScorePreviewContent() {
 
         const query = params.toString();
 
-        router.replace(query ? `/portal/my-score?${query}` : "/portal/my-score");
+        router.replace(
+            query
+                ? `/portal/my-score-preview?${query}`
+                : "/portal/my-score-preview"
+        );
     }, [selectedMonth, selectedUserId, router]);
 
     const badgeIcon =
