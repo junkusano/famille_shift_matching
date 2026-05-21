@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
@@ -57,9 +58,17 @@ type PortalScore = {
 };
 
 export default function MyScorePreviewPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
     const [score, setScore] = useState<PortalScore | null>(null);
-    const [selectedUserId, setSelectedUserId] = useState("");
-    const [selectedMonth, setSelectedMonth] = useState("");
+    const [selectedUserId, setSelectedUserId] = useState(
+        searchParams.get("user_id") ?? ""
+    );
+
+    const [selectedMonth, setSelectedMonth] = useState(
+        searchParams.get("ym") ?? ""
+    );
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -84,7 +93,7 @@ export default function MyScorePreviewPage() {
             }
 
             if (selectedMonth) {
-                params.set("month", selectedMonth);
+                params.set("ym", selectedMonth);
             }
 
             const query = params.toString() ? `?${params.toString()}` : "";
@@ -117,6 +126,22 @@ export default function MyScorePreviewPage() {
 
         load();
     }, [selectedUserId, selectedMonth]);
+
+    useEffect(() => {
+        const params = new URLSearchParams();
+
+        if (selectedMonth) {
+            params.set("ym", selectedMonth);
+        }
+
+        if (selectedUserId) {
+            params.set("user_id", selectedUserId);
+        }
+
+        const query = params.toString();
+
+        router.replace(query ? `/portal/my-score?${query}` : "/portal/my-score");
+    }, [selectedMonth, selectedUserId, router]);
 
     const badgeIcon =
         score?.badge === "ゴールド"
