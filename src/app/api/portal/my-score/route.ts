@@ -190,10 +190,10 @@ function calcMinutes(
 }
 
 function getBadge(score: number) {
-    if (score >= 70) return "ゴールド";
-    if (score >= 50) return "シルバー";
-    if (score >= 30) return "ブロンズ";
-    return "通常";
+    if (score >= 100) return "プラチナ";
+    if (score >= 80) return "ゴールド";
+    if (score >= 60) return "シルバー";
+    if (score < 60) return "ブロンズ";
 }
 
 const SCORE_WEIGHTS = {

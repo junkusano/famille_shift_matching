@@ -148,22 +148,26 @@ function MyScorePreviewContent() {
     }, [selectedMonth, selectedUserId, router]);
 
     const badgeIcon =
-        score?.badge === "ゴールド"
-            ? "🥇"
-            : score?.badge === "シルバー"
-                ? "🥈"
-                : score?.badge === "ブロンズ"
-                    ? "🥉"
-                    : "🏅";
+        score?.badge === "プラチナ"
+            ? "🏆"
+            : score?.badge === "ゴールド"
+                ? "🥇"
+                : score?.badge === "シルバー"
+                    ? "🥈"
+                    : score?.badge === "ブロンズ"
+                        ? "🥉"
+                        : "🏅";
 
     const badgeClass =
-        score?.badge === "ゴールド"
-            ? "bg-yellow-100 text-yellow-800 border-yellow-300"
-            : score?.badge === "シルバー"
-                ? "bg-gray-100 text-gray-800 border-gray-300"
-                : score?.badge === "ブロンズ"
-                    ? "bg-orange-100 text-orange-800 border-orange-300"
-                    : "bg-white text-gray-700 border-gray-300";
+        score?.badge === "プラチナ"
+            ? "border-purple-300 bg-purple-50 text-purple-700"
+            : score?.badge === "ゴールド"
+                ? "border-yellow-300 bg-yellow-50 text-yellow-700"
+                : score?.badge === "シルバー"
+                    ? "border-slate-300 bg-slate-50 text-slate-700"
+                    : score?.badge === "ブロンズ"
+                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                        : "border-gray-300 bg-gray-50 text-gray-700";
 
     const chartPoints = score?.scoreHistory ?? [];
     const chartWidth = 640;
@@ -190,7 +194,21 @@ function MyScorePreviewContent() {
             <div className="mx-auto max-w-4xl space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold">成績プレビュー</h1>
+                        <h1 className="text-2xl font-bold">パフォーマンススコア</h1>
+
+                        <div className="mt-4 rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-4 shadow-sm">
+                            <div className="text-lg font-bold text-yellow-800 mb-2">
+                                メダルランク制度
+                            </div>
+
+                            <div className="space-y-1 text-sm font-medium text-yellow-900">
+                                <div>🏆 プラチナ（100点以上） → 時給30円UP</div>
+                                <div>🥇 ゴールド（80点以上） → 時給20円UP</div>
+                                <div>🥈 シルバー（60点以上） → 時給10円UP</div>
+                                <div>🥉 ブロンズ（60点未満） → 時給UPなし</div>
+                            </div>
+                        </div>
+
                         <p className="text-sm text-gray-500">
                             member用の確認ページです。ポータル本体にはまだ表示していません。
                         </p>
