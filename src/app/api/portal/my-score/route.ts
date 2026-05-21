@@ -114,7 +114,7 @@ function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, disp
         };
     }
 
-    if (meeting?.attended_regular === true || meeting?.checked_regular === true) {
+    if (meeting?.attended_regular === true) {
         return {
             meetingRequired,
             meetingScore: 100,
@@ -122,7 +122,7 @@ function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, disp
         };
     }
 
-    if (meeting?.attended_extra === true || meeting?.checked_extra === true) {
+    if (meeting?.attended_extra === true) {
         const [yearText, monthText] = displayYm.split("-");
         const deadline = `${yearText}-${monthText}-10`;
         const checkedDate = String(meeting.updated_at ?? "").slice(0, 10);
@@ -756,7 +756,8 @@ updated_at
                 attended_regular,
                 attended_extra,
                 checked_regular,
-                checked_extra
+                checked_extra,
+                updated_at
                 `
                 )
                 .eq("user_id", memberUserId)
