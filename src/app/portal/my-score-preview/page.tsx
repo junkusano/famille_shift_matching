@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
@@ -57,7 +57,7 @@ type PortalScore = {
     scoreHistory: ScoreHistoryPoint[];
 };
 
-export default function MyScorePreviewPage() {
+function MyScorePreviewContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -459,5 +459,21 @@ export default function MyScorePreviewPage() {
                 )}
             </div>
         </main>
+    );
+}
+
+export default function MyScorePreviewPage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-gray-50 px-4 py-8 text-gray-800">
+                    <div className="mx-auto max-w-4xl rounded-lg border bg-white p-6 shadow-sm">
+                        読み込み中です。
+                    </div>
+                </main>
+            }
+        >
+            <MyScorePreviewContent />
+        </Suspense>
     );
 }
