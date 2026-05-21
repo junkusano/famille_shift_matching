@@ -142,7 +142,7 @@ function NavLinks({ role }: { role: string | null }) {
       </li>
       <li>
         <Link
-          href="/portal/my-score"
+          href="/portal/my-score-preview"
           className="text-blue-300 hover:underline"
         >
           パフォーマンススコア（開発中）
