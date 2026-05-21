@@ -197,11 +197,11 @@ function getBadge(score: number) {
 }
 
 const SCORE_WEIGHTS = {
-    serviceHours: 30,
+    serviceHours: 80,
     visitRecord: 30,
     meeting: 10,
-    jisseki: 20,
-    trainingGoal: 10,
+    jisseki: 30,
+    trainingGoal: 0,
 };
 
 export async function GET(req: NextRequest) {
@@ -319,7 +319,7 @@ export async function GET(req: NextRequest) {
 
     const shiftIds = shiftRows.map((s) => s.shift_id);
 
-    const serviceTargetHours = 80;
+    const serviceTargetHours = 160;
 
     async function calculateMemberTotalScore(args: {
         memberUserId: string;
@@ -596,18 +596,18 @@ updated_at
 
     const serviceHours = Math.round((totalMinutes / 60) * 10) / 10;
 
-    const serviceRate = Math.min(
-        100,
-        Math.round((serviceHours / serviceTargetHours) * 100)
+    const serviceScore = Math.min(
+        SCORE_WEIGHTS.serviceHours,
+        Math.floor(serviceHours / 20) * 10
     );
 
     const metrics: Metric[] = [
         {
             key: "service_hours",
             label: "サービス時間",
-            score: Math.round((serviceRate / 100) * SCORE_WEIGHTS.serviceHours),
+            score: serviceScore,
             maxScore: SCORE_WEIGHTS.serviceHours,
-            note: `${serviceHours}時間 / 目標${serviceTargetHours}時間`,
+            note: `${serviceHours}時間 / 160時間まで20時間ごとに10点`,
         },
         {
             key: "visit_record",
@@ -651,7 +651,9 @@ updated_at
         return sum + metric.score;
     }, 0);
 
-    const totalMaxScore = 100;
+    const totalMaxScore = metrics.reduce((sum, metric) => {
+        return sum + metric.maxScore;
+    }, 0);
 
     const rankingScores = await Promise.all(
         members.map(async (member) => {

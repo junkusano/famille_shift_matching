@@ -291,7 +291,7 @@ function MyScorePreviewContent() {
 
                             <div className="text-left sm:text-right">
                                 <div className="text-4xl font-bold">
-                                    100点満点中 {score.totalScore}点
+                                    合計 {score.totalScore}点
                                 </div>
 
                                 <div
@@ -321,7 +321,7 @@ function MyScorePreviewContent() {
                                     </div>
 
                                     <div className="mt-1 text-right text-xs text-gray-500">
-                                        {m.maxScore}点中 {m.score}点
+                                        {m.score}点
                                     </div>
                                 </div>
                             ))}
