@@ -34,6 +34,13 @@ type RankingUser = {
     name: string;
 };
 
+type ScoreHistoryPoint = {
+    month: string;
+    label: string;
+    score: number;
+    rank: number | null;
+};
+
 type PortalScore = {
     month: string;
     monthOptions: MonthOption[];
@@ -46,6 +53,7 @@ type PortalScore = {
     members: MemberOption[];
     ranking: Ranking;
     topRanking: RankingUser[];
+    scoreHistory: ScoreHistoryPoint[];
 };
 
 export default function MyScorePreviewPage() {
@@ -127,6 +135,26 @@ export default function MyScorePreviewPage() {
                 : score?.badge === "ブロンズ"
                     ? "bg-orange-100 text-orange-800 border-orange-300"
                     : "bg-white text-gray-700 border-gray-300";
+
+    const chartPoints = score?.scoreHistory ?? [];
+    const chartWidth = 640;
+    const chartHeight = 240;
+    const paddingX = 48;
+    const paddingY = 36;
+    const maxScoreForChart = Math.max(100, ...chartPoints.map((p) => p.score));
+
+    const toX = (index: number) => {
+        if (chartPoints.length <= 1) return chartWidth / 2;
+        return paddingX + (index * (chartWidth - paddingX * 2)) / (chartPoints.length - 1);
+    };
+
+    const toY = (scoreValue: number) => {
+        return chartHeight - paddingY - (scoreValue / maxScoreForChart) * (chartHeight - paddingY * 2);
+    };
+
+    const scoreLinePoints = chartPoints
+        .map((point, index) => `${toX(index)},${toY(point.score)}`)
+        .join(" ");
 
     return (
         <main className="min-h-screen bg-gray-50 px-4 py-8 text-gray-800">
@@ -270,12 +298,12 @@ export default function MyScorePreviewPage() {
                                             <div className="flex items-center gap-3">
                                                 <div
                                                     className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${user.rank === 1
-                                                            ? "bg-yellow-400 text-white"
-                                                            : user.rank === 2
-                                                                ? "bg-gray-400 text-white"
-                                                                : user.rank === 3
-                                                                    ? "bg-orange-400 text-white"
-                                                                    : "bg-blue-100 text-blue-900"
+                                                        ? "bg-yellow-400 text-white"
+                                                        : user.rank === 2
+                                                            ? "bg-gray-400 text-white"
+                                                            : user.rank === 3
+                                                                ? "bg-orange-400 text-white"
+                                                                : "bg-blue-100 text-blue-900"
                                                         }`}
                                                 >
                                                     {user.rank}
@@ -284,8 +312,8 @@ export default function MyScorePreviewPage() {
                                                 <div>
                                                     <div
                                                         className={`font-bold ${isTop3
-                                                                ? "text-xl text-blue-950"
-                                                                : "text-base text-gray-900"
+                                                            ? "text-xl text-blue-950"
+                                                            : "text-base text-gray-900"
                                                             }`}
                                                     >
                                                         {user.name}
@@ -312,6 +340,90 @@ export default function MyScorePreviewPage() {
                                     );
                                 })}
                             </div>
+                        </div>
+
+                        <div className="mt-6 rounded-xl border bg-white p-4 shadow-sm">
+                            <div className="mb-1 text-lg font-bold text-blue-950">
+                                直近6か月の点数・順位
+                            </div>
+
+                            <div className="mb-4 text-xs text-gray-500">
+                                選択中の年月を含む直近6か月分を表示します。
+                            </div>
+
+                            {chartPoints.length === 0 ? (
+                                <div className="rounded bg-gray-50 p-4 text-sm text-gray-500">
+                                    グラフ表示できる成績履歴がありません。
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <svg
+                                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                                        className="min-w-[640px] rounded-lg bg-gray-50"
+                                    >
+                                        <line
+                                            x1={paddingX}
+                                            y1={chartHeight - paddingY}
+                                            x2={chartWidth - paddingX}
+                                            y2={chartHeight - paddingY}
+                                            stroke="#CBD5E1"
+                                        />
+
+                                        <line
+                                            x1={paddingX}
+                                            y1={paddingY}
+                                            x2={paddingX}
+                                            y2={chartHeight - paddingY}
+                                            stroke="#CBD5E1"
+                                        />
+
+                                        <polyline
+                                            fill="none"
+                                            stroke="#2563EB"
+                                            strokeWidth="3"
+                                            points={scoreLinePoints}
+                                        />
+
+                                        {chartPoints.map((point, index) => {
+                                            const x = toX(index);
+                                            const y = toY(point.score);
+
+                                            return (
+                                                <g key={point.month}>
+                                                    <circle cx={x} cy={y} r="5" fill="#2563EB" />
+
+                                                    <text
+                                                        x={x}
+                                                        y={y - 12}
+                                                        textAnchor="middle"
+                                                        className="fill-gray-700 text-xs font-bold"
+                                                    >
+                                                        {point.score}点
+                                                    </text>
+
+                                                    <text
+                                                        x={x}
+                                                        y={y + 22}
+                                                        textAnchor="middle"
+                                                        className="fill-red-600 text-xs font-bold"
+                                                    >
+                                                        {point.rank ? `${point.rank}位` : "-"}
+                                                    </text>
+
+                                                    <text
+                                                        x={x}
+                                                        y={chartHeight - 10}
+                                                        textAnchor="middle"
+                                                        className="fill-gray-500 text-xs"
+                                                    >
+                                                        {point.label}
+                                                    </text>
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-6 rounded bg-gray-50 p-3 text-xs text-gray-500">

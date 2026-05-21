@@ -106,6 +106,22 @@ function buildMonthOptions(count: number) {
     });
 }
 
+function buildRecentMonthsByYm(baseYm: string, count: number) {
+    const [yearText, monthText] = baseYm.split("-");
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    return Array.from({ length: count }, (_, index) => {
+        const d = new Date(year, monthIndex - (count - 1 - index), 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+        return {
+            value: ym,
+            label: `${d.getMonth() + 1}月`,
+        };
+    });
+}
+
 function calcMinutes(
     date: string,
     start?: string | null,
@@ -249,6 +265,158 @@ export async function GET(req: NextRequest) {
     const shiftIds = shiftRows.map((s) => s.shift_id);
 
     const serviceTargetHours = 80;
+
+    async function calculateMemberTotalScore(args: {
+        memberUserId: string;
+        memberEntryId: string | null;
+        targetYm: string;
+        targetStartDate: string;
+        targetEndDate: string;
+    }) {
+        const { memberUserId, memberEntryId, targetYm, targetStartDate, targetEndDate } = args;
+
+        const { data: memberShifts } = await supabaseAdmin
+            .from("shift")
+            .select(
+                `
+                shift_id,
+                shift_start_date,
+                shift_start_time,
+                shift_end_time,
+                staff_01_user_id,
+                staff_02_user_id,
+                staff_03_user_id
+                `
+            )
+            .gte("shift_start_date", targetStartDate)
+            .lt("shift_start_date", targetEndDate)
+            .or(
+                `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
+            )
+            .returns<ShiftRow[]>();
+
+        const memberShiftRows = memberShifts ?? [];
+        const memberShiftIds = memberShiftRows.map((s) => s.shift_id);
+
+        const memberTotalMinutes = memberShiftRows.reduce((sum, shift) => {
+            return sum + calcMinutes(
+                shift.shift_start_date,
+                shift.shift_start_time,
+                shift.shift_end_time
+            );
+        }, 0);
+
+        const memberServiceHours = Math.round((memberTotalMinutes / 60) * 10) / 10;
+
+        const memberServiceScore = Math.min(
+            100,
+            Math.round((memberServiceHours / serviceTargetHours) * 100)
+        );
+
+        const { data: memberRecords } =
+            memberShiftIds.length > 0
+                ? await supabaseAdmin
+                    .from("shift_records")
+                    .select("shift_id, status, created_at, updated_at")
+                    .in("shift_id", memberShiftIds)
+                    .returns<ShiftRecordRow[]>()
+                : { data: [] as ShiftRecordRow[] };
+
+        let memberSameDayDone = 0;
+        let memberLateOrMissing = 0;
+
+        for (const shift of memberShiftRows) {
+            const record = (memberRecords ?? []).find(
+                (r) =>
+                    r.shift_id === shift.shift_id &&
+                    completedStatuses.includes(r.status ?? "")
+            );
+
+            if (!record) {
+                memberLateOrMissing++;
+                continue;
+            }
+
+            const doneDate = String(record.updated_at ?? record.created_at ?? "").slice(0, 10);
+
+            if (doneDate === shift.shift_start_date) {
+                memberSameDayDone++;
+            } else {
+                memberLateOrMissing++;
+            }
+        }
+
+        const memberVisitRate =
+            memberShiftIds.length > 0
+                ? Math.round((memberSameDayDone / memberShiftIds.length) * 100)
+                : 0;
+
+        const memberVisitScore = memberLateOrMissing > 0 ? 0 : memberVisitRate;
+
+        const { data: memberMeeting } = await supabaseAdmin
+            .from("monthly_meeting_attendance")
+            .select("required, attended_regular, attended_extra, checked_regular, checked_extra")
+            .eq("user_id", memberUserId)
+            .eq("target_month", `${targetYm}-01`)
+            .maybeSingle<MeetingAttendanceRow>();
+
+        const memberMeetingRequired = memberMeeting?.required !== false;
+
+        const memberMeetingDone =
+            !memberMeetingRequired ||
+            memberMeeting?.attended_regular === true ||
+            memberMeeting?.attended_extra === true ||
+            memberMeeting?.checked_regular === true ||
+            memberMeeting?.checked_extra === true;
+
+        const memberMeetingScore = memberMeetingDone ? 100 : 0;
+
+        const { data: memberJissekiRows } = await supabaseAdmin
+            .from("disability_check_view")
+            .select("is_checked, application_check, asigned_jisseki_staff_id")
+            .eq("year_month", targetYm)
+            .eq("asigned_jisseki_staff_id", memberUserId)
+            .returns<DisabilityCheckRow[]>();
+
+        const memberJissekiTotal = memberJissekiRows?.length ?? 0;
+
+        const memberJissekiDone =
+            memberJissekiRows?.filter(
+                (r) => r.is_checked === true || r.application_check === true
+            ).length ?? 0;
+
+        const memberJissekiScore =
+            memberJissekiTotal > 0
+                ? Math.round((memberJissekiDone / memberJissekiTotal) * 100)
+                : 0;
+
+        const { data: memberGoals } =
+            memberEntryId
+                ? await supabaseAdmin
+                    .from("employee_training_goals")
+                    .select("id, selected, watched")
+                    .eq("entry_id", memberEntryId)
+                    .eq("row_type", "goal")
+                    .eq("selected", true)
+                    .eq("watched", true)
+                    .returns<GoalRow[]>()
+                : { data: [] as GoalRow[] };
+
+        const memberWatchedGoalCount = memberGoals?.length ?? 0;
+
+        const memberGoalScore =
+            memberWatchedGoalCount === 0
+                ? 0
+                : SCORE_WEIGHTS.trainingGoal + (memberWatchedGoalCount - 1) * 5;
+
+        return (
+            Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
+            Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
+            Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
+            Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
+            Math.round((memberGoalScore / 100) * SCORE_WEIGHTS.trainingGoal)
+        );
+    }
 
     const { data: records } =
         shiftIds.length > 0
@@ -668,6 +836,50 @@ export async function GET(req: NextRequest) {
             };
         });
 
+    const historyMonths = buildRecentMonthsByYm(ym, 6);
+
+    const scoreHistory = await Promise.all(
+        historyMonths.map(async (month) => {
+            const range = getMonthRange(month.value);
+
+            const monthlyScores = await Promise.all(
+                members.map(async (member) => {
+                    const monthlyTotalScore = await calculateMemberTotalScore({
+                        memberUserId: member.user_id,
+                        memberEntryId: member.entry_id,
+                        targetYm: range.ym,
+                        targetStartDate: range.startDate,
+                        targetEndDate: range.endDate,
+                    });
+
+                    return {
+                        userId: member.user_id,
+                        totalScore: monthlyTotalScore,
+                    };
+                })
+            );
+
+            const sortedMonthlyScores = monthlyScores
+                .filter((row) => Number.isFinite(row.totalScore))
+                .sort((a, b) => b.totalScore - a.totalScore);
+
+            const rankIndex = sortedMonthlyScores.findIndex(
+                (row) => row.userId === userId
+            );
+
+            const myScore = sortedMonthlyScores.find(
+                (row) => row.userId === userId
+            );
+
+            return {
+                month: month.value,
+                label: month.label,
+                score: myScore?.totalScore ?? 0,
+                rank: rankIndex >= 0 ? rankIndex + 1 : null,
+            };
+        })
+    );
+
     return NextResponse.json({
         month: ym,
         monthOptions,
@@ -679,6 +891,7 @@ export async function GET(req: NextRequest) {
         metrics,
         ranking,
         topRanking,
+        scoreHistory,
         members: members.map((member) => ({
             userId: member.user_id,
             name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,
