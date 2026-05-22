@@ -10,6 +10,9 @@ type LoginUser = {
   last_name_kanji: string | null;
   first_name_kanji: string | null;
   department?: string | null;
+  has_social_insurance?: boolean;
+  has_employment_insurance?: boolean;
+  has_employee_loan?: boolean;
 };
 
 type ShiftRow = {
@@ -63,7 +66,7 @@ const confirmItems: Array<{ key: ConfirmKey; label: string; description: string 
   {
     key: "insuranceAccepted",
     label: "加入保険の状況により、振込可能額が変動する場合があることを了承しました。",
-    description: "社会保険・雇用保険等の加入状況や控除条件により、実際の振込可能額が変わる場合があります。",
+    description: "申請可能額は、社会保険・雇用保険等の加入状況、社員貸付の有無により減額される場合があります。複数条件に該当する場合は、それぞれ10%ずつ控除され、最大30%控除後の金額が申請上限額となります。",
   },
 ];
 
@@ -93,6 +96,40 @@ function makeJstDateTime(date: string, time: string) {
 function formatTime(time: string) {
   return (time || "").slice(0, 5);
 }
+function calculateAvailableAmount(params: {
+  baseAmount: number;
+  hasSocialInsurance: boolean;
+  hasEmploymentAndWorkersInsurance: boolean;
+  hasEmployeeLoan: boolean;
+}) {
+  let deductionRate = 0;
+  const reasons: string[] = [];
+
+  if (params.hasSocialInsurance) {
+    deductionRate += 0.1;
+    reasons.push("社会保険加入");
+  }
+
+  if (params.hasEmploymentAndWorkersInsurance) {
+    deductionRate += 0.1;
+    reasons.push("雇用保険・労災保険加入");
+  }
+
+  if (params.hasEmployeeLoan) {
+    deductionRate += 0.1;
+    reasons.push("社員貸付あり");
+  }
+
+  const availableAmount = Math.floor(
+    params.baseAmount * (1 - deductionRate)
+  );
+
+  return {
+    deductionRate,
+    availableAmount,
+    reasons,
+  };
+}
 
 function makeApplicationNo() {
   const today = toJstDateString().replaceAll("-", "");
@@ -112,6 +149,7 @@ export default function UserAdvancePaymentConfirmPage() {
     feeAccepted: false,
     insuranceAccepted: false,
   });
+
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -125,6 +163,18 @@ export default function UserAdvancePaymentConfirmPage() {
     () => targetShifts.filter((shift) => selectedShiftIds.includes(shift.shift_id)),
     [targetShifts, selectedShiftIds]
   );
+  const baseAmount = selectedShifts.length * 10000;
+
+  const calculation = calculateAvailableAmount({
+    baseAmount,
+    hasSocialInsurance: Boolean(me?.has_social_insurance),
+    hasEmploymentAndWorkersInsurance: Boolean(
+      me?.has_employment_insurance
+    ),
+    hasEmployeeLoan: Boolean(
+      me?.has_employee_loan
+    ),
+  });
 
   useEffect(() => {
     async function fetchTargetShifts() {
@@ -146,7 +196,7 @@ export default function UserAdvancePaymentConfirmPage() {
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, last_name_kanji, first_name_kanji, department")
+          .select("user_id, last_name_kanji, first_name_kanji, department, has_social_insurance,has_employment_insurance,has_employee_loan")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
@@ -240,6 +290,18 @@ export default function UserAdvancePaymentConfirmPage() {
       setErrorMessage("");
       setMessage("");
 
+      const baseAmount = selectedShifts.length * 10000;
+
+      const calculation = calculateAvailableAmount({
+        baseAmount,
+        hasSocialInsurance: Boolean(me.has_social_insurance),
+        hasEmploymentAndWorkersInsurance: Boolean(
+          me.has_employment_insurance
+        ),
+        hasEmployeeLoan: Boolean(me.has_employee_loan),
+      });
+
+
       const employeeName = `${me.last_name_kanji ?? ""} ${me.first_name_kanji ?? ""}`.trim();
       const applicationNo = makeApplicationNo();
 
@@ -248,7 +310,11 @@ export default function UserAdvancePaymentConfirmPage() {
         user_id: me.user_id,
         employee_name: employeeName || me.user_id,
         department: me.department ?? null,
-        amount: 0,
+        base_amount: baseAmount,
+        deduction_rate: calculation.deductionRate,
+        available_amount: calculation.availableAmount,
+        deduction_reasons: calculation.reasons,
+        amount: calculation.availableAmount,
         reason: "対象シフトに基づく先払い申請",
         desired_payment_date: toJstDateString(),
         status: "submitted",
@@ -410,6 +476,22 @@ export default function UserAdvancePaymentConfirmPage() {
                     ? "確認事項をすべてチェックしてください。"
                     : "申請できます。"}
             </div>
+
+            <div className="rounded-2xl border bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">
+                申請可能額
+              </div>
+              <div className="mt-1 text-2xl font-bold">
+                ¥{calculation.availableAmount.toLocaleString()}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                控除率： {Math.round(calculation.deductionRate * 100)}%
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                 {calculation.reasons.join(" / ")}
+              </div>
+            </div>
+
             <Button
               type="button"
               className="rounded-2xl px-6"
