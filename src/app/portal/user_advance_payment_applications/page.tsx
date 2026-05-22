@@ -1,329 +1,424 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
-const statusStyles = {
-  申請中: "bg-yellow-100 text-yellow-800",
-  承認済み: "bg-green-100 text-green-800",
-  差戻し: "bg-red-100 text-red-800",
-  支払済み: "bg-blue-100 text-blue-800",
+type LoginUser = {
+  user_id: string;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+  department?: string | null;
 };
 
-  const initialRows = [];
-  
-export default function AdvancePaymentApplicationPage() {
-  const [rows, setRows] = useState(initialRows);
-  const [query, setQuery] = useState("");
-  function getAvailableApplicationDate(
-  shiftDate: string,
-  shiftEndTime: string
-) {
-  const endTime = shiftEndTime.slice(0, 5);
-
-  if (endTime <= "18:00") {
-    return shiftDate;
-  }
-
-  const date = new Date(`${shiftDate}T00:00:00`);
-  date.setDate(date.getDate() + 1);
-
-  return date.toISOString().slice(0, 10);
-}
-
-function isShiftApplicationAvailable(
-  shiftDate: string,
-  shiftEndTime: string
-) {
-  const today = new Date();
-  const jstToday = new Date(
-    today.getTime() + 9 * 60 * 60 * 1000
-  )
-    .toISOString()
-    .slice(0, 10);
-
-  const availableDate = getAvailableApplicationDate(
-    shiftDate,
-    shiftEndTime
-  );
-
-  return jstToday >= availableDate;
-}
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [form, setForm] = useState({
-    applicant: "",
-    department: "",
-    amount: "",
-    purpose: "",
-    paymentDueDate: "",
-    remarks: "",
-  });
-  useEffect(() => {
-  async function fetchShifts() {
-    const todayJst = new Date(
-      Date.now() + 9 * 60 * 60 * 1000
-    )
-      .toISOString()
-      .slice(0, 10);
-
-    const { data, error } = await supabase
-      .from("shift_csinfo_postalname_view")
-      .select(`
-        shift_id,
-        shift_start_date,
-        shift_start_time,
-        shift_end_time,
-        name
-      `)
-      .lte("shift_start_date", todayJst)
-      .order("shift_start_date", { ascending: false });
-
-    if (!error) {
-      setAvailableShifts(data || []);
-    }
-  }
-
-  fetchShifts();
-}, []);
-
-  type AvailableShift = {
+type ShiftRow = {
+  id: string | number | null;
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
   shift_end_time: string;
-  name: string;
+  service_code: string | null;
+  kaipoke_cs_id: string | null;
+  name: string | null;
+  district: string | null;
+  staff_01_user_id: string | null;
+  staff_02_user_id: string | null;
+  staff_03_user_id: string | null;
 };
 
-const [availableShifts, setAvailableShifts] = useState<AvailableShift[]>([]);
-  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
+type TargetShift = {
+  id: string;
+  shift_id: string;
+  shift_start_date: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  client_name: string;
+  address: string;
+  service_code: string;
+};
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      const text = `${row.id} ${row.applicant} ${row.department} ${row.purpose}`.toLowerCase();
-      const matchesQuery = text.includes(query.toLowerCase());
-      const matchesStatus = statusFilter === "all" || row.status === statusFilter;
-      return matchesQuery && matchesStatus;
-    });
-  }, [rows, query, statusFilter]);
+type ConfirmKey =
+  | "shiftConfirmed"
+  | "recordRequired"
+  | "feeAccepted"
+  | "insuranceAccepted";
 
-  const totalRequested = filteredRows.reduce((sum, row) => sum + row.amount, 0);
+const confirmItems: Array<{ key: ConfirmKey; label: string; description: string }> = [
+  {
+    key: "shiftConfirmed",
+    label: "表示されているシフト内容に相違がないことを確認しました。",
+    description: "対象シフトの日付・時間・利用者情報を確認したうえで申請します。",
+  },
+  {
+    key: "recordRequired",
+    label: "訪問記録が未提出の場合、振込処理が完了しないことを了承しました。",
+    description: "先払い申請後でも、必要な訪問記録の提出が確認できない場合は振込対象外となることがあります。",
+  },
+  {
+    key: "feeAccepted",
+    label: "振込にかかる手数料として200円が差し引かれることを了承しました。",
+    description: "振込額から事務・振込手数料相当額として200円を差し引きます。",
+  },
+  {
+    key: "insuranceAccepted",
+    label: "加入保険の状況により、振込可能額が変動する場合があることを了承しました。",
+    description: "社会保険・雇用保険等の加入状況や控除条件により、実際の振込可能額が変わる場合があります。",
+  },
+];
 
-  
-  function toggleShift(shiftId: string) {
-  setSelectedShiftIds((prev) =>
-    prev.includes(shiftId)
-      ? prev.filter((id) => id !== shiftId)
-      : [...prev, shiftId]
-  );
+function toJstDateString(date = new Date()) {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-  function submitApplication(e) {
-    e.preventDefault();
-    const nextNumber = String(rows.length + 1).padStart(3, "0");
-    const today = new Date().toISOString().slice(0, 10);
-    const newRow = {
-      id: `AP-2026-${nextNumber}`,
-      applicant: form.applicant,
-      department: form.department,
-      amount: Number(form.amount || 0),
-      purpose: form.purpose,
-      paymentDueDate: form.paymentDueDate,
-      status: "申請中",
-      submittedAt: today,
-    };
-    setRows((prev) => [newRow, ...prev]);
-    setForm({
-      applicant: "",
-      department: "",
-      amount: "",
-      purpose: "",
-      paymentDueDate: "",
-      remarks: "",
-    });
+function getTargetWindowJst() {
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
+  const y = jstNow.getUTCFullYear();
+  const m = jstNow.getUTCMonth();
+  const d = jstNow.getUTCDate();
+
+  const end = new Date(Date.UTC(y, m, d, 18, 0, 0));
+  const start = new Date(Date.UTC(y, m, d - 1, 18, 30, 0));
+
+  return { start, end };
+}
+
+function makeJstDateTime(date: string, time: string) {
+  const safeTime = (time || "00:00").slice(0, 5);
+  return new Date(`${date}T${safeTime}:00+09:00`);
+}
+
+function formatTime(time: string) {
+  return (time || "").slice(0, 5);
+}
+
+function makeApplicationNo() {
+  const today = toJstDateString().replaceAll("-", "");
+  const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `AP-${today}-${random}`;
+}
+
+export default function UserAdvancePaymentConfirmPage() {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [me, setMe] = useState<LoginUser | null>(null);
+  const [targetShifts, setTargetShifts] = useState<TargetShift[]>([]);
+  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
+  const [checks, setChecks] = useState<Record<ConfirmKey, boolean>>({
+    shiftConfirmed: false,
+    recordRequired: false,
+    feeAccepted: false,
+    insuranceAccepted: false,
+  });
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const { start, end } = useMemo(() => getTargetWindowJst(), []);
+
+  const allChecked = confirmItems.every((item) => checks[item.key]);
+  const hasSelectedShift = selectedShiftIds.length > 0;
+  const canSubmit = hasSelectedShift && allChecked && !submitting;
+
+  const selectedShifts = useMemo(
+    () => targetShifts.filter((shift) => selectedShiftIds.includes(shift.shift_id)),
+    [targetShifts, selectedShiftIds]
+  );
+
+  useEffect(() => {
+    async function fetchTargetShifts() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+        setMessage("");
+
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) throw authError;
+        if (!user) {
+          setErrorMessage("ログイン情報を取得できませんでした。再ログインしてください。");
+          return;
+        }
+
+        const { data: loginUser, error: userError } = await supabase
+          .from("users")
+          .select("user_id, last_name_kanji, first_name_kanji, department")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+
+        if (userError) throw userError;
+        if (!loginUser?.user_id) {
+          setErrorMessage("ログインユーザーの user_id を取得できませんでした。");
+          return;
+        }
+
+        const currentUser = loginUser as LoginUser;
+        setMe(currentUser);
+
+        const startDate = start.toISOString().slice(0, 10);
+        const endDate = end.toISOString().slice(0, 10);
+
+        const { data, error } = await supabase
+          .from("shift_csinfo_postalname_view")
+          .select(`
+            id,
+            shift_id,
+            shift_start_date,
+            shift_start_time,
+            shift_end_time,
+            service_code,
+            kaipoke_cs_id,
+            name,
+            district,
+            staff_01_user_id,
+            staff_02_user_id,
+            staff_03_user_id
+          `)
+          .gte("shift_start_date", startDate)
+          .lte("shift_start_date", endDate)
+          .or(
+            `staff_01_user_id.eq.${currentUser.user_id},staff_02_user_id.eq.${currentUser.user_id},staff_03_user_id.eq.${currentUser.user_id}`
+          )
+          .order("shift_start_date", { ascending: true })
+          .order("shift_start_time", { ascending: true });
+
+        if (error) throw error;
+
+        const rows = (data ?? []) as ShiftRow[];
+        const filtered = rows
+          .filter((shift) => {
+            const shiftEnd = makeJstDateTime(shift.shift_start_date, shift.shift_end_time);
+            return shiftEnd >= start && shiftEnd <= end;
+          })
+          .map((shift) => ({
+            id: String(shift.id ?? shift.shift_id),
+            shift_id: shift.shift_id,
+            shift_start_date: shift.shift_start_date,
+            shift_start_time: shift.shift_start_time,
+            shift_end_time: shift.shift_end_time,
+            client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
+            address: shift.district ?? "",
+            service_code: shift.service_code ?? "",
+          }));
+
+        setTargetShifts(filtered);
+        setSelectedShiftIds(filtered.map((shift) => shift.shift_id));
+      } catch (error) {
+        console.error(error);
+        setErrorMessage("対象シフトの取得中にエラーが発生しました。");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchTargetShifts();
+  }, [start, end]);
+
+  function toggleShift(shiftId: string) {
+    setSelectedShiftIds((prev) =>
+      prev.includes(shiftId) ? prev.filter((id) => id !== shiftId) : [...prev, shiftId]
+    );
   }
 
-  function updateStatus(id, status) {
-    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
+  function toggleCheck(key: ConfirmKey) {
+    setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
-  function exportCsv() {
-    const header = ["申請ID", "申請者", "部署", "金額", "用途", "支払希望日", "ステータス", "申請日"];
-    const body = rows.map((row) => [
-      row.id,
-      row.applicant,
-      row.department,
-      row.amount,
-      row.purpose,
-      row.paymentDueDate,
-      row.status,
-      row.submittedAt,
-    ]);
+  async function submitApplication() {
+    try {
+      if (!me) {
+        setErrorMessage("ログインユーザー情報を取得できていません。");
+        return;
+      }
+      if (!canSubmit) return;
 
-    const csv = [header, ...body].map((line) => line.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "advance_payment_applications.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+      setSubmitting(true);
+      setErrorMessage("");
+      setMessage("");
+
+      const employeeName = `${me.last_name_kanji ?? ""} ${me.first_name_kanji ?? ""}`.trim();
+      const applicationNo = makeApplicationNo();
+
+      const { error } = await supabase.from("user_advance_payment_applications").insert({
+        application_no: applicationNo,
+        user_id: me.user_id,
+        employee_name: employeeName || me.user_id,
+        department: me.department ?? null,
+        amount: 0,
+        reason: "対象シフトに基づく先払い申請",
+        desired_payment_date: toJstDateString(),
+        status: "submitted",
+        shift_ids: selectedShiftIds,
+        remarks: JSON.stringify({
+          confirmation: checks,
+          target_window: {
+            start: start.toISOString(),
+            end: end.toISOString(),
+          },
+          selected_shifts: selectedShifts.map((shift) => ({
+            shift_id: shift.shift_id,
+            shift_start_date: shift.shift_start_date,
+            shift_start_time: shift.shift_start_time,
+            shift_end_time: shift.shift_end_time,
+            client_name: shift.client_name,
+          })),
+        }),
+      });
+
+      if (error) throw error;
+
+      setMessage(`先払い申請を受け付けました。申請番号：${applicationNo}`);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("申請の登録中にエラーが発生しました。時間をおいて再度お試しください。");
+    } finally {
+      setSubmitting(false);
+    }
   }
+
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-slate-900">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="content min-w-0 p-4 md:p-6">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div>
+          <p className="text-sm text-slate-500">Advance Payment</p>
+          <h1 className="text-2xl font-bold">先払い申請</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。
+          </p>
+        </div>
+
         <Card className="rounded-2xl border-blue-100 bg-blue-50 shadow-sm">
-          <CardContent className="p-5 text-sm text-blue-900">
-            <p className="font-semibold">データベース管理方針</p>
-            <p className="mt-1">申請データは advance_payment_applications テーブルで管理し、振込先は employees または payroll_bank_accounts テーブルに登録済みの給与振込口座を参照します。</p>
+          <CardContent className="p-4 text-sm text-blue-900">
+            <div className="font-semibold">対象期間</div>
+            <div className="mt-1">
+              前日18:30 ～ 当日18:00終了分
+            </div>
+            <div className="mt-1 text-xs text-blue-700">
+              対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
+            </div>
           </CardContent>
         </Card>
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Advance Payment</p>
-            <h1 className="text-3xl font-bold tracking-tight">日払い申請フォーム</h1>
-            <p className="mt-2 text-slate-600">申請受付、承認状況、支払予定をデータベースで一元管理します。</p>
+
+        {errorMessage && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {errorMessage}
           </div>
-          <Button onClick={exportCsv} className="gap-2 rounded-2xl">
-            <Download size={18} /> CSV出力
-          </Button>
-        </div>
+        )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-2xl shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">対象件数</p><p className="mt-2 text-2xl font-bold">{filteredRows.length}件</p></CardContent></Card>
-          <Card className="rounded-2xl shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">合計申請額</p><p className="mt-2 text-2xl font-bold">¥{totalRequested.toLocaleString()}</p></CardContent></Card>
-          <Card className="rounded-2xl shadow-sm"><CardContent className="p-5"><p className="text-sm text-slate-500">申請中</p><p className="mt-2 text-2xl font-bold">{rows.filter((r) => r.status === "申請中").length}件</p></CardContent></Card>
-        </div>
+        {message && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            {message}
+          </div>
+        )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
-           <Card className="rounded-2xl shadow-sm">
-             <CardContent className="p-6">
-              <form onSubmit={submitApplication} className="space-y-4">
-                 <h2 className="text-xl font-semibold">日払い申請</h2>
-
-                 <div className="mt-6">
-                 <h3 className="mb-3 font-semibold">申請対象シフト</h3>
-
-  <h3 className="mb-3 font-semibold">
-    申請対象シフト
-  </h3>
-
-  <div className="space-y-2">
-    {availableShifts.map((shift) => {
-      const available =
-        isShiftApplicationAvailable(
-          shift.shift_start_date,
-          shift.shift_end_time
-        );
-
-      return (
-        <label
-          key={shift.shift_id}
-          className="flex items-center justify-between rounded border p-3"
-        >
-          <div>
-            <div className="font-medium">
-              {shift.shift_start_date}
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">対象シフト</h2>
+                <p className="text-sm text-slate-500">
+                  申請するシフトにチェックを入れてください。初期状態では対象シフトをすべて選択しています。
+                </p>
+              </div>
+              <div className="text-sm text-slate-500">
+                選択中 {selectedShiftIds.length}件 / {targetShifts.length}件
+              </div>
             </div>
 
-            <div className="text-sm text-slate-500">
-              {shift.shift_start_time}
-              {" ～ "}
-              {shift.shift_end_time}
-            </div>
-
-            <div className="text-sm">
-              {shift.name}
-            </div>
-
-            {!available && (
-              <div className="text-xs text-red-500">
-                翌日から申請可能
+            {loading ? (
+              <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">読み込み中...</div>
+            ) : targetShifts.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+                現在、先払い申請の対象となるシフトはありません。
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {targetShifts.map((shift) => (
+                  <label
+                    key={shift.shift_id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                      selectedShiftIds.includes(shift.shift_id)
+                        ? "border-blue-300 bg-blue-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5"
+                      checked={selectedShiftIds.includes(shift.shift_id)}
+                      onChange={() => toggleShift(shift.shift_id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-slate-900">
+                        {shift.shift_start_date} {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-700">{shift.client_name}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {shift.service_code && <span>サービスコード：{shift.service_code}</span>}
+                        {shift.service_code && shift.address && <span> ／ </span>}
+                        {shift.address && <span>{shift.address}</span>}
+                      </div>
+                    </div>
+                  </label>
+                ))}
               </div>
             )}
-          </div>
+          </CardContent>
+        </Card>
 
-          <input
-            type="checkbox"
-            disabled={!available}
-            checked={selectedShiftIds.includes(
-              shift.shift_id
-            )}
-            onChange={() =>
-              toggleShift(shift.shift_id)
-            }
-          />
-        </label>
-      );
-    })}
-      </div>
-        </div>
-              </form>
-            </CardContent>
-          </Card>
+        <Card className="rounded-2xl border-orange-200 bg-orange-50 shadow-sm">
+          <CardContent className="p-5">
+            <h2 className="text-lg font-semibold text-orange-950">申請前の確認事項</h2>
+            <p className="mt-1 text-sm text-orange-900">
+              内容を確認し、すべての項目に同意した場合のみ申請できます。
+            </p>
 
-          <Card className="rounded-2xl shadow-sm">
-            <CardContent className="p-6">
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-xl font-semibold">申請管理テーブル</h2>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={17} />
-                    <Input className="pl-9" placeholder="検索" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <div className="mt-4 space-y-3">
+              {confirmItems.map((item) => (
+                <label
+                  key={item.key}
+                  className="flex cursor-pointer gap-3 rounded-2xl bg-white p-4 shadow-sm"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5"
+                    checked={checks[item.key]}
+                    onChange={() => toggleCheck(item.key)}
+                  />
+                  <div>
+                    <div className="font-medium text-slate-900">{item.label}</div>
+                    <div className="mt-1 text-sm text-slate-500">{item.description}</div>
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]"><SelectValue placeholder="ステータス" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全て</SelectItem>
-                      <SelectItem value="申請中">申請中</SelectItem>
-                      <SelectItem value="承認済み">承認済み</SelectItem>
-                      <SelectItem value="差戻し">差戻し</SelectItem>
-                      <SelectItem value="支払済み">支払済み</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                </label>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="overflow-hidden rounded-2xl border bg-white">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-100 text-left text-slate-600">
-                    <tr>
-                      <th className="p-3">申請ID</th>
-                      <th className="p-3">申請者</th>
-                      <th className="p-3">金額</th>
-                      <th className="p-3">用途</th>
-                      <th className="p-3">支払希望日</th>
-                      <th className="p-3">状態</th>
-                      <th className="p-3">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRows.map((row) => (
-                      <tr key={row.id} className="border-t">
-                        <td className="p-3 font-medium">{row.id}</td>
-                        <td className="p-3"><div>{row.applicant}</div><div className="text-xs text-slate-500">{row.department}</div></td>
-                        <td className="p-3">¥{row.amount.toLocaleString()}</td>
-                        <td className="max-w-[220px] truncate p-3">{row.purpose}</td>
-                        <td className="p-3">{row.paymentDueDate}</td>
-                        <td className="p-3"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusStyles[row.status]}`}>{row.status}</span></td>
-                        <td className="p-3">
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={() => updateStatus(row.id, "承認済み")}><CheckCircle size={15} /></Button>
-                            <Button size="sm" variant="outline" onClick={() => updateStatus(row.id, "差戻し")}><XCircle size={15} /></Button>
-                            <Button size="sm" variant="outline" onClick={() => updateStatus(row.id, "支払済み")}><Clock size={15} /></Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="sticky bottom-0 rounded-2xl border bg-white/95 p-4 shadow-lg backdrop-blur">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm text-slate-600">
+              {targetShifts.length === 0
+                ? "申請可能な対象シフトがありません。"
+                : !hasSelectedShift
+                  ? "申請するシフトを1件以上選択してください。"
+                  : !allChecked
+                    ? "確認事項をすべてチェックしてください。"
+                    : "申請できます。"}
+            </div>
+            <Button
+              type="button"
+              className="rounded-2xl px-6"
+              disabled={!canSubmit}
+              onClick={submitApplication}
+            >
+              {submitting ? "申請中..." : "先払い申請を送信"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
