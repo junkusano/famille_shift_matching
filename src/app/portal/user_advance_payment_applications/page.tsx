@@ -142,7 +142,6 @@ export default function UserAdvancePaymentConfirmPage() {
   const [submitting, setSubmitting] = useState(false);
   const [me, setMe] = useState<LoginUser | null>(null);
   const [targetShifts, setTargetShifts] = useState<TargetShift[]>([]);
-  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
   const [checks, setChecks] = useState<Record<ConfirmKey, boolean>>({
     shiftConfirmed: false,
     recordRequired: false,
@@ -156,14 +155,10 @@ export default function UserAdvancePaymentConfirmPage() {
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
   const allChecked = confirmItems.every((item) => checks[item.key]);
-  const hasSelectedShift = selectedShiftIds.length > 0;
+  const hasSelectedShift = targetShifts.length > 0;
   const canSubmit = hasSelectedShift && allChecked && !submitting;
 
-  const selectedShifts = useMemo(
-    () => targetShifts.filter((shift) => selectedShiftIds.includes(shift.shift_id)),
-    [targetShifts, selectedShiftIds]
-  );
-  const baseAmount = selectedShifts.length * 10000;
+  const baseAmount = targetShifts.length * 10000;
 
   const calculation = calculateAvailableAmount({
     baseAmount,
@@ -256,7 +251,6 @@ export default function UserAdvancePaymentConfirmPage() {
           }));
 
         setTargetShifts(filtered);
-        setSelectedShiftIds(filtered.map((shift) => shift.shift_id));
       } catch (error) {
         console.error(error);
         setErrorMessage("対象シフトの取得中にエラーが発生しました。");
@@ -267,16 +261,6 @@ export default function UserAdvancePaymentConfirmPage() {
 
     fetchTargetShifts();
   }, [start, end]);
-
-  function toggleShift(shiftId: string) {
-    setSelectedShiftIds((prev) =>
-      prev.includes(shiftId) ? prev.filter((id) => id !== shiftId) : [...prev, shiftId]
-    );
-  }
-
-  function toggleCheck(key: ConfirmKey) {
-    setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
 
   async function submitApplication() {
     try {
@@ -290,7 +274,7 @@ export default function UserAdvancePaymentConfirmPage() {
       setErrorMessage("");
       setMessage("");
 
-      const baseAmount = selectedShifts.length * 10000;
+      const baseAmount = targetShifts.length * 10000;
 
       const calculation = calculateAvailableAmount({
         baseAmount,
@@ -318,14 +302,14 @@ export default function UserAdvancePaymentConfirmPage() {
         reason: "対象シフトに基づく先払い申請",
         desired_payment_date: toJstDateString(),
         status: "submitted",
-        shift_ids: selectedShiftIds,
+        shift_ids: targetShifts.map((shift) => shift.shift_id),
         remarks: JSON.stringify({
           confirmation: checks,
           target_window: {
             start: start.toISOString(),
             end: end.toISOString(),
           },
-          selected_shifts: selectedShifts.map((shift) => ({
+          selected_shifts: targetShifts.map((shift) => ({
             shift_id: shift.shift_id,
             shift_start_date: shift.shift_start_date,
             shift_start_time: shift.shift_start_time,
@@ -387,11 +371,11 @@ export default function UserAdvancePaymentConfirmPage() {
               <div>
                 <h2 className="text-lg font-semibold">対象シフト</h2>
                 <p className="text-sm text-slate-500">
-                  申請するシフトにチェックを入れてください。初期状態では対象シフトをすべて選択しています。
+                  表示されている対象シフトが申請対象となります。
                 </p>
               </div>
               <div className="text-sm text-slate-500">
-                選択中 {selectedShiftIds.length}件 / {targetShifts.length}件
+                対象 {targetShifts.length}件
               </div>
             </div>
 
@@ -404,20 +388,11 @@ export default function UserAdvancePaymentConfirmPage() {
             ) : (
               <div className="space-y-3">
                 {targetShifts.map((shift) => (
-                  <label
+                  <div
                     key={shift.shift_id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
-                      selectedShiftIds.includes(shift.shift_id)
-                        ? "border-blue-300 bg-blue-50"
-                        : "border-slate-200 bg-white"
-                    }`}
+                    className="rounded-2xl border border-slate-200 bg-white p-4"
                   >
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-5 w-5"
-                      checked={selectedShiftIds.includes(shift.shift_id)}
-                      onChange={() => toggleShift(shift.shift_id)}
-                    />
+                  
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-slate-900">
                         {shift.shift_start_date} {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
@@ -429,7 +404,7 @@ export default function UserAdvancePaymentConfirmPage() {
                         {shift.address && <span>{shift.address}</span>}
                       </div>
                     </div>
-                  </label>
+                  </div>
                 ))}
               </div>
             )}
@@ -450,11 +425,17 @@ export default function UserAdvancePaymentConfirmPage() {
                   className="flex cursor-pointer gap-3 rounded-2xl bg-white p-4 shadow-sm"
                 >
                   <input
-                    type="checkbox"
-                    className="mt-1 h-5 w-5"
-                    checked={checks[item.key]}
-                    onChange={() => toggleCheck(item.key)}
-                  />
+                      type="checkbox"
+                      className="mt-1 h-5 w-5"
+                      checked={checks[item.key]}
+                      onChange={(e) =>
+                      setChecks((prev) => ({
+                       ...prev,
+                        [item.key]: e.target.checked,
+                     }))
+                      }
+                       />
+                       
                   <div>
                     <div className="font-medium text-slate-900">{item.label}</div>
                     <div className="mt-1 text-sm text-slate-500">{item.description}</div>
