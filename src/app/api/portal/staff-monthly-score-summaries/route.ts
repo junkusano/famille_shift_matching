@@ -307,6 +307,8 @@ async function calculateSummaryForMember(args: {
 }
 
 export async function POST(req: NextRequest) {
+
+    /*
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
 
     if (!token) {
@@ -318,6 +320,7 @@ export async function POST(req: NextRequest) {
     if (authError || !authData.user) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+    */
 
     const targetMonth = req.nextUrl.searchParams.get("ym") ?? req.nextUrl.searchParams.get("month");
     const { ym, targetMonthDate, startDate, endDate } = getMonthRange(targetMonth);
