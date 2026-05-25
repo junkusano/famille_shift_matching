@@ -9,8 +9,6 @@ type ShiftRow = {
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
     staff_03_user_id: string | null;
-    record_status?: string | null;
-    record_created_at?: string | null;
 };
 
 type ShiftRecordRow = {
@@ -298,7 +296,7 @@ export async function GET(req: NextRequest) {
     const entryId = me.entry_id;
 
     const { data: shifts } = await supabaseAdmin
-        .from("shift_shift_record_view")
+        .from("shift")
         .select(
             `
         shift_id,
@@ -307,18 +305,16 @@ export async function GET(req: NextRequest) {
         shift_end_time,
         staff_01_user_id,
         staff_02_user_id,
-        staff_03_user_id,
-        record_status,
-        record_created_at
-        `
+        staff_03_user_id
+      `
         )
-        .eq("record_status", "submitted")
-        .gte("record_created_at", `${startDate}T00:00:00+09:00`)
-        .lt("record_created_at", `${endDate}T00:00:00+09:00`)
+        .gte("shift_start_date", startDate)
+        .lt("shift_start_date", endDate)
         .or(
             `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
         )
         .returns<ShiftRow[]>();
+
     const shiftRows = shifts ?? [];
 
     const shiftIds = shiftRows.map((s) => s.shift_id);
@@ -335,23 +331,20 @@ export async function GET(req: NextRequest) {
         const { memberUserId, memberEntryId, targetYm, targetStartDate, targetEndDate } = args;
 
         const { data: memberShifts } = await supabaseAdmin
-            .from("shift_shift_record_view")
+            .from("shift")
             .select(
                 `
-        shift_id,
-        shift_start_date,
-        shift_start_time,
-        shift_end_time,
-        staff_01_user_id,
-        staff_02_user_id,
-        staff_03_user_id,
-        record_status,
-        record_created_at
-        `
+                shift_id,
+                shift_start_date,
+                shift_start_time,
+                shift_end_time,
+                staff_01_user_id,
+                staff_02_user_id,
+                staff_03_user_id
+                `
             )
-            .eq("record_status", "submitted")
-            .gte("record_created_at", `${targetStartDate}T00:00:00+09:00`)
-            .lt("record_created_at", `${targetEndDate}T00:00:00+09:00`)
+            .gte("shift_start_date", targetStartDate)
+            .lt("shift_start_date", targetEndDate)
             .or(
                 `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
             )
@@ -668,23 +661,20 @@ updated_at
             const memberEntryId = member.entry_id;
 
             const { data: memberShifts } = await supabaseAdmin
-                .from("shift_shift_record_view")
+                .from("shift")
                 .select(
                     `
-        shift_id,
-        shift_start_date,
-        shift_start_time,
-        shift_end_time,
-        staff_01_user_id,
-        staff_02_user_id,
-        staff_03_user_id,
-        record_status,
-        record_created_at
-        `
+                shift_id,
+                shift_start_date,
+                shift_start_time,
+                shift_end_time,
+                staff_01_user_id,
+                staff_02_user_id,
+                staff_03_user_id
+                `
                 )
-                .eq("record_status", "submitted")
-                .gte("record_created_at", `${startDate}T00:00:00+09:00`)
-                .lt("record_created_at", `${endDate}T00:00:00+09:00`)
+                .gte("shift_start_date", startDate)
+                .lt("shift_start_date", endDate)
                 .or(
                     `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
                 )
