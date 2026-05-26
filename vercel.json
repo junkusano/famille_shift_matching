@@ -195,6 +195,10 @@
     {
       "path": "/api/cron/cm/log-retention",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/staff-monthly-score-summaries",
+      "schedule": "23 3 * * *"
     }
   ]
 }
