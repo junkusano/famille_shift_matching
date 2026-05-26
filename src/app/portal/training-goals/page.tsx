@@ -307,7 +307,9 @@ export default function TrainingGoalsPage() {
                         'entry_id',
                         employeeRows.map((e) => e.entry_id)
                     )
-                    .eq('row_type', 'goal');
+                    .eq('row_type', 'goal')
+                    .eq('selected', true)
+                    .eq('watched', true);
 
                 if (allSelectionError) {
                     console.error('all employee_training_goals load error:', allSelectionError);
@@ -319,7 +321,7 @@ export default function TrainingGoalsPage() {
                 const selectionsByEntryId = new Map<string, TrainingGoalSelectionRow[]>();
 
                 for (const row of (allSelectionData ?? []) as TrainingGoalSelectionRow[]) {
-                    if (!row.selected) continue;
+                    if (!row.selected || !row.watched) continue;
 
                     const current = selectionsByEntryId.get(row.entry_id) ?? [];
                     current.push(row);
@@ -507,7 +509,7 @@ export default function TrainingGoalsPage() {
             if (isAllEmployeesView) {
                 // すべて表示では未設定も見せたいので、ここでは絞らない
             } else if (displayRole !== 'member' && ['admin', 'manager'].includes(effectiveRole)) {
-                if (!row.selected) return false;
+                if (!row.selected || !row.watched) return false;
             } else if (showOnlySelected && !row.selected) {
                 return false;
             }
