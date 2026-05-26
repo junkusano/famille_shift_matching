@@ -210,7 +210,7 @@ const canSubmit =
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, last_name_kanji, first_name_kanji, department, role, has_social_insurance,has_employment_insurance,has_employee_loan")
+          .select("user_id, department, role, has_social_insurance,has_employment_insurance,has_employee_loan")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
@@ -290,7 +290,7 @@ const canSubmit =
         setErrorMessage(
            `対象シフトの取得中にエラーが発生しました：${message}`
         );
-         
+
       } finally {
         setLoading(false);
       }
@@ -323,7 +323,7 @@ const canSubmit =
       });
 
 
-      const employeeName = `${me.last_name_kanji ?? ""} ${me.first_name_kanji ?? ""}`.trim();
+      const employeeName = me.user_id;
       const applicationNo = makeApplicationNo();
 
       const { error } = await supabase.from("user_advance_payment_applications").insert({
