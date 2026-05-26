@@ -218,8 +218,11 @@ export default function TrainingGoalsManagePage() {
         await updateGoal(editId, {
             training_type: editForm.training_type,
             training_code: editForm.training_code,
+            target_role: editForm.target_role,
+            target_group: editForm.target_group,
             training_title: editForm.training_title,
             training_goal: editForm.training_goal,
+            training_month: editForm.training_month === "" ? null : Number(editForm.training_month),
             video_url: editForm.video_url,
             sort_order: Number(editForm.sort_order || 9999),
             is_active: editForm.is_active,
