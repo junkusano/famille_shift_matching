@@ -10,6 +10,7 @@ type LoginUser = {
   last_name_kanji: string | null;
   first_name_kanji: string | null;
   department?: string | null;
+  role?: string | null;
   has_social_insurance?: boolean;
   has_employment_insurance?: boolean;
   has_employee_loan?: boolean;
@@ -165,7 +166,11 @@ const isSilverOrHigher =
   performanceRank === "gold" ||
   performanceRank === "platinum";
 
+  const isManager =
+  me?.role === "manager" || me?.role === "admin";
+
 const canSubmit =
+  !isManager &&
   isSilverOrHigher &&
   hasSelectedShift &&
   allChecked &&
@@ -205,7 +210,7 @@ const canSubmit =
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, last_name_kanji, first_name_kanji, department, has_social_insurance,has_employment_insurance,has_employee_loan")
+          .select("user_id, last_name_kanji, first_name_kanji, department, role, has_social_insurance,has_employment_insurance,has_employee_loan")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
@@ -323,7 +328,7 @@ const canSubmit =
         available_amount: calculation.availableAmount,
         deduction_reasons: calculation.reasons,
         amount: calculation.availableAmount,
-        reason: "対象シフトに基づく先払い申請",
+        reason: "対象シフトに基づく日払い申請",
         desired_payment_date: toJstDateString(),
         status: "submitted",
         shift_ids: targetShifts.map((shift) => shift.shift_id),
@@ -345,7 +350,7 @@ const canSubmit =
 
       if (error) throw error;
 
-      setMessage(`先払い申請を受け付けました。申請番号：${applicationNo}`);
+      setMessage(`日払い申請を受け付けました。申請番号：${applicationNo}`);
     } catch (error) {
       console.error(error);
       setErrorMessage("申請の登録中にエラーが発生しました。時間をおいて再度お試しください。");
@@ -407,7 +412,7 @@ const canSubmit =
               <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">読み込み中...</div>
             ) : targetShifts.length === 0 ? (
               <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-                現在、先払い申請の対象となるシフトはありません。
+                現在、日払い申請の対象となるシフトはありません。
               </div>
             ) : (
               <div className="space-y-3">
@@ -501,6 +506,11 @@ const canSubmit =
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                  先払い制度は、パフォーマンススコアが
                  シルバー以上の職員のみ利用できます。
+               </div>
+            )}
+            {isManager && (
+               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                マネージャー権限の方は、この画面を確認できますが、先払い申請はできません。
                </div>
             )}
 
