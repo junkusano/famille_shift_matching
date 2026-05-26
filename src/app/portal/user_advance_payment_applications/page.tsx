@@ -17,7 +17,6 @@ type LoginUser = {
 };
 
 type ShiftRow = {
-  id: string | number | null;
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
@@ -239,7 +238,6 @@ const canSubmit =
         const { data, error } = await supabase
           .from("shift_csinfo_postalname_view")
           .select(`
-            id,
             shift_id,
             shift_start_date,
             shift_start_time,
@@ -269,7 +267,7 @@ const canSubmit =
             return shiftEnd >= start && shiftEnd <= end;
           })
           .map((shift) => ({
-            id: String(shift.id ?? shift.shift_id),
+            id: String(shift.shift_id),
             shift_id: shift.shift_id,
             shift_start_date: shift.shift_start_date,
             shift_start_time: shift.shift_start_time,
