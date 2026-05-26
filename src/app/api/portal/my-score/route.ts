@@ -333,7 +333,10 @@ export async function GET(req: NextRequest) {
         .gte("target_month", "2026-05-01")
         .order("target_month", { ascending: true });
 
-    const totalScore = Number(summary.total_score ?? 0);
+    const serviceHoursScore = Math.min(
+        80,
+        Math.floor(Number(summary.service_hours ?? 0) / 20) * 10
+    );
 
     const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
     const visitRecordSameDayCount = Number(summary.houmon_same_day_done_count ?? 0);
@@ -342,6 +345,23 @@ export async function GET(req: NextRequest) {
         visitRecordTotalCount > 0
             ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
             : 0;
+
+    const meetingScore =
+        summary.meeting_previous_month_attended === true ||
+            summary.meeting_past_attended === true
+            ? 10
+            : 0;
+
+    const jissekiScore = Number(summary.jisseki_previous_month_done_count ?? 0) * 2;
+
+    const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
+
+    const totalScore =
+        serviceHoursScore +
+        visitRecordScore +
+        meetingScore +
+        jissekiScore +
+        trainingGoalScore;
 
     return NextResponse.json({
         month: ym,
@@ -357,7 +377,7 @@ export async function GET(req: NextRequest) {
             {
                 key: "service_hours",
                 label: "サービス時間",
-                score: Math.min(80, Math.floor(Number(summary.service_hours ?? 0) / 20) * 10),
+                score: serviceHoursScore,
                 maxScore: 80,
                 note: `${summary.service_hours ?? 0}時間`,
             },
@@ -371,25 +391,21 @@ export async function GET(req: NextRequest) {
             {
                 key: "meeting",
                 label: "会議参加",
-                score:
-                    summary.meeting_previous_month_attended === true ||
-                        summary.meeting_past_attended === true
-                        ? 10
-                        : 0,
+                score: meetingScore,
                 maxScore: 10,
                 note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
             },
             {
                 key: "jisseki",
                 label: "実績記録",
-                score: Number(summary.jisseki_previous_month_done_count ?? 0) * 2,
+                score: jissekiScore,
                 maxScore: 30,
                 note: `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件 / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
             },
             {
                 key: "training_goal",
                 label: "目標設定",
-                score: Number(summary.training_goal_selected_count ?? 0) * 5,
+                score: trainingGoalScore,
                 maxScore: 20,
                 note: `${summary.training_goal_selected_count ?? 0}件`,
             },
