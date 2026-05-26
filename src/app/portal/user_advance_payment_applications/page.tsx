@@ -210,7 +210,7 @@ const canSubmit =
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, department, role, has_social_insurance,has_employment_insurance,has_employee_loan")
+          .select("user_id, role, has_social_insurance,has_employment_insurance,has_employee_loan")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
@@ -330,7 +330,6 @@ const canSubmit =
         application_no: applicationNo,
         user_id: me.user_id,
         employee_name: employeeName || me.user_id,
-        department: me.department ?? null,
         base_amount: baseAmount,
         deduction_rate: calculation.deductionRate,
         available_amount: calculation.availableAmount,
