@@ -282,7 +282,15 @@ const canSubmit =
         setTargetShifts(filtered);
       } catch (error) {
         console.error(error);
-        setErrorMessage("対象シフトの取得中にエラーが発生しました。");
+        const message =
+        error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : JSON.stringify(error);
+
+        setErrorMessage(
+           `対象シフトの取得中にエラーが発生しました：${message}`
+        );
+         
       } finally {
         setLoading(false);
       }
