@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
-type ShiftRow = {
+/*type ShiftRow = {
     shift_id: number;
     shift_start_date: string;
     shift_start_time: string | null;
@@ -25,9 +25,9 @@ type MeetingAttendanceRow = {
     checked_regular: boolean | null;
     checked_extra: boolean | null;
     updated_at: string | null;
-};
+};*/
 
-type DisabilityCheckRow = {
+/*type DisabilityCheckRow = {
     is_checked: boolean | null;
     application_check: boolean | null;
     asigned_jisseki_staff_id: string | null;
@@ -37,7 +37,7 @@ type GoalRow = {
     id: string;
     selected: boolean | null;
     watched: boolean | null;
-};
+};*/
 
 type UserRow = {
     user_id: string;
@@ -60,7 +60,7 @@ type MemberOption = {
     first_name_kana: string | null;
 };
 
-type Metric = {
+/*type Metric = {
     key: string;
     label: string;
     score: number;
@@ -70,9 +70,9 @@ type Metric = {
 
 function isValidYearMonth(value: string | null) {
     return value !== null && /^\d{4}-\d{2}$/.test(value);
-}
+}*/
 
-function getMonthRange(monthParam: string | null) {
+/*function getMonthRange(monthParam: string | null) {
     const now = new Date();
 
     const ym = isValidYearMonth(monthParam)
@@ -91,9 +91,9 @@ function getMonthRange(monthParam: string | null) {
         startDate: start.toISOString().slice(0, 10),
         endDate: end.toISOString().slice(0, 10),
     };
-}
+}*/
 
-function getPreviousYm(ym: string) {
+/*function getPreviousYm(ym: string) {
     const [yearText, monthText] = ym.split("-");
     const year = Number(yearText);
     const monthIndex = Number(monthText) - 1;
@@ -142,7 +142,7 @@ function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, disp
         meetingScore: 0,
         note: "前月会議未参加",
     };
-}
+}*/
 
 function buildMonthOptions(count: number) {
     const now = new Date();
@@ -158,7 +158,7 @@ function buildMonthOptions(count: number) {
     });
 }
 
-function buildRecentMonthsByYm(baseYm: string, count: number) {
+/*function buildRecentMonthsByYm(baseYm: string, count: number) {
     const [yearText, monthText] = baseYm.split("-");
     const year = Number(yearText);
     const monthIndex = Number(monthText) - 1;
@@ -187,7 +187,7 @@ function calcMinutes(
     const diff = e.getTime() - s.getTime();
 
     return diff > 0 ? Math.round(diff / 60000) : 0;
-}
+}*/
 
 function getBadge(score: number) {
     if (score >= 100) return "プラチナ";
@@ -196,13 +196,13 @@ function getBadge(score: number) {
     if (score < 60) return "ブロンズ";
 }
 
-const SCORE_WEIGHTS = {
+/*const SCORE_WEIGHTS = {
     serviceHours: 80,
     visitRecord: 30,
     meeting: 10,
     jisseki: 30,
     trainingGoal: 0,
-};
+};*/
 
 export async function GET(req: NextRequest) {
     const token = req.headers
@@ -226,13 +226,14 @@ export async function GET(req: NextRequest) {
         );
     }
 
-    const targetMonth =
-        req.nextUrl.searchParams.get("ym") ??
-        req.nextUrl.searchParams.get("month");
+    // const targetMonth =
+    //   req.nextUrl.searchParams.get("ym") ??
+    // req.nextUrl.searchParams.get("month");
 
-    const { ym, startDate, endDate } = getMonthRange(targetMonth);
+    //const { ym, startDate, endDate } = getMonthRange(targetMonth);
 
     const targetUserId = req.nextUrl.searchParams.get("user_id");
+    const ym = req.nextUrl.searchParams.get("ym") ?? "2026-05";
     const monthOptions = buildMonthOptions(24);
 
     const { data: loginUser, error: loginUserError } = await supabaseAdmin
@@ -293,623 +294,119 @@ export async function GET(req: NextRequest) {
     const me = selectedMember ?? loginUser;
 
     const userId = me.user_id;
-    const entryId = me.entry_id;
+    //const entryId = me.entry_id;
 
-    const { data: shifts } = await supabaseAdmin
-        .from("shift")
-        .select(
-            `
-        shift_id,
-        shift_start_date,
-        shift_start_time,
-        shift_end_time,
-        staff_01_user_id,
-        staff_02_user_id,
-        staff_03_user_id
-      `
-        )
-        .gte("shift_start_date", startDate)
-        .lt("shift_start_date", endDate)
-        .or(
-            `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
-        )
-        .returns<ShiftRow[]>();
+    const targetMonthDate = `${ym}-01`;
 
-    const shiftRows = shifts ?? [];
-
-    const shiftIds = shiftRows.map((s) => s.shift_id);
-
-    const serviceTargetHours = 160;
-
-    async function calculateMemberTotalScore(args: {
-        memberUserId: string;
-        memberEntryId: string | null;
-        targetYm: string;
-        targetStartDate: string;
-        targetEndDate: string;
-    }) {
-        const { memberUserId, memberEntryId, targetYm, targetStartDate, targetEndDate } = args;
-
-        const { data: memberShifts } = await supabaseAdmin
-            .from("shift")
-            .select(
-                `
-                shift_id,
-                shift_start_date,
-                shift_start_time,
-                shift_end_time,
-                staff_01_user_id,
-                staff_02_user_id,
-                staff_03_user_id
-                `
-            )
-            .gte("shift_start_date", targetStartDate)
-            .lt("shift_start_date", targetEndDate)
-            .or(
-                `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
-            )
-            .returns<ShiftRow[]>();
-
-        const memberShiftRows = memberShifts ?? [];
-        const memberShiftIds = memberShiftRows.map((s) => s.shift_id);
-
-        const memberTotalMinutes = memberShiftRows.reduce((sum, shift) => {
-            return sum + calcMinutes(
-                shift.shift_start_date,
-                shift.shift_start_time,
-                shift.shift_end_time
-            );
-        }, 0);
-
-        const memberServiceHours = Math.round((memberTotalMinutes / 60) * 10) / 10;
-
-        const memberServiceScore = Math.min(
-            100,
-            Math.round((memberServiceHours / serviceTargetHours) * 100)
-        );
-
-        const { data: memberRecords } =
-            memberShiftIds.length > 0
-                ? await supabaseAdmin
-                    .from("shift_records")
-                    .select("shift_id, status, created_at, updated_at")
-                    .in("shift_id", memberShiftIds)
-                    .returns<ShiftRecordRow[]>()
-                : { data: [] as ShiftRecordRow[] };
-
-        let memberSameDayDone = 0;
-        let memberLateOrMissing = 0;
-
-        for (const shift of memberShiftRows) {
-            const record = (memberRecords ?? []).find(
-                (r) =>
-                    r.shift_id === shift.shift_id &&
-                    completedStatuses.includes(r.status ?? "")
-            );
-
-            if (!record) {
-                memberLateOrMissing++;
-                continue;
-            }
-
-            const doneDate = String(record.updated_at ?? record.created_at ?? "").slice(0, 10);
-
-            if (doneDate === shift.shift_start_date) {
-                memberSameDayDone++;
-            } else {
-                memberLateOrMissing++;
-            }
-        }
-
-        const memberVisitRate =
-            memberShiftIds.length > 0
-                ? Math.round((memberSameDayDone / memberShiftIds.length) * 100)
-                : 0;
-
-        const memberVisitScore = memberLateOrMissing > 0 ? 0 : memberVisitRate;
-
-        const { data: memberMeeting } = await supabaseAdmin
-            .from("monthly_meeting_attendance")
-            .select("required, attended_regular, attended_extra, checked_regular, checked_extra, updated_at")
-            .eq("user_id", memberUserId)
-            .eq("target_month", `${getPreviousYm(targetYm)}-01`)
-            .maybeSingle<MeetingAttendanceRow>();
-
-        const { meetingScore: memberMeetingScore } = calcMeetingScore(memberMeeting, targetYm);
-
-        const { data: memberJissekiRows } = await supabaseAdmin
-            .from("disability_check_view")
-            .select("is_checked, application_check, asigned_jisseki_staff_id")
-            .eq("year_month", targetYm)
-            .eq("asigned_jisseki_staff_id", memberUserId)
-            .returns<DisabilityCheckRow[]>();
-
-        const memberJissekiTotal = memberJissekiRows?.length ?? 0;
-
-        const memberJissekiDone =
-            memberJissekiRows?.filter(
-                (r) => r.is_checked === true || r.application_check === true
-            ).length ?? 0;
-
-        const memberJissekiScore =
-            memberJissekiTotal > 0
-                ? Math.round((memberJissekiDone / memberJissekiTotal) * 100)
-                : 0;
-
-        const { data: memberGoals } =
-            memberEntryId
-                ? await supabaseAdmin
-                    .from("employee_training_goals")
-                    .select("id, selected, watched")
-                    .eq("entry_id", memberEntryId)
-                    .eq("row_type", "goal")
-                    .eq("selected", true)
-                    .eq("watched", true)
-                    .returns<GoalRow[]>()
-                : { data: [] as GoalRow[] };
-
-        const memberWatchedGoalCount = memberGoals?.length ?? 0;
-
-        const memberGoalScore = memberWatchedGoalCount * 5;
-        return (
-            Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
-            Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
-            Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
-            Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
-            memberGoalScore
-        );
-    }
-
-    const { data: records } =
-        shiftIds.length > 0
-            ? await supabaseAdmin
-                .from("shift_records")
-                .select(
-                    `
-              shift_id,
-              status,
-              created_at,
-              updated_at
-            `
-                )
-                .in("shift_id", shiftIds)
-                .returns<ShiftRecordRow[]>()
-            : { data: [] as ShiftRecordRow[] };
-
-    const completedStatuses = [
-        "submitted",
-        "approved",
-        "done",
-        "completed",
-    ];
-
-    let sameDayDone = 0;
-    let lateOrMissing = 0;
-
-    for (const shift of shiftRows) {
-        const record = (records ?? []).find(
-            (r) =>
-                r.shift_id === shift.shift_id &&
-                completedStatuses.includes(r.status ?? "")
-        );
-
-        if (!record) {
-            lateOrMissing++;
-            continue;
-        }
-
-        const doneDate = String(
-            record.updated_at ?? record.created_at ?? ""
-        ).slice(0, 10);
-
-        if (doneDate === shift.shift_start_date) {
-            sameDayDone++;
-        } else {
-            lateOrMissing++;
-        }
-    }
-
-    const visitRate =
-        shiftIds.length > 0
-            ? Math.round((sameDayDone / shiftIds.length) * 100)
-            : 0;
-
-    const visitScore =
-        lateOrMissing > 0 ? 0 : visitRate;
-
-    const { data: meeting } = await supabaseAdmin
-        .from("monthly_meeting_attendance")
-        .select(
-            `
-required,
-attended_regular,
-attended_extra,
-checked_regular,
-checked_extra,
-updated_at
-`
-        )
+    const { data: summary, error: summaryError } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("*")
+        .eq("target_month", targetMonthDate)
         .eq("user_id", userId)
-        .eq("target_month", `${getPreviousYm(ym)}-01`)
-        .maybeSingle<MeetingAttendanceRow>();
+        .maybeSingle();
 
-    const {
-        meetingScore,
-        note: meetingNote,
-    } = calcMeetingScore(meeting, ym);
-
-    const { data: jissekiRows } = await supabaseAdmin
-        .from("disability_check_view")
-        .select(
-            `
-        is_checked,
-        application_check,
-        asigned_jisseki_staff_id
-      `
-        )
-        .eq("year_month", ym)
-        .eq("asigned_jisseki_staff_id", userId)
-        .returns<DisabilityCheckRow[]>();
-
-    const jissekiTotal =
-        jissekiRows?.length ?? 0;
-
-    const jissekiDone =
-        jissekiRows?.filter(
-            (r) =>
-                r.is_checked === true ||
-                r.application_check === true
-        ).length ?? 0;
-
-    const jissekiScore =
-        jissekiTotal > 0
-            ? Math.round(
-                (jissekiDone / jissekiTotal) * 100
-            )
-            : 0;
-
-    const { data: goals } =
-        entryId
-            ? await supabaseAdmin
-                .from("employee_training_goals")
-                .select("id, selected, watched")
-                .eq("entry_id", entryId)
-                .eq("row_type", "goal")
-                .eq("selected", true)
-                .eq("watched", true)
-                .returns<GoalRow[]>()
-            : { data: [] as GoalRow[] };
-
-    const watchedGoalCount = goals?.length ?? 0;
-
-    const goalScore = watchedGoalCount * 5;
-    const totalMinutes = shiftRows.reduce((sum, shift) => {
-        return (
-            sum +
-            calcMinutes(
-                shift.shift_start_date,
-                shift.shift_start_time,
-                shift.shift_end_time
-            )
+    if (summaryError) {
+        console.error(summaryError);
+        return NextResponse.json(
+            { error: summaryError.message },
+            { status: 500 }
         );
-    }, 0);
+    }
 
-    const serviceHours = Math.round((totalMinutes / 60) * 10) / 10;
+    if (!summary) {
+        return NextResponse.json(
+            { error: "score summary not found" },
+            { status: 404 }
+        );
+    }
 
-    const serviceScore = Math.min(
-        SCORE_WEIGHTS.serviceHours,
-        Math.floor(serviceHours / 20) * 10
-    );
+    const { data: rankingRows } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("user_id, staff_name, total_score, rank_no")
+        .eq("target_month", targetMonthDate)
+        .order("rank_no", { ascending: true });
 
-    const metrics: Metric[] = [
-        {
-            key: "service_hours",
-            label: "サービス時間",
-            score: serviceScore,
-            maxScore: SCORE_WEIGHTS.serviceHours,
-            note: `${serviceHours}時間 / 160時間まで20時間ごとに10点`,
-        },
-        {
-            key: "visit_record",
-            label: "訪問記録当日完了率",
-            score: Math.round((visitScore / 100) * SCORE_WEIGHTS.visitRecord),
-            maxScore: SCORE_WEIGHTS.visitRecord,
-            note:
-                lateOrMissing > 0
-                    ? `未完了・翌日以降が${lateOrMissing}件あるため0点`
-                    : `${sameDayDone}/${shiftIds.length}件`,
-        },
-        {
-            key: "meeting",
-            label: "会議参加率",
-            score: Math.round((meetingScore / 100) * SCORE_WEIGHTS.meeting),
-            maxScore: SCORE_WEIGHTS.meeting,
-            note: meetingNote,
-        },
-        {
-            key: "jisseki",
-            label: "実績記録",
-            score: Math.round((jissekiScore / 100) * SCORE_WEIGHTS.jisseki),
-            maxScore: SCORE_WEIGHTS.jisseki,
-            note: `${jissekiDone}/${jissekiTotal}件`,
-        },
-        {
-            key: "training_goal",
-            label: "目標設定",
-            score: goalScore,
-            maxScore: Math.max(SCORE_WEIGHTS.trainingGoal, goalScore),
-            note:
-                watchedGoalCount > 1
-                    ? `${watchedGoalCount}件受講完了（追加加点あり）`
-                    : watchedGoalCount === 1
-                        ? "1件受講完了"
-                        : "受講完了なし",
-        },
-    ];
+    const { data: historyRows } = await supabaseAdmin
+        .from("staff_monthly_score_summaries")
+        .select("target_month, total_score, rank_no")
+        .eq("user_id", userId)
+        .gte("target_month", "2026-05-01")
+        .order("target_month", { ascending: true });
 
-    const totalScore = metrics.reduce((sum, metric) => {
-        return sum + metric.score;
-    }, 0);
-
-    const totalMaxScore = metrics.reduce((sum, metric) => {
-        return sum + metric.maxScore;
-    }, 0);
-
-    const rankingScores = await Promise.all(
-        members.map(async (member) => {
-            const memberUserId = member.user_id;
-            const memberEntryId = member.entry_id;
-
-            const { data: memberShifts } = await supabaseAdmin
-                .from("shift")
-                .select(
-                    `
-                shift_id,
-                shift_start_date,
-                shift_start_time,
-                shift_end_time,
-                staff_01_user_id,
-                staff_02_user_id,
-                staff_03_user_id
-                `
-                )
-                .gte("shift_start_date", startDate)
-                .lt("shift_start_date", endDate)
-                .or(
-                    `staff_01_user_id.eq.${memberUserId},staff_02_user_id.eq.${memberUserId},staff_03_user_id.eq.${memberUserId}`
-                )
-                .returns<ShiftRow[]>();
-
-            const memberShiftRows = memberShifts ?? [];
-            const memberShiftIds = memberShiftRows.map((s) => s.shift_id);
-
-            const memberTotalMinutes = memberShiftRows.reduce((sum, shift) => {
-                return (
-                    sum +
-                    calcMinutes(
-                        shift.shift_start_date,
-                        shift.shift_start_time,
-                        shift.shift_end_time
-                    )
-                );
-            }, 0);
-
-            const memberServiceHours = Math.round((memberTotalMinutes / 60) * 10) / 10;
-
-            const memberServiceScore = Math.min(
-                100,
-                Math.round((memberServiceHours / serviceTargetHours) * 100)
-            );
-
-            const { data: memberRecords } =
-                memberShiftIds.length > 0
-                    ? await supabaseAdmin
-                        .from("shift_records")
-                        .select(
-                            `
-                        shift_id,
-                        status,
-                        created_at,
-                        updated_at
-                        `
-                        )
-                        .in("shift_id", memberShiftIds)
-                        .returns<ShiftRecordRow[]>()
-                    : { data: [] as ShiftRecordRow[] };
-
-            let memberSameDayDone = 0;
-            let memberLateOrMissing = 0;
-
-            for (const shift of memberShiftRows) {
-                const record = (memberRecords ?? []).find(
-                    (r) =>
-                        r.shift_id === shift.shift_id &&
-                        completedStatuses.includes(r.status ?? "")
-                );
-
-                if (!record) {
-                    memberLateOrMissing++;
-                    continue;
-                }
-
-                const doneDate = String(
-                    record.updated_at ?? record.created_at ?? ""
-                ).slice(0, 10);
-
-                if (doneDate === shift.shift_start_date) {
-                    memberSameDayDone++;
-                } else {
-                    memberLateOrMissing++;
-                }
-            }
-
-            const memberVisitRate =
-                memberShiftIds.length > 0
-                    ? Math.round((memberSameDayDone / memberShiftIds.length) * 100)
-                    : 0;
-
-            const memberVisitScore =
-                memberLateOrMissing > 0 ? 0 : memberVisitRate;
-
-            const { data: memberMeeting } = await supabaseAdmin
-                .from("monthly_meeting_attendance")
-                .select(
-                    `
-                required,
-                attended_regular,
-                attended_extra,
-                checked_regular,
-                checked_extra,
-                updated_at
-                `
-                )
-                .eq("user_id", memberUserId)
-                .eq("target_month", `${getPreviousYm(ym)}-01`)
-                .maybeSingle<MeetingAttendanceRow>();
-
-            const { meetingScore: memberMeetingScore } = calcMeetingScore(memberMeeting, ym);
-
-            const { data: memberJissekiRows } = await supabaseAdmin
-                .from("disability_check_view")
-                .select(
-                    `
-                is_checked,
-                application_check,
-                asigned_jisseki_staff_id
-                `
-                )
-                .eq("year_month", ym)
-                .eq("asigned_jisseki_staff_id", memberUserId)
-                .returns<DisabilityCheckRow[]>();
-
-            const memberJissekiTotal = memberJissekiRows?.length ?? 0;
-
-            const memberJissekiDone =
-                memberJissekiRows?.filter(
-                    (r) =>
-                        r.is_checked === true ||
-                        r.application_check === true
-                ).length ?? 0;
-
-            const memberJissekiScore =
-                memberJissekiTotal > 0
-                    ? Math.round((memberJissekiDone / memberJissekiTotal) * 100)
-                    : 0;
-
-            const { data: memberGoals } =
-                memberEntryId
-                    ? await supabaseAdmin
-                        .from("employee_training_goals")
-                        .select("id, selected, watched")
-                        .eq("entry_id", memberEntryId)
-                        .eq("row_type", "goal")
-                        .eq("selected", true)
-                        .eq("watched", true)
-                        .returns<GoalRow[]>()
-                    : { data: [] as GoalRow[] };
-
-            const memberWatchedGoalCount = memberGoals?.length ?? 0;
-
-            const memberGoalScore = memberWatchedGoalCount * 5;
-            const memberTotalScore =
-                Math.round((memberServiceScore / 100) * SCORE_WEIGHTS.serviceHours) +
-                Math.round((memberVisitScore / 100) * SCORE_WEIGHTS.visitRecord) +
-                Math.round((memberMeetingScore / 100) * SCORE_WEIGHTS.meeting) +
-                Math.round((memberJissekiScore / 100) * SCORE_WEIGHTS.jisseki) +
-                memberGoalScore;
-
-            return {
-                userId: memberUserId,
-                totalScore: memberTotalScore,
-            };
-        })
-    );
-
-    const sortedRankingScores = rankingScores
-        .filter((row) => Number.isFinite(row.totalScore))
-        .sort((a, b) => b.totalScore - a.totalScore);
-
-    const currentRank =
-        sortedRankingScores.findIndex((row) => row.userId === userId) + 1;
-
-    const ranking = {
-        rank: currentRank > 0 ? currentRank : null,
-        totalMembers: sortedRankingScores.length,
-    };
-
-    const topRanking = sortedRankingScores
-        .slice(0, 10)
-        .map((row, index) => {
-            const member = members.find(
-                (m) => m.user_id === row.userId
-            );
-
-            return {
-                rank: index + 1,
-                userId: row.userId,
-                score: row.totalScore,
-                name: member
-                    ? `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`
-                    : row.userId,
-            };
-        });
-
-    const historyMonths = buildRecentMonthsByYm(ym, 6);
-
-    const scoreHistory = await Promise.all(
-        historyMonths.map(async (month) => {
-            const range = getMonthRange(month.value);
-
-            const monthlyScores = await Promise.all(
-                members.map(async (member) => {
-                    const monthlyTotalScore = await calculateMemberTotalScore({
-                        memberUserId: member.user_id,
-                        memberEntryId: member.entry_id,
-                        targetYm: range.ym,
-                        targetStartDate: range.startDate,
-                        targetEndDate: range.endDate,
-                    });
-
-                    return {
-                        userId: member.user_id,
-                        totalScore: monthlyTotalScore,
-                    };
-                })
-            );
-
-            const sortedMonthlyScores = monthlyScores
-                .filter((row) => Number.isFinite(row.totalScore))
-                .sort((a, b) => b.totalScore - a.totalScore);
-
-            const rankIndex = sortedMonthlyScores.findIndex(
-                (row) => row.userId === userId
-            );
-
-            const myScore = sortedMonthlyScores.find(
-                (row) => row.userId === userId
-            );
-
-            return {
-                month: month.value,
-                label: month.label,
-                score: myScore?.totalScore ?? 0,
-                rank: rankIndex >= 0 ? rankIndex + 1 : null,
-            };
-        })
-    );
+    const totalScore = Number(summary.total_score ?? 0);
 
     return NextResponse.json({
         month: ym,
         monthOptions,
         userId,
-        userName: `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
+        userName:
+            summary.staff_name ??
+            `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,
-        totalMaxScore,
-        badge: getBadge(totalScore),
-        metrics,
-        ranking,
-        topRanking,
-        scoreHistory,
+        totalMaxScore: 150,
+        badge: summary.medal_rank ?? getBadge(totalScore),
+        metrics: [
+            {
+                key: "service_hours",
+                label: "サービス時間",
+                score: Math.min(80, Math.floor(Number(summary.service_hours ?? 0) / 20) * 10),
+                maxScore: 80,
+                note: `${summary.service_hours ?? 0}時間`,
+            },
+            {
+                key: "visit_record",
+                label: "訪問記録",
+                score:
+                    Number(summary.houmon_same_day_done_count ?? 0) * 2 +
+                    Number(summary.houmon_late_done_count ?? 0),
+                maxScore: 30,
+                note: `当日完了 ${summary.houmon_same_day_done_count ?? 0}件 / 遅れ完了 ${summary.houmon_late_done_count ?? 0}件 / 当月未完了 ${summary.visit_record_current_month_incomplete_count ?? 0}件 / 過去未完了 ${summary.visit_record_past_incomplete_count ?? 0}件`,
+            },
+            {
+                key: "meeting",
+                label: "会議参加",
+                score:
+                    summary.meeting_previous_month_attended === true ||
+                        summary.meeting_past_attended === true
+                        ? 10
+                        : 0,
+                maxScore: 10,
+                note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
+            },
+            {
+                key: "jisseki",
+                label: "実績記録",
+                score: Number(summary.jisseki_previous_month_done_count ?? 0) * 2,
+                maxScore: 30,
+                note: `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件 / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
+            },
+            {
+                key: "training_goal",
+                label: "目標設定",
+                score: Number(summary.training_goal_selected_count ?? 0) * 5,
+                maxScore: 20,
+                note: `${summary.training_goal_selected_count ?? 0}件`,
+            },
+        ],
+        ranking: {
+            rank: summary.rank_no,
+            totalMembers: rankingRows?.length ?? 0,
+        },
+        topRanking: (rankingRows ?? []).slice(0, 10).map((row) => ({
+            rank: row.rank_no ?? 0,
+            userId: row.user_id,
+            score: Number(row.total_score ?? 0),
+            name: row.staff_name ?? row.user_id,
+        })),
+        scoreHistory: (historyRows ?? []).map((row) => {
+            const month = String(row.target_month).slice(0, 7);
+            return {
+                month,
+                label: `${Number(month.slice(5, 7))}月`,
+                score: Number(row.total_score ?? 0),
+                rank: row.rank_no,
+            };
+        }),
         members: members.map((member) => ({
             userId: member.user_id,
             name: `${member.last_name_kanji ?? ""}${member.first_name_kanji ?? ""}`,
