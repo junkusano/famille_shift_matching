@@ -225,13 +225,13 @@ const canSubmit =
 
         const { data: latestScore } = await supabase
          .from("staff_monthly_score_summaries")
-         .select("performance_score_rank")
+         .select("medal_rank")
          .eq("user_id", currentUser.user_id)
          .order("target_month", { ascending: false })
          .limit(1)
          .maybeSingle();
 
-        setPerformanceRank(latestScore?.performance_score_rank ?? "bronze");
+        setPerformanceRank(latestScore?.medal_rank ?? "bronze");
 
         const startDate = start.toISOString().slice(0, 10);
         const endDate = end.toISOString().slice(0, 10);
