@@ -1035,10 +1035,31 @@ export default function TrainingGoalsPage() {
                                     </td>
                                     <td className="border px-3 py-2">{row.goal_title}</td>
                                     <td className="border px-3 py-2 text-center">
-                                        {row.selected ? '設定済' : '未設定'}
+                                        <span
+                                            className={
+                                                row.selected
+                                                    ? 'text-green-600 font-semibold'
+                                                    : 'text-orange-500 font-semibold'
+                                            }
+                                        >
+                                            {row.selected ? '設定済' : '未設定'}
+                                        </span>
                                     </td>
+
                                     <td className="border px-3 py-2 text-center">
-                                        {row.selected ? (row.watched ? '完了' : '未完了') : '未設定'}
+                                        <span
+                                            className={
+                                                !row.selected
+                                                    ? 'text-orange-500 font-semibold'
+                                                    : row.watched
+                                                        ? 'text-green-600 font-semibold'
+                                                        : 'text-red-500 font-semibold'
+                                            }
+                                        >
+                                            {row.selected
+                                                ? (row.watched ? '完了' : '未完了')
+                                                : '未設定'}
+                                        </span>
                                     </td>
                                 </tr>
                             ))}
