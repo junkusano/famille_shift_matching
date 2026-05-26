@@ -163,21 +163,6 @@ export async function PATCH(req: NextRequest) {
             updateRow.training_code = String(body.training_code ?? "").trim();
         }
 
-        if ("training_type" in body || "training_code" in body) {
-            const nextTrainingType = String(body.training_type ?? "").trim();
-            const nextTrainingCode = String(body.training_code ?? "").trim();
-
-            if (!nextTrainingType) {
-                return json({ ok: false, error: "training_type required" }, 400);
-            }
-
-            if (!nextTrainingCode) {
-                return json({ ok: false, error: "training_code required" }, 400);
-            }
-
-            updateRow.training_key = `${nextTrainingType}_${nextTrainingCode}`;
-        }
-
         if ("training_title" in body) {
             const trainingTitle = String(body.training_title ?? "").trim();
             if (!trainingTitle) {
