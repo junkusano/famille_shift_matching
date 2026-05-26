@@ -308,9 +308,7 @@ export default function TrainingGoalsPage() {
                         employeeRows.map((e) => e.entry_id)
                     )
                     .eq('row_type', 'goal')
-                    .eq('selected', true)
-                    .eq('watched', true);
-
+                    .eq('selected', true);
                 if (allSelectionError) {
                     console.error('all employee_training_goals load error:', allSelectionError);
                     setRows([]);
@@ -321,48 +319,56 @@ export default function TrainingGoalsPage() {
                 const selectionsByEntryId = new Map<string, TrainingGoalSelectionRow[]>();
 
                 for (const row of (allSelectionData ?? []) as TrainingGoalSelectionRow[]) {
-                    if (!row.selected || !row.watched) continue;
+                    if (!row.selected) continue;
 
                     const current = selectionsByEntryId.get(row.entry_id) ?? [];
                     current.push(row);
                     selectionsByEntryId.set(row.entry_id, current);
                 }
-
-                const allJoined: JoinedRow[] = employeeRows.map((emp) => {
+                const allJoined: JoinedRow[] = employeeRows.flatMap((emp) => {
                     const selectedGoals = selectionsByEntryId.get(emp.entry_id) ?? [];
 
-                    const goalText =
-                        selectedGoals.length > 0
-                            ? selectedGoals
-                                .map((goal) => goal.training_goal || goal.goal_title)
-                                .filter(Boolean)
-                                .join('\n')
-                            : '未設定';
+                    if (selectedGoals.length === 0) {
+                        return [{
+                            id: `summary-${emp.entry_id}-empty`,
+                            entry_id: emp.entry_id,
+                            goal_key: `summary-${emp.entry_id}-empty`,
+                            goal_title: '未設定',
+                            video_url: null,
+                            selected: false,
+                            watched: false,
+                            remark: null,
+                            sort_order: 0,
+                            created_at: '',
+                            updated_at: '',
+                            category: null,
+                            group_code: null,
+                            target_condition: null,
+                            training_goal: null,
+                            row_type: 'goal' as const,
+                            entry: emp,
+                        }];
+                    }
 
-                    const watchedText =
-                        selectedGoals.length === 0
-                            ? false
-                            : selectedGoals.every((goal) => goal.watched);
-
-                    return {
-                        id: `summary-${emp.entry_id}`,
+                    return selectedGoals.map((goal) => ({
+                        id: goal.id,
                         entry_id: emp.entry_id,
-                        goal_key: `summary-${emp.entry_id}`,
-                        goal_title: goalText,
-                        video_url: null,
-                        selected: selectedGoals.length > 0,
-                        watched: watchedText,
-                        remark: null,
-                        sort_order: 0,
-                        created_at: '',
-                        updated_at: '',
-                        category: null,
-                        group_code: null,
-                        target_condition: null,
-                        training_goal: null,
-                        row_type: 'goal',
+                        goal_key: goal.goal_key,
+                        goal_title: goal.training_goal || goal.goal_title,
+                        video_url: goal.video_url,
+                        selected: goal.selected,
+                        watched: goal.watched,
+                        remark: goal.remark,
+                        sort_order: goal.sort_order,
+                        created_at: goal.created_at,
+                        updated_at: goal.updated_at,
+                        category: goal.category,
+                        group_code: goal.group_code,
+                        target_condition: goal.target_condition,
+                        training_goal: goal.training_goal,
+                        row_type: goal.row_type,
                         entry: emp,
-                    };
+                    }));
                 });
 
                 setRows(allJoined);
