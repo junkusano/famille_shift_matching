@@ -509,7 +509,7 @@ export default function TrainingGoalsPage() {
             if (isAllEmployeesView) {
                 // すべて表示では未設定も見せたいので、ここでは絞らない
             } else if (displayRole !== 'member' && ['admin', 'manager'].includes(effectiveRole)) {
-                if (!row.selected || !row.watched) return false;
+                if (!row.selected) return false;
             } else if (showOnlySelected && !row.selected) {
                 return false;
             }
