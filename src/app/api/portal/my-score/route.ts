@@ -335,6 +335,14 @@ export async function GET(req: NextRequest) {
 
     const totalScore = Number(summary.total_score ?? 0);
 
+    const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
+    const visitRecordSameDayCount = Number(summary.houmon_same_day_done_count ?? 0);
+
+    const visitRecordScore =
+        visitRecordTotalCount > 0
+            ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
+            : 0;
+
     return NextResponse.json({
         month: ym,
         monthOptions,
@@ -356,9 +364,7 @@ export async function GET(req: NextRequest) {
             {
                 key: "visit_record",
                 label: "訪問記録",
-                score:
-                    Number(summary.houmon_same_day_done_count ?? 0) * 2 +
-                    Number(summary.houmon_late_done_count ?? 0),
+                score: visitRecordScore,
                 maxScore: 30,
                 note: `当日完了 ${summary.houmon_same_day_done_count ?? 0}件 / 遅れ完了 ${summary.houmon_late_done_count ?? 0}件 / 当月未完了 ${summary.visit_record_current_month_incomplete_count ?? 0}件 / 過去未完了 ${summary.visit_record_past_incomplete_count ?? 0}件`,
             },
