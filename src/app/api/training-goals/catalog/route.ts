@@ -198,6 +198,23 @@ export async function PATCH(req: NextRequest) {
                     : Number(body.sort_order);
         }
 
+        if ("target_role" in body) {
+            const targetRole = String(body.target_role ?? "both").trim();
+            updateRow.target_role = targetRole || "both";
+        }
+
+        if ("target_group" in body) {
+            const targetGroup = String(body.target_group ?? "").trim();
+            updateRow.target_group = targetGroup ? targetGroup : null;
+        }
+
+        if ("training_month" in body) {
+            updateRow.training_month =
+                body.training_month === null || body.training_month === ""
+                    ? null
+                    : Number(body.training_month);
+        }
+
         if (Object.keys(updateRow).length === 1) {
             return json({ ok: false, error: "no update fields" }, 400);
         }
