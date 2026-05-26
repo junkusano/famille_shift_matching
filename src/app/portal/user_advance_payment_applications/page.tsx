@@ -66,7 +66,7 @@ const confirmItems: Array<{ key: ConfirmKey; label: string; description: string 
   {
     key: "insuranceAccepted",
     label: "加入保険の状況により、振込可能額が変動する場合があることを了承しました。",
-    description: "申請可能額は、社会保険・雇用保険等の加入状況、社員貸付の有無により減額される場合があります。複数条件に該当する場合は、それぞれ10%ずつ控除され、最大30%控除後の金額が申請上限額となります。",
+    description: "申請可能額は、社会保険・雇用保険等の加入状況、社員貸付の有無により減額される場合があります。複数条件に該当する場合は、それぞれ10%ずつ控除され、最大30%控除後の金額が申請上限額となります。日払いで控除された費用については概算の金額のため給与支給日に精算されます",
   },
 ];
 
@@ -150,13 +150,27 @@ export default function UserAdvancePaymentConfirmPage() {
   });
 
   const [message, setMessage] = useState("");
+const [performanceRank, setPerformanceRank] =
+  useState("bronze");
+
   const [errorMessage, setErrorMessage] = useState("");
 
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
-  const canSubmit = hasSelectedShift && allChecked && !submitting;
+
+const isSilverOrHigher =
+  performanceRank === "silver" ||
+  performanceRank === "gold" ||
+  performanceRank === "platinum";
+
+const canSubmit =
+  isSilverOrHigher &&
+  hasSelectedShift &&
+  allChecked &&
+  !submitting;
+  
 
   const baseAmount = targetShifts.length * 10000;
 
@@ -203,6 +217,16 @@ export default function UserAdvancePaymentConfirmPage() {
 
         const currentUser = loginUser as LoginUser;
         setMe(currentUser);
+
+        const { data: latestScore } = await supabase
+         .from("staff_monthly_score_summaries")
+         .select("performance_score_rank")
+         .eq("user_id", currentUser.user_id)
+         .order("target_month", { ascending: false })
+         .limit(1)
+         .maybeSingle();
+
+        setPerformanceRank(latestScore?.performance_score_rank ?? "bronze");
 
         const startDate = start.toISOString().slice(0, 10);
         const endDate = end.toISOString().slice(0, 10);
@@ -472,6 +496,13 @@ export default function UserAdvancePaymentConfirmPage() {
                  {calculation.reasons.join(" / ")}
               </div>
             </div>
+
+            {!isSilverOrHigher && (
+               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                 先払い制度は、パフォーマンススコアが
+                 シルバー以上の職員のみ利用できます。
+               </div>
+            )}
 
             <Button
               type="button"
