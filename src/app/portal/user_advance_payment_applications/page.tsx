@@ -57,7 +57,7 @@ const confirmItems: Array<{ key: ConfirmKey; label: string; description: string 
   {
     key: "recordRequired",
     label: "訪問記録が未提出の場合、振込処理が完了しないことを了承しました。",
-    description: "先払い申請後でも、必要な訪問記録の提出が確認できない場合は振込対象外となることがあります。",
+    description: "日払い申請後でも、必要な訪問記録の提出が確認できない場合は振込対象外となることがあります。",
   },
   {
     key: "feeAccepted",
@@ -364,7 +364,7 @@ const canSubmit =
       <div className="mx-auto max-w-4xl space-y-5">
         <div>
           <p className="text-sm text-slate-500">Advance Payment</p>
-          <h1 className="text-2xl font-bold">先払い申請</h1>
+          <h1 className="text-2xl font-bold">日払い申請</h1>
           <p className="mt-2 text-sm text-slate-600">
             前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。
           </p>
@@ -504,13 +504,13 @@ const canSubmit =
 
             {!isSilverOrHigher && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                 先払い制度は、パフォーマンススコアが
+                 日払い制度は、パフォーマンススコアが
                  シルバー以上の職員のみ利用できます。
                </div>
             )}
             {isManager && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                マネージャー権限の方は、この画面を確認できますが、先払い申請はできません。
+                マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
                </div>
             )}
 
@@ -520,7 +520,7 @@ const canSubmit =
               disabled={!canSubmit}
               onClick={submitApplication}
             >
-              {submitting ? "申請中..." : "先払い申請を送信"}
+              {submitting ? "申請中..." : "日払い申請を送信"}
             </Button>
           </div>
         </div>
