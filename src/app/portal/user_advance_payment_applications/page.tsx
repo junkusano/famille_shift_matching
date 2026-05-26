@@ -480,8 +480,7 @@ const canSubmit =
             <div className="text-sm text-slate-600">
               {targetShifts.length === 0
                 ? "申請可能な対象シフトがありません。"
-                : !hasSelectedShift
-                  ? "申請するシフトを1件以上選択してください。"
+
                   : !allChecked
                     ? "確認事項をすべてチェックしてください。"
                     : "申請できます。"}
