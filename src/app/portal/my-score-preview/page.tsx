@@ -305,8 +305,13 @@ function MyScorePreviewContent() {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <div className="text-sm text-gray-500">{score.month}</div>
+
                                 <div className="mt-1 text-xl font-bold">
                                     {score.userName || "ログインユーザー"} さんの成績
+                                </div>
+
+                                <div className="mt-1 text-xs text-slate-500">
+                                    ※ スコア・ランキングは毎日午前3時に自動更新されます
                                 </div>
                             </div>
 

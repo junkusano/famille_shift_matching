@@ -73,13 +73,26 @@ function getTargetMonth(req: NextRequest) {
     }
 
     const now = new Date();
-    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
 
-    if (currentYm < "2026-05") {
+    const year = jst.getFullYear();
+    const month = jst.getMonth() + 1;
+    const day = jst.getDate();
+
+    const targetDate =
+        day === 1
+            ? new Date(year, month - 2, 1)
+            : new Date(year, month - 1, 1);
+
+    const targetYm = `${targetDate.getFullYear()}-${String(
+        targetDate.getMonth() + 1
+    ).padStart(2, "0")}`;
+
+    if (targetYm < "2026-05") {
         return "2026-05-01";
     }
 
-    return `${currentYm}-01`;
+    return `${targetYm}-01`;
 }
 
 function calcVisitRecordScore(row: SummaryRow) {
@@ -129,11 +142,81 @@ export async function GET(req: NextRequest) {
     try {
         const targetMonth = getTargetMonth(req);
 
-        const { data: rows, error } = await supabaseAdmin
+        const { data: initialRows, error } = await supabaseAdmin
             .from("staff_monthly_score_summaries")
             .select("*")
             .eq("target_month", targetMonth)
             .returns<SummaryRow[]>();
+
+        if (error) {
+            throw error;
+        }
+
+        let rows = initialRows ?? [];
+
+        if (!rows || rows.length === 0) {
+            const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
+            const previousMonthDate = new Date(year, month - 2, 1);
+            const previousMonth = `${previousMonthDate.getFullYear()}-${String(
+                previousMonthDate.getMonth() + 1
+            ).padStart(2, "0")}-01`;
+
+            const { data: previousRows, error: previousError } = await supabaseAdmin
+                .from("staff_monthly_score_summaries")
+                .select("*")
+                .eq("target_month", previousMonth)
+                .returns<SummaryRow[]>();
+
+            if (previousError) {
+                throw previousError;
+            }
+
+            const seedRows = (previousRows ?? []).map((row) => ({
+                target_month: targetMonth,
+                user_id: row.user_id,
+                entry_id: row.entry_id,
+                staff_name: row.staff_name,
+                service_hours: 0,
+                visit_record_total_count: 0,
+                houmon_same_day_done_count: 0,
+                houmon_late_done_count: 0,
+                visit_record_current_month_incomplete_count: 0,
+                visit_record_past_incomplete_count: 0,
+                meeting_previous_month_attended: false,
+                meeting_past_attended: false,
+                jisseki_previous_month_done_count: 0,
+                jisseki_past_incomplete_count: 0,
+                training_goal_selected_count: 0,
+                total_score: 0,
+                rank_no: null,
+                medal_rank: "ブロンズ",
+                updated_at: new Date().toISOString(),
+            }));
+
+            if (seedRows.length > 0) {
+                const { error: seedError } = await supabaseAdmin
+                    .from("staff_monthly_score_summaries")
+                    .upsert(seedRows, {
+                        onConflict: "target_month,user_id",
+                    });
+
+                if (seedError) {
+                    throw seedError;
+                }
+
+                const { data: createdRows, error: reloadError } = await supabaseAdmin
+                    .from("staff_monthly_score_summaries")
+                    .select("*")
+                    .eq("target_month", targetMonth)
+                    .returns<SummaryRow[]>();
+
+                if (reloadError) {
+                    throw reloadError;
+                }
+
+                rows = createdRows ?? [];
+            }
+        }
 
         if (error) {
             throw error;
@@ -181,10 +264,20 @@ export async function GET(req: NextRequest) {
         }
 
         const scoredRows = (rows ?? [])
-            .map((row) => ({
-                ...row,
-                total_score: calcTotalScore(row),
-            }))
+            .map((row) => {
+                const rowWithIncompleteCounts = {
+                    ...row,
+                    visit_record_current_month_incomplete_count:
+                        incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
+                    visit_record_past_incomplete_count:
+                        incompleteCountMap.get(row.user_id)?.past ?? 0,
+                };
+
+                return {
+                    ...rowWithIncompleteCounts,
+                    total_score: calcTotalScore(rowWithIncompleteCounts),
+                };
+            })
             .sort((a, b) => b.total_score - a.total_score);
 
         const updates = scoredRows.map((row, index) => ({
