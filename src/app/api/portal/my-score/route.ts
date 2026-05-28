@@ -367,6 +367,9 @@ export async function GET(req: NextRequest) {
         .select("*")
         .eq("target_month", targetMonthDate);
 
+    let currentRankNo = 0;
+    let previousScore: number | null = null;
+
     const rankingRows = (rankingSourceRows ?? [])
         .map((row) => ({
             user_id: row.user_id,
@@ -374,10 +377,18 @@ export async function GET(req: NextRequest) {
             score: calcDisplayTotalScore(row),
         }))
         .sort((a, b) => b.score - a.score)
-        .map((row, index) => ({
-            ...row,
-            rank_no: index + 1,
-        }));
+        .map((row, index) => {
+            if (previousScore === null || previousScore !== row.score) {
+                currentRankNo = index + 1;
+            }
+
+            previousScore = row.score;
+
+            return {
+                ...row,
+                rank_no: currentRankNo,
+            };
+        });
 
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
