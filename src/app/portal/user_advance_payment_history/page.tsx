@@ -255,10 +255,15 @@ export default function UserAdvancePaymentHistoryPage() {
         setRows(historyRows);
       } catch (error) {
         console.error(error);
-        setErrorMessage("履歴データの取得中にエラーが発生しました。");
-      } finally {
-        setLoading(false);
-      }
+        const message = error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : JSON.stringify(error);
+
+        setErrorMessage(`履歴データの取得中にエラーが発生しました：${message}`);
+
+        } finally {
+         setLoading(false);
+         }
     }
 
     fetchHistory();

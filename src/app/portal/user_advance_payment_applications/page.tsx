@@ -28,6 +28,7 @@ type ShiftRow = {
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
   staff_03_user_id: string | null;
+  estimated_pay_amount: number | null;
 };
 
 type TargetShift = {
@@ -240,13 +241,14 @@ const canSubmit =
         const endDate = end.toISOString().slice(0, 10);
 
         const { data, error } = await supabase
-          .from("shift_csinfo_postalname_view")
+          .from("shift_self_coordinate_card_view")
           .select(`
             shift_id,
             shift_start_date,
             shift_start_time,
             shift_end_time,
             service_code,
+            estimated_pay_amount,
             kaipoke_cs_id,
             name,
             district,
@@ -280,7 +282,7 @@ const canSubmit =
             address: shift.district ?? "",
             service_code: shift.service_code ?? "",
 
-            amount: 10000,
+            amount: Number(shift.estimated_pay_amount ?? 0),
           }));
 
         setTargetShifts(filtered);
