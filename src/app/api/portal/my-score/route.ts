@@ -381,7 +381,17 @@ export async function GET(req: NextRequest) {
 
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
-        .select("target_month, total_score, rank_no")
+        .select(`
+        target_month,
+        rank_no,
+        service_hours,
+        visit_record_total_count,
+        houmon_same_day_done_count,
+        meeting_previous_month_attended,
+        meeting_past_attended,
+        jisseki_previous_month_done_count,
+        training_goal_selected_count
+    `)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
         .order("target_month", { ascending: true });
@@ -478,7 +488,7 @@ export async function GET(req: NextRequest) {
             return {
                 month,
                 label: `${Number(month.slice(5, 7))}月`,
-                score: Number(row.total_score ?? 0),
+                score: calcDisplayTotalScore(row),
                 rank: row.rank_no,
             };
         }),
