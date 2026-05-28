@@ -40,6 +40,22 @@ const channelId = roomData.channel_id;
 console.log(channelId);
 console.log(text);
 
+const { data: managerRoom, error: managerRoomError } =
+  await supabase
+    .from("group_lw_channel_view")
+    .select("channel_id")
+    .eq("group_name", "ヘルパーマネージャー")
+    .maybeSingle();
+
+if (managerRoomError) throw managerRoomError;
+
+if (managerRoom?.channel_id) {
+  console.log("manager channel:", managerRoom.channel_id);
+  console.log(text);
+
+  // 後でここをLINE WORKS送信へ置換
+}
+
     // ここで LINE WORKS API送信
 
     return NextResponse.json({

@@ -96,23 +96,6 @@ function toJstDateString(date = new Date()) {
     .slice(0, 10);
 }
 
-function getAvailableApplicationDate(shiftDate: string, shiftEndTime: string) {
-  const endTime = (shiftEndTime || "").slice(0, 5);
-
-  if (endTime <= "18:00") {
-    return shiftDate;
-  }
-
-  const date = new Date(`${shiftDate}T00:00:00`);
-  date.setDate(date.getDate() + 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function isShiftApplicationTarget(shiftDate: string, shiftEndTime: string) {
-  const todayJst = toJstDateString();
-  return todayJst >= getAvailableApplicationDate(shiftDate, shiftEndTime);
-}
-
 function yen(value: number | null) {
   if (value === null) return "-";
   return `¥${value.toLocaleString()}`;
@@ -257,45 +240,27 @@ const staffNameById = new Map<string, string>();
   staffNameById.set(staff.user_id, name || staff.user_id);
 });
 
-        const historyRows: HistoryRow[] = ((shiftsData ?? []) as ShiftRow[])
-          .filter((shift) => isShiftApplicationTarget(shift.shift_start_date, shift.shift_end_time))
-          .map((shift) => {
-            const app = appByShiftId.get(shift.shift_id);
-            const rawStatus = app?.status ?? "unsubmitted";
+       const historyRows: HistoryRow[] = applications.map((app) => ({
+  shift_id: app.shift_ids?.join(",") ?? "",
+  shift_start_date: app.created_at.slice(0, 10),
+  shift_start_time: "",
+  shift_end_time: "",
+  client_name: "-",
+  staff_user_ids: [],
+  staff_names: [],
 
-            return {
-              shift_id: shift.shift_id,
-              shift_start_date: shift.shift_start_date,
-              shift_start_time: shift.shift_start_time,
-              shift_end_time: shift.shift_end_time,
-              client_name: shift.name ?? shift.kaipoke_cs_id ?? "-",
-              staff_user_ids: [
-                shift.staff_01_user_id,
-                shift.staff_02_user_id,
-                shift.staff_03_user_id,
-              ].filter((v): v is string => Boolean(v)),
+  application_no: app.application_no,
+  application_status: app.status,
+  application_status_label: statusLabel[app.status] ?? app.status,
+  applicant_name: app.employee_name ?? app.user_id ?? "-",
+  amount: Number(app.amount),
+  desired_payment_date: app.desired_payment_date,
+  applied_at: app.created_at,
+  rejected_reason: app.rejected_reason,
 
-              staff_names: [
-                shift.staff_01_user_id,
-                shift.staff_02_user_id,
-                shift.staff_03_user_id,
-              ]
-                 .filter((v): v is string => Boolean(v))
-                .map((id) => staffNameById.get(id) ?? id),
-              application_no: app?.application_no ?? null,
-              application_status: rawStatus,
-              application_status_label: statusLabel[rawStatus] ?? rawStatus,
-              applicant_name: app?.employee_name ?? null,
-              amount: app ? Number(app.amount) : null,
-              desired_payment_date: app?.desired_payment_date ?? null,
-              applied_at: app?.created_at ?? null,
-              rejected_reason: app?.rejected_reason ?? null,
-              deduction_reasons: app?.deduction_reasons ?? [],
-              deduction_rate: app?.deduction_rate
-                ? Number(app.deduction_rate)
-                : null,
-            };
-          });
+  deduction_reasons: app.deduction_reasons ?? [],
+  deduction_rate: app.deduction_rate ? Number(app.deduction_rate) : null,
+}));
 
         setRows(historyRows);
       } catch (error) {
