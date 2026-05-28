@@ -387,6 +387,20 @@ const baseAmount = targetShifts
 
       if (error) throw error;
 
+      await fetch("/api/lineworks/advance-payment-notify", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    userId: me.user_id,
+    userName: employeeName || me.user_id,
+    applicationDate: toJstDateString(),
+    amount: calculation.availableAmount,
+    applicationNo,
+  }),
+});
+
       setMessage(`日払い申請を受け付けました。申請番号：${applicationNo}`);
     } catch (error) {
       console.error(error);
@@ -479,6 +493,12 @@ const baseAmount = targetShifts
 >
   訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
 </div>
+<a
+  href="/portal/shift"
+  className="mt-2 inline-block text-sm font-semibold text-blue-600 underline"
+>
+  シフト・訪問記録を確認する
+</a>
 
 <div className="mt-2 text-sm font-semibold text-slate-900">
   日払い対象額：

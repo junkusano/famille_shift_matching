@@ -59,6 +59,7 @@ type HistoryRow = {
   shift_end_time: string;
   client_name: string;
   staff_user_ids: string[];
+  staff_names: string[];
   application_no: string | null;
   application_status: string;
   application_status_label: string;
@@ -230,6 +231,32 @@ export default function UserAdvancePaymentHistoryPage() {
           });
         });
 
+        const staffIds = Array.from(
+  new Set(
+    ((shiftsData ?? []) as ShiftRow[])
+      .flatMap((shift) => [
+        shift.staff_01_user_id,
+        shift.staff_02_user_id,
+        shift.staff_03_user_id,
+      ])
+      .filter((v): v is string => Boolean(v))
+  )
+);
+
+const { data: staffRows, error: staffError } = await supabase
+  .from("user_entry_united_view")
+  .select("user_id,last_name_kanji,first_name_kanji")
+  .in("user_id", staffIds);
+
+if (staffError) throw staffError;
+
+const staffNameById = new Map<string, string>();
+
+(staffRows ?? []).forEach((staff) => {
+  const name = `${staff.last_name_kanji ?? ""} ${staff.first_name_kanji ?? ""}`.trim();
+  staffNameById.set(staff.user_id, name || staff.user_id);
+});
+
         const historyRows: HistoryRow[] = ((shiftsData ?? []) as ShiftRow[])
           .filter((shift) => isShiftApplicationTarget(shift.shift_start_date, shift.shift_end_time))
           .map((shift) => {
@@ -247,6 +274,14 @@ export default function UserAdvancePaymentHistoryPage() {
                 shift.staff_02_user_id,
                 shift.staff_03_user_id,
               ].filter((v): v is string => Boolean(v)),
+
+              staff_names: [
+                shift.staff_01_user_id,
+                shift.staff_02_user_id,
+                shift.staff_03_user_id,
+              ]
+                 .filter((v): v is string => Boolean(v))
+                .map((id) => staffNameById.get(id) ?? id),
               application_no: app?.application_no ?? null,
               application_status: rawStatus,
               application_status_label: statusLabel[rawStatus] ?? rawStatus,
@@ -417,7 +452,7 @@ export default function UserAdvancePaymentHistoryPage() {
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-100 text-left text-slate-600">
                     <tr>
-                    <th className="p-3">申請日</th>
+                    <th className="p-3">シフト日</th>
                     <th className="p-3">申請者</th>
                     <th className="p-3">ステータス</th>
                     <th className="p-3">申請金額</th>
@@ -428,9 +463,9 @@ export default function UserAdvancePaymentHistoryPage() {
                    {filteredRows.map((row) => (
   <tr key={row.application_no ?? row.shift_id} className="border-t">
     <td className="p-3">
-      {row.applied_at ? row.applied_at.slice(0, 10) : "-"}
+      {row.shift_start_date}
     </td>
-    <td className="p-3">{row.applicant_name ?? "-"}</td>
+    <td className="p-3">{row.staff_names.join(" / ") || "-"}</td>
     <td className="p-3">
       <span
         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
