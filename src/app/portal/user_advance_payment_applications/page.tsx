@@ -39,6 +39,7 @@ type TargetShift = {
   client_name: string;
   address: string;
   service_code: string;
+  amount: number;
 };
 
 type ConfirmKey =
@@ -176,7 +177,10 @@ const canSubmit =
   !submitting;
   
 
-  const baseAmount = targetShifts.length * 10000;
+  const baseAmount = targetShifts.reduce(
+  (sum, shift) => sum + shift.amount,
+  0
+);
 
   const calculation = calculateAvailableAmount({
     baseAmount,
@@ -275,6 +279,8 @@ const canSubmit =
             client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
             address: shift.district ?? "",
             service_code: shift.service_code ?? "",
+
+            amount: 10000,
           }));
 
         setTargetShifts(filtered);
@@ -309,7 +315,10 @@ const canSubmit =
       setErrorMessage("");
       setMessage("");
 
-      const baseAmount = targetShifts.length * 10000;
+      const baseAmount = targetShifts.reduce(
+  (sum, shift) => sum + shift.amount,
+  0
+);
 
       const calculation = calculateAvailableAmount({
         baseAmount,
@@ -437,6 +446,10 @@ const canSubmit =
                         {shift.service_code && shift.address && <span> ／ </span>}
                         {shift.address && <span>{shift.address}</span>}
                       </div>
+
+                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                        日払い対象額：¥{shift.amount.toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -502,6 +515,7 @@ const canSubmit =
                 控除率： {Math.round(calculation.deductionRate * 100)}%
               </div>
               <div className="mt-1 text-xs text-slate-500">
+            
                  {calculation.reasons.join(" / ")}
               </div>
             </div>
