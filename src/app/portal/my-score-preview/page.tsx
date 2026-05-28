@@ -399,11 +399,11 @@ function MyScorePreviewContent() {
 
                         <div className="mt-6">
                             <div className="mb-3 text-lg font-bold text-blue-950">
-                                上位ランキング
+                                ランキング TOP100
                             </div>
 
                             <div className="space-y-2">
-                                {score.topRanking.map((user) => {
+                                {score.topRanking.slice(0, 100).map((user) => {
                                     const isTop3 = user.rank <= 3;
 
                                     return (
@@ -443,12 +443,14 @@ function MyScorePreviewContent() {
                                             </div>
                                             <div
                                                 className={`rounded-full px-3 py-1 text-xs font-bold ${user.badge === "プラチナ"
-                                                        ? "bg-slate-900 text-white"
-                                                        : user.badge === "ゴールド"
-                                                            ? "bg-yellow-100 text-yellow-800"
-                                                            : user.badge === "シルバー"
-                                                                ? "bg-gray-100 text-gray-700"
-                                                                : "bg-orange-100 text-orange-800"
+                                                    ? "bg-slate-900 text-white"
+                                                    : user.badge === "ゴールド"
+                                                        ? "bg-yellow-100 text-yellow-800"
+                                                        : user.badge === "シルバー"
+                                                            ? "bg-gray-100 text-gray-700"
+                                                            : user.badge === "ブロンズ"
+                                                                ? "bg-orange-100 text-orange-800"
+                                                                : "bg-gray-100 text-gray-700"
                                                     }`}
                                             >
                                                 {user.badge}
