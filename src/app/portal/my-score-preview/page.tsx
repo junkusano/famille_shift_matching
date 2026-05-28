@@ -453,7 +453,15 @@ function MyScorePreviewContent() {
                                                                 : "bg-gray-100 text-gray-700"
                                                     }`}
                                             >
-                                                {user.badge}
+                                                {user.badge === "プラチナ"
+                                                    ? "🏆 プラチナ"
+                                                    : user.badge === "ゴールド"
+                                                        ? "🥇 ゴールド"
+                                                        : user.badge === "シルバー"
+                                                            ? "🥈 シルバー"
+                                                            : user.badge === "ブロンズ"
+                                                                ? "🥉 ブロンズ"
+                                                                : user.badge}
                                             </div>
                                         </div>
                                     );

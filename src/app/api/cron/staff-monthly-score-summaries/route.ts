@@ -20,6 +20,51 @@ type SummaryRow = {
     training_goal_selected_count: number | null;
 };
 
+type ShiftRecordViewRow = {
+    shift_start_date: string | null;
+    staff_01_user_id: string | null;
+    staff_02_user_id: string | null;
+    staff_03_user_id: string | null;
+    record_status: string | null;
+};
+
+type IncompleteCount = {
+    currentMonth: number;
+    past: number;
+};
+
+function getJstTodayDateString() {
+    const now = new Date();
+    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
+    return `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, "0")}-${String(
+        jst.getDate()
+    ).padStart(2, "0")}`;
+}
+
+function getNextMonthStartDate(targetMonth: string) {
+    const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
+    const nextMonth = new Date(year, month, 1);
+
+    return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function addIncompleteCount(
+    map: Map<string, IncompleteCount>,
+    userId: string,
+    type: "currentMonth" | "past"
+) {
+    if (!userId) return;
+
+    const current = map.get(userId) ?? {
+        currentMonth: 0,
+        past: 0,
+    };
+
+    current[type] += 1;
+    map.set(userId, current);
+}
+
 function getTargetMonth(req: NextRequest) {
     const ym = req.nextUrl.searchParams.get("ym");
 
@@ -94,6 +139,47 @@ export async function GET(req: NextRequest) {
             throw error;
         }
 
+        const todayDate = getJstTodayDateString();
+        const nextMonthStart = getNextMonthStartDate(targetMonth);
+
+        const currentMonthEndDate =
+            todayDate < nextMonthStart ? todayDate : nextMonthStart;
+
+        const { data: shiftRecordRows, error: shiftRecordError } = await supabaseAdmin
+            .from("shift_shift_record_view")
+            .select(
+                "shift_start_date, staff_01_user_id, staff_02_user_id, staff_03_user_id, record_status"
+            )
+            .gte("shift_start_date", "2025-11-01")
+            .lt("shift_start_date", nextMonthStart)
+            .returns<ShiftRecordViewRow[]>();
+
+        if (shiftRecordError) {
+            throw shiftRecordError;
+        }
+
+        const incompleteCountMap = new Map<string, IncompleteCount>();
+
+        for (const shift of shiftRecordRows ?? []) {
+            if (!shift.shift_start_date) continue;
+            if (shift.record_status === "submitted") continue;
+
+            const type =
+                shift.shift_start_date >= targetMonth &&
+                    shift.shift_start_date < currentMonthEndDate
+                    ? "currentMonth"
+                    : shift.shift_start_date >= "2025-11-01" &&
+                        shift.shift_start_date < targetMonth
+                        ? "past"
+                        : null;
+
+            if (!type) continue;
+
+            addIncompleteCount(incompleteCountMap, shift.staff_01_user_id ?? "", type);
+            addIncompleteCount(incompleteCountMap, shift.staff_02_user_id ?? "", type);
+            addIncompleteCount(incompleteCountMap, shift.staff_03_user_id ?? "", type);
+        }
+
         const scoredRows = (rows ?? [])
             .map((row) => ({
                 ...row,
@@ -112,9 +198,9 @@ export async function GET(req: NextRequest) {
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
             houmon_late_done_count: row.houmon_late_done_count ?? 0,
             visit_record_current_month_incomplete_count:
-                row.visit_record_current_month_incomplete_count ?? 0,
+                incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
             visit_record_past_incomplete_count:
-                row.visit_record_past_incomplete_count ?? 0,
+                incompleteCountMap.get(row.user_id)?.past ?? 0,
             meeting_previous_month_attended:
                 row.meeting_previous_month_attended ?? false,
             meeting_past_attended: row.meeting_past_attended ?? false,
