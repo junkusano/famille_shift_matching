@@ -257,7 +257,7 @@ function MyScorePreviewContent() {
                         </div>
                     )}
 
-                    {score && (
+                    {score && score.members.length > 1 && (
                         <div className="rounded-lg border bg-white p-4 shadow-sm">
                             <label className="mb-1 block text-sm font-semibold">
                                 表示する従業員
@@ -276,13 +276,8 @@ function MyScorePreviewContent() {
                                     </option>
                                 ))}
                             </select>
-
-                            <div className="mt-2 text-xs text-red-500">
-                                ※ 従業員切り替えは今だけの確認用です。リリース時は削除してください。
-                            </div>
                         </div>
                     )}
-
                     <Link href="/portal" className="text-sm text-blue-600 hover:underline">
                         ポータルへ戻る
                     </Link>

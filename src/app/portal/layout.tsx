@@ -146,7 +146,7 @@ function NavLinks({ role }: { role: string | null }) {
           href="/portal/my-score-preview"
           className="text-blue-300 hover:underline"
         >
-          パフォーマンススコア（開発中）
+          パフォーマンススコア
         </Link>
       </li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
