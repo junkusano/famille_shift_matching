@@ -48,6 +48,8 @@ type ApplicationRow = {
   paid_at: string | null;
   rejected_reason: string | null;
   created_at: string;
+  deduction_reasons: string[] | null;
+  deduction_rate: number | string | null;
 };
 
 type HistoryRow = {
@@ -65,6 +67,8 @@ type HistoryRow = {
   desired_payment_date: string | null;
   applied_at: string | null;
   rejected_reason: string | null;
+  deduction_reasons: string[];
+  deduction_rate: number | null;
 };
 
 const statusLabel: Record<string, string> = {
@@ -202,6 +206,8 @@ export default function UserAdvancePaymentHistoryPage() {
             approved_at,
             paid_at,
             rejected_reason,
+            deduction_reasons,
+            deduction_rate,
             created_at
           `)
           .order("created_at", { ascending: false });
@@ -249,6 +255,10 @@ export default function UserAdvancePaymentHistoryPage() {
               desired_payment_date: app?.desired_payment_date ?? null,
               applied_at: app?.created_at ?? null,
               rejected_reason: app?.rejected_reason ?? null,
+              deduction_reasons: app?.deduction_reasons ?? [],
+              deduction_rate: app?.deduction_rate
+                ? Number(app.deduction_rate)
+                : null,
             };
           });
 
@@ -306,7 +316,7 @@ export default function UserAdvancePaymentHistoryPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm text-slate-500">Advance Payment History</p>
-            <h1 className="text-2xl font-bold">先払い申請履歴</h1>
+            <h1 className="text-2xl font-bold">日払い申請履歴</h1>
             <p className="mt-1 text-sm text-slate-600">
               申請済み・未申請・承認状況をシフト単位で確認できます。
               {isManager ? " マネージャー権限のため全職員分を表示しています。" : " 自分のシフトのみ表示しています。"}
@@ -407,47 +417,42 @@ export default function UserAdvancePaymentHistoryPage() {
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-100 text-left text-slate-600">
                     <tr>
-                      <th className="p-3">シフト日</th>
-                      <th className="p-3">時間</th>
-                      <th className="p-3">利用者</th>
-                      <th className="p-3">職員ID</th>
-                      <th className="p-3">申請状況</th>
-                      <th className="p-3">申請番号</th>
-                      <th className="p-3">申請者</th>
-                      <th className="p-3">申請額</th>
-                      <th className="p-3">支払希望日</th>
-                      <th className="p-3">申請日</th>
-                      <th className="p-3">備考</th>
+                    <th className="p-3">申請日</th>
+                    <th className="p-3">申請者</th>
+                    <th className="p-3">ステータス</th>
+                    <th className="p-3">申請金額</th>
+                    <th className="p-3">控除内訳</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map((row) => (
-                      <tr key={row.shift_id} className="border-t">
-                        <td className="p-3 font-medium">{row.shift_start_date}</td>
-                        <td className="p-3">
-                          {row.shift_start_time?.slice(0, 5)} - {row.shift_end_time?.slice(0, 5)}
-                        </td>
-                        <td className="p-3">{row.client_name}</td>
-                        <td className="p-3 text-xs text-slate-500">{row.staff_user_ids.join(" / ")}</td>
-                        <td className="p-3">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              statusClass[row.application_status] ?? "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {row.application_status_label}
-                          </span>
-                        </td>
-                        <td className="p-3">{row.application_no ?? "-"}</td>
-                        <td className="p-3">{row.applicant_name ?? "-"}</td>
-                        <td className="p-3">{yen(row.amount)}</td>
-                        <td className="p-3">{row.desired_payment_date ?? "-"}</td>
-                        <td className="p-3">{row.applied_at ? row.applied_at.slice(0, 10) : "-"}</td>
-                        <td className="p-3 text-xs text-slate-500">
-                          {row.rejected_reason ? `差戻し理由：${row.rejected_reason}` : "-"}
-                        </td>
-                      </tr>
-                    ))}
+                   {filteredRows.map((row) => (
+  <tr key={row.application_no ?? row.shift_id} className="border-t">
+    <td className="p-3">
+      {row.applied_at ? row.applied_at.slice(0, 10) : "-"}
+    </td>
+    <td className="p-3">{row.applicant_name ?? "-"}</td>
+    <td className="p-3">
+      <span
+        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+          statusClass[row.application_status] ?? "bg-slate-100 text-slate-700"
+        }`}
+      >
+        {row.application_status_label}
+      </span>
+    </td>
+    <td className="p-3">{yen(row.amount)}</td>
+    <td className="p-3 text-xs text-slate-500">
+      {row.deduction_reasons.length > 0
+        ? row.deduction_reasons.join(" / ")
+        : "-"}
+      {row.deduction_rate !== null && (
+        <span className="ml-2">
+          控除率：{Math.round(row.deduction_rate * 100)}%
+        </span>
+      )}
+    </td>
+  </tr>
+))}
                   </tbody>
                 </table>
               </div>

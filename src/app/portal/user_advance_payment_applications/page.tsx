@@ -41,6 +41,8 @@ type TargetShift = {
   address: string;
   service_code: string;
   amount: number;
+  record_status: string | null;
+has_shift_record: boolean;
 };
 
 type ConfirmKey =
@@ -98,23 +100,22 @@ function makeJstDateTime(date: string, time: string) {
 function formatTime(time: string) {
   return (time || "").slice(0, 5);
 }
+
 function calculateAvailableAmount(params: {
   baseAmount: number;
   hasSocialInsurance: boolean;
   hasEmploymentAndWorkersInsurance: boolean;
   hasEmployeeLoan: boolean;
 }) {
-  let deductionRate = 0;
-  const reasons: string[] = [];
+  let deductionRate = 0.1;
+  const reasons: string[] = ["一律控除"];
 
-  if (params.hasSocialInsurance) {
+  if (
+    params.hasSocialInsurance ||
+    params.hasEmploymentAndWorkersInsurance
+  ) {
     deductionRate += 0.1;
-    reasons.push("社会保険加入");
-  }
-
-  if (params.hasEmploymentAndWorkersInsurance) {
-    deductionRate += 0.1;
-    reasons.push("雇用保険・労災保険加入");
+    reasons.push("社会保険または雇用保険加入");
   }
 
   if (params.hasEmployeeLoan) {
@@ -178,10 +179,9 @@ const canSubmit =
   !submitting;
   
 
-  const baseAmount = targetShifts.reduce(
-  (sum, shift) => sum + shift.amount,
-  0
-);
+const baseAmount = targetShifts
+  .filter((shift) => shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
   const calculation = calculateAvailableAmount({
     baseAmount,
@@ -266,6 +266,24 @@ const canSubmit =
 
         if (error) throw error;
 
+        const shiftIds = ((data ?? []) as ShiftRow[]).map((s) => s.shift_id);
+
+        const { data: recordRows, error: recordError } = await supabase
+          .from("shift_shift_record_view")
+          .select("shift_id, record_status")
+          .in("shift_id", shiftIds);
+
+        if (recordError) throw recordError;
+
+        const recordStatusByShiftId = new Map<string, string | null>();
+
+        (recordRows ?? []).forEach((record) => {
+          recordStatusByShiftId.set(
+            record.shift_id,
+            record.record_status ?? null
+          );
+        });
+
         const rows = (data ?? []) as ShiftRow[];
         const filtered = rows
           .filter((shift) => {
@@ -283,6 +301,10 @@ const canSubmit =
             service_code: shift.service_code ?? "",
 
             amount: Number(shift.estimated_pay_amount ?? 0),
+            record_status: recordStatusByShiftId.get(shift.shift_id) ?? null,
+            has_shift_record:
+              recordStatusByShiftId.get(shift.shift_id) !== "draft" &&
+              recordStatusByShiftId.has(shift.shift_id),
           }));
 
         setTargetShifts(filtered);
@@ -317,10 +339,9 @@ const canSubmit =
       setErrorMessage("");
       setMessage("");
 
-      const baseAmount = targetShifts.reduce(
-  (sum, shift) => sum + shift.amount,
-  0
-);
+const baseAmount = targetShifts
+  .filter((shift) => shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
         baseAmount,
@@ -449,9 +470,22 @@ const canSubmit =
                         {shift.address && <span>{shift.address}</span>}
                       </div>
 
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        日払い対象額：¥{shift.amount.toLocaleString()}
-                      </div>
+                      <div
+  className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+    shift.has_shift_record
+      ? "bg-green-100 text-green-800"
+      : "bg-red-100 text-red-800"
+  }`}
+>
+  訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
+</div>
+
+<div className="mt-2 text-sm font-semibold text-slate-900">
+  日払い対象額：
+  {shift.has_shift_record
+    ? `¥${shift.amount.toLocaleString()}`
+    : "対象外（訪問記録未提出）"}
+</div>
                     </div>
                   </div>
                 ))}
