@@ -196,6 +196,48 @@ function getBadge(score: number) {
     if (score < 60) return "ブロンズ";
 }
 
+type ScoreRow = {
+    service_hours: number | string | null;
+    visit_record_total_count: number | null;
+    houmon_same_day_done_count: number | null;
+    meeting_previous_month_attended: boolean | null;
+    meeting_past_attended: boolean | null;
+    jisseki_previous_month_done_count: number | null;
+    training_goal_selected_count: number | null;
+};
+
+function calcDisplayTotalScore(row: ScoreRow) {
+    const serviceHoursScore = Math.min(
+        80,
+        Math.floor(Number(row.service_hours ?? 0) / 20) * 10
+    );
+
+    const visitRecordTotalCount = Number(row.visit_record_total_count ?? 0);
+    const visitRecordSameDayCount = Number(row.houmon_same_day_done_count ?? 0);
+
+    const visitRecordScore =
+        visitRecordTotalCount > 0
+            ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
+            : 0;
+
+    const meetingScore =
+        row.meeting_previous_month_attended === true ||
+            row.meeting_past_attended === true
+            ? 10
+            : 0;
+
+    const jissekiScore = Number(row.jisseki_previous_month_done_count ?? 0) * 2;
+    const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
+
+    return (
+        serviceHoursScore +
+        visitRecordScore +
+        meetingScore +
+        jissekiScore +
+        trainingGoalScore
+    );
+}
+
 /*const SCORE_WEIGHTS = {
     serviceHours: 80,
     visitRecord: 30,
@@ -320,11 +362,22 @@ export async function GET(req: NextRequest) {
         );
     }
 
-    const { data: rankingRows } = await supabaseAdmin
+    const { data: rankingSourceRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
-        .select("user_id, staff_name, total_score, rank_no")
-        .eq("target_month", targetMonthDate)
-        .order("rank_no", { ascending: true });
+        .select("*")
+        .eq("target_month", targetMonthDate);
+
+    const rankingRows = (rankingSourceRows ?? [])
+        .map((row) => ({
+            user_id: row.user_id,
+            staff_name: row.staff_name,
+            score: calcDisplayTotalScore(row),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map((row, index) => ({
+            ...row,
+            rank_no: index + 1,
+        }));
 
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
@@ -372,7 +425,7 @@ export async function GET(req: NextRequest) {
             `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,
         totalMaxScore: 150,
-        badge: summary.medal_rank ?? getBadge(totalScore),
+        badge: getBadge(totalScore),
         metrics: [
             {
                 key: "service_hours",
@@ -411,13 +464,13 @@ export async function GET(req: NextRequest) {
             },
         ],
         ranking: {
-            rank: summary.rank_no,
-            totalMembers: rankingRows?.length ?? 0,
+            rank: rankingRows.find((row) => row.user_id === userId)?.rank_no ?? null,
+            totalMembers: rankingRows.length,
         },
         topRanking: (rankingRows ?? []).slice(0, 10).map((row) => ({
             rank: row.rank_no ?? 0,
             userId: row.user_id,
-            score: Number(row.total_score ?? 0),
+            score: row.score,
             name: row.staff_name ?? row.user_id,
         })),
         scoreHistory: (historyRows ?? []).map((row) => {
