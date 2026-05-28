@@ -19,8 +19,6 @@ type UserRole = "admin" | "manager" | "user" | string;
 type LoginUser = {
   user_id: string;
   role: UserRole | null;
-  last_name_kanji?: string | null;
-  first_name_kanji?: string | null;
 };
 
 type ShiftRow = {
@@ -146,7 +144,7 @@ export default function UserAdvancePaymentHistoryPage() {
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, role, last_name_kanji, first_name_kanji")
+          .select("user_id, role")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
