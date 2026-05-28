@@ -200,6 +200,7 @@ type ScoreRow = {
     service_hours: number | string | null;
     visit_record_total_count: number | null;
     houmon_same_day_done_count: number | null;
+    visit_record_past_incomplete_count: number | null;
     meeting_previous_month_attended: boolean | null;
     meeting_past_attended: boolean | null;
     jisseki_previous_month_done_count: number | null;
@@ -215,10 +216,17 @@ function calcDisplayTotalScore(row: ScoreRow) {
     const visitRecordTotalCount = Number(row.visit_record_total_count ?? 0);
     const visitRecordSameDayCount = Number(row.houmon_same_day_done_count ?? 0);
 
-    const visitRecordScore =
+    const visitRecordPastIncompleteCount = Number(
+        row.visit_record_past_incomplete_count ?? 0
+    );
+
+    const visitRecordBaseScore =
         visitRecordTotalCount > 0
             ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
             : 0;
+
+    const visitRecordScore =
+        visitRecordBaseScore - visitRecordPastIncompleteCount * 5;
 
     const meetingScore =
         row.meeting_previous_month_attended === true ||
@@ -393,16 +401,17 @@ export async function GET(req: NextRequest) {
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
         .select(`
-        target_month,
-        rank_no,
-        service_hours,
-        visit_record_total_count,
-        houmon_same_day_done_count,
-        meeting_previous_month_attended,
-        meeting_past_attended,
-        jisseki_previous_month_done_count,
-        training_goal_selected_count
-    `)
+    target_month,
+    rank_no,
+    service_hours,
+    visit_record_total_count,
+    houmon_same_day_done_count,
+    visit_record_past_incomplete_count,
+    meeting_previous_month_attended,
+    meeting_past_attended,
+    jisseki_previous_month_done_count,
+    training_goal_selected_count
+`)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
         .order("target_month", { ascending: true });
@@ -415,10 +424,17 @@ export async function GET(req: NextRequest) {
     const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
     const visitRecordSameDayCount = Number(summary.houmon_same_day_done_count ?? 0);
 
-    const visitRecordScore =
+    const visitRecordPastIncompleteCount = Number(
+        summary.visit_record_past_incomplete_count ?? 0
+    );
+
+    const visitRecordBaseScore =
         visitRecordTotalCount > 0
             ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
             : 0;
+
+    const visitRecordScore =
+        visitRecordBaseScore - visitRecordPastIncompleteCount * 5;
 
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
