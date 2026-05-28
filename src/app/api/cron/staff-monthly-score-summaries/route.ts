@@ -75,8 +75,8 @@ function getTargetMonth(req: NextRequest) {
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    if (currentYm < "2026-07") {
-        return "2026-07-01";
+    if (currentYm < "2026-05") {
+        return "2026-05-01";
     }
 
     return `${currentYm}-01`;
