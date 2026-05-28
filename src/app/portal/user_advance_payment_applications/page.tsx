@@ -522,9 +522,13 @@ const canSubmit =
 
             {!isSilverOrHigher && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                 日払い制度は、パフォーマンススコアが
-                 シルバー以上の職員のみ利用できます。
-               </div>
+                 <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
+
+                 </div>
+                <a href="/portal/my-score-preview" className="mt-2 inline-block font-semibold text-red-800 underline">
+                  パフォーマンススコアを確認する
+                </a>
+              </div>
             )}
             {isManager && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
