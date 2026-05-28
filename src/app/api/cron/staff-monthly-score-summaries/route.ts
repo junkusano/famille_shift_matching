@@ -98,10 +98,11 @@ function getTargetMonth(req: NextRequest) {
 function calcVisitRecordScore(row: SummaryRow) {
     const total = Number(row.visit_record_total_count ?? 0);
     const sameDay = Number(row.houmon_same_day_done_count ?? 0);
+    const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
 
-    if (total <= 0) return 0;
+    const baseScore = total <= 0 ? 0 : Math.round((sameDay / total) * 30);
 
-    return Math.round((sameDay / total) * 30);
+    return baseScore - pastIncomplete * 5;
 }
 
 function calcTotalScore(row: SummaryRow) {
