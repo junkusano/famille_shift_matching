@@ -33,6 +33,7 @@ type RankingUser = {
     userId: string;
     score: number;
     name: string;
+    badge: string;
 };
 
 type ScoreHistoryPoint = {
@@ -440,18 +441,18 @@ function MyScorePreviewContent() {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            {user.rank === 1 && (
-                                                <div className="text-3xl">🥇</div>
-                                            )}
-
-                                            {user.rank === 2 && (
-                                                <div className="text-3xl">🥈</div>
-                                            )}
-
-                                            {user.rank === 3 && (
-                                                <div className="text-3xl">🥉</div>
-                                            )}
+                                            <div
+                                                className={`rounded-full px-3 py-1 text-xs font-bold ${user.badge === "プラチナ"
+                                                        ? "bg-slate-900 text-white"
+                                                        : user.badge === "ゴールド"
+                                                            ? "bg-yellow-100 text-yellow-800"
+                                                            : user.badge === "シルバー"
+                                                                ? "bg-gray-100 text-gray-700"
+                                                                : "bg-orange-100 text-orange-800"
+                                                    }`}
+                                            >
+                                                {user.badge}
+                                            </div>
                                         </div>
                                     );
                                 })}

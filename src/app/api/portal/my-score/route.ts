@@ -477,11 +477,12 @@ export async function GET(req: NextRequest) {
             rank: rankingRows.find((row) => row.user_id === userId)?.rank_no ?? null,
             totalMembers: rankingRows.length,
         },
-        topRanking: (rankingRows ?? []).slice(0, 10).map((row) => ({
+        topRanking: (rankingRows ?? []).slice(0, 100).map((row) => ({
             rank: row.rank_no ?? 0,
             userId: row.user_id,
             score: row.score,
             name: row.staff_name ?? row.user_id,
+            badge: getBadge(row.score),
         })),
         scoreHistory: (historyRows ?? []).map((row) => {
             const month = String(row.target_month).slice(0, 7);
