@@ -256,6 +256,8 @@ const baseAmount = targetShifts
             staff_02_user_id,
             staff_03_user_id
           `)
+          .not("service_code", "eq", "99999999")
+
           .gte("shift_start_date", startDate)
           .lte("shift_start_date", endDate)
           .or(
