@@ -153,27 +153,41 @@ export default function UserAdvancePaymentConfirmPage() {
   });
 
   const [message, setMessage] = useState("");
-const [performanceRank, setPerformanceRank] =
+/*
+　const [performanceRank, setPerformanceRank] =
   useState("bronze");
+*/
 
   const [errorMessage, setErrorMessage] = useState("");
 
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
+  const now = new Date();
+const currentTime = now.toLocaleTimeString("ja-JP", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Tokyo",
+}).slice(0, 5);
+
+const isAfterDeadline = currentTime > "18:30";
+
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
 
-const isSilverOrHigher =
+/*const isSilverOrHigher =
   performanceRank === "silver" ||
   performanceRank === "gold" ||
   performanceRank === "platinum";
+  */
 
   const isManager =
   me?.role === "manager" || me?.role === "admin";
 
 const canSubmit =
   !isManager &&
-  isSilverOrHigher &&
+  !isAfterDeadline &&
+   //isSilverOrHigher &&
   hasSelectedShift &&
   allChecked &&
   !submitting;
@@ -227,6 +241,7 @@ const baseAmount = targetShifts
         const currentUser = loginUser as LoginUser;
         setMe(currentUser);
 
+        /*
         const { data: latestScore } = await supabase
          .from("staff_monthly_score_summaries")
          .select("medal_rank")
@@ -236,6 +251,7 @@ const baseAmount = targetShifts
          .maybeSingle();
 
         setPerformanceRank(latestScore?.medal_rank ?? "bronze");
+        */
 
         const startDate = start.toISOString().slice(0, 10);
         const endDate = end.toISOString().slice(0, 10);
@@ -417,9 +433,19 @@ const baseAmount = targetShifts
       <div className="mx-auto max-w-4xl space-y-5">
         <div>
           <p className="text-sm text-slate-500">Advance Payment</p>
-          <h1 className="text-2xl font-bold">日払い申請</h1>
+          <h1 className="text-2xl font-bold">日払い申請フォーム</h1>
+
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+  　　　　<div className="font-semibold text-amber-900">
+  　　　　　  申請期限について
+  　　　　　</div>
+  　　　　<div className="mt-1 text-sm text-amber-800">
+   　　　　 日払い申請は対象シフト実施日の18:30まで受け付けています。
+  　　　　  期限を過ぎたシフトは申請対象外となりますので、お早めにお手続きください。
+　　　　　  </div>
+　　　　　</div>
           <p className="mt-2 text-sm text-slate-600">
-            前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。
+            前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。なお、日払い申請の受付は対象シフト実施日の18:30までです。
           </p>
         </div>
 
@@ -562,22 +588,41 @@ const baseAmount = targetShifts
                     : "申請できます。"}
             </div>
 
-            <div className="rounded-2xl border bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">
-                申請可能額
+            <div className="rounded-2xl border bg-slate-50 p-4 min-w-[220px]">
+            <div className="text-sm text-slate-500">
+             合計金額
+             </div>
+             <div className="mt-1 text-xl font-bold text-slate-700">
+              ¥{baseAmount.toLocaleString()}
+             </div>
+             
+              <div className="mt-3 text-sm text-slate-500">
+                 申請可能額
               </div>
-              <div className="mt-1 text-2xl font-bold">
-                ¥{calculation.availableAmount.toLocaleString()}
-              </div>
-              <div className="mt-2 text-xs text-slate-500">
-                控除率： {Math.round(calculation.deductionRate * 100)}%
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-            
-                 {calculation.reasons.join(" / ")}
-              </div>
-            </div>
+             <div className="mt-1 text-2xl font-bold text-blue-600">
+              ¥{calculation.availableAmount.toLocaleString()}
+             </div>
 
+              <div className="mt-3 text-xs text-slate-500">
+             控除率：{Math.round(calculation.deductionRate * 100)}%
+           </div>
+
+           <div className="mt-1 text-xs text-slate-500">
+             控除額：¥{(baseAmount - calculation.availableAmount).toLocaleString()}
+           </div>
+
+           <div className="mt-1 text-xs text-slate-500">
+             手数料：200円
+           </div>
+
+           <div className="mt-2 border-t pt-2 text-sm font-semibold text-green-700">
+            振込予定額：¥{(calculation.availableAmount - 200).toLocaleString()}
+           </div>
+          </div>
+
+
+
+　　　　　　　{/*
             {!isSilverOrHigher && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                  <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
@@ -588,6 +633,14 @@ const baseAmount = targetShifts
                 </a>
               </div>
             )}
+            */}
+
+            {isAfterDeadline && (
+  　　　　　　<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    　　　　　　　本日の日払い申請受付は18:30で終了しました。
+   　　　　　　　 対象シフトが表示されていても申請はできません。
+  　　　　　　</div>
+　　　　　　　)}
             {isManager && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
