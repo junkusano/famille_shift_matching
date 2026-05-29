@@ -47,7 +47,6 @@ has_shift_record: boolean;
 
 type ConfirmKey =
   | "shiftConfirmed"
-  | "recordRequired"
   | "feeAccepted"
   | "insuranceAccepted";
 
@@ -56,11 +55,6 @@ const confirmItems: Array<{ key: ConfirmKey; label: string; description: string 
     key: "shiftConfirmed",
     label: "表示されているシフト内容に相違がないことを確認しました。",
     description: "対象シフトの日付・時間・利用者情報を確認したうえで申請します。",
-  },
-  {
-    key: "recordRequired",
-    label: "訪問記録が未提出の場合、振込処理が完了しないことを了承しました。",
-    description: "日払い申請後でも、必要な訪問記録の提出が確認できない場合は振込対象外となることがあります。",
   },
   {
     key: "feeAccepted",
@@ -147,7 +141,6 @@ export default function UserAdvancePaymentConfirmPage() {
   const [targetShifts, setTargetShifts] = useState<TargetShift[]>([]);
   const [checks, setChecks] = useState<Record<ConfirmKey, boolean>>({
     shiftConfirmed: false,
-    recordRequired: false,
     feeAccepted: false,
     insuranceAccepted: false,
   });
@@ -352,6 +345,14 @@ const baseAmount = targetShifts
         return;
       }
       if (!canSubmit) return;
+      const hasUnrecordedShift = targetShifts.some(
+       (shift) => !shift.has_shift_record
+     );
+
+     if (hasUnrecordedShift) {
+       setErrorMessage("訪問記録未記載があります。記載してください。");
+       return;
+     }
 
       setSubmitting(true);
       setErrorMessage("");
@@ -464,17 +465,26 @@ const baseAmount = targetShifts
           </CardContent>
         </Card>
 
-        {errorMessage && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
+{errorMessage && (
+  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div>{errorMessage}</div>
 
-        {message && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-            {message}
-          </div>
-        )}
+    {errorMessage.includes("訪問記録") && (
+      <a
+        href="/portal/shift"
+        className="mt-2 inline-block font-semibold underline"
+      >
+        シフト・訪問記録を確認する
+      </a>
+    )}
+  </div>
+)}
+
+{message && (
+  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+    {message}
+  </div>
+)}
 
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5">
@@ -591,7 +601,7 @@ const baseAmount = targetShifts
                     : "申請できます。"}
             </div>
 
-           <div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[260px]">
+<div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[260px]">
   <div className="space-y-3 text-sm">
     <div className="flex justify-between border-b pb-2">
       <span className="text-slate-500">1日合計金額</span>
@@ -608,13 +618,6 @@ const baseAmount = targetShifts
       </span>
     </div>
 
-    <div className="flex justify-between border-b pb-2">
-      <span className="text-slate-500">申請可能額</span>
-      <span className="text-xl font-bold">
-        ¥{calculation.availableAmount.toLocaleString()}
-      </span>
-    </div>
-
     <div className="flex justify-between text-slate-600">
       <span>手数料</span>
       <span>-¥200</span>
@@ -626,10 +629,6 @@ const baseAmount = targetShifts
         ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
       </span>
     </div>
-  </div>
-
-  <div className="mt-3 text-xs text-slate-500">
-    {calculation.reasons.join(" / ")}
   </div>
 </div>
 
