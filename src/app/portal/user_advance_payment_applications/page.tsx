@@ -601,34 +601,42 @@ const baseAmount = targetShifts
                     : "申請できます。"}
             </div>
 
-<div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[260px]">
-  <div className="space-y-3 text-sm">
-    <div className="flex justify-between border-b pb-2">
+<div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[280px]">
+  <div className="space-y-3">
+
+    <div className="flex items-center justify-between border-b pb-2">
       <span className="text-slate-500">1日合計金額</span>
-      <span className="text-lg font-bold">
+      <span className="text-lg font-bold tabular-nums">
         ¥{baseAmount.toLocaleString()}
       </span>
     </div>
 
-    <div className="flex justify-between text-slate-600">
-      <span>控除</span>
+    <div className="flex items-center justify-between text-slate-600">
       <span>
-        -¥{(baseAmount - calculation.availableAmount).toLocaleString()}
-        （{Math.round(calculation.deductionRate * 100)}%）
+        控除（{Math.round(calculation.deductionRate * 100)}%）
+      </span>
+      <span className="font-medium tabular-nums">
+         ¥{(baseAmount - calculation.availableAmount).toLocaleString()}
       </span>
     </div>
 
-    <div className="flex justify-between text-slate-600">
+    <div className="flex items-center justify-between text-slate-600">
       <span>手数料</span>
-      <span>-¥200</span>
+      <span className="font-medium tabular-nums">
+         ¥200
+      </span>
     </div>
 
-    <div className="flex justify-between border-t pt-3">
-      <span className="font-semibold text-slate-700">振込予定額</span>
-      <span className="text-2xl font-bold text-blue-700">
+    <div className="flex items-center justify-between border-t pt-3">
+      <span className="font-semibold text-slate-700">
+        振込予定額
+      </span>
+
+      <span className="text-2xl font-bold text-blue-700 tabular-nums">
         ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
       </span>
     </div>
+
   </div>
 </div>
 
