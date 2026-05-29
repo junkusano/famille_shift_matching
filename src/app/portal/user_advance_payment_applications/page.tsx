@@ -450,9 +450,6 @@ const baseAmount = targetShifts
             </div>
           </div>
 
-          <p className="mt-2 text-sm text-slate-600">
-            前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。なお、日払い申請の受付は対象シフト実施日の18:30までです。
-          </p>
         </div>
 
         <Card className="rounded-2xl border-blue-100 bg-blue-50 shadow-sm">
