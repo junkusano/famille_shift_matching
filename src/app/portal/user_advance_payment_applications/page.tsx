@@ -436,14 +436,20 @@ const baseAmount = targetShifts
           <h1 className="text-2xl font-bold">日払い申請フォーム</h1>
 
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-  　　　　<div className="font-semibold text-amber-900">
-  　　　　　  申請期限について
-  　　　　　</div>
-  　　　　<div className="mt-1 text-sm text-amber-800">
-   　　　　 日払い申請は対象シフト実施日の18:30まで受け付けています。
-  　　　　  期限を過ぎたシフトは申請対象外となりますので、お早めにお手続きください。
-　　　　　  </div>
-　　　　　</div>
+            <div className="font-semibold text-amber-900">
+              ⏰ 申請期限について
+            </div>
+
+            <div className="mt-2 text-sm leading-relaxed text-amber-800">
+              日払い申請は対象シフト実施日の
+             <span className="font-semibold">18:30まで</span>
+              受け付けています。
+              <br />
+              期限を過ぎたシフトは申請対象外となりますので、
+              お早めにお手続きください。
+            </div>
+          </div>
+
           <p className="mt-2 text-sm text-slate-600">
             前日18:30から当日18:00までに終了した、ご自身の対象シフトを確認して申請してください。なお、日払い申請の受付は対象シフト実施日の18:30までです。
           </p>
@@ -577,7 +583,7 @@ const baseAmount = targetShifts
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 rounded-2xl border bg-white/95 p-4 shadow-lg backdrop-blur">
+        <div className="rounded-2xl border bg-white p-4 shadow-lg">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-slate-600">
               {targetShifts.length === 0
@@ -612,7 +618,7 @@ const baseAmount = targetShifts
            </div>
 
            <div className="mt-1 text-xs text-slate-500">
-             手数料：200円
+             手数料：¥200
            </div>
 
            <div className="mt-2 border-t pt-2 text-sm font-semibold text-green-700">
