@@ -10,6 +10,9 @@ type Body = {
   fromUserId: string
   toUserId: string
   reason?: string
+  actorUserId?: string | null
+  eventType?: string
+  penaltyLevel?: string
 }
 
 function normalizeBody(v: unknown): Body | null {
@@ -18,8 +21,20 @@ function normalizeBody(v: unknown): Body | null {
   const body: Body = {
     shiftId: (o.shiftId ?? o.shift_id) as string | number,
     fromUserId: String(o.fromUserId ?? o.from_user_id ?? '').trim(),
-    toUserId:   String(o.toUserId   ?? o.to_user_id   ?? '').trim(),
-    reason:     o.reason === undefined ? undefined : String(o.reason),
+    toUserId: String(o.toUserId ?? o.to_user_id ?? '').trim(),
+    reason: o.reason === undefined ? undefined : String(o.reason),
+    actorUserId:
+      o.actorUserId === undefined && o.actor_user_id === undefined
+        ? null
+        : String(o.actorUserId ?? o.actor_user_id ?? '').trim() || null,
+    eventType:
+      o.eventType === undefined && o.event_type === undefined
+        ? undefined
+        : String(o.eventType ?? o.event_type ?? '').trim(),
+    penaltyLevel:
+      o.penaltyLevel === undefined && o.penalty_level === undefined
+        ? undefined
+        : String(o.penaltyLevel ?? o.penalty_level ?? '').trim(),
   }
   if (
     body.shiftId === undefined || body.shiftId === null ||
@@ -65,11 +80,13 @@ export async function POST(req: Request) {
 
     // ★ ここがポイント：text を明示するため空文字を送る（null は使わない）
     const args = {
-      p_shift_id: shiftIdNum,          // bigint
-      p_from_user_id: body.fromUserId, // text
-      p_to_user_id: body.toUserId,     // text
-      p_actor_auth_id: '',             // ★ text に寄せる
-      p_reason: body.reason ?? 'leave_request_auto',
+      p_shift_id: shiftIdNum,
+      p_from_user_id: body.fromUserId,
+      p_to_user_id: body.toUserId,
+      p_actor_auth_id: body.actorUserId ?? "",
+      p_reason: body.reason ?? "leave_request_auto",
+      p_event_type: body.eventType ?? "reject_shift",
+      p_penalty_level: body.penaltyLevel ?? "minor",
     }
 
     console.log('[api/shift-reassign] args', args)

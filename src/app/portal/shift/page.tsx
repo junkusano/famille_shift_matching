@@ -627,6 +627,8 @@ export default function ShiftPage() {
                         attend_request: attendRequest,
                         // 任意メモ
                         time_adjust_note: timeAdjustNote ?? null,
+                        event_type: "shift_request",
+                        penalty_level: null,
                     },
                 });
 
@@ -1066,7 +1068,10 @@ export default function ShiftPage() {
                 shiftId: preShiftId,
                 fromUserId: preFromUser,
                 toUserId: preToUser,
-                reason: preReason,
+                reason: preReason || "未記入",
+                actorUserId: authUserId,
+                eventType: reason === "今日はシフトに入れない" ? "reject_day" : "reject_shift",
+                penaltyLevel: reason === "今日はシフトに入れない" ? "major" : "minor",
             };
 
             const bodyStr = JSON.stringify(payload);
