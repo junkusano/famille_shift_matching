@@ -42,7 +42,7 @@ type TargetShift = {
   service_code: string;
   amount: number;
   record_status: string | null;
-has_shift_record: boolean;
+  has_shift_record: boolean;
 };
 
 type ConfirmKey =
@@ -146,49 +146,48 @@ export default function UserAdvancePaymentConfirmPage() {
   });
 
   const [message, setMessage] = useState("");
-/*
-　const [performanceRank, setPerformanceRank] =
-  useState("bronze");
-*/
+  /*
+   const [performanceRank, setPerformanceRank] =
+    useState("bronze");
+  */
 
   const [errorMessage, setErrorMessage] = useState("");
 
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
   const now = new Date();
-const currentTime = now.toLocaleTimeString("ja-JP", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-  timeZone: "Asia/Tokyo",
-}).slice(0, 5);
+  const currentTime = now.toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Tokyo",
+  }).slice(0, 5);
 
-const isAfterDeadline = currentTime > "18:30";
+  const isAfterDeadline = currentTime > "18:30";
 
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
 
-/*const isSilverOrHigher =
-  performanceRank === "silver" ||
-  performanceRank === "gold" ||
-  performanceRank === "platinum";
-  */
+  /*const isSilverOrHigher =
+    performanceRank === "silver" ||
+    performanceRank === "gold" ||
+    performanceRank === "platinum";
+    */
 
   const isManager =
-  me?.role === "manager" || me?.role === "admin";
+    me?.role === "manager" || me?.role === "admin";
 
-const canSubmit =
-  !isManager &&
-  !isAfterDeadline &&
-   //isSilverOrHigher &&
-  hasSelectedShift &&
-  allChecked &&
-  !submitting;
-  
+  const canSubmit =
+    !isManager &&
+    !isAfterDeadline &&
+    //isSilverOrHigher &&
+    hasSelectedShift &&
+    allChecked &&
+    !submitting;
 
-const baseAmount = targetShifts
-  .filter((shift) => shift.has_shift_record)
-  .reduce((sum, shift) => sum + shift.amount, 0);
+
+  const baseAmount = targetShifts
+    .reduce((sum, shift) => sum + shift.amount, 0);
 
   const calculation = calculateAvailableAmount({
     baseAmount,
@@ -322,12 +321,12 @@ const baseAmount = targetShifts
       } catch (error) {
         console.error(error);
         const message =
-        error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : JSON.stringify(error);
+          error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : JSON.stringify(error);
 
         setErrorMessage(
-           `対象シフトの取得中にエラーが発生しました：${message}`
+          `対象シフトの取得中にエラーが発生しました：${message}`
         );
 
       } finally {
@@ -346,21 +345,20 @@ const baseAmount = targetShifts
       }
       if (!canSubmit) return;
       const hasUnrecordedShift = targetShifts.some(
-       (shift) => !shift.has_shift_record
-     );
+        (shift) => !shift.has_shift_record
+      );
 
-     if (hasUnrecordedShift) {
-       setErrorMessage("訪問記録未記載があります。記載してください。");
-       return;
-     }
+      if (hasUnrecordedShift) {
+        setErrorMessage("訪問記録未記載があります。記載してください。");
+        return;
+      }
 
       setSubmitting(true);
       setErrorMessage("");
       setMessage("");
 
-const baseAmount = targetShifts
-  .filter((shift) => shift.has_shift_record)
-  .reduce((sum, shift) => sum + shift.amount, 0);
+      const baseAmount = targetShifts
+        .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
         baseAmount,
@@ -407,18 +405,18 @@ const baseAmount = targetShifts
       if (error) throw error;
 
       await fetch("/api/lineworks/advance-payment-notify", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    userId: me.user_id,
-    userName: employeeName || me.user_id,
-    applicationDate: toJstDateString(),
-    amount: calculation.availableAmount,
-    applicationNo,
-  }),
-});
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: me.user_id,
+          userName: employeeName || me.user_id,
+          applicationDate: toJstDateString(),
+          amount: calculation.availableAmount,
+          applicationNo,
+        }),
+      });
 
       setMessage(`日払い申請を受け付けました。申請番号：${applicationNo}`);
     } catch (error) {
@@ -443,7 +441,7 @@ const baseAmount = targetShifts
 
             <div className="mt-2 text-sm leading-relaxed text-amber-800">
               日払い申請は対象シフト実施日の
-             <span className="font-semibold">18:30まで</span>
+              <span className="font-semibold">18:30まで</span>
               受け付けています。
               <br />
               期限を過ぎたシフトは申請対象外となりますので、
@@ -465,26 +463,26 @@ const baseAmount = targetShifts
           </CardContent>
         </Card>
 
-{errorMessage && (
-  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-    <div>{errorMessage}</div>
+        {errorMessage && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div>{errorMessage}</div>
 
-    {errorMessage.includes("訪問記録") && (
-      <a
-        href="/portal/shift"
-        className="mt-2 inline-block font-semibold underline"
-      >
-        シフト・訪問記録を確認する
-      </a>
-    )}
-  </div>
-)}
+            {errorMessage.includes("訪問記録") && (
+              <a
+                href="/portal/shift"
+                className="mt-2 inline-block font-semibold underline"
+              >
+                シフト・訪問記録を確認する
+              </a>
+            )}
+          </div>
+        )}
 
-{message && (
-  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-    {message}
-  </div>
-)}
+        {message && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            {message}
+          </div>
+        )}
 
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5">
@@ -513,7 +511,7 @@ const baseAmount = targetShifts
                     key={shift.shift_id}
                     className="rounded-2xl border border-slate-200 bg-white p-4"
                   >
-                  
+
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-slate-900">
                         {shift.shift_start_date} {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
@@ -526,34 +524,30 @@ const baseAmount = targetShifts
                       </div>
 
                       <div
-  className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-    shift.has_shift_record
-      ? "bg-green-100 text-green-800"
-      : "bg-red-100 text-red-800"
-  }`}
->
-  訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
-</div>
-<a
-  href="/portal/shift"
-  className="mt-2 inline-block text-sm font-semibold text-blue-600 underline"
->
-  シフト・訪問記録を確認する
-</a>
+                        className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${shift.has_shift_record
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                          }`}
+                      >
+                        訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
+                      </div>
+                      <a
+                        href="/portal/shift"
+                        className="mt-2 inline-block text-sm font-semibold text-blue-600 underline"
+                      >
+                        シフト・訪問記録を確認する
+                      </a>
 
-<div className="mt-2 text-sm font-semibold text-slate-900">
-  日払い対象額：
-  {shift.has_shift_record
-    ? `¥${shift.amount.toLocaleString()}`
-    : "対象外（訪問記録未提出）"}
-</div>
+                      <div className="mt-2 text-sm font-semibold text-slate-900">
+                        日払い対象額：¥{shift.amount.toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>F
 
         <Card className="rounded-2xl border-orange-200 bg-orange-50 shadow-sm">
           <CardContent className="p-5">
@@ -569,17 +563,17 @@ const baseAmount = targetShifts
                   className="flex cursor-pointer gap-3 rounded-2xl bg-white p-4 shadow-sm"
                 >
                   <input
-                      type="checkbox"
-                      className="mt-1 h-5 w-5"
-                      checked={checks[item.key]}
-                      onChange={(e) =>
+                    type="checkbox"
+                    className="mt-1 h-5 w-5"
+                    checked={checks[item.key]}
+                    onChange={(e) =>
                       setChecks((prev) => ({
-                       ...prev,
+                        ...prev,
                         [item.key]: e.target.checked,
-                     }))
-                      }
-                       />
-                       
+                      }))
+                    }
+                  />
+
                   <div>
                     <div className="font-medium text-slate-900">{item.label}</div>
                     <div className="mt-1 text-sm text-slate-500">{item.description}</div>
@@ -596,52 +590,52 @@ const baseAmount = targetShifts
               {targetShifts.length === 0
                 ? "申請可能な対象シフトがありません。"
 
-                  : !allChecked
-                    ? "確認事項をすべてチェックしてください。"
-                    : "申請できます。"}
+                : !allChecked
+                  ? "確認事項をすべてチェックしてください。"
+                  : "申請できます。"}
             </div>
 
-<div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[280px]">
-  <div className="space-y-3">
+            <div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[280px]">
+              <div className="space-y-3">
 
-    <div className="flex items-center justify-between border-b pb-2">
-      <span className="text-slate-500">1日合計金額</span>
-      <span className="text-lg font-bold tabular-nums">
-        ¥{baseAmount.toLocaleString()}
-      </span>
-    </div>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-slate-500">1日合計金額</span>
+                  <span className="text-lg font-bold tabular-nums">
+                    ¥{baseAmount.toLocaleString()}
+                  </span>
+                </div>
 
-    <div className="flex items-center justify-between text-slate-600">
-      <span>
-        控除（{Math.round(calculation.deductionRate * 100)}%）
-      </span>
-      <span className="font-medium tabular-nums">
-         ¥{(baseAmount - calculation.availableAmount).toLocaleString()}
-      </span>
-    </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>
+                    控除（{Math.round(calculation.deductionRate * 100)}%）
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    ¥{(baseAmount - calculation.availableAmount).toLocaleString()}
+                  </span>
+                </div>
 
-    <div className="flex items-center justify-between text-slate-600">
-      <span>手数料</span>
-      <span className="font-medium tabular-nums">
-         ¥200
-      </span>
-    </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>手数料</span>
+                  <span className="font-medium tabular-nums">
+                    ¥200
+                  </span>
+                </div>
 
-    <div className="flex items-center justify-between border-t pt-3">
-      <span className="font-semibold text-slate-700">
-        振込予定額
-      </span>
+                <div className="flex items-center justify-between border-t pt-3">
+                  <span className="font-semibold text-slate-700">
+                    振込予定額
+                  </span>
 
-      <span className="text-2xl font-bold text-blue-700 tabular-nums">
-        ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
-      </span>
-    </div>
+                  <span className="text-2xl font-bold text-blue-700 tabular-nums">
+                    ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
+                  </span>
+                </div>
 
-  </div>
-</div>
+              </div>
+            </div>
 
 
-　　　　　　　{/*
+            {/*
             {!isSilverOrHigher && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                  <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
@@ -655,15 +649,15 @@ const baseAmount = targetShifts
             */}
 
             {isAfterDeadline && (
-  　　　　　　<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-    　　　　　　　本日の日払い申請受付は18:30で終了しました。
-   　　　　　　　 対象シフトが表示されていても申請はできません。
-  　　　　　　</div>
-　　　　　　　)}
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                本日の日払い申請受付は18:30で終了しました。
+                対象シフトが表示されていても申請はできません。
+              </div>
+            )}
             {isManager && (
-               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
-               </div>
+              </div>
             )}
 
             <Button
