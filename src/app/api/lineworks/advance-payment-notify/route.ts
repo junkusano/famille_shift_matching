@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const token = await getAccessToken();
 
     const message =
-`【日払い申請】
+      `【日払い申請】
 申請者：${userName ?? userId}
 申請日：${applicationDate}
 申請番号：${applicationNo}
@@ -38,10 +38,19 @@ export async function POST(req: NextRequest) {
 
 対象シフト：
 ${Array.isArray(selectedShifts)
-  ? selectedShifts.map((s: any) =>
-      `・${s.shift_start_date} ${String(s.shift_start_time).slice(0, 5)}-${String(s.shift_end_time).slice(0, 5)} ${s.client_name ?? ""} / shift_id:${s.shift_id}`
-    ).join("\n")
-  : "-"}`;
+        ? selectedShifts.map(
+          (
+            s: {
+              shift_id: number;
+              shift_start_date: string;
+              shift_start_time: string;
+              shift_end_time: string;
+              client_name?: string;
+            }
+          ) =>
+            `・${s.shift_start_date} ${String(s.shift_start_time).slice(0, 5)}-${String(s.shift_end_time).slice(0, 5)} ${s.client_name ?? ""} / shift_id:${s.shift_id}`
+        ).join("\n")
+        : "-"}`;
 
     const { data: userRoom, error: userRoomError } = await supabaseAdmin
       .from("group_lw_channel_view")
