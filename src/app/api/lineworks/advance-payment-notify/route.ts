@@ -56,30 +56,29 @@ ${Array.isArray(selectedShifts)
       .from("group_lw_channel_view")
       .select("channel_id")
       .eq("user_id", userId)
+      .eq("group_type", "人事労務サポートルーム")
       .maybeSingle();
 
     if (userRoomError) throw userRoomError;
 
-    const { data: managerRoom, error: managerRoomError } = await supabaseAdmin
-      .from("group_lw_channel_view")
-      .select("channel_id")
-      .eq("group_name", "ヘルパーマネージャー")
-      .maybeSingle();
-
-    if (managerRoomError) throw managerRoomError;
+    const adminChannelId = "99142491";
 
     const sentTo: string[] = [];
 
-    if (managerRoom?.channel_id) {
-      await sendLWBotMessage(managerRoom.channel_id, message, token);
-      sentTo.push("manager");
-    }
+    console.log("[advance-payment-notify] sending", {
+      adminChannelId,
+      userChannelId: userRoom?.channel_id,
+    });
 
+    // ヘルパーマネジャー共有チャネル
+    await sendLWBotMessage(adminChannelId, message, token);
+    sentTo.push("manager");
+
+    // 申請者の人事労務サポートルーム
     if (userRoom?.channel_id) {
       await sendLWBotMessage(userRoom.channel_id, message, token);
-      sentTo.push("user");
+      sentTo.push("user-hr-room");
     }
-
     if (sentTo.length === 0) {
       throw new Error("送信先LINE WORKS channel_id が見つかりませんでした");
     }
