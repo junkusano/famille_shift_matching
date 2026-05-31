@@ -163,7 +163,8 @@ export default function UserAdvancePaymentConfirmPage() {
     timeZone: "Asia/Tokyo",
   }).slice(0, 5);
 
-  const isAfterDeadline = currentTime > "18:30";
+  //const isAfterDeadline = currentTime > "18:30";
+  const isAfterDeadline = currentTime > "20:00";
 
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
