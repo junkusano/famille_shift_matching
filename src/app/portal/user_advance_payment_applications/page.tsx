@@ -20,6 +20,7 @@ type ShiftRow = {
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
+  shift_end_date: string;
   shift_end_time: string;
   service_code: string | null;
   kaipoke_cs_id: string | null;
@@ -245,7 +246,10 @@ export default function UserAdvancePaymentConfirmPage() {
         setPerformanceRank(latestScore?.medal_rank ?? "bronze");
         */
 
-        const startDate = start.toISOString().slice(0, 10);
+        const startDate = new Date(start.getTime() - 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+
         const endDate = end.toISOString().slice(0, 10);
 
         const { data, error } = await supabase
@@ -254,6 +258,7 @@ export default function UserAdvancePaymentConfirmPage() {
             shift_id,
             shift_start_date,
             shift_start_time,
+            shift_end_date,
             shift_end_time,
             service_code,
             estimated_pay_amount,
@@ -297,8 +302,15 @@ export default function UserAdvancePaymentConfirmPage() {
         const rows = (data ?? []) as ShiftRow[];
         const filtered = rows
           .filter((shift) => {
-            const shiftEnd = makeJstDateTime(shift.shift_start_date, shift.shift_end_time);
-            return shiftEnd >= start && shiftEnd <= end;
+            const endDateForCalc =
+              shift.shift_end_date || shift.shift_start_date;
+
+            const shiftEnd = makeJstDateTime(
+              endDateForCalc,
+              shift.shift_end_time
+            );
+
+            return shiftEnd > start && shiftEnd <= end;
           })
           .map((shift) => ({
             id: String(shift.shift_id),
@@ -525,8 +537,8 @@ export default function UserAdvancePaymentConfirmPage() {
 
                       <div
                         className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${shift.has_shift_record
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                           }`}
                       >
                         訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
@@ -547,7 +559,7 @@ export default function UserAdvancePaymentConfirmPage() {
               </div>
             )}
           </CardContent>
-        </Card>F
+        </Card>
 
         <Card className="rounded-2xl border-orange-200 bg-orange-50 shadow-sm">
           <CardContent className="p-5">
