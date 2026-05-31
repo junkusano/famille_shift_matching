@@ -427,7 +427,7 @@ export default function UserAdvancePaymentConfirmPage() {
           deductionRate: calculation.deductionRate,
           deductionReasons: calculation.reasons,
           selectedShifts: targetShifts.map((shift) => ({
-            shift_id: shift.shift_id,
+            shift_id: Number(shift.shift_id),
             shift_start_date: shift.shift_start_date,
             shift_start_time: shift.shift_start_time,
             shift_end_time: shift.shift_end_time,
@@ -438,9 +438,12 @@ export default function UserAdvancePaymentConfirmPage() {
 
       if (!notifyRes.ok) {
         const notifyJson = await notifyRes.json().catch(() => null);
-        throw new Error(
-          notifyJson?.error ?? "LINE WORKS通知に失敗しました"
+        console.error("[advance-payment-notify] failed", notifyJson);
+
+        setMessage(
+          `日払い申請は登録されました。申請番号：${applicationNo}。ただしLINE WORKS通知に失敗しました。`
         );
+        return;
       }
 
       setMessage(`日払い申請を受け付けました。申請番号：${applicationNo}`);
