@@ -981,6 +981,7 @@ export default function ShiftPage() {
         try {
             const shiftStartJst = toJstDate(shift.shift_start_date, shift.shift_start_time);
             const diffHours = (shiftStartJst.getTime() - Date.now()) / (1000 * 60 * 60);
+            const penaltyLevel = diffHours <= 72 ? "moderate" : "minor";
 
             if (diffHours < 6) {
                 alert("サービス開始まで6時間を切っているので、ここからシフトを外せません。マネジャーに相談してください");
@@ -1071,7 +1072,7 @@ export default function ShiftPage() {
                 reason: preReason || "未記入",
                 actorUserId: authUserId,
                 eventType: reason === "今日はシフトに入れない" ? "reject_day" : "reject_shift",
-                penaltyLevel: reason === "今日はシフトに入れない" ? "major" : "minor",
+                penaltyLevel,
             };
 
             const bodyStr = JSON.stringify(payload);

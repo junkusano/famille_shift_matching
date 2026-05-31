@@ -12,10 +12,12 @@ type AuditLogRow = {
   request_path: string | null;
   changed_cols: string[] | null;
 
-  // actor（業務用 user_id）
   actor_user_id_text: string | null;
 
-  // shift（※すべて最新値）
+  change_reason: string | null;
+  penalty_level: string | null;
+  event_type: string | null;
+
   shift_id: string | null;
   cs_name: string | null;
   shift_start_date: string | null;
@@ -39,6 +41,7 @@ export default function AuditLogPage() {
   const [filterCsName, setFilterCsName] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const fetchRows = async () => {
     setLoading(true);
@@ -68,6 +71,34 @@ export default function AuditLogPage() {
     setLoading(false);
   };
 
+  const updatePenalty = async (
+    auditId: string,
+    changeReason: string | null,
+    penaltyLevel: string | null
+  ) => {
+    setSavingId(auditId);
+
+    const res = await fetch("/api/audit-log/update-penalty", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        auditId,
+        changeReason,
+        penaltyLevel,
+      }),
+    });
+
+    setSavingId(null);
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      alert(json?.error ?? "保存に失敗しました");
+      return;
+    }
+
+    await fetchRows();
+  };
+
   useEffect(() => {
     void fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +110,7 @@ export default function AuditLogPage() {
 
       {/* 注意書き */}
       <div className="text-sm text-red-600 font-semibold">
-        * 開始日・利用者名・staff_01・service_code・開始時刻 等は  
+        * 開始日・利用者名・staff_01・service_code・開始時刻 等は
         最新のシフトデータを表示しており、変更時の値ではありません。
       </div>
 
@@ -138,6 +169,10 @@ export default function AuditLogPage() {
               <th className="p-2 border-b text-red-600">staff_01 *</th>
 
               <th className="p-2 border-b">changed_cols</th>
+              <th className="p-2 border-b">event_type</th>
+              <th className="p-2 border-b">reason</th>
+              <th className="p-2 border-b">penalty</th>
+              <th className="p-2 border-b">保存</th>
             </tr>
           </thead>
 
@@ -158,12 +193,60 @@ export default function AuditLogPage() {
                 <td className="p-2 border-b">
                   {(r.changed_cols ?? []).join(", ")}
                 </td>
+                <td className="p-2 border-b">
+                  {r.event_type ?? ""}
+                </td>
+
+                <td className="p-2 border-b">
+                  <input
+                    className="border px-2 py-1 w-48"
+                    defaultValue={r.change_reason ?? ""}
+                    id={`reason-${r.audit_id}`}
+                  />
+                </td>
+
+                <td className="p-2 border-b">
+                  <select
+                    className="border px-2 py-1"
+                    defaultValue={r.penalty_level ?? ""}
+                    id={`penalty-${r.audit_id}`}
+                  >
+                    <option value="">対象外</option>
+                    <option value="minor">minor</option>
+                    <option value="moderate">moderate</option>
+                    <option value="severe">severe</option>
+                  </select>
+                </td>
+
+                <td className="p-2 border-b">
+                  <button
+                    className="border px-3 py-1 rounded disabled:opacity-50"
+                    disabled={savingId === r.audit_id}
+                    onClick={() => {
+                      const reasonInput = document.getElementById(
+                        `reason-${r.audit_id}`
+                      ) as HTMLInputElement | null;
+
+                      const penaltySelect = document.getElementById(
+                        `penalty-${r.audit_id}`
+                      ) as HTMLSelectElement | null;
+
+                      void updatePenalty(
+                        r.audit_id,
+                        reasonInput?.value.trim() || null,
+                        penaltySelect?.value || null
+                      );
+                    }}
+                  >
+                    {savingId === r.audit_id ? "保存中" : "保存"}
+                  </button>
+                </td>
               </tr>
             ))}
 
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-4 text-center">
+                <td colSpan={14} className="p-4 text-center">
                   データなし
                 </td>
               </tr>
