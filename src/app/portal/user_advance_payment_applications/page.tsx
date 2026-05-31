@@ -381,6 +381,28 @@ export default function UserAdvancePaymentConfirmPage() {
       const employeeName = me.user_id;
       const applicationNo = makeApplicationNo();
 
+      const todayJst = toJstDateString();
+
+      const { data: existingApplication, error: existingApplicationError } =
+        await supabase
+          .from("user_advance_payment_applications")
+          .select("id, application_no, status, created_at")
+          .eq("user_id", me.user_id)
+          .eq("desired_payment_date", todayJst)
+          .neq("status", "rejected")
+          .maybeSingle();
+
+      if (existingApplicationError) {
+        throw existingApplicationError;
+      }
+
+      if (existingApplication) {
+        setMessage(
+          `本日分の日払い申請はすでに登録済みです。申請番号：${existingApplication.application_no}`
+        );
+        return;
+      }
+
       const { error } = await supabase.from("user_advance_payment_applications").insert({
         application_no: applicationNo,
         user_id: me.user_id,
