@@ -52,22 +52,21 @@ ${Array.isArray(selectedShifts)
         ).join("\n")
         : "-"}`;
 
+    const adminChannelId = "99142491";
+
     const { data: userRoom, error: userRoomError } = await supabaseAdmin
       .from("group_lw_channel_view")
-      .select("channel_id")
-      .eq("user_id", userId)
+      .select("channel_id, group_name, group_type, group_account")
       .eq("group_type", "人事労務サポートルーム")
+      .eq("group_account", userId)
       .maybeSingle();
-
     if (userRoomError) throw userRoomError;
-
-    const adminChannelId = "99142491";
 
     const sentTo: string[] = [];
 
     console.log("[advance-payment-notify] sending", {
       adminChannelId,
-      userChannelId: userRoom?.channel_id,
+      userRoom,
     });
 
     // ヘルパーマネジャー共有チャネル
