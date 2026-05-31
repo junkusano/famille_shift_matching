@@ -20,7 +20,6 @@ type ShiftRow = {
   shift_id: string;
   shift_start_date: string;
   shift_start_time: string;
-  shift_end_date: string;
   shift_end_time: string;
   service_code: string | null;
   kaipoke_cs_id: string | null;
@@ -258,7 +257,6 @@ export default function UserAdvancePaymentConfirmPage() {
             shift_id,
             shift_start_date,
             shift_start_time,
-            shift_end_date,
             shift_end_time,
             service_code,
             estimated_pay_amount,
@@ -302,11 +300,8 @@ export default function UserAdvancePaymentConfirmPage() {
         const rows = (data ?? []) as ShiftRow[];
         const filtered = rows
           .filter((shift) => {
-            const endDateForCalc =
-              shift.shift_end_date || shift.shift_start_date;
-
             const shiftEnd = makeJstDateTime(
-              endDateForCalc,
+              shift.shift_start_date,
               shift.shift_end_time
             );
 
