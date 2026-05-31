@@ -1,8 +1,11 @@
-// ================================
-// 2) src/app/api/lineworks/advance-payment-notify/route.ts）
-// ================================
+//api/lineworks/advance-payment-notify/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabase/service";
+import { getAccessToken } from "@/lib/getAccessToken";
+import { sendLWBotMessage } from "@/lib/lineworks/sendLWBotMessage";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,63 +17,74 @@ export async function POST(req: NextRequest) {
       applicationDate,
       amount,
       applicationNo,
+      baseAmount,
+      deductionRate,
+      deductionReasons,
+      selectedShifts,
     } = body;
 
-    const text =
-      `${userName}さんが、` +
-      `${applicationDate}に` +
-      `${amount.toLocaleString()}円の` +
-      `日払い申請を行いました。\n` +
-      `申請番号：${applicationNo}`;
+    const token = await getAccessToken();
 
-    const { data: roomData, error: roomError } = await supabase
-  .from("group_lw_channel_view")
-  .select("channel_id")
-  .eq("user_id", userId)
-  .maybeSingle();
+    const message =
+`【日払い申請】
+申請者：${userName ?? userId}
+申請日：${applicationDate}
+申請番号：${applicationNo}
 
-if (roomError) throw roomError;
+申請額：${Number(amount ?? 0).toLocaleString()}円
+対象合計：${Number(baseAmount ?? 0).toLocaleString()}円
+控除率：${Math.round(Number(deductionRate ?? 0) * 100)}%
+控除理由：${Array.isArray(deductionReasons) ? deductionReasons.join("、") : "-"}
 
-if (!roomData?.channel_id) {
-  throw new Error("LINE WORKSルームが見つかりませんでした");
-}
+対象シフト：
+${Array.isArray(selectedShifts)
+  ? selectedShifts.map((s: any) =>
+      `・${s.shift_start_date} ${String(s.shift_start_time).slice(0, 5)}-${String(s.shift_end_time).slice(0, 5)} ${s.client_name ?? ""} / shift_id:${s.shift_id}`
+    ).join("\n")
+  : "-"}`;
 
-const channelId = roomData.channel_id;
+    const { data: userRoom, error: userRoomError } = await supabaseAdmin
+      .from("group_lw_channel_view")
+      .select("channel_id")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-console.log(channelId);
-console.log(text);
+    if (userRoomError) throw userRoomError;
 
-const { data: managerRoom, error: managerRoomError } =
-  await supabase
-    .from("group_lw_channel_view")
-    .select("channel_id")
-    .eq("group_name", "ヘルパーマネージャー")
-    .maybeSingle();
+    const { data: managerRoom, error: managerRoomError } = await supabaseAdmin
+      .from("group_lw_channel_view")
+      .select("channel_id")
+      .eq("group_name", "ヘルパーマネージャー")
+      .maybeSingle();
 
-if (managerRoomError) throw managerRoomError;
+    if (managerRoomError) throw managerRoomError;
 
-if (managerRoom?.channel_id) {
-  console.log("manager channel:", managerRoom.channel_id);
-  console.log(text);
+    const sentTo: string[] = [];
 
-  // 後でここをLINE WORKS送信へ置換
-}
+    if (managerRoom?.channel_id) {
+      await sendLWBotMessage(managerRoom.channel_id, message, token);
+      sentTo.push("manager");
+    }
 
-    // ここで LINE WORKS API送信
+    if (userRoom?.channel_id) {
+      await sendLWBotMessage(userRoom.channel_id, message, token);
+      sentTo.push("user");
+    }
 
-    return NextResponse.json({
-      ok: true,
-    });
+    if (sentTo.length === 0) {
+      throw new Error("送信先LINE WORKS channel_id が見つかりませんでした");
+    }
+
+    return NextResponse.json({ ok: true, sentTo });
   } catch (error) {
-    console.error(error);
+    console.error("[advance-payment-notify] error", error);
 
     return NextResponse.json(
       {
         ok: false,
+        error: error instanceof Error ? error.message : "unknown error",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }

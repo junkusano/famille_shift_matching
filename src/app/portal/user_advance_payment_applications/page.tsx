@@ -411,7 +411,7 @@ export default function UserAdvancePaymentConfirmPage() {
 
       if (error) throw error;
 
-      await fetch("/api/lineworks/advance-payment-notify", {
+      const notifyRes = await fetch("/api/lineworks/advance-payment-notify", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -422,8 +422,25 @@ export default function UserAdvancePaymentConfirmPage() {
           applicationDate: toJstDateString(),
           amount: calculation.availableAmount,
           applicationNo,
+          baseAmount,
+          deductionRate: calculation.deductionRate,
+          deductionReasons: calculation.reasons,
+          selectedShifts: targetShifts.map((shift) => ({
+            shift_id: shift.shift_id,
+            shift_start_date: shift.shift_start_date,
+            shift_start_time: shift.shift_start_time,
+            shift_end_time: shift.shift_end_time,
+            client_name: shift.client_name,
+          })),
         }),
       });
+
+      if (!notifyRes.ok) {
+        const notifyJson = await notifyRes.json().catch(() => null);
+        throw new Error(
+          notifyJson?.error ?? "LINE WORKS通知に失敗しました"
+        );
+      }
 
       setMessage(`日払い申請を受け付けました。申請番号：${applicationNo}`);
     } catch (error) {
