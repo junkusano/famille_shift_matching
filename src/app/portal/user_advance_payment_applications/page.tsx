@@ -73,15 +73,15 @@ function toJstDateString(date = new Date()) {
 }
 
 function getTargetWindowJst() {
-  const now = new Date();
-  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const today = toJstDateString();
 
-  const y = jstNow.getUTCFullYear();
-  const m = jstNow.getUTCMonth();
-  const d = jstNow.getUTCDate();
+  const yesterdayDate = new Date(`${today}T00:00:00+09:00`);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
 
-  const end = new Date(Date.UTC(y, m, d, 18, 0, 0));
-  const start = new Date(Date.UTC(y, m, d - 1, 18, 30, 0));
+  const yesterday = toJstDateString(yesterdayDate);
+
+  const start = makeJstDateTime(yesterday, "18:00");
+  const end = makeJstDateTime(today, "18:00");
 
   return { start, end };
 }
@@ -462,7 +462,7 @@ export default function UserAdvancePaymentConfirmPage() {
           <CardContent className="p-4 text-sm text-blue-900">
             <div className="font-semibold">対象期間</div>
             <div className="mt-1">
-              前日18:30 ～ 当日18:00終了分
+              前日18:00 ～ 当日18:00終了分
             </div>
             <div className="mt-1 text-xs text-blue-700">
               対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
