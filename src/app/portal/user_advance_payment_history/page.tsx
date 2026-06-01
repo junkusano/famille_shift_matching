@@ -111,7 +111,7 @@ export default function UserAdvancePaymentHistoryPage() {
   const [toDate, setToDate] = useState(toJstDateString());
   const [errorMessage, setErrorMessage] = useState("");
 
-  const isManager = me?.role === "manager" || me?.role === "admin";
+  const isManager =   me?.role === "manager" || me?.role === "admin";
 
   useEffect(() => {
     async function fetchHistory() {
@@ -310,22 +310,50 @@ const summary = useMemo(() => {
   };
 }, [filteredRows]);
 
+
+
 async function updateStatus(
   applicationNo: string | null,
   status: string
 ) {
   if (!applicationNo) return;
 
+  setErrorMessage("");
+
   const { error } = await supabase
     .from("user_advance_payment_applications")
     .update({
       status,
-      paid_at: status === "paid" ? new Date().toISOString() : null,
+      paid_at:
+        status === "paid"
+          ? new Date().toISOString()
+          : null,
     })
     .eq("application_no", applicationNo);
 
   if (error) {
     setErrorMessage("ステータス更新に失敗しました。");
+    return;
+  }
+
+  const notifyRes = await fetch(
+    "/api/lineworks/advance-payment-status-notify",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        applicationNo,
+        status,
+      }),
+    }
+  );
+
+  if (!notifyRes.ok) {
+    setErrorMessage(
+      "ステータスは更新されましたが、LINE WORKS通知に失敗しました。"
+    );
     return;
   }
 
