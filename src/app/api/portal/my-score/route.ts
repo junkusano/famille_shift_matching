@@ -204,6 +204,7 @@ type ScoreRow = {
     meeting_previous_month_attended: boolean | null;
     meeting_past_attended: boolean | null;
     jisseki_previous_month_done_count: number | null;
+    jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
 };
 
@@ -236,7 +237,11 @@ function calcDisplayTotalScore(row: ScoreRow) {
             ? 10
             : 0;
 
-    const jissekiScore = 20;
+    const jissekiPastIncompleteCount = Number(
+        row.jisseki_past_incomplete_count ?? 0
+    );
+
+    const jissekiScore = 20 - (jissekiPastIncompleteCount * 5);
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
     return (
@@ -431,7 +436,8 @@ export async function GET(req: NextRequest) {
     meeting_previous_month_attended,
     meeting_past_attended,
     jisseki_previous_month_done_count,
-    training_goal_selected_count
+jisseki_past_incomplete_count,
+training_goal_selected_count
 `)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
@@ -465,7 +471,11 @@ export async function GET(req: NextRequest) {
             ? 10
             : 0;
 
-    const jissekiScore = 20;
+    const jissekiPastIncompleteCount = Number(
+        summary.jisseki_past_incomplete_count ?? 0
+    );
+
+    const jissekiScore = 20 - (jissekiPastIncompleteCount * 5);
 
     const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
 
