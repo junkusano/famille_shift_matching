@@ -167,7 +167,7 @@ export default function UserAdvancePaymentHistoryPage() {
 
         if (!manager) {
           shiftQuery = shiftQuery.or(
-            `staff_01_user_id.eq.${currentUser.user_id},staff_02_user_id.eq.${currentUser.user_id},staff_03_user_id.eq.${currentUser.user_id}`
+          `staff_01_user_id.eq.${currentUser.user_id},staff_02_user_id.eq.${currentUser.user_id},staff_03_user_id.eq.${currentUser.user_id}`
           );
         }
 
@@ -300,15 +300,37 @@ const staffNameById = new Map<string, string>();
     });
   }, [rows, query, statusFilter, fromDate, toDate]);
 
-  const summary = useMemo(() => {
-    return {
-      total: filteredRows.length,
-      unsubmitted: filteredRows.filter((r) => r.application_status === "unsubmitted").length,
-      submitted: filteredRows.filter((r) => r.application_status === "submitted").length,
-      approved: filteredRows.filter((r) => r.application_status === "approved").length,
-      paid: filteredRows.filter((r) => r.application_status === "paid").length,
-    };
-  }, [filteredRows]);
+const summary = useMemo(() => {
+  return {
+    total: filteredRows.length,
+    unsubmitted: filteredRows.filter((r) => r.application_status === "unsubmitted").length,
+    submitted: filteredRows.filter((r) => r.application_status === "submitted").length,
+    approved: filteredRows.filter((r) => r.application_status === "approved").length,
+    paid: filteredRows.filter((r) => r.application_status === "paid").length,
+  };
+}, [filteredRows]);
+
+async function updateStatus(
+  applicationNo: string | null,
+  status: string
+) {
+  if (!applicationNo) return;
+
+  const { error } = await supabase
+    .from("user_advance_payment_applications")
+    .update({
+      status,
+      paid_at: status === "paid" ? new Date().toISOString() : null,
+    })
+    .eq("application_no", applicationNo);
+
+  if (error) {
+    setErrorMessage("ステータス更新に失敗しました。");
+    return;
+  }
+
+  window.location.reload();
+}
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 text-slate-900 md:p-6">
@@ -420,6 +442,7 @@ const staffNameById = new Map<string, string>();
                     <th className="p-3">シフト日</th>
                     <th className="p-3">申請者</th>
                     <th className="p-3">ステータス</th>
+                    <th className="p-3">操作</th>
                     <th className="p-3">申請金額</th>
                     <th className="p-3">控除内訳</th>
                     </tr>
@@ -440,6 +463,18 @@ const staffNameById = new Map<string, string>();
         {row.application_status_label}
       </span>
     </td>
+    <td className="p-3">
+  <Button
+    size="sm"
+    variant="outline"
+    disabled={row.application_status === "paid"}
+    onClick={() =>
+      updateStatus(row.application_no, "paid")
+    }
+  >
+    振込済みにする
+  </Button>
+</td>
     <td className="p-3">{yen(row.amount)}</td>
     <td className="p-3 text-xs text-slate-500">
       {row.deduction_reasons.length > 0
