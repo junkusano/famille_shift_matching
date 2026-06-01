@@ -11,6 +11,7 @@ type ScoreMetric = {
     score: number;
     maxScore: number;
     note: string;
+    linkUrl?: string;
 };
 
 type MemberOption = {
@@ -349,6 +350,15 @@ function MyScorePreviewContent() {
                                                 <div className="mt-1 text-xs text-slate-500">
                                                     {m.note}
                                                 </div>
+
+                                                {m.linkUrl && (
+                                                    <Link
+                                                        href={m.linkUrl}
+                                                        className="mt-2 inline-flex text-xs font-semibold text-blue-600 underline"
+                                                    >
+                                                        管理画面で確認
+                                                    </Link>
+                                                )}
                                             </div>
 
                                             <div className="shrink-0 text-right">

@@ -346,6 +346,25 @@ export async function GET(req: NextRequest) {
     const userId = me.user_id;
     //const entryId = me.entry_id;
 
+    function addParams(path: string, params: Record<string, string | null | undefined>) {
+        const qs = new URLSearchParams();
+
+        Object.entries(params).forEach(([key, value]) => {
+            if (value) qs.set(key, value);
+        });
+
+        return `${path}?${qs.toString()}`;
+    }
+
+    function getPreviousYm(ym: string) {
+        const [yearText, monthText] = ym.split("-");
+        const d = new Date(Number(yearText), Number(monthText) - 2, 1);
+
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    const previousYm = getPreviousYm(ym);
+
     const targetMonthDate = `${ym}-01`;
 
     const { data: summary, error: summaryError } = await supabaseAdmin
@@ -468,8 +487,12 @@ export async function GET(req: NextRequest) {
                 key: "service_hours",
                 label: "サービス時間",
                 score: serviceHoursScore,
-                maxScore: 80,
+                maxScore: 10,
                 note: `${summary.service_hours ?? 0}時間`,
+                linkUrl: addParams("/portal/shift-view", {
+                    user_id: userId,
+                    date: `${ym}-01`,
+                }),
             },
             {
                 key: "visit_record",
@@ -477,6 +500,10 @@ export async function GET(req: NextRequest) {
                 score: visitRecordScore,
                 maxScore: 30,
                 note: `当日完了 ${summary.houmon_same_day_done_count ?? 0}件 / 遅れ完了 ${summary.houmon_late_done_count ?? 0}件 / 当月未完了 ${summary.visit_record_current_month_incomplete_count ?? 0}件 / 過去未完了 ${summary.visit_record_past_incomplete_count ?? 0}件`,
+                linkUrl: addParams("/portal/shift-view", {
+                    user_id: userId,
+                    date: `${ym}-01`,
+                }),
             },
             {
                 key: "meeting",
@@ -484,6 +511,10 @@ export async function GET(req: NextRequest) {
                 score: meetingScore,
                 maxScore: 10,
                 note: `前月参加: ${summary.meeting_previous_month_attended ? "あり" : "なし"} / 過去参加: ${summary.meeting_past_attended ? "あり" : "なし"}`,
+                linkUrl: addParams("/portal/monthly-meeting-check", {
+                    ym: previousYm,
+                    user_id: userId,
+                }),
             },
             {
                 key: "jisseki",
@@ -491,13 +522,20 @@ export async function GET(req: NextRequest) {
                 score: jissekiScore,
                 maxScore: 30,
                 note: `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件 / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
+                linkUrl: addParams("/portal/disability-check", {
+                    ym: previousYm,
+                    user_id: userId,
+                }),
             },
             {
                 key: "training_goal",
-                label: "目標設定",
+                label: "目標・研修",
                 score: trainingGoalScore,
                 maxScore: 20,
                 note: `${summary.training_goal_selected_count ?? 0}件`,
+                linkUrl: addParams("/portal/training-goals", {
+                    user_id: userId,
+                }),
             },
         ],
         ranking: {
