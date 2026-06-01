@@ -198,7 +198,7 @@
     },
     {
       "path": "/api/cron/staff-monthly-score-summaries",
-      "schedule": "23 3 * * *"
+      "schedule": "43 */2 * * *"
     }
   ]
 }
