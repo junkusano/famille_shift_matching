@@ -223,10 +223,12 @@ function calcDisplayTotalScore(row: ScoreRow) {
     const visitRecordBaseScore =
         visitRecordTotalCount > 0
             ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
-            : 0;
+            : 30;
 
-    const visitRecordScore =
-        visitRecordBaseScore - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = Math.max(
+        0,
+        Math.min(30, visitRecordBaseScore - visitRecordPastIncompleteCount * 5)
+    );
 
     const meetingScore =
         row.meeting_previous_month_attended === true ||
@@ -234,7 +236,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
             ? 10
             : 0;
 
-    const jissekiScore = Number(row.jisseki_previous_month_done_count ?? 0) * 2;
+    const jissekiScore = 20;
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
     return (
@@ -450,10 +452,12 @@ export async function GET(req: NextRequest) {
     const visitRecordBaseScore =
         visitRecordTotalCount > 0
             ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
-            : 0;
+            : 30;
 
-    const visitRecordScore =
-        visitRecordBaseScore - visitRecordPastIncompleteCount * 5;
+    const visitRecordScore = Math.max(
+        0,
+        Math.min(30, visitRecordBaseScore - visitRecordPastIncompleteCount * 5)
+    );
 
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
@@ -461,7 +465,7 @@ export async function GET(req: NextRequest) {
             ? 10
             : 0;
 
-    const jissekiScore = Number(summary.jisseki_previous_month_done_count ?? 0) * 2;
+    const jissekiScore = 20;
 
     const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
 
@@ -520,7 +524,7 @@ export async function GET(req: NextRequest) {
                 key: "jisseki",
                 label: "実績記録",
                 score: jissekiScore,
-                maxScore: 30,
+                maxScore: 20,
                 note: `前月完了 ${summary.jisseki_previous_month_done_count ?? 0}件 / 過去未完了 ${summary.jisseki_past_incomplete_count ?? 0}件`,
                 linkUrl: addParams("/portal/disability-check", {
                     ym: previousYm,
