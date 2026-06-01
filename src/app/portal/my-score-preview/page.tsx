@@ -344,21 +344,21 @@ function MyScorePreviewContent() {
                                     >
                                         <div className="mb-3 flex items-start justify-between gap-3">
                                             <div>
-                                                <div className="text-base font-bold text-slate-900">
-                                                    {m.label}
-                                                </div>
+                                                {m.linkUrl ? (
+                                                    <Link
+                                                        href={m.linkUrl}
+                                                        className="text-base font-bold text-blue-600 hover:underline"
+                                                    >
+                                                        {m.label}
+                                                    </Link>
+                                                ) : (
+                                                    <div className="text-base font-bold text-slate-900">
+                                                        {m.label}
+                                                    </div>
+                                                )}
                                                 <div className="mt-1 text-xs text-slate-500">
                                                     {m.note}
                                                 </div>
-
-                                                {m.linkUrl && (
-                                                    <Link
-                                                        href={m.linkUrl}
-                                                        className="mt-2 inline-flex text-xs font-semibold text-blue-600 underline"
-                                                    >
-                                                        管理画面で確認
-                                                    </Link>
-                                                )}
                                             </div>
 
                                             <div className="shrink-0 text-right">
