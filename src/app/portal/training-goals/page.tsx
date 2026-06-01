@@ -651,6 +651,23 @@ export default function TrainingGoalsPage() {
             console.error('employee_training_goals upsert error:', error);
             return;
         }
+
+        const ym = new Date().toISOString().slice(0, 7);
+
+        try {
+            await fetch('/api/portal/training-goals/recalc-score', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entry_id: row.entry_id,
+                    ym,
+                }),
+            });
+        } catch (error: unknown) {
+            console.error('recalc-score error:', error);
+        }
         const becameSelected =
             patch.selected === true && row.selected !== true;
 
