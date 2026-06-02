@@ -104,6 +104,42 @@ function getTargetMonth(req: NextRequest) {
     return `${targetYm}-01`;
 }
 
+async function fetchAllShiftRows(
+    fromDate: string,
+    toDate: string,
+    selectShiftColumns: string
+): Promise<ShiftRecordViewRow[]> {
+    const pageSize = 1000;
+    let from = 0;
+    const allRows: ShiftRecordViewRow[] = [];
+
+    while (true) {
+        const { data, error } = await supabaseAdmin
+            .from("shift_shift_record_view")
+            .select(selectShiftColumns)
+            .gte("shift_start_date", fromDate)
+            .lt("shift_start_date", toDate)
+            .order("shift_start_date", { ascending: true })
+            .range(from, from + pageSize - 1)
+            .returns<ShiftRecordViewRow[]>();
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = data ?? [];
+        allRows.push(...rows);
+
+        if (rows.length < pageSize) {
+            break;
+        }
+
+        from += pageSize;
+    }
+
+    return allRows;
+}
+
 function calcShiftHours(shift: ShiftRecordViewRow) {
     if (!shift.shift_start_date || !shift.shift_start_time || !shift.shift_end_time) {
         return 0;
@@ -273,34 +309,21 @@ export async function GET(req: NextRequest) {
         const selectShiftColumns =
             "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status";
 
-        const { data: currentMonthShiftRows, error: currentMonthShiftError } =
-            await supabaseAdmin
-                .from("shift_shift_record_view")
-                .select(selectShiftColumns)
-                .gte("shift_start_date", targetMonth)
-                .lt("shift_start_date", nextMonthStart)
-                .range(0, 9999)
-                .returns<ShiftRecordViewRow[]>();
+        const currentMonthShiftRows = await fetchAllShiftRows(
+            targetMonth,
+            nextMonthStart,
+            selectShiftColumns
+        );
 
-        if (currentMonthShiftError) {
-            throw currentMonthShiftError;
-        }
-
-        const { data: pastShiftRows, error: pastShiftError } = await supabaseAdmin
-            .from("shift_shift_record_view")
-            .select(selectShiftColumns)
-            .gte("shift_start_date", "2025-11-01")
-            .lt("shift_start_date", targetMonth)
-            .range(0, 9999)
-            .returns<ShiftRecordViewRow[]>();
-
-        if (pastShiftError) {
-            throw pastShiftError;
-        }
+        const pastShiftRows = await fetchAllShiftRows(
+            "2025-11-01",
+            targetMonth,
+            selectShiftColumns
+        );
 
         const shiftRecordRows = [
-            ...(currentMonthShiftRows ?? []),
-            ...(pastShiftRows ?? []),
+            ...currentMonthShiftRows,
+            ...pastShiftRows,
         ];
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
@@ -437,10 +460,13 @@ export async function GET(req: NextRequest) {
                 throw upsertError;
             }
         }
-
         return NextResponse.json({
             ok: true,
             target_month: targetMonth,
+            next_month_start: nextMonthStart,
+            current_month_shift_count: currentMonthShiftRows.length,
+            past_shift_count: pastShiftRows.length,
+            service_hours_user_count: serviceHoursMap.size,
             updated_count: updates.length,
         });
     } catch (e: unknown) {
