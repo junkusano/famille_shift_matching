@@ -31,6 +31,8 @@ type ShiftRecordViewRow = {
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
     staff_03_user_id: string | null;
+    staff_02_attend_flg: boolean | null;
+    staff_03_attend_flg: boolean | null;
     record_status: string | null;
 };
 
@@ -268,7 +270,7 @@ export async function GET() {
         const { data: shiftRecordRows, error: shiftRecordError } = await supabaseAdmin
             .from("shift_shift_record_view")
             .select(
-                "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, record_status"
+                "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status"
             )
             .gte("shift_start_date", "2025-11-01")
             .lt("shift_start_date", nextMonthStart)
@@ -302,8 +304,14 @@ export async function GET() {
                 const hours = calcShiftHours(shift);
 
                 addServiceHours(serviceHoursMap, shift.staff_01_user_id, hours);
-                addServiceHours(serviceHoursMap, shift.staff_02_user_id, hours);
-                addServiceHours(serviceHoursMap, shift.staff_03_user_id, hours);
+
+                if (shift.staff_02_attend_flg === true) {
+                    addServiceHours(serviceHoursMap, shift.staff_02_user_id, hours);
+                }
+
+                if (shift.staff_03_attend_flg === true) {
+                    addServiceHours(serviceHoursMap, shift.staff_03_user_id, hours);
+                }
             }
 
             if (
