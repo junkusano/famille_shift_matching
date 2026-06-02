@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+//当月のみ更新変更箇所1
+//import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 type SummaryRow = {
@@ -65,8 +67,8 @@ function addIncompleteCount(
     current[type] += 1;
     map.set(userId, current);
 }
-
-function getTargetMonth(req: NextRequest) {
+//当月のみ更新変更箇所2 以下をコメントアウト
+/*function getTargetMonth(req: NextRequest) {
     const ym = req.nextUrl.searchParams.get("ym");
 
     if (ym && /^\d{4}-\d{2}$/.test(ym)) {
@@ -94,7 +96,7 @@ function getTargetMonth(req: NextRequest) {
     }
 
     return `${targetYm}-01`;
-}
+}*/
 
 function calcVisitRecordScore(row: SummaryRow) {
     const total = Number(row.visit_record_total_count ?? 0);
@@ -140,9 +142,13 @@ function getMedalRank(score: number) {
     return "ブロンズ";
 }
 
-export async function GET(req: NextRequest) {
+//当月のみ更新変更箇所３
+//export async function GET(req: NextRequest) {
+export async function GET() {
     try {
-        const targetMonth = getTargetMonth(req);
+        const targetMonth = "2026-05-01";
+        //当月のみ更新変更箇所４
+        //const targetMonth = getTargetMonth(req);
 
         const { data: initialRows, error } = await supabaseAdmin
             .from("staff_monthly_score_summaries")
