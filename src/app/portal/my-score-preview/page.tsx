@@ -209,10 +209,10 @@ function MyScorePreviewContent() {
             case "meeting":
                 return "前月会議参加、または翌月10日までの追加開催で10点";
 
-            case "record_completion":
+            case "jisseki":
                 return "前月の実績記録完了率×20点 − 過去未完了1件につき5点";
 
-            case "training":
+            case "training_goal":
                 return "当月選択した目標・研修を視聴完了すると1件5点";
 
             default:
