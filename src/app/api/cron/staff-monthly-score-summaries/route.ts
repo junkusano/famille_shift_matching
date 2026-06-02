@@ -1,4 +1,7 @@
+//当月のみ更新変更箇所1
 import { NextRequest, NextResponse } from "next/server";
+//指定月のみ更新変更箇所1
+//mport { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
 type SummaryRow = {
@@ -22,10 +25,15 @@ type SummaryRow = {
 
 type ShiftRecordViewRow = {
     shift_start_date: string | null;
+    shift_start_time: string | null;
+    shift_end_date: string | null;
+    shift_end_time: string | null;
     kaipoke_cs_id: string | null;
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
     staff_03_user_id: string | null;
+    staff_02_attend_flg: boolean | null;
+    staff_03_attend_flg: boolean | null;
     record_status: string | null;
 };
 
@@ -65,7 +73,7 @@ function addIncompleteCount(
     current[type] += 1;
     map.set(userId, current);
 }
-
+//指定月のみ更新変更箇所2 以下をコメントアウト
 function getTargetMonth(req: NextRequest) {
     const ym = req.nextUrl.searchParams.get("ym");
 
@@ -96,14 +104,76 @@ function getTargetMonth(req: NextRequest) {
     return `${targetYm}-01`;
 }
 
+async function fetchAllShiftRows(
+    fromDate: string,
+    toDate: string,
+    selectShiftColumns: string
+): Promise<ShiftRecordViewRow[]> {
+    const pageSize = 1000;
+    let from = 0;
+    const allRows: ShiftRecordViewRow[] = [];
+
+    while (true) {
+        const { data, error } = await supabaseAdmin
+            .from("shift_shift_record_view")
+            .select(selectShiftColumns)
+            .gte("shift_start_date", fromDate)
+            .lt("shift_start_date", toDate)
+            .order("shift_start_date", { ascending: true })
+            .range(from, from + pageSize - 1)
+            .returns<ShiftRecordViewRow[]>();
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = data ?? [];
+        allRows.push(...rows);
+
+        if (rows.length < pageSize) {
+            break;
+        }
+
+        from += pageSize;
+    }
+
+    return allRows;
+}
+
+function calcShiftHours(shift: ShiftRecordViewRow) {
+    if (!shift.shift_start_date || !shift.shift_start_time || !shift.shift_end_time) {
+        return 0;
+    }
+
+    const start = new Date(`${shift.shift_start_date}T${shift.shift_start_time}`);
+    const endDate = shift.shift_end_date || shift.shift_start_date;
+    let end = new Date(`${endDate}T${shift.shift_end_time}`);
+
+    if (end <= start) {
+        end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    return Math.round(((end.getTime() - start.getTime()) / 1000 / 60 / 60) * 10) / 10;
+}
+
+function addServiceHours(
+    map: Map<string, number>,
+    userId: string | null,
+    hours: number
+) {
+    if (!userId || hours <= 0) return;
+
+    map.set(userId, Math.round(((map.get(userId) ?? 0) + hours) * 10) / 10);
+}
+
 function calcVisitRecordScore(row: SummaryRow) {
     const total = Number(row.visit_record_total_count ?? 0);
     const sameDay = Number(row.houmon_same_day_done_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
 
-    const baseScore = total <= 0 ? 0 : Math.round((sameDay / total) * 30);
+    const sameDayScore = total <= 0 ? 0 : Math.round((sameDay / total) * 30);
 
-    return baseScore - pastIncomplete * 5;
+    return Math.max(0, 30 + sameDayScore - pastIncomplete * 5);
 }
 
 function calcTotalScore(row: SummaryRow) {
@@ -140,8 +210,14 @@ function getMedalRank(score: number) {
     return "ブロンズ";
 }
 
+//当月のみ更新変更箇所３
 export async function GET(req: NextRequest) {
+    //指定月のみ更新変更箇所3
+    //export async function GET() {
     try {
+        //指定月のみ更新変更箇所４
+        //const targetMonth = "2026-05-01";
+        //当月のみ更新変更箇所４
         const targetMonth = getTargetMonth(req);
 
         const { data: initialRows, error } = await supabaseAdmin
@@ -230,20 +306,29 @@ export async function GET(req: NextRequest) {
         const currentMonthEndDate =
             todayDate < nextMonthStart ? todayDate : nextMonthStart;
 
-        const { data: shiftRecordRows, error: shiftRecordError } = await supabaseAdmin
-            .from("shift_shift_record_view")
-            .select(
-                "shift_start_date, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, record_status"
-            )
-            .gte("shift_start_date", "2025-11-01")
-            .lt("shift_start_date", nextMonthStart)
-            .returns<ShiftRecordViewRow[]>();
+        const selectShiftColumns =
+            "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status";
 
-        if (shiftRecordError) {
-            throw shiftRecordError;
-        }
+        const currentMonthShiftRows = await fetchAllShiftRows(
+            targetMonth,
+            nextMonthStart,
+            selectShiftColumns
+        );
+
+        const pastShiftRows = await fetchAllShiftRows(
+            "2025-11-01",
+            targetMonth,
+            selectShiftColumns
+        );
+
+        const shiftRecordRows = [
+            ...currentMonthShiftRows,
+            ...pastShiftRows,
+        ];
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
+        const submittedTotalCountMap = new Map<string, number>();
+        const serviceHoursMap = new Map<string, number>();
         const excludedKaipokeIds = [
             "999999999",
             "9999999998",
@@ -257,7 +342,45 @@ export async function GET(req: NextRequest) {
                 continue;
             }
 
+            if (
+                shift.shift_start_date &&
+                shift.shift_start_date >= targetMonth &&
+                shift.shift_start_date < nextMonthStart
+            ) {
+                const hours = calcShiftHours(shift);
+
+                addServiceHours(serviceHoursMap, shift.staff_01_user_id, hours);
+
+                if (shift.staff_02_attend_flg === true) {
+                    addServiceHours(serviceHoursMap, shift.staff_02_user_id, hours);
+                }
+
+                if (shift.staff_03_attend_flg === true) {
+                    addServiceHours(serviceHoursMap, shift.staff_03_user_id, hours);
+                }
+            }
+
+            if (
+                shift.record_status === "submitted" &&
+                shift.shift_start_date >= targetMonth &&
+                shift.shift_start_date < currentMonthEndDate
+            ) {
+                for (const userId of [
+                    shift.staff_01_user_id,
+                    shift.staff_02_user_id,
+                    shift.staff_03_user_id,
+                ]) {
+                    if (!userId) continue;
+
+                    submittedTotalCountMap.set(
+                        userId,
+                        (submittedTotalCountMap.get(userId) ?? 0) + 1
+                    );
+                }
+            }
+
             if (shift.record_status === "submitted") continue;
+
             const type =
                 shift.shift_start_date >= targetMonth &&
                     shift.shift_start_date < currentMonthEndDate
@@ -278,6 +401,10 @@ export async function GET(req: NextRequest) {
             .map((row) => {
                 const rowWithIncompleteCounts = {
                     ...row,
+                    service_hours:
+                        serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
+                    visit_record_total_count:
+                        submittedTotalCountMap.get(row.user_id) ?? 0,
                     visit_record_current_month_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
                     visit_record_past_incomplete_count:
@@ -297,8 +424,10 @@ export async function GET(req: NextRequest) {
             user_id: row.user_id,
             entry_id: row.entry_id,
             staff_name: row.staff_name,
-            service_hours: row.service_hours,
-            visit_record_total_count: row.visit_record_total_count ?? 0,
+            service_hours:
+                serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
+            visit_record_total_count:
+                submittedTotalCountMap.get(row.user_id) ?? 0,
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
             houmon_late_done_count: row.houmon_late_done_count ?? 0,
             visit_record_current_month_incomplete_count:
@@ -331,10 +460,13 @@ export async function GET(req: NextRequest) {
                 throw upsertError;
             }
         }
-
         return NextResponse.json({
             ok: true,
             target_month: targetMonth,
+            next_month_start: nextMonthStart,
+            current_month_shift_count: currentMonthShiftRows.length,
+            past_shift_count: pastShiftRows.length,
+            service_hours_user_count: serviceHoursMap.size,
             updated_count: updates.length,
         });
     } catch (e: unknown) {
