@@ -22,6 +22,7 @@ type SummaryRow = {
 
 type ShiftRecordViewRow = {
     shift_start_date: string | null;
+    kaipoke_cs_id: string | null;
     staff_01_user_id: string | null;
     staff_02_user_id: string | null;
     staff_03_user_id: string | null;
@@ -232,7 +233,7 @@ export async function GET(req: NextRequest) {
         const { data: shiftRecordRows, error: shiftRecordError } = await supabaseAdmin
             .from("shift_shift_record_view")
             .select(
-                "shift_start_date, staff_01_user_id, staff_02_user_id, staff_03_user_id, record_status"
+                "shift_start_date, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, record_status"
             )
             .gte("shift_start_date", "2025-11-01")
             .lt("shift_start_date", nextMonthStart)
@@ -246,6 +247,9 @@ export async function GET(req: NextRequest) {
 
         for (const shift of shiftRecordRows ?? []) {
             if (!shift.shift_start_date) continue;
+
+            if (String(shift.kaipoke_cs_id) === "999999999") continue;
+
             if (shift.record_status === "submitted") continue;
 
             const type =
