@@ -267,18 +267,38 @@ export async function GET() {
         const currentMonthEndDate =
             todayDate < nextMonthStart ? todayDate : nextMonthStart;
 
-        const { data: shiftRecordRows, error: shiftRecordError } = await supabaseAdmin
+        const selectShiftColumns =
+            "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status";
+
+        const { data: currentMonthShiftRows, error: currentMonthShiftError } =
+            await supabaseAdmin
+                .from("shift_shift_record_view")
+                .select(selectShiftColumns)
+                .gte("shift_start_date", targetMonth)
+                .lt("shift_start_date", nextMonthStart)
+                .range(0, 9999)
+                .returns<ShiftRecordViewRow[]>();
+
+        if (currentMonthShiftError) {
+            throw currentMonthShiftError;
+        }
+
+        const { data: pastShiftRows, error: pastShiftError } = await supabaseAdmin
             .from("shift_shift_record_view")
-            .select(
-                "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status"
-            )
+            .select(selectShiftColumns)
             .gte("shift_start_date", "2025-11-01")
-            .lt("shift_start_date", nextMonthStart)
+            .lt("shift_start_date", targetMonth)
+            .range(0, 9999)
             .returns<ShiftRecordViewRow[]>();
 
-        if (shiftRecordError) {
-            throw shiftRecordError;
+        if (pastShiftError) {
+            throw pastShiftError;
         }
+
+        const shiftRecordRows = [
+            ...(currentMonthShiftRows ?? []),
+            ...(pastShiftRows ?? []),
+        ];
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
         const submittedTotalCountMap = new Map<string, number>();
