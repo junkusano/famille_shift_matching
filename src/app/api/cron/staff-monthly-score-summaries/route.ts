@@ -173,7 +173,7 @@ function calcVisitRecordScore(row: SummaryRow) {
 
     const baseScore = total <= 0 ? 30 : Math.round((sameDay / total) * 30);
 
-    return baseScore - pastIncomplete * 5;
+    return Math.max(0, baseScore - pastIncomplete * 5);
 }
 
 function calcTotalScore(row: SummaryRow) {
