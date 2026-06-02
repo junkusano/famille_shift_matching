@@ -347,7 +347,8 @@ export async function GET() {
             .map((row) => {
                 const rowWithIncompleteCounts = {
                     ...row,
-                    service_hours: serviceHoursMap.get(row.user_id) ?? 0,
+                    service_hours:
+                        serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
                     visit_record_total_count:
                         submittedTotalCountMap.get(row.user_id) ?? 0,
                     visit_record_current_month_incomplete_count:
@@ -369,7 +370,8 @@ export async function GET() {
             user_id: row.user_id,
             entry_id: row.entry_id,
             staff_name: row.staff_name,
-            service_hours: serviceHoursMap.get(row.user_id) ?? 0,
+            service_hours:
+                serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
             visit_record_total_count:
                 submittedTotalCountMap.get(row.user_id) ?? 0,
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
