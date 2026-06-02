@@ -198,6 +198,28 @@ function MyScorePreviewContent() {
     const paddingY = 36;
     const maxScoreForChart = Math.max(100, ...chartPoints.map((p) => p.score));
 
+    const getMetricDescription = (key: string) => {
+        switch (key) {
+            case "service_hours":
+                return "20時間ごとに10点加算（160時間で80点満点）";
+
+            case "visit_record":
+                return "当月の当日完了率×30点 − 過去未完了1件につき5点";
+
+            case "meeting":
+                return "前月会議参加、または翌月10日までの追加開催で10点";
+
+            case "record_completion":
+                return "前月の実績記録完了率×20点 − 過去未完了1件につき5点";
+
+            case "training":
+                return "当月選択した目標・研修を視聴完了すると1件5点";
+
+            default:
+                return "";
+        }
+    };
+
     const toX = (index: number) => {
         if (chartPoints.length <= 1) return chartWidth / 2;
         return paddingX + (index * (chartWidth - paddingX * 2)) / (chartPoints.length - 1);
@@ -358,6 +380,10 @@ function MyScorePreviewContent() {
                                                 )}
                                                 <div className="mt-1 text-xs text-slate-500">
                                                     {m.note}
+                                                </div>
+
+                                                <div className="mt-1 text-xs text-blue-600 font-medium">
+                                                    {getMetricDescription(m.key)}
                                                 </div>
                                             </div>
 
