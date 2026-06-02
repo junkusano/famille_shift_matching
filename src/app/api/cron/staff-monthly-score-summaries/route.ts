@@ -103,7 +103,7 @@ function calcVisitRecordScore(row: SummaryRow) {
     const sameDay = Number(row.houmon_same_day_done_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
 
-    const baseScore = total <= 0 ? 0 : Math.round((sameDay / total) * 30);
+    const baseScore = total <= 0 ? 30 : Math.round((sameDay / total) * 30);
 
     return baseScore - pastIncomplete * 5;
 }
