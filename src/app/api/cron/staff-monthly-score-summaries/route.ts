@@ -244,14 +244,20 @@ export async function GET(req: NextRequest) {
         }
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
+        const excludedKaipokeIds = [
+            "999999999",
+            "9999999998",
+            "9999999996",
+            "9999999994",
+            "9999999980",
+        ];
 
         for (const shift of shiftRecordRows ?? []) {
-            if (!shift.shift_start_date) continue;
-
-            if (String(shift.kaipoke_cs_id) === "999999999") continue;
+            if (excludedKaipokeIds.includes(String(shift.kaipoke_cs_id))) {
+                continue;
+            }
 
             if (shift.record_status === "submitted") continue;
-
             const type =
                 shift.shift_start_date >= targetMonth &&
                     shift.shift_start_date < currentMonthEndDate
