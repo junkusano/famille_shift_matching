@@ -250,6 +250,7 @@ export async function GET() {
         }
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
+        const submittedTotalCountMap = new Map<string, number>();
         const excludedKaipokeIds = [
             "999999999",
             "9999999998",
@@ -263,7 +264,27 @@ export async function GET() {
                 continue;
             }
 
+            if (
+                shift.record_status === "submitted" &&
+                shift.shift_start_date >= targetMonth &&
+                shift.shift_start_date < currentMonthEndDate
+            ) {
+                for (const userId of [
+                    shift.staff_01_user_id,
+                    shift.staff_02_user_id,
+                    shift.staff_03_user_id,
+                ]) {
+                    if (!userId) continue;
+
+                    submittedTotalCountMap.set(
+                        userId,
+                        (submittedTotalCountMap.get(userId) ?? 0) + 1
+                    );
+                }
+            }
+
             if (shift.record_status === "submitted") continue;
+
             const type =
                 shift.shift_start_date >= targetMonth &&
                     shift.shift_start_date < currentMonthEndDate
@@ -284,6 +305,8 @@ export async function GET() {
             .map((row) => {
                 const rowWithIncompleteCounts = {
                     ...row,
+                    visit_record_total_count:
+                        submittedTotalCountMap.get(row.user_id) ?? 0,
                     visit_record_current_month_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
                     visit_record_past_incomplete_count:
@@ -304,7 +327,8 @@ export async function GET() {
             entry_id: row.entry_id,
             staff_name: row.staff_name,
             service_hours: row.service_hours,
-            visit_record_total_count: row.visit_record_total_count ?? 0,
+            visit_record_total_count:
+                submittedTotalCountMap.get(row.user_id) ?? 0,
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
             houmon_late_done_count: row.houmon_late_done_count ?? 0,
             visit_record_current_month_incomplete_count:
