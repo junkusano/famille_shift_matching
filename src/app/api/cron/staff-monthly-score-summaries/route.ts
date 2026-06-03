@@ -335,11 +335,14 @@ export async function GET(req: NextRequest) {
             throw error;
         }
 
-        const todayDate = getJstTodayDateString();
+        //const todayDate = getJstTodayDateString();
+        
         const nextMonthStart = getNextMonthStartDate(targetMonth);
 
+        /*
         const currentMonthEndDate =
             todayDate < nextMonthStart ? todayDate : nextMonthStart;
+            */
 
         const selectShiftColumns =
             "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
