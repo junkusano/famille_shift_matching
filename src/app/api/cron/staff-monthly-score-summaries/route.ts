@@ -514,20 +514,21 @@ export async function GET(req: NextRequest) {
                     }
                 }
             }
-            const type =
-                shift.shift_start_date >= targetMonth &&
-                    shift.shift_start_date < currentMonthEndDate
-                    ? "currentMonth"
-                    : shift.shift_start_date >= "2025-11-01" &&
-                        shift.shift_start_date < targetMonth
-                        ? "past"
-                        : null;
+            if (
+                shift.shift_start_date &&
+                shift.shift_start_date >= "2025-11-01" &&
+                shift.shift_start_date < targetMonth
+            ) {
+                const isDone =
+                    shift.record_status === "submitted" ||
+                    shift.record_status === "approved";
 
-            if (!type) continue;
-
-            addIncompleteCount(incompleteCountMap, shift.staff_01_user_id ?? "", type);
-            addIncompleteCount(incompleteCountMap, shift.staff_02_user_id ?? "", type);
-            addIncompleteCount(incompleteCountMap, shift.staff_03_user_id ?? "", type);
+                if (!isDone) {
+                    addIncompleteCount(incompleteCountMap, shift.staff_01_user_id ?? "", "past");
+                    addIncompleteCount(incompleteCountMap, shift.staff_02_user_id ?? "", "past");
+                    addIncompleteCount(incompleteCountMap, shift.staff_03_user_id ?? "", "past");
+                }
+            }
         }
 
         const scoredRows = (rows ?? [])
