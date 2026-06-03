@@ -515,6 +515,9 @@ export async function GET(req: NextRequest) {
             summary.staff_name ??
             `${me.last_name_kanji ?? ""}${me.first_name_kanji ?? ""}`,
         totalScore,
+        debugDbTotalScore: summary.total_score,
+        debugTargetMonth: summary.target_month,
+        debugUserId: summary.user_id,
         totalMaxScore: 150,
         badge: getBadge(totalScore),
         metrics: [
