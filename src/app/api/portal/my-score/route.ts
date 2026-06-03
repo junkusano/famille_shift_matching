@@ -291,7 +291,12 @@ export async function GET(req: NextRequest) {
     //const { ym, startDate, endDate } = getMonthRange(targetMonth);
 
     const targetUserId = req.nextUrl.searchParams.get("user_id");
-    const ym = req.nextUrl.searchParams.get("ym") ?? "2026-05";
+
+    const now = new Date();
+    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+    const currentYm = `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, "0")}`;
+
+    const ym = req.nextUrl.searchParams.get("ym") ?? currentYm;
     const monthOptions = buildMonthOptions(24);
 
     const { data: loginUser, error: loginUserError } = await supabaseAdmin
