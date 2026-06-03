@@ -45,7 +45,7 @@ type IncompleteCount = {
 
 type DisabilityCheckRow = {
     year_month: string | null;
-    is_checked: boolean | null;
+    application_check: boolean | null;
     asigned_jisseki_staff_id: string | null;
 };
 
@@ -362,7 +362,7 @@ export async function GET(req: NextRequest) {
 
         const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
             .from("disability_check_view")
-            .select("year_month, is_checked, asigned_jisseki_staff_id")
+            .select("year_month, application_check, asigned_jisseki_staff_id")
             .not("asigned_jisseki_staff_id", "is", null)
             .gte("year_month", "2025-11")
             .lte("year_month", jissekiBaseYearMonth)
@@ -377,14 +377,14 @@ export async function GET(req: NextRequest) {
             const staffId = row.asigned_jisseki_staff_id;
             if (!staffId || !row.year_month) continue;
 
-            if (row.year_month === jissekiBaseYearMonth && row.is_checked === true) {
+            if (row.year_month === jissekiBaseYearMonth && row.application_check === true) {
                 jissekiPreviousMonthDoneMap.set(
                     staffId,
                     (jissekiPreviousMonthDoneMap.get(staffId) ?? 0) + 1
                 );
             }
 
-            if (row.is_checked === false) {
+            if (row.application_check === false) {
                 jissekiPastIncompleteMap.set(
                     staffId,
                     (jissekiPastIncompleteMap.get(staffId) ?? 0) + 1
