@@ -46,7 +46,7 @@ type IncompleteCount = {
 type DisabilityCheckRow = {
     year_month: string | null;
     is_checked: boolean | null;
-    asigned_jisseki_staff: string | null;
+    asigned_jisseki_staff_id: string | null;
 };
 
 function getJstTodayDateString() {
@@ -362,8 +362,8 @@ export async function GET(req: NextRequest) {
 
         const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
             .from("disability_check_view")
-            .select("year_month, is_checked, asigned_jisseki_staff")
-            .not("asigned_jisseki_staff", "is", null)
+            .select("year_month, is_checked, asigned_jisseki_staff_id")
+            .not("asigned_jisseki_staff_id", "is", null)
             .gte("year_month", "2025-11")
             .lte("year_month", jissekiBaseYearMonth)
             .range(0, 9999)
@@ -374,7 +374,7 @@ export async function GET(req: NextRequest) {
         }
 
         for (const row of disabilityRows ?? []) {
-            const staffId = row.asigned_jisseki_staff;
+            const staffId = row.asigned_jisseki_staff_id;
             if (!staffId || !row.year_month) continue;
 
             if (row.year_month === jissekiBaseYearMonth && row.is_checked === true) {
