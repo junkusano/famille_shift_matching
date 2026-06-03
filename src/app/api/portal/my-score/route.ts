@@ -222,9 +222,6 @@ function calcDisplayTotalScore(row: ScoreRow) {
         row.visit_record_past_incomplete_count ?? 0
     );
 
-
-
-
     const visitRecordScore = Math.max(
         0,
         30 - visitRecordPastIncompleteCount * 5
