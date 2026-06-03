@@ -222,6 +222,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
         row.visit_record_past_incomplete_count ?? 0
     );
 
+
     const visitRecordScore = Math.max(
         0,
         30 - visitRecordPastIncompleteCount * 5
@@ -437,31 +438,15 @@ export async function GET(req: NextRequest) {
         Math.floor(Number(summary.service_hours ?? 0) / 20) * 10
     );
 
-    const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
-
-    const visitRecordCurrentMonthIncompleteCount = Number(
-        summary.visit_record_current_month_incomplete_count ?? 0
-    );
 
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
 
-    const visitRecordCompletedCount = Math.max(
-        0,
-        visitRecordTotalCount - visitRecordCurrentMonthIncompleteCount
-    );
-
-    const visitRecordBaseScore =
-        visitRecordTotalCount > 0
-            ? Math.round((visitRecordCompletedCount / visitRecordTotalCount) * 30)
-            : 30;
-
     const visitRecordScore = Math.max(
         0,
-        Math.min(30, visitRecordBaseScore - visitRecordPastIncompleteCount * 5)
+        30 - visitRecordPastIncompleteCount * 5
     );
-
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
             summary.meeting_past_attended === true
