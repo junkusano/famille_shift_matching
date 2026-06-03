@@ -207,6 +207,7 @@ type ScoreRow = {
     jisseki_previous_month_done_count: number | null;
     jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
+    visit_record_current_month_incomplete_count: number | null;
 };
 
 function calcDisplayTotalScore(row: ScoreRow) {
@@ -216,15 +217,23 @@ function calcDisplayTotalScore(row: ScoreRow) {
     );
 
     const visitRecordTotalCount = Number(row.visit_record_total_count ?? 0);
-    const visitRecordSameDayCount = Number(row.houmon_same_day_done_count ?? 0);
+
+    const visitRecordCurrentMonthIncompleteCount = Number(
+        row.visit_record_current_month_incomplete_count ?? 0
+    );
 
     const visitRecordPastIncompleteCount = Number(
         row.visit_record_past_incomplete_count ?? 0
     );
 
+    const visitRecordCompletedCount = Math.max(
+        0,
+        visitRecordTotalCount - visitRecordCurrentMonthIncompleteCount
+    );
+
     const visitRecordBaseScore =
         visitRecordTotalCount > 0
-            ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
+            ? Math.round((visitRecordCompletedCount / visitRecordTotalCount) * 30)
             : 30;
 
     const visitRecordScore = Math.max(
@@ -303,15 +312,15 @@ export async function GET(req: NextRequest) {
         .from("user_entry_united_view_single")
         .select(
             `
-        user_id,
-        entry_id,
-        auth_uid,
-        status,
-        last_name_kanji,
-        first_name_kanji,
-        last_name_kana,
-        first_name_kana
-      `
+            user_id,
+            entry_id,
+            auth_uid,
+            status,
+            last_name_kanji,
+            first_name_kanji,
+            last_name_kana,
+            first_name_kana
+            `
         )
         .eq("auth_uid", authData.user.id)
         .maybeSingle<UserRow>();
@@ -433,17 +442,18 @@ export async function GET(req: NextRequest) {
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
         .select(`
-    target_month,
-    rank_no,
-    service_hours,
-    visit_record_total_count,
-    houmon_same_day_done_count,
-    visit_record_past_incomplete_count,
-    meeting_previous_month_attended,
-    meeting_past_attended,
-    jisseki_previous_month_done_count,
-jisseki_past_incomplete_count,
-training_goal_selected_count
+            target_month,
+            rank_no,
+            service_hours,
+            visit_record_total_count,
+            houmon_same_day_done_count,
+            visit_record_past_incomplete_count,
+            meeting_previous_month_attended,
+            meeting_past_attended,
+            jisseki_previous_month_done_count,
+            jisseki_past_incomplete_count,
+            visit_record_current_month_incomplete_count,
+            training_goal_selected_count
 `)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
