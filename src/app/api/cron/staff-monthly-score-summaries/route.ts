@@ -482,7 +482,8 @@ export async function GET(req: NextRequest) {
 
                 const isSameDayDone =
                     isSubmitted &&
-                    recordCreatedDate === shift.shift_start_date;
+                    recordCreatedDate !== null &&
+                    recordCreatedDate <= shift.shift_start_date;
 
                 const isLateDone =
                     isSubmitted &&
