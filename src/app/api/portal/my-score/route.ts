@@ -216,29 +216,18 @@ function calcDisplayTotalScore(row: ScoreRow) {
         Math.floor(Number(row.service_hours ?? 0) / 20) * 10
     );
 
-    const visitRecordTotalCount = Number(row.visit_record_total_count ?? 0);
 
-    const visitRecordCurrentMonthIncompleteCount = Number(
-        row.visit_record_current_month_incomplete_count ?? 0
-    );
 
     const visitRecordPastIncompleteCount = Number(
         row.visit_record_past_incomplete_count ?? 0
     );
 
-    const visitRecordCompletedCount = Math.max(
-        0,
-        visitRecordTotalCount - visitRecordCurrentMonthIncompleteCount
-    );
 
-    const visitRecordBaseScore =
-        visitRecordTotalCount > 0
-            ? Math.round((visitRecordCompletedCount / visitRecordTotalCount) * 30)
-            : 30;
+
 
     const visitRecordScore = Math.max(
         0,
-        Math.min(30, visitRecordBaseScore - visitRecordPastIncompleteCount * 5)
+        30 - visitRecordPastIncompleteCount * 5
     );
 
     const meetingScore =
@@ -416,28 +405,15 @@ export async function GET(req: NextRequest) {
         .select("*")
         .eq("target_month", targetMonthDate);
 
-    let currentRankNo = 0;
-    let previousScore: number | null = null;
-
     const rankingRows = (rankingSourceRows ?? [])
         .map((row) => ({
             user_id: row.user_id,
             staff_name: row.staff_name,
-            score: calcDisplayTotalScore(row),
+            score: Number(row.total_score ?? 0),
+            rank_no: Number(row.rank_no ?? 0),
+            medal_rank: row.medal_rank ?? getBadge(Number(row.total_score ?? 0)),
         }))
-        .sort((a, b) => b.score - a.score)
-        .map((row, index) => {
-            if (previousScore === null || previousScore !== row.score) {
-                currentRankNo = index + 1;
-            }
-
-            previousScore = row.score;
-
-            return {
-                ...row,
-                rank_no: currentRankNo,
-            };
-        });
+        .sort((a, b) => a.rank_no - b.rank_no);
 
     const { data: historyRows } = await supabaseAdmin
         .from("staff_monthly_score_summaries")
@@ -585,7 +561,7 @@ export async function GET(req: NextRequest) {
             userId: row.user_id,
             score: row.score,
             name: row.staff_name ?? row.user_id,
-            badge: getBadge(row.score),
+            badge: row.medal_rank,
         })),
         scoreHistory: (historyRows ?? []).map((row) => {
             const month = String(row.target_month).slice(0, 7);
