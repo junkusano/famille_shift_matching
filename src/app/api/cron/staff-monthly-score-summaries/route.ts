@@ -50,15 +50,6 @@ type DisabilityCheckRow = {
     asigned_jisseki_staff_id: string | null;
 };
 
-function getJstTodayDateString() {
-    const now = new Date();
-    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-
-    return `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, "0")}-${String(
-        jst.getDate()
-    ).padStart(2, "0")}`;
-}
-
 function getNextMonthStartDate(targetMonth: string) {
     const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
     const nextMonth = new Date(year, month, 1);
@@ -336,7 +327,7 @@ export async function GET(req: NextRequest) {
         }
 
         //const todayDate = getJstTodayDateString();
-        
+
         const nextMonthStart = getNextMonthStartDate(targetMonth);
 
         /*
