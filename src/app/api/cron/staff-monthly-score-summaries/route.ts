@@ -184,22 +184,11 @@ function addServiceHours(
 }
 
 function calcVisitRecordScore(row: SummaryRow) {
-    const total = Number(row.visit_record_total_count ?? 0);
-    const currentIncomplete = Number(
-        row.visit_record_current_month_incomplete_count ?? 0
-    );
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
-
-    const completed = Math.max(0, total - currentIncomplete);
-
-    const baseScore =
-        total > 0
-            ? Math.round((completed / total) * 30)
-            : 30;
 
     return Math.max(
         0,
-        Math.min(30, baseScore - pastIncomplete * 5)
+        30 - pastIncomplete * 5
     );
 }
 
