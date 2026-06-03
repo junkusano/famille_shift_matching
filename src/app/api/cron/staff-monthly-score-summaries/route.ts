@@ -608,6 +608,10 @@ export async function GET(req: NextRequest) {
             disability_check_count: disabilityRows?.length ?? 0,
             jisseki_previous_month_done_user_count: jissekiPreviousMonthDoneMap.size,
             jisseki_past_incomplete_user_count: jissekiPastIncompleteMap.size,
+            junkusano_past_incomplete:
+                incompleteCountMap.get("junkusano")?.past ?? 0,
+            junkusano_current_incomplete:
+                visitCurrentMonthIncompleteCountMap.get("junkusano") ?? 0,
             updated_count: updates.length,
         });
     } catch (e: unknown) {
