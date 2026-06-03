@@ -361,7 +361,7 @@ export async function GET(req: NextRequest) {
         const jissekiBaseYearMonth = getJissekiBaseYearMonth();
 
         const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
-            .from("disability_check")
+            .from("disability_check_view")
             .select("year_month, is_checked, asigned_jisseki_staff")
             .not("asigned_jisseki_staff", "is", null)
             .gte("year_month", "2025-11")
