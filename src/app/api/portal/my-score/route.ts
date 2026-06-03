@@ -455,15 +455,23 @@ training_goal_selected_count
     );
 
     const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
-    const visitRecordSameDayCount = Number(summary.houmon_same_day_done_count ?? 0);
+
+    const visitRecordCurrentMonthIncompleteCount = Number(
+        summary.visit_record_current_month_incomplete_count ?? 0
+    );
 
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
 
+    const visitRecordCompletedCount = Math.max(
+        0,
+        visitRecordTotalCount - visitRecordCurrentMonthIncompleteCount
+    );
+
     const visitRecordBaseScore =
         visitRecordTotalCount > 0
-            ? Math.round((visitRecordSameDayCount / visitRecordTotalCount) * 30)
+            ? Math.round((visitRecordCompletedCount / visitRecordTotalCount) * 30)
             : 30;
 
     const visitRecordScore = Math.max(
