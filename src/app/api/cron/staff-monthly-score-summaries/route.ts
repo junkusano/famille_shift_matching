@@ -185,12 +185,22 @@ function addServiceHours(
 
 function calcVisitRecordScore(row: SummaryRow) {
     const total = Number(row.visit_record_total_count ?? 0);
-    const sameDay = Number(row.houmon_same_day_done_count ?? 0);
+    const currentIncomplete = Number(
+        row.visit_record_current_month_incomplete_count ?? 0
+    );
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
 
-    const sameDayScore = total <= 0 ? 0 : Math.round((sameDay / total) * 30);
+    const completed = Math.max(0, total - currentIncomplete);
 
-    return Math.max(0, 30 + sameDayScore - pastIncomplete * 5);
+    const baseScore =
+        total > 0
+            ? Math.round((completed / total) * 30)
+            : 30;
+
+    return Math.max(
+        0,
+        Math.min(30, baseScore - pastIncomplete * 5)
+    );
 }
 
 function calcTotalScore(row: SummaryRow) {
@@ -207,7 +217,10 @@ function calcTotalScore(row: SummaryRow) {
             ? 10
             : 0;
 
-    const jissekiScore = Number(row.jisseki_previous_month_done_count ?? 0) * 2;
+    const jissekiScore = Math.max(
+        0,
+        20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
+    );
 
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
