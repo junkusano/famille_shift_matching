@@ -1,3 +1,4 @@
+//api/cron/staff-monthly-score-summaries/route.ts
 //当月のみ更新変更箇所1
 import { NextRequest, NextResponse } from "next/server";
 //指定月のみ更新変更箇所1
@@ -42,6 +43,12 @@ type IncompleteCount = {
     past: number;
 };
 
+type DisabilityCheckRow = {
+    year_month: string | null;
+    is_checked: boolean | null;
+    asigned_jisseki_staff: string | null;
+};
+
 function getJstTodayDateString() {
     const now = new Date();
     const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
@@ -56,6 +63,24 @@ function getNextMonthStartDate(targetMonth: string) {
     const nextMonth = new Date(year, month, 1);
 
     return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function getJissekiBaseYearMonth() {
+    const now = new Date();
+    const jst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
+    const year = jst.getFullYear();
+    const month = jst.getMonth() + 1;
+    const day = jst.getDate();
+
+    const targetDate =
+        day <= 10
+            ? new Date(year, month - 3, 1)
+            : new Date(year, month - 2, 1);
+
+    return `${targetDate.getFullYear()}-${String(
+        targetDate.getMonth() + 1
+    ).padStart(2, "0")}`;
 }
 
 function addIncompleteCount(
@@ -329,6 +354,44 @@ export async function GET(req: NextRequest) {
         const incompleteCountMap = new Map<string, IncompleteCount>();
         const submittedTotalCountMap = new Map<string, number>();
         const serviceHoursMap = new Map<string, number>();
+
+        const jissekiPreviousMonthDoneMap = new Map<string, number>();
+        const jissekiPastIncompleteMap = new Map<string, number>();
+
+        const jissekiBaseYearMonth = getJissekiBaseYearMonth();
+
+        const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
+            .from("disability_check")
+            .select("year_month, is_checked, asigned_jisseki_staff")
+            .not("asigned_jisseki_staff", "is", null)
+            .gte("year_month", "2025-11")
+            .lte("year_month", jissekiBaseYearMonth)
+            .range(0, 9999)
+            .returns<DisabilityCheckRow[]>();
+
+        if (disabilityError) {
+            throw disabilityError;
+        }
+
+        for (const row of disabilityRows ?? []) {
+            const staffId = row.asigned_jisseki_staff;
+            if (!staffId || !row.year_month) continue;
+
+            if (row.year_month === jissekiBaseYearMonth && row.is_checked === true) {
+                jissekiPreviousMonthDoneMap.set(
+                    staffId,
+                    (jissekiPreviousMonthDoneMap.get(staffId) ?? 0) + 1
+                );
+            }
+
+            if (row.is_checked === false) {
+                jissekiPastIncompleteMap.set(
+                    staffId,
+                    (jissekiPastIncompleteMap.get(staffId) ?? 0) + 1
+                );
+            }
+        }
+
         const excludedKaipokeIds = [
             "999999999",
             "9999999998",
@@ -409,6 +472,10 @@ export async function GET(req: NextRequest) {
                         incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
                     visit_record_past_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.past ?? 0,
+                    jisseki_previous_month_done_count:
+                        jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
+                    jisseki_past_incomplete_count:
+                        jissekiPastIncompleteMap.get(row.user_id) ?? 0,
                 };
 
                 return {
@@ -438,9 +505,9 @@ export async function GET(req: NextRequest) {
                 row.meeting_previous_month_attended ?? false,
             meeting_past_attended: row.meeting_past_attended ?? false,
             jisseki_previous_month_done_count:
-                row.jisseki_previous_month_done_count ?? 0,
+                jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
             jisseki_past_incomplete_count:
-                row.jisseki_past_incomplete_count ?? 0,
+                jissekiPastIncompleteMap.get(row.user_id) ?? 0,
             training_goal_selected_count:
                 row.training_goal_selected_count ?? 0,
             total_score: row.total_score,
@@ -463,10 +530,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             ok: true,
             target_month: targetMonth,
-            next_month_start: nextMonthStart,
-            current_month_shift_count: currentMonthShiftRows.length,
-            past_shift_count: pastShiftRows.length,
-            service_hours_user_count: serviceHoursMap.size,
+            jisseki_base_year_month: jissekiBaseYearMonth,
+            disability_check_count: disabilityRows?.length ?? 0,
+            jisseki_previous_month_done_user_count: jissekiPreviousMonthDoneMap.size,
+            jisseki_past_incomplete_user_count: jissekiPastIncompleteMap.size,
             updated_count: updates.length,
         });
     } catch (e: unknown) {

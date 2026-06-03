@@ -1,3 +1,4 @@
+//api/portal/training-goals/recalc-score/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 

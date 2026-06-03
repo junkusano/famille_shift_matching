@@ -1,3 +1,4 @@
+//app/portal/my-score-preview/page.tsx
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
@@ -210,7 +211,7 @@ function MyScorePreviewContent() {
                 return "前月会議参加、または翌月10日までの追加開催で10点";
 
             case "jisseki":
-                return "前月の実績記録完了率×20点 − 過去未完了1件につき5点";
+                return "実績記録完了点20点 − 過去未完了1件につき5点";
 
             case "training_goal":
                 return "当月選択した目標・研修を視聴完了すると1件5点";

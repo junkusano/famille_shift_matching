@@ -1,3 +1,4 @@
+//api/cron/disability-check-jisseki/route.ts
 import { NextResponse } from "next/server";
 import { refreshDisabilityCheckJissekiStaff } from "@/lib/disabilityCheckJisseki";
 
