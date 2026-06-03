@@ -36,6 +36,7 @@ type ShiftRecordViewRow = {
     staff_02_attend_flg: boolean | null;
     staff_03_attend_flg: boolean | null;
     record_status: string | null;
+    record_created_at: string | null;
 };
 
 type IncompleteCount = {
@@ -235,6 +236,15 @@ function getMedalRank(score: number) {
     return "ブロンズ";
 }
 
+function getPreviousMonthStartDate(targetMonth: string) {
+    const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
+    const previousMonth = new Date(year, month - 2, 1);
+
+    return `${previousMonth.getFullYear()}-${String(
+        previousMonth.getMonth() + 1
+    ).padStart(2, "0")}-01`;
+}
+
 //当月のみ更新変更箇所３
 export async function GET(req: NextRequest) {
     //指定月のみ更新変更箇所3
@@ -332,7 +342,7 @@ export async function GET(req: NextRequest) {
             todayDate < nextMonthStart ? todayDate : nextMonthStart;
 
         const selectShiftColumns =
-            "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status";
+            "shift_start_date, shift_start_time, shift_end_date, shift_end_time, kaipoke_cs_id, staff_01_user_id, staff_02_user_id, staff_03_user_id, staff_02_attend_flg, staff_03_attend_flg, record_status, record_created_at";
 
         const currentMonthShiftRows = await fetchAllShiftRows(
             targetMonth,
@@ -352,13 +362,40 @@ export async function GET(req: NextRequest) {
         ];
 
         const incompleteCountMap = new Map<string, IncompleteCount>();
-        const submittedTotalCountMap = new Map<string, number>();
+        const visitTotalCountMap = new Map<string, number>();
+        const houmonSameDayDoneCountMap = new Map<string, number>();
+        const houmonLateDoneCountMap = new Map<string, number>();
+        const visitCurrentMonthIncompleteCountMap = new Map<string, number>();
+
         const serviceHoursMap = new Map<string, number>();
 
         const jissekiPreviousMonthDoneMap = new Map<string, number>();
         const jissekiPastIncompleteMap = new Map<string, number>();
 
         const jissekiBaseYearMonth = getJissekiBaseYearMonth();
+
+        const meetingPreviousMonthAttendedMap = new Map<string, boolean>();
+
+        const previousMeetingMonth = getPreviousMonthStartDate(targetMonth);
+
+        const { data: meetingRows, error: meetingError } = await supabaseAdmin
+            .from("monthly_meeting_attendance")
+            .select("user_id, attended_regular, attended_extra, checked_regular, checked_extra")
+            .eq("target_month", previousMeetingMonth);
+
+        if (meetingError) {
+            throw meetingError;
+        }
+
+        for (const row of meetingRows ?? []) {
+            const attended =
+                row.attended_regular === true ||
+                row.attended_extra === true ||
+                row.checked_regular === true ||
+                row.checked_extra === true;
+
+            meetingPreviousMonthAttendedMap.set(row.user_id, attended);
+        }
 
         const { data: disabilityRows, error: disabilityError } = await supabaseAdmin
             .from("disability_check_view")
@@ -372,6 +409,7 @@ export async function GET(req: NextRequest) {
         if (disabilityError) {
             throw disabilityError;
         }
+
 
         for (const row of disabilityRows ?? []) {
             const staffId = row.asigned_jisseki_staff_id;
@@ -424,26 +462,57 @@ export async function GET(req: NextRequest) {
             }
 
             if (
-                shift.record_status === "submitted" &&
+                shift.shift_start_date &&
                 shift.shift_start_date >= targetMonth &&
-                shift.shift_start_date < currentMonthEndDate
+                shift.shift_start_date < nextMonthStart
             ) {
-                for (const userId of [
+                const userIds = [
                     shift.staff_01_user_id,
                     shift.staff_02_user_id,
                     shift.staff_03_user_id,
-                ]) {
-                    if (!userId) continue;
+                ].filter(Boolean) as string[];
 
-                    submittedTotalCountMap.set(
+                const isSubmitted = shift.record_status === "submitted";
+
+                const recordCreatedDate = shift.record_created_at
+                    ? new Date(shift.record_created_at)
+                        .toLocaleString("sv-SE", { timeZone: "Asia/Tokyo" })
+                        .slice(0, 10)
+                    : null;
+
+                const isSameDayDone =
+                    isSubmitted &&
+                    recordCreatedDate === shift.shift_start_date;
+
+                const isLateDone =
+                    isSubmitted &&
+                    recordCreatedDate !== null &&
+                    recordCreatedDate > shift.shift_start_date;
+
+                for (const userId of userIds) {
+                    visitTotalCountMap.set(
                         userId,
-                        (submittedTotalCountMap.get(userId) ?? 0) + 1
+                        (visitTotalCountMap.get(userId) ?? 0) + 1
                     );
+
+                    if (isSameDayDone) {
+                        houmonSameDayDoneCountMap.set(
+                            userId,
+                            (houmonSameDayDoneCountMap.get(userId) ?? 0) + 1
+                        );
+                    } else if (isLateDone) {
+                        houmonLateDoneCountMap.set(
+                            userId,
+                            (houmonLateDoneCountMap.get(userId) ?? 0) + 1
+                        );
+                    } else {
+                        visitCurrentMonthIncompleteCountMap.set(
+                            userId,
+                            (visitCurrentMonthIncompleteCountMap.get(userId) ?? 0) + 1
+                        );
+                    }
                 }
             }
-
-            if (shift.record_status === "submitted") continue;
-
             const type =
                 shift.shift_start_date >= targetMonth &&
                     shift.shift_start_date < currentMonthEndDate
@@ -467,9 +536,13 @@ export async function GET(req: NextRequest) {
                     service_hours:
                         serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
                     visit_record_total_count:
-                        submittedTotalCountMap.get(row.user_id) ?? 0,
+                        visitTotalCountMap.get(row.user_id) ?? 0,
+                    houmon_same_day_done_count:
+                        houmonSameDayDoneCountMap.get(row.user_id) ?? 0,
+                    houmon_late_done_count:
+                        houmonLateDoneCountMap.get(row.user_id) ?? 0,
                     visit_record_current_month_incomplete_count:
-                        incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
+                        visitCurrentMonthIncompleteCountMap.get(row.user_id) ?? 0,
                     visit_record_past_incomplete_count:
                         incompleteCountMap.get(row.user_id)?.past ?? 0,
                     jisseki_previous_month_done_count:
@@ -494,7 +567,7 @@ export async function GET(req: NextRequest) {
             service_hours:
                 serviceHoursMap.get(row.user_id) ?? row.service_hours ?? 0,
             visit_record_total_count:
-                submittedTotalCountMap.get(row.user_id) ?? 0,
+                visitTotalCountMap.get(row.user_id) ?? 0,
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
             houmon_late_done_count: row.houmon_late_done_count ?? 0,
             visit_record_current_month_incomplete_count:
@@ -502,7 +575,7 @@ export async function GET(req: NextRequest) {
             visit_record_past_incomplete_count:
                 incompleteCountMap.get(row.user_id)?.past ?? 0,
             meeting_previous_month_attended:
-                row.meeting_previous_month_attended ?? false,
+                meetingPreviousMonthAttendedMap.get(row.user_id) ?? false,
             meeting_past_attended: row.meeting_past_attended ?? false,
             jisseki_previous_month_done_count:
                 jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
