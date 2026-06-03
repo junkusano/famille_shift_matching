@@ -324,9 +324,74 @@ export async function GET(req: NextRequest) {
             }
         }
 
+
+        const existingUserIds = new Set(rows.map((row) => row.user_id));
+
+        const { data: userRows, error: userRowsError } = await supabaseAdmin
+            .from("user_entry_united_view_single")
+            .select("user_id, entry_id, last_name_kanji, first_name_kanji, status, orgunitname")
+            .not("user_id", "is", null)
+            .neq("status", "removed_from_lineworks_kaipoke")
+            .not("orgunitname", "ilike", "%ケアプランセンター%");
+
+        if (userRowsError) {
+            throw userRowsError;
+        }
+
+        const missingSeedRows = (userRows ?? [])
+            .filter((user) => user.user_id && !existingUserIds.has(user.user_id))
+            .map((user) => ({
+                target_month: targetMonth,
+                user_id: user.user_id,
+                entry_id: user.entry_id,
+                staff_name: `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}`,
+                service_hours: 0,
+                visit_record_total_count: 0,
+                houmon_same_day_done_count: 0,
+                houmon_late_done_count: 0,
+                visit_record_current_month_incomplete_count: 0,
+                visit_record_past_incomplete_count: 0,
+                meeting_previous_month_attended: false,
+                meeting_past_attended: false,
+                jisseki_previous_month_done_count: 0,
+                jisseki_past_incomplete_count: 0,
+                training_goal_selected_count: 0,
+                total_score: 0,
+                rank_no: null,
+                medal_rank: "ブロンズ",
+                updated_at: new Date().toISOString(),
+            }));
+
+        if (missingSeedRows.length > 0) {
+            const { error: missingSeedError } = await supabaseAdmin
+                .from("staff_monthly_score_summaries")
+                .upsert(missingSeedRows, {
+                    onConflict: "target_month,user_id",
+                });
+
+            if (missingSeedError) {
+                throw missingSeedError;
+            }
+
+            const { data: reloadedRows, error: reloadRowsError } = await supabaseAdmin
+                .from("staff_monthly_score_summaries")
+                .select("*")
+                .eq("target_month", targetMonth)
+                .returns<SummaryRow[]>();
+
+            if (reloadRowsError) {
+                throw reloadRowsError;
+            }
+
+            rows = reloadedRows ?? [];
+        }
+
         if (error) {
             throw error;
         }
+
+
+
 
         //const todayDate = getJstTodayDateString();
 
