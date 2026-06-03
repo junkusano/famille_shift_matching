@@ -242,7 +242,11 @@ function calcDisplayTotalScore(row: ScoreRow) {
         row.jisseki_past_incomplete_count ?? 0
     );
 
-    const jissekiScore = 20 - (jissekiPastIncompleteCount * 5);
+    const jissekiScore = Math.max(
+        0,
+        20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
+    );
+
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
     return (
@@ -493,12 +497,9 @@ training_goal_selected_count
 
     const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
 
-    const totalScore =
-        serviceHoursScore +
-        visitRecordScore +
-        meetingScore +
-        jissekiScore +
-        trainingGoalScore;
+    const totalScore = Number(summary.total_score ?? 0);
+    const rankNo = Number(summary.rank_no ?? 0);
+    const medalRank = summary.medal_rank ?? "ブロンズ";
 
     return NextResponse.json({
         month: ym,
