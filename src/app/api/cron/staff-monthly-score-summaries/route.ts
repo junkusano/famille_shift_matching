@@ -579,8 +579,10 @@ export async function GET(req: NextRequest) {
                 visitTotalCountMap.get(row.user_id) ?? 0,
             houmon_same_day_done_count: row.houmon_same_day_done_count ?? 0,
             houmon_late_done_count: row.houmon_late_done_count ?? 0,
+
             visit_record_current_month_incomplete_count:
-                incompleteCountMap.get(row.user_id)?.currentMonth ?? 0,
+                visitCurrentMonthIncompleteCountMap.get(row.user_id) ?? 0,
+
             visit_record_past_incomplete_count:
                 incompleteCountMap.get(row.user_id)?.past ?? 0,
             meeting_previous_month_attended:
