@@ -111,7 +111,12 @@ export default function UserAdvancePaymentHistoryPage() {
   const [toDate, setToDate] = useState(toJstDateString());
   const [errorMessage, setErrorMessage] = useState("");
 
-  const isManager =   me?.role === "manager" || me?.role === "admin";
+  const normalizedRole = me?.role?.trim().toUpperCase() ?? "";
+
+const isManager =
+  normalizedRole === "MANAGER" ||
+  normalizedRole === "ADMIN" ||
+  normalizedRole === "FULL";
 
   useEffect(() => {
     async function fetchHistory() {
@@ -145,7 +150,13 @@ export default function UserAdvancePaymentHistoryPage() {
         const currentUser = loginUser as LoginUser;
         setMe(currentUser);
 
-        const manager = currentUser.role === "manager" || currentUser.role === "admin";
+        const normalizedRole = currentUser.role?.trim().toUpperCase() ?? "";
+
+        const manager =
+          normalizedRole === "MANAGER" ||
+          normalizedRole === "ADMIN" ||
+          normalizedRole === "FULL";
+
         const todayJst = toJstDateString();
 
         let shiftQuery = supabase
@@ -481,7 +492,7 @@ async function updateStatus(
     <td className="p-3">
       {row.shift_start_date}
     </td>
-    <td className="p-3">{row.staff_names.join(" / ") || "-"}</td>
+    <td className="p-3">{row.applicant_name ?? "-"}</td>
     <td className="p-3">
       <span
         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
@@ -491,17 +502,19 @@ async function updateStatus(
         {row.application_status_label}
       </span>
     </td>
-    <td className="p-3">
-  <Button
-    size="sm"
-    variant="outline"
-    disabled={row.application_status === "paid"}
-    onClick={() =>
-      updateStatus(row.application_no, "paid")
-    }
-  >
-    振込済みにする
-  </Button>
+<td className="p-3">
+  {isManager ? (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={row.application_status === "paid"}
+      onClick={() => updateStatus(row.application_no, "paid")}
+    >
+      振込済みにする
+    </Button>
+  ) : (
+    "-"
+  )}
 </td>
     <td className="p-3">{yen(row.amount)}</td>
     <td className="p-3 text-xs text-slate-500">
