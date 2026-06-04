@@ -44,6 +44,7 @@ type UserRow = {
     user_id: string;
     entry_id: string | null;
     auth_uid: string;
+    system_role: string | null;
     status: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
@@ -311,6 +312,7 @@ export async function GET(req: NextRequest) {
             user_id,
             entry_id,
             auth_uid,
+            system_role,
             status,
             last_name_kanji,
             first_name_kanji,
@@ -328,8 +330,12 @@ export async function GET(req: NextRequest) {
         );
     }
 
+    const loginRole = String(loginUser.system_role ?? "")
+        .trim()
+        .toLowerCase();
+
     const canSwitchMember =
-        loginUser.status === "admin" || loginUser.status === "manager";
+        loginRole === "admin" || loginRole === "manager";
 
     const { data: memberRows } = await supabaseAdmin
         .from("user_entry_united_view_single")
@@ -370,7 +376,6 @@ export async function GET(req: NextRequest) {
                 first_name_kana: loginUser.first_name_kana,
             },
         ];
-
     const selectedMember =
         canSwitchMember && targetUserId
             ? members.find((member) => member.user_id === targetUserId)
