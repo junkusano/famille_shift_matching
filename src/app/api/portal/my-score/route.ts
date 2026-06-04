@@ -328,6 +328,9 @@ export async function GET(req: NextRequest) {
         );
     }
 
+    const canSwitchMember =
+        loginUser.status === "admin" || loginUser.status === "manager";
+
     const { data: memberRows } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select(
@@ -347,15 +350,29 @@ export async function GET(req: NextRequest) {
         .order("first_name_kana", { ascending: true })
         .returns<MemberOption[]>();
 
-    const members = (memberRows ?? []).filter((member) => {
+    const allMembers = (memberRows ?? []).filter((member) => {
         return (
             Boolean(member.user_id) &&
             member.status !== "removed_from_lineworks_kaipoke"
         );
     });
 
+    const members = canSwitchMember
+        ? allMembers
+        : [
+            {
+                user_id: loginUser.user_id,
+                entry_id: loginUser.entry_id,
+                status: loginUser.status,
+                last_name_kanji: loginUser.last_name_kanji,
+                first_name_kanji: loginUser.first_name_kanji,
+                last_name_kana: loginUser.last_name_kana,
+                first_name_kana: loginUser.first_name_kana,
+            },
+        ];
+
     const selectedMember =
-        targetUserId
+        canSwitchMember && targetUserId
             ? members.find((member) => member.user_id === targetUserId)
             : loginUser;
 
