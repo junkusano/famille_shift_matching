@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { applicationNo, status } = body;
+    const { applicationNo, status, rejectedReason } = body;
 
     if (!applicationNo) {
       throw new Error("applicationNo がありません");
@@ -38,27 +38,27 @@ export async function POST(req: NextRequest) {
       throw new Error("日払い申請データが見つかりませんでした");
     }
 
-    const statusLabel =
-      status === "paid"
-        ? "支払済み"
-        : status === "approved"
-          ? "承認済み"
-          : status === "rejected"
-            ? "差戻し"
-            : status === "cancelled"
-              ? "取消"
-              : status;
+const statusText =
+  status === "paid"
+    ? "振込済み"
+    : status === "rejected"
+      ? "却下"
+      : status;
 
-    const message = `【日払い申請ステータス更新】
-申請者：${app.employee_name ?? app.user_id}
-申請番号：${app.application_no}
-申請額：${Number(app.amount ?? 0).toLocaleString()}円
-
-変更後ステータス：${statusLabel}
+const message =
+  status === "rejected"
+    ? `【日払い申請 却下】
+申請番号：${applicationNo}
+却下理由：${rejectedReason ?? "-"}
 更新日時：${new Date().toLocaleString("ja-JP", {
-      timeZone: "Asia/Tokyo",
-    })}`;
-
+        timeZone: "Asia/Tokyo",
+      })}`
+    : `【日払い申請 ステータス更新】
+申請番号：${applicationNo}
+ステータス：${statusText}
+更新日時：${new Date().toLocaleString("ja-JP", {
+        timeZone: "Asia/Tokyo",
+      })}`;
     const adminChannelId = "99142491";
 
     const { data: userRoom, error: userRoomError } = await supabaseAdmin
