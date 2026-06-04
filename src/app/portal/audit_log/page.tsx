@@ -43,6 +43,9 @@ function toJstDateTime(iso: string): string {
 export default function AuditLogPage() {
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 50;
 
   // filters（actor は user_id）
   const [filterActorUserId, setFilterActorUserId] = useState("");
@@ -69,13 +72,17 @@ export default function AuditLogPage() {
     setActorOptions((data ?? []) as ActorOption[]);
   };
 
-  const fetchRows = async () => {
+  const fetchRows = async (nextPage = page) => {
     setLoading(true);
+
+    const from = (nextPage - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let q = supabase
       .from("audit_log_display_view")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (filterActorUserId.trim()) {
       q = q.eq("actor_user_id_text", filterActorUserId.trim());
@@ -88,12 +95,23 @@ export default function AuditLogPage() {
     if (filterDateFrom) {
       q = q.gte("created_at", `${filterDateFrom}T00:00:00+09:00`);
     }
+
     if (filterDateTo) {
-      q = q.lt("created_at", `${filterDateTo}T24:00:00+09:00`);
+      q = q.lt("created_at", `${filterDateTo}T23:59:59+09:00`);
     }
 
-    const { data } = await q;
+    const { data, error, count } = await q;
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
     setRows((data ?? []) as AuditLogRow[]);
+    setTotalCount(count ?? 0);
+    setPage(nextPage);
     setLoading(false);
   };
 
@@ -174,7 +192,7 @@ export default function AuditLogPage() {
 
         <button
           className="border px-3 py-1"
-          onClick={() => void fetchRows()}
+          onClick={() => void fetchRows(1)}
           disabled={loading}
         >
           検索
@@ -183,6 +201,30 @@ export default function AuditLogPage() {
 
       {/* Table */}
       <div className="border rounded overflow-auto">
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            className="border px-3 py-1"
+            disabled={loading || page <= 1}
+            onClick={() => void fetchRows(page - 1)}
+          >
+            前へ
+          </button>
+
+          <span>
+            {page} / {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))} ページ
+            （全 {totalCount} 件）
+          </span>
+
+          <button
+            className="border px-3 py-1"
+            disabled={loading || page >= Math.ceil(totalCount / PAGE_SIZE)}
+            onClick={() => void fetchRows(page + 1)}
+          >
+            次へ
+          </button>
+
+          {loading && <span>読み込み中...</span>}
+        </div>
         <table className="min-w-[1400px] text-sm w-full">
           <thead className="bg-gray-50">
             <tr>
