@@ -323,10 +323,7 @@ function calcTotalScore(row: SummaryRow) {
             ? 10
             : 0;
 
-    const jissekiScore = Math.max(
-        0,
-        20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
-    );
+    const jissekiScore = 20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5;
 
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
@@ -334,8 +331,7 @@ function calcTotalScore(row: SummaryRow) {
         row.shift_decline_penalty_score ?? 0
     );
 
-    return Math.max(
-        0,
+    return (
         serviceHoursScore +
         visitRecordScore +
         meetingScore +
