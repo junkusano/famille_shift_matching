@@ -54,9 +54,7 @@ export async function GET(req: Request) {
 
     const canViewAll =
       normalizedRole === "MANAGER" ||
-      normalizedRole === "ADMIN" ||
-      normalizedRole === "FULL";
-
+      normalizedRole === "ADMIN";
     let appQuery = supabase
       .from("user_advance_payment_applications")
       .select(`

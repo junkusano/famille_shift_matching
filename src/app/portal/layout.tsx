@@ -85,8 +85,13 @@ function AvatarBlock({
 }
 
 function NavLinks({ role }: { role: string | null }) {
-  const isManagerOrAdmin = ["manager", "admin"].includes(role ?? "");
-  const canShowAdvancePaymentMenu = !isManagerOrAdmin;
+  const normalizedRole = (role ?? "").trim().toLowerCase();
+  const isManagerOrAdmin =
+     normalizedRole === "manager" ||
+     normalizedRole === "admin";
+
+  const canShowAdvancePaymentMenu = isManagerOrAdmin;
+  
   const currentYm = getCurrentYmJst();
 
   return (
@@ -154,14 +159,10 @@ function NavLinks({ role }: { role: string | null }) {
       <li><Link href="/portal/shift-coordinate" className="text-blue-300 hover:underline">ｼﾌﾄｾﾙﾌｺｰﾃﾞｨﾈｰﾄ（シフ子）</Link></li>
       <li><Link href="/portal/parking_cs_places" className="text-blue-300 hover:underline">駐車許可証申請</Link></li>
       <li><Link href="/portal/wf-seisan-shinsei" className="text-blue-300 hover:underline">清算・申請</Link></li>
-      {canShowAdvancePaymentMenu && (
-         <>
-           
-       </>
-      )}
       <li>
             <Link href="/portal/user_advance_payment_applications"  className="text-blue-300 hover:underline">日払い申請フォーム
             </Link></li>
+      
       {canShowAdvancePaymentMenu && (
   <>
        <li><Link href="/portal/user_advance_payment_history" className="text-blue-300 hover:underline">日払い申請履歴</Link></li>
