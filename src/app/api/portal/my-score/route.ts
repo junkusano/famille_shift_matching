@@ -208,6 +208,9 @@ type ScoreRow = {
     jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
     visit_record_current_month_incomplete_count: number | null;
+    shift_decline_3days_count: number | null;
+    shift_decline_6hours_count: number | null;
+    shift_decline_penalty_score: number | null;
 };
 
 function calcDisplayTotalScore(row: ScoreRow) {
@@ -241,12 +244,18 @@ function calcDisplayTotalScore(row: ScoreRow) {
 
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
-    return (
+    const shiftDeclinePenaltyScore = Number(
+        row.shift_decline_penalty_score ?? 0
+    );
+
+    return Math.max(
+        0,
         serviceHoursScore +
         visitRecordScore +
         meetingScore +
         jissekiScore +
-        trainingGoalScore
+        trainingGoalScore -
+        shiftDeclinePenaltyScore
     );
 }
 
@@ -427,7 +436,10 @@ export async function GET(req: NextRequest) {
             jisseki_previous_month_done_count,
             jisseki_past_incomplete_count,
             visit_record_current_month_incomplete_count,
-            training_goal_selected_count
+            training_goal_selected_count,
+shift_decline_3days_count,
+shift_decline_6hours_count,
+shift_decline_penalty_score
 `)
         .eq("user_id", userId)
         .gte("target_month", "2026-05-01")
@@ -461,6 +473,18 @@ export async function GET(req: NextRequest) {
 
     const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
 
+    const shiftDecline3DaysCount = Number(
+        summary.shift_decline_3days_count ?? 0
+    );
+
+    const shiftDecline6HoursCount = Number(
+        summary.shift_decline_6hours_count ?? 0
+    );
+
+    const shiftDeclinePenaltyScore = Number(
+        summary.shift_decline_penalty_score ?? 0
+    );
+
     const totalScore = Number(summary.total_score ?? 0);
     //const rankNo = Number(summary.rank_no ?? 0);
     //const medalRank = summary.medal_rank ?? "ブロンズ";
@@ -483,12 +507,19 @@ export async function GET(req: NextRequest) {
                 key: "service_hours",
                 label: "サービス時間",
                 score: serviceHoursScore,
-                maxScore: 10,
+                maxScore: 80,
                 note: `${summary.service_hours ?? 0}時間`,
                 linkUrl: addParams("/portal/shift-view", {
                     user_id: userId,
                     date: `${ym}-01`,
                 }),
+            },
+            {
+                key: "shift_decline_penalty",
+                label: "シフト直前辞退ペナルティ",
+                score: -shiftDeclinePenaltyScore,
+                maxScore: 0,
+                note: `3日以内 ${shiftDecline3DaysCount}件 / 6時間以内 ${shiftDecline6HoursCount}件`,
             },
             {
                 key: "visit_record",

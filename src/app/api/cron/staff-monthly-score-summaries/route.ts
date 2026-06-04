@@ -52,7 +52,7 @@ type ShiftDeclinePenaltyCount = {
     within6Hours: number;
 };
 
-type AuditLogDisplayRow = {
+/*type AuditLogDisplayRow = {
     audit_id: string;
     actor_user_id_text: string | null;
     created_at: string | null;
@@ -62,6 +62,14 @@ type AuditLogDisplayRow = {
     after_row: unknown;
     changed_cols: unknown;
     action: string | null;
+    penalty_level: string | null;
+};*/
+
+type AuditLogPenaltyRow = {
+    id: string;
+    actor_user_id: string | null;
+    created_at: string | null;
+    penalty_level: string | null;
 };
 
 type DisabilityCheckRow = {
@@ -127,61 +135,63 @@ function addShiftDeclinePenaltyCount(
     map.set(userId, current);
 }
 
-function isShiftDeclineAuditLog(row: AuditLogDisplayRow) {
-    const text = JSON.stringify({
-        action: row.action,
-        changed_cols: row.changed_cols,
-        before_row: row.before_row,
-        after_row: row.after_row,
-    });
-
-    return text.includes("このシフトにははいれない");
-}
-
 async function fetchShiftDeclinePenaltyMap(
     targetMonth: string,
     nextMonthStart: string
 ) {
     const { data, error } = await supabaseAdmin
-        .from("audit_log_display_view")
-        .select(
-            "audit_id, actor_user_id_text, created_at, shift_start_date, shift_start_time, before_row, after_row, changed_cols, action"
-        )
-        .gte("shift_start_date", targetMonth)
-        .lt("shift_start_date", nextMonthStart)
-        .returns<AuditLogDisplayRow[]>();
+        .from("audit_log")
+        .select("id, actor_user_id, created_at, penalty_level")
+        .gte("created_at", targetMonth)
+        .lt("created_at", nextMonthStart)
+        .in("penalty_level", ["moderate", "severe"])
+        .returns<AuditLogPenaltyRow[]>();
 
     if (error) {
         throw error;
     }
 
+    const actorAuthUserIds = Array.from(
+        new Set(
+            (data ?? [])
+                .map((row) => row.actor_user_id)
+                .filter((id): id is string => Boolean(id))
+        )
+    );
+
+    if (actorAuthUserIds.length === 0) {
+        return new Map<string, ShiftDeclinePenaltyCount>();
+    }
+
+    const { data: userRows, error: userError } = await supabaseAdmin
+        .from("users")
+        .select("auth_user_id, user_id")
+        .in("auth_user_id", actorAuthUserIds)
+        .returns<{ auth_user_id: string | null; user_id: string | null }[]>();
+
+    if (userError) {
+        throw userError;
+    }
+
+    const authUserIdToUserIdMap = new Map<string, string>();
+
+    for (const user of userRows ?? []) {
+        if (!user.auth_user_id || !user.user_id) continue;
+        authUserIdToUserIdMap.set(user.auth_user_id, user.user_id);
+    }
+
     const map = new Map<string, ShiftDeclinePenaltyCount>();
 
     for (const row of data ?? []) {
-        if (!isShiftDeclineAuditLog(row)) continue;
-        if (!row.actor_user_id_text) continue;
-        if (!row.created_at || !row.shift_start_date || !row.shift_start_time) continue;
+        if (!row.actor_user_id) continue;
 
-        const auditDate = new Date(row.created_at);
-        const shiftStart = new Date(`${row.shift_start_date}T${row.shift_start_time}`);
+        const userId = authUserIdToUserIdMap.get(row.actor_user_id);
+        if (!userId) continue;
 
-        const diffHours =
-            (shiftStart.getTime() - auditDate.getTime()) / 1000 / 60 / 60;
-
-        if (diffHours < 0) continue;
-
-        if (diffHours <= 6) {
-            addShiftDeclinePenaltyCount(
-                map,
-                row.actor_user_id_text,
-                "within6Hours"
-            );
-        } else if (diffHours <= 72) {
-            addShiftDeclinePenaltyCount(
-                map,
-                row.actor_user_id_text,
-                "within3Days"
-            );
+        if (row.penalty_level === "severe") {
+            addShiftDeclinePenaltyCount(map, userId, "within6Hours");
+        } else if (row.penalty_level === "moderate") {
+            addShiftDeclinePenaltyCount(map, userId, "within3Days");
         }
     }
 
