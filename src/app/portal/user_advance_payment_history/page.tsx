@@ -21,36 +21,6 @@ type LoginUser = {
   role: UserRole | null;
 };
 
-type ShiftRow = {
-  shift_id: string;
-  shift_start_date: string;
-  shift_start_time: string;
-  shift_end_time: string;
-  kaipoke_cs_id: string | null;
-  name: string | null;
-  staff_01_user_id: string | null;
-  staff_02_user_id: string | null;
-  staff_03_user_id: string | null;
-};
-
-type ApplicationRow = {
-  id: number;
-  application_no: string;
-  user_id: string | null;
-  employee_name: string | null;
-  department: string | null;
-  amount: number | string;
-  reason: string;
-  desired_payment_date: string;
-  status: string;
-  shift_ids: string[] | null;
-  approved_at: string | null;
-  paid_at: string | null;
-  rejected_reason: string | null;
-  created_at: string;
-  deduction_reasons: string[] | null;
-  deduction_rate: number | string | null;
-};
 
 type HistoryRow = {
   shift_id: string;
@@ -72,14 +42,6 @@ type HistoryRow = {
   deduction_rate: number | null;
 };
 
-const statusLabel: Record<string, string> = {
-  unsubmitted: "未申請",
-  submitted: "申請中",
-  approved: "承認済み",
-  rejected: "差戻し",
-  paid: "支払済み",
-  cancelled: "取消",
-};
 
 const statusClass: Record<string, string> = {
   unsubmitted: "bg-slate-100 text-slate-700",
@@ -89,12 +51,6 @@ const statusClass: Record<string, string> = {
   paid: "bg-blue-100 text-blue-800",
   cancelled: "bg-gray-100 text-gray-600",
 };
-
-function toJstDateString(date = new Date()) {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-}
 
 function yen(value: number | null) {
   if (value === null) return "-";
@@ -113,10 +69,10 @@ export default function UserAdvancePaymentHistoryPage() {
 
   const normalizedRole = me?.role?.trim().toUpperCase() ?? "";
 
-const isManager =
-  normalizedRole === "MANAGER" ||
-  normalizedRole === "ADMIN" ||
-  normalizedRole === "FULL";
+  const canViewAll =
+   normalizedRole === "MANAGER" ||
+   normalizedRole === "ADMIN" ||
+   normalizedRole === "FULL";
 
   useEffect(() => {
     async function fetchHistory() {
@@ -125,177 +81,42 @@ const isManager =
         setErrorMessage("");
 
         const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        if (authError) throw authError;
-        if (!user) {
+        if (sessionError) throw sessionError;
+
+        const token = session?.access_token;
+        if (!token) {
           setErrorMessage("ログイン情報を取得できませんでした。");
           return;
         }
 
-        const { data: loginUser, error: userError } = await supabase
-          .from("users")
-          .select("user_id, role")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
-
-        if (userError) throw userError;
-        if (!loginUser?.user_id) {
-          setErrorMessage("users テーブルでログインユーザーの user_id を取得できませんでした。");
-          return;
-        }
-
-        const currentUser = loginUser as LoginUser;
-        setMe(currentUser);
-
-        const normalizedRole = currentUser.role?.trim().toUpperCase() ?? "";
-
-        const manager =
-          normalizedRole === "MANAGER" ||
-          normalizedRole === "ADMIN" ||
-          normalizedRole === "FULL";
-          
-        console.log("role:", currentUser.role);
-        console.log("normalizedRole:", normalizedRole);
-        console.log("manager:", manager);
-
-        const todayJst = toJstDateString();
-
-        let shiftQuery = supabase
-          .from("shift_csinfo_postalname_view")
-          .select(`
-            shift_id,
-            shift_start_date,
-            shift_start_time,
-            shift_end_time,
-            kaipoke_cs_id,
-            name,
-            staff_01_user_id,
-            staff_02_user_id,
-            staff_03_user_id
-          `)
-          .lte("shift_start_date", todayJst)
-          .order("shift_start_date", { ascending: false })
-          .order("shift_start_time", { ascending: false });
-
-        if (!manager) {
-          shiftQuery = shiftQuery.or(
-          `staff_01_user_id.eq.${currentUser.user_id},staff_02_user_id.eq.${currentUser.user_id},staff_03_user_id.eq.${currentUser.user_id}`
-          );
-        }
-
-        const { data: shiftsData, error: shiftsError } = await shiftQuery;
-        if (shiftsError) throw shiftsError;
-
-        let appQuery = supabase
-          .from("user_advance_payment_applications")
-          .select(`
-            id,
-            application_no,
-            user_id,
-            employee_name,
-            department,
-            amount,
-            reason,
-            desired_payment_date,
-            status,
-            shift_ids,
-            approved_at,
-            paid_at,
-            rejected_reason,
-            deduction_reasons,
-            deduction_rate,
-            created_at
-          `)
-          .order("created_at", { ascending: false });
-
-        if (!manager) {
-          appQuery = appQuery.eq("user_id", currentUser.user_id);
-        }
-
-        const { data: appsData, error: appsError } = await appQuery;
-        if (appsError) throw appsError;
-
-        console.log("manager:", manager);
-        console.log("currentUser:", currentUser);
-        console.log("appsData:", appsData);
-        console.log("apps count:", appsData?.length);
-
-
-
-        const applications = (appsData ?? []) as ApplicationRow[];
-        const appByShiftId = new Map<string, ApplicationRow>();
-
-        applications.forEach((app) => {
-          (app.shift_ids ?? []).forEach((shiftId) => {
-            if (!appByShiftId.has(shiftId)) {
-              appByShiftId.set(shiftId, app);
-            }
-          });
+        const res = await fetch("/api/advance-payment/history", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
-        const staffIds = Array.from(
-  new Set(
-    ((shiftsData ?? []) as ShiftRow[])
-      .flatMap((shift) => [
-        shift.staff_01_user_id,
-        shift.staff_02_user_id,
-        shift.staff_03_user_id,
-      ])
-      .filter((v): v is string => Boolean(v))
-  )
-);
+        const json = await res.json();
 
-const { data: staffRows, error: staffError } = await supabase
-  .from("user_entry_united_view")
-  .select("user_id,last_name_kanji,first_name_kanji")
-  .in("user_id", staffIds);
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error ?? "履歴データの取得に失敗しました");
+        }
 
-if (staffError) throw staffError;
+        setMe({
+          user_id: json.user_id,
+          role: json.role,
+        });
 
-const staffNameById = new Map<string, string>();
-
-(staffRows ?? []).forEach((staff) => {
-  const name = `${staff.last_name_kanji ?? ""} ${staff.first_name_kanji ?? ""}`.trim();
-  staffNameById.set(staff.user_id, name || staff.user_id);
-});
-
-       const historyRows: HistoryRow[] = applications.map((app) => ({
-  shift_id: app.shift_ids?.join(",") ?? "",
-  shift_start_date: app.created_at.slice(0, 10),
-  shift_start_time: "",
-  shift_end_time: "",
-  client_name: "-",
-  staff_user_ids: [],
-  staff_names: [],
-
-  application_no: app.application_no,
-  application_status: app.status,
-  application_status_label: statusLabel[app.status] ?? app.status,
-  applicant_name: app.employee_name ?? app.user_id ?? "-",
-  amount: Number(app.amount),
-  desired_payment_date: app.desired_payment_date,
-  applied_at: app.created_at,
-  rejected_reason: app.rejected_reason,
-
-  deduction_reasons: app.deduction_reasons ?? [],
-  deduction_rate: app.deduction_rate ? Number(app.deduction_rate) : null,
-}));
-
-        setRows(historyRows);
+        setRows(json.rows ?? []);
       } catch (error) {
         console.error(error);
-        const message = error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : JSON.stringify(error);
-
-        setErrorMessage(`履歴データの取得中にエラーが発生しました：${message}`);
-
-        } finally {
-         setLoading(false);
-         }
+        setErrorMessage("履歴データの取得中にエラーが発生しました。");
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchHistory();
@@ -391,7 +212,6 @@ async function updateStatus(
             <h1 className="text-2xl font-bold">日払い申請履歴</h1>
             <p className="mt-1 text-sm text-slate-600">
               申請済み・未申請・承認状況をシフト単位で確認できます。
-              {isManager ? " マネージャー権限のため全職員分を表示しています。" : " 自分のシフトのみ表示しています。"}
             </p>
           </div>
 
@@ -514,7 +334,7 @@ async function updateStatus(
       </span>
     </td>
 <td className="p-3">
-  {isManager ? (
+  {canViewAll ? (
     <Button
       size="sm"
       variant="outline"
