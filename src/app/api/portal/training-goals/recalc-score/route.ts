@@ -6,8 +6,18 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const entryId = body.entry_id;
-        //const ym = body.ym ?? new Date().toISOString().slice(0, 7);
-        // const targetMonth = `${ym}-01`;
+
+        const now = new Date();
+        const tokyoNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
+        const year = tokyoNow.getFullYear();
+        const month = tokyoNow.getMonth();
+
+        const targetMonth = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+
+        const monthStart = new Date(Date.UTC(year, month, 1, -9, 0, 0));
+        const monthEnd = new Date(Date.UTC(year, month + 1, 1, -9, 0, 0));
+
 
         if (!entryId) {
             return NextResponse.json({ error: "entry_id required" }, { status: 400 });
@@ -32,7 +42,9 @@ export async function POST(req: NextRequest) {
             .eq("entry_id", entryId)
             .eq("row_type", "goal")
             .eq("selected", true)
-            .eq("watched", true);
+            .eq("watched", true)
+            .gte("updated_at", monthStart.toISOString())
+            .lt("updated_at", monthEnd.toISOString());
 
         if (countError) throw countError;
 
@@ -48,9 +60,11 @@ export async function POST(req: NextRequest) {
         visit_record_past_incomplete_count,
         meeting_previous_month_attended,
         meeting_past_attended,
-        jisseki_previous_month_done_count
+        jisseki_past_incomplete_count,
+        shift_decline_penalty_score
     `)
-            .eq("user_id", userId);
+            .eq("user_id", userId)
+            .eq("target_month", targetMonth);
 
         if (scoreError) throw scoreError;
 
@@ -87,20 +101,27 @@ export async function POST(req: NextRequest) {
                     ? 10
                     : 0;
 
-            const jissekiScore =
-                Number(scoreRow.jisseki_previous_month_done_count ?? 0) * 2;
+            const jissekiScore = Math.max(
+                0,
+                20 - Number(scoreRow.jisseki_past_incomplete_count ?? 0) * 5
+            );
 
             const trainingGoalScore = trainingCount * 5;
+
+            const shiftDeclinePenaltyScore = Number(
+                scoreRow.shift_decline_penalty_score ?? 0
+            );
 
             const totalScore =
                 serviceHoursScore +
                 visitRecordScore +
                 meetingScore +
                 jissekiScore +
-                trainingGoalScore;
+                trainingGoalScore -
+                shiftDeclinePenaltyScore;
 
             updates.push({
-                target_month: scoreRow.target_month,
+                target_month: targetMonth,
                 user_id: userId,
                 training_goal_selected_count: trainingCount,
                 total_score: totalScore,
