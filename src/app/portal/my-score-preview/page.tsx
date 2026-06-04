@@ -333,7 +333,7 @@ function MyScorePreviewContent() {
                                 </div>
 
                                 <div className="mt-1 text-xs text-slate-500">
-                                    ※ スコア・ランキングは毎日午前3時に自動更新されます
+                                    ※ スコア・ランキングは2時間毎に自動更新されます
                                 </div>
                             </div>
 
