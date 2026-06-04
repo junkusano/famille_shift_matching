@@ -488,10 +488,11 @@ export default function UserAdvancePaymentConfirmPage() {
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-7 text-blue-900">
   <div className="font-semibold">日払い制度について</div>
   <p className="mt-1">
+    <div className="text-black text-lg leading-8">
     この制度は、正式な給与計算・支給は翌月25日に行われることを前提とし、
     その概算を日ごとに受け取れる仕組みです。
     概算の計算には一定の時給と控除率を用いており、最終的には正式な給与支給日に、
-    概算で支払われた日払い金額と、正式な給与支給額の差額が精算されることになります。
+    概算で支払われた日払い金額と、正式な給与支給額の差額が精算されることになります。</div>
   </p>
 </div>
 
