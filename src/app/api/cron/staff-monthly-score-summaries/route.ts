@@ -22,6 +22,9 @@ type SummaryRow = {
     jisseki_previous_month_done_count: number | null;
     jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
+    shift_decline_3days_count: number | null;
+    shift_decline_6hours_count: number | null;
+    shift_decline_penalty_score: number | null;
 };
 
 type ShiftRecordViewRow = {
@@ -42,6 +45,23 @@ type ShiftRecordViewRow = {
 type IncompleteCount = {
     currentMonth: number;
     past: number;
+};
+
+type ShiftDeclinePenaltyCount = {
+    within3Days: number;
+    within6Hours: number;
+};
+
+type AuditLogDisplayRow = {
+    audit_id: string;
+    actor_user_id_text: string | null;
+    created_at: string | null;
+    shift_start_date: string | null;
+    shift_start_time: string | null;
+    before_row: unknown;
+    after_row: unknown;
+    changed_cols: unknown;
+    action: string | null;
 };
 
 type DisabilityCheckRow = {
@@ -90,6 +110,84 @@ function addIncompleteCount(
     current[type] += 1;
     map.set(userId, current);
 }
+
+function addShiftDeclinePenaltyCount(
+    map: Map<string, ShiftDeclinePenaltyCount>,
+    userId: string,
+    type: "within3Days" | "within6Hours"
+) {
+    if (!userId) return;
+
+    const current = map.get(userId) ?? {
+        within3Days: 0,
+        within6Hours: 0,
+    };
+
+    current[type] += 1;
+    map.set(userId, current);
+}
+
+function isShiftDeclineAuditLog(row: AuditLogDisplayRow) {
+    const text = JSON.stringify({
+        action: row.action,
+        changed_cols: row.changed_cols,
+        before_row: row.before_row,
+        after_row: row.after_row,
+    });
+
+    return text.includes("このシフトにははいれない");
+}
+
+async function fetchShiftDeclinePenaltyMap(
+    targetMonth: string,
+    nextMonthStart: string
+) {
+    const { data, error } = await supabaseAdmin
+        .from("audit_log_display_view")
+        .select(
+            "audit_id, actor_user_id_text, created_at, shift_start_date, shift_start_time, before_row, after_row, changed_cols, action"
+        )
+        .gte("shift_start_date", targetMonth)
+        .lt("shift_start_date", nextMonthStart)
+        .returns<AuditLogDisplayRow[]>();
+
+    if (error) {
+        throw error;
+    }
+
+    const map = new Map<string, ShiftDeclinePenaltyCount>();
+
+    for (const row of data ?? []) {
+        if (!isShiftDeclineAuditLog(row)) continue;
+        if (!row.actor_user_id_text) continue;
+        if (!row.created_at || !row.shift_start_date || !row.shift_start_time) continue;
+
+        const auditDate = new Date(row.created_at);
+        const shiftStart = new Date(`${row.shift_start_date}T${row.shift_start_time}`);
+
+        const diffHours =
+            (shiftStart.getTime() - auditDate.getTime()) / 1000 / 60 / 60;
+
+        if (diffHours < 0) continue;
+
+        if (diffHours <= 6) {
+            addShiftDeclinePenaltyCount(
+                map,
+                row.actor_user_id_text,
+                "within6Hours"
+            );
+        } else if (diffHours <= 72) {
+            addShiftDeclinePenaltyCount(
+                map,
+                row.actor_user_id_text,
+                "within3Days"
+            );
+        }
+    }
+
+    return map;
+}
+
 //指定月のみ更新変更箇所2 以下をコメントアウト
 function getTargetMonth(req: NextRequest) {
     const ym = req.nextUrl.searchParams.get("ym");
@@ -213,12 +311,18 @@ function calcTotalScore(row: SummaryRow) {
 
     const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
 
-    return (
+    const shiftDeclinePenaltyScore = Number(
+        row.shift_decline_penalty_score ?? 0
+    );
+
+    return Math.max(
+        0,
         serviceHoursScore +
         visitRecordScore +
         meetingScore +
         jissekiScore +
-        trainingGoalScore
+        trainingGoalScore -
+        shiftDeclinePenaltyScore
     );
 }
 
@@ -293,6 +397,9 @@ export async function GET(req: NextRequest) {
                 jisseki_previous_month_done_count: 0,
                 jisseki_past_incomplete_count: 0,
                 training_goal_selected_count: 0,
+                shift_decline_3days_count: 0,
+                shift_decline_6hours_count: 0,
+                shift_decline_penalty_score: 0,
                 total_score: 0,
                 rank_no: null,
                 medal_rank: "ブロンズ",
@@ -356,6 +463,9 @@ export async function GET(req: NextRequest) {
                 jisseki_previous_month_done_count: 0,
                 jisseki_past_incomplete_count: 0,
                 training_goal_selected_count: 0,
+                shift_decline_3days_count: 0,
+                shift_decline_6hours_count: 0,
+                shift_decline_penalty_score: 0,
                 total_score: 0,
                 rank_no: null,
                 medal_rank: "ブロンズ",
@@ -396,6 +506,11 @@ export async function GET(req: NextRequest) {
         //const todayDate = getJstTodayDateString();
 
         const nextMonthStart = getNextMonthStartDate(targetMonth);
+
+        const shiftDeclinePenaltyMap = await fetchShiftDeclinePenaltyMap(
+            targetMonth,
+            nextMonthStart
+        );
 
         /*
         const currentMonthEndDate =
@@ -594,6 +709,15 @@ export async function GET(req: NextRequest) {
 
         const scoredRows = (rows ?? [])
             .map((row) => {
+                const decline3DaysCount =
+                    shiftDeclinePenaltyMap.get(row.user_id)?.within3Days ?? 0;
+
+                const decline6HoursCount =
+                    shiftDeclinePenaltyMap.get(row.user_id)?.within6Hours ?? 0;
+
+                const shiftDeclinePenaltyScore =
+                    decline3DaysCount * 5 + decline6HoursCount * 10;
+
                 const rowWithIncompleteCounts = {
                     ...row,
                     service_hours:
@@ -612,6 +736,9 @@ export async function GET(req: NextRequest) {
                         jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
                     jisseki_past_incomplete_count:
                         jissekiPastIncompleteMap.get(row.user_id) ?? 0,
+                    shift_decline_3days_count: decline3DaysCount,
+                    shift_decline_6hours_count: decline6HoursCount,
+                    shift_decline_penalty_score: shiftDeclinePenaltyScore,
                 };
 
                 return {
@@ -648,6 +775,12 @@ export async function GET(req: NextRequest) {
                 jissekiPastIncompleteMap.get(row.user_id) ?? 0,
             training_goal_selected_count:
                 row.training_goal_selected_count ?? 0,
+            shift_decline_3days_count:
+                row.shift_decline_3days_count ?? 0,
+            shift_decline_6hours_count:
+                row.shift_decline_6hours_count ?? 0,
+            shift_decline_penalty_score:
+                row.shift_decline_penalty_score ?? 0,
             total_score: row.total_score,
             rank_no: index + 1,
             medal_rank: getMedalRank(row.total_score),
