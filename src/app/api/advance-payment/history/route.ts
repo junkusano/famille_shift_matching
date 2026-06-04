@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
     const { data: loginUser, error: userError } = await supabase
       .from("users")
-      .select("user_id, role")
+      .select("user_id, system_role")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "login user not found" }, { status: 404 });
     }
 
-    const normalizedRole = String(loginUser.role ?? "").trim().toUpperCase();
+    const normalizedRole = String(loginUser.system_role ?? "").trim().toUpperCase();
 
     const canViewAll =
       normalizedRole === "MANAGER" ||
@@ -108,7 +108,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
   ok: true,
   user_id: loginUser.user_id,
-  role: loginUser.role,
+  role: loginUser.system_role,
   canViewAll,
   count: rows.length,
   rows,
