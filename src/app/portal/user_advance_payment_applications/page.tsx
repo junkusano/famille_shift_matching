@@ -485,6 +485,8 @@ export default function UserAdvancePaymentConfirmPage() {
           <p className="text-sm text-slate-500">Advance Payment</p>
           <h1 className="text-2xl font-bold">日払い申請フォーム</h1>
 
+          
+
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="font-semibold text-amber-900">
               ⏰ 申請期限について
