@@ -66,6 +66,8 @@ export default function UserAdvancePaymentHistoryPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [rejectingApplicationNo, setRejectingApplicationNo] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const normalizedRole = me?.role?.trim().toUpperCase() ?? "";
 
@@ -187,6 +189,7 @@ async function updateStatus(
     return;
   }
 
+
   const notifyRes = await fetch(
     "/api/lineworks/advance-payment-status-notify",
     {
@@ -207,6 +210,47 @@ async function updateStatus(
     );
     return;
   }
+
+  window.location.reload();
+}
+async function rejectApplication() {
+  if (!rejectingApplicationNo) return;
+
+  const reason = rejectReason.trim();
+
+  if (!reason) {
+    setErrorMessage("却下理由を入力してください。");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("user_advance_payment_applications")
+    .update({
+      status: "rejected",
+      rejected_reason: reason,
+      paid_at: null,
+    })
+    .eq("application_no", rejectingApplicationNo);
+
+  if (error) {
+    setErrorMessage("却下処理に失敗しました。");
+    return;
+  }
+
+  await fetch(
+    "/api/lineworks/advance-payment-status-notify",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        applicationNo: rejectingApplicationNo,
+        status: "rejected",
+        rejectedReason: reason,
+      }),
+    }
+  );
 
   window.location.reload();
 }
@@ -233,6 +277,39 @@ async function updateStatus(
             {errorMessage}
           </div>
         )}
+        {rejectingApplicationNo && (
+  <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+    <div className="font-semibold mb-2">
+      却下理由を入力してください
+    </div>
+
+    <textarea
+      className="w-full rounded border p-2"
+      rows={4}
+      value={rejectReason}
+      onChange={(e) => setRejectReason(e.target.value)}
+    />
+
+    <div className="mt-3 flex gap-2">
+      <Button
+        variant="destructive"
+        onClick={rejectApplication}
+      >
+        却下確定
+      </Button>
+
+      <Button
+        variant="outline"
+        onClick={() => {
+          setRejectingApplicationNo(null);
+          setRejectReason("");
+        }}
+      >
+        キャンセル
+      </Button>
+    </div>
+  </div>
+)}
 
         <div className="grid gap-3 md:grid-cols-5">
           <Card className="rounded-2xl shadow-sm">
@@ -343,14 +420,31 @@ async function updateStatus(
     </td>
 <td className="p-3">
   {canViewAll ? (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={row.application_status === "paid"}
-      onClick={() => updateStatus(row.application_no, "paid")}
-    >
-      振込済みにする
-    </Button>
+    <div className="flex gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={row.application_status === "paid"}
+        onClick={() => updateStatus(row.application_no, "paid")}
+      >
+        振込済みにする
+      </Button>
+
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={
+          row.application_status === "paid" ||
+          row.application_status === "rejected"
+        }
+        onClick={() => {
+          setRejectingApplicationNo(row.application_no);
+          setRejectReason("");
+        }}
+      >
+        却下
+      </Button>
+    </div>
   ) : (
     "-"
   )}
