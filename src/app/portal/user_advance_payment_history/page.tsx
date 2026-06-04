@@ -108,7 +108,7 @@ export default function UserAdvancePaymentHistoryPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState(toJstDateString());
+  const [toDate, setToDate] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const normalizedRole = me?.role?.trim().toUpperCase() ?? "";
@@ -156,6 +156,10 @@ const isManager =
           normalizedRole === "MANAGER" ||
           normalizedRole === "ADMIN" ||
           normalizedRole === "FULL";
+          
+        console.log("role:", currentUser.role);
+        console.log("normalizedRole:", normalizedRole);
+        console.log("manager:", manager);
 
         const todayJst = toJstDateString();
 
@@ -213,6 +217,13 @@ const isManager =
 
         const { data: appsData, error: appsError } = await appQuery;
         if (appsError) throw appsError;
+
+        console.log("manager:", manager);
+        console.log("currentUser:", currentUser);
+        console.log("appsData:", appsData);
+        console.log("apps count:", appsData?.length);
+
+
 
         const applications = (appsData ?? []) as ApplicationRow[];
         const appByShiftId = new Map<string, ApplicationRow>();
