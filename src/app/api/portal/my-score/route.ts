@@ -146,18 +146,27 @@ function calcMeetingScore(meeting: MeetingAttendanceRow | null | undefined, disp
     };
 }*/
 
-function buildMonthOptions(count: number) {
+function buildMonthOptions() {
+    const start = new Date(2026, 4, 1); // 2026年5月
     const now = new Date();
+    const current = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    return Array.from({ length: count }, (_, index) => {
-        const d = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    const options = [];
+
+    for (
+        let d = new Date(start);
+        d <= current;
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    ) {
         const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-        return {
+        options.push({
             value: ym,
             label: `${d.getFullYear()}年${d.getMonth() + 1}月`,
-        };
-    });
+        });
+    }
+
+    return options.reverse();
 }
 
 /*function buildRecentMonthsByYm(baseYm: string, count: number) {
@@ -303,7 +312,7 @@ export async function GET(req: NextRequest) {
     const currentYm = `${jst.getFullYear()}-${String(jst.getMonth() + 1).padStart(2, "0")}`;
 
     const ym = req.nextUrl.searchParams.get("ym") ?? currentYm;
-    const monthOptions = buildMonthOptions(24);
+    const monthOptions = buildMonthOptions();
 
     const { data: loginUser, error: loginUserError } = await supabaseAdmin
         .from("user_entry_united_view_single")
