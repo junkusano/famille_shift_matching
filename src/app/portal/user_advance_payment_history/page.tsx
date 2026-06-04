@@ -101,6 +101,9 @@ export default function UserAdvancePaymentHistoryPage() {
 
         const json = await res.json();
 
+        console.log("history api status:", res.status);
+        console.log("history api json:", json);
+
         if (!res.ok || !json.ok) {
           throw new Error(json.error ?? "履歴データの取得に失敗しました");
         }
