@@ -71,8 +71,7 @@ export default function UserAdvancePaymentHistoryPage() {
 
   const canViewAll =
    normalizedRole === "MANAGER" ||
-   normalizedRole === "ADMIN" ||
-   normalizedRole === "FULL";
+     normalizedRole === "ADMIN";
 
   useEffect(() => {
     async function fetchHistory() {
@@ -103,6 +102,12 @@ export default function UserAdvancePaymentHistoryPage() {
 
         console.log("history api status:", res.status);
         console.log("history api json:", json);
+
+        console.log("history api ok:", json.ok);
+        console.log("history api role:", json.role);
+        console.log("history api canViewAll:", json.canViewAll);
+        console.log("history api count:", json.count);
+        console.log("history api rows:", json.rows);
 
         if (!res.ok || !json.ok) {
           throw new Error(json.error ?? "履歴データの取得に失敗しました");

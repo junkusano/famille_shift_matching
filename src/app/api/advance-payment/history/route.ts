@@ -106,12 +106,15 @@ export async function GET(req: Request) {
     }));
 
     return NextResponse.json({
-      ok: true,
-      user_id: loginUser.user_id,
-      role: loginUser.role,
-      canViewAll,
-      rows,
-    });
+  ok: true,
+  user_id: loginUser.user_id,
+  role: loginUser.role,
+  canViewAll,
+  count: rows.length,
+  rows,
+});
+
+
   } catch (error) {
     const message = error instanceof Error ? error.message : JSON.stringify(error);
 
