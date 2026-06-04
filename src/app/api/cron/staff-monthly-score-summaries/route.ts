@@ -292,11 +292,20 @@ function addServiceHours(
 }
 
 function calcVisitRecordScore(row: SummaryRow) {
+    const totalCount = Number(row.visit_record_total_count ?? 0);
+    const lateDoneCount = Number(row.houmon_late_done_count ?? 0);
     const pastIncomplete = Number(row.visit_record_past_incomplete_count ?? 0);
+
+    if (totalCount <= 0) {
+        return 0;
+    }
 
     return Math.max(
         0,
-        30 - pastIncomplete * 5
+        Math.round(
+            30 * ((totalCount - lateDoneCount) / totalCount) -
+            pastIncomplete * 5
+        )
     );
 }
 
@@ -768,6 +777,9 @@ export async function GET(req: NextRequest) {
                 const shiftDeclinePenaltyScore =
                     decline3DaysCount * 5 + decline6HoursCount * 10;
 
+                const trainingGoalSelectedCount =
+                    row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0;
+
                 const rowWithIncompleteCounts = {
                     ...row,
                     service_hours:
@@ -786,6 +798,7 @@ export async function GET(req: NextRequest) {
                         jissekiPreviousMonthDoneMap.get(row.user_id) ?? 0,
                     jisseki_past_incomplete_count:
                         jissekiPastIncompleteMap.get(row.user_id) ?? 0,
+                    training_goal_selected_count: trainingGoalSelectedCount,
                     shift_decline_3days_count: decline3DaysCount,
                     shift_decline_6hours_count: decline6HoursCount,
                     shift_decline_penalty_score: shiftDeclinePenaltyScore,

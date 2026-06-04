@@ -482,14 +482,24 @@ shift_decline_penalty_score
     );
 
 
+    const visitRecordTotalCount = Number(summary.visit_record_total_count ?? 0);
+    const visitRecordLateDoneCount = Number(summary.houmon_late_done_count ?? 0);
     const visitRecordPastIncompleteCount = Number(
         summary.visit_record_past_incomplete_count ?? 0
     );
 
-    const visitRecordScore = Math.max(
-        0,
-        30 - visitRecordPastIncompleteCount * 5
-    );
+    const visitRecordScore =
+        visitRecordTotalCount > 0
+            ? Math.max(
+                0,
+                Math.round(
+                    30 *
+                    ((visitRecordTotalCount - visitRecordLateDoneCount) /
+                        visitRecordTotalCount) -
+                    visitRecordPastIncompleteCount * 5
+                )
+            )
+            : 0;
     const meetingScore =
         summary.meeting_previous_month_attended === true ||
             summary.meeting_past_attended === true
