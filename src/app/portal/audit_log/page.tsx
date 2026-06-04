@@ -1,3 +1,4 @@
+//app/portal/audit_log/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -26,6 +27,13 @@ type AuditLogRow = {
   staff_01_user_id: string | null;
 };
 
+type ActorOption = {
+  user_id: string;
+  auth_user_id: string;
+  last_name_kanji: string | null;
+  first_name_kanji: string | null;
+};
+
 function toJstDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -42,6 +50,24 @@ export default function AuditLogPage() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const [actorOptions, setActorOptions] = useState<ActorOption[]>([]);
+
+  const fetchActorOptions = async () => {
+    const { data, error } = await supabase
+      .from("user_entry_united_view_single")
+      .select("user_id, auth_user_id, last_name_kanji, first_name_kanji")
+      .not("auth_user_id", "is", null)
+      .not("user_id", "is", null)
+      .order("user_id", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setActorOptions((data ?? []) as ActorOption[]);
+  };
 
   const fetchRows = async () => {
     setLoading(true);
@@ -74,7 +100,8 @@ export default function AuditLogPage() {
   const updatePenalty = async (
     auditId: string,
     changeReason: string | null,
-    penaltyLevel: string | null
+    penaltyLevel: string | null,
+    actorUserIdText: string | null
   ) => {
     setSavingId(auditId);
 
@@ -85,6 +112,7 @@ export default function AuditLogPage() {
         auditId,
         changeReason,
         penaltyLevel,
+        actorUserIdText,
       }),
     });
 
@@ -101,6 +129,7 @@ export default function AuditLogPage() {
 
   useEffect(() => {
     void fetchRows();
+    void fetchActorOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -180,7 +209,23 @@ export default function AuditLogPage() {
             {rows.map((r) => (
               <tr key={r.audit_id} className="hover:bg-gray-50">
                 <td className="p-2 border-b">{toJstDateTime(r.created_at)}</td>
-                <td className="p-2 border-b">{r.actor_user_id_text ?? ""}</td>
+                <td className="p-2 border-b">
+                  <select
+                    className="border px-2 py-1 w-40"
+                    defaultValue={r.actor_user_id_text ?? ""}
+                    id={`actor-${r.audit_id}`}
+                  >
+                    <option value="">未設定</option>
+                    {actorOptions.map((u) => (
+                      <option key={u.auth_user_id} value={u.user_id}>
+                        {u.user_id}
+                        {u.last_name_kanji || u.first_name_kanji
+                          ? `（${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}）`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td className="p-2 border-b">{r.request_path ?? ""}</td>
                 <td className="p-2 border-b font-semibold">{r.action}</td>
                 <td className="p-2 border-b">{r.shift_id ?? ""}</td>
@@ -231,10 +276,15 @@ export default function AuditLogPage() {
                         `penalty-${r.audit_id}`
                       ) as HTMLSelectElement | null;
 
+                      const actorSelect = document.getElementById(
+                        `actor-${r.audit_id}`
+                      ) as HTMLSelectElement | null;
+
                       void updatePenalty(
                         r.audit_id,
                         reasonInput?.value.trim() || null,
-                        penaltySelect?.value || null
+                        penaltySelect?.value || null,
+                        actorSelect?.value || null
                       );
                     }}
                   >
@@ -246,7 +296,7 @@ export default function AuditLogPage() {
 
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={14} className="p-4 text-center">
+                <td colSpan={15} className="p-4 text-center">
                   データなし
                 </td>
               </tr>

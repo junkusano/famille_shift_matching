@@ -8,6 +8,7 @@ type Body = {
   auditId?: string;
   changeReason?: string | null;
   penaltyLevel?: string | null;
+  actorUserIdText?: string | null; // user_id
 };
 
 const ALLOWED_LEVELS = ["", "minor", "moderate", "severe"];
@@ -39,14 +40,47 @@ export async function POST(req: Request) {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    let actorAuthUserId: string | null = null;
+
+    if (body.actorUserIdText && body.actorUserIdText.trim()) {
+      const { data: actorRow, error: actorError } = await admin
+        .from("user_entry_united_view_single")
+        .select("auth_user_id")
+        .eq("user_id", body.actorUserIdText.trim())
+        .maybeSingle();
+
+      if (actorError) {
+        return NextResponse.json({ error: actorError.message }, { status: 500 });
+      }
+
+      if (!actorRow?.auth_user_id) {
+        return NextResponse.json(
+          { error: "actor user not found" },
+          { status: 404 }
+        );
+      }
+
+      actorAuthUserId = actorRow.auth_user_id;
+    }
+
+    const updatePayload: {
+      change_reason: string | null;
+      penalty_level: string | null;
+      actor_user_id?: string | null;
+    } = {
+      change_reason: body.changeReason ?? null,
+      penalty_level: penaltyLevel === "" ? null : penaltyLevel,
+    };
+
+    if (body.actorUserIdText !== undefined) {
+      updatePayload.actor_user_id = actorAuthUserId;
+    }
+
     const { data, error } = await admin
       .from("audit_log")
-      .update({
-        change_reason: body.changeReason ?? null,
-        penalty_level: penaltyLevel === "" ? null : penaltyLevel,
-      })
+      .update(updatePayload)
       .eq("id", auditId)
-      .select("id, change_reason, penalty_level")
+      .select("id, actor_user_id, change_reason, penalty_level")
       .single();
 
     if (error) {
