@@ -517,11 +517,51 @@ export async function GET(req: NextRequest) {
 
         const nextMonthStart = getNextMonthStartDate(targetMonth);
 
+        const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
+
+        const trainingMonthStart = new Date(Date.UTC(year, month - 1, 1, -9, 0, 0));
+        const trainingMonthEnd = new Date(Date.UTC(year, month, 1, -9, 0, 0));
+
+        const entryIds = Array.from(
+            new Set(
+                rows
+                    .map((row) => row.entry_id)
+                    .filter((id): id is string => Boolean(id))
+            )
+        );
+
+        const trainingGoalCountMap = new Map<string, number>();
+
+        if (entryIds.length > 0) {
+            const { data: trainingRows, error: trainingError } = await supabaseAdmin
+                .from("employee_training_goals")
+                .select("entry_id")
+                .in("entry_id", entryIds)
+                .eq("row_type", "goal")
+                .eq("selected", true)
+                .eq("watched", true)
+                .gte("updated_at", trainingMonthStart.toISOString())
+                .lt("updated_at", trainingMonthEnd.toISOString());
+
+            if (trainingError) {
+                throw trainingError;
+            }
+
+            for (const trainingRow of trainingRows ?? []) {
+                const entryId = trainingRow.entry_id;
+                if (!entryId) continue;
+
+                trainingGoalCountMap.set(
+                    entryId,
+                    (trainingGoalCountMap.get(entryId) ?? 0) + 1
+                );
+            }
+        }
+
         const shiftDeclinePenaltyMap = await fetchShiftDeclinePenaltyMap(
             targetMonth,
             nextMonthStart
         );
-
         /*
         const currentMonthEndDate =
             todayDate < nextMonthStart ? todayDate : nextMonthStart;
@@ -784,7 +824,7 @@ export async function GET(req: NextRequest) {
             jisseki_past_incomplete_count:
                 jissekiPastIncompleteMap.get(row.user_id) ?? 0,
             training_goal_selected_count:
-                row.training_goal_selected_count ?? 0,
+                row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0,
             shift_decline_3days_count:
                 row.shift_decline_3days_count ?? 0,
             shift_decline_6hours_count:
