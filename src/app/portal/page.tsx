@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import DocUploader, { type DocItem, type Attachment } from '@/components/DocUploader';
+import PerformanceScoreCard from '@/components/portal/PerformanceScoreCard';
 import {
   determineServicesFromCertificates,
   type DocMasterRow as CertMasterRow,
@@ -202,6 +203,10 @@ export default function PortalHome() {
         <div className="mt-1 text-sm text-gray-500">
           ふりがな：{me.last_name_kana ?? ''} {me.first_name_kana ?? ''}
         </div>
+      </div>
+
+      <div className="mt-8">
+        <PerformanceScoreCard />
       </div>
 
       <div className="mt-8">

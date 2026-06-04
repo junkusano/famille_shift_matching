@@ -205,7 +205,7 @@ function MyScorePreviewContent() {
                 return "20時間ごとに10点加算（160時間で80点満点）";
 
             case "shift_decline_penalty":
-                return "シフト開始6時間以内は1件10点減点、3日以内は1件5点減点";
+                return "シフト開始6時間以内は1件10点減点、3日以内は1件5点減点（勘案すべき事情がある場合はマネージャーに相談してください）";
 
             case "visit_record":
                 return "当月の当日完了率×30点 − 過去未完了1件につき5点";
