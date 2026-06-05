@@ -603,7 +603,6 @@ export default function UserAdvancePaymentConfirmPage() {
   </div>
 )}
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -628,9 +627,9 @@ export default function UserAdvancePaymentConfirmPage() {
               <div className="space-y-3">
                 {targetShifts.map((shift) => (
                  <div
-  　　　　　　　　　　key={shift.shift_id}
-  　　　　　　　　　　className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition"
-　　　　　　　　　　>
+                    key={shift.shift_id}
+                     className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition"
+                    >
 
                     <div className="min-w-0 flex-1 space-y-2">
   <div className="flex flex-wrap items-center gap-3">
@@ -708,16 +707,16 @@ export default function UserAdvancePaymentConfirmPage() {
   "
 >
                   <input
-                    type="checkbox"
-                    className="mt-1 h-5 w-5"
-                    checked={checks[item.key]}
-                    onChange={(e) =>
-                      setChecks((prev) => ({
-                        ...prev,
-                        [item.key]: e.target.checked,
-                      }))
-                    }
-                  />
+  　　　　　　　　　　type="checkbox"
+  　　　　　　　　　　className="mt-1 h-6 w-6 accent-blue-600"
+                  　　  checked={checks[item.key]}
+                 　　   onChange={(e) =>
+                   　　   setChecks((prev) => ({
+                    　　    ...prev,
+                   　　     [item.key]: e.target.checked,
+                  　　    }))
+                 　　   }
+               　　   />
 
                   <div>
                     <div className="font-medium text-slate-900">{item.label}</div>
@@ -822,20 +821,25 @@ export default function UserAdvancePaymentConfirmPage() {
     </Button>
   )}
 
+<div className="mt-6 flex flex-col items-center gap-3">
   <Button
     type="button"
-    className="rounded-2xl px-8"
+    className="w-full max-w-md rounded-2xl px-8 py-6 text-lg font-bold"
     disabled={!canSubmit}
     onClick={submitApplication}
   >
-    {submitting
-      ? "申請中..."
-      : "日払い申請を送信"}
+    {submitting ? "申請中..." : "日払い申請を送信"}
   </Button>
+
+  {!canSubmit && !submitting && (
+    <div className="text-sm text-slate-500">
+      申請条件を満たすと送信ボタンが有効になります。
+    </div>
+  )}
+</div>
 </div>
           </div>
         </div>
       </div>
-    </div>
   );
 }
