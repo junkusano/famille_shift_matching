@@ -1266,7 +1266,7 @@ const saveTemplate = async () => {
             )}
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="flex justify-start gap-2 pt-2">
             <Button variant="secondary" onClick={() => setOpenEdit(false)}>
               閉じる
             </Button>
