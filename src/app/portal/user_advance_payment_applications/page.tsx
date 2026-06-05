@@ -196,7 +196,10 @@ export default function UserAdvancePaymentConfirmPage() {
     !submitting;
 
 
-  const baseAmount = targetShifts
+const baseAmount = targetShifts
+  .reduce((sum, shift) => sum + shift.amount, 0);
+
+const eligibleAmount = targetShifts
   .filter((shift) => shift.has_shift_record)
   .reduce((sum, shift) => sum + shift.amount, 0);
 
@@ -204,8 +207,8 @@ const excludedAmount = targetShifts
   .filter((shift) => !shift.has_shift_record)
   .reduce((sum, shift) => sum + shift.amount, 0);
 
-  const calculation = calculateAvailableAmount({
-    baseAmount,
+const calculation = calculateAvailableAmount({
+  baseAmount: eligibleAmount,
     hasSocialInsurance: Boolean(me?.has_social_insurance),
     hasEmploymentAndWorkersInsurance: Boolean(
       me?.has_employment_insurance
@@ -399,11 +402,10 @@ const excludedAmount = targetShifts
       setMessage("");
 
       const baseAmount = targetShifts
-        .filter((shift) => shift.has_shift_record)
-        .reduce((sum, shift) => sum + shift.amount, 0);
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
-        baseAmount,
+        baseAmount: eligibleAmount,
         hasSocialInsurance: Boolean(me.has_social_insurance),
         hasEmploymentAndWorkersInsurance: Boolean(
           me.has_employment_insurance
