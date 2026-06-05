@@ -795,7 +795,7 @@ const calculation = calculateAvailableAmount({
                     控除（{Math.round(calculation.deductionRate * 100)}%）
                   </span>
                   <span className="font-medium tabular-nums">
-                    ¥{(baseAmount - calculation.availableAmount).toLocaleString()}
+                    ¥{(eligibleAmount - calculation.availableAmount).toLocaleString()}
                   </span>
                 </div>
 
