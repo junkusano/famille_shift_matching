@@ -545,22 +545,30 @@ export default function UserAdvancePaymentConfirmPage() {
           </CardContent>
         </Card>
 
-        {rejectedApplication && (
-          <div className="rounded-2xl border border-red-300 bg-red-50 p-4">
-            <div className="font-bold text-red-700">
-              前回の日払い申請は差し戻しされました
-            </div>
+{rejectedApplication && (
+  <div className="rounded-xl border border-red-300 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+    <div className="flex items-start gap-3">
+      <div className="text-2xl">⚠️</div>
 
-            <div className="mt-2 text-sm text-red-700">
-              理由：
-              {rejectedApplication.rejected_reason}
-            </div>
+      <div>
+        <div className="text-lg font-bold text-red-700">
+          前回の申請は差し戻しされています
+        </div>
 
-            <div className="mt-2 text-sm text-slate-600">
-              内容を修正して再申請してください。
-            </div>
-          </div>
-        )}
+        <div className="mt-2 text-sm text-slate-700">
+          <span className="font-semibold">
+            差し戻し理由：
+          </span>
+          {rejectedApplication.rejected_reason}
+        </div>
+
+        <div className="mt-2 text-sm text-slate-500">
+          内容を修正して再申請してください。
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {errorMessage && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -582,7 +590,8 @@ export default function UserAdvancePaymentConfirmPage() {
             {message}
           </div>
         )}
-
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -658,9 +667,22 @@ export default function UserAdvancePaymentConfirmPage() {
             <div className="mt-4 space-y-3">
               {confirmItems.map((item) => (
                 <label
-                  key={item.key}
-                  className="flex cursor-pointer gap-3 rounded-2xl bg-white p-4 shadow-sm"
-                >
+  key={item.key}
+  className="
+    flex
+    cursor-pointer
+    gap-3
+    rounded-2xl
+    border
+    border-slate-200
+    bg-white
+    p-5
+    shadow-sm
+    hover:border-blue-300
+    hover:shadow-md
+    transition
+  "
+>
                   <input
                     type="checkbox"
                     className="mt-1 h-5 w-5"
@@ -694,13 +716,13 @@ export default function UserAdvancePaymentConfirmPage() {
                   : "申請できます。"}
             </div>
 
-            <div className="rounded-2xl border bg-white p-4 shadow-sm min-w-[280px]">
-              <div className="space-y-3">
+           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-lg min-w-[320px]">
+               <div className="space-y-4">
 
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500">1日合計金額</span>
-                  <span className="text-lg font-bold tabular-nums">
-                    ¥{baseAmount.toLocaleString()}
+                 <div className="flex items-center justify-between border-b border-blue-200 pb-3">
+                  <span className="font-medium text-slate-600">1日合計金額</span>
+                  <span className="text-2xl font-bold text-slate-900 tabular-nums">
+                     ¥{baseAmount.toLocaleString()}
                   </span>
                 </div>
 
@@ -725,12 +747,13 @@ export default function UserAdvancePaymentConfirmPage() {
                     振込予定額
                   </span>
 
-                  <span className="text-2xl font-bold text-blue-700 tabular-nums">
+                  <span className="text-4xl font-extrabold text-blue-700 tabular-nums">
                     ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
                   </span>
                 </div>
 
               </div>
+            </div>
             </div>
 
 
@@ -754,36 +777,38 @@ export default function UserAdvancePaymentConfirmPage() {
               </div>
             )}
             {isManager && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
               </div>
             )}
 
-            <div className="flex gap-2">
-  　　　　　　　　{rejectedApplication && (
-   　　　　　　　　 <Button
-    　　　　　　　　  type="button"
-    　　　　　　　　  variant="outline"
-     　　　　　　　　 onClick={() => {
-     　　　　　　　　   window.scrollTo({
-     　　　　　　　　     top: 0,
-        　　　　　　　　  behavior: "smooth",
-     　　　　　　　　   });
-    　　　　　　　　  }}
-   　　　　　　　　 >
-  　　　　　　　　    差し戻し理由を確認
-  　　　　　　　　  </Button>
-  　　　　　　　　)}
+<div className="flex justify-center gap-4 mt-6">
+  {rejectedApplication && (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() =>
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        })
+      }
+    >
+      差し戻し理由を確認
+    </Button>
+  )}
 
- 　　　　　　　　 <Button
-   　　　　　　　　 type="button"
-    　　　　　　　　className="rounded-2xl px-6"
-   　　　　　　　　 disabled={!canSubmit}
-   　　　　　　　　 onClick={submitApplication}
-  　　　　　　　　>
-   　　　　　　　　 {submitting ? "申請中..." : "日払い申請を送信"}
- 　　　　　　　　 </Button>
-　　　　　　　　</div>
+  <Button
+    type="button"
+    className="rounded-2xl px-8"
+    disabled={!canSubmit}
+    onClick={submitApplication}
+  >
+    {submitting
+      ? "申請中..."
+      : "日払い申請を送信"}
+  </Button>
+</div>
           </div>
         </div>
       </div>
