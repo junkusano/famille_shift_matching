@@ -14,16 +14,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
-const DEFAULT_RPA_UNIT_AMOUNT = "1330";
-const DEFAULT_RPA_COMMUTE_FEE = "200";
-const DEFAULT_RPA_REQUIRED_LICENSES = [
-  "初任者研修",
-  "実務者研修",
-  "介護福祉士",
-  "看護師",
-  "准看護師",
-];
-
 const REQUIRED_LICENSE_OPTIONS = [
   "初任者研修",
   "実務者研修",
@@ -34,6 +24,16 @@ const REQUIRED_LICENSE_OPTIONS = [
   "同行援護従業者養成研修",
   "行動援護従業者養成研修",
   "喀痰吸引等研修",
+];
+
+const DEFAULT_UNIT_AMOUNT = "1330";
+const DEFAULT_COMMUTE_FEE = "200";
+const DEFAULT_REQUIRED_LICENSES = [
+  "初任者研修",
+  "実務者研修",
+  "介護福祉士",
+  "看護師",
+  "准看護師",
 ];
 
 type NullableBoolean = boolean | null;
@@ -193,8 +193,8 @@ export default function SpotOfferTemplatePage() {
   const [fEmergencyPhone, setFEmergencyPhone] = useState("");
   const [fSmokingPolicy, setFSmokingPolicy] = useState("");
   const [fSmokingAreaWork, setFSmokingAreaWork] = useState<NullableBoolean>(null);
-  const [fRequiresLicense, setFRequiresLicense] = useState<NullableBoolean>(null);
-  const [fRequiredLicenses, setFRequiredLicenses] = useState<string[]>([]);
+  const [fRequiresLicense, setFRequiresLicense] = useState<NullableBoolean>(true);
+  const [fRequiredLicenses, setFRequiredLicenses] = useState<string[]>(DEFAULT_REQUIRED_LICENSES);
   const [fBenefitsText, setFBenefitsText] = useState("");
   const [fBelongingsText, setFBelongingsText] = useState("");
   const [fInternalLabel, setFInternalLabel] = useState("");
@@ -205,8 +205,8 @@ export default function SpotOfferTemplatePage() {
   const [fStartAt, setFStartAt] = useState("");
   const [fEndAt, setFEndAt] = useState("");
   const [fStatusChecked, setFStatusChecked] = useState(true);
-  const [fUnitAmount, setFUnitAmount] = useState("");
-  const [fCommuteFee, setFCommuteFee] = useState("");
+  const [fUnitAmount, setFUnitAmount] = useState(DEFAULT_UNIT_AMOUNT);
+  const [fCommuteFee, setFCommuteFee] = useState(DEFAULT_COMMUTE_FEE);
   const [fSendMsgFlg, setFSendMsgFlg] = useState<NullableBoolean>(null);
   const [fMatchingMsg, setFMatchingMsg] = useState("");
   const [fMeetingPlace, setFMeetingPlace] = useState("");
@@ -233,10 +233,6 @@ type ParkingPreview = {
 };
   const [breakStartTime, setBreakStartTime] = useState("");
   const [breakEndTime, setBreakEndTime] = useState("");
-  const [rpaUnitAmount, setRpaUnitAmount] = useState(DEFAULT_RPA_UNIT_AMOUNT);
-  const [rpaCommuteFee, setRpaCommuteFee] = useState(DEFAULT_RPA_COMMUTE_FEE);
-  const [rpaRequiresLicense, setRpaRequiresLicense] = useState<NullableBoolean>(true);
-  const [rpaRequiredLicenses, setRpaRequiredLicenses] = useState<string[]>(DEFAULT_RPA_REQUIRED_LICENSES);
 
   const [clientPreview, setClientPreview] = useState<ClientPreview | null>(null);
   const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
@@ -440,8 +436,8 @@ useEffect(() => {
     setFEmergencyPhone("");
     setFSmokingPolicy("");
     setFSmokingAreaWork(null);
-    setFRequiresLicense(null);
-    setFRequiredLicenses([]);
+    setFRequiresLicense(true);
+    setFRequiredLicenses(DEFAULT_REQUIRED_LICENSES);
     setFBenefitsText("");
     setFBelongingsText("");
     setFInternalLabel("");
@@ -454,8 +450,8 @@ useEffect(() => {
     setFBreakStartTime("");
     setFBreakEndTime("");
     setFStatusChecked(true);
-    setFUnitAmount("");
-    setFCommuteFee("");
+    setFUnitAmount(DEFAULT_UNIT_AMOUNT);
+    setFCommuteFee(DEFAULT_COMMUTE_FEE);
     setFSendMsgFlg(true);
     setFMatchingMsg("");
     setFMeetingPlace("");
@@ -570,6 +566,22 @@ const saveTemplate = async () => {
     if (!fEndAt.trim()) {
       throw new Error("終了時間は必須です");
     }
+    if (!fUnitAmount.trim()) {
+      throw new Error("時給は必須です");
+    }
+    if (!fCommuteFee.trim()) {
+      throw new Error("交通費は必須です");
+    }
+
+    const unitAmount = toNullableNumber(fUnitAmount);
+    const commuteFee = toNullableNumber(fCommuteFee);
+
+    if (unitAmount === null) {
+      throw new Error("時給は必須です");
+    }
+    if (commuteFee === null) {
+      throw new Error("交通費は必須です");
+    }
 
     const payload: Partial<SpotOfferTemplateUnified> = {
       timee_offer_id: fTimeeOfferId.trim() || null,
@@ -595,8 +607,8 @@ const saveTemplate = async () => {
       start_at: toNullableTime(fStartAt),
       end_at: toNullableTime(fEndAt),
       status: fStatusChecked ? "active" : "inactive",
-      unit_amount: toNullableNumber(fUnitAmount),
-      commute_fee: toNullableNumber(fCommuteFee),
+      unit_amount: unitAmount,
+      commute_fee: commuteFee,
       send_msg_flg: !!fSendMsgFlg,
       matching_msg: fMatchingMsg.trim() || null,
       meeting_place: fMeetingPlace.trim() || null,
@@ -663,11 +675,6 @@ const saveTemplate = async () => {
      // 休憩時間はテンプレに保存していないので毎回クリア
      setBreakStartTime("");
      setBreakEndTime("");
-
-     setRpaUnitAmount(DEFAULT_RPA_UNIT_AMOUNT);
-     setRpaCommuteFee(DEFAULT_RPA_COMMUTE_FEE);
-     setRpaRequiresLicense(true);
-     setRpaRequiredLicenses(DEFAULT_RPA_REQUIRED_LICENSES);
   
     setOpenRpa(true);
   };
@@ -683,14 +690,6 @@ const saveTemplate = async () => {
     }
     if (!shiftEndDate.trim()) {
       alert("shift_end_date は必須です");
-      return;
-    }
-    if (!rpaUnitAmount.trim()) {
-      alert("時給は必須です");
-      return;
-    }
-    if (!rpaCommuteFee.trim()) {
-      alert("交通費は必須です");
       return;
     }
 
@@ -758,7 +757,7 @@ const saveTemplate = async () => {
         return;
        }
 
-       const hourlyWage = toNullableNumber(rpaUnitAmount);
+       const hourlyWage = toNullableNumber(fUnitAmount);
        const workHours = (workMinutes - breakMinutes) / 60;
        const totalAmount = hourlyWage ? hourlyWage * workHours : 0;
 
@@ -781,11 +780,6 @@ const saveTemplate = async () => {
         break_end_time: toNullableTime(breakEndTime),
 
         requester_user_id: userData.user_id,
-
-        unit_amount: toNullableNumber(rpaUnitAmount),
-        commute_fee: toNullableNumber(rpaCommuteFee),
-        requires_license: rpaRequiresLicense,
-        required_licenses: rpaRequiredLicenses,
 
         template_title: rpaTarget.template_title ?? null,
         work_address: rpaTarget.work_address ?? null,
@@ -1083,7 +1077,7 @@ const saveTemplate = async () => {
       </div>
     </div>
     <div>
-      <div className="text-[11px] text-muted-foreground">時給</div>
+      <FieldLabel required>時給</FieldLabel>
       <Input
         value={fUnitAmount}
         onChange={(e) => setFUnitAmount(e.target.value)}
@@ -1093,7 +1087,7 @@ const saveTemplate = async () => {
     </div>
 
     <div>
-      <div className="text-[11px] text-muted-foreground">交通費</div>
+      <FieldLabel required>交通費</FieldLabel>
       <Input
         value={fCommuteFee}
         onChange={(e) => setFCommuteFee(e.target.value)}
@@ -1347,73 +1341,6 @@ const saveTemplate = async () => {
                   onChange={(e) => setBreakEndTime(e.target.value)}
                   placeholder="1230 / 12:30（空欄OK）"
                 />
-              </div>
-
-              <div>
-                <FieldLabel required>時給</FieldLabel>
-                <Input
-                  value={rpaUnitAmount}
-                  onChange={(e) => setRpaUnitAmount(e.target.value)}
-                  placeholder="例：1330"
-                  inputMode="numeric"
-                />
-              </div>
-
-              <div>
-                <FieldLabel required>交通費</FieldLabel>
-                <Input
-                  value={rpaCommuteFee}
-                  onChange={(e) => setRpaCommuteFee(e.target.value)}
-                  placeholder="例：200"
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded border p-3">
-              <div className="text-sm font-semibold">資格</div>
-              <BoolSelect
-                label="資格必須"
-                value={rpaRequiresLicense}
-                onChange={setRpaRequiresLicense}
-              />
-
-              <div>
-                <FieldLabel>必要資格</FieldLabel>
-                <select
-                  multiple
-                  className="flex min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
-                  value={rpaRequiredLicenses}
-                  onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions).map((opt) => opt.value);
-                    setRpaRequiredLicenses(values);
-                  }}
-                >
-                  {REQUIRED_LICENSE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {rpaRequiredLicenses.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">未選択</span>
-                  ) : (
-                    rpaRequiredLicenses.map((license) => (
-                      <span
-                        key={license}
-                        className="inline-flex items-center rounded-full border px-2 py-1 text-xs bg-background"
-                      >
-                        {license}
-                      </span>
-                    ))
-                  )}
-                </div>
-
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Ctrl または Command を押しながらクリックすると複数選択できます
-                </div>
               </div>
             </div>
 
