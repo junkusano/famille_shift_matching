@@ -585,11 +585,23 @@ export default function UserAdvancePaymentConfirmPage() {
           </div>
         )}
 
-        {message && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-            {message}
-          </div>
-        )}
+       {message && (
+  <div className="rounded-2xl border border-green-300 bg-green-50 p-5 text-green-800 shadow-sm">
+    <div className="flex items-start gap-3">
+      <div className="text-2xl">✅</div>
+
+      <div>
+        <div className="text-lg font-bold">
+          申請処理が完了しました
+        </div>
+
+        <div className="mt-2 text-sm leading-6">
+          {message}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-2xl shadow-sm">
@@ -615,16 +627,25 @@ export default function UserAdvancePaymentConfirmPage() {
             ) : (
               <div className="space-y-3">
                 {targetShifts.map((shift) => (
-                  <div
-                    key={shift.shift_id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4"
-                  >
+                 <div
+  　　　　　　　　　　key={shift.shift_id}
+  　　　　　　　　　　className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition"
+　　　　　　　　　　>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-slate-900">
-                        {shift.shift_start_date} {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-700">{shift.client_name}</div>
+                    <div className="min-w-0 flex-1 space-y-2">
+  <div className="flex flex-wrap items-center gap-3">
+    <div className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+      📅 {shift.shift_start_date}
+    </div>
+
+    <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+      ⏰ {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
+    </div>
+  </div>
+
+  <div className="text-base font-semibold text-slate-900">
+    👤 {shift.client_name}
+  </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {shift.service_code && <span>サービスコード：{shift.service_code}</span>}
                         {shift.service_code && shift.address && <span> ／ </span>}
@@ -646,9 +667,12 @@ export default function UserAdvancePaymentConfirmPage() {
                         シフト・訪問記録を確認する
                       </a>
 
-                      <div className="mt-2 text-sm font-semibold text-slate-900">
-                        日払い対象額：¥{shift.amount.toLocaleString()}
-                      </div>
+                      <div className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-right">
+  <div className="text-xs text-blue-700">日払い対象額</div>
+  <div className="text-xl font-bold text-blue-800">
+    ¥{shift.amount.toLocaleString()}
+  </div>
+</div>
                     </div>
                   </div>
                 ))}

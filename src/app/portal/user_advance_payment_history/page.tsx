@@ -397,6 +397,7 @@ async function rejectApplication() {
                     <th className="p-3">シフト日</th>
                     <th className="p-3">申請者</th>
                     <th className="p-3">ステータス</th>
+                    <th className="p-3">差し戻し理由</th>
                     <th className="p-3">操作</th>
                     <th className="p-3">申請金額</th>
                     <th className="p-3">控除内訳</th>
@@ -410,16 +411,24 @@ async function rejectApplication() {
     </td>
     <td className="p-3">{row.applicant_name ?? "-"}</td>
     <td className="p-3">
-      <span
-        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-          statusClass[row.application_status] ?? "bg-slate-100 text-slate-700"
-        }`}
-      >
-        {row.application_status_label}
-      </span>
-    </td>
+  <span
+    className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+      statusClass[row.application_status] ?? "bg-slate-100 text-slate-700"
+    }`}
+  >
+    {row.application_status_label}
+  </span>
+</td>
+
+<td className="p-3 text-sm text-red-700">
+  {row.application_status === "rejected"
+    ? row.rejected_reason || "理由未入力"
+    : "-"}
+</td>
+
 <td className="p-3">
   {canViewAll ? (
+    
     <div className="flex gap-2">
       <Button
         size="sm"
