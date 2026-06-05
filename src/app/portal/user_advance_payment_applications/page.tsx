@@ -503,10 +503,12 @@ export default function UserAdvancePaymentConfirmPage() {
           <p className="text-sm text-slate-500">Advance Payment</p>
           <h1 className="text-2xl font-bold">日払い申請フォーム</h1>
 
-          <div className="text-black text-sm leading-8">
-  <div className="font-semibold">日払い制度について</div>
-  <p className="mt-1">
-    
+          <div className="mt-4 text-black">
+  <div className="mb-2 text-lg font-bold">
+    日払い制度について
+  </div>
+
+  <p className="text-base leading-8 text-slate-800">
     この制度は、正式な給与計算・支給は翌月25日に行われることを前提とし、
     その概算を日ごとに受け取れる仕組みです。
     概算の計算には一定の時給と控除率を用いており、最終的には正式な給与支給日に、
@@ -533,17 +535,27 @@ export default function UserAdvancePaymentConfirmPage() {
 
         </div>
 
-        <Card className="rounded-2xl border-blue-100 bg-blue-50 shadow-sm">
-          <CardContent className="p-4 text-sm text-blue-900">
-            <div className="font-semibold">対象期間</div>
-            <div className="mt-1">
-              前日18:00 ～ 当日18:00終了分
-            </div>
-            <div className="mt-1 text-xs text-blue-700">
-              対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
-            </div>
-          </CardContent>
-        </Card>
+        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm">
+  <CardContent className="p-5">
+    <div className="flex items-center gap-3">
+      <div className="text-2xl">📅</div>
+
+      <div>
+        <div className="text-lg font-bold text-blue-900">
+          日払い対象期間
+        </div>
+
+        <div className="text-sm text-blue-700">
+          前日18:00 ～ 当日18:00終了分
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-3 text-xs text-slate-600">
+      対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
+    </div>
+  </CardContent>
+</Card>
 
 {rejectedApplication && (
   <div className="rounded-xl border border-red-300 bg-gradient-to-r from-red-50 to-white px-6 py-4">
@@ -651,20 +663,24 @@ export default function UserAdvancePaymentConfirmPage() {
                         {shift.address && <span>{shift.address}</span>}
                       </div>
 
-                      <div
-                        className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${shift.has_shift_record
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                          }`}
-                      >
-                        訪問記録：{shift.has_shift_record ? "記載有" : "記載無"}
-                      </div>
-                      <a
-                        href="/portal/shift"
-                        className="mt-2 inline-block text-sm font-semibold text-blue-600 underline"
-                      >
-                        シフト・訪問記録を確認する
-                      </a>
+               <div className="mt-3 flex flex-wrap items-center gap-2">
+  <div
+    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+      shift.has_shift_record
+        ? "bg-green-100 text-green-800"
+        : "bg-red-100 text-red-800"
+    }`}
+  >
+    {shift.has_shift_record ? "✅ 訪問記録 記載済み" : "⚠️ 訪問記録 未記載"}
+  </div>
+
+  <a
+    href="/portal/shift"
+    className="text-xs font-semibold text-blue-600 underline"
+  >
+    シフト・訪問記録を確認
+  </a>
+</div>
 
                       <div className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-right">
   <div className="text-xs text-blue-700">日払い対象額</div>
@@ -680,12 +696,20 @@ export default function UserAdvancePaymentConfirmPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-orange-200 bg-orange-50 shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-lg font-semibold text-orange-950">申請前の確認事項</h2>
-            <p className="mt-1 text-sm text-orange-900">
-              内容を確認し、すべての項目に同意した場合のみ申請できます。
-            </p>
+        <Card className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-white shadow-sm">
+  <CardContent className="p-6">
+    <div className="flex items-center gap-3">
+      <div className="text-2xl">✅</div>
+
+      <div>
+        <h2 className="text-lg font-bold text-orange-950">
+          申請前の確認事項
+        </h2>
+        <p className="mt-1 text-sm text-orange-900">
+          内容を確認し、すべての項目に同意した場合のみ申請できます。
+        </p>
+      </div>
+    </div>
 
             <div className="mt-4 space-y-3">
               {confirmItems.map((item) => (
@@ -728,7 +752,7 @@ export default function UserAdvancePaymentConfirmPage() {
           </CardContent>
         </Card>
 
-        <div className="rounded-2xl border bg-white p-4 shadow-lg">
+        <div className="sticky bottom-4 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-5 shadow-xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-slate-600">
               {targetShifts.length === 0
@@ -800,10 +824,13 @@ export default function UserAdvancePaymentConfirmPage() {
               </div>
             )}
             {isManager && (
-              <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
-              </div>
-            )}
+  <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div className="font-semibold">管理者・マネージャー向け表示</div>
+    <div className="mt-1">
+      マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
+    </div>
+  </div>
+)}
 
 <div className="flex justify-center gap-4 mt-6">
   {rejectedApplication && (
@@ -823,8 +850,8 @@ export default function UserAdvancePaymentConfirmPage() {
 
 <div className="mt-6 flex flex-col items-center gap-3">
   <Button
-    type="button"
-    className="w-full max-w-md rounded-2xl px-8 py-6 text-lg font-bold"
+  type="button"
+  className="w-full max-w-md rounded-2xl bg-blue-600 px-8 py-7 text-lg font-bold shadow-lg hover:bg-blue-700"
     disabled={!canSubmit}
     onClick={submitApplication}
   >
