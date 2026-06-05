@@ -46,6 +46,14 @@ type TargetShift = {
   has_shift_record: boolean;
 };
 
+type RejectedApplication = {
+  id: number;
+  application_no: string;
+  status: string;
+  rejected_reason: string | null;
+  created_at: string;
+};
+
 type ConfirmKey =
   | "shiftConfirmed"
   | "feeAccepted"
@@ -145,15 +153,14 @@ export default function UserAdvancePaymentConfirmPage() {
     feeAccepted: false,
     insuranceAccepted: false,
   });
-
   const [message, setMessage] = useState("");
   /*
    const [performanceRank, setPerformanceRank] =
     useState("bronze");
   */
-
   const [errorMessage, setErrorMessage] = useState("");
-
+  const [rejectedApplication, setRejectedApplication] =
+  useState<RejectedApplication | null>(null);
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
   const now = new Date();
@@ -234,6 +241,17 @@ export default function UserAdvancePaymentConfirmPage() {
 
         const currentUser = loginUser as LoginUser;
         setMe(currentUser);
+
+        const { data: rejectedData } = await supabase
+          .from("user_advance_payment_applications")
+          .select("*")
+          .eq("user_id", currentUser.user_id)
+          .eq("status", "rejected")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        setRejectedApplication(rejectedData);
 
         /*
         const { data: latestScore } = await supabase
@@ -527,6 +545,23 @@ export default function UserAdvancePaymentConfirmPage() {
           </CardContent>
         </Card>
 
+        {rejectedApplication && (
+          <div className="rounded-2xl border border-red-300 bg-red-50 p-4">
+            <div className="font-bold text-red-700">
+              前回の日払い申請は差し戻しされました
+            </div>
+
+            <div className="mt-2 text-sm text-red-700">
+              理由：
+              {rejectedApplication.rejected_reason}
+            </div>
+
+            <div className="mt-2 text-sm text-slate-600">
+              内容を修正して再申請してください。
+            </div>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <div>{errorMessage}</div>
@@ -724,14 +759,31 @@ export default function UserAdvancePaymentConfirmPage() {
               </div>
             )}
 
-            <Button
-              type="button"
-              className="rounded-2xl px-6"
-              disabled={!canSubmit}
-              onClick={submitApplication}
-            >
-              {submitting ? "申請中..." : "日払い申請を送信"}
-            </Button>
+            <div className="flex gap-2">
+  　　　　　　　　{rejectedApplication && (
+   　　　　　　　　 <Button
+    　　　　　　　　  type="button"
+    　　　　　　　　  variant="outline"
+     　　　　　　　　 onClick={() => {
+     　　　　　　　　   window.scrollTo({
+     　　　　　　　　     top: 0,
+        　　　　　　　　  behavior: "smooth",
+     　　　　　　　　   });
+    　　　　　　　　  }}
+   　　　　　　　　 >
+  　　　　　　　　    差し戻し理由を確認
+  　　　　　　　　  </Button>
+  　　　　　　　　)}
+
+ 　　　　　　　　 <Button
+   　　　　　　　　 type="button"
+    　　　　　　　　className="rounded-2xl px-6"
+   　　　　　　　　 disabled={!canSubmit}
+   　　　　　　　　 onClick={submitApplication}
+  　　　　　　　　>
+   　　　　　　　　 {submitting ? "申請中..." : "日払い申請を送信"}
+ 　　　　　　　　 </Button>
+　　　　　　　　</div>
           </div>
         </div>
       </div>
