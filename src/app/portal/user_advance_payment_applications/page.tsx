@@ -42,6 +42,7 @@ type TargetShift = {
   address: string;
   service_code: string;
   amount: number;
+  excludedAmount: number;
   record_status: string | null;
   has_shift_record: boolean;
 };
@@ -196,7 +197,12 @@ export default function UserAdvancePaymentConfirmPage() {
 
 
   const baseAmount = targetShifts
-    .reduce((sum, shift) => sum + shift.amount, 0);
+  .filter((shift) => shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
+
+const excludedAmount = targetShifts
+  .filter((shift) => !shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
   const calculation = calculateAvailableAmount({
     baseAmount,
@@ -327,22 +333,30 @@ export default function UserAdvancePaymentConfirmPage() {
 
             return shiftEnd > start && shiftEnd <= end;
           })
-          .map((shift) => ({
-            id: String(shift.shift_id),
-            shift_id: shift.shift_id,
-            shift_start_date: shift.shift_start_date,
-            shift_start_time: shift.shift_start_time,
-            shift_end_time: shift.shift_end_time,
-            client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
-            address: shift.district ?? "",
-            service_code: shift.service_code ?? "",
+          .map((shift) => {
+  const hasShiftRecord =
+    recordStatusByShiftId.get(shift.shift_id) !== "draft" &&
+    recordStatusByShiftId.has(shift.shift_id);
 
-            amount: Number(shift.estimated_pay_amount ?? 0),
-            record_status: recordStatusByShiftId.get(shift.shift_id) ?? null,
-            has_shift_record:
-              recordStatusByShiftId.get(shift.shift_id) !== "draft" &&
-              recordStatusByShiftId.has(shift.shift_id),
-          }));
+  const shiftAmount = Number(shift.estimated_pay_amount ?? 0);
+
+  return {
+    id: String(shift.shift_id),
+    shift_id: shift.shift_id,
+    shift_start_date: shift.shift_start_date,
+    shift_start_time: shift.shift_start_time,
+    shift_end_time: shift.shift_end_time,
+    client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
+    address: shift.district ?? "",
+    service_code: shift.service_code ?? "",
+
+    amount: shiftAmount,
+    excludedAmount: hasShiftRecord ? 0 : shiftAmount,
+
+    record_status: recordStatusByShiftId.get(shift.shift_id) ?? null,
+    has_shift_record: hasShiftRecord,
+  };
+});
 
         setTargetShifts(filtered);
       } catch (error) {
@@ -385,6 +399,7 @@ export default function UserAdvancePaymentConfirmPage() {
       setMessage("");
 
       const baseAmount = targetShifts
+        .filter((shift) => shift.has_shift_record)
         .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
@@ -782,12 +797,21 @@ export default function UserAdvancePaymentConfirmPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>手数料</span>
-                  <span className="font-medium tabular-nums">
-                    ¥200
-                  </span>
-                </div>
+               <div className="flex items-center justify-between text-red-600">
+                <span>対象外金額</span>
+
+                <span className="font-medium tabular-nums">
+                  ¥{excludedAmount.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-slate-600">
+                <span>手数料</span>
+
+                <span className="font-medium tabular-nums">
+                  ¥200
+                </span>
+              </div>
 
                 <div className="flex items-center justify-between border-t pt-3">
                   <span className="font-semibold text-slate-700">
