@@ -769,7 +769,7 @@ const calculation = calculateAvailableAmount({
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-4 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-5 shadow-xl">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-slate-600">
               {targetShifts.length === 0
@@ -780,7 +780,7 @@ const calculation = calculateAvailableAmount({
                   : "申請できます。"}
             </div>
 
-           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-lg min-w-[320px]">
+           <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-xl">
                <div className="space-y-4">
 
                  <div className="flex items-center justify-between border-b border-blue-200 pb-3">
@@ -877,7 +877,7 @@ const calculation = calculateAvailableAmount({
 <div className="mt-6 flex flex-col items-center gap-3">
   <Button
   type="button"
-  className="w-full max-w-md rounded-2xl bg-blue-600 px-8 py-7 text-lg font-bold shadow-lg hover:bg-blue-700"
+  className="w-full rounded-2xl bg-blue-600 px-8 py-5 text-lg font-bold shadow-lg hover:bg-blue-700"
     disabled={!canSubmit}
     onClick={submitApplication}
   >
