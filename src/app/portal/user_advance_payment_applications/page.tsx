@@ -155,10 +155,10 @@ export default function UserAdvancePaymentConfirmPage() {
     insuranceAccepted: false,
   });
   const [message, setMessage] = useState("");
-  /*
+  
    const [performanceRank, setPerformanceRank] =
     useState("bronze");
-  */
+  
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
   useState<RejectedApplication | null>(null);
@@ -178,11 +178,11 @@ export default function UserAdvancePaymentConfirmPage() {
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
 
-  /*const isSilverOrHigher =
+  const isSilverOrHigher =
     performanceRank === "silver" ||
     performanceRank === "gold" ||
     performanceRank === "platinum";
-    */
+    
 
   const isManager =
     me?.role === "manager" || me?.role === "admin";
@@ -190,7 +190,7 @@ export default function UserAdvancePaymentConfirmPage() {
   const canSubmit =
     !isManager &&
     !isAfterDeadline &&
-    //isSilverOrHigher &&
+    isSilverOrHigher &&
     hasSelectedShift &&
     allChecked &&
     !submitting;
@@ -262,7 +262,7 @@ const calculation = calculateAvailableAmount({
 
         setRejectedApplication(rejectedData);
 
-        /*
+        
         const { data: latestScore } = await supabase
          .from("staff_monthly_score_summaries")
          .select("medal_rank")
@@ -272,7 +272,7 @@ const calculation = calculateAvailableAmount({
          .maybeSingle();
 
         setPerformanceRank(latestScore?.medal_rank ?? "bronze");
-        */
+        
 
         const startDate = new Date(start.getTime() - 24 * 60 * 60 * 1000)
           .toISOString()
@@ -835,7 +835,7 @@ const calculation = calculateAvailableAmount({
             </div>
 
 
-            {/*
+            
             {!isSilverOrHigher && (
                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                  <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
@@ -846,7 +846,7 @@ const calculation = calculateAvailableAmount({
                 </a>
               </div>
             )}
-            */}
+            
 
             {isAfterDeadline && (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
