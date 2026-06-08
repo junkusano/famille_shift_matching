@@ -5,6 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 //mport { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
+const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
+    "satominishio",
+    "jundakusanoda",
+    "shinomasuda",
+];
+
 type SummaryRow = {
     id: string;
     target_month: string;
@@ -377,7 +383,9 @@ export async function GET(req: NextRequest) {
             throw error;
         }
 
-        let rows = initialRows ?? [];
+        let rows = (initialRows ?? []).filter(
+            (row) => !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(row.user_id)
+        );
 
         if (!rows || rows.length === 0) {
             const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
@@ -461,7 +469,12 @@ export async function GET(req: NextRequest) {
         }
 
         const missingSeedRows = (userRows ?? [])
-            .filter((user) => user.user_id && !existingUserIds.has(user.user_id))
+            .filter(
+                (user) =>
+                    user.user_id &&
+                    !existingUserIds.has(user.user_id) &&
+                    !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(user.user_id)
+            )
             .map((user) => ({
                 target_month: targetMonth,
                 user_id: user.user_id,
