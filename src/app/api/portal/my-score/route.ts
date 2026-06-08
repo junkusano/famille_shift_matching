@@ -2,6 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 
+const EXCLUDED_PERFORMANCE_SCORE_USER_IDS = [
+    "satominishio",
+    "jundakusanoda",
+    "shinomasuda",
+];
+
 /*type ShiftRow = {
     shift_id: number;
     shift_start_date: string;
@@ -368,7 +374,8 @@ export async function GET(req: NextRequest) {
     const allMembers = (memberRows ?? []).filter((member) => {
         return (
             Boolean(member.user_id) &&
-            member.status !== "removed_from_lineworks_kaipoke"
+            member.status !== "removed_from_lineworks_kaipoke" &&
+            !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(member.user_id)
         );
     });
 
