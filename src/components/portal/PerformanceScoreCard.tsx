@@ -139,8 +139,8 @@ function PerformanceScorePanelContent({
 
         router.replace(
             query
-                ? `/portal/my-score-preview?${query}`
-                : "/portal/my-score-preview"
+                ? `/portal?${query}`
+                : "/portal"
         );
     }, [selectedMonth, selectedUserId, router, syncUrl]);
 
@@ -470,19 +470,19 @@ function PerformanceScorePanelContent({
                                     <div
                                         key={user.userId}
                                         className={`flex items-center justify-between rounded-xl border bg-white px-4 py-3 shadow-sm ${isTop3
-                                                ? "border-yellow-300"
-                                                : "border-gray-200"
+                                            ? "border-yellow-300"
+                                            : "border-gray-200"
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div
                                                 className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${user.rank === 1
-                                                        ? "bg-yellow-400 text-white"
-                                                        : user.rank === 2
-                                                            ? "bg-gray-400 text-white"
-                                                            : user.rank === 3
-                                                                ? "bg-orange-400 text-white"
-                                                                : "bg-blue-100 text-blue-900"
+                                                    ? "bg-yellow-400 text-white"
+                                                    : user.rank === 2
+                                                        ? "bg-gray-400 text-white"
+                                                        : user.rank === 3
+                                                            ? "bg-orange-400 text-white"
+                                                            : "bg-blue-100 text-blue-900"
                                                     }`}
                                             >
                                                 {user.rank}
@@ -491,8 +491,8 @@ function PerformanceScorePanelContent({
                                             <div>
                                                 <div
                                                     className={`font-bold ${isTop3
-                                                            ? "text-xl text-blue-950"
-                                                            : "text-base text-gray-900"
+                                                        ? "text-xl text-blue-950"
+                                                        : "text-base text-gray-900"
                                                         }`}
                                                 >
                                                     {user.name}
@@ -506,15 +506,15 @@ function PerformanceScorePanelContent({
 
                                         <div
                                             className={`rounded-full px-3 py-1 text-xs font-bold ${user.badge === "プラチナ"
-                                                    ? "bg-slate-900 text-white"
-                                                    : user.badge === "ゴールド"
-                                                        ? "bg-yellow-100 text-yellow-800"
-                                                        : user.badge === "シルバー"
-                                                            ? "bg-gray-100 text-gray-700"
-                                                            : user.badge ===
-                                                                "ブロンズ"
-                                                                ? "bg-orange-100 text-orange-800"
-                                                                : "bg-gray-100 text-gray-700"
+                                                ? "bg-slate-900 text-white"
+                                                : user.badge === "ゴールド"
+                                                    ? "bg-yellow-100 text-yellow-800"
+                                                    : user.badge === "シルバー"
+                                                        ? "bg-gray-100 text-gray-700"
+                                                        : user.badge ===
+                                                            "ブロンズ"
+                                                            ? "bg-orange-100 text-orange-800"
+                                                            : "bg-gray-100 text-gray-700"
                                                 }`}
                                         >
                                             {user.badge === "プラチナ"
