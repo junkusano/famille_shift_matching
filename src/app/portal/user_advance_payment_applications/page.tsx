@@ -12,6 +12,7 @@ type LoginUser = {
   first_name_kanji: string | null;
   department?: string | null;
   role?: string | null;
+  created_at?: string | null;
   has_social_insurance?: boolean;
   has_employment_insurance?: boolean;
   has_employee_loan?: boolean;
@@ -178,11 +179,26 @@ export default function UserAdvancePaymentConfirmPage() {
   const allChecked = confirmItems.every((item) => checks[item.key]);
   const hasSelectedShift = targetShifts.length > 0;
 
-  const isSilverOrHigher =
-    performanceRank === "silver" ||
-    performanceRank === "gold" ||
-    performanceRank === "platinum";
-    
+  const joinedAt = me?.created_at ? new Date(me.created_at) : null;
+
+const oneMonthAfterJoinedAt = joinedAt
+  ? new Date(joinedAt)
+  : null;
+
+if (oneMonthAfterJoinedAt) {
+  oneMonthAfterJoinedAt.setMonth(oneMonthAfterJoinedAt.getMonth() + 1);
+}
+
+const isWithinOneMonthFromJoin =
+  oneMonthAfterJoinedAt
+    ? new Date() < oneMonthAfterJoinedAt
+    : false;
+
+const isSilverOrHigher =
+  isWithinOneMonthFromJoin ||
+  performanceRank === "silver" ||
+  performanceRank === "gold" ||
+  performanceRank === "platinum";
 
   const isManager =
     me?.role === "manager" || me?.role === "admin";
@@ -242,7 +258,7 @@ const calculation = calculateAvailableAmount({
 
         const { data: loginUser, error: userError } = await supabase
           .from("users")
-          .select("user_id, role, has_social_insurance,has_employment_insurance,has_employee_loan")
+          .select("user_id, role, created_at, has_social_insurance,has_employment_insurance,has_employee_loan")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
