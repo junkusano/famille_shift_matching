@@ -12,29 +12,36 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      userId,
-      userName,
-      applicationDate,
-      amount,
-      applicationNo,
-      baseAmount,
-      deductionRate,
-      deductionReasons,
-      selectedShifts,
-    } = body;
+  userId,
+  userName,
+  applicationDate,
+  applicationNo,
+  totalAmount,
+  excludedAmount,
+  eligibleAmount,
+  deductionAmount,
+  transferAmount,
+  deductionRate,
+  deductionReasons,
+  selectedShifts,
+} = body;
 
     const token = await getAccessToken();
 
-    const message =
-      `【日払い申請】
+const message =
+  `【日払い申請】
 申請者：${userName ?? userId}
 申請日：${applicationDate}
 申請番号：${applicationNo}
 
-申請額：${Number(amount ?? 0).toLocaleString()}円
-対象合計：${Number(baseAmount ?? 0).toLocaleString()}円
+1日合計金額：${Number(totalAmount ?? 0).toLocaleString()}円
+対象外金額：${Number(excludedAmount ?? 0).toLocaleString()}円
+日払い計算対象額：${Number(eligibleAmount ?? 0).toLocaleString()}円
+控除額：${Number(deductionAmount ?? 0).toLocaleString()}円
+振込予定額：${Number(transferAmount ?? 0).toLocaleString()}円
+
 控除率：${Math.round(Number(deductionRate ?? 0) * 100)}%
-控除理由：${Array.isArray(deductionReasons) ? deductionReasons.join("、") : "-"}
+控除内訳：${Array.isArray(deductionReasons) ? deductionReasons.join("、") : "-"}
 
 対象シフト：
 ${Array.isArray(selectedShifts)

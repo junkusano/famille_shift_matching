@@ -472,22 +472,36 @@ const calculation = calculateAvailableAmount({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: me.user_id,
-          userName: employeeName || me.user_id,
-          applicationDate: toJstDateString(),
-          amount: calculation.availableAmount,
-          applicationNo,
-          baseAmount,
-          deductionRate: calculation.deductionRate,
-          deductionReasons: calculation.reasons,
-          selectedShifts: targetShifts.map((shift) => ({
-            shift_id: Number(shift.shift_id),
-            shift_start_date: shift.shift_start_date,
-            shift_start_time: shift.shift_start_time,
-            shift_end_time: shift.shift_end_time,
-            client_name: shift.client_name,
-          })),
-        }),
+  userId: me.user_id,
+  userName: employeeName || me.user_id,
+  applicationDate: toJstDateString(),
+  applicationNo,
+
+  totalAmount: baseAmount,
+  excludedAmount,
+  eligibleAmount,
+
+  deductionAmount:
+    eligibleAmount - calculation.availableAmount + 200,
+
+  transferAmount:
+    Math.max(calculation.availableAmount - 200, 0),
+
+  deductionRate: calculation.deductionRate,
+
+  deductionReasons: [
+    ...calculation.reasons,
+    "振込手数料200円",
+  ],
+
+  selectedShifts: targetShifts.map((shift) => ({
+    shift_id: Number(shift.shift_id),
+    shift_start_date: shift.shift_start_date,
+    shift_start_time: shift.shift_start_time,
+    shift_end_time: shift.shift_end_time,
+    client_name: shift.client_name,
+  })),
+}),
       });
 
       if (!notifyRes.ok) {
