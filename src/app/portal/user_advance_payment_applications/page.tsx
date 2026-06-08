@@ -208,6 +208,7 @@ const isSilverOrHigher =
   const canSubmit =
   isTestAccount ||
   (
+    isSilverOrHigher &&
     !isManager &&
     !isAfterDeadline &&
     hasSelectedShift &&
@@ -404,10 +405,18 @@ const calculation = calculateAvailableAmount({
   async function submitApplication() {
     try {
       if (!me) {
-        setErrorMessage("ログインユーザー情報を取得できていません。");
-        return;
-      }
-      if (!canSubmit && !isTestAccount) return;
+  setErrorMessage("ログインユーザー情報を取得できていません。");
+  return;
+}
+
+if (!isSilverOrHigher && !isTestAccount) {
+  setErrorMessage(
+    "日払い申請は、パフォーマンススコアがシルバー以上の方が対象です。なお、入社後1か月以内の方はこの条件の適用対象外です。"
+  );
+  return;
+}
+
+if (!canSubmit && !isTestAccount) return;
 
       setSubmitting(true);
       setErrorMessage("");
@@ -557,6 +566,32 @@ const calculation = calculateAvailableAmount({
     概算の計算には一定の時給と控除率を用いており、最終的には正式な給与支給日に、
     概算で支払われた日払い金額と、正式な給与支給額の差額が精算されることになります。
   </p>
+</div>
+
+<div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+  <div className="flex items-start gap-3">
+    <div className="text-2xl">⭐</div>
+
+    <div>
+      <div className="font-semibold text-blue-900">
+        日払い申請の利用条件
+      </div>
+
+      <div className="mt-2 text-sm leading-6 text-blue-800">
+        日払い申請のご利用には、原則として
+        <span className="font-semibold">
+          パフォーマンススコア「シルバー」以上
+        </span>
+        であることが条件となります。
+        <br />
+        なお、
+        <span className="font-semibold">
+          入社後1か月以内の方
+        </span>
+        はパフォーマンススコア条件の適用対象外となります。
+      </div>
+    </div>
+  </div>
 </div>
 
           
