@@ -34,8 +34,11 @@ type HistoryRow = {
   application_status: string;
   application_status_label: string;
   applicant_name: string | null;
+  base_amount: number | null;
+  available_amount: number | null;
   amount: number | null;
-  desired_payment_date: string | null;
+  total_deduction_amount: number | null;
+  transfer_amount: number | null;
   applied_at: string | null;
   rejected_reason: string | null;
   deduction_reasons: string[];
@@ -399,7 +402,9 @@ async function rejectApplication() {
                     <th className="p-3">ステータス</th>
                     <th className="p-3">差し戻し理由</th>
                     <th className="p-3">操作</th>
-                    <th className="p-3">申請金額</th>
+                    <th className="p-3">日払い対象額</th>
+                    <th className="p-3">控除額</th>
+                    <th className="p-3">振込予定額</th>
                     <th className="p-3">控除内訳</th>
                     </tr>
                   </thead>
@@ -458,8 +463,17 @@ async function rejectApplication() {
     "-"
   )}
 </td>
-    <td className="p-3">{yen(row.amount)}</td>
-    <td className="p-3 text-xs text-slate-500">
+    <td className="p-3">{yen(row.base_amount)}</td>
+
+<td className="p-3 text-red-600">
+  ▲{yen(row.total_deduction_amount)}
+</td>
+
+<td className="p-3 font-bold text-blue-700">
+  {yen(row.transfer_amount)}
+</td>
+
+<td className="p-3 text-xs text-slate-500">
       {row.deduction_reasons.length > 0
         ? row.deduction_reasons.join(" / ")
         : "-"}
