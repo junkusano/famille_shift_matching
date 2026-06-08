@@ -392,14 +392,6 @@ const calculation = calculateAvailableAmount({
         return;
       }
       if (!canSubmit && !isTestAccount) return;
-      const hasUnrecordedShift = targetShifts.some(
-        (shift) => !shift.has_shift_record
-      );
-
-      if (hasUnrecordedShift) {
-        setErrorMessage("訪問記録未記載があります。記載してください。");
-        return;
-      }
 
       setSubmitting(true);
       setErrorMessage("");
