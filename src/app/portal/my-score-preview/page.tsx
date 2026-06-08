@@ -178,20 +178,22 @@ function MyScorePreviewContent() {
         return Math.max(0, Math.min(100, Math.round((m.score / m.maxScore) * 100)));
     };
 
-    const getServiceHoursFromScore = (scorePoint: number) => {
-        return Math.min(160, Math.floor(scorePoint / 10) * 20);
+    const getServiceHoursFromNote = (note: string) => {
+        const match = note.match(/([\d.]+)時間/);
+        return match ? Number(match[1]) : 0;
     };
 
-    const getServiceNextMessage = (scorePoint: number) => {
-        const currentHours = getServiceHoursFromScore(scorePoint);
+    const getServiceNextMessage = (note: string) => {
+        const currentHours = getServiceHoursFromNote(note);
 
         if (currentHours >= 160) {
             return "160時間達成！サービス時間は満点です！";
         }
 
-        const nextHours = currentHours + 20;
+        const nextHours = Math.ceil(currentHours / 20) * 20 || 20;
+        const remainingHours = Math.max(0, nextHours - currentHours);
 
-        return `あと${nextHours - currentHours}時間で${nextHours}時間ライン！もうひとがんばりです！`;
+        return `あと${remainingHours.toFixed(1).replace(/\.0$/, "")}時間で${nextHours}時間ライン！もうひとがんばりです！`;
     };
     const chartWidth = 640;
     const chartHeight = 240;
@@ -428,7 +430,7 @@ function MyScorePreviewContent() {
                                                 </div>
 
                                                 <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-                                                    {getServiceNextMessage(m.score)}
+                                                    {getServiceNextMessage(m.note)}
                                                 </div>
                                             </div>
                                         )}
