@@ -781,51 +781,56 @@ const calculation = calculateAvailableAmount({
             </div>
 
            <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-xl">
-               <div className="space-y-4">
+<div className="space-y-4">
 
-                 <div className="flex items-center justify-between border-b border-blue-200 pb-3">
-                  <span className="font-medium text-slate-600">1日合計金額</span>
-                  <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                     ¥{baseAmount.toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between border-b border-blue-200 pb-3">
+    <span className="font-medium text-slate-600">1日合計金額</span>
+    <span className="text-2xl font-bold text-slate-900 tabular-nums">
+      ¥{baseAmount.toLocaleString()}
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>
-                    控除（{Math.round(calculation.deductionRate * 100)}%）
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    ¥{(eligibleAmount - calculation.availableAmount).toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between text-red-600">
+    <span>対象外金額</span>
+    <span className="font-medium tabular-nums">
+      ▲¥{excludedAmount.toLocaleString()}
+    </span>
+  </div>
 
-               <div className="flex items-center justify-between text-red-600">
-                <span>対象外金額</span>
+  <div className="flex items-center justify-between border-b border-blue-100 pb-3 text-slate-700">
+    <span className="font-semibold">日払い計算対象額</span>
+    <span className="font-bold tabular-nums">
+      ¥{eligibleAmount.toLocaleString()}
+    </span>
+  </div>
 
-                <span className="font-medium tabular-nums">
-                  ¥{excludedAmount.toLocaleString()}
-                </span>
-              </div>
+  <div className="flex items-center justify-between text-red-600">
+    <span>
+      控除（{Math.round(calculation.deductionRate * 100)}%）
+    </span>
+    <span className="font-medium tabular-nums">
+      ▲¥{(eligibleAmount - calculation.availableAmount).toLocaleString()}
+    </span>
+  </div>
 
-              <div className="flex items-center justify-between text-slate-600">
-                <span>手数料</span>
+  <div className="flex items-center justify-between text-red-600">
+    <span>手数料</span>
+    <span className="font-medium tabular-nums">
+      ▲¥200
+    </span>
+  </div>
 
-                <span className="font-medium tabular-nums">
-                  ¥200
-                </span>
-              </div>
+  <div className="flex items-center justify-between border-t border-blue-200 pt-4">
+    <span className="font-semibold text-slate-700">
+      振込予定額
+    </span>
 
-                <div className="flex items-center justify-between border-t pt-3">
-                  <span className="font-semibold text-slate-700">
-                    振込予定額
-                  </span>
+    <span className="text-4xl font-extrabold text-blue-700 tabular-nums">
+      ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
+    </span>
+  </div>
 
-                  <span className="text-4xl font-extrabold text-blue-700 tabular-nums">
-                    ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
-                  </span>
-                </div>
-
-              </div>
+</div>
             </div>
             </div>
 
