@@ -98,6 +98,7 @@ function NavLinks({ role }: { role: string | null }) {
     <ul className="mt-6 space-y-2">
       <li><Link href="/" className="text-blue-300 hover:underline">🏠 サイトHome</Link></li>
       <li><Link href="/portal" className="text-blue-300 hover:underline">📌 ポータルHome</Link></li>
+      <li><Link href="/portal/user_salary_monthly" className="text-blue-300 hover:underline">💰 給与明細</Link></li>
       {isManagerOrAdmin && (
         <>
           <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>
