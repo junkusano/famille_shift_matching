@@ -213,31 +213,29 @@ export default function TrainingGoalsPage() {
                     ? employeeRows.find((e) => e.user_id === queryUserId)
                     : null;
 
-            // ① URLクエリー最優先
-            if (queryEmployee) {
+            // ① member 表示の場合は、ログイン中本人を最優先
+            if (displayRole === 'member') {
+                const me = employeeRows.find((e) => e.auth_uid === authUid);
+                targetEntryId = me?.entry_id ?? '';
+
+                if (targetEntryId && targetEntryId !== selectedEntryId) {
+                    setSelectedEntryId(targetEntryId);
+                }
+
+                if (me?.user_id && queryUserId !== me.user_id) {
+                    router.replace(
+                        `/portal/training-goals?user_id=${encodeURIComponent(me.user_id)}`,
+                        { scroll: false }
+                    );
+                }
+
+                // ② 管理者表示ではURLクエリーを優先
+            } else if (queryEmployee) {
                 targetEntryId = queryEmployee.entry_id;
 
                 if (targetEntryId !== selectedEntryId) {
                     setSelectedEntryId(targetEntryId);
                 }
-
-                // ② 確認用 member 表示
-                /*} else if (effectiveRole === 'member') {
-                    if (debugRole === 'member') {
-                        targetEntryId = debugMemberEntryId || employeeRows[0]?.entry_id || '';
-    
-                        if (targetEntryId && targetEntryId !== debugMemberEntryId) {
-                            setDebugMemberEntryId(targetEntryId);
-                        }
-                    } else {
-                        const me = employeeRows.find((e) => e.auth_uid === authUid);
-                        targetEntryId = me?.entry_id ?? '';
-                    }*/
-
-                // ② member 表示
-            } else if (displayRole === 'member') {
-                const me = employeeRows.find((e) => e.auth_uid === authUid);
-                targetEntryId = me?.entry_id ?? '';
 
                 // ③ admin / manager 表示
             } else if (isAdminOrManager && displayRole === 'admin' && !targetEntryId) {
