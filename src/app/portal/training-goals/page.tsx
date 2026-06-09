@@ -79,18 +79,19 @@ export default function TrainingGoalsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const effectiveRole = role;
+    const isAdminOrManager = effectiveRole === 'admin' || effectiveRole === 'manager';
+
     const [viewMode, setViewMode] = useState<'admin' | 'member'>('admin');
 
     const displayRole =
-        effectiveRole === 'admin' && viewMode === 'member'
+        isAdminOrManager && viewMode === 'member'
             ? 'member'
             : effectiveRole;
-
     const queryUserId = searchParams.get('user_id') ?? '';
     const ALL_ENTRY_ID = '__all__';
 
     const isAllEmployeesView =
-        effectiveRole === 'admin' &&
+        isAdminOrManager &&
         viewMode === 'admin' &&
         queryUserId === 'all';
     const [rows, setRows] = useState<JoinedRow[]>([]);
@@ -234,12 +235,12 @@ export default function TrainingGoalsPage() {
                     }*/
 
                 // ② member 表示
-            } else if (effectiveRole === 'member') {
+            } else if (displayRole === 'member') {
                 const me = employeeRows.find((e) => e.auth_uid === authUid);
                 targetEntryId = me?.entry_id ?? '';
 
                 // ③ admin / manager 表示
-            } else if ((effectiveRole === 'admin' || effectiveRole === 'manager') && !targetEntryId) {
+            } else if (isAdminOrManager && displayRole === 'admin' && !targetEntryId) {
                 targetEntryId = ALL_ENTRY_ID;
                 setSelectedEntryId(ALL_ENTRY_ID);
 
@@ -761,7 +762,7 @@ export default function TrainingGoalsPage() {
         <div className="content p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">職員の目標・研修確認</h1>
-                {effectiveRole === 'admin' && (
+                {isAdminOrManager && (
                     <div className="flex gap-2">
                         <button
                             type="button"
