@@ -137,10 +137,15 @@ setAuthChecked(true);
   }, [pathname, router]);
 
   useEffect(() => {
-    if (!authChecked || !selectedUserId) return;
+  if (!authChecked) return;
 
-    (async () => {
-      setLoading(true);
+  if (!selectedUserId) {
+    setLoading(false);
+    return;
+  }
+
+  (async () => {
+    setLoading(true);
 
       const { data, error } = await supabase
         .from("shift_csinfo_postalname_view")
@@ -290,9 +295,13 @@ const calendarStart =
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-sm text-gray-500">読み込み中...</div>
-      ) : (
+{loading ? (
+  <div className="text-sm text-gray-500">読み込み中...</div>
+) : !selectedUserId ? (
+  <div className="text-sm text-red-600">
+    ログインユーザーの user_id が取得できませんでした。
+  </div>
+) : (
         <div className="overflow-x-auto">
           <div className="grid min-w-[900px] grid-cols-7 gap-2">
             {["日", "月", "火", "水", "木", "金", "土"].map((w) => (
