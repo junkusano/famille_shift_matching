@@ -98,7 +98,7 @@ const canSelectStaff = systemRole === "admin" || systemRole === "manager";
       }
 
 const { data: me } = await supabase
-  .from("users")
+  .from("user_entry_united_view_single")
   .select("user_id, system_role, last_name_kanji, first_name_kanji")
   .eq("auth_user_id", user.id)
   .maybeSingle();
@@ -110,12 +110,12 @@ setMeUserId(myUserId);
 setSystemRole(role);
 
 if (role === "admin" || role === "manager") {
-  const { data: staffRows, error: staffError } = await supabase
-    .from("users")
-    .select("user_id, last_name_kanji, first_name_kanji")
-    .not("user_id", "is", null)
-    .order("last_name_kanji", { ascending: true });
-
+const { data: staffRows, error: staffError } = await supabase
+  .from("user_entry_united_view_single")
+  .select("user_id, last_name_kanji, first_name_kanji")
+  .not("user_id", "is", null)
+  .neq("status", "removed_from_lineworks_kaipoke")
+  .order("last_name_kanji", { ascending: true });
   if (staffError) {
     console.error(staffError);
   }
