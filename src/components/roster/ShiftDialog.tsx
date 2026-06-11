@@ -6,6 +6,17 @@ import Link from 'next/link';
 import type { RosterShiftDialogData, RosterStaff } from '@/types/roster';
 import { supabase } from '@/lib/supabaseClient';
 
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 type ServiceOption = {
     value: string;
     label: string;
@@ -114,19 +125,6 @@ export default function ShiftDialog({
             String(shift.kaipoke_cs_id)
         )}&month=${encodeURIComponent(month)}`;
     }, [shift]);
-
-    const rpaRequestHref = useMemo(() => {
-    if (!shift) return "/portal/spot-offer-template";
-
-    const params = new URLSearchParams({
-        shift_id: String(shift.shift_id ?? ""),
-        date: String(shift.shift_date ?? ""),
-        start_at: dispTime(shift.start_at),
-        end_at: dispTime(shift.end_at),
-    });
-
-    return `/portal/spot-offer-template?${params.toString()}`;
-}, [shift]);
 
     const [clientDetailHref, setClientDetailHref] = useState('#');
     const [clientInfoId, setClientInfoId] = useState<string | null>(null);
@@ -520,29 +518,56 @@ export default function ShiftDialog({
                     >
                         {saving ? '保存中...' : '保存'}
                     </button>
+
+                    <Dialog open={rpaOpen} onOpenChange={setRpaOpen}>
+    <DialogContent className="max-w-xl">
+        <DialogHeader>
+            <DialogTitle>RPAリクエスト作成</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+            <div>
+                <div className="text-[11px] text-muted-foreground">日付</div>
+                <Input
+                    type="date"
+                    value={form.shift_start_date}
+                    readOnly
+                />
+            </div>
+
+            <div>
+                <div className="text-[11px] text-muted-foreground">開始時間</div>
+                <Input
+                    value={form.shift_start_time}
+                    readOnly
+                />
+            </div>
+
+            <div>
+                <div className="text-[11px] text-muted-foreground">終了時間</div>
+                <Input
+                    value={form.shift_end_time}
+                    readOnly
+                />
+            </div>
+        </div>
+
+        <DialogFooter>
+            <Button
+                variant="secondary"
+                onClick={() => setRpaOpen(false)}
+            >
+                閉じる
+            </Button>
+
+            <Button>
+                RPAリクエスト送信
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
                 </div>
 
-                  {rpaOpen ? (
-                    <div className="fixed inset-0 z-[60] bg-black/50 p-4">
-                        <div className="mx-auto h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-xl">
-                            <div className="flex items-center justify-between border-b p-3">
-                                <div className="font-bold">RPAリクエスト作成</div>
-                                <button
-                                    type="button"
-                                    onClick={() => setRpaOpen(false)}
-                                    className="rounded border px-3 py-1"
-                                >
-                                    閉じる
-                                </button>
-                            </div>
-
-                            <iframe
-                                src={rpaRequestHref}
-                                className="h-[calc(90vh-50px)] w-full"
-                            />
-                        </div>
-                    </div>
-       ) : null}
             </div>
         </div>
     </>
