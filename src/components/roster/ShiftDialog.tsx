@@ -82,6 +82,7 @@ export default function ShiftDialog({
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [doneMsg, setDoneMsg] = useState('');
+    const [rpaOpen, setRpaOpen] = useState(false);
 
     useEffect(() => {
         if (!open || !shift) return;
@@ -113,6 +114,19 @@ export default function ShiftDialog({
             String(shift.kaipoke_cs_id)
         )}&month=${encodeURIComponent(month)}`;
     }, [shift]);
+
+    const rpaRequestHref = useMemo(() => {
+    if (!shift) return "/portal/spot-offer-template";
+
+    const params = new URLSearchParams({
+        shift_id: String(shift.shift_id ?? ""),
+        date: String(shift.shift_date ?? ""),
+        start_at: dispTime(shift.start_at),
+        end_at: dispTime(shift.end_at),
+    });
+
+    return `/portal/spot-offer-template?${params.toString()}`;
+}, [shift]);
 
     const [clientDetailHref, setClientDetailHref] = useState('#');
     const [clientInfoId, setClientInfoId] = useState<string | null>(null);
@@ -272,6 +286,7 @@ export default function ShiftDialog({
     };
 
     return (
+        <>
         <div className="fixed inset-0 z-50 bg-black/40 p-4">
             <div className="mx-auto max-h-[90vh] w-full max-w-4xl overflow-auto rounded-xl bg-white p-4 shadow-xl">
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -491,6 +506,14 @@ export default function ShiftDialog({
 
                     <button
                         type="button"
+                        onClick={() => setRpaOpen(true)}
+                        className="rounded bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
+                    >
+                        RPAリクエスト作成
+                    </button>
+
+                    <button
+                        type="button"
                         onClick={saveShiftOnly}
                         disabled={saving}
                         className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
@@ -498,7 +521,30 @@ export default function ShiftDialog({
                         {saving ? '保存中...' : '保存'}
                     </button>
                 </div>
+
+                  {rpaOpen ? (
+                    <div className="fixed inset-0 z-[60] bg-black/50 p-4">
+                        <div className="mx-auto h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-xl">
+                            <div className="flex items-center justify-between border-b p-3">
+                                <div className="font-bold">RPAリクエスト作成</div>
+                                <button
+                                    type="button"
+                                    onClick={() => setRpaOpen(false)}
+                                    className="rounded border px-3 py-1"
+                                >
+                                    閉じる
+                                </button>
+                            </div>
+
+                            <iframe
+                                src={rpaRequestHref}
+                                className="h-[calc(90vh-50px)] w-full"
+                            />
+                        </div>
+                    </div>
+       ) : null}
             </div>
         </div>
+    </>
     );
 }
