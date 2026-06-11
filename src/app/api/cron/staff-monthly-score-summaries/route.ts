@@ -331,7 +331,10 @@ function calcTotalScore(row: SummaryRow) {
 
     const jissekiScore = 20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5;
 
-    const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
+    const trainingGoalScore = Math.min(
+        Number(row.training_goal_selected_count ?? 0) * 5,
+        20
+    );
 
     const shiftDeclinePenaltyScore = Number(
         row.shift_decline_penalty_score ?? 0

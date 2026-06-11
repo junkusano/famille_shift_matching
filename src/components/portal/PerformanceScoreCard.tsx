@@ -216,7 +216,7 @@ function PerformanceScorePanelContent({
             case "jisseki":
                 return "実績記録完了点20点 − 過去未完了1件につき5点";
             case "training_goal":
-                return "当月選択した目標・研修を視聴完了すると1件5点";
+                return "当月選択した目標・研修を視聴完了すると1件5点（最大20点）";
             default:
                 return "";
         }
