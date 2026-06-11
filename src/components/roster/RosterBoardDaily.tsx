@@ -13,7 +13,6 @@ import ShiftDialog from "@/components/roster/ShiftDialog";
 import { useRouter, useSearchParams } from "next/navigation";
 //import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
 
 
 declare global {
@@ -203,16 +202,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         setSelectedShift(card.dialog);
         setDialogOpen(true);
     };
-
-    const buildSpotOfferUrl = (card: RosterShiftCard) => {
-    const params = new URLSearchParams({
-        date,
-        start_at: dispHHmm(card.start_at),
-        end_at: dispHHmm(card.end_at),
-    });
-
-    return `/portal/spot-offer-template?${params.toString()}`;
-};
 
     const handleDialogSaved = (next: RosterShiftDialogData) => {
         setSelectedShift(next);
@@ -734,17 +723,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                             {c.client_name}：{c.service_code ?? ""}
                                         </button>
 
-<Link
-    href={buildSpotOfferUrl(c)}
-    target="_blank"
-    rel="noreferrer"
-    onMouseDown={(e) => e.stopPropagation()}
-    onClick={(e) => e.stopPropagation()}
-    className="text-[12px] text-orange-700 hover:underline bg-white/80 rounded px-1"
->
-    RPAリクエスト作成
-</Link>
-
                                         {c.dsp_short ? (
                                             <div
                                                 style={{
@@ -770,11 +748,6 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                                 {c.dsp_short}
                                             </div>
                                         ) : null}
-
-
-
-
-
 
                                         <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
 
