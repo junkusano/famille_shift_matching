@@ -40,12 +40,23 @@ export default function MyShiftCalendarPage() {
     search.get("ym") ||
     format(startOfMonth(new Date(Date.now() + 9 * 3600 * 1000)), "yyyy-MM");
 
-  const view = (search.get("view") === "week" ? "week" : "month") as ViewMode;
+const view = (search.get("view") === "week" ? "week" : "month") as ViewMode;
 
-  const [authChecked, setAuthChecked] = useState(false);
-  const [meUserId, setMeUserId] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [shifts, setShifts] = useState<ShiftData[]>([]);
+const [authChecked, setAuthChecked] = useState(false);
+const [meUserId, setMeUserId] = useState("");
+const [loading, setLoading] = useState(true);
+const [shifts, setShifts] = useState<ShiftData[]>([]);
+
+const [systemRole, setSystemRole] = useState("");
+const [staffOptions, setStaffOptions] = useState<
+  { user_id: string; name: string }[]
+>([]);
+
+const selectedUserId = search.get("user_id") || meUserId;
+const canSelectStaff = systemRole === "admin" || systemRole === "manager";
+
+
+
 
   const monthStart = `${ym}-01`;
   const monthEnd = format(addMonths(startOfMonth(new Date(`${ym}-01T00:00:00`)), 1), "yyyy-MM-dd");
@@ -86,19 +97,47 @@ export default function MyShiftCalendarPage() {
         return;
       }
 
-      const { data: me } = await supabase
-        .from("users")
-        .select("user_id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
+const { data: me } = await supabase
+  .from("users")
+  .select("user_id, system_role, last_name_kanji, first_name_kanji")
+  .eq("auth_user_id", user.id)
+  .maybeSingle();
 
-      setMeUserId(me?.user_id ?? "");
-      setAuthChecked(true);
+const myUserId = me?.user_id ?? "";
+const role = me?.system_role ?? "";
+
+setMeUserId(myUserId);
+setSystemRole(role);
+
+if (role === "admin" || role === "manager") {
+  const { data: staffRows, error: staffError } = await supabase
+    .from("users")
+    .select("user_id, last_name_kanji, first_name_kanji")
+    .not("user_id", "is", null)
+    .order("last_name_kanji", { ascending: true });
+
+  if (staffError) {
+    console.error(staffError);
+  }
+
+  setStaffOptions(
+    (staffRows ?? []).map((u) => ({
+      user_id: u.user_id,
+      name: `${u.last_name_kanji ?? ""}${u.first_name_kanji ?? ""}`.trim() || u.user_id,
+    }))
+  );
+}
+
+if (!search.get("user_id") && myUserId) {
+  setQuery({ user_id: myUserId });
+}
+
+setAuthChecked(true);
     })();
   }, [pathname, router]);
 
   useEffect(() => {
-    if (!authChecked || !meUserId) return;
+    if (!authChecked || !selectedUserId) return;
 
     (async () => {
       setLoading(true);
@@ -109,7 +148,7 @@ export default function MyShiftCalendarPage() {
         .gte("shift_start_date", monthStart)
         .lt("shift_start_date", monthEnd)
         .or(
-          `staff_01_user_id.eq.${meUserId},staff_02_user_id.eq.${meUserId},staff_03_user_id.eq.${meUserId}`
+           `staff_01_user_id.eq.${selectedUserId},staff_02_user_id.eq.${selectedUserId},staff_03_user_id.eq.${selectedUserId}`
         )
         .order("shift_start_date", { ascending: true })
         .order("shift_start_time", { ascending: true });
@@ -158,7 +197,7 @@ export default function MyShiftCalendarPage() {
       setShifts(mapped);
       setLoading(false);
     })();
-  }, [authChecked, meUserId, monthStart, monthEnd]);
+  }, [authChecked, selectedUserId, monthStart, monthEnd]);
 
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, ShiftData[]>();
@@ -207,6 +246,19 @@ const calendarStart =
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {canSelectStaff && (
+  <select
+    className="rounded border p-2 text-sm"
+    value={selectedUserId}
+    onChange={(e) => setQuery({ user_id: e.target.value })}
+  >
+    {staffOptions.map((s) => (
+      <option key={s.user_id} value={s.user_id}>
+        {s.name}
+      </option>
+    ))}
+  </select>
+)}
           <Button variant="outline" onClick={() => moveCalendar(-1)}>
             {view === "month" ? "前月" : "前週"}
           </Button>
