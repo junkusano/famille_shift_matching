@@ -258,8 +258,10 @@ function calcDisplayTotalScore(row: ScoreRow) {
         20 - Number(row.jisseki_past_incomplete_count ?? 0) * 5
     );
 
-    const trainingGoalScore = Number(row.training_goal_selected_count ?? 0) * 5;
-
+    const trainingGoalScore = Math.min(
+        Number(row.training_goal_selected_count ?? 0) * 5,
+        20
+    );
     const shiftDeclinePenaltyScore = Number(
         row.shift_decline_penalty_score ?? 0
     );
@@ -519,8 +521,10 @@ shift_decline_penalty_score
 
     const jissekiScore = 20 - (jissekiPastIncompleteCount * 5);
 
-    const trainingGoalScore = Number(summary.training_goal_selected_count ?? 0) * 5;
-
+    const trainingGoalScore = Math.min(
+        Number(summary.training_goal_selected_count ?? 0) * 5,
+        20
+    );
     const shiftDecline3DaysCount = Number(
         summary.shift_decline_3days_count ?? 0
     );
