@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { format, startOfMonth, addMonths } from "date-fns";
+import { format, startOfMonth, addMonths, addWeeks } from "date-fns";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import type { ShiftData } from "@/types/shift";
@@ -55,6 +55,27 @@ export default function MyShiftCalendarPage() {
     Object.entries(params).forEach(([k, v]) => next.set(k, v));
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
+
+  const moveCalendar = (direction: -1 | 1) => {
+  const base = new Date(`${ym}-01T00:00:00`);
+
+  if (view === "month") {
+    const next = addMonths(base, direction);
+    setQuery({ ym: format(next, "yyyy-MM") });
+    return;
+  }
+
+  const weekBase = search.get("week")
+    ? new Date(`${search.get("week")}T00:00:00`)
+    : new Date();
+
+  const next = addWeeks(weekBase, direction);
+  setQuery({
+    view: "week",
+    week: format(next, "yyyy-MM-dd"),
+    ym: format(next, "yyyy-MM"),
+  });
+};
 
   useEffect(() => {
     (async () => {
@@ -148,12 +169,22 @@ export default function MyShiftCalendarPage() {
     return map;
   }, [shifts]);
 
-  const baseDate = new Date(`${ym}-01T00:00:00`);
-  const firstDay = startOfMonth(baseDate);
-  const calendarStart =
-    view === "month"
-      ? new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate() - firstDay.getDay())
-      : new Date();
+  const weekParam = search.get("week");
+const baseDate =
+  view === "week" && weekParam
+    ? new Date(`${weekParam}T00:00:00`)
+    : new Date(`${ym}-01T00:00:00`);
+
+const firstDay = startOfMonth(baseDate);
+
+const calendarStart =
+  view === "month"
+    ? new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate() - firstDay.getDay())
+    : new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate() - baseDate.getDay()
+      );
 
   const days = Array.from({ length: view === "month" ? 42 : 7 }, (_, i) => {
     const d = new Date(calendarStart);
@@ -176,12 +207,20 @@ export default function MyShiftCalendarPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => moveCalendar(-1)}>
+            {view === "month" ? "前月" : "前週"}
+          </Button>
+
           <input
             type="month"
             className="rounded border p-2"
             value={ym}
             onChange={(e) => setQuery({ ym: e.target.value })}
           />
+
+           <Button variant="outline" onClick={() => moveCalendar(1)}>
+             {view === "month" ? "次月" : "次週"}
+           </Button>
 
           <Button
             variant={view === "month" ? "default" : "outline"}
