@@ -253,10 +253,19 @@ export default function ShiftDialog({
         }
 
         if (rows.length === 1) {
-            setSelectedTemplate(rows[0]);
-            setRpaOpen(true);
-            return;
-        }
+    setSelectedTemplate(rows[0]);
+
+    setShiftStartDate(form.shift_start_date);
+    setShiftEndDate(form.shift_start_date);
+    setShiftStartTime(form.shift_start_time);
+    setShiftEndTime(form.shift_end_time);
+
+    setBreakStartTime("");
+    setBreakEndTime("");
+
+    setRpaOpen(true);
+    return;
+}
 
         setTemplateCandidates(rows);
         setTemplateSelectOpen(true);
@@ -695,119 +704,156 @@ const sendRpaRequest = async () => {
                     >
                         {saving ? '保存中...' : '保存'}
                     </button>
-
-                    <Dialog open={rpaOpen} onOpenChange={setRpaOpen}>
-    <DialogContent className="max-w-xl">
-        <DialogHeader>
-            <DialogTitle>RPAリクエスト作成</DialogTitle>
-        </DialogHeader>
-
-        <div className="text-sm">
-    <div className="font-medium">
-        {selectedTemplate?.template_title ?? ""}
-    </div>
-    <div className="text-[11px] text-muted-foreground">
-        core_id: {selectedTemplate?.core_id ?? ""}
-    </div>
-</div>
-
-        <div className="space-y-3">
-            <div>
-                <div className="text-[11px] text-muted-foreground">日付</div>
-                <Input
-                    type="date"
-                    value={form.shift_start_date}
-                    readOnly
-                />
-            </div>
-
-            <div>
-                <div className="text-[11px] text-muted-foreground">開始時間</div>
-                <Input
-                    value={form.shift_start_time}
-                    readOnly
-                />
-            </div>
-
-            <div>
-                <div className="text-[11px] text-muted-foreground">終了時間</div>
-                <Input
-                    value={form.shift_end_time}
-                    readOnly
-                />
+                </div>
             </div>
         </div>
 
-      <DialogFooter>
-    <Button
-        variant="secondary"
-        onClick={() => setRpaOpen(false)}
-        disabled={sendingRpa}
-    >
-        閉じる
-    </Button>
+        <Dialog open={templateSelectOpen} onOpenChange={setTemplateSelectOpen}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>テンプレート選択</DialogTitle>
+                </DialogHeader>
 
-    <Button
-        onClick={sendRpaRequest}
-        disabled={sendingRpa}
-    >
-        {sendingRpa ? "送信中..." : "RPAリクエスト送信"}
-    </Button>
-</DialogFooter>
-    </DialogContent>
-</Dialog>
+                <div className="space-y-2">
+                    {templateCandidates.map((t) => (
+                        <button
+                            key={t.core_id}
+                            type="button"
+                            onClick={() => {
+                                setSelectedTemplate(t);
+
+                                setShiftStartDate(form.shift_start_date);
+                                setShiftEndDate(form.shift_start_date);
+                                setShiftStartTime(form.shift_start_time);
+                                setShiftEndTime(form.shift_end_time);
+
+                                setBreakStartTime("");
+                                setBreakEndTime("");
+
+                                setTemplateSelectOpen(false);
+                                setRpaOpen(true);
+                            }}
+                            className="w-full rounded border p-3 text-left hover:bg-gray-50"
+                        >
+                            <div className="font-semibold">
+                                {t.template_title ?? "(無題)"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                {t.start_at ?? "-"} ～ {t.end_at ?? "-"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                {t.work_address ?? ""}
+                            </div>
+                        </button>
+                    ))}
                 </div>
 
-            </div>
-        </div>
-     <Dialog open={templateSelectOpen} onOpenChange={setTemplateSelectOpen}>
-    <DialogContent className="max-w-2xl">
-        <DialogHeader>
-            <DialogTitle>テンプレート選択</DialogTitle>
-        </DialogHeader>
+                <DialogFooter>
+                    <Button variant="secondary" onClick={() => setTemplateSelectOpen(false)}>
+                        閉じる
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
-        <div className="space-y-2">
-            {templateCandidates.map((t) => (
-                <button
-                    key={t.core_id}
-                    type="button"
-                    onClick={() => {
-                        setSelectedTemplate(t);
+        <Dialog open={rpaOpen} onOpenChange={setRpaOpen}>
+            <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>RPAリクエスト作成</DialogTitle>
+                </DialogHeader>
 
-                        setShiftStartDate(form.shift_start_date);
-                        setShiftEndDate(form.shift_start_date);
-
-                        setShiftStartTime(form.shift_start_time);
-                        setShiftEndTime(form.shift_end_time);
-
-                        setBreakStartTime("");
-                        setBreakEndTime("");
-
-                        setTemplateSelectOpen(false);
-                        setRpaOpen(true);
-                    }}
-                    className="w-full rounded border p-3 text-left hover:bg-gray-50"
-                >
-                    <div className="font-semibold">
-                        {t.template_title ?? "(無題)"}
+                <div className="space-y-3">
+                    <div className="text-sm">
+                        <div className="font-medium">
+                            {selectedTemplate?.template_title ?? ""}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                            core_id: {selectedTemplate?.core_id ?? ""}
+                        </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                        {t.start_at ?? "-"} ～ {t.end_at ?? "-"}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                        {t.work_address ?? ""}
-                    </div>
-                </button>
-            ))}
-        </div>
 
-        <DialogFooter>
-            <Button variant="secondary" onClick={() => setTemplateSelectOpen(false)}>
-                閉じる
-            </Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>   
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">shift_start_date（必須）</div>
+                            <Input
+                                type="date"
+                                value={shiftStartDate}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    setShiftStartDate(v);
+                                    setShiftEndDate(v);
+                                }}
+                            />
+                        </div>
+
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">shift_start_time（任意）</div>
+                            <Input
+                                value={shiftStartTime}
+                                onChange={(e) => setShiftStartTime(e.target.value)}
+                                placeholder="0930 / 09:30（空欄OK）"
+                            />
+                            <div className="mt-1 text-xs text-red-600">
+                                勤務時間は1時間以上にしてください
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">shift_end_date（必須）</div>
+                            <Input
+                                type="date"
+                                value={shiftEndDate}
+                                onChange={(e) => setShiftEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">shift_end_time（任意）</div>
+                            <Input
+                                value={shiftEndTime}
+                                onChange={(e) => setShiftEndTime(e.target.value)}
+                                placeholder="0930 / 09:30（空欄OK）"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">休憩開始（任意）</div>
+                            <Input
+                                value={breakStartTime}
+                                onChange={(e) => setBreakStartTime(e.target.value)}
+                                placeholder="1200 / 12:00（空欄OK）"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="text-[11px] text-muted-foreground">休憩終了（任意）</div>
+                            <Input
+                                value={breakEndTime}
+                                onChange={(e) => setBreakEndTime(e.target.value)}
+                                placeholder="1230 / 12:30（空欄OK）"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="text-[11px] text-muted-foreground">
+                        ※ このページは RPAテンプレートID: {RPA_TEMPLATE_ID} に対して request_details を作成します。
+                    </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <Button
+                        variant="secondary"
+                        onClick={() => setRpaOpen(false)}
+                        disabled={sendingRpa}
+                    >
+                        閉じる
+                    </Button>
+                    <Button onClick={sendRpaRequest} disabled={sendingRpa}>
+                        {sendingRpa ? "送信中..." : "RPAリクエスト送信"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </>
-    );
+);
 }
