@@ -182,6 +182,11 @@ export default function UserSalaryMonthlyPage() {
     return (
         <main className="mx-auto max-w-4xl p-4">
             <style jsx global>{`
+            @page {
+    size: A4;
+    margin: 8mm;
+}
+
     @media print {
         body * {
             visibility: hidden !important;
@@ -193,15 +198,25 @@ export default function UserSalaryMonthlyPage() {
         }
 
         #salary-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            border: none !important;
-            padding: 24px !important;
-            background: white !important;
-        }
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+
+    width: 190mm !important;
+    max-width: 190mm !important;
+
+    margin: 0 auto !important;
+
+    box-shadow: none !important;
+    border: none !important;
+    padding: 8mm !important;
+    background: white !important;
+
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    transform: scale(0.92) !important;
+transform-origin: top left !important;
+}
 
         .no-print {
             display: none !important;
@@ -278,7 +293,7 @@ export default function UserSalaryMonthlyPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3">
                             <div className="rounded-lg border p-4">
                                 <h3 className="mb-3 font-bold">勤怠</h3>
                                 <DetailList keys={attendanceKeys} row={row} />
