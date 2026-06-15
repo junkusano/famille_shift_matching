@@ -174,34 +174,41 @@ export default function UserSalaryMonthlyPage() {
     const row = useMemo(() => rows[0] ?? null, [rows]);
 
     function handlePrint() {
-        window.print();
+        setTimeout(() => {
+            window.print();
+        }, 100);
     }
 
     return (
         <main className="mx-auto max-w-4xl p-4">
             <style jsx global>{`
-            @media print {
-                body {
-                    background: white !important;
-                }
+    @media print {
+        body * {
+            visibility: hidden !important;
+        }
 
-                main {
-                    max-width: none !important;
-                    padding: 0 !important;
-                }
+        #salary-print-area,
+        #salary-print-area * {
+            visibility: visible !important;
+        }
 
-                .print\\:hidden {
-                    display: none !important;
-                }
+        #salary-print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 24px !important;
+            background: white !important;
+        }
 
-                .print-area {
-                    box-shadow: none !important;
-                    border: none !important;
-                    padding: 0 !important;
-                }
-            }
-        `}</style>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        .no-print {
+            display: none !important;
+        }
+    }
+`}</style>F
+            <div className="no-print mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">給与明細</h1>
                     <p className="text-sm text-gray-500">ログイン中の本人分のみ表示されます。</p>
@@ -242,7 +249,7 @@ export default function UserSalaryMonthlyPage() {
 
             {!loading && row && (
                 <>
-                    <div className="mb-4 flex justify-end print:hidden">
+                    <div className="no-print mb-4 flex justify-end">
                         <button
                             type="button"
                             onClick={handlePrint}
@@ -252,7 +259,7 @@ export default function UserSalaryMonthlyPage() {
                         </button>
                     </div>
 
-                    <section className="print-area rounded-xl border bg-white p-5 shadow-sm">
+                    <section id="salary-print-area" className="rounded-xl border bg-white p-5 shadow-sm">
                         <div className="border-b pb-4">
                             <div className="text-sm text-gray-500">{ym ? ymLabel(ym) : ""}</div>
                             <h2 className="mt-1 text-xl font-bold">給与明細書</h2>
