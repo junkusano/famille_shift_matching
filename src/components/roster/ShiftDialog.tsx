@@ -40,6 +40,18 @@ type FormState = {
     cs_note: string;
 };
 
+type SpotOfferRequestTemplate = {
+    core_id: string;
+    template_title: string | null;
+    work_address: string | null;
+    salary: string | null;
+    fare: string | null;
+    status: string | null;
+    start_at?: string | null;
+    end_at?: string | null;
+    kaipoke_cs_id?: string | null;
+};
+
 type Props = {
     open: boolean;
     onClose: () => void;
@@ -55,6 +67,27 @@ const GENDER_OPTIONS = [
     { id: '42224870-c644-48a5-87e2-7df9c24bca5b', label: '女性希望' },
     { id: '554d705b-85ec-4437-9352-4b026e2e904f', label: '男女問わず' },
 ];
+
+const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
+
+const toNullableTime = (v: string): string | null => {
+    const s0 = v.trim();
+    if (!s0) return null;
+
+    if (/^\d{2}:\d{2}$/.test(s0)) {
+        return `${s0}:00`;
+    }
+
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s0)) {
+        return s0;
+    }
+
+    if (/^\d{4}$/.test(s0)) {
+        return `${s0.slice(0, 2)}:${s0.slice(2, 4)}:00`;
+    }
+
+    throw new Error(`時間形式が不正です: ${s0}`);
+};
 
 const emptyForm: FormState = {
     shift_id: null,
@@ -94,6 +127,19 @@ export default function ShiftDialog({
     const [errorMsg, setErrorMsg] = useState('');
     const [doneMsg, setDoneMsg] = useState('');
     const [rpaOpen, setRpaOpen] = useState(false);
+    const [templateSelectOpen, setTemplateSelectOpen] = useState(false);
+    const [templateCandidates, setTemplateCandidates] = useState<SpotOfferRequestTemplate[]>([]);
+    const [selectedTemplate, setSelectedTemplate] = useState<SpotOfferRequestTemplate | null>(null);
+    const [sendingRpa, setSendingRpa] = useState(false);
+    const [breakStartTime, setBreakStartTime] = useState("");
+    const [breakEndTime, setBreakEndTime] = useState("");
+    const [shiftStartDate, setShiftStartDate] = useState("");
+    const [shiftStartTime, setShiftStartTime] = useState("");
+    const [shiftEndDate, setShiftEndDate] = useState("");
+    const [shiftEndTime, setShiftEndTime] = useState("");
+
+
+
 
     useEffect(() => {
         if (!open || !shift) return;
@@ -181,6 +227,137 @@ export default function ShiftDialog({
     const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
         setForm((prev) => ({ ...prev, [key]: value }));
     };
+
+    const openRpaFromShift = async () => {
+    if (!shift?.kaipoke_cs_id) {
+        setErrorMsg("利用者IDが取得できません");
+        return;
+    }
+
+    try {
+
+        const { data, error } = await supabase
+            .from("spot_offer_request")
+            .select("*")
+            .eq("kaipoke_cs_id", shift.kaipoke_cs_id);
+
+        if (error) {
+            throw error;
+        }
+
+        const rows = data ?? [];
+
+        if (rows.length === 0) {
+            setErrorMsg("利用者に紐づくテンプレートがありません");
+            return;
+        }
+
+        if (rows.length === 1) {
+            setSelectedTemplate(rows[0]);
+            setRpaOpen(true);
+            return;
+        }
+
+        setTemplateCandidates(rows);
+        setTemplateSelectOpen(true);
+
+    } catch (e) {
+        setErrorMsg(
+            e instanceof Error ? e.message : "テンプレート取得に失敗しました"
+        );
+    
+    }
+};
+
+const sendRpaRequest = async () => {
+    if (!selectedTemplate) {
+        alert("テンプレートが選択されていません");
+        return;
+    }
+
+    if (!shiftStartDate.trim()) {
+        alert("shift_start_date は必須です");
+        return;
+    }
+
+    if (!shiftEndDate.trim()) {
+        alert("shift_end_date は必須です");
+        return;
+    }
+
+    try {
+        setSendingRpa(true);
+
+        const session = await supabase.auth.getSession();
+        const authUserId = session.data?.session?.user?.id;
+
+        if (!authUserId) {
+            throw new Error("ログインユーザー未取得");
+        }
+
+        const { data: userData, error: userError } = await supabase
+            .from("user_entry_united_view")
+            .select("manager_auth_user_id, manager_user_id, user_id")
+            .eq("auth_user_id", authUserId)
+            .eq("group_type", "人事労務サポートルーム")
+            .limit(1)
+            .single();
+
+        if (userError || !userData?.manager_auth_user_id) {
+            throw new Error("承認者（マネージャー）情報取得に失敗しました");
+        }
+
+        const details = {
+            core_id: selectedTemplate.core_id,
+            created_from: "/portal/roster/daily",
+
+            shift_id: form.shift_id,
+            kaipoke_cs_id: shift?.kaipoke_cs_id ?? null,
+
+            shift_start_date: shiftStartDate.trim(),
+            shift_start_time: toNullableTime(shiftStartTime),
+            shift_end_date: shiftEndDate.trim(),
+            shift_end_time: toNullableTime(shiftEndTime),
+
+            break_start_time: breakStartTime.trim()
+                ? toNullableTime(breakStartTime)
+                : null,
+            break_end_time: breakEndTime.trim()
+                ? toNullableTime(breakEndTime)
+                : null,
+
+            requester_user_id: userData.user_id,
+
+            template_title: selectedTemplate.template_title ?? null,
+            work_address: selectedTemplate.work_address ?? null,
+            salary: selectedTemplate.salary ?? null,
+            fare: selectedTemplate.fare ?? null,
+            status: selectedTemplate.status ?? null,
+        };
+
+        const { error: insertError } = await supabase
+            .from("rpa_command_requests")
+            .insert({
+                template_id: RPA_TEMPLATE_ID,
+                requester_id: authUserId,
+                approver_id: userData.manager_auth_user_id,
+                status: "approved",
+                request_details: details,
+            });
+
+        if (insertError) {
+            throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
+        }
+
+        alert("RPAリクエストを送信しました");
+        setRpaOpen(false);
+        setSelectedTemplate(null);
+    } catch (e) {
+        alert(e instanceof Error ? e.message : String(e));
+    } finally {
+        setSendingRpa(false);
+    }
+};
 
     const saveShiftOnly = async () => {
         if (!form.shift_id) {
@@ -504,7 +681,7 @@ export default function ShiftDialog({
 
                     <button
                         type="button"
-                        onClick={() => setRpaOpen(true)}
+                        onClick={openRpaFromShift}
                         className="rounded bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
                     >
                         RPAリクエスト作成
@@ -524,6 +701,15 @@ export default function ShiftDialog({
         <DialogHeader>
             <DialogTitle>RPAリクエスト作成</DialogTitle>
         </DialogHeader>
+
+        <div className="text-sm">
+    <div className="font-medium">
+        {selectedTemplate?.template_title ?? ""}
+    </div>
+    <div className="text-[11px] text-muted-foreground">
+        core_id: {selectedTemplate?.core_id ?? ""}
+    </div>
+</div>
 
         <div className="space-y-3">
             <div>
@@ -552,24 +738,76 @@ export default function ShiftDialog({
             </div>
         </div>
 
-        <DialogFooter>
-            <Button
-                variant="secondary"
-                onClick={() => setRpaOpen(false)}
-            >
-                閉じる
-            </Button>
+      <DialogFooter>
+    <Button
+        variant="secondary"
+        onClick={() => setRpaOpen(false)}
+        disabled={sendingRpa}
+    >
+        閉じる
+    </Button>
 
-            <Button>
-                RPAリクエスト送信
-            </Button>
-        </DialogFooter>
+    <Button
+        onClick={sendRpaRequest}
+        disabled={sendingRpa}
+    >
+        {sendingRpa ? "送信中..." : "RPAリクエスト送信"}
+    </Button>
+</DialogFooter>
     </DialogContent>
 </Dialog>
                 </div>
 
             </div>
         </div>
+     <Dialog open={templateSelectOpen} onOpenChange={setTemplateSelectOpen}>
+    <DialogContent className="max-w-2xl">
+        <DialogHeader>
+            <DialogTitle>テンプレート選択</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2">
+            {templateCandidates.map((t) => (
+                <button
+                    key={t.core_id}
+                    type="button"
+                    onClick={() => {
+                        setSelectedTemplate(t);
+
+                        setShiftStartDate(form.shift_start_date);
+                        setShiftEndDate(form.shift_start_date);
+
+                        setShiftStartTime(form.shift_start_time);
+                        setShiftEndTime(form.shift_end_time);
+
+                        setBreakStartTime("");
+                        setBreakEndTime("");
+
+                        setTemplateSelectOpen(false);
+                        setRpaOpen(true);
+                    }}
+                    className="w-full rounded border p-3 text-left hover:bg-gray-50"
+                >
+                    <div className="font-semibold">
+                        {t.template_title ?? "(無題)"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                        {t.start_at ?? "-"} ～ {t.end_at ?? "-"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                        {t.work_address ?? ""}
+                    </div>
+                </button>
+            ))}
+        </div>
+
+        <DialogFooter>
+            <Button variant="secondary" onClick={() => setTemplateSelectOpen(false)}>
+                閉じる
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>   
     </>
     );
 }
