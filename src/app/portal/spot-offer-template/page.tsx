@@ -752,8 +752,8 @@ const saveTemplate = async () => {
          return;
         }
 
-       if (workMinutes >= 6 * 60 && breakMinutes < 45) {
-        alert("勤務時間が6時間以上の場合、45分以上の休憩が必要です");
+       if (workMinutes > 6 * 60 && breakMinutes < 45) {
+         alert("勤務時間が6時間1分以上の場合、45分以上の休憩が必要です");
         return;
        }
 
