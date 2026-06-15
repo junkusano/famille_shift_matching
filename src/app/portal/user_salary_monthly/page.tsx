@@ -173,6 +173,24 @@ export default function UserSalaryMonthlyPage() {
 
     const row = useMemo(() => rows[0] ?? null, [rows]);
 
+    useEffect(() => {
+        if (!row) return;
+
+        const oldTitle = document.title;
+
+        const ym = String(row["支給日"] ?? "")
+            .slice(0, 7)
+            .replace("-", "");
+
+        const staffName = String(row["従業員"] ?? "").trim();
+
+        document.title = `給与明細_${staffName}_${ym}`;
+
+        return () => {
+            document.title = oldTitle;
+        };
+    }, [row]);
+
     function handlePrint() {
         setTimeout(() => {
             window.print();
