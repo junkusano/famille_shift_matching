@@ -161,6 +161,18 @@ export default function JissekiPrintPage() {
     }, [data]);
 
     useEffect(() => {
+        if (!data) return;
+
+        const oldTitle = document.title;
+        const ym = data.month.replace("-", "");
+        document.title = `実績記録_${data.client.client_name}_${ym}`;
+
+        return () => {
+            document.title = oldTitle;
+        };
+    }, [data]);
+
+    useEffect(() => {
         if (!kaipoke_cs_id || !month) return;
 
         (async () => {
