@@ -173,8 +173,34 @@ export default function UserSalaryMonthlyPage() {
 
     const row = useMemo(() => rows[0] ?? null, [rows]);
 
+    function handlePrint() {
+        window.print();
+    }
+
     return (
         <main className="mx-auto max-w-4xl p-4">
+            <style jsx global>{`
+            @media print {
+                body {
+                    background: white !important;
+                }
+
+                main {
+                    max-width: none !important;
+                    padding: 0 !important;
+                }
+
+                .print\\:hidden {
+                    display: none !important;
+                }
+
+                .print-area {
+                    box-shadow: none !important;
+                    border: none !important;
+                    padding: 0 !important;
+                }
+            }
+        `}</style>
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">給与明細</h1>
@@ -215,79 +241,82 @@ export default function UserSalaryMonthlyPage() {
             )}
 
             {!loading && row && (
-                <section className="rounded-xl border bg-white p-5 shadow-sm">
-                    <div className="border-b pb-4">
-                        <div className="text-sm text-gray-500">{ym ? ymLabel(ym) : ""}</div>
-                        <h2 className="mt-1 text-xl font-bold">給与明細書</h2>
-                        <div className="mt-3 grid gap-1 text-sm text-gray-700">
-                            <div>支給日：{row["支給日"]}</div>
-                            <div>{row["従業員"]} 様</div>
-                            <div>所属：合同会社 施恩</div>
-                            <div>従業員番号：{row["従業員番号"]}</div>
-                        </div>
+                <>
+                    <div className="mb-4 flex justify-end print:hidden">
+                        <button
+                            type="button"
+                            onClick={handlePrint}
+                            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-700"
+                        >
+                            印刷・PDF保存
+                        </button>
                     </div>
 
-                    <div className="my-5 rounded-lg bg-gray-900 p-5 text-white">
-                        <div className="text-sm opacity-80">差引支給額</div>
-                        <div className="mt-1 text-3xl font-bold">
-                            {yen(row["差引支給合計"] || row["振込支給額合計"])}
-                        </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div className="rounded-lg border p-4">
-                            <h3 className="mb-3 font-bold">勤怠</h3>
-                            <DetailList keys={attendanceKeys} row={row} />
-                        </div>
-
-                        <div className="rounded-lg border p-4">
-                            <h3 className="mb-3 font-bold">支給</h3>
-                            <DetailList keys={paymentKeys} row={row} money />
-                            <div className="mt-4 flex justify-between border-t pt-3 font-bold">
-                                <span>支給合計</span>
-                                <span>{yen(row["支給合計"])}</span>
+                    <section className="print-area rounded-xl border bg-white p-5 shadow-sm">
+                        <div className="border-b pb-4">
+                            <div className="text-sm text-gray-500">{ym ? ymLabel(ym) : ""}</div>
+                            <h2 className="mt-1 text-xl font-bold">給与明細書</h2>
+                            <div className="mt-3 grid gap-1 text-sm text-gray-700">
+                                <div>支給日：{row["支給日"]}</div>
+                                <div>{row["従業員"]} 様</div>
+                                <div>所属：合同会社 施恩</div>
+                                <div>従業員番号：{row["従業員番号"]}</div>
                             </div>
                         </div>
 
-                        <div className="rounded-lg border p-4">
-                            <h3 className="mb-3 font-bold">控除</h3>
-                            <DetailList keys={deductionKeys} row={row} money />
-                            <div className="mt-4 flex justify-between border-t pt-3 font-bold">
-                                <span>控除合計</span>
-                                <span>{yen(row["控除合計"]) || "0 円"}</span>
+                        <div className="my-5 rounded-lg bg-gray-900 p-5 text-white">
+                            <div className="text-sm opacity-80">差引支給額</div>
+                            <div className="mt-1 text-3xl font-bold">
+                                {yen(row["差引支給合計"] || row["振込支給額合計"])}
                             </div>
                         </div>
-                    </div>
 
-                    <div className="mt-5 rounded-lg border p-4">
-                        <h3 className="mb-3 font-bold">当月支払</h3>
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-lg border p-4">
+                                <h3 className="mb-3 font-bold">勤怠</h3>
+                                <DetailList keys={attendanceKeys} row={row} />
+                            </div>
 
-                        <div className="flex justify-between text-lg font-bold">
-                            <span>振込支給額</span>
-                            <span>{yen(row["振込支給額合計"]) || "0 円"}</span>
-                        </div>
-
-                        {!!row["備考"] && (
-                            <div className="mt-4 border-t pt-4">
-                                <div className="mb-2 text-sm font-semibold text-gray-700">
-                                    備考
-                                </div>
-
-                                <div
-                                    className="
-                    whitespace-pre-wrap
-                    break-words
-                    text-sm
-                    leading-6
-                    text-gray-700
-                "
-                                >
-                                    {String(row["備考"])}
+                            <div className="rounded-lg border p-4">
+                                <h3 className="mb-3 font-bold">支給</h3>
+                                <DetailList keys={paymentKeys} row={row} money />
+                                <div className="mt-4 flex justify-between border-t pt-3 font-bold">
+                                    <span>支給合計</span>
+                                    <span>{yen(row["支給合計"])}</span>
                                 </div>
                             </div>
-                        )}
-                    </div>
-                </section>
+
+                            <div className="rounded-lg border p-4">
+                                <h3 className="mb-3 font-bold">控除</h3>
+                                <DetailList keys={deductionKeys} row={row} money />
+                                <div className="mt-4 flex justify-between border-t pt-3 font-bold">
+                                    <span>控除合計</span>
+                                    <span>{yen(row["控除合計"]) || "0 円"}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 rounded-lg border p-4">
+                            <h3 className="mb-3 font-bold">当月支払</h3>
+
+                            <div className="flex justify-between text-lg font-bold">
+                                <span>振込支給額</span>
+                                <span>{yen(row["振込支給額合計"]) || "0 円"}</span>
+                            </div>
+
+                            {!!row["備考"] && (
+                                <div className="mt-4 border-t pt-4">
+                                    <div className="mb-2 text-sm font-semibold text-gray-700">
+                                        備考
+                                    </div>
+                                    <div className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">
+                                        {String(row["備考"])}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </>
             )}
         </main>
     );
