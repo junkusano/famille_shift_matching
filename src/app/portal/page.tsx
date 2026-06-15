@@ -195,6 +195,10 @@ export default function PortalHome() {
         ポータル（ホーム）
       </h1>
 
+      <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 md:hidden">
+        📱 各機能は左のオレンジ色のバーから利用できます。タップしてメニューを開いてください。
+      </div>
+
       <div className="mt-4">
         <div className="text-lg font-semibold">氏名</div>
         <div>

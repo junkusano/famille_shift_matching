@@ -207,7 +207,7 @@ export default function UserSalaryMonthlyPage() {
             display: none !important;
         }
     }
-`}</style>F
+`}</style>
             <div className="no-print mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">給与明細</h1>
