@@ -478,37 +478,51 @@ export default function WfSeisanShinseiPage() {
     // 保存（PATCH）
     const saveDraft = async () => {
         if (!selectedId) return;
+
         try {
-            const amountNum =
-                cpAmount.trim() === "" ? null : Number(cpAmount.replace(/,/g, ""));
+            const requestTypeCode = detail?.request.request_type?.code;
 
-            if (amountNum !== null && Number.isNaN(amountNum)) {
-                alert("金額が数値ではありません");
-                return;
+            let payload: Record<string, unknown> = {};
+            const body = cpMemo.trim();
+
+            if (requestTypeCode === "expense") {
+                const amountNum =
+                    cpAmount.trim() === "" ? null : Number(cpAmount.replace(/,/g, ""));
+
+                if (amountNum !== null && Number.isNaN(amountNum)) {
+                    alert("金額が数値ではありません");
+                    return;
+                }
+
+                if (!cpDate.trim()) {
+                    alert("利用日を入力してください");
+                    return;
+                }
+
+                const selectedClient = clients.find((c) => c.kaipoke_cs_id === cpKaipokeCsId);
+                const clientName = selectedClient?.name ?? "";
+
+                payload = {
+                    template: "expense",
+                    expense_kind: "coin_parking",
+                    date: cpDate.trim(),
+                    amount: amountNum,
+                    kaipoke_cs_id: cpKaipokeCsId.trim() || null,
+                    client_name: clientName || null,
+                };
             }
-            if (!cpDate.trim()) {
-                alert("利用日を入力してください");
-                return;
+
+            if (requestTypeCode === "health_check") {
+                payload = {
+                    template: "health_check",
+                };
             }
-
-            // 利用者名は候補から引く（手入力しない）
-            const selectedClient = clients.find((c) => c.kaipoke_cs_id === cpKaipokeCsId);
-            const clientName = selectedClient?.name ?? "";
-
-            const payload: Record<string, unknown> = {
-                template: "expense",
-                expense_kind: "coin_parking",
-                date: cpDate.trim(),
-                amount: amountNum,
-                kaipoke_cs_id: cpKaipokeCsId.trim() || null,
-                client_name: clientName || null,
-            };
 
             await apiFetch(`/api/wf-requests/${selectedId}`, {
                 method: "PATCH",
                 body: JSON.stringify({
                     title: editTitle,
-                    body: cpMemo.trim(), // ★ここに一本化
+                    body,
                     payload,
                 }),
             });
@@ -574,7 +588,10 @@ export default function WfSeisanShinseiPage() {
     };
 
     // 添付アップロード（Google Driveへ → wf_request_attachmentへinsert）
-    const onUploadAttachment = async (file: File | null) => {
+    const onUploadAttachment = async (
+        file: File | null,
+        kind?: string
+    ) => {
         if (!file || !selectedId) return;
 
         setAttachUploading(true);
@@ -604,7 +621,7 @@ export default function WfSeisanShinseiPage() {
                 file_path: url,
                 mime_type: mimeType,
                 file_size: file.size || null,
-                kind: attachKind,
+                kind: kind ?? attachKind,
                 uploaded_by_user_id: myUserId,
             });
 
@@ -799,33 +816,165 @@ export default function WfSeisanShinseiPage() {
                                         )}
                                     </div>
 
-                                    {/* 添付：左の下に置く（見た目も自然） */}
-                                    <div className="mt-5 border rounded p-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="font-semibold text-sm">添付（後からレシートOK）</div>
-                                            <div className="text-xs text-gray-600">Google Drive にアップロードします</div>
-                                            <div className="ml-auto flex items-center gap-2">
-                                                <select
-                                                    className="border rounded px-2 py-1 text-sm"
-                                                    value={attachKind}
-                                                    onChange={(e) => setAttachKind(e.target.value)}
-                                                >
-                                                    <option value="receipt">レシート</option>
-                                                    <option value="doc">書類</option>
-                                                    <option value="other">その他</option>
-                                                </select>
+                                    {detail.request.request_type?.code === "health_check" && (
+                                        <div className="mt-3 border rounded p-4">
 
-                                                <label className="px-3 py-1 border rounded text-sm cursor-pointer">
-                                                    {attachUploading ? "アップロード中…" : "ファイル追加"}
-                                                    <input
-                                                        type="file"
-                                                        className="hidden"
-                                                        disabled={attachUploading || !canEdit}
-                                                        onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
-                                                    />
-                                                </label>
+                                            <div className="font-semibold text-lg">
+                                                健康診断受診
+                                            </div>
+
+                                            <div className="mt-4 whitespace-pre-wrap text-sm leading-7">
+                                                {`【対象者】
+全職員の方（契約社員含む）
+
+【予約】
+各自
+
+【健診費用】
+10,000円前後
+
+一旦窓口にて現金でお支払い頂き、
+後日領収書のご提出をお願いします。
+
+全額会社が負担（次回給与にて精算）します。
+
+※但し、必須項目以外を受診の場合は
+自費になりますのでご注意ください。
+
+【健診内容】
+
+以下11項目が必須となっています。
+
+※会社で健康保険に加入している方は
+「協会けんぽの一般健診」を受診してください。
+
+1 既往歴及び業務歴の調査
+2 自覚症状及び他覚症状の有無の検査
+3 身長、体重、腹囲、視力及び聴力の検査
+4 胸部エックス線検査
+5 血圧の測定
+6 貧血検査
+7 肝機能検査
+8 血中脂質検査
+9 血糖検査
+10 尿検査
+11 心電図検査
+
+※各町村で行っている健康診断では
+心電図等が含まれていない場合があります。
+
+別途医療機関で追加受診してください。
+
+【健診結果について】
+
+控え（コピー）を会社に提出お願いします。
+
+※他で健康診断を受診される場合も
+必ず提出お願いします。
+
+【その他】
+
+ご不明な点がありましたら
+LINE WORKS 個人連絡で西尾までご連絡ください。
+
+また期間内に受診できない場合は
+必ずご連絡お願いします。
+
+【健診当日の注意事項】
+
+・上記健診項目を窓口で提示してください
+・当日は採血がありますので朝食は食べないでください
+・糖分やカフェインの入っていない水・お湯はOKです
+・眼鏡やコンタクトを持参してください
+・レントゲン撮影がありますのでワイヤー入り衣類は避けてください
+・保険証を持参してください`}
                                             </div>
                                         </div>
+                                    )}
+
+                                    {/* 添付：左の下に置く（見た目も自然） */}
+                                    <div className="mt-5 border rounded p-3">
+                                        {detail.request.request_type?.code === "health_check" ? (
+                                            <div>
+                                                <div className="font-semibold text-sm">健康診断の添付</div>
+                                                <div className="text-xs text-gray-600 mt-1">
+                                                    健康診断結果と領収書をそれぞれ添付してください。
+                                                </div>
+
+                                                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div className="border rounded p-3 bg-white">
+                                                        <div className="font-semibold text-sm">健康診断結果</div>
+                                                        <div className="text-xs text-gray-500 mt-1">
+                                                            健診結果の控え・コピーを添付してください。
+                                                        </div>
+
+                                                        <label className="inline-block mt-3 px-3 py-1 border rounded text-sm cursor-pointer">
+                                                            {attachUploading ? "アップロード中…" : "健康診断結果を添付"}
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                disabled={attachUploading || !canEdit}
+                                                                onChange={(e) =>
+                                                                    onUploadAttachment(
+                                                                        e.target.files?.[0] ?? null,
+                                                                        "health_result"
+                                                                    )
+                                                                }
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    <div className="border rounded p-3 bg-white">
+                                                        <div className="font-semibold text-sm">健康診断領収書</div>
+                                                        <div className="text-xs text-gray-500 mt-1">
+                                                            健診費用の領収書を添付してください。
+                                                        </div>
+
+                                                        <label className="inline-block mt-3 px-3 py-1 border rounded text-sm cursor-pointer">
+                                                            {attachUploading ? "アップロード中…" : "領収書を添付"}
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
+                                                                disabled={attachUploading || !canEdit}
+                                                                onChange={(e) =>
+                                                                    onUploadAttachment(
+                                                                        e.target.files?.[0] ?? null,
+                                                                        "health_receipt"
+                                                                    )
+                                                                }
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <div className="font-semibold text-sm">添付（後からレシートOK）</div>
+                                                <div className="text-xs text-gray-600">Google Drive にアップロードします</div>
+
+                                                <div className="ml-auto flex items-center gap-2">
+                                                    <select
+                                                        className="border rounded px-2 py-1 text-sm"
+                                                        value={attachKind}
+                                                        onChange={(e) => setAttachKind(e.target.value)}
+                                                    >
+                                                        <option value="receipt">レシート</option>
+                                                        <option value="doc">書類</option>
+                                                        <option value="other">その他</option>
+                                                    </select>
+
+                                                    <label className="px-3 py-1 border rounded text-sm cursor-pointer">
+                                                        {attachUploading ? "アップロード中…" : "ファイル追加"}
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            disabled={attachUploading || !canEdit}
+                                                            onChange={(e) => onUploadAttachment(e.target.files?.[0] ?? null)}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="mt-3 border rounded">
                                             {(detail.attachments ?? []).map((a) => {
