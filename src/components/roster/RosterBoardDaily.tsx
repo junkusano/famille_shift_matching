@@ -781,8 +781,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     <div
         style={{
             position: "absolute",
-            left: 2,
-            top: 2,
+            right: 24,
+            top: -2,
             width: 18,
             height: 18,
             borderRadius: "50%",
@@ -794,7 +794,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             alignItems: "center",
             justifyContent: "center",
             pointerEvents: "none",
-            zIndex: 5,
+            zIndex: 20,
         }}
     >
         T
