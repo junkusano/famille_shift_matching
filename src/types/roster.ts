@@ -62,6 +62,7 @@ export type RosterShiftCard = {
   female_flg?: boolean | null;
 
   dialog?: RosterShiftDialogData;
+  has_rpa_request?: boolean;
 };
 
 export type RosterDailyView = {

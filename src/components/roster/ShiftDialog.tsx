@@ -42,6 +42,7 @@ type FormState = {
 
 type SpotOfferRequestTemplate = {
     core_id: string;
+    shift_id: number | null;
     template_title: string | null;
     work_address: string | null;
     salary: string | null;
@@ -236,11 +237,10 @@ export default function ShiftDialog({
 
     try {
 
-        const { data, error } = await supabase
-            .from("spot_offer_request")
-            .select("*")
-            .eq("kaipoke_cs_id", shift.kaipoke_cs_id);
-
+       const { data, error } = await supabase
+         .from("spot_offer_request")
+         .select("*")
+         .eq("shift_id", form.shift_id);
         if (error) {
             throw error;
         }

@@ -131,9 +131,63 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    useEffect(() => {
-        setCards(initialView.shifts);
-    }, [initialView.shifts, date]);
+ useEffect(() => {
+    let cancelled = false;
+
+    const loadRpaStatus = async () => {
+        const baseCards = initialView.shifts;
+
+        const shiftIds = Array.from(
+            new Set(
+                baseCards
+                    .map((c) => parseCardCompositeId(c.id).shiftId)
+                    .filter((id) => Number.isFinite(id))
+            )
+        );
+
+        if (shiftIds.length === 0) {
+            setCards(baseCards);
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from("shift_rpa_status_view")
+            .select("shift_id, has_rpa_request")
+            .in("shift_id", shiftIds);
+
+        if (error) {
+            console.error("RPA状態取得エラー:", error);
+            setCards(baseCards);
+            return;
+        }
+
+        const statusMap = new Map(
+            (data ?? []).map((row) => [
+                Number(row.shift_id),
+                Boolean(row.has_rpa_request),
+            ])
+        );
+
+        const nextCards = baseCards.map((c) => {
+            const { shiftId } = parseCardCompositeId(c.id);
+
+            return {
+                ...c,
+                has_rpa_request: statusMap.get(shiftId) ?? false,
+            };
+        });
+
+        if (!cancelled) {
+            setCards(nextCards);
+        }
+    };
+
+    void loadRpaStatus();
+
+    return () => {
+        cancelled = true;
+    };
+}, [initialView.shifts, date]);
 
     // チーム（org名）一覧（orgunitname を期待）
     const allTeams = useMemo(() => {
@@ -722,6 +776,30 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                         >
                                             {c.client_name}：{c.service_code ?? ""}
                                         </button>
+
+{c.has_rpa_request && (
+    <div
+        style={{
+            position: "absolute",
+            left: 2,
+            top: 2,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "#f59e0b",
+            color: "#fff",
+            fontSize: 11,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 5,
+        }}
+    >
+        T
+    </div>
+)}
 
                                         {c.dsp_short ? (
                                             <div
