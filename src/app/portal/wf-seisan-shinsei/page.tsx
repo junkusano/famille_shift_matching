@@ -274,7 +274,8 @@ export default function WfSeisanShinseiPage() {
 
     // 添付
     const [attachKind, setAttachKind] = useState("receipt");
-    const [attachUploading, setAttachUploading] = useState(false);
+    const [uploadingKind, setUploadingKind] = useState<string | null>(null);
+    const attachUploading = uploadingKind !== null;
 
     const canEdit = detail?.perms?.canEdit ?? (detail?.request?.status !== "completed");
 
@@ -602,7 +603,8 @@ export default function WfSeisanShinseiPage() {
     ) => {
         if (!file || !selectedId) return;
 
-        setAttachUploading(true);
+        const finalKind = kind ?? attachKind;
+        setUploadingKind(finalKind);
         try {
             // user_id は DB側で必要なので取得（ここはそのまま）
             const { data: sess } = await supabase.auth.getSession();
@@ -629,7 +631,7 @@ export default function WfSeisanShinseiPage() {
                 file_path: url,
                 mime_type: mimeType,
                 file_size: file.size || null,
-                kind: kind ?? attachKind,
+                kind: finalKind,
                 uploaded_by_user_id: myUserId,
             });
 
@@ -640,7 +642,27 @@ export default function WfSeisanShinseiPage() {
         } catch (e: unknown) {
             alert(toErrorMessage(e));
         } finally {
-            setAttachUploading(false);
+            setUploadingKind(null);
+        }
+    };
+
+    const deleteAttachment = async (attachmentId: string) => {
+        if (!selectedId) return;
+        if (!window.confirm("この添付ファイルを削除します。よろしいですか？")) return;
+
+        try {
+            const { error } = await supabase
+                .from("wf_request_attachment")
+                .delete()
+                .eq("id", attachmentId)
+                .eq("request_id", selectedId);
+
+            if (error) throw error;
+
+            await loadDetail(selectedId);
+            alert("添付を削除しました");
+        } catch (e: unknown) {
+            alert(toErrorMessage(e));
         }
     };
 
@@ -953,7 +975,7 @@ https://life-hello-clinic.com/`}
                                                         </div>
 
                                                         <label className="inline-block mt-3 px-3 py-1 border rounded text-sm cursor-pointer">
-                                                            {attachUploading ? "アップロード中…" : "健康診断結果を添付"}
+                                                            {uploadingKind === "health_result" ? "健康診断結果を添付中…" : "健康診断結果を添付"}
                                                             <input
                                                                 type="file"
                                                                 className="hidden"
@@ -975,7 +997,7 @@ https://life-hello-clinic.com/`}
                                                         </div>
 
                                                         <label className="inline-block mt-3 px-3 py-1 border rounded text-sm cursor-pointer">
-                                                            {attachUploading ? "アップロード中…" : "領収書を添付"}
+                                                            {uploadingKind === "health_receipt" ? "領収書を添付中…" : "領収書を添付"}
                                                             <input
                                                                 type="file"
                                                                 className="hidden"
@@ -1023,18 +1045,58 @@ https://life-hello-clinic.com/`}
                                         <div className="mt-3 border rounded">
                                             {(detail.attachments ?? []).map((a) => {
                                                 const fileId = extractFileId(a.file_path);
+
                                                 const openUrl = fileId
                                                     ? `https://drive.google.com/file/d/${fileId}/view`
                                                     : a.file_path;
 
+                                                const kindLabel =
+                                                    a.kind === "health_result"
+                                                        ? "健康診断結果"
+                                                        : a.kind === "health_receipt"
+                                                            ? "健康診断領収書"
+                                                            : a.kind === "receipt"
+                                                                ? "レシート"
+                                                                : a.kind === "doc"
+                                                                    ? "書類"
+                                                                    : "その他";
+
                                                 return (
                                                     <div key={a.id} className="p-2 border-b last:border-b-0 text-xs">
-                                                        ...
+
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <div className="font-semibold">
+                                                                    {kindLabel}
+                                                                </div>
+
+                                                                <div className="text-gray-600">
+                                                                    {a.file_name}
+                                                                </div>
+                                                            </div>
+
+                                                            {canEdit && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="px-2 py-1 border rounded text-red-600"
+                                                                    onClick={() => deleteAttachment(a.id)}
+                                                                >
+                                                                    削除
+                                                                </button>
+                                                            )}
+                                                        </div>
+
                                                         <div className="mt-1">
-                                                            <a className="text-blue-600 underline" href={openUrl} target="_blank" rel="noreferrer">
+                                                            <a
+                                                                className="text-blue-600 underline"
+                                                                href={openUrl}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                            >
                                                                 添付を開く
                                                             </a>
                                                         </div>
+
                                                     </div>
                                                 );
                                             })}
