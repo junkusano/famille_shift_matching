@@ -180,6 +180,7 @@ export default function SpotOfferTemplatePage() {
   const [shiftStartTime, setShiftStartTime] = useState("");
   const [shiftEndDate, setShiftEndDate] = useState("");
   const [shiftEndTime, setShiftEndTime] = useState("");
+  const [rpaShiftId, setRpaShiftId] = useState<number | null>(null);
   const [sendingRpa, setSendingRpa] = useState(false);
   const [rpaError, setRpaError] = useState<string | null>(null);
   const [rpaFieldErrors, setRpaFieldErrors] = useState<Record<string, string>>({});
@@ -668,7 +669,7 @@ const saveTemplate = async () => {
     }
   };
 
-  const openRpaDialog = (row: SpotOfferTemplateUnified) => {
+  const openRpaDialog = async (row: SpotOfferTemplateUnified) => {
     setRpaTarget(row);
 
      setShiftStartTime(timeForInput(row.start_at) || "");
@@ -677,6 +678,7 @@ const saveTemplate = async () => {
      // 休憩時間はテンプレに保存していないので毎回クリア
      setBreakStartTime("");
      setBreakEndTime("");
+     setRpaShiftId(null);
 
      setRpaError(null);
      setRpaFieldErrors({});
@@ -766,6 +768,37 @@ try {
      // 勤務時間・休憩時間・金額チェック
       const start = toNullableTime(shiftStartTime);
       const end = toNullableTime(shiftEndTime);
+
+      let resolvedShiftId: number | null = rpaShiftId;
+
+if (!resolvedShiftId && rpaTarget?.kaipoke_cs_id && shiftStartDate.trim()) {
+    let query = supabase
+        .from("shift_shift_record_view")
+        .select("shift_id")
+        .eq("kaipoke_cs_id", rpaTarget.kaipoke_cs_id)
+        .eq("shift_start_date", shiftStartDate.trim());
+
+    const normalizedStart = start;
+    const normalizedEnd = end;
+
+    if (normalizedStart) {
+        query = query.eq("shift_start_time", normalizedStart);
+    }
+
+    if (normalizedEnd) {
+        query = query.eq("shift_end_time", normalizedEnd);
+    }
+
+    const { data: shiftRows, error: shiftError } = await query.limit(1);
+
+    if (shiftError) {
+        throw new Error(`shift_id取得に失敗: ${shiftError.message}`);
+    }
+
+    resolvedShiftId = shiftRows?.[0]?.shift_id
+        ? Number(shiftRows[0].shift_id)
+        : null;
+}
       const breakStart = breakStartTime.trim() ? toNullableTime(breakStartTime) : null;
       const breakEnd = breakEndTime.trim() ? toNullableTime(breakEndTime) : null;
 
@@ -825,6 +858,9 @@ if (workMinutes > 6 * 60 && breakMinutes < 45) {
       const details = {
         core_id: rpaTarget.core_id,
         created_from: "/portal/spot-offer-template",
+
+        shift_id: resolvedShiftId,
+        kaipoke_cs_id: rpaTarget.kaipoke_cs_id ?? null,
 
         shift_start_date: shiftStartDate.trim(),
         shift_start_time: toNullableTime(shiftStartTime),
