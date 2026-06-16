@@ -465,7 +465,12 @@ export default function WfSeisanShinseiPage() {
 
     // 新規下書き作成
     const createDraft = async () => {
-        const typeCode = filterType || "expense";
+        if (!filterType) {
+            alert("先に申請種別を選択してください");
+            return;
+        }
+
+        const typeCode = filterType;
         try {
             const r = await apiFetch("/api/wf-requests", {
                 method: "POST",
@@ -558,6 +563,24 @@ export default function WfSeisanShinseiPage() {
     // 提出（submit）
     const submitRequest = async () => {
         if (!selectedId) return;
+
+        if (detail?.request.request_type?.code === "health_check") {
+            const attachments = detail.attachments ?? [];
+
+            const hasHealthResult = attachments.some(
+                (a) => a.kind === "health_result"
+            );
+
+            const hasHealthReceipt = attachments.some(
+                (a) => a.kind === "health_receipt"
+            );
+
+            if (!hasHealthResult || !hasHealthReceipt) {
+                alert("健康診断結果と健康診断領収書を両方添付してください。");
+                return;
+            }
+        }
+
         if (selectedApprovers.length === 0) {
             alert("承認者を選択してください");
             return;
@@ -674,19 +697,22 @@ export default function WfSeisanShinseiPage() {
 
     return (
         <div className="min-h-screen bg-white text-black">
-            <div className="p-3 border-b flex items-center gap-3">
+            <div className="p-3 border-b flex flex-wrap items-center gap-3">
                 <div className="text-lg font-bold">精算・申請</div>
-                <button
-                    className="px-3 py-1 border rounded"
-                    onClick={createDraft}
-                    title="新規下書きを作成"
-                >
-                    ＋ 新規
-                </button>
 
-                <div className="ml-auto flex items-center gap-2">
-                    <select className="border rounded px-2 py-1" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                        <option value="">種別：すべて</option>
+                <div className="flex flex-wrap items-center gap-2 border rounded px-3 py-2 bg-gray-50">
+                    <span className="text-sm font-semibold text-gray-700">
+                        ① 種別を選択
+                    </span>
+
+                    <select
+                        className="border rounded px-2 py-1 bg-white"
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                    >
+                        <option value="">
+                            ▼ 申請種別を選択してください
+                        </option>
                         {types.map((t) => (
                             <option key={t.id} value={t.code}>
                                 {t.label}
@@ -694,6 +720,28 @@ export default function WfSeisanShinseiPage() {
                         ))}
                     </select>
 
+                    <span className="text-sm font-semibold text-gray-700">
+                        ② 新規を押す
+                    </span>
+
+                    <button
+                        className={`px-3 py-1 border rounded ${!filterType
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-white"
+                            }`}
+                        onClick={createDraft}
+                        disabled={!filterType}
+                        title={
+                            !filterType
+                                ? "先に種別を選択してください"
+                                : "選択した種別で新規下書きを作成"
+                        }
+                    >
+                        ＋ 新規
+                    </button>
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
                     <select
                         className="border rounded px-2 py-1"
                         value={filterStatus}
