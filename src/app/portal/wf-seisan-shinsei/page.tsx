@@ -983,25 +983,89 @@ export default function WfSeisanShinseiPage() {
                                                 <summary className="cursor-pointer font-semibold text-sm">
                                                     健診病院の例
                                                 </summary>
-                                                <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
-                                                    {`参考までに、以下の医療機関では必須項目を1万円程度で受診できます。
-他の医療機関で受診していただいても問題ありません。
+                                                <div className="mt-3 text-sm leading-7">
+                                                    <p className="mb-4">
+                                                        参考までに、以下の医療機関では必須項目を1万円程度で受診できます。<br />
+                                                        他の医療機関で受診していただいても問題ありません。
+                                                    </p>
 
-・春日井市総合保健医療センター
-基本健診　9,000円
-https://www.kasugai-kenkou.com/medical-checkup/#03
+                                                    <div className="mb-4">
+                                                        <div>・春日井市総合保健医療センター（春日井市）</div>
+                                                        <div>基本健診　9,000円</div>
+                                                        <a
+                                                            href="https://www.kasugai-kenkou.com/medical-checkup/#03"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
 
-・名古屋駅健診クリニック
-定期健診B　9,020円
-https://nagoya-kenshin.jp/wp-content/uploads/ae2041d1bc5d6e8b4fb8ffbb30ac8520.pdf
+                                                    <div className="mb-4">
+                                                        <div>・名古屋駅健診クリニック（名古屋市中村区）</div>
+                                                        <div>定期健診B　9,020円</div>
+                                                        <a
+                                                            href="https://nagoya-kenshin.jp/wp-content/uploads/ae2041d1bc5d6e8b4fb8ffbb30ac8520.pdf"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
 
-・Sakae Angel Clinic
-法定健診　8,910円
-https://angel-clinic.com/kensin/course/
+                                                    <div className="mb-4">
+                                                        <div>・Sakae Angel Clinic（名古屋市中区）</div>
+                                                        <div>法定健診　8,910円</div>
+                                                        <a
+                                                            href="https://angel-clinic.com/kensin/course/"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
 
-・一般社団法人ライフハロークリニック
-定期健康診断　7,700円
-https://life-hello-clinic.com/`}
+                                                    <div className="mb-4">
+                                                        <div>・一般社団法人ライフハロークリニック（名古屋市中区）</div>
+                                                        <div>定期健康診断　7,700円</div>
+                                                        <a
+                                                            href="https://life-hello-clinic.com/"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
+
+                                                    <div className="mb-4">
+                                                        <div>・Atsuta Mall Total Clinic（名古屋市熱田区）</div>
+                                                        <div>定期健康診断　9,900円</div>
+                                                        <a
+                                                            href="https://www.amallclinic.jp/medical-checkup/%e5%ae%9a%e6%9c%9f%e5%81%a5%e5%ba%b7%e8%a8%ba%e6%96%ad-%e9%9b%87%e5%85%a5%e6%99%82%e5%81%a5%e8%a8%ba/"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
+
+                                                    <div>
+                                                        <div>・Anzu Clinic（名古屋市熱田区）</div>
+                                                        <div>定期健診①　9,100円</div>
+                                                        <a
+                                                            href="https://anzu-clinic.jp/medical-checkup/%E5%AE%9A%E6%9C%9F%E5%81%A5%E8%A8%BA/"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-600 underline"
+                                                        >
+                                                            健診内容を見る
+                                                        </a>
+                                                    </div>
                                                 </div>
                                             </details>
                                         </div>
