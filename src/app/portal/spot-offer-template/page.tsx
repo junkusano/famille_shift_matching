@@ -181,6 +181,8 @@ export default function SpotOfferTemplatePage() {
   const [shiftEndDate, setShiftEndDate] = useState("");
   const [shiftEndTime, setShiftEndTime] = useState("");
   const [sendingRpa, setSendingRpa] = useState(false);
+  const [rpaError, setRpaError] = useState<string | null>(null);
+  const [rpaFieldErrors, setRpaFieldErrors] = useState<Record<string, string>>({});
 
   const [fTimeeOfferId, setFTimeeOfferId] = useState("");
   const [fUcareOfferId, setFUcareOfferId] = useState("");
@@ -675,26 +677,75 @@ const saveTemplate = async () => {
      // 休憩時間はテンプレに保存していないので毎回クリア
      setBreakStartTime("");
      setBreakEndTime("");
+
+     setRpaError(null);
+     setRpaFieldErrors({});
   
-    setOpenRpa(true);
+     setOpenRpa(true);
   };
 
  
 
   const sendRpaRequest = async () => {
-    if (!rpaTarget) return;
+  if (!rpaTarget) return;
 
-    if (!shiftStartDate.trim()) {
-      alert("shift_start_date は必須です");
-      return;
-    }
-    if (!shiftEndDate.trim()) {
-      alert("shift_end_date は必須です");
-      return;
-    }
+  setRpaError(null);
+  setRpaFieldErrors({});
 
-    try {
-      setSendingRpa(true);
+  const nextErrors: Record<string, string> = {};
+
+  if (!shiftStartDate.trim()) {
+    nextErrors.shiftStartDate = "開始日は必須です";
+  }
+
+  if (!shiftEndDate.trim()) {
+    nextErrors.shiftEndDate = "終了日は必須です";
+  }
+
+try {
+  if (shiftStartTime.trim()) {
+    toNullableTime(shiftStartTime);
+  }
+} catch (e) {
+  nextErrors.shiftStartTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (shiftEndTime.trim()) {
+    toNullableTime(shiftEndTime);
+  }
+} catch (e) {
+  nextErrors.shiftEndTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (breakStartTime.trim()) {
+    toNullableTime(breakStartTime);
+  }
+} catch (e) {
+  nextErrors.breakStartTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+try {
+  if (breakEndTime.trim()) {
+    toNullableTime(breakEndTime);
+  }
+} catch (e) {
+  nextErrors.breakEndTime =
+    e instanceof Error ? e.message : String(e);
+}
+
+  if (Object.keys(nextErrors).length > 0) {
+    setRpaFieldErrors(nextErrors);
+    setRpaError("入力内容を確認してください");
+    return;
+  }
+
+  try {
+    setSendingRpa(true);  
 
       const session = await supabase.auth.getSession();
       const authUserId = session.data?.session?.user?.id;
@@ -742,28 +793,32 @@ const saveTemplate = async () => {
           }
         }
 
-        if (workMinutes < 60) {
-          alert("勤務時間は1時間以上で入力してください");
-          return;
-        }
+if (workMinutes < 60) {
+  setRpaFieldErrors({ shiftStartTime: "勤務時間は1時間以上で入力してください" });
+  setRpaError("勤務時間を確認してください");
+  return;
+}
 
-       if (workMinutes >= 8 * 60 && breakMinutes < 60) {
-         alert("勤務時間が8時間以上の場合、1時間以上の休憩が必要です");
-         return;
-        }
+if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+  setRpaFieldErrors({ breakStartTime: "勤務時間が8時間以上の場合、1時間以上の休憩が必要です" });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
 
-       if (workMinutes > 6 * 60 && breakMinutes < 45) {
-         alert("勤務時間が6時間1分以上の場合、45分以上の休憩が必要です");
-        return;
-       }
 
-       const hourlyWage = toNullableNumber(fUnitAmount);
-       const workHours = (workMinutes - breakMinutes) / 60;
-       const totalAmount = hourlyWage ? hourlyWage * workHours : 0;
+if (workMinutes > 6 * 60 && breakMinutes < 45) {
+  setRpaFieldErrors({ breakStartTime: "勤務時間が6時間1分以上の場合、45分以上の休憩が必要です" });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
 
-       if (totalAmount > 9800) {
-        alert("時給×勤務時間が9,800円を超えています。勤務時間または時給を確認してください");
-        return;
+  const hourlyWage = toNullableNumber(fUnitAmount);
+  const workHours = (workMinutes - breakMinutes) / 60;
+  const totalAmount = hourlyWage ? hourlyWage * workHours : 0;
+
+  if (totalAmount > 9800) {
+     alert("時給×勤務時間が9,800円を超えています。勤務時間または時給を確認してください");
+      return;
       }
     }
 
@@ -802,7 +857,7 @@ const saveTemplate = async () => {
       setOpenRpa(false);
       setRpaTarget(null);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setRpaError(e instanceof Error ? e.message : String(e));
     } finally {
       setSendingRpa(false);
     }
@@ -1266,6 +1321,12 @@ const saveTemplate = async () => {
             )}
           </div>
 
+          {rpaError && (
+  　　　　　　<div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 whitespace-pre-wrap">
+    　　　　　　{rpaError}
+ 　　　　　　 </div>
+)}
+
           <DialogFooter className="flex justify-start gap-2 pt-2">
             <Button variant="secondary" onClick={() => setOpenEdit(false)}>
               閉じる
@@ -1290,14 +1351,20 @@ const saveTemplate = async () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="text-[11px] text-muted-foreground">shift_start_date（必須）</div>
-                <Input type="date" 
-                 value={shiftStartDate}
-                 onChange={(e) => {
-                  const v = e.target.value;
-                  setShiftStartDate(v);
-                  setShiftEndDate(v);
-               }}
-            />
+                <Input
+                  type="date"
+                    value={shiftStartDate}
+                    onChange={(e) => {
+                    const v = e.target.value;
+                    setShiftStartDate(v);
+                    setShiftEndDate(v);
+                   }}
+                 />
+                 {rpaFieldErrors.shiftStartDate && (
+                  <div className="mt-1 text-xs text-red-600">
+                {rpaFieldErrors.shiftStartDate}
+                 </div>
+            )}
 
               </div>
               <div>
@@ -1307,6 +1374,13 @@ const saveTemplate = async () => {
                   onChange={(e) => setShiftStartTime(e.target.value)}
                   placeholder="0930 / 09:30（空欄OK）"
                 />
+
+                {rpaFieldErrors.shiftStartTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftStartTime}
+                    </div>
+                )}
+
                 <div className="mt-1 text-xs text-red-600">
                 勤務時間は1時間以上にしてください
                 </div>
@@ -1315,6 +1389,13 @@ const saveTemplate = async () => {
               <div>
                 <div className="text-[11px] text-muted-foreground">shift_end_date（必須）</div>
                 <Input type="date" value={shiftEndDate} onChange={(e) => setShiftEndDate(e.target.value)} />
+
+                {rpaFieldErrors.shiftEndDate && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftEndDate}
+                    </div>
+                )}
+
               </div>
               <div>
                 <div className="text-[11px] text-muted-foreground">shift_end_time（任意）</div>
@@ -1323,6 +1404,12 @@ const saveTemplate = async () => {
                   onChange={(e) => setShiftEndTime(e.target.value)}
                   placeholder="0930 / 09:30（空欄OK）"
                 />
+
+                {rpaFieldErrors.shiftEndTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.shiftEndTime}
+                    </div>
+                )}
               </div>
 
               <div>
@@ -1332,6 +1419,12 @@ const saveTemplate = async () => {
                   onChange={(e) => setBreakStartTime(e.target.value)}
                   placeholder="1200 / 12:00（空欄OK）"
                 />
+
+                {rpaFieldErrors.breakStartTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.breakStartTime}
+                    </div>
+                )}
               </div>
 
               <div>
@@ -1341,6 +1434,11 @@ const saveTemplate = async () => {
                   onChange={(e) => setBreakEndTime(e.target.value)}
                   placeholder="1230 / 12:30（空欄OK）"
                 />
+                {rpaFieldErrors.breakEndTime && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {rpaFieldErrors.breakEndTime}
+                    </div>
+                )}
               </div>
             </div>
 
