@@ -388,7 +388,15 @@ export default function WfSeisanShinseiPage() {
             setSelectedId(id);
             const rawTitle = (d.request.title ?? "").trim();
             setTitleTouched(!!rawTitle); // ★タイトルが入ってたら自動更新しない
-            const baseDefault = d.request.request_type?.code === "expense" ? "コインパーキング申請" : "";
+            const requestTypeCode = d.request.request_type?.code;
+
+            const baseDefault =
+                requestTypeCode === "expense"
+                    ? "コインパーキング申請"
+                    : requestTypeCode === "health_check"
+                        ? "健康診断受診"
+                        : "";
+
             setEditTitle(rawTitle || baseDefault);
 
             setCpMemo(d.request.body ?? ""); // ★経緯・理由は body から復元
@@ -462,7 +470,7 @@ export default function WfSeisanShinseiPage() {
                 method: "POST",
                 body: JSON.stringify({
                     request_type_code: typeCode,
-                    title: "",
+                    title: typeCode === "health_check" ? "健康診断受診" : "",
                     body_text: "",
                     payload: {},
                 }),
@@ -817,35 +825,46 @@ export default function WfSeisanShinseiPage() {
                                     </div>
 
                                     {detail.request.request_type?.code === "health_check" && (
-                                        <div className="mt-3 border rounded p-4">
-
-                                            <div className="font-semibold text-lg">
-                                                健康診断受診
+                                        <div className="mt-3 border rounded p-3 bg-white">
+                                            <div className="font-semibold text-base">
+                                                健康診断受診のご案内
                                             </div>
 
-                                            <div className="mt-4 whitespace-pre-wrap text-sm leading-7">
-                                                {`【対象者】
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                下記の説明をご確認のうえ、受診結果と領収書を添付してください。
+                                            </div>
+
+                                            <details className="mt-3 border rounded p-3">
+                                                <summary className="cursor-pointer font-semibold text-sm">
+                                                    受診について
+                                                </summary>
+                                                <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
+                                                    {`【対象者】
 全職員の方（契約社員含む）
 
 【予約】
-各自
+各自で予約をお願いします。
 
 【健診費用】
-10,000円前後
+10,000円前後が目安です。
 
-一旦窓口にて現金でお支払い頂き、
-後日領収書のご提出をお願いします。
+一旦、窓口にて現金でお支払いください。
+後日、領収書をご提出いただきます。
 
-全額会社が負担（次回給与にて精算）します。
+健診費用は全額会社が負担し、次回給与にて精算します。
 
-※但し、必須項目以外を受診の場合は
-自費になりますのでご注意ください。
+※必須項目以外を受診された場合は自費となりますので、ご注意ください。`}
+                                                </div>
+                                            </details>
 
-【健診内容】
+                                            <details className="mt-3 border rounded p-3">
+                                                <summary className="cursor-pointer font-semibold text-sm">
+                                                    健診内容
+                                                </summary>
+                                                <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
+                                                    {`以下11項目が必須です。
 
-以下11項目が必須となっています。
-
-※会社で健康保険に加入している方は
+※会社で健康保険に加入している方は、
 「協会けんぽの一般健診」を受診してください。
 
 1 既往歴及び業務歴の調査
@@ -853,45 +872,70 @@ export default function WfSeisanShinseiPage() {
 3 身長、体重、腹囲、視力及び聴力の検査
 4 胸部エックス線検査
 5 血圧の測定
-6 貧血検査
-7 肝機能検査
-8 血中脂質検査
+6 貧血検査（血色素量及び赤血球数）
+7 肝機能検査（GOT、GPT、γ-GTP）
+8 血中脂質検査（LDL、HDL、血清トリグリセライド）
 9 血糖検査
-10 尿検査
+10 尿検査（尿中の糖及び蛋白の有無）
 11 心電図検査
 
-※各町村で行っている健康診断では
-心電図等が含まれていない場合があります。
-
-別途医療機関で追加受診してください。
+※市町村等の健康診断では、心電図など一部項目が含まれていない場合があります。
+不足項目がある場合は、別途医療機関で追加受診をお願いします。
 
 【健診結果について】
+健診結果の控え、またはコピーを会社へ提出してください。
 
-控え（コピー）を会社に提出お願いします。
+※他の職場等で健康診断を受診される場合も、必ず結果をご提出ください。`}
+                                                </div>
+                                            </details>
 
-※他で健康診断を受診される場合も
-必ず提出お願いします。
+                                            <details className="mt-3 border rounded p-3">
+                                                <summary className="cursor-pointer font-semibold text-sm">
+                                                    その他および注意事項
+                                                </summary>
+                                                <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
+                                                    {`【その他】
+ご不明な点がありましたら、LINE WORKSの各個人連絡用で西尾までご連絡ください。
 
-【その他】
-
-ご不明な点がありましたら
-LINE WORKS 個人連絡で西尾までご連絡ください。
-
-また期間内に受診できない場合は
-必ずご連絡お願いします。
+また、期間内にどうしても受診できない場合は、必ずご連絡ください。
 
 【健診当日の注意事項】
-
-・上記健診項目を窓口で提示してください
-・当日は採血がありますので朝食は食べないでください
-・糖分やカフェインの入っていない水・お湯はOKです
-・眼鏡やコンタクトを持参してください
-・レントゲン撮影がありますのでワイヤー入り衣類は避けてください
+・上記の健診項目を窓口で提示してください
+・当日は採血がありますので、朝食は食べないでください
+・糖分やカフェインの入っていない水・お湯は飲んでも大丈夫です
+・普段メガネやコンタクトをしている方は持参してください
+・胸部レントゲン撮影がありますので、ワイヤー入りの衣類は避けてください
 ・保険証を持参してください`}
-                                            </div>
+                                                </div>
+                                            </details>
+
+                                            <details className="mt-3 border rounded p-3">
+                                                <summary className="cursor-pointer font-semibold text-sm">
+                                                    健診病院の例
+                                                </summary>
+                                                <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
+                                                    {`参考までに、以下の医療機関では必須項目を1万円程度で受診できます。
+他の医療機関で受診していただいても問題ありません。
+
+・春日井市総合保健医療センター
+基本健診　9,000円
+https://www.kasugai-kenkou.com/medical-checkup/#03
+
+・名古屋駅健診クリニック
+定期健診B　9,020円
+https://nagoya-kenshin.jp/wp-content/uploads/ae2041d1bc5d6e8b4fb8ffbb30ac8520.pdf
+
+・Sakae Angel Clinic
+法定健診　8,910円
+https://angel-clinic.com/kensin/course/
+
+・一般社団法人ライフハロークリニック
+定期健康診断　7,700円
+https://life-hello-clinic.com/`}
+                                                </div>
+                                            </details>
                                         </div>
                                     )}
-
                                     {/* 添付：左の下に置く（見た目も自然） */}
                                     <div className="mt-5 border rounded p-3">
                                         {detail.request.request_type?.code === "health_check" ? (
