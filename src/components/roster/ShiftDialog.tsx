@@ -752,7 +752,7 @@ setSelectedTemplate(null);
                         onClick={openRpaFromShift}
                         className="rounded bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
                     >
-                        RPAリクエスト作成
+                        スポット募集
                     </button>
 
                     <button
