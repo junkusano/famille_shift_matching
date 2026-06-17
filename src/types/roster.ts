@@ -63,6 +63,7 @@ export type RosterShiftCard = {
 
   dialog?: RosterShiftDialogData;
   has_rpa_request?: boolean;
+  spot_status?: string | null;
 };
 
 export type RosterDailyView = {

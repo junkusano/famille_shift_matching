@@ -151,8 +151,8 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         }
 
         const { data, error } = await supabase
-            .from("shift_rpa_status_view")
-            .select("shift_id, has_rpa_request")
+            .from("spot_offer_request_table")
+            .select("shift_id, status")
             .in("shift_id", shiftIds);
 
         if (error) {
@@ -161,19 +161,24 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             return;
         }
 
-        const statusMap = new Map(
-            (data ?? []).map((row) => [
-                Number(row.shift_id),
-                Boolean(row.has_rpa_request),
-            ])
-        );
+type SpotOfferRequestStatusRow = {
+    shift_id: number | string;
+    status: string | null;
+};
+
+const statusMap = new Map(
+    ((data ?? []) as SpotOfferRequestStatusRow[]).map((row) => [
+        Number(row.shift_id),
+        row.status ?? null,
+    ])
+);
 
         const nextCards = baseCards.map((c) => {
             const { shiftId } = parseCardCompositeId(c.id);
 
             return {
                 ...c,
-                has_rpa_request: statusMap.get(shiftId) ?? false,
+                spot_status: statusMap.get(shiftId) ?? null,
             };
         });
 
@@ -777,7 +782,32 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                                             {c.client_name}：{c.service_code ?? ""}
                                         </button>
 
-{c.has_rpa_request && (
+{c.spot_status === "募集中" && (
+    <div
+        style={{
+            position: "absolute",
+            right: 24,
+            top: -2,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "#ffffff",
+            color: "#111827",
+            border: "1px solid #d1d5db",
+            fontSize: 11,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 20,
+        }}
+    >
+        T
+    </div>
+)}
+
+{c.spot_status === "確定" && (
     <div
         style={{
             position: "absolute",
@@ -787,7 +817,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
             height: 18,
             borderRadius: "50%",
             background: "#f59e0b",
-            color: "#fff",
+            color: "#ffffff",
             fontSize: 11,
             fontWeight: 700,
             display: "flex",

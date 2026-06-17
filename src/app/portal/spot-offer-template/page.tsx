@@ -879,25 +879,65 @@ if (workMinutes > 6 * 60 && breakMinutes < 45) {
         status: rpaTarget.status ?? null,
       };
 
-      const { error: insertError } = await supabase.from("rpa_command_requests").insert({
-        template_id: RPA_TEMPLATE_ID,
-        requester_id: authUserId,
-        approver_id: userData.manager_auth_user_id,
-        status: "approved",
-        request_details: details,
-      });
+      if (!resolvedShiftId) {
+        throw new Error("shift_idが取得できないため、求人リクエストを作成できません");
+      }
 
-      if (insertError) throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
-     
-           alert("RPAリクエストを送信しました");
-      setOpenRpa(false);
-      setRpaTarget(null);
-    } catch (e) {
-      setRpaError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSendingRpa(false);
-    }
-  };
+const spotOfferRequestPayload = {
+  core_id: rpaTarget.core_id,
+  shift_id: resolvedShiftId,
+  template_title: rpaTarget.template_title ?? null,
+  kaipoke_cs_id: rpaTarget.kaipoke_cs_id ?? null,
+
+  shift_start_date: shiftStartDate.trim(),
+  shift_start_time: toNullableTime(shiftStartTime),
+  shift_end_time: toNullableTime(shiftEndTime),
+
+  start_at: toNullableTime(shiftStartTime),
+  end_at: toNullableTime(shiftEndTime),
+
+  unit_amount: rpaTarget.unit_amount ?? null,
+  commute_fee: rpaTarget.commute_fee ?? null,
+
+  status: "募集中",
+  updated_at: new Date().toISOString(),
+};
+
+const { error: spotOfferRequestError } = await supabase
+  .from("spot_offer_request_table")
+  .upsert(spotOfferRequestPayload, {
+    onConflict: "shift_id",
+  });
+
+if (spotOfferRequestError) {
+  throw new Error(
+    `spot_offer_request_table登録に失敗: ${spotOfferRequestError.message}`
+  );
+}
+
+const { error: insertError } = await supabase.from("rpa_command_requests").insert({
+  template_id: RPA_TEMPLATE_ID,
+  requester_id: authUserId,
+  approver_id: userData.manager_auth_user_id,
+  status: "approved",
+  request_details: details,
+});
+
+if (insertError) {
+  throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
+}
+
+alert("RPAリクエストを送信しました");
+setOpenRpa(false);
+setRpaTarget(null);
+
+await fetchList();
+} catch (e) {
+  setRpaError(e instanceof Error ? e.message : String(e));
+} finally {
+  setSendingRpa(false);
+}
+};
 
   if (!canAccess) {
     return <div className="p-4 text-red-600">このページは管理者およびマネジャーのみがアクセスできます。</div>;

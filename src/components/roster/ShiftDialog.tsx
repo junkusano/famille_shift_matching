@@ -238,7 +238,7 @@ export default function ShiftDialog({
     try {
 
        const { data, error } = await supabase
-         .from("spot_offer_request")
+         .from("spot_offer_request_table")
          .select("*")
          .eq("shift_id", form.shift_id);
         if (error) {
@@ -344,23 +344,44 @@ const sendRpaRequest = async () => {
             status: selectedTemplate.status ?? null,
         };
 
-        const { error: insertError } = await supabase
-            .from("rpa_command_requests")
-            .insert({
-                template_id: RPA_TEMPLATE_ID,
-                requester_id: authUserId,
-                approver_id: userData.manager_auth_user_id,
-                status: "approved",
-                request_details: details,
-            });
+     const { error: insertError } = await supabase
+    .from("rpa_command_requests")
+    .insert({
+        template_id: RPA_TEMPLATE_ID,
+        requester_id: authUserId,
+        approver_id: userData.manager_auth_user_id,
+        status: "approved",
+        request_details: details,
+    });
 
-        if (insertError) {
-            throw new Error(`RPAリクエスト送信に失敗: ${insertError.message}`);
+if (insertError) {
+    throw new Error(
+        `RPAリクエスト送信に失敗: ${insertError.message}`
+    );
+}
+
+const { error: spotStatusError } = await supabase
+    .from("spot_offer_request_table")
+    .upsert(
+        {
+            shift_id: form.shift_id,
+            core_id: selectedTemplate.core_id,
+            status: "募集中",
+        },
+        {
+            onConflict: "shift_id",
         }
+    );
 
-        alert("RPAリクエストを送信しました");
-        setRpaOpen(false);
-        setSelectedTemplate(null);
+if (spotStatusError) {
+    throw new Error(
+        `スポット募集ステータス更新に失敗: ${spotStatusError.message}`
+    );
+}
+
+alert("RPAリクエストを送信しました");
+setRpaOpen(false);
+setSelectedTemplate(null);   
     } catch (e) {
         alert(e instanceof Error ? e.message : String(e));
     } finally {
