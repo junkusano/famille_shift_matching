@@ -293,6 +293,50 @@ const sendRpaRequest = async () => {
         alert("shift_end_date は必須です");
         return;
     }
+    const start = toNullableTime(shiftStartTime);
+const end = toNullableTime(shiftEndTime);
+const breakStart = breakStartTime.trim() ? toNullableTime(breakStartTime) : null;
+const breakEnd = breakEndTime.trim() ? toNullableTime(breakEndTime) : null;
+
+const toMinutes = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+};
+
+if (start && end) {
+    let workMinutes = toMinutes(end) - toMinutes(start);
+
+    // 日跨ぎ対応
+    if (workMinutes < 0) {
+        workMinutes += 24 * 60;
+    }
+
+    let breakMinutes = 0;
+
+    if (breakStart && breakEnd) {
+        breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+
+        // 日跨ぎ対応
+        if (breakMinutes < 0) {
+            breakMinutes += 24 * 60;
+        }
+    }
+
+    if (workMinutes < 60) {
+        alert("勤務時間は1時間以上で入力してください");
+        return;
+    }
+
+    if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+        alert("勤務時間が8時間以上の場合、1時間以上の休憩が必要です");
+        return;
+    }
+
+    if (workMinutes > 6 * 60 && breakMinutes < 45) {
+        alert("勤務時間が6時間1分以上の場合、45分以上の休憩が必要です");
+        return;
+    }
+}
 
     try {
         setSendingRpa(true);
@@ -324,16 +368,10 @@ const sendRpaRequest = async () => {
             kaipoke_cs_id: shift?.kaipoke_cs_id ?? null,
 
             shift_start_date: shiftStartDate.trim(),
-            shift_start_time: toNullableTime(shiftStartTime),
-            shift_end_date: shiftEndDate.trim(),
-            shift_end_time: toNullableTime(shiftEndTime),
-
-            break_start_time: breakStartTime.trim()
-                ? toNullableTime(breakStartTime)
-                : null,
-            break_end_time: breakEndTime.trim()
-                ? toNullableTime(breakEndTime)
-                : null,
+            sshift_start_time: start,
+            shift_end_time: end,
+            break_start_time: breakStart,
+            break_end_time: breakEnd,
 
             requester_user_id: userData.user_id,
 
