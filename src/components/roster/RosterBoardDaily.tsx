@@ -786,7 +786,7 @@ const statusMap = new Map(
     <div
         style={{
             position: "absolute",
-            right: 24,
+            right: 44,
             top: -2,
             width: 18,
             height: 18,
@@ -811,7 +811,7 @@ const statusMap = new Map(
     <div
         style={{
             position: "absolute",
-            right: 24,
+            right: 44,
             top: -2,
             width: 18,
             height: 18,
