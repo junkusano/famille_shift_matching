@@ -51,6 +51,8 @@ type SpotOfferRequestTemplate = {
     start_at?: string | null;
     end_at?: string | null;
     kaipoke_cs_id?: string | null;
+    unit_amount: number | null;
+    commute_fee: number | null;
 };
 
 type Props = {
@@ -404,18 +406,18 @@ export default function ShiftDialog({
                 .from("spot_offer_request_table")
                 .upsert(
                     {
-                        core_id: selectedTemplate.core_id,
                         shift_id: form.shift_id,
+                        core_id: selectedTemplate.core_id,
                         template_title: selectedTemplate.template_title ?? null,
-                        kaipoke_cs_id: shift?.kaipoke_cs_id ?? null,
+                        kaipoke_cs_id: shift?.kaipoke_cs_id ?? selectedTemplate.kaipoke_cs_id ?? null,
                         shift_start_date: shiftStartDate.trim(),
                         shift_start_time: start,
                         shift_end_time: end,
                         start_at: start,
                         end_at: end,
-                        unit_amount: selectedTemplate.salary ?? null,
-                        commute_fee: selectedTemplate.fare ?? null,
-                        status: "募集中",
+                        unit_amount: selectedTemplate.unit_amount ?? 1330,
+                        commute_fee: selectedTemplate.commute_fee ?? 200,
+                        status: "募集なし",
                         updated_at: new Date().toISOString(),
                     },
                     {
