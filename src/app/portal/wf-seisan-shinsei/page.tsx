@@ -211,6 +211,7 @@ export default function WfSeisanShinseiPage() {
     const [cpDate, setCpDate] = useState<string>("");
     const [cpAmount, setCpAmount] = useState<string>(""); // 入力は文字列→保存時に数値化
     const [cpMemo, setCpMemo] = useState<string>("");
+    const [healthCheckDate, setHealthCheckDate] = useState<string>("");
     const [cpKaipokeCsId, setCpKaipokeCsId] = useState<string>("");
     //const [cpClientName, setCpClientName] = useState<string>("");
 
@@ -262,6 +263,7 @@ export default function WfSeisanShinseiPage() {
             setCpAmount("");
             setCpMemo("");
             setCpKaipokeCsId("");
+            setHealthCheckDate("");
             setSelectedApprovers([]);
 
             await loadList();
@@ -413,6 +415,12 @@ export default function WfSeisanShinseiPage() {
             const p = (d.request.payload ?? {}) as Record<string, unknown>;
             const kind = String(p["expense_kind"] ?? "");
 
+            if (requestTypeCode === "health_check") {
+                setHealthCheckDate(String(p["health_check_date"] ?? ""));
+            } else {
+                setHealthCheckDate("");
+            }
+
             if (kind === "coin_parking") {
                 setCpDate(String(p["date"] ?? ""));
                 const amt = p["amount"];
@@ -527,11 +535,16 @@ export default function WfSeisanShinseiPage() {
             }
 
             if (requestTypeCode === "health_check") {
+                if (!healthCheckDate.trim()) {
+                    alert("受診日を入力してください");
+                    return;
+                }
+
                 payload = {
                     template: "health_check",
+                    health_check_date: healthCheckDate.trim(),
                 };
             }
-
             await apiFetch(`/api/wf-requests/${selectedId}`, {
                 method: "PATCH",
                 body: JSON.stringify({
@@ -565,6 +578,11 @@ export default function WfSeisanShinseiPage() {
         if (!selectedId) return;
 
         if (detail?.request.request_type?.code === "health_check") {
+            if (!healthCheckDate.trim()) {
+                alert("受診日を入力してください。");
+                return;
+            }
+
             const attachments = detail.attachments ?? [];
 
             const hasHealthResult = attachments.some(
@@ -902,6 +920,19 @@ export default function WfSeisanShinseiPage() {
 
                                             <div className="text-xs text-gray-500 mt-1">
                                                 下記の説明をご確認のうえ、受診結果と領収書を添付してください。
+                                            </div>
+                                            <div className="mt-3">
+                                                <div className="text-xs text-gray-600 mb-1">受診日</div>
+                                                <input
+                                                    type="date"
+                                                    className="border rounded px-2 py-1"
+                                                    value={healthCheckDate}
+                                                    onChange={(e) => setHealthCheckDate(e.target.value)}
+                                                    disabled={!canEdit}
+                                                />
+                                                <div className="mt-1 text-xs text-gray-500">
+                                                    受診日をもとに年度表示します。例：2025年度は2025年4月1日～2026年3月31日です。
+                                                </div>
                                             </div>
 
                                             <details className="mt-3 border rounded p-3">
