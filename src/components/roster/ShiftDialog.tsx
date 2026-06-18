@@ -370,7 +370,7 @@ if (start && end) {
             kaipoke_cs_id: shift?.kaipoke_cs_id ?? null,
 
             shift_start_date: shiftStartDate.trim(),
-            sshift_start_time: start,
+            shift_start_time: start,
             shift_end_time: end,
             break_start_time: breakStart,
             break_end_time: breakEnd,
