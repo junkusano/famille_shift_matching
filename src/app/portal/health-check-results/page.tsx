@@ -249,9 +249,6 @@ export default function HealthCheckResultsPage() {
                                                     row.created_at;
 
                                                 const fileId = extractFileId(row.file_path);
-                                                const openUrl = fileId
-                                                    ? `https://drive.google.com/file/d/${fileId}/view`
-                                                    : row.file_path;
 
                                                 const imageUrl = fileId
                                                     ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
@@ -275,30 +272,16 @@ export default function HealthCheckResultsPage() {
                                                                     {row.file_name}
                                                                 </div>
                                                             </div>
-
-                                                            <a
-                                                                href={openUrl}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="rounded border bg-white px-3 py-1 text-sm text-blue-600 underline"
-                                                            >
-                                                                別画面で開く
-                                                            </a>
                                                         </div>
 
                                                         {isImage ? (
-                                                            <a
-                                                                href={openUrl}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="block"
-                                                            >
+                                                            <div className="rounded border bg-white p-2">
                                                                 <img
                                                                     src={imageUrl}
                                                                     alt={row.file_name}
-                                                                    className="max-h-[720px] w-full rounded border bg-white object-contain"
+                                                                    className="max-h-[720px] w-full object-contain"
                                                                 />
-                                                            </a>
+                                                            </div>
                                                         ) : (
                                                             <div className="rounded border bg-white p-4 text-sm text-gray-600">
                                                                 画像以外のファイルです。上の「別画面で開く」から確認してください。
