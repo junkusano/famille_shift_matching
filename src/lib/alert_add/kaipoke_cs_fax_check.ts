@@ -156,7 +156,7 @@ export async function runKaipokeCsFaxCheck(): Promise<KaipokeCsFaxCheckResult> {
             .from("cs_kaipoke_info")
             .select("id, kaipoke_cs_id, name, care_consultant, is_active, service_kind")
             .in("kaipoke_cs_id", ids)
-            .in("service_kind", ["要介護", "要支援"]);
+            .in("service_kind", ["要介護", "要支援", "障害"]);
 
         if (error) {
             console.error("[kaipoke_cs_fax_check] cs_kaipoke_info error", error);
