@@ -131,68 +131,68 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     const [selectedShift, setSelectedShift] = useState<RosterShiftDialogData | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
- useEffect(() => {
-    let cancelled = false;
+    useEffect(() => {
+        let cancelled = false;
 
-    const loadRpaStatus = async () => {
-        const baseCards = initialView.shifts;
+        const loadRpaStatus = async () => {
+            const baseCards = initialView.shifts;
 
-        const shiftIds = Array.from(
-            new Set(
-                baseCards
-                    .map((c) => parseCardCompositeId(c.id).shiftId)
-                    .filter((id) => Number.isFinite(id))
-            )
-        );
+            const shiftIds = Array.from(
+                new Set(
+                    baseCards
+                        .map((c) => parseCardCompositeId(c.id).shiftId)
+                        .filter((id) => Number.isFinite(id))
+                )
+            );
 
-        if (shiftIds.length === 0) {
-            setCards(baseCards);
-            return;
-        }
+            if (shiftIds.length === 0) {
+                setCards(baseCards);
+                return;
+            }
 
-        const { data, error } = await supabase
-            .from("spot_offer_request_table")
-            .select("shift_id, status")
-            .in("shift_id", shiftIds);
+            const { data, error } = await supabase
+                .from("spot_offer_request_table")
+                .select("shift_id, status")
+                .in("shift_id", shiftIds);
 
-        if (error) {
-            console.error("RPA状態取得エラー:", error);
-            setCards(baseCards);
-            return;
-        }
+            if (error) {
+                console.error("RPA状態取得エラー:", error);
+                setCards(baseCards);
+                return;
+            }
 
-type SpotOfferRequestStatusRow = {
-    shift_id: number | string;
-    status: string | null;
-};
-
-const statusMap = new Map(
-    ((data ?? []) as SpotOfferRequestStatusRow[]).map((row) => [
-        Number(row.shift_id),
-        row.status ?? null,
-    ])
-);
-
-        const nextCards = baseCards.map((c) => {
-            const { shiftId } = parseCardCompositeId(c.id);
-
-            return {
-                ...c,
-                spot_status: statusMap.get(shiftId) ?? null,
+            type SpotOfferRequestStatusRow = {
+                shift_id: number | string;
+                status: string | null;
             };
-        });
 
-        if (!cancelled) {
-            setCards(nextCards);
-        }
-    };
+            const statusMap = new Map(
+                ((data ?? []) as SpotOfferRequestStatusRow[]).map((row) => [
+                    Number(row.shift_id),
+                    row.status ?? null,
+                ])
+            );
 
-    void loadRpaStatus();
+            const nextCards = baseCards.map((c) => {
+                const { shiftId } = parseCardCompositeId(c.id);
 
-    return () => {
-        cancelled = true;
-    };
-}, [initialView.shifts, date]);
+                return {
+                    ...c,
+                    spot_status: statusMap.get(shiftId) ?? null,
+                };
+            });
+
+            if (!cancelled) {
+                setCards(nextCards);
+            }
+        };
+
+        void loadRpaStatus();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [initialView.shifts, date]);
 
     // チーム（org名）一覧（orgunitname を期待）
     const allTeams = useMemo(() => {
@@ -783,17 +783,17 @@ const statusMap = new Map(
                                         </button>
 
 
-{c.spot_status === "募集中" && (
-    <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
-        T
-    </div>
-)}
+                                        {c.spot_status === "募集中" && (
+                                            <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
+                                                T
+                                            </div>
+                                        )}
 
-{c.spot_status === "確定" && (
-    <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
-        T
-    </div>
-)}
+                                        {c.spot_status === "確定" && (
+                                            <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
+                                                T
+                                            </div>
+                                        )}
 
                                         {c.dsp_short ? (
                                             <div
