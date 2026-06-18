@@ -784,13 +784,13 @@ const statusMap = new Map(
 
 
 {c.spot_status === "募集中" && (
-    <div className="absolute -top-2 right-5 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-bold text-gray-900 shadow">
+    <div className="absolute -top-2 right-3 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
         T
     </div>
 )}
 
 {c.spot_status === "確定" && (
-    <div className="absolute -top-2 right-5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-300 text-[11px] font-bold text-black shadow">
+    <div className="absolute -top-2 right-3 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
         T
     </div>
 )}
