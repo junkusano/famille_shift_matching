@@ -254,9 +254,17 @@ export default function HealthCheckResultsPage() {
                                                     ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
                                                     : row.file_path;
 
+                                                const pdfUrl = fileId
+                                                    ? `https://drive.google.com/file/d/${fileId}/preview`
+                                                    : row.file_path;
+
                                                 const isImage =
                                                     row.mime_type?.startsWith("image/") ||
                                                     /\.(png|jpe?g|webp|gif)$/i.test(row.file_name);
+
+                                                const isPdf =
+                                                    row.mime_type === "application/pdf" ||
+                                                    /\.pdf$/i.test(row.file_name);
 
                                                 return (
                                                     <div
@@ -282,9 +290,17 @@ export default function HealthCheckResultsPage() {
                                                                     className="max-h-[720px] w-full object-contain"
                                                                 />
                                                             </div>
+                                                        ) : isPdf ? (
+                                                            <div className="rounded border bg-white p-2">
+                                                                <iframe
+                                                                    src={pdfUrl}
+                                                                    title={row.file_name}
+                                                                    className="h-[720px] w-full rounded border"
+                                                                />
+                                                            </div>
                                                         ) : (
                                                             <div className="rounded border bg-white p-4 text-sm text-gray-600">
-                                                                画像以外のファイルです。上の「別画面で開く」から確認してください。
+                                                                このファイル形式はプレビュー表示できません。
                                                             </div>
                                                         )}
                                                     </div>
