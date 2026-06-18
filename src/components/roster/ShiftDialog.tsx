@@ -237,15 +237,17 @@ export default function ShiftDialog({
 
     try {
 
-       const { data, error } = await supabase
-         .from("spot_offer_request_table")
-         .select("*")
-         .eq("shift_id", form.shift_id);
+const { data, error } = await supabase
+  .from("spot_offer_request")
+  .select("*")
+  .eq("kaipoke_cs_id", shift.kaipoke_cs_id);
         if (error) {
             throw error;
         }
 
-        const rows = data ?? [];
+       const rows = Array.from(
+        new Map((data ?? []).map((r) => [r.core_id, r])).values()
+       );
 
         if (rows.length === 0) {
             setErrorMsg("利用者に紐づくテンプレートがありません");
