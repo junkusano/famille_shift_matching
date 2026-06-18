@@ -782,51 +782,15 @@ const statusMap = new Map(
                                             {c.client_name}：{c.service_code ?? ""}
                                         </button>
 
+
 {c.spot_status === "募集中" && (
-    <div
-        style={{
-            position: "absolute",
-            right: 28,
-            top: -8,
-            width: 18,
-            height: 18,
-            borderRadius: "50%",
-            background: "#ffffff",
-            color: "#111827",
-            border: "1px solid #d1d5db",
-            fontSize: 11,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-            zIndex: 20,
-        }}
-    >
+    <div className="absolute -top-2 right-5 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-bold text-gray-900 shadow">
         T
     </div>
 )}
 
 {c.spot_status === "確定" && (
-    <div
-        style={{
-            position: "absolute",
-            right: 28,
-            top: -8,
-            width: 18,
-            height: 18,
-            borderRadius: "50%",
-            background: "#f59e0b",
-            color: "#ffffff",
-            fontSize: 11,
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-            zIndex: 20,
-        }}
-    >
+    <div className="absolute -top-2 right-5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-300 text-[11px] font-bold text-black shadow">
         T
     </div>
 )}
