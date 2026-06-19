@@ -690,9 +690,9 @@ const saveTemplate = async () => {
     if (!ok) return;
 
     const payload: Partial<SpotOfferTemplateUnified> = {
-      timee_offer_id: row.timee_offer_id ?? null,
-      ucare_offer_id: row.ucare_offer_id ?? null,
-      kaiteku_offer_id: row.kaiteku_offer_id ?? null,
+      timee_offer_id: null,
+      ucare_offer_id: null,
+      kaiteku_offer_id: null,
       template_title: `${row.template_title ?? "(無題)"} コピー`,
       work_description: row.work_description ?? null,
       cautions: row.cautions ?? null,
