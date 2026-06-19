@@ -723,12 +723,20 @@ const saveTemplate = async () => {
       meeting_place_banchi: row.meeting_place_banchi ?? null,
     };
 
-    const created = await spotApi.createTemplate(payload);
+    await spotApi.createTemplate(payload);
+
+const data = await spotApi.listTemplates({ q });
+
+const copied = data.find(
+  (r) =>
+    r.template_title === payload.template_title &&
+    r.kaipoke_cs_id === payload.kaipoke_cs_id
+);
 
 await fetchList();
 
-if (created) {
-  openUpdate(created);
+if (copied) {
+  openUpdate(copied);
 }
   } catch (e) {
     setError(e instanceof Error ? e.message : String(e));
