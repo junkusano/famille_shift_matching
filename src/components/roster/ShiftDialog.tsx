@@ -117,6 +117,45 @@ const dispTime = (v?: string | null) => {
     return `${m[1].padStart(2, '0')}:${m[2]}`;
 };
 
+const getBreakValidationMessage = (
+    startText: string,
+    endText: string,
+    breakStartText: string,
+    breakEndText: string
+): string | null => {
+    const start = startText.trim() ? toNullableTime(startText) : null;
+    const end = endText.trim() ? toNullableTime(endText) : null;
+    const breakStart = breakStartText.trim() ? toNullableTime(breakStartText) : null;
+    const breakEnd = breakEndText.trim() ? toNullableTime(breakEndText) : null;
+
+    if (!start || !end) return null;
+
+    const toMinutes = (t: string) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+    };
+
+    let workMinutes = toMinutes(end) - toMinutes(start);
+    if (workMinutes < 0) workMinutes += 24 * 60;
+
+    let breakMinutes = 0;
+
+    if (breakStart && breakEnd) {
+        breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+        if (breakMinutes < 0) breakMinutes += 24 * 60;
+    }
+
+    if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+        return "8時間以上の勤務のため、1時間以上の休憩を入力してください";
+    }
+
+    if (workMinutes > 6 * 60 && breakMinutes < 45) {
+        return "6時間を超える勤務のため、45分以上の休憩を入力してください";
+    }
+
+    return null;
+};
+
 export default function ShiftDialog({
     open,
     onClose,
@@ -141,8 +180,23 @@ export default function ShiftDialog({
     const [shiftEndDate, setShiftEndDate] = useState("");
     const [shiftEndTime, setShiftEndTime] = useState("");
 
-
-
+    const breakValidationMessage = useMemo(() => {
+    try {
+        return getBreakValidationMessage(
+            shiftStartTime,
+            shiftEndTime,
+            breakStartTime,
+            breakEndTime
+        );
+    } catch {
+        return null;
+    }
+}, [
+    shiftStartTime,
+    shiftEndTime,
+    breakStartTime,
+    breakEndTime,
+]);
 
     useEffect(() => {
         if (!open || !shift) return;
@@ -297,6 +351,10 @@ export default function ShiftDialog({
             alert("shift_end_date は必須です");
             return;
         }
+        if (breakValidationMessage) {
+            alert(breakValidationMessage);
+            return;
+       }
         const start = toNullableTime(shiftStartTime);
         const end = toNullableTime(shiftEndTime);
         const breakStart = breakStartTime.trim() ? toNullableTime(breakStartTime) : null;
@@ -351,6 +409,20 @@ export default function ShiftDialog({
             if (!authUserId) {
                 throw new Error("ログインユーザー未取得");
             }
+            // 重複チェック
+            const { data: existingRequest } = await supabase
+                .from("spot_offer_request_table")
+                .select("shift_id,status")
+                .eq("shift_id", form.shift_id)
+                .in("status", ["募集中", "確定"])
+                .maybeSingle();
+
+            if (existingRequest) {
+                throw new Error(`このシフトは既にスポット募集が開始されています（${existingRequest.status}）`
+                );
+            }
+
+
 
             const { data: userData, error: userError } = await supabase
                 .from("user_entry_united_view")
@@ -750,7 +822,24 @@ export default function ShiftDialog({
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
-                        {errorMsg ? <span className="text-sm text-red-600">{errorMsg}</span> : null}
+                        {errorMsg ? (
+                            <div className="text-sm text-red-600">
+                                {errorMsg}
+
+                             {errorMsg === "利用者に紐づくテンプレートがありません" && (
+                                    <div className="mt-1">
+                                        <Link
+                                         href="/portal/spot-offer-template"
+                                        target="_blank"
+                                        className="text-blue-600 underline"   
+                                    >
+                                     テンプレートを作成する   
+                                     </Link>
+                                    </div>
+                                 )}
+                            </div>
+                        ) : null}
+
                         {doneMsg ? <span className="text-sm text-green-600">{doneMsg}</span> : null}
 
                         <Link href={clientDetailHref} className="text-blue-600 underline">
@@ -906,6 +995,11 @@ export default function ShiftDialog({
                                     placeholder="1230 / 12:30（空欄OK）"
                                 />
                             </div>
+                            {breakValidationMessage && (
+                                <div className="col-span-full text-xs text-red-600">
+                                    {breakValidationMessage}
+                                </div>
+                            )}
                         </div>
 
                         <div className="text-[11px] text-muted-foreground">

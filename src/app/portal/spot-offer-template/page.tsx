@@ -221,12 +221,6 @@ export default function SpotOfferTemplatePage() {
   const [fBreakStartTime, setFBreakStartTime] = useState("");
   const [fBreakEndTime, setFBreakEndTime] = useState("");
 
-
-  type ClientPreview = {
-  name: string | null;
-  address: string | null;
-};
-
 type ParkingPreview = {
   id: string;
   label: string | null;
@@ -236,6 +230,23 @@ type ParkingPreview = {
 };
   const [breakStartTime, setBreakStartTime] = useState("");
   const [breakEndTime, setBreakEndTime] = useState("");
+  const breakValidationMessage = useMemo(() => {
+  try {
+    return getBreakValidationMessage(
+      shiftStartTime,
+      shiftEndTime,
+      breakStartTime,
+      breakEndTime
+    );
+  } catch {
+    return null;
+  }
+}, [shiftStartTime, shiftEndTime, breakStartTime, breakEndTime]);
+
+  type ClientPreview = {
+  name: string | null;
+  address: string | null;
+};
 
   const [clientPreview, setClientPreview] = useState<ClientPreview | null>(null);
   const [parkingPreview, setParkingPreview] = useState<ParkingPreview[]>([]);
@@ -668,6 +679,56 @@ const saveTemplate = async () => {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
+  const copyTemplate = async (row: SpotOfferTemplateUnified) => {
+  try {
+    setError(null);
+
+    const ok = window.confirm(
+      `このテンプレートをコピーしますか？\n\n${row.template_title ?? "(無題)"}`
+    );
+
+    if (!ok) return;
+
+    const payload: Partial<SpotOfferTemplateUnified> = {
+      timee_offer_id: row.timee_offer_id ?? null,
+      ucare_offer_id: row.ucare_offer_id ?? null,
+      kaiteku_offer_id: row.kaiteku_offer_id ?? null,
+      template_title: `${row.template_title ?? "(無題)"} コピー`,
+      work_description: row.work_description ?? null,
+      cautions: row.cautions ?? null,
+      auto_message: row.auto_message ?? null,
+      work_address: row.work_address ?? null,
+      emergency_phone: row.emergency_phone ?? null,
+      smoking_policy: row.smoking_policy ?? null,
+      smoking_area_work: row.smoking_area_work ?? null,
+      requires_license: row.requires_license ?? true,
+      required_licenses: row.required_licenses ?? [],
+      benefits: row.benefits ?? [],
+      belongings: row.belongings ?? [],
+      internal_label: row.internal_label ?? null,
+      photo_urls: row.photo_urls ?? [],
+      salary: row.salary ?? null,
+      fare: row.fare ?? null,
+      kaipoke_cs_id: row.kaipoke_cs_id ?? null,
+      start_at: row.start_at ?? null,
+      end_at: row.end_at ?? null,
+      status: "active",
+      unit_amount: row.unit_amount ?? null,
+      commute_fee: row.commute_fee ?? null,
+      send_msg_flg: row.send_msg_flg ?? true,
+      matching_msg: row.matching_msg ?? null,
+      meeting_place: row.meeting_place ?? null,
+      meeting_yuubinn: row.meeting_yuubinn ?? null,
+      matching_place_name: row.matching_place_name ?? null,
+      meeting_place_banchi: row.meeting_place_banchi ?? null,
+    };
+
+    await spotApi.createTemplate(payload);
+    await fetchList();
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+  }
+};
 
   const openRpaDialog = async (row: SpotOfferTemplateUnified) => {
     setRpaTarget(row);
@@ -686,7 +747,49 @@ const saveTemplate = async () => {
      setOpenRpa(true);
   };
 
- 
+  const getBreakValidationMessage = (
+  startText: string,
+  endText: string,
+  breakStartText: string,
+  breakEndText: string
+): string | null => {
+  const start = startText.trim() ? toNullableTime(startText) : null;
+  const end = endText.trim() ? toNullableTime(endText) : null;
+  const breakStart = breakStartText.trim() ? toNullableTime(breakStartText) : null;
+  const breakEnd = breakEndText.trim() ? toNullableTime(breakEndText) : null;
+
+  if (!start || !end) return null;
+
+  const toMinutes = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  let workMinutes = toMinutes(end) - toMinutes(start);
+  if (workMinutes < 0) workMinutes += 24 * 60;
+
+  let breakMinutes = 0;
+  if (breakStart && breakEnd) {
+    breakMinutes = toMinutes(breakEnd) - toMinutes(breakStart);
+    if (breakMinutes < 0) breakMinutes += 24 * 60;
+  }
+
+  if (workMinutes >= 8 * 60 && breakMinutes < 60) {
+    return "8時間以上の勤務のため、1時間以上の休憩を入力してください";
+  }
+
+  if (workMinutes > 6 * 60 && breakMinutes < 45) {
+    return "6時間を超える勤務のため、45分以上の休憩を入力してください";
+  }
+
+  return null;
+};
+
+if (breakValidationMessage) {
+  setRpaFieldErrors({ breakStartTime: breakValidationMessage });
+  setRpaError("休憩時間を確認してください");
+  return;
+}
 
   const sendRpaRequest = async () => {
   if (!rpaTarget) return;
@@ -883,6 +986,33 @@ if (workMinutes > 6 * 60 && breakMinutes < 45) {
         throw new Error("shift_idが取得できないため、求人リクエストを作成できません");
       }
 
+            // 重複チェック
+
+      const { data: existingRequest } = await supabase
+
+      .from("spot_offer_request_table")
+
+      .select("shift_id,status")
+
+      .eq("shift_id", resolvedShiftId)
+
+      .in("status", ["募集中", "確定"])
+
+      .maybeSingle();
+
+
+
+      if (existingRequest) {
+
+        throw new Error(
+
+          `既にスポット募集済みです（${existingRequest.status}）`
+
+        );
+
+      }
+
+
 const spotOfferRequestPayload = {
   core_id: rpaTarget.core_id,
   shift_id: resolvedShiftId,
@@ -1057,6 +1187,10 @@ await fetchList();
                       <Button size="sm" variant="outline" onClick={() => openUpdate(r)}>
                         編集
                       </Button>
+
+                      <Button size="sm" variant="outline" onClick={() => copyTemplate(r)}>
+                        コピー
+                      </Button>
                       <Button size="sm" variant="destructive" onClick={() => deleteTemplate(r)}>
                         削除
                       </Button>
@@ -1206,6 +1340,11 @@ await fetchList();
           placeholder="休憩終了 例：1230 / 12:30"
         />
       </div>
+      {breakValidationMessage && (
+  <div className="mt-1 text-xs text-red-600">
+    {breakValidationMessage}
+  </div>
+)}
     </div>
     <div>
       <FieldLabel required>時給</FieldLabel>
