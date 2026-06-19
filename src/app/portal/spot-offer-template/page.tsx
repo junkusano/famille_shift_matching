@@ -723,8 +723,13 @@ const saveTemplate = async () => {
       meeting_place_banchi: row.meeting_place_banchi ?? null,
     };
 
-    await spotApi.createTemplate(payload);
-    await fetchList();
+    const created = await spotApi.createTemplate(payload);
+
+await fetchList();
+
+if (created) {
+  openUpdate(created);
+}
   } catch (e) {
     setError(e instanceof Error ? e.message : String(e));
   }
