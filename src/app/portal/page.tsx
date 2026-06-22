@@ -215,7 +215,7 @@ export default function PortalHome() {
       </div>
 
       {/* よく使う機能 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
 
         {/* シフ子 */}
         <button
