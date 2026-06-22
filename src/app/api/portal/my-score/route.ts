@@ -223,6 +223,7 @@ type ScoreRow = {
     jisseki_previous_month_done_count: number | null;
     jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
+    health_check_done: boolean | null;
     visit_record_current_month_incomplete_count: number | null;
     shift_decline_3days_count: number | null;
     shift_decline_6hours_count: number | null;
@@ -265,6 +266,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
     const shiftDeclinePenaltyScore = Number(
         row.shift_decline_penalty_score ?? 0
     );
+    const healthCheckScore = row.health_check_done === true ? 10 : 0;
 
     return Math.max(
         0,
@@ -273,6 +275,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
         meetingScore +
         jissekiScore +
         trainingGoalScore -
+        healthCheckScore -
         shiftDeclinePenaltyScore
     );
 }
@@ -477,6 +480,7 @@ export async function GET(req: NextRequest) {
             jisseki_past_incomplete_count,
             visit_record_current_month_incomplete_count,
             training_goal_selected_count,
+            health_check_done,
 shift_decline_3days_count,
 shift_decline_6hours_count,
 shift_decline_penalty_score
@@ -552,7 +556,7 @@ shift_decline_penalty_score
         debugDbTotalScore: summary.total_score,
         debugTargetMonth: summary.target_month,
         debugUserId: summary.user_id,
-        totalMaxScore: 150,
+        totalMaxScore: 160,
         badge: getBadge(totalScore),
         metrics: [
             {
@@ -615,6 +619,13 @@ shift_decline_penalty_score
                 linkUrl: addParams("/portal/training-goals", {
                     user_id: userId,
                 }),
+            },
+            {
+                key: "health_check",
+                label: "健康診断",
+                score: summary.health_check_done ? 10 : 0,
+                maxScore: 10,
+                note: summary.health_check_done ? "提出済み" : "未提出",
             },
         ],
         ranking: {

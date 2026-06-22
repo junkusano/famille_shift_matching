@@ -558,7 +558,7 @@ export async function GET(req: NextRequest) {
         );
 
         const trainingGoalCountMap = new Map<string, number>();
-        const healthCheckDoneEntryIdMap = new Map<string, boolean>();
+        const healthCheckDoneUserIdMap = new Map<string, boolean>();
 
         if (entryIds.length > 0) {
 
@@ -573,11 +573,19 @@ export async function GET(req: NextRequest) {
             }
 
             if (healthType?.id) {
+                const userIds = Array.from(
+                    new Set(
+                        rows
+                            .map((row) => row.user_id)
+                            .filter((userId): userId is string => Boolean(userId))
+                    )
+                );
+
                 const { data: healthRequests, error: healthRequestError } =
                     await supabaseAdmin
                         .from("wf_request")
-                        .select("id, entry_id")
-                        .in("entry_id", entryIds)
+                        .select("id, applicant_user_id")
+                        .in("applicant_user_id", userIds)
                         .eq("request_type_id", healthType.id)
                         .in("status", ["submitted", "approved"]);
 
@@ -604,10 +612,10 @@ export async function GET(req: NextRequest) {
                     );
 
                     for (const req of healthRequests ?? []) {
-                        if (!req.entry_id) continue;
+                        if (!req.applicant_user_id) continue;
                         if (!submittedHealthRequestIds.has(req.id)) continue;
 
-                        healthCheckDoneEntryIdMap.set(req.entry_id, true);
+                        healthCheckDoneUserIdMap.set(req.applicant_user_id, true);
                     }
                 }
             }
@@ -850,7 +858,7 @@ export async function GET(req: NextRequest) {
                     row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0;
 
                 const healthCheckDone =
-                    row.entry_id ? healthCheckDoneEntryIdMap.get(row.entry_id) === true : false;
+                    healthCheckDoneUserIdMap.get(row.user_id) === true;
 
                 const rowWithIncompleteCounts = {
                     ...row,
@@ -912,7 +920,7 @@ export async function GET(req: NextRequest) {
             training_goal_selected_count:
                 row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0,
             health_check_done:
-                row.entry_id ? healthCheckDoneEntryIdMap.get(row.entry_id) === true : false,
+                healthCheckDoneUserIdMap.get(row.user_id) === true,
             shift_decline_3days_count:
                 row.shift_decline_3days_count ?? 0,
             shift_decline_6hours_count:
