@@ -55,6 +55,13 @@ type SpotOfferRequestTemplate = {
     commute_fee: number | null;
 };
 
+type SpotConfirmed = {
+    applicant_name: string | null;
+    applicant_sex: string | null;
+    applicant_control_url: string | null;
+    status: string | null;
+};
+
 type Props = {
     open: boolean;
     onClose: () => void;
@@ -179,6 +186,8 @@ export default function ShiftDialog({
     const [shiftStartTime, setShiftStartTime] = useState("");
     const [shiftEndDate, setShiftEndDate] = useState("");
     const [shiftEndTime, setShiftEndTime] = useState("");
+    const [spotConfirmed, setSpotConfirmed] =
+    useState<SpotConfirmed | null>(null);
 
     const breakValidationMessage = useMemo(() => {
     try {
@@ -219,7 +228,32 @@ export default function ShiftDialog({
             judo_ido: shift.judo_ido ?? '',
             cs_note: shift.cs_note ?? '',
         });
+    
     }, [open, shift]);
+    useEffect(() => {
+    const loadSpotConfirmed = async () => {
+        if (!open || !shift?.shift_id) {
+            setSpotConfirmed(null);
+            return;
+        }
+
+        const { data } = await supabase
+            .from('spot_offer_request_table')
+            .select(`
+                applicant_name,
+                applicant_sex,
+                applicant_control_url,
+                status
+            `)
+            .eq('shift_id', shift.shift_id)
+            .eq('status', '確定')
+            .maybeSingle();
+
+        setSpotConfirmed(data ?? null);
+    };
+
+    loadSpotConfirmed();
+}, [open, shift?.shift_id]);
 
     const monthlyHref = useMemo(() => {
         if (!shift?.kaipoke_cs_id || !shift?.shift_date) return '/portal/roster/monthly';
@@ -679,6 +713,29 @@ export default function ShiftDialog({
                                     ))}
                                 </select>
                             </label>
+                            {spotConfirmed && (
+    <div className="rounded border border-green-300 bg-green-50 p-3">
+        <div className="text-xs text-gray-500">
+            スポット確定
+        </div>
+
+        <div className="font-medium">
+            {spotConfirmed.applicant_name}
+            （{spotConfirmed.applicant_sex}）
+        </div>
+
+        {spotConfirmed.applicant_control_url && (
+            <a
+                href={spotConfirmed.applicant_control_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline break-all"
+            >
+                応募者管理画面
+            </a>
+        )}
+    </div>
+)}
                         </section>
 
                         <section className="space-y-3 rounded-lg border p-3">
