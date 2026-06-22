@@ -679,68 +679,56 @@ const saveTemplate = async () => {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
-  const copyTemplate = async (row: SpotOfferTemplateUnified) => {
-  try {
-    setError(null);
 
-    const ok = window.confirm(
-      `このテンプレートをコピーしますか？\n\n${row.template_title ?? "(無題)"}`
-    );
+const copyTemplate = (row: SpotOfferTemplateUnified) => {
+  setEditing(null);
 
-    if (!ok) return;
+  setFTimeeOfferId("");
+  setFUcareOfferId("");
+  setFKaitekuOfferId("");
 
-    const payload: Partial<SpotOfferTemplateUnified> = {
-      timee_offer_id: null,
-      ucare_offer_id: null,
-      kaiteku_offer_id: null,
-      template_title: `${row.template_title ?? "(無題)"} コピー`,
-      work_description: row.work_description ?? null,
-      cautions: row.cautions ?? null,
-      auto_message: row.auto_message ?? null,
-      work_address: row.work_address ?? null,
-      emergency_phone: row.emergency_phone ?? null,
-      smoking_policy: row.smoking_policy ?? null,
-      smoking_area_work: row.smoking_area_work ?? null,
-      requires_license: row.requires_license ?? true,
-      required_licenses: row.required_licenses ?? [],
-      benefits: row.benefits ?? [],
-      belongings: row.belongings ?? [],
-      internal_label: row.internal_label ?? null,
-      photo_urls: row.photo_urls ?? [],
-      salary: row.salary ?? null,
-      fare: row.fare ?? null,
-      kaipoke_cs_id: row.kaipoke_cs_id ?? null,
-      start_at: row.start_at ?? null,
-      end_at: row.end_at ?? null,
-      status: "active",
-      unit_amount: row.unit_amount ?? null,
-      commute_fee: row.commute_fee ?? null,
-      send_msg_flg: row.send_msg_flg ?? true,
-      matching_msg: row.matching_msg ?? null,
-      meeting_place: row.meeting_place ?? null,
-      meeting_yuubinn: row.meeting_yuubinn ?? null,
-      matching_place_name: row.matching_place_name ?? null,
-      meeting_place_banchi: row.meeting_place_banchi ?? null,
-    };
+  setFTitle(`${row.template_title ?? "(無題)"} コピー`);
+  setFDesc(row.work_description ?? "");
+  setFCautions(row.cautions ?? "");
+  setFAutoMsg(row.auto_message ?? "");
+  setFAddress(row.work_address ?? "");
+  setFEmergencyPhone(row.emergency_phone ?? "");
 
-    await spotApi.createTemplate(payload);
+  setFSmokingPolicy(row.smoking_policy ?? "");
+  setFSmokingAreaWork(row.smoking_area_work ?? null);
 
-const data = await spotApi.listTemplates({ q });
+  setFRequiresLicense(row.requires_license ?? true);
+  setFRequiredLicenses(row.required_licenses ?? []);
 
-const copied = data.find(
-  (r) =>
-    r.template_title === payload.template_title &&
-    r.kaipoke_cs_id === payload.kaipoke_cs_id
-);
+  setFBenefitsText((row.benefits ?? []).join("\n"));
+  setFBelongingsText((row.belongings ?? []).join("\n"));
 
-await fetchList();
+  setFInternalLabel(row.internal_label ?? "");
+  setFPhotoUrlsText((row.photo_urls ?? []).join("\n"));
 
-if (copied) {
-  openUpdate(copied);
-}
-  } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
-  }
+  setFSalary(row.salary ?? "");
+  setFFare(row.fare ?? "");
+
+  setFKaipokeCsId(row.kaipoke_cs_id ?? "");
+
+  setFStartAt(timeForInput(row.start_at));
+  setFEndAt(timeForInput(row.end_at));
+
+  setFStatusChecked(true);
+
+  setFUnitAmount(numberToInput(row.unit_amount));
+  setFCommuteFee(numberToInput(row.commute_fee));
+
+  setFSendMsgFlg(row.send_msg_flg ?? true);
+
+  setFMatchingMsg(row.matching_msg ?? "");
+
+  setFMeetingPlace(row.meeting_place ?? "");
+  setFMeetingYuubinn(row.meeting_yuubinn ?? "");
+  setFMatchingPlaceName(row.matching_place_name ?? "");
+  setFMeetingPlaceBanchi(row.meeting_place_banchi ?? "");
+
+  setOpenEdit(true);
 };
 
   const openRpaDialog = async (row: SpotOfferTemplateUnified) => {
