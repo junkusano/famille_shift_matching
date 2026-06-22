@@ -931,7 +931,7 @@ export default function WfSeisanShinseiPage() {
                                                     disabled={!canEdit}
                                                 />
                                                 <div className="mt-1 text-xs text-gray-500">
-                                                    受診日をもとに年度表示します。例：2025年度は2025年4月1日～2026年3月31日です。
+                                                    受診日をもとに年度表示します。
                                                 </div>
                                             </div>
 

@@ -4,6 +4,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import {
+  CalendarDays,
+  FileText,
+  Wallet,
+} from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import DocUploader, { type DocItem, type Attachment } from '@/components/DocUploader';
 import PerformanceScoreCard from '@/components/portal/PerformanceScoreCard';
@@ -209,6 +214,61 @@ export default function PortalHome() {
         </div>
       </div>
 
+      {/* よく使う機能 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+        {/* シフ子 */}
+        <button
+          onClick={() => router.push('/portal/shift-coordinate')}
+          className="rounded-xl bg-blue-50 border border-blue-200 p-5 shadow hover:shadow-lg transition text-left"
+        >
+          <div className="flex items-center gap-3">
+            <CalendarDays className="h-8 w-8 text-blue-600" />
+            <div>
+              <div className="font-bold text-lg">シフ子</div>
+              <div className="text-sm text-gray-500">
+                シフト調整・提案
+              </div>
+            </div>
+          </div>
+        </button>
+
+        {/* 訪問記録 */}
+        <button
+          onClick={() => router.push('/portal/shift')}
+          className="rounded-xl bg-green-50 border border-green-200 p-5 shadow hover:shadow-lg transition text-left"
+        >
+          <div className="flex items-center gap-3">
+            <FileText className="h-8 w-8 text-green-600" />
+            <div>
+              <div className="font-bold text-lg">訪問記録</div>
+              <div className="text-sm text-gray-500">
+                自分で取得したシフト
+              </div>
+            </div>
+          </div>
+        </button>
+
+        {/* 日払い申請 */}
+        <button
+          onClick={() =>
+            router.push('/portal/user_advance_payment_applications')
+          }
+          className="rounded-xl bg-amber-50 border border-amber-200 p-5 shadow hover:shadow-lg transition text-left"
+        >
+          <div className="flex items-center gap-3">
+            <Wallet className="h-8 w-8 text-amber-600" />
+            <div>
+              <div className="font-bold text-lg">日払い申請</div>
+              <div className="text-sm text-gray-500">
+                給与前払い申請
+              </div>
+            </div>
+          </div>
+        </button>
+
+      </div>
+
       <div className="mt-8">
         <PerformanceScoreCard />
       </div>
@@ -238,3 +298,5 @@ export default function PortalHome() {
     </div>
   );
 }
+
+
