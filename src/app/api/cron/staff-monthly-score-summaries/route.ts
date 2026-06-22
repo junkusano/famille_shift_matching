@@ -348,7 +348,7 @@ function calcTotalScore(row: SummaryRow) {
         visitRecordScore +
         meetingScore +
         jissekiScore +
-        trainingGoalScore -
+        trainingGoalScore +
         healthCheckScore -
         shiftDeclinePenaltyScore
     );
@@ -560,8 +560,15 @@ export async function GET(req: NextRequest) {
         const trainingGoalCountMap = new Map<string, number>();
         const healthCheckDoneUserIdMap = new Map<string, boolean>();
 
-        if (entryIds.length > 0) {
+        const userIds = Array.from(
+            new Set(
+                rows
+                    .map((row) => row.user_id)
+                    .filter((userId): userId is string => Boolean(userId))
+            )
+        );
 
+        if (userIds.length > 0) {
             const { data: healthType, error: healthTypeError } = await supabaseAdmin
                 .from("wf_request_type")
                 .select("id")
@@ -573,14 +580,6 @@ export async function GET(req: NextRequest) {
             }
 
             if (healthType?.id) {
-                const userIds = Array.from(
-                    new Set(
-                        rows
-                            .map((row) => row.user_id)
-                            .filter((userId): userId is string => Boolean(userId))
-                    )
-                );
-
                 const { data: healthRequests, error: healthRequestError } =
                     await supabaseAdmin
                         .from("wf_request")
@@ -619,6 +618,9 @@ export async function GET(req: NextRequest) {
                     }
                 }
             }
+        }
+
+        if (entryIds.length > 0) {
             const { data: trainingRows, error: trainingError } = await supabaseAdmin
                 .from("employee_training_goals")
                 .select("entry_id")
