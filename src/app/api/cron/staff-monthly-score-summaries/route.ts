@@ -28,6 +28,7 @@ type SummaryRow = {
     jisseki_previous_month_done_count: number | null;
     jisseki_past_incomplete_count: number | null;
     training_goal_selected_count: number | null;
+    health_check_done: boolean | null;
     shift_decline_3days_count: number | null;
     shift_decline_6hours_count: number | null;
     shift_decline_penalty_score: number | null;
@@ -336,6 +337,8 @@ function calcTotalScore(row: SummaryRow) {
         20
     );
 
+    const healthCheckScore = row.health_check_done === true ? 10 : 0;
+
     const shiftDeclinePenaltyScore = Number(
         row.shift_decline_penalty_score ?? 0
     );
@@ -346,6 +349,7 @@ function calcTotalScore(row: SummaryRow) {
         meetingScore +
         jissekiScore +
         trainingGoalScore -
+        healthCheckScore -
         shiftDeclinePenaltyScore
     );
 }
@@ -423,6 +427,7 @@ export async function GET(req: NextRequest) {
                 jisseki_previous_month_done_count: 0,
                 jisseki_past_incomplete_count: 0,
                 training_goal_selected_count: 0,
+                health_check_done: false,
                 shift_decline_3days_count: 0,
                 shift_decline_6hours_count: 0,
                 shift_decline_penalty_score: 0,
@@ -494,6 +499,7 @@ export async function GET(req: NextRequest) {
                 jisseki_previous_month_done_count: 0,
                 jisseki_past_incomplete_count: 0,
                 training_goal_selected_count: 0,
+                health_check_done: false,
                 shift_decline_3days_count: 0,
                 shift_decline_6hours_count: 0,
                 shift_decline_penalty_score: 0,
@@ -552,8 +558,59 @@ export async function GET(req: NextRequest) {
         );
 
         const trainingGoalCountMap = new Map<string, number>();
+        const healthCheckDoneEntryIdMap = new Map<string, boolean>();
 
         if (entryIds.length > 0) {
+
+            const { data: healthType, error: healthTypeError } = await supabaseAdmin
+                .from("wf_request_type")
+                .select("id")
+                .eq("code", "health_check")
+                .maybeSingle();
+
+            if (healthTypeError) {
+                throw healthTypeError;
+            }
+
+            if (healthType?.id) {
+                const { data: healthRequests, error: healthRequestError } =
+                    await supabaseAdmin
+                        .from("wf_request")
+                        .select("id, entry_id")
+                        .in("entry_id", entryIds)
+                        .eq("request_type_id", healthType.id)
+                        .in("status", ["submitted", "approved"]);
+
+                if (healthRequestError) {
+                    throw healthRequestError;
+                }
+
+                const healthRequestIds = (healthRequests ?? []).map((r) => r.id);
+
+                if (healthRequestIds.length > 0) {
+                    const { data: healthAttachments, error: healthAttachmentError } =
+                        await supabaseAdmin
+                            .from("wf_request_attachment")
+                            .select("request_id")
+                            .in("request_id", healthRequestIds)
+                            .eq("kind", "health_result");
+
+                    if (healthAttachmentError) {
+                        throw healthAttachmentError;
+                    }
+
+                    const submittedHealthRequestIds = new Set(
+                        (healthAttachments ?? []).map((a) => a.request_id)
+                    );
+
+                    for (const req of healthRequests ?? []) {
+                        if (!req.entry_id) continue;
+                        if (!submittedHealthRequestIds.has(req.id)) continue;
+
+                        healthCheckDoneEntryIdMap.set(req.entry_id, true);
+                    }
+                }
+            }
             const { data: trainingRows, error: trainingError } = await supabaseAdmin
                 .from("employee_training_goals")
                 .select("entry_id")
@@ -792,6 +849,9 @@ export async function GET(req: NextRequest) {
                 const trainingGoalSelectedCount =
                     row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0;
 
+                const healthCheckDone =
+                    row.entry_id ? healthCheckDoneEntryIdMap.get(row.entry_id) === true : false;
+
                 const rowWithIncompleteCounts = {
                     ...row,
                     service_hours:
@@ -811,6 +871,7 @@ export async function GET(req: NextRequest) {
                     jisseki_past_incomplete_count:
                         jissekiPastIncompleteMap.get(row.user_id) ?? 0,
                     training_goal_selected_count: trainingGoalSelectedCount,
+                    health_check_done: healthCheckDone,
                     shift_decline_3days_count: decline3DaysCount,
                     shift_decline_6hours_count: decline6HoursCount,
                     shift_decline_penalty_score: shiftDeclinePenaltyScore,
@@ -850,6 +911,8 @@ export async function GET(req: NextRequest) {
                 jissekiPastIncompleteMap.get(row.user_id) ?? 0,
             training_goal_selected_count:
                 row.entry_id ? trainingGoalCountMap.get(row.entry_id) ?? 0 : 0,
+            health_check_done:
+                row.entry_id ? healthCheckDoneEntryIdMap.get(row.entry_id) === true : false,
             shift_decline_3days_count:
                 row.shift_decline_3days_count ?? 0,
             shift_decline_6hours_count:
