@@ -245,8 +245,8 @@ export default function ShiftDialog({
                 applicant_control_url,
                 status
             `)
-            .eq('shift_id', shift.shift_id)
-            .eq('status', '確定')
+            .eq("shift_id", shift.shift_id)
+            .in("status", ["募集中", "確定"])
             .maybeSingle();
 
         setSpotConfirmed(data ?? null);
@@ -713,7 +713,15 @@ export default function ShiftDialog({
                                     ))}
                                 </select>
                             </label>
-                            {spotConfirmed && (
+{spotConfirmed?.status === "募集中" && (
+    <div className="rounded border border-orange-300 bg-orange-50 p-3">
+        <div className="font-medium text-orange-700">
+            スポット募集中
+        </div>
+    </div>
+)}
+
+{spotConfirmed?.status === "確定" && (
     <div className="rounded border border-green-300 bg-green-50 p-3">
         <div className="text-xs text-gray-500">
             スポット確定
