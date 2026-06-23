@@ -227,7 +227,7 @@ export default function PortalHome() {
             <div>
               <div className="font-bold text-lg">シフ子</div>
               <div className="text-sm text-gray-500">
-                シフト調整・提案
+                自分で好きなシフトと選べる
               </div>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default function PortalHome() {
             <div>
               <div className="font-bold text-lg">訪問記録</div>
               <div className="text-sm text-gray-500">
-                自分で取得したシフト
+                自分のシフトと訪問記録
               </div>
             </div>
           </div>
@@ -261,7 +261,7 @@ export default function PortalHome() {
             <div>
               <div className="font-bold text-lg">日払い申請</div>
               <div className="text-sm text-gray-500">
-                給与前払い申請
+                1日分の給与をまとめて日払い申請できます
               </div>
             </div>
           </div>
