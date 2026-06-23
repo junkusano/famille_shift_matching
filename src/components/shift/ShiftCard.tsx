@@ -1098,7 +1098,16 @@ export default function ShiftCard({
         <div className="mt-2 space-y-1">
           <MiniInfo />
         </div>
-        {(mode === "view" || mode === "reject") && (
+
+        <div className="mt-2 space-y-1">
+  <MiniInfo />
+</div>
+
+<div className="text-xs text-red-600">
+  spot_offer_status: {shift.spot_offer_status ?? "なし"}
+</div>
+
+        {(mode === "view" || mode === "reject" || mode === "request") && (
   <div className="text-sm mt-2">
     スタッフ：
     <span className="inline-block mr-3">
