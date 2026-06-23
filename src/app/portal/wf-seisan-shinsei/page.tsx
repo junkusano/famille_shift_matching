@@ -589,12 +589,8 @@ export default function WfSeisanShinseiPage() {
                 (a) => a.kind === "health_result"
             );
 
-            const hasHealthReceipt = attachments.some(
-                (a) => a.kind === "health_receipt"
-            );
-
-            if (!hasHealthResult || !hasHealthReceipt) {
-                alert("健康診断結果と健康診断領収書を両方添付してください。");
+            if (!hasHealthResult) {
+                alert("健康診断結果を添付してください。");
                 return;
             }
         }
@@ -690,6 +686,21 @@ export default function WfSeisanShinseiPage() {
             });
 
             if (insErr) throw insErr;
+
+            // 健康診断の場合、添付後の再読み込みで日付が消えないように先に保存する
+            if (detail?.request.request_type?.code === "health_check" && healthCheckDate.trim()) {
+                await apiFetch(`/api/wf-requests/${selectedId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        title: editTitle,
+                        body: cpMemo.trim(),
+                        payload: {
+                            template: "health_check",
+                            health_check_date: healthCheckDate.trim(),
+                        },
+                    }),
+                });
+            }
 
             await loadDetail(selectedId);
             alert("添付を追加しました");
@@ -932,10 +943,12 @@ export default function WfSeisanShinseiPage() {
                                             </div>
 
                                             <div className="text-xs text-gray-500 mt-1">
-                                                下記の説明をご確認のうえ、受診結果と領収書を添付してください。
+                                                下記の説明をご確認のうえ、受診日を入力し、受診結果と領収書を添付してください。
                                             </div>
                                             <div className="mt-3">
-                                                <div className="text-xs text-gray-600 mb-1">受診日</div>
+                                                <div className="text-xs text-gray-600 mb-1">
+                                                    受診日 <span className="text-red-600">※</span>
+                                                </div>
                                                 <input
                                                     type="date"
                                                     className="border rounded px-2 py-1"
@@ -1125,7 +1138,9 @@ export default function WfSeisanShinseiPage() {
 
                                                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                                                     <div className="border rounded p-3 bg-white">
-                                                        <div className="font-semibold text-sm">健康診断結果</div>
+                                                        <div className="font-semibold text-sm">
+                                                            健康診断結果 <span className="text-red-600">※</span>
+                                                        </div>
                                                         <div className="text-xs text-gray-500 mt-1">
                                                             健診結果の控え・コピーを添付してください。
                                                         </div>
