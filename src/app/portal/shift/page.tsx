@@ -62,6 +62,10 @@ type ShiftViewRow = {
     require_doc_group: string | null; // ★追加
     address: string | null;
     estimated_pay_amount: number | string | null;
+    spot_offer_status: string | null;  // ★追加
+    applicant_name: string | null;    // ★追加
+    applicant_sex: string | null;    // ★追加
+    applicant_control_url: string | null;    // ★追加
 };
 
 type PostalDistrictRow = {
@@ -147,7 +151,7 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
     const all: ShiftViewRow[] = [];
     for (let i = 0; i < 3; i++) {
         const { data, error } = await supabase
-            .from("shift_self_coordinate_card_view")
+            .from("shift_self_coordinate_card_view2")
             .select("*")
             .eq("shift_start_date", dayStr)
             .order("shift_start_time", { ascending: true })
@@ -200,6 +204,10 @@ async function fetchCandidatesForDay(baseDate: Date): Promise<ShiftData[]> {
         biko: s.biko ?? "",
         level_sort_order: typeof s.level_sort_order === "number" ? s.level_sort_order : null,
         require_doc_group: s.require_doc_group ?? null, // ★追加
+        spot_offer_status: s.spot_offer_status ?? null,
+        applicant_name: s.applicant_name ?? null,
+        applicant_sex: s.applicant_sex ?? null,
+        applicant_control_url: s.applicant_control_url ?? null,
     }));
 
     return mapped;
@@ -783,7 +791,7 @@ export default function ShiftPage() {
         const allMonth: ShiftRecord[] = [];
         for (let i = 0; i < 10; i++) {
             const { data, error } = await supabase
-                .from("shift_self_coordinate_card_view")
+                .from("shift_self_coordinate_card_view2")
                 .select("kaipoke_cs_id,shift_id, shift_start_date, shift_start_time, staff_01_user_id, staff_02_user_id, staff_03_user_id,require_doc_group")
                 .gte("shift_start_date", format(start, "yyyy-MM-dd"))
                 .lte("shift_start_date", format(end, "yyyy-MM-dd"))
@@ -850,7 +858,7 @@ export default function ShiftPage() {
 
             // ★ user_id でサーバ側フィルタ（ページングなし・安定ORDER）
             const { data, error } = await supabase
-                .from("shift_self_coordinate_card_view")
+                .from("shift_self_coordinate_card_view2")
                 .select("*")
                 .gte("shift_start_date", startStr)
                 .lte("shift_start_date", endStr)
@@ -907,6 +915,10 @@ export default function ShiftPage() {
                     standard_trans_ways: s.standard_trans_ways ?? "",
                     standard_purpose: s.standard_purpose ?? "",
                     biko: s.biko ?? "",
+                    spot_offer_status: s.spot_offer_status ?? null,
+                    applicant_name: s.applicant_name ?? null,
+                    applicant_sex: s.applicant_sex ?? null,
+                    applicant_control_url: s.applicant_control_url ?? null,
                 }))
             );
         };

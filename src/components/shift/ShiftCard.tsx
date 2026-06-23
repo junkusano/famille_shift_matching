@@ -1110,6 +1110,32 @@ export default function ShiftCard({
             <span className="inline-block">
               {formatName(staffMap[shift.staff_03_user_id ?? ""])}
             </span>
+                {shift.spot_offer_status === "募集中" && (
+      <span className="ml-3 rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
+        スポット募集中
+      </span>
+    )}
+
+    {shift.spot_offer_status === "確定" && (
+      <span className="ml-3 inline-flex flex-col rounded bg-green-100 px-2 py-1 text-xs text-green-700">
+        <span className="font-medium">スポット確定</span>
+        <span>
+          {shift.applicant_name}
+          （{shift.applicant_sex}）
+        </span>
+
+        {shift.applicant_control_url && (
+          <a
+            href={shift.applicant_control_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            管理画面
+          </a>
+        )}
+      </span>
+    )}
           </div>
         )}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">

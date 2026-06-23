@@ -28,6 +28,10 @@ export interface SupabaseShiftRaw {
   tokutei_comment?: string | null;
   address?: string | null;
   estimated_pay_amount?: number | null;
+  spot_offer_status?: string | null;
+  applicant_name?: string | null;
+  applicant_sex?: string | null;
+  applicant_control_url?: string | null;
 }
 
 export interface ShiftData {
@@ -66,4 +70,8 @@ export interface ShiftData {
   tokutei_comment?: string | null;
   postal_code?: string | null;
   estimated_pay_amount?: number | null;
+  spot_offer_status?: string | null;
+  applicant_name?: string | null;
+  applicant_sex?: string | null;
+  applicant_control_url?: string | null;
 }
