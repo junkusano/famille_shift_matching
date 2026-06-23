@@ -575,6 +575,16 @@ export async function GET(req: NextRequest) {
         const trainingGoalCountMap = new Map<string, number>();
         const healthCheckDoneUserIdMap = new Map<string, boolean>();
 
+        const MANUAL_HEALTH_CHECK_DONE_USER_IDS_2026 = [
+            "rikaueda",
+            "mikaimamichi",
+            "chieinagaki",
+            "masaakinakamura",
+            "wakanahorita",
+            "sayurihatasa",
+            "ryoukisuzuki",
+        ];
+
         const userIds = Array.from(
             new Set(
                 rows
@@ -642,6 +652,17 @@ export async function GET(req: NextRequest) {
                         healthCheckDoneUserIdMap.set(req.applicant_user_id, true);
                     }
                 }
+            }
+        }
+
+        const fiscalYear =
+            Number(targetMonth.slice(5, 7)) >= 4
+                ? Number(targetMonth.slice(0, 4))
+                : Number(targetMonth.slice(0, 4)) - 1;
+
+        if (fiscalYear === 2026) {
+            for (const userId of MANUAL_HEALTH_CHECK_DONE_USER_IDS_2026) {
+                healthCheckDoneUserIdMap.set(userId, true);
             }
         }
 
