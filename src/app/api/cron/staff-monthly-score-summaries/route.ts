@@ -370,6 +370,17 @@ function getPreviousMonthStartDate(targetMonth: string) {
     ).padStart(2, "0")}-01`;
 }
 
+function getFiscalYearRangeByTargetMonth(targetMonth: string) {
+    const [year, month] = targetMonth.slice(0, 7).split("-").map(Number);
+    const fiscalYear = month >= 4 ? year : year - 1;
+
+    return {
+        fiscalYear,
+        startDate: `${fiscalYear}-04-01`,
+        endDate: `${fiscalYear + 1}-03-31`,
+    };
+}
+
 //当月のみ更新変更箇所３
 export async function GET(req: NextRequest) {
     //指定月のみ更新変更箇所3
@@ -379,6 +390,10 @@ export async function GET(req: NextRequest) {
         //const targetMonth = "2026-05-01";
         //当月のみ更新変更箇所４
         const targetMonth = getTargetMonth(req);
+        const {
+            startDate: healthCheckFiscalStartDate,
+            endDate: healthCheckFiscalEndDate,
+        } = getFiscalYearRangeByTargetMonth(targetMonth);
 
         const { data: initialRows, error } = await supabaseAdmin
             .from("staff_monthly_score_summaries")
@@ -583,7 +598,7 @@ export async function GET(req: NextRequest) {
                 const { data: healthRequests, error: healthRequestError } =
                     await supabaseAdmin
                         .from("wf_request")
-                        .select("id, applicant_user_id")
+                        .select("id, applicant_user_id, payload")
                         .in("applicant_user_id", userIds)
                         .eq("request_type_id", healthType.id)
                         .in("status", ["submitted", "approved"]);
@@ -613,6 +628,16 @@ export async function GET(req: NextRequest) {
                     for (const req of healthRequests ?? []) {
                         if (!req.applicant_user_id) continue;
                         if (!submittedHealthRequestIds.has(req.id)) continue;
+
+                        const payload = req.payload as Record<string, unknown> | null;
+                        const healthCheckDate = String(payload?.health_check_date ?? "");
+
+                        if (
+                            healthCheckDate < healthCheckFiscalStartDate ||
+                            healthCheckDate > healthCheckFiscalEndDate
+                        ) {
+                            continue;
+                        }
 
                         healthCheckDoneUserIdMap.set(req.applicant_user_id, true);
                     }
