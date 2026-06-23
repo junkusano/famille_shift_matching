@@ -461,19 +461,31 @@ export default function ShiftCard({
 
  useEffect(() => {
   (async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (userError || !user) {
+      setUserRole(null);
+      return;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
-      .select("role")
+      .select("system_role")
       .eq("auth_user_id", user.id)
       .maybeSingle();
 
-    setUserRole(data?.role ?? null);
+    if (error) {
+      console.error("userRole fetch error", error);
+      setUserRole(null);
+      return;
+    }
+
+    setUserRole(data?.system_role ?? null);
   })();
-}, []); 
+}, []);
 
 
   // ★ 追加：ステータス取得（コンポーネント内の useEffect 群の近く）
