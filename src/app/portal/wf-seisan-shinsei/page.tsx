@@ -604,6 +604,19 @@ export default function WfSeisanShinseiPage() {
             return;
         }
         try {
+            if (detail?.request.request_type?.code === "health_check") {
+                await apiFetch(`/api/wf-requests/${selectedId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        title: editTitle,
+                        body: cpMemo.trim(),
+                        payload: {
+                            template: "health_check",
+                            health_check_date: healthCheckDate.trim(),
+                        },
+                    }),
+                });
+            }
             await apiFetch(`/api/wf-requests/${selectedId}/submit`, {
                 method: "POST",
                 body: JSON.stringify({ approver_user_ids: selectedApprovers }),
