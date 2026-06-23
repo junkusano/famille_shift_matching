@@ -108,11 +108,12 @@ export async function GET() {
 ${name} さん
 
 ${fiscalYear}年度の健康診断の提出がまだ確認できていません。
-
 対象受診期間：
 ${startDate} ～ ${fiscalYear + 1}-02-28
 
-精算・申請ページから「健康診断受診」を選択し、以下を提出してください。
+精算・申請ページ
+https://myfamille.shi-on.net/portal/wf-seisan-shinsei
+から「健康診断受診」を選択し、以下を提出してください。
 
 ・受診日
 ・健康診断結果
