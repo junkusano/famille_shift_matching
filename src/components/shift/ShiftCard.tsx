@@ -412,6 +412,7 @@ export default function ShiftCard({
   const [parkingError, setParkingError] = useState<string | null>(null);
   const [parkingSending, setParkingSending] = useState(false);
   const [hasActiveParking, setHasActiveParking] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -457,6 +458,23 @@ export default function ShiftCard({
       .then(id => { __myUserId = id; setMyUserId(id); })
       .finally(() => { __myUserIdPromise = null; });
   }, [mode]);
+
+ useEffect(() => {
+  (async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("users")
+      .select("role")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    setUserRole(data?.role ?? null);
+  })();
+}, []); 
+
 
   // ★ 追加：ステータス取得（コンポーネント内の useEffect 群の近く）
   useEffect(() => {
@@ -1103,10 +1121,6 @@ export default function ShiftCard({
   <MiniInfo />
 </div>
 
-<div className="text-xs text-red-600">
-  spot_offer_status: {shift.spot_offer_status ?? "なし"}
-</div>
-
         {(mode === "view" || mode === "reject" || mode === "request") && (
   <div className="text-sm mt-2">
     スタッフ：
@@ -1134,7 +1148,8 @@ export default function ShiftCard({
           （{shift.applicant_sex ?? "—"}）
         </span>
 
-        {shift.applicant_control_url && (
+        {(userRole === "admin" || userRole === "manager") &&
+        shift.applicant_control_url && (
           <a
             href={shift.applicant_control_url}
             target="_blank"
