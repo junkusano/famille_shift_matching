@@ -1099,29 +1099,30 @@ export default function ShiftCard({
           <MiniInfo />
         </div>
         {(mode === "view" || mode === "reject") && (
-          <div className="text-sm mt-2">
-            スタッフ：
-            <span className="inline-block mr-3">
-              {formatName(staffMap[shift.staff_01_user_id ?? ""])}
-            </span>
-            <span className="inline-block mr-3">
-              {formatName(staffMap[shift.staff_02_user_id ?? ""])}
-            </span>
-            <span className="inline-block">
-              {formatName(staffMap[shift.staff_03_user_id ?? ""])}
-            </span>
-                {shift.spot_offer_status === "募集中" && (
+  <div className="text-sm mt-2">
+    スタッフ：
+    <span className="inline-block mr-3">
+      {formatName(staffMap[shift.staff_01_user_id ?? ""])}
+    </span>
+    <span className="inline-block mr-3">
+      {formatName(staffMap[shift.staff_02_user_id ?? ""])}
+    </span>
+    <span className="inline-block">
+      {formatName(staffMap[shift.staff_03_user_id ?? ""])}
+    </span>
+
+    {shift.spot_offer_status === "募集中" && (
       <span className="ml-3 rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
         スポット募集中
       </span>
     )}
 
     {shift.spot_offer_status === "確定" && (
-      <span className="ml-3 inline-flex flex-col rounded bg-green-100 px-2 py-1 text-xs text-green-700">
+      <span className="ml-3 inline-flex flex-col rounded bg-green-100 px-2 py-1 text-xs text-green-700 align-middle">
         <span className="font-medium">スポット確定</span>
         <span>
-          {shift.applicant_name}
-          （{shift.applicant_sex}）
+          {shift.applicant_name ?? "—"}
+          （{shift.applicant_sex ?? "—"}）
         </span>
 
         {shift.applicant_control_url && (
@@ -1136,8 +1137,8 @@ export default function ShiftCard({
         )}
       </span>
     )}
-          </div>
-        )}
+  </div>
+)}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
