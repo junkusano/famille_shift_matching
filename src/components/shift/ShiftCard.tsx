@@ -1126,10 +1126,7 @@ export default function ShiftCard({
           </>
         )}
         <div className="mt-2 space-y-1">
-          <MiniInfo />
-        </div>
-
-        <div className="mt-2 space-y-1">
+        
   <MiniInfo />
 </div>
 
