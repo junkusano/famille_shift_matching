@@ -1160,10 +1160,6 @@ export default function ShiftCard({
           （{shift.applicant_sex ?? "—"}）
         </span>
 
-        <div className="text-xs text-red-600">
-          userRole: {userRole ?? "なし"} / url: {shift.applicant_control_url ?? "なし"}
-        </div>
-
         {(userRole === "admin" || userRole === "manager") &&
         shift.applicant_control_url && (
           <a
