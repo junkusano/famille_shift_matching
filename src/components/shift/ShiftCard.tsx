@@ -1146,14 +1146,8 @@ export default function ShiftCard({
       {formatName(staffMap[shift.staff_03_user_id ?? ""])}
     </span>
 
-    {shift.spot_offer_status === "募集中" && (
-      <span className="ml-3 rounded bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
-        スポット募集中
-      </span>
-    )}
-
     {shift.spot_offer_status === "確定" && (
-      <span className="ml-3 inline-flex flex-col rounded bg-green-100 px-2 py-1 text-xs text-green-700 align-middle">
+      <span className="ml-3 inline-flex flex-col rounded bg-yellow-100 px-2 py-1 text-xs text-black align-middle">
         <span className="font-medium">スポット確定</span>
         <span>
           {shift.applicant_name ?? "—"}
