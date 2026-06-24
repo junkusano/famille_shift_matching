@@ -56,17 +56,30 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       continue;
     }
 
-    const staff01UserId = shift["staff_01_user_id"];
-    const staff02UserId = shift["staff_02_user_id"];
+const staff01UserId = shift["staff_01_user_id"];
+const staff02UserId = shift["staff_02_user_id"];
 
-    const staff01IsManager = await isManagerStaff(staff01UserId);
-    
-    
-    // まずは単独シフト想定：staff_01 がいて manager/admin 以外ならクローズ
-    const shouldCloseByStaff =
-      !!staff01UserId &&
-      !staff02UserId &&
-      !staff01IsManager;
+const staff01IsManager = await isManagerStaff(staff01UserId);
+const staff02IsManager = await isManagerStaff(staff02UserId);
+
+const hasStaff01 = !!staff01UserId;
+const hasStaff02 = !!staff02UserId;
+
+// 単独シフト：staff_01 が manager/admin 以外ならクローズ
+const shouldCloseSingleStaff =
+  hasStaff01 &&
+  !hasStaff02 &&
+  !staff01IsManager;
+
+// 二名介助：staff_01・staff_02 が両方 manager/admin 以外ならクローズ
+const shouldCloseTwoStaff =
+  hasStaff01 &&
+  hasStaff02 &&
+  !staff01IsManager &&
+  !staff02IsManager;
+
+const shouldCloseByStaff =
+  shouldCloseSingleStaff || shouldCloseTwoStaff;
 
     if (shouldCloseByStaff) {
       await createCloseRequest(spotOfferRequest, "staff_confirmed", opts);
