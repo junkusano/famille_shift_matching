@@ -16,10 +16,12 @@ export async function runSpotOfferSyncCheck(
   let alertCount = 0;
 
   const { data: spotOfferRequests, error } = await supabase
-    .from("spot_offer_request_table")
-    .select("*")
-    .in("status", ["募集中", "確定"]);
-
+  .from("spot_offer_request_table")
+  .select("*")
+  .in("status", ["募集中", "確定"])
+  .gte("shift_start_date", new Date().toISOString().slice(0, 10))
+  .limit(200);
+  
   if (error) {
     console.error(
       "[spot-offer-sync-check] spot_offer_request_table fetch error",
