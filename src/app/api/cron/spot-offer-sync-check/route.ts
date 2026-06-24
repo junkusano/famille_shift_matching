@@ -4,9 +4,10 @@ import { runSpotOfferSyncCheck } from "@/lib/spot_offer/spot_offer_sync_check";
 
 export const runtime = "nodejs";
 
+
 export async function GET(req: NextRequest) {
   try {
-    assertCronAuth(req);
+     assertCronAuth(req);
 
     const result = await runSpotOfferSyncCheck({
       dryRun: false,
