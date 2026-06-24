@@ -203,6 +203,10 @@
     {
       "path": "/api/cron/health-check-reminder",
       "schedule": "32 1 1 * *"
+    },
+    {
+  "path": "/api/cron/spot-offer-sync-check",
+  "schedule": "0 * * * *"
     }
   ]
 }
