@@ -56,7 +56,17 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       continue;
     }
 
-    const shouldCloseByStaff = false;
+    const staff01UserId = shift["staff_01_user_id"];
+    const staff02UserId = shift["staff_02_user_id"];
+
+    const staff01IsManager = await isManagerStaff(staff01UserId);
+    
+    
+    // まずは単独シフト想定：staff_01 がいて manager/admin 以外ならクローズ
+    const shouldCloseByStaff =
+      !!staff01UserId &&
+      !staff02UserId &&
+      !staff01IsManager;
 
     if (shouldCloseByStaff) {
       await createCloseRequest(spotOfferRequest, "staff_confirmed", opts);
@@ -181,4 +191,26 @@ async function createManagerAlert(
     shift_id: spotOfferRequest["shift_id"],
     dryRun: opts?.dryRun ?? false,
   });
+}
+
+async function isManagerStaff(userId: unknown) {
+  if (!userId || typeof userId !== "string") {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("user_entry_united_view_single")
+    .select("system_role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[spot-offer-sync-check] manager check error", {
+      user_id: userId,
+      error,
+    });
+    throw error;
+  }
+
+  return data?.system_role === "manager" || data?.system_role === "admin";
 }
