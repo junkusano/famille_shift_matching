@@ -87,12 +87,24 @@ const shouldCloseByStaff =
       continue;
     }
 
-    const diffMinutes = 0;
+//時間変更アラート
+const requestedStartTime = spotOfferRequest.shift_start_time;
+const currentStartTime = shift.shift_start_time;
 
-    if (diffMinutes > 20) {
-      await createManagerAlert(spotOfferRequest, shift, opts);
-      alertCount++;
-    }
+const diffMinutes = getTimeDiffMinutes(
+  requestedStartTime,
+  currentStartTime
+);
+
+if (diffMinutes > 20) {
+  await createManagerAlert(
+    spotOfferRequest,
+    shift,
+    opts
+  );
+
+  alertCount++;
+}
   }
 
   console.log(
@@ -226,4 +238,30 @@ async function isManagerStaff(userId: unknown) {
   }
 
   return data?.system_role === "manager" || data?.system_role === "admin";
+}
+
+function getTimeDiffMinutes(
+  timeA: unknown,
+  timeB: unknown
+) {
+  if (typeof timeA !== "string" || typeof timeB !== "string") {
+    return 0;
+  }
+
+  const [aHour, aMinute] = timeA.split(":").map(Number);
+  const [bHour, bMinute] = timeB.split(":").map(Number);
+
+  if (
+    Number.isNaN(aHour) ||
+    Number.isNaN(aMinute) ||
+    Number.isNaN(bHour) ||
+    Number.isNaN(bMinute)
+  ) {
+    return 0;
+  }
+
+  const aTotalMinutes = aHour * 60 + aMinute;
+  const bTotalMinutes = bHour * 60 + bMinute;
+
+  return Math.abs(aTotalMinutes - bTotalMinutes);
 }
