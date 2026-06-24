@@ -141,23 +141,23 @@ async function createCloseRequest(
   const { data: applicantUser, error: applicantUserError } = await supabase
   .from("user_entry_united_view_single")
   .select("auth_user_id")
-  .eq("user_id", "servicesupport")
+  .eq("user_id", "junkusano")
+  .eq("system_role", "admin")
+  .not("auth_user_id", "is", null)
+  .limit(1)
   .maybeSingle();
 
 if (applicantUserError) {
-  console.error("[spot-offer-sync-check] applicant user fetch error", {
-    error: applicantUserError,
-  });
   throw applicantUserError;
 }
 
 if (!applicantUser?.auth_user_id) {
-  throw new Error("applicant_user_id not found for servicesupport");
+  throw new Error("applicant_user_id not found");
 }
 
 const { error } = await supabase.from("wf_request").insert({
   request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
-  applicant_user_id: "7ed354ed-5363-4721-a056-e58c39f8f9d7",
+  applicant_user_id: applicantUser.auth_user_id,
   status: "pending",
   payload,
 });
