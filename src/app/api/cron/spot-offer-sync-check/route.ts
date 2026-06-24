@@ -18,16 +18,11 @@ export async function GET(req: NextRequest) {
       ...result,
     });
   } catch (e) {
-    console.error("[spot-offer-sync-check]", e);
+  console.error("[spot-offer-sync-check]", e);
 
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "cron_failed",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
+  return NextResponse.json({
+    ok: false,
+    error: e?.message ?? String(e),
+  });
+}
 }
