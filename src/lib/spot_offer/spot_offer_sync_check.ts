@@ -209,13 +209,53 @@ const { error } = await supabase.from("wf_request").insert({
 
 async function createManagerAlert(
   spotOfferRequest: Record<string, unknown>,
-  _shift: Record<string, unknown>,
+  shift: Record<string, unknown>,
   opts?: { dryRun?: boolean }
 ) {
+  const shiftId = spotOfferRequest["shift_id"];
+
   console.log("[spot-offer-sync-check] create manager alert", {
-    shift_id: spotOfferRequest["shift_id"],
+    shift_id: shiftId,
     dryRun: opts?.dryRun ?? false,
   });
+
+  if (opts?.dryRun) {
+    return;
+  }
+
+  const payload = {
+    command: "manager_alert",
+    reason: "start_time_changed",
+    shift_id: shiftId,
+    requested_start_time: spotOfferRequest["shift_start_time"],
+    current_start_time: shift["shift_start_time"],
+  };
+
+  const { data: applicantUser, error: applicantUserError } = await supabase
+    .from("user_entry_united_view_single")
+    .select("auth_user_id")
+    .eq("user_id", "junkusano")
+    .eq("system_role", "admin")
+    .not("auth_user_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (applicantUserError) throw applicantUserError;
+  if (!applicantUser?.auth_user_id) {
+    throw new Error("applicant_user_id not found");
+  }
+
+  const { error } = await supabase.from("wf_request").insert({
+    request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
+    applicant_user_id: applicantUser.auth_user_id,
+    status: "pending",
+    payload,
+  });
+
+  if (error) {
+    console.error("[spot-offer-sync-check] manager alert insert error", error);
+    throw error;
+  }
 }
 
 async function isManagerStaff(userId: unknown) {
