@@ -50,6 +50,24 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       continue;
     }
 
+    // =========================
+// シフト開始2時間以内は対象外
+// =========================
+const shouldCheckByTime = shift
+  ? isShiftAtLeastTwoHoursLater(
+      shift["shift_start_date"],
+      shift["shift_start_time"]
+    )
+  : isShiftAtLeastTwoHoursLater(
+      spotOfferRequest.shift_start_date,
+      spotOfferRequest.shift_start_time
+    );
+
+if (!shouldCheckByTime) {
+  continue;
+}
+
+
     if (!shift) {
       await createCloseRequest(spotOfferRequest, "shift_deleted", opts);
       closeCount++;
@@ -96,7 +114,7 @@ const diffMinutes = getTimeDiffMinutes(
   currentStartTime
 );
 
-if (diffMinutes > 20) {
+if (diffMinutes >= 30) {
   await createManagerAlert(
     spotOfferRequest,
     shift,
@@ -304,4 +322,25 @@ function getTimeDiffMinutes(
   const bTotalMinutes = bHour * 60 + bMinute;
 
   return Math.abs(aTotalMinutes - bTotalMinutes);
+}
+
+function isShiftAtLeastTwoHoursLater(
+  shiftDate: unknown,
+  shiftTime: unknown
+) {
+  if (typeof shiftDate !== "string" || typeof shiftTime !== "string") {
+    return false;
+  }
+
+  const shiftDateTime = new Date(
+    `${shiftDate}T${shiftTime.slice(0, 5)}:00+09:00`
+  );
+
+  if (Number.isNaN(shiftDateTime.getTime())) {
+    return false;
+  }
+
+  const twoHoursLater = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+  return shiftDateTime >= twoHoursLater;
 }
