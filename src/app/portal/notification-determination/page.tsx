@@ -219,13 +219,13 @@ export default function NotificationDeterminationPage() {
                             </div>
 
                             <div className="p-3">
-                                <Item label="職級" before={row["変更前 職級"]} after={row["変更後 職級"]} />
-                                <Item label="基本給" before={row["変更前 基本給"]} after={row["変更後 基本給"]} money />
-                                <Item label="職級手当" before={row["変更前 職級手当"]} after={row["変更後 職級手当"]} money />
-                                <Item label="スキル加算手当" before={row["変更前 スキル加算手当"]} after={row["変更後 スキル加算手当"]} money />
-                                <Item label="ケアマネ手当" before={row["変更前 ケアマネ手当"]} after={row["変更後 ケアマネ手当"]} money />
-                                <Item label="私有車業務使用手当" before={row["変更前 私有車業務使用手当"]} after={row["変更後 私有車業務使用手当"]} money />
-                                <Item label="合計" before={row["変更前 合計"]} after={row["変更後 合計"]} money />
+                                <Item label="職級" before={row["変更前　職級"]} after={row["変更後　職級"]} />
+                                <Item label="基本給" before={row["変更前　基本給"]} after={row["変更後　基本給"]} money />
+                                <Item label="職級手当" before={row["変更前　職級手当"]} after={row["変更後　職級手当"]} money />
+                                <Item label="スキル加算手当" before={row["変更前　スキル加算手当"]} after={row["変更後　スキル加算手当"]} money />
+                                <Item label="ケアマネ手当" before={row["変更前　ケアマネ手当"]} after={row["変更後　ケアマネ手当"]} money />
+                                <Item label="私有車業務使用手当" before={row["変更前　私有車業務使用手当"]} after={row["変更後　私有車業務使用手当"]} money />
+                                <Item label="合計" before={row["変更前　合計"]} after={row["変更後　合計"]} money />
                             </div>
                         </div>
                     </section>
