@@ -976,8 +976,7 @@ export default function WfSeisanShinseiPage() {
 10,000円前後が目安です。
 
 一旦、窓口にて現金でお支払いください。
-後日、領収書をご提出いただきます。
-
+領収書の原本を事務所へ提出後、経費精算します。
 健診費用は全額会社が負担し、次回給与にて精算します。
 
 ※必須項目以外を受診された場合は自費となりますので、ご注意ください。`}
@@ -1022,7 +1021,7 @@ export default function WfSeisanShinseiPage() {
                                                 </summary>
                                                 <div className="mt-3 whitespace-pre-wrap text-sm leading-7">
                                                     {`【その他】
-ご不明な点がありましたら、LINE WORKSの各個人連絡用で西尾までご連絡ください。
+ご不明な点がありましたら、LINE WORKSの各個人連絡用で塩澤までご連絡ください。
 
 また、期間内にどうしても受診できない場合は、必ずご連絡ください。
 
