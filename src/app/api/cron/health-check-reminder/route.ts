@@ -30,21 +30,21 @@ export async function GET() {
     try {
         const { fiscalYear, startDate, endDate } = getFiscalYearInfo();
 
-        // テスト送信用：6月でも通知できるように一時的に停止
-        //const today = new Date();
-        //const notifyStartDate = new Date(`${fiscalYear}-07-01T00:00:00+09:00`);
+        // テスト送信の場合47までコメントアウト用
+        const today = new Date();
+        const notifyStartDate = new Date(`${fiscalYear}-07-01T00:00:00+09:00`);
 
-        // if (today < notifyStartDate) {
-        //     return NextResponse.json({
-        //         ok: true,
-        //         skipped: true,
-        //         fiscalYear,
-        //         startDate,
-        //         endDate,
-        //         notifyStartDate: `${fiscalYear}-07-01`,
-        //         reason: "7月1日以前のため通知対象外",
-        //     });
-        // }
+        if (today < notifyStartDate) {
+            return NextResponse.json({
+                ok: true,
+                skipped: true,
+                fiscalYear,
+                startDate,
+                endDate,
+                notifyStartDate: `${fiscalYear}-07-01`,
+                reason: "7月1日以前のため通知対象外",
+            });
+        }
 
         // 1. 健康診断の申請種別IDを取得
         const { data: type, error: typeError } = await supabaseAdmin
@@ -79,7 +79,7 @@ export async function GET() {
         const { data: users, error: usersError } = await supabaseAdmin
             .from("user_entry_united_view_single")
             .select("user_id,last_name_kanji,first_name_kanji,channel_id,status,orgunitname")
-            .eq("user_id", "saratsubasagunshi")//テスト用
+            //.eq("user_id", "saratsubasagunshi")//テスト用
             .neq("status", "removed_from_lineworks_kaipoke");
 
         if (usersError) throw usersError;
