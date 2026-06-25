@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     }
 
     const ym = req.nextUrl.searchParams.get("ym");
+    const payDate = req.nextUrl.searchParams.get("payDate");
 
     let query = supabaseAdmin
       .from("user_salary_monthly")
@@ -47,7 +48,9 @@ export async function GET(req: NextRequest) {
       .eq("従業員番号", userRow.user_id)
       .order("支給日", { ascending: false });
 
-    if (ym) {
+    if (payDate) {
+      query = query.eq("支給日", payDate);
+    } else if (ym) {
       const { start, end } = getMonthRange(ym);
       query = query.gte("支給日", start).lt("支給日", end);
     }
@@ -64,10 +67,10 @@ export async function GET(req: NextRequest) {
 
     if (monthsError) throw monthsError;
 
+    const availablePayDates = (months ?? []).map((r) => String(r["支給日"]));
+
     const availableMonths = Array.from(
-      new Set(
-        (months ?? []).map((r) => String(r["支給日"]).slice(0, 7))
-      )
+      new Set(availablePayDates.map((d) => d.slice(0, 7)))
     );
 
     return NextResponse.json({
@@ -75,6 +78,7 @@ export async function GET(req: NextRequest) {
       user_id: userRow.user_id,
       rows: data ?? [],
       availableMonths,
+      availablePayDates,
     });
   } catch (e) {
     console.error(e);

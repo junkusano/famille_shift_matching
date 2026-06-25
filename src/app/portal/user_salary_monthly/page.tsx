@@ -112,6 +112,11 @@ function ymLabel(ym: string) {
     return `${y}年${Number(m)}月分`;
 }
 
+function payDateLabel(d: string) {
+    const [y, m, day] = d.split("-");
+    return `${y}年${Number(m)}月${Number(day)}日分`;
+}
+
 function DetailList({ keys, row, money }: { keys: string[]; row: SalaryRow; money?: boolean }) {
     const items = keys
         .map((k) => ({ key: k, value: money ? yen(row[k]) : val(row[k]) }))
@@ -135,12 +140,13 @@ function DetailList({ keys, row, money }: { keys: string[]; row: SalaryRow; mone
 
 export default function UserSalaryMonthlyPage() {
     const [rows, setRows] = useState<SalaryRow[]>([]);
-    const [months, setMonths] = useState<string[]>([]);
+    const [payDates, setPayDates] = useState<string[]>([]);
     const [ym, setYm] = useState("");
+    const [payDate, setPayDate] = useState("");
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
 
-    async function fetchSalary(targetYm?: string) {
+    async function fetchSalary(targetPayDate?: string) {
         setLoading(true);
         setErrorMessage("");
 
@@ -155,7 +161,7 @@ export default function UserSalaryMonthlyPage() {
             return;
         }
 
-        const qs = targetYm ? `?ym=${targetYm}` : "";
+        const qs = targetPayDate ? `?payDate=${targetPayDate}` : "";
         const res = await fetch(`/api/portal/user_salary_monthly${qs}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -171,11 +177,13 @@ export default function UserSalaryMonthlyPage() {
         }
 
         setRows(json.rows ?? []);
-        setMonths(json.availableMonths ?? []);
+        setPayDates(json.availablePayDates ?? []);
 
-        if (!targetYm && json.availableMonths?.[0]) {
-            setYm(json.availableMonths[0]);
-            await fetchSalary(json.availableMonths[0]);
+        if (!targetPayDate && json.availablePayDates?.[0]) {
+            const firstPayDate = json.availablePayDates[0];
+            setPayDate(firstPayDate);
+            setYm(String(firstPayDate).slice(0, 7));
+            await fetchSalary(firstPayDate);
             return;
         }
 
@@ -263,18 +271,20 @@ transform-origin: top left !important;
                 </div>
 
                 <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">年月</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">支給日</label>
                     <select
                         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-                        value={ym}
+                        value={payDate}
                         onChange={(e) => {
-                            setYm(e.target.value);
-                            void fetchSalary(e.target.value);
+                            const selected = e.target.value;
+                            setPayDate(selected);
+                            setYm(selected.slice(0, 7));
+                            void fetchSalary(selected);
                         }}
                     >
-                        {months.map((m) => (
-                            <option key={m} value={m}>
-                                {ymLabel(m)}
+                        {payDates.map((d) => (
+                            <option key={d} value={d}>
+                                {payDateLabel(d)}
                             </option>
                         ))}
                     </select>
