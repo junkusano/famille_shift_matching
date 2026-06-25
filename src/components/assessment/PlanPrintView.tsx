@@ -134,6 +134,26 @@ export default function PlanPrintView({ planId }: { planId: string }) {
 
     const { plan, client, author } = data;
 
+    const handlePrint = () => {
+        const originalTitle = document.title;
+
+        // 「2026年6月」の形式を作成
+        const ym = plan.created_at
+            ? new Date(plan.created_at).toLocaleDateString("ja-JP", {
+                year: "numeric",
+                month: "long",
+            })
+            : "";
+
+        document.title = `${client?.name ?? "利用者"}_${title}_${ym}`;
+
+        window.print();
+
+        setTimeout(() => {
+            document.title = originalTitle;
+        }, 500);
+    };
+
     const title =
         plan.plan_document_kind === "移動支援サービス"
             ? "移動支援サービス計画書"
@@ -280,7 +300,7 @@ export default function PlanPrintView({ planId }: { planId: string }) {
             <div className="no-print sticky top-0 z-10 bg-white border-b p-3 flex gap-2 items-center">
                 <button
                     className="border rounded px-4 py-2 bg-black text-white"
-                    onClick={() => window.print()}
+                    onClick={handlePrint}
                 >
                     印刷 / PDF保存
                 </button>
