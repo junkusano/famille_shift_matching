@@ -137,9 +137,9 @@ export default function PlanPrintView({ planId }: { planId: string }) {
     const handlePrint = () => {
         const originalTitle = document.title;
 
-        // 「2026年6月」の形式を作成
-        const ym = plan.created_at
-            ? new Date(plan.created_at).toLocaleDateString("ja-JP", {
+        // 開始日から「2026年6月」の形式を作成
+        const ym = plan.plan_start_date
+            ? new Date(plan.plan_start_date).toLocaleDateString("ja-JP", {
                 year: "numeric",
                 month: "long",
             })
