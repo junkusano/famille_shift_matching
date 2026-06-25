@@ -227,7 +227,7 @@ export default function PortalHome() {
             <div>
               <div className="font-bold text-lg">シフ子</div>
               <div className="text-sm text-gray-500">
-                自分で好きなシフトと選べる
+                自分で好きなシフトを選べる
               </div>
             </div>
           </div>
