@@ -107,11 +107,6 @@ function label(key: string) {
     return key.replace("(支給)", "").replace("(控除)", "");
 }
 
-function ymLabel(ym: string) {
-    const [y, m] = ym.split("-");
-    return `${y}年${Number(m)}月分`;
-}
-
 function payDateLabel(d: string) {
     const [y, m, day] = d.split("-");
     return `${y}年${Number(m)}月${Number(day)}日分`;
@@ -141,7 +136,6 @@ function DetailList({ keys, row, money }: { keys: string[]; row: SalaryRow; mone
 export default function UserSalaryMonthlyPage() {
     const [rows, setRows] = useState<SalaryRow[]>([]);
     const [payDates, setPayDates] = useState<string[]>([]);
-    const [ym, setYm] = useState("");
     const [payDate, setPayDate] = useState("");
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
@@ -180,11 +174,7 @@ export default function UserSalaryMonthlyPage() {
         setPayDates(json.availablePayDates ?? []);
 
         if (!targetPayDate && json.availablePayDates?.[0]) {
-            const firstPayDate = json.availablePayDates[0];
-            setPayDate(firstPayDate);
-            setYm(String(firstPayDate).slice(0, 7));
-            await fetchSalary(firstPayDate);
-            return;
+            setPayDate(json.availablePayDates[0]);
         }
 
         setLoading(false);
@@ -278,7 +268,6 @@ transform-origin: top left !important;
                         onChange={(e) => {
                             const selected = e.target.value;
                             setPayDate(selected);
-                            setYm(selected.slice(0, 7));
                             void fetchSalary(selected);
                         }}
                     >
@@ -319,7 +308,9 @@ transform-origin: top left !important;
 
                     <section id="salary-print-area" className="rounded-xl border bg-white p-5 shadow-sm">
                         <div className="border-b pb-4">
-                            <div className="text-sm text-gray-500">{ym ? ymLabel(ym) : ""}</div>
+                            <div className="text-sm text-gray-500">
+                                {row["支給日"] ? payDateLabel(String(row["支給日"])) : ""}
+                            </div>
                             <h2 className="mt-1 text-xl font-bold">給与明細書</h2>
                             <div className="mt-3 grid gap-1 text-sm text-gray-700">
                                 <div>支給日：{row["支給日"]}</div>
