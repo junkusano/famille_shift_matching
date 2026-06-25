@@ -150,7 +150,6 @@ export default function EntryListPage() {
   const [entriesWithMap, setEntriesWithMap] = useState<(EntryData & { addrStatus?: AddrStatus })[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [myLevelSort, setMyLevelSort] = useState<number | null>(null);
   const pageSize = 50;
@@ -201,8 +200,6 @@ export default function EntryListPage() {
         return;
       }
 
-      const start = (currentPage - 1) * pageSize;
-
       const { data: rawEntries, error: e1 } = await supabase
         .from('form_entries_with_status')
         .select('*'); // { count: 'exact' } は不要（後で length を使う
@@ -210,7 +207,6 @@ export default function EntryListPage() {
       if (e1) {
         console.error('Supabase取得エラー:', e1.message);
         setEntries([]);
-        setTotalCount(0);
         setLoading(false);
         return;
       }
@@ -280,11 +276,7 @@ export default function EntryListPage() {
         return asNum(a.roster_sort) - asNum(b.roster_sort);
       });
 
-      // 5) 最後にページ分割（全体ソート後に slice）
-      const pageRows = sortedAll.slice(start, start + pageSize);
-
-      setEntries(pageRows);
-      setTotalCount(sortedAll.length);
+      setEntries(sortedAll);
       setLoading(false);
     };
 
@@ -378,6 +370,14 @@ export default function EntryListPage() {
     return fullName.includes(searchText) || address.includes(searchText);
   });
 
+  const displayEntries = filteredEntries.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const displayTotalCount = filteredEntries.length;
+  const totalPages = Math.max(1, Math.ceil(displayTotalCount / pageSize));
+
   return (
     <div className="content">
       <h2 className="text-xl font-bold mb-4">全エントリー一覧</h2>
@@ -411,7 +411,7 @@ export default function EntryListPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map((entry) => {
+              {displayEntries.map((entry) => {
                 const age =
                   new Date().getFullYear() - entry.birth_year -
                   (new Date().getMonth() + 1 < entry.birth_month ||
@@ -595,10 +595,10 @@ export default function EntryListPage() {
           ◀ 前へ
         </button>
         <span>
-          {currentPage} / {Math.ceil(totalCount / pageSize)}
+          {currentPage} / {totalPages}
         </span>
         <button
-          disabled={currentPage === Math.ceil(totalCount / pageSize)}
+          disabled={currentPage >= totalPages}
           onClick={() => setCurrentPage((p) => p + 1)}
           className="px-3 py-1 border"
         >
