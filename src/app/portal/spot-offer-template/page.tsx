@@ -1255,8 +1255,20 @@ await fetchList();
            </Select>
           </div>
                 
-                <div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
-                  <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
+                <div className="md:col-span-2 xl:col-span-3 rounded-md border border-green-300 bg-green-50 p-3 text-sm">
+                  <div className="font-semibold text-green-800">
+                    📍 利用者情報について
+                  </div>
+                    <div className="mt-1 text-green-700">
+    この下に表示される利用者住所・駐車場情報は、システム内部で利用する情報です。<br />
+    <span className="font-semibold">
+      タイミーには表示されません。
+    </span>
+  </div>
+</div>
+
+<div className="md:col-span-2 xl:col-span-3 rounded border p-3 bg-muted/30">
+  <div className="text-sm font-semibold mb-2">利用者情報プレビュー</div>
 
                   {!fKaipokeCsId.trim() ? (
                     <div className="text-xs text-muted-foreground">
@@ -1375,6 +1387,18 @@ await fetchList();
 </div>  
             <div>
               <div className="text-sm font-semibold">集合情報</div>
+              <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                <div className="font-semibold text-amber-800">
+                   ⚠ 待ち合わせ場所について
+                </div>
+                <div className="mt-1 text-amber-700">
+                  現住所は入力しないでください。<br />
+                  コンビニ・公園・バス停・学校など、近隣の目印となる場所を入力してください。<br />
+                  <span className="font-semibold text-red-600">
+                    この内容はタイミーに表示されます。
+                  </span>
+                </div>
+              </div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所名<span className="text-red-500 ml-1">*</span></div>
@@ -1408,6 +1432,7 @@ await fetchList();
                 
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
+                   <div className="md:col-span-2 xl:col-span-3"></div> 
                    <FieldLabel required>住所</FieldLabel> 
                   <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区新尾頭"/>
                 </div>
@@ -1482,6 +1507,17 @@ await fetchList();
     </div>
 
     <div>
+      <div className="mb-2 rounded-md border border-blue-300 bg-blue-50 p-3 text-sm">
+        <div className="font-semibold text-blue-800">
+          ⚠ マッチングメッセージについて
+        </div>
+        <div className="mt-1 text-blue-700">
+          利用者様宅の前などで待ち合わせる場合は、
+          <span className="font-semibold">
+            こちらに住所を記載してください。
+          </span>
+        </div> 
+      </div>
       <div className="text-[11px] text-muted-foreground">マッチングメッセージ</div>
       <Textarea
         value={fMatchingMsg}
