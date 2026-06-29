@@ -148,26 +148,5 @@ export async function createTimeAdjustAlertFromShift(
     shift_id: shift.shift_id,
     user_id: requester ?? null, // ③ リクエストした user_id を格納
   });
-
- // LINE WORKS 利用者グループへ通知
-if (shift.kaipoke_cs_id) {
-  const { data: channelData, error: channelError } = await supabase
-    .from("group_lw_channel_view")
-    .select("channel_id")
-    .eq("group_account", shift.kaipoke_cs_id)
-    .maybeSingle();
-
-  if (!channelError && channelData?.channel_id) {
-    await fetch("/api/lw-send-botmessage", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        channelId: channelData.channel_id,
-        text: message,
-      }),
-    });
-  }
 }
-}
+
