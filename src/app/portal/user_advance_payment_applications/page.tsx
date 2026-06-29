@@ -285,12 +285,13 @@ const calculation = calculateAvailableAmount({
 
         
         const { data: latestScore } = await supabase
-         .from("staff_monthly_score_summaries")
-         .select("medal_rank")
-         .eq("user_id", currentUser.user_id)
-         .order("target_month", { ascending: false })
-         .limit(1)
-         .maybeSingle();
+          .from("staff_monthly_score_summaries")
+          .select("medal_rank, target_month")
+          .eq("user_id", currentUser.user_id)
+          .order("target_month", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         setPerformanceRank(latestScore?.medal_rank ?? "bronze");
         
