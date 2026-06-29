@@ -595,7 +595,37 @@ if (!canSubmit && !isTestAccount) return;
   </div>
 </div>
 
-          
+<div className="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-5">
+  <div className="flex items-start gap-3">
+    <div className="text-2xl">🏦</div>
+
+    <div>
+      <div className="font-semibold text-sky-900">
+        給与振込口座の登録について
+      </div>
+
+      <div className="mt-2 text-sm leading-6 text-sky-800">
+        日払いをご利用になる方は、あらかじめ給与振込口座の登録が必要です。
+        <br />
+        まだ登録がお済みでない方は、
+        <a
+          href="https://works.do/592l3G4"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-blue-700 underline"
+        >
+          こちら
+        </a>
+        から振込先口座をご登録ください。
+      </div>
+
+      <div className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+        ⚠️ 振込先口座が未登録の場合は、日払いのお振込みができず、お支払いが延期となる場合があります。
+      </div>
+    </div>
+  </div>
+</div>
+
 
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <div className="font-semibold text-amber-900">
