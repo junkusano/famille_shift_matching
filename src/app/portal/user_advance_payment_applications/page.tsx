@@ -158,7 +158,7 @@ export default function UserAdvancePaymentConfirmPage() {
   const [message, setMessage] = useState("");
   
    const [performanceRank, setPerformanceRank] =
-    useState("bronze");
+    useState("ブロンズ");
   
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
@@ -296,7 +296,7 @@ const calculation = calculateAvailableAmount({
           .limit(1)
           .maybeSingle();
 
-        setPerformanceRank(latestScore?.medal_rank ?? "bronze");
+        setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
         
 
         const startDate = new Date(start.getTime() - 24 * 60 * 60 * 1000)
