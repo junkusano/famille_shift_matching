@@ -198,7 +198,10 @@ const isSilverOrHigher =
   isWithinOneMonthFromJoin ||
   performanceRank === "silver" ||
   performanceRank === "gold" ||
-  performanceRank === "platinum";
+  performanceRank === "platinum" ||
+  performanceRank === "シルバー" ||
+  performanceRank === "ゴールド" ||
+  performanceRank === "プラチナ";
 
   const isManager =
     me?.role === "manager" || me?.role === "admin";
