@@ -254,6 +254,9 @@ export default function EntryPage() {
                     applicantName,
                     applicantKana,
                     age,
+                    // 本人宛メール側が name / kana を見ている場合のため
+                    name: applicantName,
+                    kana: applicantKana,
                 }),
             });
         } catch (err) {
