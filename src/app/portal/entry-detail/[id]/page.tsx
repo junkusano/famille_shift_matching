@@ -1222,23 +1222,24 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         if (
-            userRecord &&
-            orgList.length > 0 &&
-            levelList.length > 0 &&
-            positionList.length > 0
+            orgList.length === 0 ||
+            levelList.length === 0 ||
+            positionList.length === 0
         ) {
-            const defaultOrg = orgList.find(
-                (org) => org.orgUnitName === "管理者直属チーム"
-            );
-
-            const defaultLevel = levelList.find(
-                (level) => level.levelName === "契約社員"
-            );
-
-            setSelectedOrg(userRecord.org_unit_id || defaultOrg?.orgUnitId || "");
-            setSelectedLevel(userRecord.level_id || defaultLevel?.levelId || "");
-            setSelectedPosition(userRecord.position_id || "");
+            return;
         }
+
+        const defaultOrg = orgList.find(
+            (org) => org.orgUnitName === "管理者直属チーム"
+        );
+
+        const defaultLevel = levelList.find(
+            (level) => level.levelName === "契約社員"
+        );
+
+        setSelectedOrg(userRecord?.org_unit_id || defaultOrg?.orgUnitId || "");
+        setSelectedLevel(userRecord?.level_id || defaultLevel?.levelId || "");
+        setSelectedPosition(userRecord?.position_id || "");
     }, [userRecord, orgList, levelList, positionList]);
 
     // 写真再アップロー
