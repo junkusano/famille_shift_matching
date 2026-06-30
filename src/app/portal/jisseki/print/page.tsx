@@ -1630,7 +1630,7 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={(data.client.ido_jukyusyasho ?? "").trim() || JYUHO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim() || JYUHO_JUKYUSHA_NO} />
                                         </div>
                                     </div>
 
