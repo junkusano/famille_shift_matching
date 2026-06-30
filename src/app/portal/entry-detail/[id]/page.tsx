@@ -1129,7 +1129,10 @@ export default function EntryDetailPage() {
                     body: JSON.stringify({
                         userId: data.userId,  // ✅ lw_userid（UUID）を渡す
                         orgUnitId: selectedOrg,
-                        extraMemberIds: [mgrLwUserId].filter(Boolean) // ②-1: 上司も同席
+                        extraMemberIds: [mgrLwUserId].filter(Boolean), // ②-1: 上司も同席
+                        applicantName: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
+                        fullName: `${entry.last_name_kanji ?? ""} ${entry.first_name_kanji ?? ""}`.trim(),
+                        name: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
                     })
                 });
 
