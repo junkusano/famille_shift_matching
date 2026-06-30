@@ -66,9 +66,10 @@ export default function ShiftPage() {
             const allShifts: SupabaseShiftRaw[] = [];
             for (let i = 0; i < 10; i++) {
                 const { data, error } = await supabase
-                    .from("shift_self_coordinate_card_view")
+                    .from("shift_shift_record_view2")
                     .select("*")
                     .gte("shift_start_date", jstNow)
+                    .or("status.is.null,status.neq.確定")
                     .range(i * 1000, (i + 1) * 1000 - 1);
 
                 if (error || !data?.length) break;
