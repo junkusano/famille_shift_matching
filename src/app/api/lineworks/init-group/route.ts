@@ -23,6 +23,7 @@ const GLOBAL_CHILD_ORG_UNITS = [
 // ===== 型 =====
 interface EntryViewRow {
     user_id: string;
+    entry_id?: string | null;
     last_name_kanji: string;
     first_name_kanji: string;
     level_sort: number | string;
@@ -83,10 +84,23 @@ export async function POST(req: Request) {
 
     const localUserId = entryUser.user_id;
 
+    let dbFullName = "";
+
+    if (entryUser.entry_id) {
+        const { data: entryData } = await supabase
+            .from("form_entries")
+            .select("last_name_kanji, first_name_kanji")
+            .eq("id", entryUser.entry_id)
+            .maybeSingle();
+
+        dbFullName = `${entryData?.last_name_kanji ?? ""} ${entryData?.first_name_kanji ?? ""}`.trim();
+    }
+
     const fullName =
-        bodyFullName ||
-        applicantName ||
-        name ||
+        String(bodyFullName || "").trim() ||
+        String(applicantName || "").trim() ||
+        String(name || "").trim() ||
+        dbFullName ||
         localUserId;
 
     const levelSort = Number(entryUser.level_sort ?? 0);
