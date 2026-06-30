@@ -43,7 +43,16 @@ interface GroupCreatePayload {
 }
 
 export async function POST(req: Request) {
-    const { userId, orgUnitId, extraMemberIds = [] } = await req.json();
+    const body = await req.json();
+
+    const {
+        userId,
+        orgUnitId,
+        extraMemberIds = [],
+        applicantName,
+        fullName: bodyFullName,
+        name,
+    } = body;
     const accessToken = await getAccessToken();
 
     console.log(`[init-group] lwUserId=${userId}, orgUnitId=${orgUnitId}`);
@@ -72,8 +81,14 @@ export async function POST(req: Request) {
     });
     const entryUser = entryRowsSorted[0];
 
-    const fullName = `${entryUser.last_name_kanji}${entryUser.first_name_kanji}`;
     const localUserId = entryUser.user_id;
+
+    const fullName =
+        bodyFullName ||
+        applicantName ||
+        name ||
+        localUserId;
+
     const levelSort = Number(entryUser.level_sort ?? 0);
 
     // === 2) 同組織 / 上位組織の上位者（1250000は除外） ===
