@@ -1227,8 +1227,16 @@ export default function EntryDetailPage() {
             levelList.length > 0 &&
             positionList.length > 0
         ) {
-            setSelectedOrg(userRecord.org_unit_id || "");
-            setSelectedLevel(userRecord.level_id || "");
+            const defaultOrg = orgList.find(
+                (org) => org.orgUnitName === "管理者直属チーム"
+            );
+
+            const defaultLevel = levelList.find(
+                (level) => level.levelName === "契約社員"
+            );
+
+            setSelectedOrg(userRecord.org_unit_id || defaultOrg?.orgUnitId || "");
+            setSelectedLevel(userRecord.level_id || defaultLevel?.levelId || "");
             setSelectedPosition(userRecord.position_id || "");
         }
     }, [userRecord, orgList, levelList, positionList]);
