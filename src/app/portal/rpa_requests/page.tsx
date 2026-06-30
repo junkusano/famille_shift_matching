@@ -135,16 +135,14 @@ export default function RpaRequestListPage() {
 
 const shouldCloseSpotOffer = (row: Partial<RpaRequestView>) => {
   const templateName = row.template_name ?? ''
-  const statusCode = row.status ?? ''
-  const statusLabel =
-    statuses.find(s => s.status_code === statusCode)?.label ?? statusCode
+  const resultSummary = row.result_summary ?? ''
 
   return (
     templateName === 'スキマバイト求人編集' &&
     [
       'スタッフ確定により求人クローズ',
       'シフト削除により求人クローズ',
-    ].includes(statusLabel)
+    ].some(text => resultSummary.includes(text))
   )
 }
 
