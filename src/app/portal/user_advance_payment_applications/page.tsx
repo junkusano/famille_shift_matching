@@ -194,14 +194,18 @@ const isWithinOneMonthFromJoin =
     ? new Date() < oneMonthAfterJoinedAt
     : false;
 
+const normalizedRank = String(performanceRank ?? "").trim().toLowerCase();
+
 const isSilverOrHigher =
   isWithinOneMonthFromJoin ||
-  performanceRank === "silver" ||
-  performanceRank === "gold" ||
-  performanceRank === "platinum" ||
-  performanceRank === "シルバー" ||
-  performanceRank === "ゴールド" ||
-  performanceRank === "プラチナ";
+  [
+    "silver",
+    "gold",
+    "platinum",
+    "シルバー",
+    "ゴールド",
+    "プラチナ",
+  ].includes(normalizedRank);
 
   const isManager =
     me?.role === "manager" || me?.role === "admin";
@@ -295,6 +299,9 @@ const calculation = calculateAvailableAmount({
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
+          console.log("latestScore", latestScore);
+          console.log("medal_rank", latestScore?.medal_rank);
 
         setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
         
