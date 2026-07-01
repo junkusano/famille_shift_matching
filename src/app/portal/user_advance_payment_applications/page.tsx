@@ -156,13 +156,13 @@ export default function UserAdvancePaymentConfirmPage() {
     insuranceAccepted: false,
   });
   const [message, setMessage] = useState("");
-
-  const [performanceRank, setPerformanceRank] =
-    useState("bronze");
-
+  
+   const [performanceRank, setPerformanceRank] =
+    useState("ブロンズ");
+  
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
-    useState<RejectedApplication | null>(null);
+  useState<RejectedApplication | null>(null);
   const { start, end } = useMemo(() => getTargetWindowJst(), []);
 
   const now = new Date();
@@ -181,55 +181,62 @@ export default function UserAdvancePaymentConfirmPage() {
 
   const joinedAt = me?.created_at ? new Date(me.created_at) : null;
 
-  const oneMonthAfterJoinedAt = joinedAt
-    ? new Date(joinedAt)
-    : null;
+const oneMonthAfterJoinedAt = joinedAt
+  ? new Date(joinedAt)
+  : null;
 
-  if (oneMonthAfterJoinedAt) {
-    oneMonthAfterJoinedAt.setMonth(oneMonthAfterJoinedAt.getMonth() + 1);
-  }
+if (oneMonthAfterJoinedAt) {
+  oneMonthAfterJoinedAt.setMonth(oneMonthAfterJoinedAt.getMonth() + 1);
+}
 
-  const isWithinOneMonthFromJoin =
-    oneMonthAfterJoinedAt
-      ? new Date() < oneMonthAfterJoinedAt
-      : false;
+const isWithinOneMonthFromJoin =
+  oneMonthAfterJoinedAt
+    ? new Date() < oneMonthAfterJoinedAt
+    : false;
 
-  const isSilverOrHigher =
-    isWithinOneMonthFromJoin ||
-    performanceRank === "silver" ||
-    performanceRank === "gold" ||
-    performanceRank === "platinum";
+const normalizedRank = String(performanceRank ?? "").trim().toLowerCase();
+
+const isSilverOrHigher =
+  isWithinOneMonthFromJoin ||
+  [
+    "silver",
+    "gold",
+    "platinum",
+    "シルバー",
+    "ゴールド",
+    "プラチナ",
+  ].includes(normalizedRank);
 
   const isManager =
     me?.role === "manager" || me?.role === "admin";
 
-  const isTestAccount = me?.user_id === "servicesuport";
+    const isTestAccount = me?.user_id === "servicesuport";
 
   const canSubmit =
-    isTestAccount ||
-    (
-      isSilverOrHigher &&
-      !isManager &&
-      !isAfterDeadline &&
-      hasSelectedShift &&
-      allChecked &&
-      !submitting
-    );
+  isTestAccount ||
+  (
+    isSilverOrHigher &&
+    !isManager &&
+    !isAfterDeadline &&
+    hasSelectedShift &&
+    allChecked &&
+    !submitting
+  );
 
 
-  const baseAmount = targetShifts
-    .reduce((sum, shift) => sum + shift.amount, 0);
+const baseAmount = targetShifts
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
-  const eligibleAmount = targetShifts
-    .filter((shift) => shift.has_shift_record)
-    .reduce((sum, shift) => sum + shift.amount, 0);
+const eligibleAmount = targetShifts
+  .filter((shift) => shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
-  const excludedAmount = targetShifts
-    .filter((shift) => !shift.has_shift_record)
-    .reduce((sum, shift) => sum + shift.amount, 0);
+const excludedAmount = targetShifts
+  .filter((shift) => !shift.has_shift_record)
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
-  const calculation = calculateAvailableAmount({
-    baseAmount: eligibleAmount,
+const calculation = calculateAvailableAmount({
+  baseAmount: eligibleAmount,
     hasSocialInsurance: Boolean(me?.has_social_insurance),
     hasEmploymentAndWorkersInsurance: Boolean(
       me?.has_employment_insurance
@@ -283,18 +290,21 @@ export default function UserAdvancePaymentConfirmPage() {
 
         setRejectedApplication(rejectedData);
 
-
-        const currentMonth = new Date().toISOString().slice(0, 7) + "-01";
-
+        
         const { data: latestScore } = await supabase
           .from("staff_monthly_score_summaries")
-          .select("medal_rank")
+          .select("medal_rank, target_month")
           .eq("user_id", currentUser.user_id)
-          .eq("target_month", currentMonth)
+          .order("target_month", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
 
-        setPerformanceRank(latestScore?.medal_rank ?? "bronze");
+          console.log("latestScore", latestScore);
+          console.log("medal_rank", latestScore?.medal_rank);
 
+        setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
+        
 
         const startDate = new Date(start.getTime() - 24 * 60 * 60 * 1000)
           .toISOString()
@@ -359,29 +369,29 @@ export default function UserAdvancePaymentConfirmPage() {
             return shiftEnd > start && shiftEnd <= end;
           })
           .map((shift) => {
-            const hasShiftRecord =
-              recordStatusByShiftId.get(shift.shift_id) !== "draft" &&
-              recordStatusByShiftId.has(shift.shift_id);
+  const hasShiftRecord =
+    recordStatusByShiftId.get(shift.shift_id) !== "draft" &&
+    recordStatusByShiftId.has(shift.shift_id);
 
-            const shiftAmount = Number(shift.estimated_pay_amount ?? 0);
+  const shiftAmount = Number(shift.estimated_pay_amount ?? 0);
 
-            return {
-              id: String(shift.shift_id),
-              shift_id: shift.shift_id,
-              shift_start_date: shift.shift_start_date,
-              shift_start_time: shift.shift_start_time,
-              shift_end_time: shift.shift_end_time,
-              client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
-              address: shift.district ?? "",
-              service_code: shift.service_code ?? "",
+  return {
+    id: String(shift.shift_id),
+    shift_id: shift.shift_id,
+    shift_start_date: shift.shift_start_date,
+    shift_start_time: shift.shift_start_time,
+    shift_end_time: shift.shift_end_time,
+    client_name: shift.name ?? shift.kaipoke_cs_id ?? "利用者名未設定",
+    address: shift.district ?? "",
+    service_code: shift.service_code ?? "",
 
-              amount: shiftAmount,
-              excludedAmount: hasShiftRecord ? 0 : shiftAmount,
+    amount: shiftAmount,
+    excludedAmount: hasShiftRecord ? 0 : shiftAmount,
 
-              record_status: recordStatusByShiftId.get(shift.shift_id) ?? null,
-              has_shift_record: hasShiftRecord,
-            };
-          });
+    record_status: recordStatusByShiftId.get(shift.shift_id) ?? null,
+    has_shift_record: hasShiftRecord,
+  };
+});
 
         setTargetShifts(filtered);
       } catch (error) {
@@ -406,25 +416,25 @@ export default function UserAdvancePaymentConfirmPage() {
   async function submitApplication() {
     try {
       if (!me) {
-        setErrorMessage("ログインユーザー情報を取得できていません。");
-        return;
-      }
+  setErrorMessage("ログインユーザー情報を取得できていません。");
+  return;
+}
 
-      if (!isSilverOrHigher && !isTestAccount) {
-        setErrorMessage(
-          "日払い申請は、パフォーマンススコアがシルバー以上の方が対象です。なお、入社後1か月以内の方はこの条件の適用対象外です。"
-        );
-        return;
-      }
+if (!isSilverOrHigher && !isTestAccount) {
+  setErrorMessage(
+    "日払い申請は、パフォーマンススコアがシルバー以上の方が対象です。なお、入社後1か月以内の方はこの条件の適用対象外です。"
+  );
+  return;
+}
 
-      if (!canSubmit && !isTestAccount) return;
+if (!canSubmit && !isTestAccount) return;
 
       setSubmitting(true);
       setErrorMessage("");
       setMessage("");
 
       const baseAmount = targetShifts
-        .reduce((sum, shift) => sum + shift.amount, 0);
+  .reduce((sum, shift) => sum + shift.amount, 0);
 
       const calculation = calculateAvailableAmount({
         baseAmount: eligibleAmount,
@@ -498,36 +508,36 @@ export default function UserAdvancePaymentConfirmPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: me.user_id,
-          userName: employeeName || me.user_id,
-          applicationDate: toJstDateString(),
-          applicationNo,
+  userId: me.user_id,
+  userName: employeeName || me.user_id,
+  applicationDate: toJstDateString(),
+  applicationNo,
 
-          totalAmount: baseAmount,
-          excludedAmount,
-          eligibleAmount,
+  totalAmount: baseAmount,
+  excludedAmount,
+  eligibleAmount,
 
-          deductionAmount:
-            eligibleAmount - calculation.availableAmount + 200,
+  deductionAmount:
+    eligibleAmount - calculation.availableAmount + 200,
 
-          transferAmount:
-            Math.max(calculation.availableAmount - 200, 0),
+  transferAmount:
+    Math.max(calculation.availableAmount - 200, 0),
 
-          deductionRate: calculation.deductionRate,
+  deductionRate: calculation.deductionRate,
 
-          deductionReasons: [
-            ...calculation.reasons,
-            "振込手数料200円",
-          ],
+  deductionReasons: [
+    ...calculation.reasons,
+    "振込手数料200円",
+  ],
 
-          selectedShifts: targetShifts.map((shift) => ({
-            shift_id: Number(shift.shift_id),
-            shift_start_date: shift.shift_start_date,
-            shift_start_time: shift.shift_start_time,
-            shift_end_time: shift.shift_end_time,
-            client_name: shift.client_name,
-          })),
-        }),
+  selectedShifts: targetShifts.map((shift) => ({
+    shift_id: Number(shift.shift_id),
+    shift_start_date: shift.shift_start_date,
+    shift_start_time: shift.shift_start_time,
+    shift_end_time: shift.shift_end_time,
+    client_name: shift.client_name,
+  })),
+}),
       });
 
       if (!notifyRes.ok) {
@@ -557,44 +567,74 @@ export default function UserAdvancePaymentConfirmPage() {
           <h1 className="text-2xl font-bold">日払い申請フォーム</h1>
 
           <div className="mt-4 text-black">
-            <div className="mb-2 text-lg font-bold">
-              日払い制度について
-            </div>
+  <div className="mb-2 text-lg font-bold">
+    日払い制度について
+  </div>
 
-            <p className="text-base leading-8 text-slate-800">
-              この制度は、正式な給与計算・支給は翌月25日に行われることを前提とし、
-              その概算を日ごとに受け取れる仕組みです。
-              概算の計算には一定の時給と控除率を用いており、最終的には正式な給与支給日に、
-              概算で支払われた日払い金額と、正式な給与支給額の差額が精算されることになります。
-            </p>
-          </div>
+  <p className="text-base leading-8 text-slate-800">
+    この制度は、正式な給与計算・支給は翌月25日に行われることを前提とし、
+    その概算を日ごとに受け取れる仕組みです。
+    概算の計算には一定の時給と控除率を用いており、最終的には正式な給与支給日に、
+    概算で支払われた日払い金額と、正式な給与支給額の差額が精算されることになります。
+  </p>
+</div>
 
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">⭐</div>
+<div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+  <div className="flex items-start gap-3">
+    <div className="text-2xl">⭐</div>
 
-              <div>
-                <div className="font-semibold text-blue-900">
-                  日払い申請の利用条件
-                </div>
+    <div>
+      <div className="font-semibold text-blue-900">
+        日払い申請の利用条件
+      </div>
 
-                <div className="mt-2 text-sm leading-6 text-blue-800">
-                  日払い申請のご利用には、原則として
-                  <span className="font-semibold">
-                    パフォーマンススコア「シルバー」以上
-                  </span>
-                  であることが条件となります。
-                  <br />
-                  なお、
-                  <span className="font-semibold">
-                    入社後1か月以内の方
-                  </span>
-                  はパフォーマンススコア条件の適用対象外となります。
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className="mt-2 text-sm leading-6 text-blue-800">
+        日払い申請のご利用には、原則として
+        <span className="font-semibold">
+          パフォーマンススコア「シルバー」以上
+        </span>
+        であることが条件となります。
+        <br />
+        なお、
+        <span className="font-semibold">
+          入社後1か月以内の方
+        </span>
+        はパフォーマンススコア条件の適用対象外となります。
+      </div>
+    </div>
+  </div>
+</div>
 
+<div className="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-5">
+  <div className="flex items-start gap-3">
+    <div className="text-2xl">🏦</div>
+
+    <div>
+      <div className="font-semibold text-sky-900">
+        給与振込口座の登録について
+      </div>
+
+      <div className="mt-2 text-sm leading-6 text-sky-800">
+        日払いをご利用になる方は、あらかじめ給与振込口座の登録が必要です。
+        <br />
+        まだ登録がお済みでない方は、
+        <a
+          href="https://works.do/592l3G4"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-blue-700 underline"
+        >
+          こちら
+        </a>
+        から振込先口座をご登録ください。
+      </div>
+
+      <div className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+        ⚠️ 振込先口座が未登録の場合は、日払いのお振込みができず、お支払いが延期となる場合があります。
+      </div>
+    </div>
+  </div>
+</div>
 
 
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -615,51 +655,51 @@ export default function UserAdvancePaymentConfirmPage() {
         </div>
 
         <Card className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">📅</div>
+  <CardContent className="p-5">
+    <div className="flex items-center gap-3">
+      <div className="text-2xl">📅</div>
 
-              <div>
-                <div className="text-lg font-bold text-blue-900">
-                  日払い対象期間
-                </div>
+      <div>
+        <div className="text-lg font-bold text-blue-900">
+          日払い対象期間
+        </div>
 
-                <div className="text-sm text-blue-700">
-                  前日18:00 ～ 当日18:00終了分
-                </div>
-              </div>
-            </div>
+        <div className="text-sm text-blue-700">
+          前日18:00 ～ 当日18:00終了分
+        </div>
+      </div>
+    </div>
 
-            <div className="mt-3 text-xs text-slate-600">
-              対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
-            </div>
-          </CardContent>
-        </Card>
+    <div className="mt-3 text-xs text-slate-600">
+      対象シフトはログイン中の職員IDに紐づくシフトのみ表示されます。
+    </div>
+  </CardContent>
+</Card>
 
-        {rejectedApplication && (
-          <div className="rounded-xl border border-red-300 bg-gradient-to-r from-red-50 to-white px-6 py-4">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">⚠️</div>
+{rejectedApplication && (
+  <div className="rounded-xl border border-red-300 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+    <div className="flex items-start gap-3">
+      <div className="text-2xl">⚠️</div>
 
-              <div>
-                <div className="text-lg font-bold text-red-700">
-                  前回の申請は差し戻しされています
-                </div>
+      <div>
+        <div className="text-lg font-bold text-red-700">
+          前回の申請は差し戻しされています
+        </div>
 
-                <div className="mt-2 text-sm text-slate-700">
-                  <span className="font-semibold">
-                    差し戻し理由：
-                  </span>
-                  {rejectedApplication.rejected_reason}
-                </div>
+        <div className="mt-2 text-sm text-slate-700">
+          <span className="font-semibold">
+            差し戻し理由：
+          </span>
+          {rejectedApplication.rejected_reason}
+        </div>
 
-                <div className="mt-2 text-sm text-slate-500">
-                  内容を修正して再申請してください。
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="mt-2 text-sm text-slate-500">
+          内容を修正して再申請してください。
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {errorMessage && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -676,24 +716,24 @@ export default function UserAdvancePaymentConfirmPage() {
           </div>
         )}
 
-        {message && (
-          <div className="rounded-2xl border border-green-300 bg-green-50 p-5 text-green-800 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl">✅</div>
+       {message && (
+  <div className="rounded-2xl border border-green-300 bg-green-50 p-5 text-green-800 shadow-sm">
+    <div className="flex items-start gap-3">
+      <div className="text-2xl">✅</div>
 
-              <div>
-                <div className="text-lg font-bold">
-                  申請処理が完了しました
-                </div>
+      <div>
+        <div className="text-lg font-bold">
+          申請処理が完了しました
+        </div>
 
-                <div className="mt-2 text-sm leading-6">
-                  {message}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
+        <div className="mt-2 text-sm leading-6">
+          {message}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+        
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -717,55 +757,56 @@ export default function UserAdvancePaymentConfirmPage() {
             ) : (
               <div className="space-y-3">
                 {targetShifts.map((shift) => (
-                  <div
+                 <div
                     key={shift.shift_id}
-                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition"
-                  >
+                     className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition"
+                    >
 
                     <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
-                          📅 {shift.shift_start_date}
-                        </div>
+  <div className="flex flex-wrap items-center gap-3">
+    <div className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+      📅 {shift.shift_start_date}
+    </div>
 
-                        <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-                          ⏰ {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
-                        </div>
-                      </div>
+    <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+      ⏰ {formatTime(shift.shift_start_time)} - {formatTime(shift.shift_end_time)}
+    </div>
+  </div>
 
-                      <div className="text-base font-semibold text-slate-900">
-                        👤 {shift.client_name}
-                      </div>
+  <div className="text-base font-semibold text-slate-900">
+    👤 {shift.client_name}
+  </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {shift.service_code && <span>サービスコード：{shift.service_code}</span>}
                         {shift.service_code && shift.address && <span> ／ </span>}
                         {shift.address && <span>{shift.address}</span>}
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <div
-                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${shift.has_shift_record
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                            }`}
-                        >
-                          {shift.has_shift_record ? "✅ 訪問記録 記載済み" : "⚠️ 訪問記録 未記載"}
-                        </div>
+               <div className="mt-3 flex flex-wrap items-center gap-2">
+  <div
+    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+      shift.has_shift_record
+        ? "bg-green-100 text-green-800"
+        : "bg-red-100 text-red-800"
+    }`}
+  >
+    {shift.has_shift_record ? "✅ 訪問記録 記載済み" : "⚠️ 訪問記録 未記載"}
+  </div>
 
-                        <a
-                          href="/portal/shift"
-                          className="text-xs font-semibold text-blue-600 underline"
-                        >
-                          シフト・訪問記録を確認
-                        </a>
-                      </div>
+  <a
+    href="/portal/shift"
+    className="text-xs font-semibold text-blue-600 underline"
+  >
+    シフト・訪問記録を確認
+  </a>
+</div>
 
                       <div className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-right">
-                        <div className="text-xs text-blue-700">日払い対象額</div>
-                        <div className="text-xl font-bold text-blue-800">
-                          ¥{shift.amount.toLocaleString()}
-                        </div>
-                      </div>
+  <div className="text-xs text-blue-700">日払い対象額</div>
+  <div className="text-xl font-bold text-blue-800">
+    ¥{shift.amount.toLocaleString()}
+  </div>
+</div>
                     </div>
                   </div>
                 ))}
@@ -775,25 +816,25 @@ export default function UserAdvancePaymentConfirmPage() {
         </Card>
 
         <Card className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-white shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">✅</div>
+  <CardContent className="p-6">
+    <div className="flex items-center gap-3">
+      <div className="text-2xl">✅</div>
 
-              <div>
-                <h2 className="text-lg font-bold text-orange-950">
-                  申請前の確認事項
-                </h2>
-                <p className="mt-1 text-sm text-orange-900">
-                  内容を確認し、すべての項目に同意した場合のみ申請できます。
-                </p>
-              </div>
-            </div>
+      <div>
+        <h2 className="text-lg font-bold text-orange-950">
+          申請前の確認事項
+        </h2>
+        <p className="mt-1 text-sm text-orange-900">
+          内容を確認し、すべての項目に同意した場合のみ申請できます。
+        </p>
+      </div>
+    </div>
 
             <div className="mt-4 space-y-3">
               {confirmItems.map((item) => (
                 <label
-                  key={item.key}
-                  className="
+  key={item.key}
+  className="
     flex
     cursor-pointer
     gap-3
@@ -807,18 +848,18 @@ export default function UserAdvancePaymentConfirmPage() {
     hover:shadow-md
     transition
   "
-                >
+>
                   <input
-                    type="checkbox"
-                    className="mt-1 h-6 w-6 accent-blue-600"
-                    checked={checks[item.key]}
-                    onChange={(e) =>
-                      setChecks((prev) => ({
-                        ...prev,
-                        [item.key]: e.target.checked,
-                      }))
-                    }
-                  />
+  　　　　　　　　　　type="checkbox"
+  　　　　　　　　　　className="mt-1 h-6 w-6 accent-blue-600"
+                  　　  checked={checks[item.key]}
+                 　　   onChange={(e) =>
+                   　　   setChecks((prev) => ({
+                    　　    ...prev,
+                   　　     [item.key]: e.target.checked,
+                  　　    }))
+                 　　   }
+               　　   />
 
                   <div>
                     <div className="font-medium text-slate-900">{item.label}</div>
@@ -841,124 +882,124 @@ export default function UserAdvancePaymentConfirmPage() {
                   : "申請できます。"}
             </div>
 
-            <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-xl">
-              <div className="space-y-4">
+           <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6 shadow-xl">
+<div className="space-y-4">
 
-                <div className="flex items-center justify-between border-b border-blue-200 pb-3">
-                  <span className="font-medium text-slate-600">1日合計金額</span>
-                  <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                    ¥{baseAmount.toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between border-b border-blue-200 pb-3">
+    <span className="font-medium text-slate-600">1日合計金額</span>
+    <span className="text-2xl font-bold text-slate-900 tabular-nums">
+      ¥{baseAmount.toLocaleString()}
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between text-red-600">
-                  <span>対象外金額</span>
-                  <span className="font-medium tabular-nums">
-                    ▲¥{excludedAmount.toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between text-red-600">
+    <span>対象外金額</span>
+    <span className="font-medium tabular-nums">
+      ▲¥{excludedAmount.toLocaleString()}
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between border-b border-blue-100 pb-3 text-slate-700">
-                  <span className="font-semibold">日払い計算対象額</span>
-                  <span className="font-bold tabular-nums">
-                    ¥{eligibleAmount.toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between border-b border-blue-100 pb-3 text-slate-700">
+    <span className="font-semibold">日払い計算対象額</span>
+    <span className="font-bold tabular-nums">
+      ¥{eligibleAmount.toLocaleString()}
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between text-red-600">
-                  <span>
-                    控除（{Math.round(calculation.deductionRate * 100)}%）
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    ▲¥{(eligibleAmount - calculation.availableAmount).toLocaleString()}
-                  </span>
-                </div>
+  <div className="flex items-center justify-between text-red-600">
+    <span>
+      控除（{Math.round(calculation.deductionRate * 100)}%）
+    </span>
+    <span className="font-medium tabular-nums">
+      ▲¥{(eligibleAmount - calculation.availableAmount).toLocaleString()}
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between text-red-600">
-                  <span>手数料</span>
-                  <span className="font-medium tabular-nums">
-                    ▲¥200
-                  </span>
-                </div>
+  <div className="flex items-center justify-between text-red-600">
+    <span>手数料</span>
+    <span className="font-medium tabular-nums">
+      ▲¥200
+    </span>
+  </div>
 
-                <div className="flex items-center justify-between border-t border-blue-200 pt-4">
-                  <span className="font-semibold text-slate-700">
-                    振込予定額
-                  </span>
+  <div className="flex items-center justify-between border-t border-blue-200 pt-4">
+    <span className="font-semibold text-slate-700">
+      振込予定額
+    </span>
 
-                  <span className="text-4xl font-extrabold text-blue-700 tabular-nums">
-                    ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
-                  </span>
-                </div>
+    <span className="text-4xl font-extrabold text-blue-700 tabular-nums">
+      ¥{Math.max(calculation.availableAmount - 200, 0).toLocaleString()}
+    </span>
+  </div>
 
+</div>
+            </div>
+            </div>
+
+
+            
+            {!isSilverOrHigher && (
+               <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                 <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
+
+                 </div>
+                <a href="/portal/my-score-preview" className="mt-2 inline-block font-semibold text-red-800 underline">
+                  パフォーマンススコアを確認する
+                </a>
               </div>
-            </div>
-          </div>
-
-
-
-          {!isSilverOrHigher && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <div>日払い制度は、パフォーマンススコアがシルバー以上の職員のみ利用できます。
-
-              </div>
-              <a href="/portal/my-score-preview" className="mt-2 inline-block font-semibold text-red-800 underline">
-                パフォーマンススコアを確認する
-              </a>
-            </div>
-          )}
-
-
-          {isAfterDeadline && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              本日の日払い申請受付は18:30で終了しました。
-              対象シフトが表示されていても申請はできません。
-            </div>
-          )}
-          {isManager && (
-            <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <div className="font-semibold">管理者・マネージャー向け表示</div>
-              <div className="mt-1">
-                マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-center gap-4 mt-6">
-            {rejectedApplication && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  window.scrollTo({
-                    top: 0,
-                    behavior: "smooth",
-                  })
-                }
-              >
-                差し戻し理由を確認
-              </Button>
             )}
+            
 
-            <div className="mt-6 flex flex-col items-center gap-3">
-              <Button
-                type="button"
-                className="w-full rounded-2xl bg-blue-600 px-8 py-5 text-lg font-bold shadow-lg hover:bg-blue-700"
-                disabled={!canSubmit}
-                onClick={submitApplication}
-              >
-                {submitting ? "申請中..." : "日払い申請を送信"}
-              </Button>
+            {isAfterDeadline && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                本日の日払い申請受付は18:30で終了しました。
+                対象シフトが表示されていても申請はできません。
+              </div>
+            )}
+            {isManager && (
+  <div className="w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div className="font-semibold">管理者・マネージャー向け表示</div>
+    <div className="mt-1">
+      マネージャー権限の方は、この画面を確認できますが、日払い申請はできません。
+    </div>
+  </div>
+)}
 
-              {!canSubmit && !submitting && (
-                <div className="text-sm text-slate-500">
-                  申請条件を満たすと送信ボタンが有効になります。
-                </div>
-              )}
-            </div>
+<div className="flex justify-center gap-4 mt-6">
+  {rejectedApplication && (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() =>
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        })
+      }
+    >
+      差し戻し理由を確認
+    </Button>
+  )}
+
+<div className="mt-6 flex flex-col items-center gap-3">
+  <Button
+  type="button"
+  className="w-full rounded-2xl bg-blue-600 px-8 py-5 text-lg font-bold shadow-lg hover:bg-blue-700"
+    disabled={!canSubmit}
+    onClick={submitApplication}
+  >
+    {submitting ? "申請中..." : "日払い申請を送信"}
+  </Button>
+
+  {!canSubmit && !submitting && (
+    <div className="text-sm text-slate-500">
+      申請条件を満たすと送信ボタンが有効になります。
+    </div>
+  )}
+</div>
+</div>
           </div>
         </div>
       </div>
-    </div>
   );
 }

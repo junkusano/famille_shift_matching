@@ -82,9 +82,20 @@ export default function ShiftPage() {
                 .select("postal_code_3, district")
                 .order("postal_code_3");
 
+            const { data: confirmedRecords } = await supabase
+            .from("shift_shift_record_view2")
+            .select("shift_id")
+            .eq("status", "確定");
+
+            const confirmedShiftIds = new Set(
+                 confirmedRecords?.map((r) => r.shift_id) ?? []
+             );    
+
+
             if (!allShifts) return;
 
             const formatted = (allShifts as SupabaseShiftRaw[])
+                .filter((s) => !confirmedShiftIds.has(s.shift_id))
                 .filter((s) =>
                     s.staff_01_user_id === "-" ||                         // 既存の特例を維持
                     s.level_sort_order < 4_000_000 ||                    // staff_01 のレベル基準（既存）

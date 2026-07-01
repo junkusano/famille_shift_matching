@@ -218,9 +218,9 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
                 : `＠${staffName}さん`;
 
             const message =
-                `【月例会議 未参加】〈${formatYmJa(targetYm)}分〉\n` +
+                `【月例会議 未参加】〈${formatYmJa(monthYm)}分〉\n` +
                 `${mentionLine}\n` +
-                `前月分の月例会議について、参加が確認できていません。\n` +
+                `${formatYmJa(monthYm)}分の月例会議について、参加が確認できていません。\n` +
                 `月例会議に参加している場合は、「月例」にチェックをお願いします。\n\n` +
                 `月例会議に参加できていない場合は、マネージャーと話して追加開催を行ってください。\n` +
                 `追加開催が終わっている場合は、マネージャーに「追加」のチェックを入れてもらうよう依頼してください。\n` +

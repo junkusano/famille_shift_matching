@@ -802,7 +802,6 @@ export default function MonthlyMeetingCheckPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={Boolean(e.attended_extra)}
-                                                disabled={!canManagerEdit}
                                                 onChange={async (ev) => {
                                                     const v = ev.target.checked;
                                                     try {

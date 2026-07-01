@@ -7,13 +7,33 @@ import { ApplicantBody } from "@/types/email";
 export async function POST(req: Request) {
   const body: ApplicantBody = await req.json();
 
+  const rawBody = body as ApplicantBody & Record<string, unknown>;
+
+  const applicantName =
+    body.applicantName ||
+    String(rawBody.name || "") ||
+    `${String(rawBody.last_name_kanji || "")}${String(rawBody.first_name_kanji || "")}`;
+
+  const applicantKana =
+    body.applicantKana ||
+    String(rawBody.kana || "") ||
+    `${String(rawBody.last_name_kana || "")}${String(rawBody.first_name_kana || "")}`;
+
+  const normalizedBody = {
+    ...body,
+    applicantName,
+    applicantKana,
+    name: applicantName,
+    kana: applicantKana,
+  };
+
   // メール本文生成
-  const applicantHtml = generateApplicantHtml(body);
-  const recruiterHtml = generateRecruiterHtml(body);
+  const applicantHtml = generateApplicantHtml(normalizedBody);
+  const recruiterHtml = generateRecruiterHtml(normalizedBody);
 
   // エントリー者へのメール送信
   const response = await sendEmail({
-    to: body.email,
+    to: normalizedBody.email,
     subject: "【ファミーユ】エントリーありがとうございます",
     html: applicantHtml,
   });
@@ -25,7 +45,7 @@ export async function POST(req: Request) {
   // 採用担当者への通知
   await sendEmail({
     to: process.env.RECRUIT_CONTACT_EMAIL || "recruit@shi-on.net",
-    subject: `【新規エントリー】${body.applicantName}様より`,
+    subject: `【新規エントリー】${normalizedBody.applicantName}様より`,
     html: recruiterHtml,
   });
 

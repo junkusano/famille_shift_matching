@@ -1129,7 +1129,10 @@ export default function EntryDetailPage() {
                     body: JSON.stringify({
                         userId: data.userId,  // ✅ lw_userid（UUID）を渡す
                         orgUnitId: selectedOrg,
-                        extraMemberIds: [mgrLwUserId].filter(Boolean) // ②-1: 上司も同席
+                        extraMemberIds: [mgrLwUserId].filter(Boolean), // ②-1: 上司も同席
+                        applicantName: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
+                        fullName: `${entry.last_name_kanji ?? ""} ${entry.first_name_kanji ?? ""}`.trim(),
+                        name: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
                     })
                 });
 
@@ -1219,15 +1222,24 @@ export default function EntryDetailPage() {
 
     useEffect(() => {
         if (
-            userRecord &&
-            orgList.length > 0 &&
-            levelList.length > 0 &&
-            positionList.length > 0
+            orgList.length === 0 ||
+            levelList.length === 0 ||
+            positionList.length === 0
         ) {
-            setSelectedOrg(userRecord.org_unit_id || "");
-            setSelectedLevel(userRecord.level_id || "");
-            setSelectedPosition(userRecord.position_id || "");
+            return;
         }
+
+        const defaultOrg = orgList.find(
+            (org) => org.orgUnitName === "管理者直属チーム"
+        );
+
+        const defaultLevel = levelList.find(
+            (level) => level.levelName === "契約社員"
+        );
+
+        setSelectedOrg(userRecord?.org_unit_id || defaultOrg?.orgUnitId || "");
+        setSelectedLevel(userRecord?.level_id || defaultLevel?.levelId || "");
+        setSelectedPosition(userRecord?.position_id || "");
     }, [userRecord, orgList, levelList, positionList]);
 
     // 写真再アップロー

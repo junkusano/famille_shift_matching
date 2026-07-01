@@ -23,7 +23,7 @@ export default function EntryPage() {
     const [formData, setFormData] = useState<FormData | null>(null);
     const [postalCode, setPostalCode] = useState("");
     const [address, setAddress] = useState(""); // ←住所欄に反映する
-    
+
     const fetchAddressFromPostalCode = useCallback(async () => {
         if (postalCode.length !== 7) return;
 
@@ -83,6 +83,27 @@ export default function EntryPage() {
         // 必須テキスト（氏名は姓+名を結合）
         const lastNameKanji = String(form.get("lastNameKanji") || "").trim();
         const firstNameKanji = String(form.get("firstNameKanji") || "").trim();
+        const lastNameKana = String(form.get("lastNameKana") || "").trim();
+        const firstNameKana = String(form.get("firstNameKana") || "").trim();
+
+        const applicantName = `${lastNameKanji}${firstNameKanji}`;
+        const applicantKana = `${lastNameKana}${firstNameKana}`;
+
+        const birthYear = Number(form.get("birthYear") || 0) || null;
+        const birthMonth = Number(form.get("birthMonth") || 0) || null;
+        const birthDay = Number(form.get("birthDay") || 0) || null;
+
+        const today = new Date();
+        let age: number | null = null;
+
+        if (birthYear && birthMonth && birthDay) {
+            age = today.getFullYear() - birthYear;
+            const hasBirthdayPassed =
+                today.getMonth() + 1 > birthMonth ||
+                (today.getMonth() + 1 === birthMonth && today.getDate() >= birthDay);
+
+            if (!hasBirthdayPassed) age -= 1;
+        }
         //const applicantName = `${lastNameKanji}${firstNameKanji}`;
         const email = String(form.get("email") || "").trim();
 
@@ -229,6 +250,13 @@ export default function EntryPage() {
                 body: JSON.stringify({
                     entryId: insertData?.[0]?.id,
                     ...payloadForDB,  // ここは“フラットな”payloadをそのまま
+                    // LINE・メール通知用。DBにはinsertしない。
+                    applicantName,
+                    applicantKana,
+                    age,
+                    // 本人宛メール側が name / kana を見ている場合のため
+                    name: applicantName,
+                    kana: applicantKana,
                 }),
             });
         } catch (err) {

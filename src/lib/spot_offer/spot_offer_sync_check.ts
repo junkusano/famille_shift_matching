@@ -74,30 +74,7 @@ if (!shouldCheckByTime) {
       continue;
     }
 
-const staff01UserId = shift["staff_01_user_id"];
-const staff02UserId = shift["staff_02_user_id"];
-
-const staff01IsManager = await isManagerStaff(staff01UserId);
-const staff02IsManager = await isManagerStaff(staff02UserId);
-
-const hasStaff01 = !!staff01UserId;
-const hasStaff02 = !!staff02UserId;
-
-// 単独シフト：staff_01 が manager/admin 以外ならクローズ
-const shouldCloseSingleStaff =
-  hasStaff01 &&
-  !hasStaff02 &&
-  !staff01IsManager;
-
-// 二名介助：staff_01・staff_02 が両方 manager/admin 以外ならクローズ
-const shouldCloseTwoStaff =
-  hasStaff01 &&
-  hasStaff02 &&
-  !staff01IsManager &&
-  !staff02IsManager;
-
-const shouldCloseByStaff =
-  shouldCloseSingleStaff || shouldCloseTwoStaff;
+const shouldCloseByStaff = await shouldCloseTimeeByStaff(shift);
 
     if (shouldCloseByStaff) {
       await createCloseRequest(spotOfferRequest, "staff_confirmed", opts);
@@ -114,7 +91,7 @@ const diffMinutes = getTimeDiffMinutes(
   currentStartTime
 );
 
-if (diffMinutes >= 30) {
+if (diffMinutes > 30) {
   await createManagerAlert(
     spotOfferRequest,
     shift,
@@ -160,7 +137,7 @@ async function createCloseRequest(
     .from("wf_request")
     .select("id")
     .eq("request_type_id", SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID)
-    .eq("status", "pending")
+    .eq("status", "approved")
     .contains("payload", {
       command: "close_job",
       shift_id: shiftId,
@@ -211,7 +188,7 @@ if (!applicantUser?.auth_user_id) {
 const { error } = await supabase.from("wf_request").insert({
   request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
   applicant_user_id: applicantUser.auth_user_id,
-  status: "pending",
+  status: "approved",
   payload,
 });
 
@@ -266,7 +243,7 @@ async function createManagerAlert(
   const { error } = await supabase.from("wf_request").insert({
     request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
     applicant_user_id: applicantUser.auth_user_id,
-    status: "pending",
+    status: "approved",
     payload,
   });
 
@@ -296,6 +273,33 @@ async function isManagerStaff(userId: unknown) {
   }
 
   return data?.system_role === "manager" || data?.system_role === "admin";
+}
+
+async function shouldCloseTimeeByStaff(shift: Record<string, unknown>) {
+  const staff01UserId = shift["staff_01_user_id"];
+  const staff02UserId = shift["staff_02_user_id"];
+  const staff03UserId = shift["staff_03_user_id"];
+
+  const staff02AttendFlg = shift["staff_02_attend_flg"] === true;
+  const staff03AttendFlg = shift["staff_03_attend_flg"] === true;
+
+  const staff01IsManager = await isManagerStaff(staff01UserId);
+  const staff02IsManager = await isManagerStaff(staff02UserId);
+  const staff03IsManager = await isManagerStaff(staff03UserId);
+
+  if (staff01IsManager) {
+    return false;
+  }
+
+  if (staff02IsManager && !staff02AttendFlg) {
+    return false;
+  }
+
+  if (staff03IsManager && !staff03AttendFlg) {
+    return false;
+  }
+
+  return true;
 }
 
 function getTimeDiffMinutes(
