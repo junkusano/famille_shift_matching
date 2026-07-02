@@ -44,16 +44,13 @@ type DisplayRow = {
 };
 
 function getFiscalYear() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    return month >= 4 ? year : year - 1;
+    return new Date().getFullYear();
 }
 
 function fiscalStartEnd(fiscalYear: number) {
     return {
-        startDate: `${fiscalYear}-04-01`,
-        endDate: `${fiscalYear + 1}-03-31`,
+        startDate: `${fiscalYear}-01-01`,
+        endDate: `${fiscalYear}-12-31`,
     };
 }
 
@@ -81,9 +78,7 @@ function getRequestFiscalYear(req: HealthRequest) {
     const d = new Date(rawDate);
     if (Number.isNaN(d.getTime())) return getFiscalYear();
 
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    return month >= 4 ? year : year - 1;
+    return d.getFullYear();
 }
 
 export default function AdminHealthCheckResultsPage() {
