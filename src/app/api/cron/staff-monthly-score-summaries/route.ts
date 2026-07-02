@@ -487,38 +487,56 @@ export async function GET(req: NextRequest) {
             throw userRowsError;
         }
 
-        const missingSeedRows = (userRows ?? [])
-            .filter(
-                (user) =>
-                    user.user_id &&
-                    !existingUserIds.has(user.user_id) &&
-                    !EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(user.user_id)
-            )
-            .map((user) => ({
-                target_month: targetMonth,
-                user_id: user.user_id,
-                entry_id: user.entry_id,
-                staff_name: `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}`,
-                service_hours: 0,
-                visit_record_total_count: 0,
-                houmon_same_day_done_count: 0,
-                houmon_late_done_count: 0,
-                visit_record_current_month_incomplete_count: 0,
-                visit_record_past_incomplete_count: 0,
-                meeting_previous_month_attended: false,
-                meeting_past_attended: false,
-                jisseki_previous_month_done_count: 0,
-                jisseki_past_incomplete_count: 0,
-                training_goal_selected_count: 0,
-                health_check_done: false,
-                shift_decline_3days_count: 0,
-                shift_decline_6hours_count: 0,
-                shift_decline_penalty_score: 0,
-                total_score: 0,
-                rank_no: null,
-                medal_rank: "ブロンズ",
-                updated_at: new Date().toISOString(),
-            }));
+        const uniqueUserMap = new Map<
+            string,
+            {
+                user_id: string;
+                entry_id: string | null;
+                last_name_kanji: string | null;
+                first_name_kanji: string | null;
+            }
+        >();
+
+        for (const user of userRows ?? []) {
+            if (!user.user_id) continue;
+            if (existingUserIds.has(user.user_id)) continue;
+            if (EXCLUDED_PERFORMANCE_SCORE_USER_IDS.includes(user.user_id)) continue;
+
+            if (!uniqueUserMap.has(user.user_id)) {
+                uniqueUserMap.set(user.user_id, {
+                    user_id: user.user_id,
+                    entry_id: user.entry_id ?? null,
+                    last_name_kanji: user.last_name_kanji ?? null,
+                    first_name_kanji: user.first_name_kanji ?? null,
+                });
+            }
+        }
+
+        const missingSeedRows = Array.from(uniqueUserMap.values()).map((user) => ({
+            target_month: targetMonth,
+            user_id: user.user_id,
+            entry_id: user.entry_id,
+            staff_name: `${user.last_name_kanji ?? ""}${user.first_name_kanji ?? ""}`,
+            service_hours: 0,
+            visit_record_total_count: 0,
+            houmon_same_day_done_count: 0,
+            houmon_late_done_count: 0,
+            visit_record_current_month_incomplete_count: 0,
+            visit_record_past_incomplete_count: 0,
+            meeting_previous_month_attended: false,
+            meeting_past_attended: false,
+            jisseki_previous_month_done_count: 0,
+            jisseki_past_incomplete_count: 0,
+            training_goal_selected_count: 0,
+            health_check_done: false,
+            shift_decline_3days_count: 0,
+            shift_decline_6hours_count: 0,
+            shift_decline_penalty_score: 0,
+            total_score: 0,
+            rank_no: null,
+            medal_rank: "ブロンズ",
+            updated_at: new Date().toISOString(),
+        }));
 
         if (missingSeedRows.length > 0) {
             const { error: missingSeedError } = await supabaseAdmin
