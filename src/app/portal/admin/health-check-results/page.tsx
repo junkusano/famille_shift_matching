@@ -208,6 +208,9 @@ export default function AdminHealthCheckResultsPage() {
                         .eq("health_check_done", true)
                         .range(from, to);
 
+                    console.log("health score data", data);
+                    console.log("health score error", error);
+
                     return {
                         data: data as {
                             user_id: string;
