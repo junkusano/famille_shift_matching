@@ -257,6 +257,9 @@ export default function AdminHealthCheckResultsPage() {
                     healthCheckDoneRows.map((row) => row.user_id)
                 );
 
+                console.log("healthCheckDoneRows", healthCheckDoneRows);
+                console.log("healthCheckDoneUserIds", [...healthCheckDoneUserIds]);
+
                 const latestRequestIds = Array.from(latestRequestByUser.values()).map(
                     (req) => req.id
                 );
@@ -300,6 +303,13 @@ export default function AdminHealthCheckResultsPage() {
                     }
 
                     const manualSubmitted = !request && healthCheckDoneUserIds.has(staff.user_id);
+
+                    console.log({
+                        user: staff.user_id,
+                        request: Boolean(request),
+                        manualSubmitted,
+                        hasHealthCheckDone: healthCheckDoneUserIds.has(staff.user_id),
+                    });
 
                     return {
                         user_id: staff.user_id,
