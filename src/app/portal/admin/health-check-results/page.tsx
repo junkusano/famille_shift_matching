@@ -309,19 +309,20 @@ export default function AdminHealthCheckResultsPage() {
                             request.health_check_doctor_comment ?? "";
                     }
 
-                    const manualSubmitted = !request && healthCheckDoneUserIds.has(staff.user_id);
+                    const hasHealthCheckDone = healthCheckDoneUserIds.has(staff.user_id);
+                    const manualSubmitted = !request && hasHealthCheckDone;
 
                     console.log({
                         user: staff.user_id,
                         request: Boolean(request),
                         manualSubmitted,
-                        hasHealthCheckDone: healthCheckDoneUserIds.has(staff.user_id),
+                        hasHealthCheckDone,
                     });
 
                     return {
                         user_id: staff.user_id,
                         staff_name: staffName,
-                        submitted: Boolean(request) || manualSubmitted,
+                        submitted: Boolean(request) || hasHealthCheckDone,
                         manualSubmitted,
                         request,
                         attachments: request
