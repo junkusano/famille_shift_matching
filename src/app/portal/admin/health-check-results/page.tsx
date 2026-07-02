@@ -69,6 +69,33 @@ function formatDate(value?: string | null) {
     ).padStart(2, "0")}日`;
 }
 
+type FetchPageResult<T> = {
+    data: T[] | null;
+    error: unknown;
+};
+
+async function fetchAllRows<T>(
+    fetchPage: (from: number, to: number) => Promise<FetchPageResult<T>>
+): Promise<T[]> {
+    const pageSize = 1000;
+    let from = 0;
+    const allRows: T[] = [];
+
+    while (true) {
+        const { data, error } = await fetchPage(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        const rows = data ?? [];
+        allRows.push(...rows);
+
+        if (rows.length < pageSize) break;
+
+        from += pageSize;
+    }
+
+    return allRows;
+}
 export default function AdminHealthCheckResultsPage() {
     const [rows, setRows] = useState<DisplayRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -124,13 +151,27 @@ export default function AdminHealthCheckResultsPage() {
 
                 if (typeError) throw typeError;
 
-                const { data: shiftRows, error: shiftError } = await supabase
-                    .from("shift")
-                    .select("staff_01_user_id, staff_02_user_id, staff_03_user_id")
-                    .gte("shift_start_date", startDate)
-                    .lte("shift_start_date", endDate);
+                const shiftRows = await fetchAllRows<{
+                    staff_01_user_id: string | null;
+                    staff_02_user_id: string | null;
+                    staff_03_user_id: string | null;
+                }>(async (from, to) => {
+                    const { data, error } = await supabase
+                        .from("shift")
+                        .select("staff_01_user_id, staff_02_user_id, staff_03_user_id")
+                        .gte("shift_start_date", startDate)
+                        .lte("shift_start_date", endDate)
+                        .range(from, to);
 
-                if (shiftError) throw shiftError;
+                    return {
+                        data: data as {
+                            staff_01_user_id: string | null;
+                            staff_02_user_id: string | null;
+                            staff_03_user_id: string | null;
+                        }[] | null,
+                        error,
+                    };
+                });
 
                 const workedUserIds = new Set<string>();
 
@@ -140,14 +181,18 @@ export default function AdminHealthCheckResultsPage() {
                     if (shift.staff_03_user_id) workedUserIds.add(shift.staff_03_user_id);
                 }
 
-                const { data: staffRows, error: staffError } = await supabase
-                    .from("user_entry_united_view_single")
-                    .select(
-                        "user_id, auth_user_id, last_name_kanji, first_name_kanji, system_role, status, orgunitname"
-                    )
-                    .neq("status", "removed_from_lineworks_kaipoke");
+                const staffRows = await fetchAllRows<StaffRow>(async (from, to) => {
+                    const { data, error } = await supabase
+                        .from("user_entry_united_view_single")
+                        .select("user_id, auth_user_id, last_name_kanji, first_name_kanji, system_role, status, orgunitname")
+                        .neq("status", "removed_from_lineworks_kaipoke")
+                        .range(from, to);
 
-                if (staffError) throw staffError;
+                    return {
+                        data: data as StaffRow[] | null,
+                        error,
+                    };
+                });
 
                 const targetStaff = ((staffRows ?? []) as StaffRow[])
                     .filter((u) => u.user_id && workedUserIds.has(u.user_id))
@@ -157,29 +202,19 @@ export default function AdminHealthCheckResultsPage() {
                         return an.localeCompare(bn, "ja");
                     });
 
-                const { data: requestRows, error: requestError } = await supabase
-                    .from("wf_request")
-                    .select(
-                        "id, applicant_user_id, title, status, submitted_at, created_at, payload, health_check_doctor_comment"
-                    )
-                    .eq("request_type_id", typeRow.id)
-                    .in("status", ["submitted", "approved", "completed"])
-                    .order("submitted_at", { ascending: false });
+                const currentYearRequests = await fetchAllRows<HealthRequest>(async (from, to) => {
+                    const { data, error } = await supabase
+                        .from("wf_request")
+                        .select("id, applicant_user_id, title, status, submitted_at, created_at, payload, health_check_doctor_comment")
+                        .eq("request_type_id", typeRow.id)
+                        .in("status", ["submitted", "approved", "completed"])
+                        .order("submitted_at", { ascending: false })
+                        .range(from, to);
 
-                if (requestError) throw requestError;
-
-                const currentYearRequests = ((requestRows ?? []) as HealthRequest[]).filter((req) => {
-                    const healthCheckDate =
-                        typeof req.payload?.health_check_date === "string"
-                            ? req.payload.health_check_date
-                            : "";
-
-                    const submittedOrCreatedDate = (req.submitted_at ?? req.created_at).slice(0, 10);
-
-                    return (
-                        (healthCheckDate >= startDate && healthCheckDate <= endDate) ||
-                        (submittedOrCreatedDate >= startDate && submittedOrCreatedDate <= endDate)
-                    );
+                    return {
+                        data: data as HealthRequest[] | null,
+                        error,
+                    };
                 });
                 const latestRequestByUser = new Map<string, HealthRequest>();
 
