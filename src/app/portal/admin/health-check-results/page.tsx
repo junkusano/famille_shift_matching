@@ -216,9 +216,10 @@ export default function AdminHealthCheckResultsPage() {
                         error,
                     };
                 });
-
                 const healthCheckDoneUserIds = new Set(
-                    healthCheckDoneRows.map((row) => row.user_id)
+                    healthCheckDoneRows
+                        .map((row) => row.user_id?.trim())
+                        .filter(Boolean)
                 );
 
                 const targetStaff = ((staffRows ?? []) as StaffRow[])
@@ -299,7 +300,8 @@ export default function AdminHealthCheckResultsPage() {
                 const nextComments: Record<string, string> = {};
 
                 const displayRows: DisplayRow[] = targetStaff.map((staff) => {
-                    const request = latestRequestByUser.get(staff.user_id) ?? null;
+                    const userId = staff.user_id.trim();
+                    const request = latestRequestByUser.get(userId) ?? null;
                     const staffName =
                         `${staff.last_name_kanji ?? ""}${staff.first_name_kanji ?? ""}`.trim() ||
                         staff.user_id;
@@ -309,9 +311,8 @@ export default function AdminHealthCheckResultsPage() {
                             request.health_check_doctor_comment ?? "";
                     }
 
-                    const hasHealthCheckDone = healthCheckDoneUserIds.has(staff.user_id);
-                    const manualSubmitted = !request && hasHealthCheckDone;
-
+                    const hasHealthCheckDone = healthCheckDoneUserIds.has(userId);
+                    const manualSubmitted = hasHealthCheckDone && !request;
                     console.log({
                         user: staff.user_id,
                         request: Boolean(request),
@@ -320,9 +321,9 @@ export default function AdminHealthCheckResultsPage() {
                     });
 
                     return {
-                        user_id: staff.user_id,
+                        user_id: userId,
                         staff_name: staffName,
-                        submitted: Boolean(request) || hasHealthCheckDone,
+                        submitted: hasHealthCheckDone || Boolean(request),
                         manualSubmitted,
                         request,
                         attachments: request
