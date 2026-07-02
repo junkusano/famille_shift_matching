@@ -239,7 +239,8 @@ export default function AdminHealthCheckResultsPage() {
                     const { data, error } = await supabase
                         .from("staff_monthly_score_summaries")
                         .select("user_id, health_check_done")
-                        .eq("target_month", `${fiscalYear}-07-01`)
+                        .gte("target_month", `${fiscalYear}-01-01`)
+                        .lte("target_month", `${fiscalYear}-12-31`)
                         .eq("health_check_done", true)
                         .range(from, to);
 
