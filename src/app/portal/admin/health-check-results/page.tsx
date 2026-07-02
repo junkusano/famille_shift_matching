@@ -223,14 +223,17 @@ export default function AdminHealthCheckResultsPage() {
                 );
 
                 const targetStaff = ((staffRows ?? []) as StaffRow[])
-                    .filter(
-                        (u) =>
-                            u.user_id &&
+                    .filter((u) => {
+                        const userId = u.user_id?.trim();
+
+                        return (
+                            userId &&
                             (
-                                workedUserIds.has(u.user_id) ||
-                                healthCheckDoneUserIds.has(u.user_id)
+                                workedUserIds.has(userId) ||
+                                healthCheckDoneUserIds.has(userId)
                             )
-                    )
+                        );
+                    })
                     .sort((a, b) => {
                         const an = `${a.last_name_kanji ?? ""}${a.first_name_kanji ?? ""}`;
                         const bn = `${b.last_name_kanji ?? ""}${b.first_name_kanji ?? ""}`;
@@ -331,6 +334,14 @@ export default function AdminHealthCheckResultsPage() {
                             : [],
                     };
                 });
+
+                console.log("targetStaff", targetStaff.map((u) => u.user_id));
+                console.log("displayRows", displayRows.map((r) => ({
+                    user_id: r.user_id,
+                    submitted: r.submitted,
+                    manualSubmitted: r.manualSubmitted,
+                    hasHealthCheckDone: healthCheckDoneUserIds.has(r.user_id),
+                })));
 
                 setComments(nextComments);
                 setRows(displayRows);
