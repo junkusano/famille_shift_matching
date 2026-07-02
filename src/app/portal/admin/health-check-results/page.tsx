@@ -11,6 +11,7 @@ type StaffRow = {
     system_role: string | null;
     status: string | null;
     orgunitname: string | null;
+    health_check_done?: boolean;
 };
 
 type HealthRequest = {
@@ -39,6 +40,7 @@ type DisplayRow = {
     user_id: string;
     staff_name: string;
     submitted: boolean;
+    manualSubmitted: boolean;
     request: HealthRequest | null;
     attachments: HealthAttachment[];
 };
@@ -230,6 +232,30 @@ export default function AdminHealthCheckResultsPage() {
                     }
                 }
 
+                const healthCheckDoneRows = await fetchAllRows<{
+                    user_id: string;
+                    health_check_done: boolean;
+                }>(async (from, to) => {
+                    const { data, error } = await supabase
+                        .from("staff_monthly_score_summaries")
+                        .select("user_id, health_check_done")
+                        .eq("target_month", `${fiscalYear}-07-01`)
+                        .eq("health_check_done", true)
+                        .range(from, to);
+
+                    return {
+                        data: data as {
+                            user_id: string;
+                            health_check_done: boolean;
+                        }[] | null,
+                        error,
+                    };
+                });
+
+                const healthCheckDoneUserIds = new Set(
+                    healthCheckDoneRows.map((row) => row.user_id)
+                );
+
                 const latestRequestIds = Array.from(latestRequestByUser.values()).map(
                     (req) => req.id
                 );
@@ -272,10 +298,13 @@ export default function AdminHealthCheckResultsPage() {
                             request.health_check_doctor_comment ?? "";
                     }
 
+                    const manualSubmitted = !request && healthCheckDoneUserIds.has(staff.user_id);
+
                     return {
                         user_id: staff.user_id,
                         staff_name: staffName,
-                        submitted: Boolean(request),
+                        submitted: Boolean(request) || manualSubmitted,
+                        manualSubmitted,
                         request,
                         attachments: request
                             ? attachmentsByRequest.get(request.id) ?? []
@@ -405,9 +434,15 @@ export default function AdminHealthCheckResultsPage() {
                                     </div>
 
                                     <div className="col-span-7">
-                                        {!row.request && (
+                                        {!row.request && !row.manualSubmitted && (
                                             <div className="text-sm text-gray-500">
                                                 健診結果は未提出です。
+                                            </div>
+                                        )}
+
+                                        {!row.request && row.manualSubmitted && (
+                                            <div className="rounded border bg-blue-50 p-3 text-sm text-blue-700">
+                                                申請データはありませんが、パフォーマンススコア上は健康診断提出済みです。
                                             </div>
                                         )}
 
