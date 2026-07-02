@@ -218,12 +218,8 @@ function getTargetMonth(req: NextRequest) {
 
     const year = jst.getFullYear();
     const month = jst.getMonth() + 1;
-    const day = jst.getDate();
 
-    const targetDate =
-        day === 1
-            ? new Date(year, month - 2, 1)
-            : new Date(year, month - 1, 1);
+    const targetDate = new Date(year, month - 1, 1);
 
     const targetYm = `${targetDate.getFullYear()}-${String(
         targetDate.getMonth() + 1
