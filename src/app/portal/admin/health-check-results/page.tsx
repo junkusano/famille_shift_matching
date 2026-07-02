@@ -196,8 +196,40 @@ export default function AdminHealthCheckResultsPage() {
                     };
                 });
 
+                const healthCheckDoneRows = await fetchAllRows<{
+                    user_id: string;
+                    health_check_done: boolean;
+                }>(async (from, to) => {
+                    const { data, error } = await supabase
+                        .from("staff_monthly_score_summaries")
+                        .select("user_id, health_check_done")
+                        .gte("target_month", `${fiscalYear}-01-01`)
+                        .lte("target_month", `${fiscalYear}-12-31`)
+                        .eq("health_check_done", true)
+                        .range(from, to);
+
+                    return {
+                        data: data as {
+                            user_id: string;
+                            health_check_done: boolean;
+                        }[] | null,
+                        error,
+                    };
+                });
+
+                const healthCheckDoneUserIds = new Set(
+                    healthCheckDoneRows.map((row) => row.user_id)
+                );
+
                 const targetStaff = ((staffRows ?? []) as StaffRow[])
-                    .filter((u) => u.user_id && workedUserIds.has(u.user_id))
+                    .filter(
+                        (u) =>
+                            u.user_id &&
+                            (
+                                workedUserIds.has(u.user_id) ||
+                                healthCheckDoneUserIds.has(u.user_id)
+                            )
+                    )
                     .sort((a, b) => {
                         const an = `${a.last_name_kanji ?? ""}${a.first_name_kanji ?? ""}`;
                         const bn = `${b.last_name_kanji ?? ""}${b.first_name_kanji ?? ""}`;
@@ -231,31 +263,6 @@ export default function AdminHealthCheckResultsPage() {
                         latestRequestByUser.set(req.applicant_user_id, req);
                     }
                 }
-
-                const healthCheckDoneRows = await fetchAllRows<{
-                    user_id: string;
-                    health_check_done: boolean;
-                }>(async (from, to) => {
-                    const { data, error } = await supabase
-                        .from("staff_monthly_score_summaries")
-                        .select("user_id, health_check_done")
-                        .gte("target_month", `${fiscalYear}-01-01`)
-                        .lte("target_month", `${fiscalYear}-12-31`)
-                        .eq("health_check_done", true)
-                        .range(from, to);
-
-                    return {
-                        data: data as {
-                            user_id: string;
-                            health_check_done: boolean;
-                        }[] | null,
-                        error,
-                    };
-                });
-
-                const healthCheckDoneUserIds = new Set(
-                    healthCheckDoneRows.map((row) => row.user_id)
-                );
 
                 console.log("healthCheckDoneRows", healthCheckDoneRows);
                 console.log("healthCheckDoneUserIds", [...healthCheckDoneUserIds]);
