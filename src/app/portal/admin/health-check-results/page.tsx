@@ -69,18 +69,6 @@ function formatDate(value?: string | null) {
     ).padStart(2, "0")}日`;
 }
 
-function getRequestFiscalYear(req: HealthRequest) {
-    const rawDate =
-        typeof req.payload?.health_check_date === "string"
-            ? req.payload.health_check_date
-            : req.submitted_at ?? req.created_at;
-
-    const d = new Date(rawDate);
-    if (Number.isNaN(d.getTime())) return getFiscalYear();
-
-    return d.getFullYear();
-}
-
 export default function AdminHealthCheckResultsPage() {
     const [rows, setRows] = useState<DisplayRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -180,9 +168,19 @@ export default function AdminHealthCheckResultsPage() {
 
                 if (requestError) throw requestError;
 
-                const currentYearRequests = ((requestRows ?? []) as HealthRequest[])
-                    .filter((req) => getRequestFiscalYear(req) === fiscalYear);
+                const currentYearRequests = ((requestRows ?? []) as HealthRequest[]).filter((req) => {
+                    const healthCheckDate =
+                        typeof req.payload?.health_check_date === "string"
+                            ? req.payload.health_check_date
+                            : "";
 
+                    const submittedOrCreatedDate = (req.submitted_at ?? req.created_at).slice(0, 10);
+
+                    return (
+                        (healthCheckDate >= startDate && healthCheckDate <= endDate) ||
+                        (submittedOrCreatedDate >= startDate && submittedOrCreatedDate <= endDate)
+                    );
+                });
                 const latestRequestByUser = new Map<string, HealthRequest>();
 
                 for (const req of currentYearRequests) {
@@ -211,7 +209,6 @@ export default function AdminHealthCheckResultsPage() {
                                 "id, request_id, file_name, file_path, mime_type, file_size, kind, created_at"
                             )
                             .in("request_id", latestRequestIds)
-                            .eq("kind", "health_result")
                             .order("created_at", { ascending: false });
 
                     if (attachmentError) throw attachmentError;
