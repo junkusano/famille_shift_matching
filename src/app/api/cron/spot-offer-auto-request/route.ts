@@ -73,19 +73,14 @@ function selectNearestTemplate(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const dryRun = searchParams.get("dry_run") !== "false";
+  const dryRun = searchParams.get("dry_run") === "true";
   const targetDate =
     searchParams.get("target_date") ?? toDateString(addDays(new Date(), 7));
 
   const requesterAuthUserId = process.env.AUTO_RPA_REQUESTER_AUTH_USER_ID;
   const approverAuthUserId = process.env.AUTO_RPA_APPROVER_AUTH_USER_ID;
 
-  return NextResponse.json({
-    requester: requesterAuthUserId ?? null,
-    approver: approverAuthUserId ?? null,
-    vercelEnv: process.env.VERCEL_ENV ?? null,
-    nodeEnv: process.env.NODE_ENV ?? null,
-  });
+
     if (!requesterAuthUserId || !approverAuthUserId) {
       return NextResponse.json(
         {
@@ -113,11 +108,21 @@ export async function GET(req: NextRequest) {
 
   for (const shift of shifts ?? []) {
     try {
-      const hasManager =
-        shift.staff_01_system_role === "manager" ||
-        shift.staff_01_system_role === "admin" ||
-        shift.staff_02_system_role === "manager" ||
-        shift.staff_02_system_role === "admin";
+      const staffUserIds = [
+  shift.staff_01_user_id,
+  shift.staff_02_user_id,
+].filter((userId): userId is string => typeof userId === "string" && userId.length > 0);
+
+const { data: staffRoles, error: staffRoleError } = await supabaseAdmin
+  .from("user_entry_united_view_single")
+  .select("user_id, system_role")
+  .in("user_id", staffUserIds);
+
+if (staffRoleError) throw staffRoleError;
+
+const hasManager = (staffRoles ?? []).some(
+  (staff) => staff.system_role === "manager" || staff.system_role === "admin"
+);
 
       if (!hasManager) {
         results.push({
@@ -260,4 +265,11 @@ const breakEnd =
   });
 }
 }
+  return NextResponse.json({
+    ok: true,
+    dry_run: dryRun,
+    target_date: targetDate,
+    total: shifts?.length ?? 0,
+    results,
+  });
 }
