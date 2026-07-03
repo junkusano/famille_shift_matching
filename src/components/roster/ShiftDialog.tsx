@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
+import { useRouter } from "next/navigation";
 
 type ServiceOption = {
     value: string;
@@ -189,6 +190,7 @@ export default function ShiftDialog({
     const [shiftEndTime, setShiftEndTime] = useState("");
     const [spotConfirmed, setSpotConfirmed] =
     useState<SpotConfirmed | null>(null);
+    const router = useRouter();
 
     const breakValidationMessage = useMemo(() => {
     try {
@@ -737,6 +739,7 @@ export default function ShiftDialog({
           }
 
           alert("タイミー取り下げ依頼を作成しました");
+          router.refresh();
         }}
       >
         タイミー取り下げ
