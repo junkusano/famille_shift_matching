@@ -80,16 +80,22 @@ export async function GET(req: NextRequest) {
   const requesterAuthUserId = process.env.AUTO_RPA_REQUESTER_AUTH_USER_ID;
   const approverAuthUserId = process.env.AUTO_RPA_APPROVER_AUTH_USER_ID;
 
-  if (!requesterAuthUserId || !approverAuthUserId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "AUTO_RPA_REQUESTER_AUTH_USER_ID と AUTO_RPA_APPROVER_AUTH_USER_ID を環境変数に設定してください",
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    requester: requesterAuthUserId ?? null,
+    approver: approverAuthUserId ?? null,
+    vercelEnv: process.env.VERCEL_ENV ?? null,
+    nodeEnv: process.env.NODE_ENV ?? null,
+  });
+    if (!requesterAuthUserId || !approverAuthUserId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "AUTO_RPA_REQUESTER_AUTH_USER_ID と AUTO_RPA_APPROVER_AUTH_USER_ID を環境変数に設定してください",
+        },
+        { status: 500 }
+      );
+    }
 
   const { data: shifts, error: shiftError } = await supabaseAdmin
     .from("shift_shift_record_view2")
@@ -188,8 +194,11 @@ const breakEnd =
         shiftStartDate: shift.shift_start_date,
         start,
         end,
-        breakStart,
-        breakEnd,
+        breakStart:
+        typeof breakStart === "string" ? breakStart : null,
+
+        breakEnd:
+        typeof breakEnd === "string" ? breakEnd : null,
         userData: {
           user_id: "cron",
         },
@@ -240,16 +249,16 @@ const breakEnd =
         shift_start_time: start,
         shift_end_time: end,
       });
-    } catch (error: unknown) {
-      const message =
-  error instanceof Error ? error.message : String(error);
+    } catch (error) {
+  const message =
+    error instanceof Error ? error.message : String(error);
 
-results.push({
-  shift_id: shift.shift_id,
-  action: "error",
-  error: message,
-});
-    }
+  results.push({
+    shift_id: shift.shift_id,
+    action: "error",
+    error: message,
+  });
+}
   }
 
   return NextResponse.json({
