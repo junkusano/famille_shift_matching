@@ -5,7 +5,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID =
+const SKIMABITO_JOB_EDIT_TEMPLATE_ID =
   "fbd64ab4-a7a3-40b7-a718-61d6fac39525";
 
 export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
@@ -134,9 +134,9 @@ async function createCloseRequest(
   }
 
   const { data: existingRequest, error: existingError } = await supabase
-    .from("wf_request")
+    .from("rpa_command_requests")
     .select("id")
-    .eq("request_type_id", SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID)
+    .eq("template_id", SKIMABITO_JOB_EDIT_TEMPLATE_ID)
     .eq("status", "approved")
     .contains("payload", {
       command: "close_job",
@@ -185,8 +185,8 @@ if (!applicantUser?.auth_user_id) {
   throw new Error("applicant_user_id not found");
 }
 
-const { error } = await supabase.from("wf_request").insert({
-  request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
+const { error } = await supabase.from("rpa_command_requests").insert({
+  request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
   applicant_user_id: applicantUser.auth_user_id,
   status: "approved",
   payload,
@@ -230,9 +230,9 @@ async function createManagerAlert(
   // 重複チェック
   // ===========================
   const { data: existingAlert, error: existingAlertError } = await supabase
-    .from("wf_request")
+    .from("rpa_command_requests")
     .select("id")
-    .eq("request_type_id", SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID)
+    .eq("template_id", SKIMABITO_JOB_EDIT_TEMPLATE_ID)
     .eq("status", "approved")
     .contains("payload", {
       command: "manager_alert",
@@ -284,8 +284,8 @@ async function createManagerAlert(
   // ===========================
   // wf_request登録
   // ===========================
-  const { error } = await supabase.from("wf_request").insert({
-    request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
+  const { error } = await supabase.from("rpa_command_requests").insert({
+    request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
     applicant_user_id: applicantUser.auth_user_id,
     status: "approved",
     payload,
