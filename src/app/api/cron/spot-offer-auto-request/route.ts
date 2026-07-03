@@ -259,13 +259,5 @@ const breakEnd =
     error: message,
   });
 }
-  }
-
-  return NextResponse.json({
-    ok: true,
-    dry_run: dryRun,
-    target_date: targetDate,
-    total: shifts?.length ?? 0,
-    results,
-  });
+}
 }
