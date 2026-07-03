@@ -16,6 +16,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
 
 type ServiceOption = {
     value: string;
@@ -470,27 +471,17 @@ export default function ShiftDialog({
                 throw new Error("承認者（マネージャー）情報取得に失敗しました");
             }
 
-            const details = {
-                core_id: selectedTemplate.core_id,
-                created_from: "/portal/roster/daily",
-
-                shift_id: form.shift_id,
-                kaipoke_cs_id: shift?.kaipoke_cs_id ?? null,
-
-                shift_start_date: shiftStartDate.trim(),
-                shift_start_time: start,
-                shift_end_time: end,
-                break_start_time: breakStart,
-                break_end_time: breakEnd,
-
-                requester_user_id: userData.user_id,
-
-                template_title: selectedTemplate.template_title ?? null,
-                work_address: selectedTemplate.work_address ?? null,
-                salary: selectedTemplate.salary ?? null,
-                fare: selectedTemplate.fare ?? null,
-                status: selectedTemplate.status ?? null,
-            };
+            const details = createRpaRequestDetails({
+              selectedTemplate,
+              form,
+              shift,
+              shiftStartDate,
+              start,
+              end,
+              breakStart,
+              breakEnd,
+              userData,
+            });
 
             const { error: insertError } = await supabase
                 .from("rpa_command_requests")

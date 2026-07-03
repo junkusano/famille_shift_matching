@@ -91,7 +91,7 @@ const diffMinutes = getTimeDiffMinutes(
   currentStartTime
 );
 
-if (diffMinutes > 30) {
+if (diffMinutes >= 30) {
   await createManagerAlert(
     spotOfferRequest,
     shift,
@@ -226,6 +226,44 @@ async function createManagerAlert(
     current_start_time: shift["shift_start_time"],
   };
 
+  // ===========================
+  // 重複チェック
+  // ===========================
+  const { data: existingAlert, error: existingAlertError } = await supabase
+    .from("wf_request")
+    .select("id")
+    .eq("request_type_id", SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID)
+    .eq("status", "approved")
+    .contains("payload", {
+      command: "manager_alert",
+      reason: "start_time_changed",
+      shift_id: shiftId,
+      requested_start_time: spotOfferRequest["shift_start_time"],
+      current_start_time: shift["shift_start_time"],
+    })
+    .maybeSingle();
+
+  if (existingAlertError) {
+    console.error(
+      "[spot-offer-sync-check] manager alert duplicate check error",
+      {
+        shift_id: shiftId,
+        error: existingAlertError,
+      }
+    );
+    throw existingAlertError;
+  }
+
+  if (existingAlert) {
+    console.log("[spot-offer-sync-check] manager alert already exists", {
+      shift_id: shiftId,
+    });
+    return;
+  }
+
+  // ===========================
+  // 申請者取得
+  // ===========================
   const { data: applicantUser, error: applicantUserError } = await supabase
     .from("user_entry_united_view_single")
     .select("auth_user_id")
@@ -235,11 +273,17 @@ async function createManagerAlert(
     .limit(1)
     .maybeSingle();
 
-  if (applicantUserError) throw applicantUserError;
+  if (applicantUserError) {
+    throw applicantUserError;
+  }
+
   if (!applicantUser?.auth_user_id) {
     throw new Error("applicant_user_id not found");
   }
 
+  // ===========================
+  // wf_request登録
+  // ===========================
   const { error } = await supabase.from("wf_request").insert({
     request_type_id: SKIMABITO_JOB_EDIT_REQUEST_TYPE_ID,
     applicant_user_id: applicantUser.auth_user_id,
@@ -248,7 +292,10 @@ async function createManagerAlert(
   });
 
   if (error) {
-    console.error("[spot-offer-sync-check] manager alert insert error", error);
+    console.error(
+      "[spot-offer-sync-check] manager alert insert error",
+      error
+    );
     throw error;
   }
 }
