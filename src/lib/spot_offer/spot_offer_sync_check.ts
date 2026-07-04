@@ -51,21 +51,21 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
     }
 
     // =========================
-// シフト開始2時間以内は対象外
-// =========================
-const shouldCheckByTime = shift
-  ? isShiftAtLeastTwoHoursLater(
-      shift["shift_start_date"],
-      shift["shift_start_time"]
-    )
-  : isShiftAtLeastTwoHoursLater(
-      spotOfferRequest.shift_start_date,
-      spotOfferRequest.shift_start_time
-    );
+    // シフト開始2時間以内は対象外
+    // =========================
+    const shouldCheckByTime = shift
+      ? isShiftAtLeastTwoHoursLater(
+        shift["shift_start_date"],
+        shift["shift_start_time"]
+      )
+      : isShiftAtLeastTwoHoursLater(
+        spotOfferRequest.shift_start_date,
+        spotOfferRequest.shift_start_time
+      );
 
-if (!shouldCheckByTime) {
-  continue;
-}
+    if (!shouldCheckByTime) {
+      continue;
+    }
 
 
     if (!shift) {
@@ -74,7 +74,7 @@ if (!shouldCheckByTime) {
       continue;
     }
 
-const shouldCloseByStaff = await shouldCloseTimeeByStaff(shift);
+    const shouldCloseByStaff = await shouldCloseTimeeByStaff(shift);
 
     if (shouldCloseByStaff) {
       await createCloseRequest(spotOfferRequest, "staff_confirmed", opts);
@@ -82,24 +82,34 @@ const shouldCloseByStaff = await shouldCloseTimeeByStaff(shift);
       continue;
     }
 
-//時間変更アラート
-const requestedStartTime = spotOfferRequest.shift_start_time;
-const currentStartTime = shift.shift_start_time;
+    //時間変更アラート
+    const requestedStartTime = spotOfferRequest.shift_start_time;
+    const currentStartTime = shift.shift_start_time;
 
-const diffMinutes = getTimeDiffMinutes(
-  requestedStartTime,
-  currentStartTime
-);
+    const diffMinutes = getTimeDiffMinutes(
+      requestedStartTime,
+      currentStartTime
+    );
 
-if (diffMinutes >= 30) {
-  await createManagerAlert(
-    spotOfferRequest,
-    shift,
-    opts
-  );
+    const durationMinutes = getShiftDurationMinutes(
+      shift.shift_start_time,
+      shift.shift_end_time
+    );
 
-  alertCount++;
-}
+    const shouldUpdateStartTime = diffMinutes > 30;
+    const shouldFixDuration =
+      durationMinutes > 0 &&
+      (durationMinutes <= 30 || durationMinutes > 360);
+
+    if (shouldUpdateStartTime || shouldFixDuration) {
+      await createUpdateJobTimeRequest(
+        spotOfferRequest,
+        shift,
+        opts
+      );
+
+      alertCount++;
+    }
   }
 
   console.log(
@@ -169,28 +179,28 @@ async function createCloseRequest(
   };
 
   const { data: applicantUser, error: applicantUserError } = await supabase
-  .from("user_entry_united_view_single")
-  .select("auth_user_id")
-  .eq("user_id", "junkusano")
-  .eq("system_role", "admin")
-  .not("auth_user_id", "is", null)
-  .limit(1)
-  .maybeSingle();
+    .from("user_entry_united_view_single")
+    .select("auth_user_id")
+    .eq("user_id", "junkusano")
+    .eq("system_role", "admin")
+    .not("auth_user_id", "is", null)
+    .limit(1)
+    .maybeSingle();
 
-if (applicantUserError) {
-  throw applicantUserError;
-}
+  if (applicantUserError) {
+    throw applicantUserError;
+  }
 
-if (!applicantUser?.auth_user_id) {
-  throw new Error("applicant_user_id not found");
-}
+  if (!applicantUser?.auth_user_id) {
+    throw new Error("applicant_user_id not found");
+  }
 
-const { error } = await supabase.from("rpa_command_requests").insert({
-  request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
-  applicant_user_id: applicantUser.auth_user_id,
-  status: "approved",
-  payload,
-});
+  const { error } = await supabase.from("rpa_command_requests").insert({
+    request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
+    applicant_user_id: applicantUser.auth_user_id,
+    status: "approved",
+    payload,
+  });
 
   if (error) {
     console.error("[spot-offer-sync-check] wf_request insert error", {
@@ -202,14 +212,14 @@ const { error } = await supabase.from("rpa_command_requests").insert({
   }
 }
 
-async function createManagerAlert(
+async function createUpdateJobTimeRequest(
   spotOfferRequest: Record<string, unknown>,
   shift: Record<string, unknown>,
   opts?: { dryRun?: boolean }
 ) {
   const shiftId = spotOfferRequest["shift_id"];
 
-  console.log("[spot-offer-sync-check] create manager alert", {
+  console.log("[spot-offer-sync-check] create update job time request", {
     shift_id: shiftId,
     dryRun: opts?.dryRun ?? false,
   });
@@ -218,49 +228,37 @@ async function createManagerAlert(
     return;
   }
 
+  const nearestTemplate = await findNearestSpotOfferTemplate(shift);
+
+  const calculatedTime = nearestTemplate
+    ? calculateJobTimeFromTemplate(shift, nearestTemplate)
+    : null;
+
   const payload = {
-    command: "manager_alert",
-    reason: "start_time_changed",
+    command: "update_job_time",
+    reason: "job_time_mismatch",
     shift_id: shiftId,
+
     requested_start_time: spotOfferRequest["shift_start_time"],
     current_start_time: shift["shift_start_time"],
+
+    requested_end_time: spotOfferRequest["shift_end_time"],
+    current_end_time: shift["shift_end_time"],
+
+    new_start_time: shift["shift_start_time"],
+    new_end_time: calculatedTime?.end_time ?? shift["shift_end_time"],
+    new_break_minutes: calculatedTime?.break_minutes ?? 0,
+
+    template_id: nearestTemplate?.core_id ?? null,
+    template_start_at: nearestTemplate?.start_at ?? null,
+    template_end_at: nearestTemplate?.end_at ?? null,
+    template_duration_minutes: calculatedTime?.template_duration_minutes ?? null,
+    new_break_start_time: calculatedTime?.break_start_time ?? null,
+    new_break_end_time: calculatedTime?.break_end_time ?? null,
+
+    spot_offer_request: spotOfferRequest,
+    shift,
   };
-
-  // ===========================
-  // 重複チェック
-  // ===========================
-  const { data: existingAlert, error: existingAlertError } = await supabase
-    .from("rpa_command_requests")
-    .select("id")
-    .eq("template_id", SKIMABITO_JOB_EDIT_TEMPLATE_ID)
-    .eq("status", "approved")
-    .contains("payload", {
-      command: "manager_alert",
-      reason: "start_time_changed",
-      shift_id: shiftId,
-      requested_start_time: spotOfferRequest["shift_start_time"],
-      current_start_time: shift["shift_start_time"],
-    })
-    .maybeSingle();
-
-  if (existingAlertError) {
-    console.error(
-      "[spot-offer-sync-check] manager alert duplicate check error",
-      {
-        shift_id: shiftId,
-        error: existingAlertError,
-      }
-    );
-    throw existingAlertError;
-  }
-
-  if (existingAlert) {
-    console.log("[spot-offer-sync-check] manager alert already exists", {
-      shift_id: shiftId,
-    });
-    return;
-  }
-
   // ===========================
   // 申請者取得
   // ===========================
@@ -394,4 +392,143 @@ function isShiftAtLeastTwoHoursLater(
   const twoHoursLater = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
   return shiftDateTime >= twoHoursLater;
+}
+
+
+function getShiftDurationMinutes(
+  startTime: unknown,
+  endTime: unknown
+) {
+  if (typeof startTime !== "string" || typeof endTime !== "string") {
+    return 0;
+  }
+
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+
+  if (start === null || end === null) {
+    return 0;
+  }
+
+  return end >= start ? end - start : end + 24 * 60 - start;
+}
+
+function timeToMinutes(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function minutesToTime(minutes: number) {
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
+}
+
+async function findNearestSpotOfferTemplate(
+  shift: Record<string, unknown>
+) {
+  const kaipokeCsId = shift["kaipoke_cs_id"];
+  const shiftStartTime = shift["shift_start_time"];
+
+  if (
+    typeof kaipokeCsId !== "string" ||
+    typeof shiftStartTime !== "string"
+  ) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("spot_offer_template_unified")
+    .select("*")
+    .eq("kaipoke_cs_id", kaipokeCsId);
+
+  if (error) {
+    console.error("[spot-offer-sync-check] template fetch error", {
+      kaipoke_cs_id: kaipokeCsId,
+      error,
+    });
+    throw error;
+  }
+
+  const shiftStartMinutes = timeToMinutes(shiftStartTime);
+
+  if (shiftStartMinutes === null || !data?.length) {
+    return null;
+  }
+
+  return data
+    .map((template) => {
+      const templateStartMinutes = timeToMinutes(
+        String(template.start_at ?? "")
+      );
+
+      return {
+        template,
+        diff:
+          templateStartMinutes === null
+            ? Number.MAX_SAFE_INTEGER
+            : Math.abs(templateStartMinutes - shiftStartMinutes),
+      };
+    })
+    .sort((a, b) => a.diff - b.diff)[0].template;
+}
+
+function calculateJobTimeFromTemplate(
+  shift: Record<string, unknown>,
+  template: Record<string, unknown>
+) {
+  const shiftStartTime = shift["shift_start_time"];
+
+  if (typeof shiftStartTime !== "string") {
+    return null;
+  }
+
+  const startMinutes = timeToMinutes(shiftStartTime);
+  const templateDurationMinutes = getShiftDurationMinutes(
+    template["start_at"],
+    template["end_at"]
+  );
+
+  if (startMinutes === null || templateDurationMinutes <= 0) {
+    return null;
+  }
+
+  const breakMinutes = getBreakMinutes(templateDurationMinutes);
+
+  const breakStartMinutes =
+    breakMinutes > 0 ? startMinutes + templateDurationMinutes : null;
+
+  const breakEndMinutes =
+    breakStartMinutes !== null ? breakStartMinutes + breakMinutes : null;
+
+  const endMinutes = startMinutes + templateDurationMinutes + breakMinutes;
+
+  return {
+    template_duration_minutes: templateDurationMinutes,
+    end_time: minutesToTime(endMinutes),
+    break_minutes: breakMinutes,
+    break_start_time:
+      breakStartMinutes !== null ? minutesToTime(breakStartMinutes) : null,
+    break_end_time:
+      breakEndMinutes !== null ? minutesToTime(breakEndMinutes) : null,
+  };
+}
+
+function getBreakMinutes(durationMinutes: number) {
+  if (durationMinutes > 8 * 60) {
+    return 60;
+  }
+
+  if (durationMinutes > 6 * 60) {
+    return 45;
+  }
+
+  return 0;
 }
