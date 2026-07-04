@@ -274,7 +274,7 @@ function calcDisplayTotalScore(row: ScoreRow) {
         visitRecordScore +
         meetingScore +
         jissekiScore +
-        trainingGoalScore -
+        trainingGoalScore +
         healthCheckScore -
         shiftDeclinePenaltyScore
     );

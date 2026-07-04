@@ -207,6 +207,10 @@
     {
   "path": "/api/cron/spot-offer-sync-check",
   "schedule": "0 * * * *"
+    },
+     {
+      "path": "/api/cron/spot-offer-auto-request",
+      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -115,101 +115,31 @@ export default function RpaRequestListPage() {
     }))
   }
 
-  const findShiftId = (value: unknown): number | null => {
-  if (!value) return null
-
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-
-    if (obj.shift_id != null) return Number(obj.shift_id)
-    if (obj.shiftId != null) return Number(obj.shiftId)
-
-    for (const v of Object.values(obj)) {
-      const found = findShiftId(v)
-      if (found) return found
-    }
-  }
-
-  return null
-}
-
-const shouldCloseSpotOffer = (row: Partial<RpaRequestView>) => {
-  const templateName = row.template_name ?? ''
-  const resultSummary = row.result_summary ?? ''
-
-  return (
-    templateName === 'スキマバイト求人編集' &&
-    [
-      'スタッフ確定により求人クローズ',
-      'シフト削除により求人クローズ',
-    ].some(text => resultSummary.includes(text))
-  )
-}
-
   const handleSave = async (id: string) => {
-  const update = editedRows[id]
-  if (!update) return
-
-  const currentRow = requests.find(r => r.id === id)
-  if (!currentRow) return
-
-  const mergedRow = {
-    ...currentRow,
-    ...update,
-  }
-
-  const { error } = await supabase
-    .from('rpa_command_requests')
-    .update(update)
-    .eq('id', id)
-
-  if (error) {
-    alert('更新失敗')
-    return
-  }
-
-  if (shouldCloseSpotOffer(mergedRow)) {
-    const shiftId =
-      findShiftId(mergedRow.result_details) ??
-      findShiftId(mergedRow.request_details)
-
-    if (shiftId) {
-      const { error: spotError } = await supabase
-        .from('spot_offer_request_table')
-        .update({ status: '募集なし' })
-        .eq('shift_id', shiftId)
-
-      if (spotError) {
-        alert('RPAは更新しましたが、求人ステータスの更新に失敗しました')
-        return
-      }
+    const update = editedRows[id]
+    if (!update) return
+    const { error } = await supabase.from('rpa_command_requests').update(update).eq('id', id)
+    if (error) {
+      alert('更新失敗')
+      return
     }
+    setEditedRows(prev => {
+      const cp = { ...prev }
+      delete cp[id]
+      return cp
+    })
+    await fetchRequests()
   }
 
-  setEditedRows(prev => {
-    const cp = { ...prev }
-    delete cp[id]
-    return cp
-  })
-
-  await fetchRequests()
-}
-
-const handleDelete = async (id: string) => {
-  if (!confirm('この行を削除します。よろしいですか？')) return
-
-  const { error } = await supabase
-    .from('rpa_command_requests')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    alert('削除失敗')
-    return
+  const handleDelete = async (id: string) => {
+    if (!confirm('この行を削除します。よろしいですか？')) return
+    const { error } = await supabase.from('rpa_command_requests').delete().eq('id', id)
+    if (error) {
+      alert('削除失敗')
+      return
+    }
+    await fetchRequests()
   }
-
-  await fetchRequests()
-}
 
   // ====== フィルタリング & ページング ======
   const filtered = useMemo(() => {

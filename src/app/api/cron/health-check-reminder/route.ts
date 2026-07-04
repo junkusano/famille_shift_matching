@@ -66,12 +66,7 @@ export async function GET() {
 
         const submittedUserIds = new Set(
             (submittedRows ?? [])
-                .filter((r) => {
-                    const payload = r.payload as Record<string, unknown> | null;
-                    const healthCheckDate = String(payload?.health_check_date ?? "");
-
-                    return healthCheckDate >= startDate && healthCheckDate <= endDate;
-                })
+                .filter((r) => r.applicant_user_id)
                 .map((r) => r.applicant_user_id)
         );
 
