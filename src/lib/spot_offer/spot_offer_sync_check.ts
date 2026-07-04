@@ -196,10 +196,12 @@ async function createCloseRequest(
   }
 
   const { error } = await supabase.from("rpa_command_requests").insert({
-    request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
-    applicant_user_id: applicantUser.auth_user_id,
+    template_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
+    requester_id: applicantUser.auth_user_id,
+    approver_id: applicantUser.auth_user_id,
+    approved_at: new Date().toISOString(),
     status: "approved",
-    payload,
+    request_details: payload,
   });
 
   if (error) {
@@ -280,13 +282,15 @@ async function createUpdateJobTimeRequest(
   }
 
   // ===========================
-  // wf_request登録
+  // rpa_command_requestsに申請を作成
   // ===========================
   const { error } = await supabase.from("rpa_command_requests").insert({
-    request_type_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
-    applicant_user_id: applicantUser.auth_user_id,
+    template_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
+    requester_id: applicantUser.auth_user_id,
+    approver_id: applicantUser.auth_user_id,
+    approved_at: new Date().toISOString(),
     status: "approved",
-    payload,
+    request_details: payload,
   });
 
   if (error) {
