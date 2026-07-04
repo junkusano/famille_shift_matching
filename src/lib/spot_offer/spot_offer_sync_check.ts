@@ -1,3 +1,4 @@
+//lib/spot_offer/spot_offer_sync_check.ts
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -140,34 +141,6 @@ async function createCloseRequest(
   });
 
   if (opts?.dryRun) {
-    return;
-  }
-
-  const { data: existingRequest, error: existingError } = await supabase
-    .from("rpa_command_requests")
-    .select("id")
-    .eq("template_id", SKIMABITO_JOB_EDIT_TEMPLATE_ID)
-    .eq("status", "approved")
-    .contains("payload", {
-      command: "close_job",
-      shift_id: shiftId,
-    })
-    .maybeSingle();
-
-  if (existingError) {
-    console.error("[spot-offer-sync-check] wf_request duplicate check error", {
-      shift_id: shiftId,
-      reason,
-      error: existingError,
-    });
-    throw existingError;
-  }
-
-  if (existingRequest) {
-    console.log("[spot-offer-sync-check] close request already exists", {
-      shift_id: shiftId,
-      reason,
-    });
     return;
   }
 
