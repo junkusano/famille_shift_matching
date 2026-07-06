@@ -132,7 +132,7 @@ for (const shift of shifts ?? []) {
     });
     continue;
   }
-  
+
     try {
       const staffUserIds = [
   shift.staff_01_user_id,
@@ -290,33 +290,33 @@ const breakEnd =
         updated_at: new Date().toISOString(),
       };
 
-      if (!dryRun) {
-        const { error: spotError } = await supabaseAdmin
-          .from("spot_offer_request_table")
-          .upsert(spotOfferPayload, {
-            onConflict: "shift_id",
-          });
+    if (!dryRun) {
+  const { error: spotError } = await supabaseAdmin
+    .from("spot_offer_request_table")
+    .upsert(spotOfferPayload, {
+      onConflict: "shift_id",
+    });
 
-        if (spotError) throw spotError;
+  if (spotError) throw spotError;
 
-        const { error: rpaError } = await supabaseAdmin
-          .from("rpa_command_requests")
-          .insert({
-            template_id: RPA_TEMPLATE_ID,
-            requester_id: requesterAuthUserId,
-            approver_id: approverAuthUserId,
-            status: "approved",
-            request_details: details,
-          });
+  const { error: rpaError } = await supabaseAdmin
+    .from("rpa_command_requests")
+    .insert({
+      template_id: RPA_TEMPLATE_ID,
+      requester_id: requesterAuthUserId,
+      approver_id: approverAuthUserId,
+      status: "approved",
+      request_details: details,
+    });
 
-        if (rpaError) throw rpaError;
+  if (rpaError) throw rpaError;
+}
 
 if (canMergeConsecutiveShift && nextShift) {
   skippedShiftIds.add(Number(nextShift.shift_id));
 }
-      }
 
-      results.push({
+results.push({
   shift_id: shift.shift_id,
   action: dryRun ? "dry_run_created" : "created",
   template_title: selectedTemplate.template_title,
@@ -327,22 +327,23 @@ if (canMergeConsecutiveShift && nextShift) {
   is_merged_shift: mergedShiftIds.length > 1,
 });
 
-    } catch (error) {
-  const message =
-    error instanceof Error ? error.message : String(error);
+} catch (error) {
+    const message =
+      error instanceof Error ? error.message : String(error);
 
-  results.push({
-    shift_id: shift.shift_id,
-    action: "error",
-    error: message,
-  });
+    results.push({
+      shift_id: shift.shift_id,
+      action: "error",
+      error: message,
+    });
+  }
 }
-}
-  return NextResponse.json({
-    ok: true,
-    dry_run: dryRun,
-    target_date: targetDate,
-    total: shifts?.length ?? 0,
-    results,
-  });
+
+return NextResponse.json({
+  ok: true,
+  dry_run: dryRun,
+  target_date: targetDate,
+  total: shifts?.length ?? 0,
+  results,
+});
 }
