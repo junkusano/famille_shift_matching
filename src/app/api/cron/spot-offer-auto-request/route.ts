@@ -123,6 +123,20 @@ export async function GET(req: NextRequest) {
 const results: Array<Record<string, unknown>> = [];
 const skippedShiftIds = new Set<number>();
 
+const MERGEABLE_SERVICE_CODES = [
+  "家事",
+  "身体",
+  "身１生２・Ⅱ",
+  "訪問型独自サービス１３",
+  "通院(伴う)",
+  "通院(伴ず)",
+  "移：必要不可欠な外出",
+  "移：必要不可欠な外出（片道支援）",
+  "移：その他の外出",
+  "同行(初任者等)",
+  "新しいサービス",
+];
+
 for (const shift of shifts ?? []) {
   if (skippedShiftIds.has(Number(shift.shift_id))) {
     results.push({
@@ -207,10 +221,8 @@ const nextShift = (shifts ?? []).find((candidate) =>
   candidate.kaipoke_cs_id === shift.kaipoke_cs_id &&
   candidate.shift_start_date === shift.shift_start_date &&
   candidate.shift_start_time === shift.shift_end_time &&
-  (
-    (shift.service_code === "家事" && candidate.service_code === "身体") ||
-    (shift.service_code === "身体" && candidate.service_code === "家事")
-  )
+  MERGEABLE_SERVICE_CODES.includes(String(shift.service_code)) &&
+  MERGEABLE_SERVICE_CODES.includes(String(candidate.service_code))
 );
 
 const canMergeConsecutiveShift = Boolean(nextShift);
