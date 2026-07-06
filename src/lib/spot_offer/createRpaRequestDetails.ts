@@ -8,6 +8,9 @@ type CreateRpaRequestDetailsParams = {
   breakStart: unknown;
   breakEnd: unknown;
   userData: Record<string, unknown>;
+
+  mergedShiftIds?: unknown[];
+  mergedServiceCodes?: unknown[];
 };
 
 function normalizeTextForPadJson(value: unknown): unknown {
@@ -28,6 +31,8 @@ export function createRpaRequestDetails({
   start,
   end,
   userData,
+  mergedShiftIds,
+  mergedServiceCodes,
 }: CreateRpaRequestDetailsParams) {
   return {
     core_id: selectedTemplate["core_id"],
@@ -35,6 +40,11 @@ export function createRpaRequestDetails({
 
     shift_id: form["shift_id"],
     kaipoke_cs_id: shift?.["kaipoke_cs_id"] ?? null,
+
+    merged_shift_ids: mergedShiftIds ?? [form["shift_id"]],
+    merged_service_codes: mergedServiceCodes ?? [shift?.["service_code"] ?? null],
+    is_merged_shift:
+      Array.isArray(mergedShiftIds) && mergedShiftIds.length > 1,
 
     shift_start_date:
       typeof shiftStartDate === "string" ? shiftStartDate.trim() : shiftStartDate,
