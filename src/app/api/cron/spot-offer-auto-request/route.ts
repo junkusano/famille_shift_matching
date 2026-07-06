@@ -5,6 +5,8 @@ import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetail
 export const dynamic = "force-dynamic";
 
 const RPA_TEMPLATE_ID = "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
+const MIN_SHIFT_WORK_MINUTES = 60;
+const MAX_SHIFT_WORK_MINUTES = 360;
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
@@ -48,6 +50,20 @@ function getDurationMinutes(
   );
 
   return Math.max(end - start, 60);
+}
+
+function getShiftDurationMinutes(shift: Record<string, unknown>) {
+  const start = timeToMinutes(
+    typeof shift["shift_start_time"] === "string" ? shift["shift_start_time"] : ""
+  );
+
+  const end = timeToMinutes(
+    typeof shift["shift_end_time"] === "string" ? shift["shift_end_time"] : ""
+  );
+
+  if (end <= start) return null;
+
+  return end - start;
 }
 
 function selectNearestTemplate(
@@ -174,10 +190,23 @@ const hasManager = (staffRoles ?? []).some(
         shift.shift_start_time
       );
 
-      const durationMinutes = getDurationMinutes(selectedTemplate);
       const start = shift.shift_start_time;
-      const end = addMinutesToTime(start, durationMinutes);
 
+const shiftDurationMinutes = getShiftDurationMinutes(shift);
+
+const shouldUseShiftEnd =
+  shiftDurationMinutes != null &&
+  shiftDurationMinutes >= MIN_SHIFT_WORK_MINUTES &&
+  shiftDurationMinutes <= MAX_SHIFT_WORK_MINUTES &&
+  typeof shift.shift_end_time === "string";
+
+const durationMinutes = shouldUseShiftEnd
+  ? shiftDurationMinutes
+  : getDurationMinutes(selectedTemplate);
+
+const end = shouldUseShiftEnd
+  ? shift.shift_end_time
+  : addMinutesToTime(start, durationMinutes);
       const breakStart =
   typeof selectedTemplate["break_start_time"] === "string"
     ? selectedTemplate["break_start_time"]

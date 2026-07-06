@@ -10,6 +10,16 @@ type CreateRpaRequestDetailsParams = {
   userData: Record<string, unknown>;
 };
 
+function normalizeTextForPadJson(value: unknown): unknown {
+  if (typeof value !== "string") return value ?? null;
+
+  return value
+    .replace(/"/g, "'")
+    .replace(/\\/g, "/")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
 export function createRpaRequestDetails({
   selectedTemplate,
   form,
@@ -17,8 +27,6 @@ export function createRpaRequestDetails({
   shiftStartDate,
   start,
   end,
-  breakStart,
-  breakEnd,
   userData,
 }: CreateRpaRequestDetailsParams) {
   return {
@@ -36,18 +44,15 @@ export function createRpaRequestDetails({
 shift_end_time:
   typeof end === "string" ? end : "",
 
-break_start_time:
-  typeof breakStart === "string" ? breakStart : null,
-
-break_end_time:
-  typeof breakEnd === "string" ? breakEnd : null,
+break_start_time: null,
+break_end_time: null,
 
     requester_user_id: userData["user_id"],
 
-    template_title: selectedTemplate["template_title"] ?? null,
-    work_address: selectedTemplate["work_address"] ?? null,
-    salary: selectedTemplate["salary"] ?? null,
-    fare: selectedTemplate["fare"] ?? null,
-    status: selectedTemplate["status"] ?? null,
+    template_title: normalizeTextForPadJson(selectedTemplate["template_title"]),
+    work_address: normalizeTextForPadJson(selectedTemplate["work_address"]),
+    salary: normalizeTextForPadJson(selectedTemplate["salary"]),
+    fare: normalizeTextForPadJson(selectedTemplate["fare"]),
+    status: normalizeTextForPadJson(selectedTemplate["status"]),
   };
 }
