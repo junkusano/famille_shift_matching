@@ -120,9 +120,19 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const results: Array<Record<string, unknown>> = [];
+const results: Array<Record<string, unknown>> = [];
+const skippedShiftIds = new Set<number>();
 
-  for (const shift of shifts ?? []) {
+for (const shift of shifts ?? []) {
+  if (skippedShiftIds.has(Number(shift.shift_id))) {
+    results.push({
+      shift_id: shift.shift_id,
+      action: "skipped",
+      reason: "連続シフトとして前の募集に統合済み",
+    });
+    continue;
+  }
+  
     try {
       const staffUserIds = [
   shift.staff_01_user_id,
@@ -192,8 +202,20 @@ const hasManager = (staffRoles ?? []).some(
 
       const start = shift.shift_start_time;
 
-const shiftDurationMinutes = getShiftDurationMinutes(shift);
+const nextShift = (shifts ?? []).find((candidate) =>
+  candidate.shift_id !== shift.shift_id &&
+  candidate.kaipoke_cs_id === shift.kaipoke_cs_id &&
+  candidate.shift_start_date === shift.shift_start_date &&
+  candidate.shift_start_time === shift.shift_end_time &&
+  (
+    (shift.service_code === "家事" && candidate.service_code === "身体") ||
+    (shift.service_code === "身体" && candidate.service_code === "家事")
+  )
+);
 
+const canMergeConsecutiveShift = Boolean(nextShift);
+
+const shiftDurationMinutes = getShiftDurationMinutes(shift);
 const shouldUseShiftEnd =
   shiftDurationMinutes != null &&
   shiftDurationMinutes >= MIN_SHIFT_WORK_MINUTES &&
@@ -204,9 +226,21 @@ const durationMinutes = shouldUseShiftEnd
   ? shiftDurationMinutes
   : getDurationMinutes(selectedTemplate);
 
-const end = shouldUseShiftEnd
-  ? shift.shift_end_time
-  : addMinutesToTime(start, durationMinutes);
+const end =
+  canMergeConsecutiveShift && typeof nextShift?.shift_end_time === "string"
+    ? nextShift.shift_end_time
+    : shouldUseShiftEnd
+      ? shift.shift_end_time
+      : addMinutesToTime(start, durationMinutes);
+
+const mergedShiftIds = canMergeConsecutiveShift && nextShift
+  ? [shift.shift_id, nextShift.shift_id]
+  : [shift.shift_id];
+
+const mergedServiceCodes = canMergeConsecutiveShift && nextShift
+  ? [shift.service_code, nextShift.service_code]
+  : [shift.service_code];
+
       const breakStart =
   typeof selectedTemplate["break_start_time"] === "string"
     ? selectedTemplate["break_start_time"]
@@ -222,21 +256,23 @@ const breakEnd =
       : null;
 
       const details = createRpaRequestDetails({
-        selectedTemplate,
-        form: { shift_id: shift.shift_id },
-        shift,
-        shiftStartDate: shift.shift_start_date,
-        start,
-        end,
-        breakStart:
-        typeof breakStart === "string" ? breakStart : null,
+  selectedTemplate,
+  form: { shift_id: shift.shift_id },
+  shift,
+  shiftStartDate: shift.shift_start_date,
+  start,
+  end,
+  breakStart:
+  typeof breakStart === "string" ? breakStart : null,
 
-        breakEnd:
-        typeof breakEnd === "string" ? breakEnd : null,
-        userData: {
-          user_id: "cron",
-        },
-      });
+  breakEnd:
+  typeof breakEnd === "string" ? breakEnd : null,
+  userData: {
+    user_id: "cron",
+  },
+  mergedShiftIds,
+  mergedServiceCodes,
+});
 
       const spotOfferPayload = {
         shift_id: shift.shift_id,
@@ -274,15 +310,23 @@ const breakEnd =
           });
 
         if (rpaError) throw rpaError;
+
+if (canMergeConsecutiveShift && nextShift) {
+  skippedShiftIds.add(Number(nextShift.shift_id));
+}
       }
 
       results.push({
-        shift_id: shift.shift_id,
-        action: dryRun ? "dry_run_created" : "created",
-        template_title: selectedTemplate.template_title,
-        shift_start_time: start,
-        shift_end_time: end,
-      });
+  shift_id: shift.shift_id,
+  action: dryRun ? "dry_run_created" : "created",
+  template_title: selectedTemplate.template_title,
+  shift_start_time: start,
+  shift_end_time: end,
+  merged_shift_ids: mergedShiftIds,
+  merged_service_codes: mergedServiceCodes,
+  is_merged_shift: mergedShiftIds.length > 1,
+});
+
     } catch (error) {
   const message =
     error instanceof Error ? error.message : String(error);
