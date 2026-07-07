@@ -253,7 +253,7 @@ async function createUpdateJobTimeRequest(
     requester_id: applicantUser.auth_user_id,
     approver_id: applicantUser.auth_user_id,
     approved_at: new Date().toISOString(),
-    status: "approved",
+    status: "test_status",
     request_details: payload,
   });
 
