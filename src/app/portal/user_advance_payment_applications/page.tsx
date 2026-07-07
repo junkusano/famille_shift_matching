@@ -157,8 +157,7 @@ export default function UserAdvancePaymentConfirmPage() {
   });
   const [message, setMessage] = useState("");
   
-   const [performanceRank, setPerformanceRank] =
-    useState("ブロンズ");
+   const [performanceRank] = useState("ブロンズ");
   
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
@@ -291,19 +290,20 @@ const calculation = calculateAvailableAmount({
         setRejectedApplication(rejectedData);
 
         
-        const { data: latestScore } = await supabase
-          .from("staff_monthly_score_summaries")
-          .select("medal_rank, target_month")
-          .eq("user_id", currentUser.user_id)
-          .order("target_month", { ascending: false })
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+const { data: latestScore, error: scoreError } = await supabase
+  .from("staff_monthly_score_summaries")
+  .select("medal_rank, target_month")
+  .eq("user_id", currentUser.user_id)
+  .order("target_month", { ascending: false })
+  .order("updated_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
-          console.log("latestScore", latestScore);
-          console.log("medal_rank", latestScore?.medal_rank);
+console.log("scoreError", scoreError);
+console.log("latestScore", latestScore);
+console.log("currentUser.user_id", currentUser.user_id);
 
-        setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
+
         
 
         const startDate = new Date(start.getTime() - 24 * 60 * 60 * 1000)
