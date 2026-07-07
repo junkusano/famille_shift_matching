@@ -210,7 +210,7 @@
     },
     {
       "path": "/api/cron/spot-offer-auto-request",
-      "schedule": "0 11 * * *"
+      "schedule": "0 20 * * *"
     }
   ]
 }

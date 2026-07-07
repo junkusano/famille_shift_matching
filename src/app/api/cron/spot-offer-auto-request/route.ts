@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
   }
 
 const results: Array<Record<string, unknown>> = [];
-const skippedShiftIds = new Set<number>();
+const skippedShiftReasons = new Map<number, string>();
 
 const MERGEABLE_SERVICE_CODES = [
   "家事",
@@ -138,16 +138,18 @@ const MERGEABLE_SERVICE_CODES = [
 ];
 
 for (const shift of shifts ?? []) {
-  if (skippedShiftIds.has(Number(shift.shift_id))) {
+  const skipReason = skippedShiftReasons.get(Number(shift.shift_id));
+
+  if (skipReason) {
     results.push({
       shift_id: shift.shift_id,
       action: "skipped",
-      reason: "連続シフトとして前の募集に統合済み",
+      reason: skipReason,
     });
     continue;
   }
 
-    try {
+  try {
       const staffUserIds = [
   shift.staff_01_user_id,
   shift.staff_02_user_id,
@@ -216,16 +218,36 @@ const hasManager = (staffRoles ?? []).some(
 
       const start = shift.shift_start_time;
 
-const nextShift = (shifts ?? []).find((candidate) =>
-  candidate.shift_id !== shift.shift_id &&
-  candidate.kaipoke_cs_id === shift.kaipoke_cs_id &&
-  candidate.shift_start_date === shift.shift_start_date &&
-  candidate.shift_start_time === shift.shift_end_time &&
-  MERGEABLE_SERVICE_CODES.includes(String(shift.service_code)) &&
-  MERGEABLE_SERVICE_CODES.includes(String(candidate.service_code))
-);
+const nextShiftWithinTwoHours = (shifts ?? [])
+  .filter((candidate) =>
+    candidate.shift_id !== shift.shift_id &&
+    candidate.kaipoke_cs_id === shift.kaipoke_cs_id &&
+    candidate.shift_start_date === shift.shift_start_date &&
+    MERGEABLE_SERVICE_CODES.includes(String(shift.service_code)) &&
+    MERGEABLE_SERVICE_CODES.includes(String(candidate.service_code))
+  )
+  .sort((a, b) =>
+    timeToMinutes(String(a.shift_start_time ?? "")) -
+    timeToMinutes(String(b.shift_start_time ?? ""))
+  )
+  .find((candidate) => {
+    const currentEndMinutes = timeToMinutes(String(shift.shift_end_time ?? ""));
+    const nextStartMinutes = timeToMinutes(String(candidate.shift_start_time ?? ""));
+    const gapMinutes = nextStartMinutes - currentEndMinutes;
+
+    return gapMinutes >= 0 && gapMinutes <= 120;
+  });
+
+const nextShift =
+  nextShiftWithinTwoHours &&
+  nextShiftWithinTwoHours.shift_start_time === shift.shift_end_time
+    ? nextShiftWithinTwoHours
+    : null;
 
 const canMergeConsecutiveShift = Boolean(nextShift);
+
+const shouldSkipNextShiftWithinTwoHours =
+  Boolean(nextShiftWithinTwoHours) && !nextShift;
 
 const shiftDurationMinutes = getShiftDurationMinutes(shift);
 const shouldUseShiftEnd =
@@ -325,7 +347,17 @@ const breakEnd =
 }
 
 if (canMergeConsecutiveShift && nextShift) {
-  skippedShiftIds.add(Number(nextShift.shift_id));
+  skippedShiftReasons.set(
+    Number(nextShift.shift_id),
+    "連続シフトとして前の募集に統合済み"
+  );
+}
+
+if (shouldSkipNextShiftWithinTwoHours && nextShiftWithinTwoHours) {
+  skippedShiftReasons.set(
+    Number(nextShiftWithinTwoHours.shift_id),
+    "同一利用者で前シフト終了から2時間以内のため募集対象外"
+  );
 }
 
 results.push({
