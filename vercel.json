@@ -70,7 +70,7 @@
     },
     {
       "path": "/api/cron/alert-reset-kaipoke-cs-fax",
-      "schedule": "02 19 * * *"
+      "schedule": "2 19 * * *"
     },
     {
       "path": "/api/cron/alert-kaipoke-cs-fax",
@@ -204,12 +204,10 @@
       "path": "/api/cron/health-check-reminder",
       "schedule": "32 1 1 * *"
     },
-    ///シフトの変更チェック///
     {
       "path": "/api/cron/spot-offer-sync-check",
        "schedule": "31 * * * *"
     },
-    ///シフト自動追加　※マネージャーに入っているシフト///
     {
       "path": "/api/cron/spot-offer-auto-request",
       "schedule": "0 20 * * *"

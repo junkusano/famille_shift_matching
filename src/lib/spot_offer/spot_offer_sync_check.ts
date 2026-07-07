@@ -83,34 +83,25 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       continue;
     }
 
-    //時間変更アラート
-    const requestedStartTime = spotOfferRequest.shift_start_time;
-    const currentStartTime = shift.shift_start_time;
+ // 時間変更アラート
+// 終了時間の差は、短時間シフトを延長して募集しているケースがあるため無視する
+// 開始時間が30分以上変わった場合だけRPAリクエストを作成する
+const startDiffMinutes = getTimeDiffMinutes(
+  spotOfferRequest.shift_start_time,
+  shift.shift_start_time
+);
 
-    const diffMinutes = getTimeDiffMinutes(
-      requestedStartTime,
-      currentStartTime
-    );
+const shouldUpdateJobTime = startDiffMinutes >= 30;
 
-    const durationMinutes = getShiftDurationMinutes(
-      shift.shift_start_time,
-      shift.shift_end_time
-    );
+if (shouldUpdateJobTime) {
+  await createUpdateJobTimeRequest(
+    spotOfferRequest,
+    shift,
+    opts
+  );
 
-    const shouldUpdateStartTime = diffMinutes > 30;
-    const shouldFixDuration =
-      durationMinutes > 0 &&
-      (durationMinutes <= 30 || durationMinutes > 360);
-
-    if (shouldUpdateStartTime || shouldFixDuration) {
-      await createUpdateJobTimeRequest(
-        spotOfferRequest,
-        shift,
-        opts
-      );
-
-      alertCount++;
-    }
+  alertCount++;
+}
   }
 
   console.log(
