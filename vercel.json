@@ -134,11 +134,11 @@
     },
     {
       "path": "/api/cron/shift-record-check",
-      "schedule": "4 2,8 * * *"
+      "schedule": "4 8 * * *"
     },
     {
       "path": "/api/cron/shift-staff-check",
-      "schedule": "6 2,8 * * *"
+      "schedule": "6 22 * * *"
     },
     {
       "path": "/api/cron/user_ojt",
@@ -174,7 +174,7 @@
     },
     {
       "path": "/api/cron/disability-check-daily",
-      "schedule": "13 4 * * *"
+      "schedule": "51 8 */3 * *"
     },
     {
       "path": "/api/cron/disability-check-collected",
@@ -204,10 +204,12 @@
       "path": "/api/cron/health-check-reminder",
       "schedule": "32 1 1 * *"
     },
+    ///シフトの変更チェック///
     {
       "path": "/api/cron/spot-offer-sync-check",
-      "schedule": "0 * * * *"
+       "schedule": "31 * * * *"
     },
+    ///シフト自動追加　※マネージャーに入っているシフト///
     {
       "path": "/api/cron/spot-offer-auto-request",
       "schedule": "0 20 * * *"
