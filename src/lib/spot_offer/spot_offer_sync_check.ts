@@ -138,6 +138,7 @@ async function createCloseRequest(
     spot_offer_request: {
       id: spotOfferRequest["id"],
       shift_id: spotOfferRequest["shift_id"],
+      kaipoke_cs_id: spotOfferRequest["kaipoke_cs_id"],
       taimee_job_id: spotOfferRequest["taimee_job_id"],
       status: spotOfferRequest["status"],
       start_at: spotOfferRequest["start_at"],
