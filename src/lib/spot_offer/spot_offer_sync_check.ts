@@ -92,7 +92,7 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       shift.shift_start_time
     );
 
-    const shouldUpdateJobTime = startDiffMinutes >= 30;
+    const shouldUpdateJobTime = startDiffMinutes > 30;
 
     if (shouldUpdateJobTime) {
       await createUpdateJobTimeRequest(spotOfferRequest, shift, opts);
