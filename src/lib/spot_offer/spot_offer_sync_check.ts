@@ -192,14 +192,9 @@ async function createUpdateJobTimeRequest(
     ? calculateJobTimeFromTemplate(shift, nearestTemplate)
     : null;
 
-  const newStartDate = valueToString(shift["shift_start_date"]);
   const newStartTime = valueToString(shift["shift_start_time"]);
   const newEndTime =
     calculatedTime?.end_time ?? valueToString(shift["shift_end_time"]);
-  const newEndDate =
-    calculatedTime?.end_date ??
-    valueToString(shift["shift_end_date"]) ??
-    newStartDate;
 
   const newBreakStartTime = calculatedTime?.break_start_time ?? null;
   const newBreakEndTime = calculatedTime?.break_end_time ?? null;
@@ -208,42 +203,36 @@ async function createUpdateJobTimeRequest(
     calculatedTime?.template_duration_minutes ??
     getShiftDurationMinutes(shift["shift_start_time"], shift["shift_end_time"]);
 
-  const currentStartDate = valueToString(spotOfferRequest["shift_start_date"]);
-  const currentStartTime = valueToString(spotOfferRequest["shift_start_time"]);
-  const currentEndTime = valueToString(spotOfferRequest["shift_end_time"]);
-  const currentEndDate = getEndDateFromTimes(
-    currentStartDate,
-    currentStartTime,
-    currentEndTime
-  );
-
   const payload = {
-    command: "update_job_time",
-    reason: "job_time_mismatch",
+  reason: "job_time_mismatch",
+  command: "update_job_time",
 
-    shift_id: shift["shift_id"],
-    kaipoke_cs_id: shift["kaipoke_cs_id"],
-    service_code: shift["service_code"],
-    template_title: spotOfferRequest["template_title"],
-    taimee_job_id: spotOfferRequest["taimee_job_id"],
+  shift_id: shift.shift_id,
+  kaipoke_cs_id: shift.kaipoke_cs_id,
+  taimee_job_id: spotOfferRequest.taimee_job_id,
 
-    // 修正前（現在のタイミー求人）
-    current_start_date: currentStartDate,
-    current_start_time: currentStartTime,
-    current_end_date: currentEndDate,
-    current_end_time: currentEndTime,
+  old_shift: {
+    start_date: spotOfferRequest.shift_start_date,
+    start_time: spotOfferRequest.shift_start_time,
+    end_date: spotOfferRequest.shift_start_date,
+    end_time: spotOfferRequest.shift_end_time,
+  },
 
-    // 修正後（テンプレート時間を反映）
-    new_start_date: newStartDate,
-    new_start_time: newStartTime,
-    new_end_date: newEndDate,
-    new_end_time: newEndTime,
+  new_shift: {
+    start_date: shift.shift_start_date,
+    start_time: newStartTime,
+    end_date: shift.shift_end_date,
+    end_time: newEndTime,
+  },
 
-    new_break_start_time: newBreakStartTime,
-    new_break_end_time: newBreakEndTime,
-    new_break_minutes: newBreakMinutes,
-    template_duration_minutes: templateDurationMinutes,
-  };
+  break: {
+    start_time: newBreakStartTime,
+    end_time: newBreakEndTime,
+    minutes: newBreakMinutes,
+  },
+
+  template_duration_minutes: templateDurationMinutes,
+};
 
   const applicantUser = await getApplicantUser();
 
@@ -406,41 +395,6 @@ function minutesToTime(minutes: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
 }
 
-function addDays(dateString: string | null, days: number) {
-  if (!dateString) {
-    return null;
-  }
-
-  const date = new Date(`${dateString}T00:00:00+09:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateString;
-  }
-
-  date.setDate(date.getDate() + days);
-
-  return date.toISOString().slice(0, 10);
-}
-
-function getEndDateFromTimes(
-  startDate: string | null,
-  startTime: string | null,
-  endTime: string | null
-) {
-  if (!startDate || !startTime || !endTime) {
-    return startDate;
-  }
-
-  const startMinutes = timeToMinutes(startTime);
-  const endMinutes = timeToMinutes(endTime);
-
-  if (startMinutes === null || endMinutes === null) {
-    return startDate;
-  }
-
-  return endMinutes < startMinutes ? addDays(startDate, 1) : startDate;
-}
-
 function getBreakMinutes(durationMinutes: number) {
   if (durationMinutes > 8 * 60) {
     return 60;
@@ -525,11 +479,10 @@ function calculateJobTimeFromTemplate(shift: JsonRecord, template: JsonRecord) {
     breakStartMinutes !== null ? breakStartMinutes + breakMinutes : null;
 
   const endMinutes = startMinutes + templateDurationMinutes + breakMinutes;
-  const endDayOffset = Math.floor(endMinutes / 1440);
 
   return {
     template_duration_minutes: templateDurationMinutes,
-    end_date: addDays(shiftStartDate, endDayOffset),
+    end_date: shiftStartDate,
     end_time: minutesToTime(endMinutes),
     break_minutes: breakMinutes,
     break_start_time:
