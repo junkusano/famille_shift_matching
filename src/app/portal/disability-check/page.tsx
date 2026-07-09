@@ -1062,6 +1062,18 @@ const DisabilityCheckPage: React.FC = () => {
           スタッフ同士でお互いにフォローし合い、利用者様へのサービス品質の維持と、
           チーム全体の円滑な業務運営にご協力をお願いいたします。
         </p>
+
+        <p style={{ margin: "10px 0 0" }}>
+          📖 実績記録の印刷方法は
+          <a
+            href="https://board.worksmobile.com/main/article/4090000000171483974?searchKind=basic&keyword=%E5%AE%9F%E7%B8%BE%E8%A8%98%E9%8C%B2&boardNo=0&t=28160&isSearch=true"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            こちらのマニュアル
+          </a>
+          をご参照ください。
+        </p>
       </div>
 
       {/* 件数表示 */}
