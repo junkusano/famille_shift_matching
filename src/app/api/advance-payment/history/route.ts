@@ -177,11 +177,14 @@ return NextResponse.json({
 
 
   } catch (error) {
-    const message = error instanceof Error ? error.message : JSON.stringify(error);
+  console.error(error);
 
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
-  }
+  const message =
+    error instanceof Error ? error.message : JSON.stringify(error);
+
+  return NextResponse.json(
+    { ok: false, error: message },
+    { status: 500 }
+  );
+}
 }
