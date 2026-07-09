@@ -411,6 +411,23 @@ function PerformanceScorePanelContent({
                                             <div className="mt-1 text-xs font-medium text-blue-600">
                                                 {getMetricDescription(m.key)}
                                             </div>
+
+                                            {m.key === "jisseki" && (
+                                                <div className="mt-2 text-[11px] leading-5 text-slate-600">
+                                                    実績記録の担当者は、直近のシフト実績をもとに自動で割り当てられています。
+                                                    回収が難しい場合は、一人で抱え込まず、早めにマネジャーへ担当変更をご相談ください。
+                                                    <br />
+                                                    📖
+                                                    <a
+                                                        href="https://board.worksmobile.com/main/article/4090000000171483974?searchKind=basic&keyword=%E5%AE%9F%E7%B8%BE%E8%A8%98%E9%8C%B2&boardNo=0&t=28160&isSearch=true"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="ml-1 font-semibold text-blue-600 underline hover:text-blue-800"
+                                                    >
+                                                        実績記録印刷マニュアルはこちら
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="shrink-0 text-right">
