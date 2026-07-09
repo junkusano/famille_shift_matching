@@ -155,7 +155,7 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
     const rows = (data ?? []) as AttendanceRow[];
     const scanned = rows.length;
 
-    const filteredRows = rows.filter((row) => {
+    const dateFilteredRows = rows.filter((row) => {
         if (row.target_month < "2026-03-01") return false;
 
         const diff = monthDiff(now, row.target_month);
@@ -168,6 +168,40 @@ export async function runMonthlyMeetingUncheckedLineworksAlert(args: {
 
         return true;
     });
+
+    const shiftCheckedRows: AttendanceRow[] = [];
+
+    for (const row of dateFilteredRows) {
+        const userId = String(row.user_id ?? "").trim();
+        if (!userId) continue;
+
+        const monthYm = row.target_month.slice(0, 7);
+        const monthStart = `${monthYm}-01`;
+
+        const nextMonthDate = new Date(`${monthStart}T00:00:00`);
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+        const nextMonthStart = `${nextMonthDate.getFullYear()}-${pad2(nextMonthDate.getMonth() + 1)}-01`;
+
+        const { data: shifts, error: shiftError } = await supabaseAdmin
+            .from("shift")
+            .select("shift_id")
+            .gte("shift_start_date", monthStart)
+            .lt("shift_start_date", nextMonthStart)
+            .or(
+                `staff_01_user_id.eq.${userId},staff_02_user_id.eq.${userId},staff_03_user_id.eq.${userId}`
+            )
+            .limit(1);
+
+        if (shiftError) {
+            throw new Error(`shift select failed: ${shiftError.message}`);
+        }
+
+        if ((shifts ?? []).length > 0) {
+            shiftCheckedRows.push(row);
+        }
+    }
+
+    const filteredRows = shiftCheckedRows;
 
     if (!filteredRows.length) {
         return {
