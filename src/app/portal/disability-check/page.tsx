@@ -1029,9 +1029,40 @@ const DisabilityCheckPage: React.FC = () => {
   return (
     <div>
       <h1>実績記録チェック</h1>
-      <p style={{ color: "red", marginTop: 4, marginBottom: 12 }}>
-        実績担当者は、直近で１番シフトに入っている人を割り当てて、毎月20日に自動更新されています。
-      </p>
+
+      <div
+        style={{
+          background: "#fff7ed",
+          border: "1px solid #fed7aa",
+          borderRadius: 8,
+          padding: 12,
+          marginTop: 8,
+          marginBottom: 12,
+          lineHeight: 1.7,
+        }}
+      >
+        <p style={{ margin: 0, fontWeight: 700 }}>
+          実績記録の担当について
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          実績記録の担当者は、直近のシフト実績をもとに自動で割り当てられています。
+          そのため、現在はサービスに入っていない利用者様が担当として表示されるなど、
+          ご自身で実績記録を回収することが難しい場合があります。
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          そのような場合は一人で抱え込まず、できるだけ早めにマネジャーへ相談し、
+          担当者の変更をご依頼ください。
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          また、各利用者様のお部屋に表示されているアラートの中で、
+          ご自身が対応可能なものや訪問できる利用者様がいらっしゃいましたら、
+          積極的にマネジャーへお申し出ください。
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          スタッフ同士でお互いにフォローし合い、利用者様へのサービス品質の維持と、
+          チーム全体の円滑な業務運営にご協力をお願いいたします。
+        </p>
+      </div>
 
       {/* 件数表示 */}
       <div style={{ marginBottom: 8 }}>
