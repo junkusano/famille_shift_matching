@@ -1069,10 +1069,17 @@ const DisabilityCheckPage: React.FC = () => {
             href="https://board.worksmobile.com/main/article/4090000000171483974?searchKind=basic&keyword=%E5%AE%9F%E7%B8%BE%E8%A8%98%E9%8C%B2&boardNo=0&t=28160&isSearch=true"
             target="_blank"
             rel="noopener noreferrer"
+            style={{
+              color: "#2563eb",
+              textDecoration: "underline",
+              fontWeight: "bold",
+              marginLeft: 4,
+              marginRight: 4,
+            }}
           >
-            こちらのマニュアル
+            【実績記録印刷マニュアル】
           </a>
-          をご参照ください。
+          をクリックしてください。
         </p>
       </div>
 
