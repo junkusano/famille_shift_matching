@@ -93,10 +93,10 @@ let applicantNameMap = new Map<string, string>();
 
 if (applicantUserIds.length > 0) {
   const { data: applicantEntries, error: applicantEntriesError } = await supabase
-    .from("form_entries")
-    .select("user_id, last_name_kanji, first_name_kanji")
-    .in("user_id", applicantUserIds);
-
+  .from("user_entry_united_view_single")
+  .select("user_id, last_name_kanji, first_name_kanji")
+  .in("user_id", applicantUserIds);
+  
   if (applicantEntriesError) {
     console.error("applicantEntriesError", applicantEntriesError);
   } else {
@@ -144,8 +144,8 @@ if (applicantUserIds.length > 0) {
     application_status: app.status ?? "",
     application_status_label: statusLabel[app.status ?? ""] ?? app.status ?? "",
   applicant_name:
-  String(app.employee_name ?? "").trim() ||
   applicantNameMap.get(app.user_id) ||
+  String(app.employee_name ?? "").trim() ||
   app.user_id ||
   "-",
 
