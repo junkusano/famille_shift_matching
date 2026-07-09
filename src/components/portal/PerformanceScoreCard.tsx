@@ -1,3 +1,4 @@
+//"C:\Users\サービスサポート\famille_shift_matching\src\components\portal\PerformanceScoreCard.tsx"
 "use client";
 
 import { Suspense, useEffect, useState } from "react";

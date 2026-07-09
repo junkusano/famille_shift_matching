@@ -10,7 +10,7 @@ type PrintRow = {
   end: string;
   service_code?: string;
   minutes?: number;
-  required_staff_count?: number;
+  two_person_work_flg?: boolean;
   judo_ido?: string | null;
 
   // ★IDOUで使用
@@ -31,7 +31,7 @@ type ShiftRow = {
   shift_start_time: string | null;
   shift_end_time: string | null;
   service_code: string | null;
-  required_staff_count: number | null;
+  two_person_work_flg: boolean | null;
 
   staff_01_user_id: string | null;
   staff_02_user_id: string | null;
@@ -136,7 +136,17 @@ export async function GET(req: NextRequest) {
   // シフト取得（staff_01_user_id 追加）
   const { data: shifts, error } = await supabaseAdmin
     .from("shift")
-    .select("shift_start_date,shift_start_time,shift_end_time,service_code,required_staff_count,staff_01_user_id,staff_02_user_id,staff_03_user_id, judo_ido")
+    .select(`
+  shift_start_date,
+  shift_start_time,
+  shift_end_time,
+  service_code,
+  two_person_work_flg,
+  staff_01_user_id,
+  staff_02_user_id,
+  staff_03_user_id,
+  judo_ido
+`)
     .eq("kaipoke_cs_id", kaipoke_cs_id)
     .gte("shift_start_date", start)
     .lt("shift_start_date", endExclusive)
@@ -243,7 +253,7 @@ export async function GET(req: NextRequest) {
         end: endHHmm,
         service_code: s.service_code ?? "",
         minutes,
-        required_staff_count: s.required_staff_count ?? 1,
+        two_person_work_flg: s.two_person_work_flg ?? false,
         judo_ido: s.judo_ido ?? "0000",
 
         calc_hour,

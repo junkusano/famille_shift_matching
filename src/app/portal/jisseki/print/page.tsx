@@ -23,7 +23,8 @@ type PrintPayload = {
             end: string;         // HH:mm
             service_code?: string;          // ★追加：サービス内容（身体/家事/通院…）
             minutes?: number;
-            required_staff_count?: number; // ★派遣人数
+            required_staff_count?: number; // 旧：派遣人数
+            two_person_work_flg?: boolean; // ★派遣人数判定用
             staffNames?: string[];
             calc_hour?: number | null;
             cs_pay?: number | null;
@@ -548,7 +549,7 @@ function TakinokyoForm({ data, form, pageNo = 1, totalPages = 1, fitRefs }: Form
                                     );
                                 }
 
-                                const dispatch = r.required_staff_count ?? 1;
+                                const dispatch = r.two_person_work_flg ? 2 : 1;
 
                                 return (
                                     <tr key={`row-${i}`} className="detail-row">
@@ -1038,7 +1039,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
 
                             const mins = getMinutes(r);
                             const hours = fmtHours(mins);
-                            const dispatch = r.required_staff_count ?? 1;
+                            const dispatch = r.two_person_work_flg ? 2 : 1;
 
                             return (
                                 <tr key={`row-${i}`} className="detail-row">
@@ -1368,7 +1369,7 @@ function DokoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                 }
 
                                 const planHours = fmtHours(getMinutes(r));
-                                const dispatch = r.required_staff_count ?? 1;
+                                const dispatch = r.two_person_work_flg ? 2 : 1;
 
                                 return (
                                     <tr key={`row-${i}`} className="detail-row">
@@ -1830,8 +1831,8 @@ function JudoHommonForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                         {/* 11 算定 移動 */}
                                         <td className="center">{judoIdoToHoursText(r.judo_ido) || "\u00A0"}</td>
 
-                                        {/* 12 派遣人数（常に1） */}
-                                        <td className="center">1</td>
+                                        {/* 12 派遣人数 */}
+                                        <td className="center">{r.two_person_work_flg ? 2 : 1}</td>
 
                                         {/* 13 同行支援 */}
                                         <td className="center">&nbsp;</td>
