@@ -64,21 +64,6 @@ function parseCardCompositeId(id: string) {
     return { shiftId: Number(id.slice(0, idx)), staffId: id.slice(idx + 1) };
 }
 
-type RosterStaffWithRole = RosterStaff & {
-    system_role?: string | null;
-    role?: string | null;
-    is_manager?: boolean | null;
-};
-
-const isManagerStaff = (st: RosterStaffWithRole) => {
-    return (
-        st.is_manager === true ||
-        st.system_role === "manager" ||
-        st.system_role === "admin" ||
-        st.role === "manager" ||
-        st.role === "admin"
-    );
-};
 // ===== Props =====
 type Props = {
     date: string;
@@ -316,7 +301,7 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
 return sorted.filter((st) => {
     if (selectedTeams.includes("ヘルパーマネージャー")) {
-        return isManagerStaff(st);
+        return st.system_role === "manager";
     }
 
     return st.team ? selectedTeams.includes(st.team) : false;

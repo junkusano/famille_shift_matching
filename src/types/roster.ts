@@ -9,6 +9,7 @@ export type RosterStaff = {
   level_order?: number | null;
   status?: "ACTIVE" | "RETIRED" | string;
   roster_sort?: string;
+  system_role?: string | null;
 };
 
 export type RosterShiftDialogData = {

@@ -1,5 +1,6 @@
 //lib/spot_offer/spot_offer_sync_check.ts
 import { createClient } from "@supabase/supabase-js";
+import { createRpaRequestDetails } from "@/lib/spot_offer/createRpaRequestDetails";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,8 @@ const supabase = createClient(
 
 const SKIMABITO_JOB_EDIT_TEMPLATE_ID =
   "fbd64ab4-a7a3-40b7-a718-61d6fac39525";
+const SKIMABITO_JOB_CREATE_TEMPLATE_ID =
+  "caf1a290-b9ac-4eeb-84eb-eb7fd9936c2f";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -84,6 +87,26 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       continue;
     }
 
+    const isDateChanged =
+  spotOfferRequest.shift_start_date !== shift.shift_start_date;
+
+if (isDateChanged) {
+  await createCloseRequest(
+    spotOfferRequest,
+    "date_changed",
+    opts
+  );
+
+  await createOpenRequest(
+  shift,
+  opts
+);
+
+  closeCount++;
+
+  continue;
+}
+
     // 時間変更アラート
     // 終了時間の差は、短時間シフトを延長して募集しているケースがあるため無視する
     // 開始時間が30分以上変わった場合だけRPAリクエストを作成する
@@ -99,7 +122,6 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
       alertCount++;
     }
   }
-
   console.log(
     `[spot-offer-sync-check] close=${closeCount} alert=${alertCount}`
   );
@@ -116,7 +138,7 @@ export async function runSpotOfferSyncCheck(opts?: { dryRun?: boolean }) {
 
 async function createCloseRequest(
   spotOfferRequest: JsonRecord,
-  reason: "shift_deleted" | "staff_confirmed",
+  reason: "shift_deleted" | "staff_confirmed" | "date_changed",
   opts?: { dryRun?: boolean }
 ) {
   const shiftId = spotOfferRequest["shift_id"];
@@ -170,6 +192,109 @@ async function createCloseRequest(
     throw error;
   }
 }
+
+async function createOpenRequest(
+  shift: JsonRecord,
+  opts?: { dryRun?: boolean }
+) {
+  const shiftId = shift["shift_id"];
+
+  console.log("[spot-offer-sync-check] create open request", {
+    shift_id: shiftId,
+    dryRun: opts?.dryRun ?? false,
+  });
+
+  if (opts?.dryRun) {
+    return;
+  }
+
+  const selectedTemplate = await findNearestSpotOfferTemplate(shift);
+
+  if (!selectedTemplate) {
+    console.warn("[spot-offer-sync-check] template not found", {
+      shift_id: shiftId,
+      kaipoke_cs_id: shift["kaipoke_cs_id"],
+    });
+    return;
+  }
+
+  const calculatedTime = calculateJobTimeFromTemplate(shift, selectedTemplate);
+
+  const start = valueToString(shift["shift_start_time"]) ?? "";
+  const end =
+    calculatedTime?.end_time ??
+    valueToString(shift["shift_end_time"]) ??
+    "";
+
+  const details = createRpaRequestDetails({
+    selectedTemplate,
+    form: { shift_id: shiftId },
+    shift,
+    shiftStartDate: shift["shift_start_date"],
+    start,
+    end,
+    breakStart: calculatedTime?.break_start_time ?? null,
+    breakEnd: calculatedTime?.break_end_time ?? null,
+    userData: {
+      user_id: "sync-check",
+    },
+    mergedShiftIds: [shiftId],
+    mergedServiceCodes: [shift["service_code"] ?? null],
+  });
+
+  const applicantUser = await getApplicantUser();
+
+  const { error: spotError } = await supabase
+    .from("spot_offer_request_table")
+    .upsert(
+      {
+        shift_id: shiftId,
+        core_id: selectedTemplate["core_id"],
+        template_title: selectedTemplate["template_title"] ?? null,
+        kaipoke_cs_id: shift["kaipoke_cs_id"] ?? null,
+        shift_start_date: shift["shift_start_date"],
+        shift_start_time: start,
+        shift_end_time: end,
+        start_at: start,
+        end_at: end,
+        unit_amount: selectedTemplate["unit_amount"] ?? 1330,
+        commute_fee: selectedTemplate["commute_fee"] ?? 200,
+        status: "募集中",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "shift_id",
+      }
+    );
+
+  if (spotError) {
+    console.error("[spot-offer-sync-check] spot offer upsert error", {
+      shift_id: shiftId,
+      error: spotError,
+    });
+    throw spotError;
+  }
+
+  const { error: rpaError } = await supabase
+    .from("rpa_command_requests")
+    .insert({
+      template_id: SKIMABITO_JOB_CREATE_TEMPLATE_ID,
+      requester_id: applicantUser.auth_user_id,
+      approver_id: applicantUser.auth_user_id,
+      approved_at: new Date().toISOString(),
+      status: "approved",
+      request_details: details,
+    });
+
+  if (rpaError) {
+    console.error("[spot-offer-sync-check] create job request insert error", {
+      shift_id: shiftId,
+      error: rpaError,
+    });
+    throw rpaError;
+  }
+}
+
 
 async function createUpdateJobTimeRequest(
   spotOfferRequest: JsonRecord,
@@ -242,7 +367,7 @@ async function createUpdateJobTimeRequest(
     requester_id: applicantUser.auth_user_id,
     approver_id: applicantUser.auth_user_id,
     approved_at: new Date().toISOString(),
-    status: "test_status",
+    status: "approved",
     request_details: payload,
   });
 

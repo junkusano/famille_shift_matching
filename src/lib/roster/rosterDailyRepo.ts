@@ -26,6 +26,7 @@ interface StaffRow {
   orgunitname: string | null;
   org_order_num: number | null;
   level_sort: number | null;
+  system_role: string | null;
 }
 
 interface ShiftRowView {
@@ -153,13 +154,15 @@ const makeCard = (
 export async function getDailyRosterView(date: string): Promise<RosterDailyView> {
   // 1) staff
   const staffSel = [
-    "user_id",
-    "last_name_kanji",
-    "first_name_kanji",
-    "orgunitname",
-    "org_order_num",
-    "level_sort",
-  ].join(",");
+  "user_id",
+  "last_name_kanji",
+  "first_name_kanji",
+  "orgunitname",
+  "org_order_num",
+  "level_sort",
+  "system_role",
+
+].join(",");
 
   const { data: staffRaw, error: staffErr } = await SB
     .from("user_entry_united_view_single")
@@ -182,19 +185,20 @@ export async function getDailyRosterView(date: string): Promise<RosterDailyView>
   });
 
   const staff: RosterStaff[] = staffRows.map((r): RosterStaff => ({
-    id: String(r.user_id),
-    name: makeFullName(r.last_name_kanji, r.first_name_kanji),
-    team: r.orgunitname ?? null,
-    team_order:
-      typeof r.org_order_num === "number"
-        ? r.org_order_num
-        : Number.MAX_SAFE_INTEGER,
-    level_order:
-      typeof r.level_sort === "number"
-        ? r.level_sort
-        : Number.MAX_SAFE_INTEGER,
-    roster_sort: sortMap.get(String(r.user_id)) ?? "9999",
-  }));
+  id: String(r.user_id),
+  name: makeFullName(r.last_name_kanji, r.first_name_kanji),
+  team: r.orgunitname ?? null,
+  team_order:
+    typeof r.org_order_num === "number"
+      ? r.org_order_num
+      : Number.MAX_SAFE_INTEGER,
+  level_order:
+    typeof r.level_sort === "number"
+      ? r.level_sort
+      : Number.MAX_SAFE_INTEGER,
+  roster_sort: sortMap.get(String(r.user_id)) ?? "9999",
+  system_role: r.system_role,
+}));
 
   if (staff.length === 0) console.warn("[roster] no staff records");
 
