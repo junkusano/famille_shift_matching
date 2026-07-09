@@ -143,7 +143,6 @@ if (applicantUserIds.length > 0) {
     application_no: app.application_no ?? null,
     application_status: app.status ?? "",
     application_status_label: statusLabel[app.status ?? ""] ?? app.status ?? "",
-    applicant_name:
   applicant_name:
   String(app.employee_name ?? "").trim() ||
   applicantNameMap.get(app.user_id) ||
