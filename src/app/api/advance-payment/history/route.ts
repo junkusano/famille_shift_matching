@@ -144,9 +144,10 @@ if (applicantUserIds.length > 0) {
     application_status: app.status ?? "",
     application_status_label: statusLabel[app.status ?? ""] ?? app.status ?? "",
     applicant_name:
-  app.employee_name ??
-  applicantNameMap.get(app.user_id) ??
-  app.user_id ??
+  applicant_name:
+  String(app.employee_name ?? "").trim() ||
+  applicantNameMap.get(app.user_id) ||
+  app.user_id ||
   "-",
 
     base_amount: baseAmount,
