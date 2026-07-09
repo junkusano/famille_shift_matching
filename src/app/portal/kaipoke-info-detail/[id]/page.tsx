@@ -122,6 +122,13 @@ type TimeAdjustRow = { id: string; label: string };
 
 type FaxOption = { id: string; office_name: string | null };
 
+type FaxOptionQuery = {
+    id: string;
+    office_name: string | null;
+    service_kinds: {
+        label: string;
+    }[];
+};
 
 type Staff = {
     user_id: string;
@@ -379,7 +386,17 @@ export default function KaipokeInfoDetailPage() {
     const loadFaxOptions = async () => {
         const { data, error } = await supabase
             .from("fax")
-            .select("id, office_name")
+            .select(`
+            id,
+            office_name,
+            service_kinds!inner(label)
+        `)
+            .in("service_kinds.label", [
+                "ケアマネ事業所",
+                "相談事業所",
+                "包括支援センター",
+                "基幹相談",
+            ])
             .order("office_name", { ascending: true });
 
         if (error) {
@@ -387,7 +404,13 @@ export default function KaipokeInfoDetailPage() {
             setFaxOptions([]);
             return;
         }
-        setFaxOptions((data ?? []) as FaxOption[]);
+
+        const options: FaxOption[] = ((data ?? []) as FaxOptionQuery[]).map((item) => ({
+            id: item.id,
+            office_name: item.office_name,
+        }));
+
+        setFaxOptions(options);
     };
 
 
