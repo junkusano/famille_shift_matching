@@ -85,23 +85,29 @@ export async function GET(req: Request) {
     const { data: appsData, error: appsError } = await appQuery;
     if (appsError) throw appsError;
 
-    const applicantUserIds = Array.from(
+   const applicantUserIds = Array.from(
   new Set((appsData ?? []).map((app) => app.user_id).filter(Boolean))
 );
 
-const { data: applicantEntries, error: applicantEntriesError } = await supabase
-  .from("form_entries")
-  .select("user_id, last_name_kanji, first_name_kanji")
-  .in("user_id", applicantUserIds);
+let applicantNameMap = new Map<string, string>();
 
-if (applicantEntriesError) throw applicantEntriesError;
+if (applicantUserIds.length > 0) {
+  const { data: applicantEntries, error: applicantEntriesError } = await supabase
+    .from("form_entries")
+    .select("user_id, last_name_kanji, first_name_kanji")
+    .in("user_id", applicantUserIds);
 
-const applicantNameMap = new Map(
-  (applicantEntries ?? []).map((entry) => [
-    entry.user_id,
-    `${entry.last_name_kanji ?? ""} ${entry.first_name_kanji ?? ""}`.trim(),
-  ])
-);
+  if (applicantEntriesError) {
+    console.error("applicantEntriesError", applicantEntriesError);
+  } else {
+    applicantNameMap = new Map(
+      (applicantEntries ?? []).map((entry) => [
+        entry.user_id,
+        `${entry.last_name_kanji ?? ""} ${entry.first_name_kanji ?? ""}`.trim(),
+      ])
+    );
+  }
+}
 
     const rows = (appsData ?? []).map((app) => {
   const feeAmount = 200;
@@ -137,7 +143,11 @@ const applicantNameMap = new Map(
     application_no: app.application_no ?? null,
     application_status: app.status ?? "",
     application_status_label: statusLabel[app.status ?? ""] ?? app.status ?? "",
-    applicant_name:app.employee_name ?? applicantNameMap.get(app.user_id) ??app.user_id ??"-",
+    applicant_name:
+  app.employee_name ??
+  applicantNameMap.get(app.user_id) ??
+  app.user_id ??
+  "-",
 
     base_amount: baseAmount,
     available_amount: availableAmount,
