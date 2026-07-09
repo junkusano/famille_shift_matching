@@ -58,7 +58,6 @@ const JYUHO_OFFICE_NO = "2311100974";
 const JYUHO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 
 // 行動援護（様式2）用（PDF要件）
-const KODO_JUKYUSHA_NO = ""; // 10桁（未連携なら空）
 const KODO_OFFICE_NO = "2311100974";
 const KODO_OFFICE_NAME = "ﾌｧﾐｰﾕﾍﾙﾊﾟｰｻｰﾋﾞｽ愛知";
 
@@ -934,7 +933,7 @@ function KodoEngoForm({ data, form, pageNo = 1, totalPages = 1 }: FormProps) {
                                             受給者証<br />番号
                                         </div>
                                         <div style={{ padding: "1px 3px" }}>
-                                            <DigitBoxes10 value={KODO_JUKYUSHA_NO} />
+                                            <DigitBoxes10 value={(data.client.shogai_jukyusha_no ?? "").trim()} />
                                         </div>
                                     </div>
 
