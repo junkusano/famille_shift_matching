@@ -113,9 +113,22 @@ export default function KaipokeInfoPage() {
     const loadFaxOptions = async () => {
       const { data, error } = await supabase
         .from("fax")
-        .select("id, office_name")
+        .select(`
+      id,
+      office_name,
+      service_kinds!inner(label)
+    `)
+        .eq("service_kinds.label", "ケアマネ・相談事業所")
         .order("office_name")
-      if (!error && data) setFaxOptions(data as FaxOption[])
+
+      if (!error && data) {
+        setFaxOptions(
+          data.map((row) => ({
+            id: row.id,
+            office_name: row.office_name,
+          })) as FaxOption[]
+        )
+      }
     }
 
     const loadTeams = async () => {
