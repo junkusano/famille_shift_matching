@@ -304,29 +304,41 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
     return a.name.localeCompare(b.name, "ja");
   });
 
-  // 選択なしは全員表示
+return sorted.filter((st) => {
+  // 選択がない場合は全員表示
   if (selectedTeams.length === 0) {
-    return sorted;
+    return true;
   }
 
   const isManagerFilterSelected =
-    selectedTeams.includes("ヘルパーマネジャー") ||
-    selectedTeams.includes("ヘルパーマネージャー");
+    selectedTeams.includes("ヘルパーマネージャー") ||
+    selectedTeams.includes("ヘルパーマネジャー");
 
-  return sorted.filter((st) => {
-    // ヘルパーマネジャー選択時は権限で抽出
-    if (isManagerFilterSelected) {
-      return (
-        st.system_role === "manager" ||
-        st.system_role === "admin"
-      );
-    }
+  // ヘルパーマネージャーだけを選択した場合
+  if (
+    isManagerFilterSelected &&
+    selectedTeams.length === 1
+  ) {
+    return (
+      st.system_role === "manager" ||
+      st.system_role === "admin"
+    );
+  }
 
-    // その他は通常のチーム名で抽出
-    return st.team
-      ? selectedTeams.includes(st.team)
-      : false;
-  });
+  // 通常のチームに所属している人を表示
+  const isSelectedTeam =
+    !!st.team && selectedTeams.includes(st.team);
+
+  // ヘルパーマネージャーと通常チームを同時選択した場合
+  const isManagerOrAdmin =
+    isManagerFilterSelected &&
+    (
+      st.system_role === "manager" ||
+      st.system_role === "admin"
+    );
+
+  return isSelectedTeam || isManagerOrAdmin;
+});
 }, [initialView.staff, selectedTeams]);
 
     const serviceOptions = useMemo(() => {
@@ -689,50 +701,79 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
                         <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm">翌日</button>
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* チームフィルタ（ポップアップ） */}
-                        <div className="relative">
-                            <button onClick={() => setTeamFilterOpen((v) => !v)} className="px-2 py-1 rounded border hover:bg-gray-50 text-sm" title="チーム（org）で絞り込み">チーム</button>
-                            {teamFilterOpen && (
-                                <div className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2" onMouseLeave={() => setTeamFilterOpen(false)}>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs text-gray-500">チームで絞り込み</span>
-                                        <div className="space-x-2">
-                                            <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams(allTeams)}>全選択</button>
-                                            {/* クリア = 選択ゼロ = 全表示 */}
-                                            <button className="text-xs text-blue-600 hover:underline" onClick={() => setSelectedTeams([])}>クリア</button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        {allTeams.length === 0 ? (
-                                            <div className="text-xs text-gray-400">（チーム情報なし）</div>
-                                        ) : (
-                                            allTeams.map((t) => (
-                                                <label key={t} className="flex items-center gap-2 text-sm">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedTeams.length === 0 ? true : selectedTeams.includes(t)}
-                                                        onChange={(e) => {
-                                                            if (selectedTeams.length === 0) {
-                                                                // 全表示状態（選択ゼロ）で個別操作したときは、
-                                                                // いったん全選択にしてから当該項目だけ外す/入れる
-                                                                if (!e.target.checked) {
-                                                                    setSelectedTeams(allTeams.filter((x) => x !== t));
-                                                                } else {
-                                                                    setSelectedTeams([t]);
-                                                                }
-                                                                return;
-                                                            }
-                                                            setSelectedTeams((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)));
-                                                        }}
-                                                    />
-                                                    <span className="truncate" title={t}>{t}</span>
-                                                </label>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+{/* チームフィルタ（ポップアップ） */}
+<div className="relative">
+  <button
+    type="button"
+    onClick={() => setTeamFilterOpen((v) => !v)}
+    className="px-2 py-1 rounded border hover:bg-gray-50 text-sm"
+    title="チーム（org）で絞り込み"
+  >
+    チーム
+  </button>
+
+  {teamFilterOpen && (
+    <div
+      className="absolute right-0 mt-1 w-64 max-h-72 overflow-auto rounded-md border bg-white shadow-lg z-50 p-2"
+      onMouseLeave={() => setTeamFilterOpen(false)}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-500">
+          チームで絞り込み
+        </span>
+
+        <div className="space-x-2">
+          <button
+            type="button"
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => setSelectedTeams(allTeams)}
+          >
+            全選択
+          </button>
+
+          <button
+            type="button"
+            className="text-xs text-blue-600 hover:underline"
+            onClick={() => setSelectedTeams([])}
+          >
+            全解除
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        {allTeams.length === 0 ? (
+          <div className="text-xs text-gray-400">
+            （チーム情報なし）
+          </div>
+        ) : (
+          allTeams.map((t) => (
+            <label
+              key={t}
+              className="flex items-center gap-2 text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={selectedTeams.includes(t)}
+                onChange={(e) => {
+                  setSelectedTeams((prev) =>
+                    e.target.checked
+                      ? [...new Set([...prev, t])]
+                      : prev.filter((x) => x !== t)
+                  );
+                }}
+              />
+
+              <span className="truncate" title={t}>
+                {t}
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  )}
+</div>
 
                         {/* 右上「メニュー」ボタンは不要のため削除 */}
                     </div>
