@@ -300,11 +300,25 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
         if (selectedTeams.length === 0) return sorted;
 
 return sorted.filter((st) => {
-    if (selectedTeams.includes("ヘルパーマネージャー")) {
-        return st.system_role === "manager";
-    }
+  // フィルター未選択なら全員
+  if (selectedTeams.length === 0) {
+    return true;
+  }
 
-    return st.team ? selectedTeams.includes(st.team) : false;
+  // ヘルパーマネージャーが選択されている場合
+  if (
+  selectedTeams.includes("ヘルパーマネージャー") &&
+  (st.system_role === "manager" || st.system_role === "admin")
+) {
+    return true;
+  }
+
+  // 通常のチーム
+  if (st.team && selectedTeams.includes(st.team)) {
+    return true;
+  }
+
+  return false;
 });
     }, [initialView.staff, selectedTeams]);
 
