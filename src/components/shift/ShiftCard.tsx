@@ -375,6 +375,8 @@ export default function ShiftCard({
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
+  const [mealExpenseRequested, setMealExpenseRequested] = useState(false);
+  const [mealExpenseAmount, setMealExpenseAmount] = useState("");
 
   // 追加：カード内に保持
   const [kaipokeInfo, setKaipokeInfo] = useState<{
@@ -1166,6 +1168,52 @@ export default function ShiftCard({
     )}
   </div>
 )}
+
+{(mode === "reject" || mode === "view") && (
+  <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3">
+    <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+      <input
+        type="checkbox"
+        checked={mealExpenseRequested}
+        onChange={(e) => {
+          setMealExpenseRequested(e.target.checked);
+
+          if (!e.target.checked) {
+            setMealExpenseAmount("");
+          }
+        }}
+        className="h-4 w-4"
+      />
+      食事代申請
+    </label>
+
+    {mealExpenseRequested && (
+      <div className="mt-3">
+        <label className="block text-sm font-medium">
+          申請金額
+        </label>
+
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            inputMode="numeric"
+            value={mealExpenseAmount}
+            onChange={(e) => setMealExpenseAmount(e.target.value)}
+            placeholder="例：500"
+            className="w-36 rounded-md border bg-white px-3 py-2 text-sm"
+          />
+          <span className="text-sm">円</span>
+        </div>
+
+        <div className="mt-3 rounded-md border border-dashed border-orange-300 bg-white p-3 text-sm text-gray-500">
+          領収書画像アップロード欄をここに追加予定
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
