@@ -290,37 +290,44 @@ export default function RosterBoardDaily({ date, initialView, deletable = false 
 
     // 並び順：roster_sort → 氏名
     const displayStaff: RosterStaff[] = useMemo(() => {
-        const sorted = [...initialView.staff].sort((a, b) => {
-            const ra = getRosterSort(a);
-            const rb = getRosterSort(b);
-            if (ra !== rb) return ra.localeCompare(rb, "ja", { numeric: true, sensitivity: "base" });
-            return a.name.localeCompare(b.name, "ja");
-        });
-        // フィルタ：選択ゼロ（=クリア）のときは“全表示”
-        if (selectedTeams.length === 0) return sorted;
+  const sorted = [...initialView.staff].sort((a, b) => {
+    const ra = getRosterSort(a);
+    const rb = getRosterSort(b);
 
-return sorted.filter((st) => {
-  // フィルター未選択なら全員
+    if (ra !== rb) {
+      return ra.localeCompare(rb, "ja", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+
+    return a.name.localeCompare(b.name, "ja");
+  });
+
+  // 選択なしは全員表示
   if (selectedTeams.length === 0) {
-    return true;
+    return sorted;
   }
 
-  // ヘルパーマネージャーが選択されている場合
-  if (
-  selectedTeams.includes("ヘルパーマネージャー") &&
-  (st.system_role === "manager" || st.system_role === "admin")
-) {
-    return true;
-  }
+  const isManagerFilterSelected =
+    selectedTeams.includes("ヘルパーマネジャー") ||
+    selectedTeams.includes("ヘルパーマネージャー");
 
-  // 通常のチーム
-  if (st.team && selectedTeams.includes(st.team)) {
-    return true;
-  }
+  return sorted.filter((st) => {
+    // ヘルパーマネジャー選択時は権限で抽出
+    if (isManagerFilterSelected) {
+      return (
+        st.system_role === "manager" ||
+        st.system_role === "admin"
+      );
+    }
 
-  return false;
-});
-    }, [initialView.staff, selectedTeams]);
+    // その他は通常のチーム名で抽出
+    return st.team
+      ? selectedTeams.includes(st.team)
+      : false;
+  });
+}, [initialView.staff, selectedTeams]);
 
     const serviceOptions = useMemo(() => {
         const map = new Map<string, string>();
