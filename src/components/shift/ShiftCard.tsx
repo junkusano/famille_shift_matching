@@ -375,8 +375,10 @@ export default function ShiftCard({
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
+  /*
   const [mealExpenseRequested, setMealExpenseRequested] = useState(false);
   const [mealExpenseAmount, setMealExpenseAmount] = useState("");
+  */
 
   // 追加：カード内に保持
   const [kaipokeInfo, setKaipokeInfo] = useState<{
@@ -1169,6 +1171,7 @@ export default function ShiftCard({
   </div>
 )}
 
+{/*
 {(mode === "reject" || mode === "view") && (
   <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3">
     <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
@@ -1213,6 +1216,7 @@ export default function ShiftCard({
     )}
   </div>
 )}
+  */}
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
