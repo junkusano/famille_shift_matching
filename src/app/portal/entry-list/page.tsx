@@ -1,3 +1,4 @@
+//app/portal/entry-list/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -138,20 +139,75 @@ async function fetchAddressWithRetry(
 // ========================
 //  4) 並列数制限ユーティリティ
 // ========================
-async function processInBatches<T>(items: T[], batchSize: number, fn: (item: T) => Promise<void>) {
+async function processInBatches<T>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<void>
+) {
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     await Promise.all(batch.map(fn));
   }
 }
 
+// ========================
+//  5) 一覧の並べ替え
+// ========================
+type SortKey =
+  | 'name'
+  | 'gender'
+  | 'age'
+  | 'address'
+  | 'level'
+  | 'status'
+  | 'roster'
+  | 'createdAt';
+
+type SortDirection = 'asc' | 'desc';
+
+function calculateAge(entry: EntryData): number | null {
+  if (
+    !entry.birth_year ||
+    !entry.birth_month ||
+    !entry.birth_day
+  ) {
+    return null;
+  }
+
+  const today = new Date();
+
+  let age = today.getFullYear() - entry.birth_year;
+
+  const hasNotHadBirthday =
+    today.getMonth() + 1 < entry.birth_month ||
+    (
+      today.getMonth() + 1 === entry.birth_month &&
+      today.getDate() < entry.birth_day
+    );
+
+  if (hasNotHadBirthday) {
+    age -= 1;
+  }
+
+  return age;
+}
+
 export default function EntryListPage() {
   const [entries, setEntries] = useState<EntryData[]>([]);
-  const [entriesWithMap, setEntriesWithMap] = useState<(EntryData & { addrStatus?: AddrStatus })[]>([]);
+  const [entriesWithMap, setEntriesWithMap] = useState<
+    (EntryData & { addrStatus?: AddrStatus })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchText, setSearchText] = useState('');
   const [myLevelSort, setMyLevelSort] = useState<number | null>(null);
+
+  // 一覧の並べ替え
+  // null の場合は、これまでの既定順をそのまま使用する
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>('asc');
+
   const pageSize = 50;
   const role = useUserRole();
 
@@ -365,18 +421,241 @@ export default function EntryListPage() {
       .filter(Boolean)
       .join('');
 
-    const address = entry.address ?? '';
+    const address = [
+      entry.address,
+      entry.shortAddress,
+    ]
+      .filter(Boolean)
+      .join('');
 
-    return fullName.includes(searchText) || address.includes(searchText);
+    return (
+      fullName.includes(searchText) ||
+      address.includes(searchText)
+    );
   });
 
-  const displayEntries = filteredEntries.slice(
+  // 列見出しをクリックしたときの処理
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) =>
+        current === 'asc' ? 'desc' : 'asc'
+      );
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+
+    // 並べ替えたときは1ページ目へ戻す
+    setCurrentPage(1);
+  };
+
+  // 見出しに表示する矢印
+  const getSortArrow = (key: SortKey) => {
+    if (sortKey !== key) {
+      return (
+        <span className="ml-1 text-[10px] text-gray-400">
+          ▲▼
+        </span>
+      );
+    }
+
+    return (
+      <span className="ml-1 text-[11px] text-blue-700">
+        {sortDirection === 'asc' ? '▲' : '▼'}
+      </span>
+    );
+  };
+
+  // 文字列比較
+  const compareText = (
+    a: string | null | undefined,
+    b: string | null | undefined
+  ) => {
+    const aValue = a?.trim() ?? '';
+    const bValue = b?.trim() ?? '';
+
+    // 空欄は昇順・降順とも最後に表示
+    if (!aValue && !bValue) return 0;
+    if (!aValue) return 1;
+    if (!bValue) return -1;
+
+    const result = aValue.localeCompare(
+      bValue,
+      'ja',
+      {
+        numeric: true,
+        sensitivity: 'base',
+      }
+    );
+
+    return sortDirection === 'asc' ? result : -result;
+  };
+
+  // 数値比較
+  const compareNumber = (
+    a: number | null | undefined,
+    b: number | null | undefined
+  ) => {
+    const aMissing =
+      a === null ||
+      a === undefined ||
+      Number.isNaN(a);
+
+    const bMissing =
+      b === null ||
+      b === undefined ||
+      Number.isNaN(b);
+
+    // 空欄は昇順・降順とも最後に表示
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+
+    const result = a - b;
+
+    return sortDirection === 'asc' ? result : -result;
+  };
+
+  // 検索結果全体を並べ替えてからページ分割する
+  const sortedEntries = sortKey
+    ? [...filteredEntries].sort((a, b) => {
+      switch (sortKey) {
+        case 'name': {
+          // ふりがなを優先して並べ替える
+          const aKana = [
+            a.last_name_kana,
+            a.first_name_kana,
+          ]
+            .filter(Boolean)
+            .join('');
+
+          const bKana = [
+            b.last_name_kana,
+            b.first_name_kana,
+          ]
+            .filter(Boolean)
+            .join('');
+
+          const kanaResult = compareText(aKana, bKana);
+
+          if (kanaResult !== 0) {
+            return kanaResult;
+          }
+
+          // ふりがなが同じ場合は漢字氏名で比較
+          const aKanji = [
+            a.last_name_kanji,
+            a.first_name_kanji,
+          ]
+            .filter(Boolean)
+            .join('');
+
+          const bKanji = [
+            b.last_name_kanji,
+            b.first_name_kanji,
+          ]
+            .filter(Boolean)
+            .join('');
+
+          return compareText(aKanji, bKanji);
+        }
+
+        case 'gender':
+          return compareText(a.gender, b.gender);
+
+        case 'age':
+          return compareNumber(
+            calculateAge(a),
+            calculateAge(b)
+          );
+
+        case 'address':
+          return compareText(
+            a.shortAddress ?? a.address,
+            b.shortAddress ?? b.address
+          );
+
+        case 'level':
+          return compareNumber(
+            a.level_sort,
+            b.level_sort
+          );
+
+        case 'status': {
+          const aStatus =
+            statusMaster.find(
+              (status) => status.id === a.status
+            );
+
+          const bStatus =
+            statusMaster.find(
+              (status) => status.id === b.status
+            );
+
+          const sortResult = compareNumber(
+            aStatus?.sort_order,
+            bStatus?.sort_order
+          );
+
+          if (sortResult !== 0) {
+            return sortResult;
+          }
+
+          return compareText(
+            a.status_label ?? aStatus?.label ?? a.status,
+            b.status_label ?? bStatus?.label ?? b.status
+          );
+        }
+
+        case 'roster': {
+          const aRoster = Number.parseInt(
+            a.roster_sort ?? '',
+            10
+          );
+
+          const bRoster = Number.parseInt(
+            b.roster_sort ?? '',
+            10
+          );
+
+          return compareNumber(
+            Number.isFinite(aRoster) ? aRoster : null,
+            Number.isFinite(bRoster) ? bRoster : null
+          );
+        }
+
+        case 'createdAt': {
+          const aTime = new Date(
+            a.created_at
+          ).getTime();
+
+          const bTime = new Date(
+            b.created_at
+          ).getTime();
+
+          return compareNumber(
+            Number.isFinite(aTime) ? aTime : null,
+            Number.isFinite(bTime) ? bTime : null
+          );
+        }
+
+        default:
+          return 0;
+      }
+    })
+    : filteredEntries;
+
+  const displayEntries = sortedEntries.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
 
-  const displayTotalCount = filteredEntries.length;
-  const totalPages = Math.max(1, Math.ceil(displayTotalCount / pageSize));
+  const displayTotalCount = sortedEntries.length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayTotalCount / pageSize)
+  );
 
   return (
     <div className="content">
@@ -387,9 +666,11 @@ export default function EntryListPage() {
         placeholder="名前・住所で検索"
         className="mb-4 p-2 border"
         value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
+        onChange={(e) => {
+          setSearchText(e.target.value);
+          setCurrentPage(1);
+        }}
       />
-
       {loading ? (
         <p>読み込み中...</p>
       ) : entriesWithMap.length === 0 ? (
@@ -399,25 +680,111 @@ export default function EntryListPage() {
           <table className="min-w-full border-collapse border border-gray-300">
             <thead>
               <tr className="bg-gray-100 text-left">
-                <th className="border px-2 py-1">氏名</th>
-                <th className="border px-2 py-1">性別</th>
-                <th className="border px-2 py-1">年齢</th>
-                <th className="border px-2 py-1">住所</th>
-                <th className="border px-2 py-1">職級</th>
-                <th className="border px-2 py-1">ステータス</th>
-                <th className="border px-2 py-1">並び順(roster)</th>
-                <th className="border px-2 py-1">登録日</th>
-                <th className="border px-2 py-1">操作</th>
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('name')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="氏名で並べ替え"
+                  >
+                    氏名
+                    {getSortArrow('name')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('gender')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="性別で並べ替え"
+                  >
+                    性別
+                    {getSortArrow('gender')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('age')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="年齢で並べ替え"
+                  >
+                    年齢
+                    {getSortArrow('age')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('address')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="住所で並べ替え"
+                  >
+                    住所
+                    {getSortArrow('address')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('level')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="職級で並べ替え"
+                  >
+                    職級
+                    {getSortArrow('level')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('status')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="ステータスで並べ替え"
+                  >
+                    ステータス
+                    {getSortArrow('status')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('roster')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="rosterの並び順で並べ替え"
+                  >
+                    並び順(roster)
+                    {getSortArrow('roster')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('createdAt')}
+                    className="flex w-full items-center whitespace-nowrap text-left hover:text-blue-700"
+                    title="登録日で並べ替え"
+                  >
+                    登録日
+                    {getSortArrow('createdAt')}
+                  </button>
+                </th>
+
+                <th className="border px-2 py-1">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody>
               {displayEntries.map((entry) => {
-                const age =
-                  new Date().getFullYear() - entry.birth_year -
-                  (new Date().getMonth() + 1 < entry.birth_month ||
-                    (new Date().getMonth() + 1 === entry.birth_month && new Date().getDate() < entry.birth_day)
-                    ? 1
-                    : 0);
+                const age = calculateAge(entry);
+
 
                 // 行単位の変更検知（実際に後で使用する）
                 const rosterChanged =
@@ -435,7 +802,9 @@ export default function EntryListPage() {
                       {(entry.last_name_kanji ?? '')} {(entry.first_name_kanji ?? '')}
                     </td>
                     <td className="border px-2 py-1">{entry.gender ?? '―'}</td>
-                    <td className="border px-2 py-1">{isNaN(age) ? '―' : `${age}歳`}</td>
+                    <td className="border px-2 py-1">
+                      {age === null ? '―' : `${age}歳`}
+                    </td>
                     <td className="border px-2 py-1">
                       <div className="flex items-center gap-2">
                         <a
