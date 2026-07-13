@@ -157,7 +157,8 @@ export default function UserAdvancePaymentConfirmPage() {
   });
   const [message, setMessage] = useState("");
   
-   const [performanceRank, setPerformanceRank] = useState("ブロンズ");
+  const [performanceRank, setPerformanceRank] = useState("");
+  const [rankLoading, setRankLoading] = useState(true);
   
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
@@ -214,6 +215,7 @@ const isSilverOrHigher =
   const canSubmit =
   isTestAccount ||
   (
+    !rankLoading &&
     isSilverOrHigher &&
     !isManager &&
     !isAfterDeadline &&
@@ -290,12 +292,13 @@ const calculation = calculateAvailableAmount({
         setRejectedApplication(rejectedData);
 
         
+setRankLoading(true);
+
 const { data: latestScore, error: scoreError } = await supabase
   .from("staff_monthly_score_summaries")
   .select("medal_rank, target_month")
   .eq("user_id", currentUser.user_id)
   .order("target_month", { ascending: false })
-  .order("updated_at", { ascending: false })
   .limit(1)
   .maybeSingle();
 
@@ -304,11 +307,24 @@ console.log("latestScore", latestScore);
 console.log("currentUser.user_id", currentUser.user_id);
 
 if (scoreError) {
-  console.error("パフォーマンスランク取得エラー", scoreError);
-  setPerformanceRank("ブロンズ");
+  console.error(
+    "パフォーマンスランクの取得に失敗しました。",
+    scoreError
+  );
+
+  setPerformanceRank("");
+  setErrorMessage(
+    "パフォーマンスランクを確認できませんでした。管理者へお問い合わせください。"
+  );
 } else {
-  setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
+  const fetchedRank = String(latestScore?.medal_rank ?? "").trim();
+
+  console.log("取得したパフォーマンスランク", fetchedRank);
+
+  setPerformanceRank(fetchedRank);
 }
+
+setRankLoading(false);
 
         
 
@@ -423,6 +439,20 @@ if (scoreError) {
     try {
       if (!me) {
   setErrorMessage("ログインユーザー情報を取得できていません。");
+  return;
+}
+
+if (rankLoading && !isTestAccount) {
+  setErrorMessage(
+    "パフォーマンスランクを確認中です。画面を再読み込みしてください。"
+  );
+  return;
+}
+
+if (!performanceRank && !isTestAccount) {
+  setErrorMessage(
+    "パフォーマンスランクを取得できませんでした。管理者へお問い合わせください。"
+  );
   return;
 }
 
