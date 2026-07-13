@@ -149,28 +149,28 @@ async function createCloseRequest(
     dryRun: opts?.dryRun ?? false,
   });
 
-  if (opts?.dryRun) {
-    return;
-  }
+ if (opts?.dryRun) {
+  return;
+}
 
-  const payload = {
-    command: "close_job",
-    reason,
-    shift_id: shiftId,
-    spot_offer_request: {
-      id: spotOfferRequest["id"],
-      shift_id: spotOfferRequest["shift_id"],
-      kaipoke_cs_id: spotOfferRequest["kaipoke_cs_id"],
-      taimee_job_id: spotOfferRequest["taimee_job_id"],
-      status: spotOfferRequest["status"],
-      start_at: spotOfferRequest["start_at"],
-      end_at: spotOfferRequest["end_at"],
-      template_title: spotOfferRequest["template_title"],
-      shift_start_date: spotOfferRequest["shift_start_date"],
-      shift_start_time: spotOfferRequest["shift_start_time"],
-      shift_end_time: spotOfferRequest["shift_end_time"],
-    },
-  };
+const payload = {
+  command: "close_job",
+  reason,
+  shift_id: shiftId,
+  spot_offer_request: {
+    id: spotOfferRequest["id"],
+    shift_id: spotOfferRequest["shift_id"],
+    kaipoke_cs_id: spotOfferRequest["kaipoke_cs_id"],
+    taimee_job_id: spotOfferRequest["taimee_job_id"],
+    status: spotOfferRequest["status"],
+    start_at: spotOfferRequest["start_at"],
+    end_at: spotOfferRequest["end_at"],
+    template_title: spotOfferRequest["template_title"],
+    shift_start_date: spotOfferRequest["shift_start_date"],
+    shift_start_time: spotOfferRequest["shift_start_time"],
+    shift_end_time: spotOfferRequest["shift_end_time"],
+  },
+};
 
   const applicantUser = await getApplicantUser();
 
@@ -309,10 +309,49 @@ async function createUpdateJobTimeRequest(
   });
 
   if (opts?.dryRun) {
-    return;
-  }
+  return;
+}
 
-  const nearestTemplate = await findNearestSpotOfferTemplate(shift);
+// 同じシフトに未処理の時間変更リクエストがある場合は作成しない
+const { data: existingRequests, error: duplicateCheckError } = await supabase
+  .from("rpa_command_requests")
+  .select("id, status, request_details")
+  .eq("request_details->>command", "update_job_time")
+  .eq("request_details->>shift_id", String(shiftId))
+  .in("status", [
+    "waiting_approval",
+    "approved",
+    "running",
+    "test_status",
+  ])
+  .limit(1);
+
+if (duplicateCheckError) {
+  console.error(
+    "[spot-offer-sync-check] duplicate update_job_time check error",
+    {
+      shift_id: shiftId,
+      error: duplicateCheckError,
+    }
+  );
+
+  throw duplicateCheckError;
+}
+
+if (existingRequests && existingRequests.length > 0) {
+  console.log(
+    "[spot-offer-sync-check] skip duplicate update_job_time request",
+    {
+      shift_id: shiftId,
+      request_id: existingRequests[0].id,
+      status: existingRequests[0].status,
+    }
+  );
+
+  return;
+}
+
+const nearestTemplate = await findNearestSpotOfferTemplate(shift);
 
   const calculatedTime = nearestTemplate
     ? calculateJobTimeFromTemplate(shift, nearestTemplate)
