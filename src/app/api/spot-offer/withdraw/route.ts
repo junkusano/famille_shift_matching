@@ -58,22 +58,27 @@ export async function POST(req: NextRequest) {
   }
 
   const requestDetails = {
-    created_from: "/portal/roster/daily",
-    action: "withdraw_taimee_job",
+  created_from: "/portal/roster/daily",
 
-    shift_id: spotOffer.shift_id,
-    core_id: spotOffer.core_id,
-    taimee_job_id: spotOffer.taimee_job_id,
+  // PADが処理種別を判定するため
+  command: "close_job",
 
-    kaipoke_cs_id: spotOffer.kaipoke_cs_id,
-    template_title: spotOffer.template_title,
-    shift_start_date: spotOffer.shift_start_date,
-    shift_start_time: spotOffer.shift_start_time,
-    shift_end_time: spotOffer.shift_end_time,
+  // アプリ側の識別用
+  action: "withdraw_taimee_job",
 
-    requested_status: "募集なし",
-    previous_status: spotOffer.status,
-  };
+  shift_id: spotOffer.shift_id,
+  core_id: spotOffer.core_id,
+  taimee_job_id: spotOffer.taimee_job_id,
+
+  kaipoke_cs_id: spotOffer.kaipoke_cs_id,
+  template_title: spotOffer.template_title,
+  shift_start_date: spotOffer.shift_start_date,
+  shift_start_time: spotOffer.shift_start_time,
+  shift_end_time: spotOffer.shift_end_time,
+
+  requested_status: "募集なし",
+  previous_status: spotOffer.status,
+};
 
   const { error: rpaError } = await supabaseAdmin
     .from("rpa_command_requests")
