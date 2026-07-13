@@ -1,10 +1,3 @@
-console.log({
-  NODE_ENV: process.env.NODE_ENV,
-  setupSecretExists: !!process.env.GOOGLE_CALENDAR_OAUTH_SETUP_SECRET,
-  clientIdExists: !!process.env.GOOGLE_CALENDAR_CLIENT_ID,
-  redirectExists: !!process.env.GOOGLE_CALENDAR_REDIRECT_URI,
-});
-
 import crypto from "crypto";
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
@@ -69,35 +62,16 @@ export async function GET(request: NextRequest) {
     const state = crypto.randomBytes(32).toString("hex");
 
     const authorizationUrl = oauth2Client.generateAuthUrl({
-      /*
-       * cronから継続利用するため、
-       * refresh_tokenを取得できるofflineを指定します。
-       */
-      access_type: "offline",
-
-      /*
-       * 過去に認証済みでも、再度同意画面を出します。
-       * refresh_tokenを再取得したい初回設定時に使用します。
-       */
-      prompt: "consent",
-
-      /*
-       * カレンダー一覧の読み取りと、
-       * 予定の取得・作成・更新・削除を行う権限です。
-       */
-      scope: [
-        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-        "https://www.googleapis.com/auth/calendar.events",
-      ],
-
-      state,
-
-      /*
-       * 代表アカウントを選択しやすくするため、
-       * Googleアカウント選択画面を表示します。
-       */
-      include_granted_scopes: true,
-    });
+  access_type: "offline",
+  prompt: "consent select_account",
+  scope: [
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+  ],
+  state,
+  include_granted_scopes: true,
+  login_hint: process.env.GOOGLE_CALENDAR_ACCOUNT,
+});
 
     const response = NextResponse.redirect(authorizationUrl);
 

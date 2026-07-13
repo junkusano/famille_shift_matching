@@ -17,6 +17,16 @@ function getRequiredEnv(name: string): string {
 }
 
 export async function GET(request: NextRequest) {
+   console.log("[google-calendar/oauth/callback]", {
+    pathname: request.nextUrl.pathname,
+    hasCode: request.nextUrl.searchParams.has("code"),
+    hasState: request.nextUrl.searchParams.has("state"),
+    googleError:
+      request.nextUrl.searchParams.get("error") ?? null,
+    queryKeys: Array.from(
+      request.nextUrl.searchParams.keys(),
+    ),
+  });
   try {
     const searchParams = request.nextUrl.searchParams;
 
