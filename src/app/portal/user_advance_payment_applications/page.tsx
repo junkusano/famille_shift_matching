@@ -157,7 +157,7 @@ export default function UserAdvancePaymentConfirmPage() {
   });
   const [message, setMessage] = useState("");
   
-   const [performanceRank] = useState("ブロンズ");
+   const [performanceRank, setPerformanceRank] = useState("ブロンズ");
   
   const [errorMessage, setErrorMessage] = useState("");
   const [rejectedApplication, setRejectedApplication] =
@@ -303,6 +303,12 @@ console.log("scoreError", scoreError);
 console.log("latestScore", latestScore);
 console.log("currentUser.user_id", currentUser.user_id);
 
+if (scoreError) {
+  console.error("パフォーマンスランク取得エラー", scoreError);
+  setPerformanceRank("ブロンズ");
+} else {
+  setPerformanceRank(latestScore?.medal_rank ?? "ブロンズ");
+}
 
         
 
