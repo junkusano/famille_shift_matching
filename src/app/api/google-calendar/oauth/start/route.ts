@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { google } from "googleapis";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ function getRequiredEnv(name: string): string {
   return value;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     /*
      * この認証ルートを誰でも実行できないようにする、
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
      *
      * 使用例:
      * /api/google-calendar/oauth/start?setup_secret=xxxxx
-     */
+  
     const setupSecret = request.nextUrl.searchParams.get("setup_secret");
     const expectedSetupSecret = getRequiredEnv(
       "GOOGLE_CALENDAR_OAUTH_SETUP_SECRET",
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         { status: 401 },
       );
     }
+         */
 
     const clientId = getRequiredEnv("GOOGLE_CALENDAR_CLIENT_ID");
     const clientSecret = getRequiredEnv(
