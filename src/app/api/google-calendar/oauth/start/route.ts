@@ -1,3 +1,10 @@
+console.log({
+  NODE_ENV: process.env.NODE_ENV,
+  setupSecretExists: !!process.env.GOOGLE_CALENDAR_OAUTH_SETUP_SECRET,
+  clientIdExists: !!process.env.GOOGLE_CALENDAR_CLIENT_ID,
+  redirectExists: !!process.env.GOOGLE_CALENDAR_REDIRECT_URI,
+});
+
 import crypto from "crypto";
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
