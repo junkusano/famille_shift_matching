@@ -107,20 +107,34 @@ if (isDateChanged) {
   continue;
 }
 
-    // 時間変更アラート
-    // 終了時間の差は、短時間シフトを延長して募集しているケースがあるため無視する
-    // 開始時間が30分以上変わった場合だけRPAリクエストを作成する
-    const startDiffMinutes = getTimeDiffMinutes(
-      spotOfferRequest.shift_start_time,
-      shift.shift_start_time
-    );
+// 時間変更確認
+// 終了時間の差は、短時間シフトを延長して募集しているケースがあるため無視する
+// 開始時間が30分を超えて変わった場合は、
+// 旧求人の取り下げ完了後に新しい求人を作成する
+const startDiffMinutes = getTimeDiffMinutes(
+  spotOfferRequest.shift_start_time,
+  shift.shift_start_time
+);
 
-    const shouldUpdateJobTime = startDiffMinutes > 30;
+const shouldRecreateJob = startDiffMinutes > 30;
 
-    if (shouldUpdateJobTime) {
-      await createUpdateJobTimeRequest(spotOfferRequest, shift, opts);
-      alertCount++;
-    }
+if (shouldRecreateJob) {
+  const result = await handleTimeChangedRecreate(
+    spotOfferRequest,
+    shift,
+    opts
+  );
+
+  if (result === "close_created") {
+    closeCount++;
+  }
+
+  if (result === "create_created") {
+    alertCount++;
+  }
+
+  continue;
+}
   }
   console.log(
     `[spot-offer-sync-check] close=${closeCount} alert=${alertCount}`
@@ -136,11 +150,174 @@ if (isDateChanged) {
   };
 }
 
+type TimeChangedRecreateResult =
+  | "close_created"
+  | "waiting_close"
+  | "create_created"
+  | "already_created"
+  | "close_failed";
+
+async function handleTimeChangedRecreate(
+  spotOfferRequest: JsonRecord,
+  shift: JsonRecord,
+  opts?: { dryRun?: boolean }
+): Promise<TimeChangedRecreateResult> {
+  const shiftId = spotOfferRequest["shift_id"];
+
+  console.log("[spot-offer-sync-check] handle time changed recreate", {
+    shift_id: shiftId,
+    old_start_time: spotOfferRequest["shift_start_time"],
+    new_start_time: shift["shift_start_time"],
+    dryRun: opts?.dryRun ?? false,
+  });
+
+  /*
+   * 同じシフトに対する最新の時間変更用close_jobを取得する。
+   *
+   * 重要：
+   * close_jobがdoneになるまではcreate_jobを作成しない。
+   */
+  const { data: closeRequests, error: closeCheckError } = await supabase
+    .from("rpa_command_requests")
+    .select("id, status, created_at, request_details")
+    .eq("request_details->>command", "close_job")
+    .eq("request_details->>reason", "time_changed")
+    .eq("request_details->>shift_id", String(shiftId))
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (closeCheckError) {
+    console.error(
+      "[spot-offer-sync-check] time_changed close request check error",
+      {
+        shift_id: shiftId,
+        error: closeCheckError,
+      }
+    );
+
+    throw closeCheckError;
+  }
+
+  const latestCloseRequest = closeRequests?.[0] ?? null;
+
+  /*
+   * まだclose_jobが作られていない場合
+   */
+  if (!latestCloseRequest) {
+    await createCloseRequest(
+      spotOfferRequest,
+      "time_changed",
+      opts
+    );
+
+    return "close_created";
+  }
+
+  /*
+   * close_jobがまだ処理中の場合
+   */
+  const waitingStatuses = [
+    "waiting_approval",
+    "approved",
+    "running",
+    "test_status",
+  ];
+
+  if (waitingStatuses.includes(latestCloseRequest.status)) {
+    console.log(
+      "[spot-offer-sync-check] waiting time_changed close request",
+      {
+        shift_id: shiftId,
+        close_request_id: latestCloseRequest.id,
+        status: latestCloseRequest.status,
+      }
+    );
+
+    return "waiting_close";
+  }
+
+  /*
+   * close_jobが失敗した場合は、新しい求人を作らない
+   */
+  if (latestCloseRequest.status !== "done") {
+    console.warn(
+      "[spot-offer-sync-check] close request is not completed",
+      {
+        shift_id: shiftId,
+        close_request_id: latestCloseRequest.id,
+        status: latestCloseRequest.status,
+      }
+    );
+
+    return "close_failed";
+  }
+
+  /*
+   * close_job完了後、同じclose_jobを起点にした
+   * create_jobが既に存在するか確認する。
+   */
+  const { data: createRequests, error: createCheckError } = await supabase
+    .from("rpa_command_requests")
+    .select("id, status, created_at, request_details")
+    .eq(
+      "request_details->>recreate_source_close_request_id",
+      String(latestCloseRequest.id)
+    )
+    .limit(1);
+
+  if (createCheckError) {
+    console.error(
+      "[spot-offer-sync-check] recreate create request check error",
+      {
+        shift_id: shiftId,
+        close_request_id: latestCloseRequest.id,
+        error: createCheckError,
+      }
+    );
+
+    throw createCheckError;
+  }
+
+  if (createRequests && createRequests.length > 0) {
+    console.log(
+      "[spot-offer-sync-check] recreate request already exists",
+      {
+        shift_id: shiftId,
+        close_request_id: latestCloseRequest.id,
+        create_request_id: createRequests[0].id,
+        status: createRequests[0].status,
+      }
+    );
+
+    return "already_created";
+  }
+
+  /*
+   * close_jobがdoneで、create_jobがまだ存在しない場合だけ
+   * 新しい求人作成リクエストを登録する。
+   */
+  await createOpenRequest(
+    shift,
+    opts,
+    {
+      reason: "time_changed",
+      sourceCloseRequestId: latestCloseRequest.id,
+    }
+  );
+
+  return "create_created";
+}
+
 async function createCloseRequest(
   spotOfferRequest: JsonRecord,
-  reason: "shift_deleted" | "staff_confirmed" | "date_changed",
+  reason:
+    | "shift_deleted"
+    | "staff_confirmed"
+    | "date_changed"
+    | "time_changed",
   opts?: { dryRun?: boolean }
 ) {
+
   const shiftId = spotOfferRequest["shift_id"];
 
   console.log("[spot-offer-sync-check] create close request", {
@@ -154,12 +331,35 @@ async function createCloseRequest(
 }
 
 const payload = {
+  created_from: "/api/cron/spot-offer-sync-check",
+
   command: "close_job",
+  action: "withdraw_taimee_job",
   reason,
+
+  // ========================================
+  // 直下項目も削除せず保持する
+  // ========================================
   shift_id: shiftId,
+  core_id: spotOfferRequest["core_id"],
+  kaipoke_cs_id: spotOfferRequest["kaipoke_cs_id"],
+  taimee_job_id: spotOfferRequest["taimee_job_id"],
+
+  template_title: spotOfferRequest["template_title"],
+  shift_start_date: spotOfferRequest["shift_start_date"],
+  shift_start_time: spotOfferRequest["shift_start_time"],
+  shift_end_time: spotOfferRequest["shift_end_time"],
+
+  requested_status: "募集なし",
+  previous_status: spotOfferRequest["status"],
+
+  // ========================================
+  // SukimaTaimeeClose用
+  // ========================================
   spot_offer_request: {
     id: spotOfferRequest["id"],
     shift_id: spotOfferRequest["shift_id"],
+    core_id: spotOfferRequest["core_id"],
     kaipoke_cs_id: spotOfferRequest["kaipoke_cs_id"],
     taimee_job_id: spotOfferRequest["taimee_job_id"],
     status: spotOfferRequest["status"],
@@ -169,6 +369,8 @@ const payload = {
     shift_start_date: spotOfferRequest["shift_start_date"],
     shift_start_time: spotOfferRequest["shift_start_time"],
     shift_end_time: spotOfferRequest["shift_end_time"],
+    unit_amount: spotOfferRequest["unit_amount"],
+    commute_fee: spotOfferRequest["commute_fee"],
   },
 };
 
@@ -195,7 +397,11 @@ const payload = {
 
 async function createOpenRequest(
   shift: JsonRecord,
-  opts?: { dryRun?: boolean }
+  opts?: { dryRun?: boolean },
+  recreateMeta?: {
+    reason: "date_changed" | "time_changed";
+    sourceCloseRequestId: string;
+  }
 ) {
   const shiftId = shift["shift_id"];
 
@@ -226,21 +432,34 @@ async function createOpenRequest(
     valueToString(shift["shift_end_time"]) ??
     "";
 
-  const details = createRpaRequestDetails({
-    selectedTemplate,
-    form: { shift_id: shiftId },
-    shift,
-    shiftStartDate: shift["shift_start_date"],
-    start,
-    end,
-    breakStart: calculatedTime?.break_start_time ?? null,
-    breakEnd: calculatedTime?.break_end_time ?? null,
-    userData: {
-      user_id: "sync-check",
-    },
-    mergedShiftIds: [shiftId],
-    mergedServiceCodes: [shift["service_code"] ?? null],
-  });
+  const baseDetails = createRpaRequestDetails({
+  selectedTemplate,
+  form: { shift_id: shiftId },
+  shift,
+  shiftStartDate: shift["shift_start_date"],
+  start,
+  end,
+  breakStart: calculatedTime?.break_start_time ?? null,
+  breakEnd: calculatedTime?.break_end_time ?? null,
+  userData: {
+    user_id: "sync-check",
+  },
+  mergedShiftIds: [shiftId],
+  mergedServiceCodes: [shift["service_code"] ?? null],
+});
+
+const details = {
+  ...baseDetails,
+
+  // Cron側で求人再作成を識別するための情報
+  command: "create_job",
+  shift_id: shiftId,
+
+  recreate_reason: recreateMeta?.reason ?? null,
+
+  recreate_source_close_request_id:
+    recreateMeta?.sourceCloseRequestId ?? null,
+};
 
   const applicantUser = await getApplicantUser();
 
@@ -295,126 +514,6 @@ async function createOpenRequest(
   }
 }
 
-
-async function createUpdateJobTimeRequest(
-  spotOfferRequest: JsonRecord,
-  shift: JsonRecord,
-  opts?: { dryRun?: boolean }
-) {
-  const shiftId = spotOfferRequest["shift_id"];
-
-  console.log("[spot-offer-sync-check] create update job time request", {
-    shift_id: shiftId,
-    dryRun: opts?.dryRun ?? false,
-  });
-
-  if (opts?.dryRun) {
-  return;
-}
-
-// 同じシフトに未処理の時間変更リクエストがある場合は作成しない
-const { data: existingRequests, error: duplicateCheckError } = await supabase
-  .from("rpa_command_requests")
-  .select("id, status, request_details")
-  .eq("request_details->>command", "update_job_time")
-  .eq("request_details->>shift_id", String(shiftId))
-  .in("status", [
-    "waiting_approval",
-    "approved",
-    "running",
-    "test_status",
-  ])
-  .limit(1);
-
-if (duplicateCheckError) {
-  console.error(
-    "[spot-offer-sync-check] duplicate update_job_time check error",
-    {
-      shift_id: shiftId,
-      error: duplicateCheckError,
-    }
-  );
-
-  throw duplicateCheckError;
-}
-
-if (existingRequests && existingRequests.length > 0) {
-  console.log(
-    "[spot-offer-sync-check] skip duplicate update_job_time request",
-    {
-      shift_id: shiftId,
-      request_id: existingRequests[0].id,
-      status: existingRequests[0].status,
-    }
-  );
-
-  return;
-}
-
-const nearestTemplate = await findNearestSpotOfferTemplate(shift);
-
-  const calculatedTime = nearestTemplate
-    ? calculateJobTimeFromTemplate(shift, nearestTemplate)
-    : null;
-
-  const newStartTime = valueToString(shift["shift_start_time"]);
-  const newEndTime =
-    calculatedTime?.end_time ?? valueToString(shift["shift_end_time"]);
-
-  const newBreakStartTime = calculatedTime?.break_start_time ?? null;
-  const newBreakEndTime = calculatedTime?.break_end_time ?? null;
-  const newBreakMinutes = calculatedTime?.break_minutes ?? 0;
-  const templateDurationMinutes =
-    calculatedTime?.template_duration_minutes ??
-    getShiftDurationMinutes(shift["shift_start_time"], shift["shift_end_time"]);
-
-  const payload = {
-  reason: "job_time_mismatch",
-  command: "update_job_time",
-
-  shift_id: shift.shift_id,
-  kaipoke_cs_id: shift.kaipoke_cs_id,
-  taimee_job_id: spotOfferRequest.taimee_job_id,
-
-  old_shift: {
-    start_date: spotOfferRequest.shift_start_date,
-    start_time: spotOfferRequest.shift_start_time,
-    end_date: spotOfferRequest.shift_start_date,
-    end_time: spotOfferRequest.shift_end_time,
-  },
-
-  new_shift: {
-    start_date: shift.shift_start_date,
-    start_time: newStartTime,
-    end_date: shift.shift_end_date,
-    end_time: newEndTime,
-  },
-
-  break: {
-    start_time: newBreakStartTime,
-    end_time: newBreakEndTime,
-    minutes: newBreakMinutes,
-  },
-
-  template_duration_minutes: templateDurationMinutes,
-};
-
-  const applicantUser = await getApplicantUser();
-
-  const { error } = await supabase.from("rpa_command_requests").insert({
-    template_id: SKIMABITO_JOB_EDIT_TEMPLATE_ID,
-    requester_id: applicantUser.auth_user_id,
-    approver_id: applicantUser.auth_user_id,
-    approved_at: new Date().toISOString(),
-    status: "approved",
-    request_details: payload,
-  });
-
-  if (error) {
-    console.error("[spot-offer-sync-check] manager alert insert error", error);
-    throw error;
-  }
-}
 
 async function getApplicantUser() {
   const { data: applicantUser, error: applicantUserError } = await supabase
@@ -525,21 +624,6 @@ function isShiftAtLeastTwoHoursLater(shiftDate: unknown, shiftTime: unknown) {
   const twoHoursLater = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
   return shiftDateTime >= twoHoursLater;
-}
-
-function getShiftDurationMinutes(startTime: unknown, endTime: unknown) {
-  if (typeof startTime !== "string" || typeof endTime !== "string") {
-    return 0;
-  }
-
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-
-  if (start === null || end === null) {
-    return 0;
-  }
-
-  return end >= start ? end - start : end + 24 * 60 - start;
 }
 
 function timeToMinutes(time: string) {
