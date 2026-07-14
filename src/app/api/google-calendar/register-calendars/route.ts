@@ -81,17 +81,30 @@ function getUserIdCandidate(calendarId: string): string | null {
  */
 function verifySetupSecret(request: NextRequest): boolean {
   const expectedSecret =
-    process.env.GOOGLE_CALENDAR_OAUTH_SETUP_SECRET;
+    process.env.GOOGLE_CALENDAR_OAUTH_SETUP_SECRET?.trim();
+
+  const querySecret =
+    request.nextUrl.searchParams.get("setup_secret")?.trim();
+
+  const headerSecret =
+    request.headers.get("x-setup-secret")?.trim();
+
+  console.log("[google-calendar/register-calendars][secret-check]", {
+    expectedSecretExists: Boolean(expectedSecret),
+    expectedSecretLength: expectedSecret?.length ?? 0,
+    querySecretExists: Boolean(querySecret),
+    querySecretLength: querySecret?.length ?? 0,
+    headerSecretExists: Boolean(headerSecret),
+    queryMatches: Boolean(
+      expectedSecret &&
+        querySecret &&
+        querySecret === expectedSecret,
+    ),
+  });
 
   if (!expectedSecret) {
     return false;
   }
-
-  const querySecret =
-    request.nextUrl.searchParams.get("setup_secret");
-
-  const headerSecret =
-    request.headers.get("x-setup-secret");
 
   return (
     querySecret === expectedSecret ||
