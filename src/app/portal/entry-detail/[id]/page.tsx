@@ -929,7 +929,7 @@ export default function EntryDetailPage() {
         if (entry) {
             console.log('LINE WORKS アカウント作成送信データ', {
                 userId,
-                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                fullName: `${entry.last_name_kanji}${entry.first_name_kanji}`,
                 email: entry.email
             });
         }
@@ -1022,7 +1022,7 @@ export default function EntryDetailPage() {
 
             // メールテンプレート生成
             const { subject, body } = lineworksInviteTemplate({
-                fullName: `${entry.last_name_kanji} ${entry.first_name_kanji}`,
+                fullName: `${entry.last_name_kanji}${entry.first_name_kanji}`,
                 userId,
                 tempPassword: data.tempPassword
             });
