@@ -378,12 +378,20 @@ export default function ShiftCard({
   const [attendRequest, setAttendRequest] = useState(false);
   const [reason, setReason] = useState("");
   const [timeAdjustNote, setTimeAdjustNote] = useState("");
-  const [mealExpenseOpen, setMealExpenseOpen] = useState(false);
-  const [mealExpenseAmount, setMealExpenseAmount] = useState("");
-  const [mealExpenseDocuments, setMealExpenseDocuments] =
+const [mealExpenseOpen, setMealExpenseOpen] = useState(false);
+const [mealExpenseAmount, setMealExpenseAmount] = useState("");
+
+const [mealExpenseDocuments, setMealExpenseDocuments] =
   useState<DocItem[]>([]);
-  /*
-  const [mealExpenseRequested, setMealExpenseRequested] = useState(false);*/
+
+const [mealExpenseRequested, setMealExpenseRequested] =
+  useState(false);
+
+const [mealExpenseChecking, setMealExpenseChecking] =
+  useState(false);
+
+const [mealExpenseSubmitting, setMealExpenseSubmitting] =
+  useState(false);
 
   // 追加：カード内に保持
   const [kaipokeInfo, setKaipokeInfo] = useState<{
@@ -524,11 +532,12 @@ export default function ShiftCard({
     })();
 }, [shiftIdStr]);
 
-/*
+
 // 食事代申請済み判定
 useEffect(() => {
   if (!shiftIdStr) {
     setMealExpenseRequested(false);
+    setMealExpenseChecking(false);
     return;
   }
 
@@ -541,27 +550,28 @@ useEffect(() => {
       const { data, error } = await supabase
         .from("wf_request")
         .select("id")
-        .contains("request_details", {
+        .eq(
+          "request_type_id",
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901"
+        )
+        .contains("payload", {
           kind: "meal_expense",
           shift_id: shiftIdStr,
         })
         .limit(1);
 
       if (error) {
-        console.error("[meal-expense] request check error", error);
-
-        if (!cancelled) {
-          setMealExpenseRequested(false);
-        }
-
-        return;
+        throw error;
       }
 
       if (!cancelled) {
         setMealExpenseRequested((data?.length ?? 0) > 0);
       }
     } catch (error) {
-      console.error("[meal-expense] request check failed", error);
+      console.error(
+        "[meal-expense] request check failed",
+        error
+      );
 
       if (!cancelled) {
         setMealExpenseRequested(false);
@@ -579,7 +589,7 @@ useEffect(() => {
     cancelled = true;
   };
 }, [shiftIdStr]);
-*/
+
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
@@ -1112,6 +1122,186 @@ useEffect(() => {
       setParkingSending(false);
     }
   };
+  const handleMealExpenseSubmit = async () => {
+  if (mealExpenseSubmitting) {
+    return;
+  }
+
+  if (!shiftIdStr) {
+    alert("シフトIDを確認できませんでした。");
+    return;
+  }
+
+  const amount = Number(mealExpenseAmount);
+
+  if (
+    !Number.isInteger(amount) ||
+    amount <= 0
+  ) {
+    alert("申請金額を入力してください。");
+    return;
+  }
+
+  const receipts = mealExpenseDocuments.filter(
+    (document) =>
+      typeof document.url === "string" &&
+      document.url.trim() !== ""
+  );
+
+  if (receipts.length === 0) {
+    alert("領収書画像をアップロードしてください。");
+    return;
+  }
+
+  setMealExpenseSubmitting(true);
+
+  try {
+    /*
+     * 二重申請を防止
+     */
+    const { data: existing, error: existingError } =
+      await supabase
+        .from("wf_request")
+        .select("id")
+        .eq(
+          "request_type_id",
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901"
+        )
+        .contains("payload", {
+          kind: "meal_expense",
+          shift_id: shiftIdStr,
+        })
+        .limit(1);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if ((existing?.length ?? 0) > 0) {
+      setMealExpenseRequested(true);
+      setMealExpenseOpen(false);
+
+      alert("このシフトは既に食事代申請済みです。");
+      return;
+    }
+
+    /*
+     * ログインユーザーを取得
+     */
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error(
+        "ログインユーザーを確認できませんでした。"
+      );
+    }
+
+    /*
+     * auth_user_idから
+     * marikoshima形式のuser_idを取得
+     */
+    const { data: applicant, error: applicantError } =
+      await supabase
+        .from("users")
+        .select("user_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+    if (applicantError) {
+      throw applicantError;
+    }
+
+    const applicantUserId = applicant?.user_id;
+
+    if (!applicantUserId) {
+      throw new Error(
+        "申請者のユーザーIDを確認できませんでした。"
+      );
+    }
+
+    const submittedAt = new Date().toISOString();
+
+    const payload = {
+      kind: "meal_expense",
+
+      // 申請済み判定と型を合わせるため文字列で保存
+      shift_id: shiftIdStr,
+
+      kaipoke_cs_id: csId || null,
+
+      shift_start_date:
+        shift.shift_start_date ?? null,
+
+      shift_start_time:
+        shift.shift_start_time ?? null,
+
+      shift_end_time:
+        shift.shift_end_time ?? null,
+
+      client_name:
+        shift.client_name ?? null,
+
+      amount,
+
+      receipts,
+    };
+
+    const { error: insertError } = await supabase
+      .from("wf_request")
+      .insert({
+        request_type_id:
+          "ceb95336-89c1-4030-a46f-e7acbbc8d901",
+
+        applicant_user_id:
+          applicantUserId,
+
+        title:
+          "食事代申請",
+
+        body:
+          `シフトID：${shiftIdStr}\n` +
+          `申請金額：${amount.toLocaleString()}円`,
+
+        payload,
+
+        status:
+          "submitted",
+
+        submitted_at:
+          submittedAt,
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    /*
+     * 保存成功後、即座に申請済み表示へ変更
+     */
+    setMealExpenseRequested(true);
+    setMealExpenseOpen(false);
+    setMealExpenseAmount("");
+    setMealExpenseDocuments([]);
+
+    alert("食事代を申請しました。");
+  } catch (error) {
+    console.error(
+      "[meal-expense] wf_request insert failed",
+      error
+    );
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "食事代申請の保存に失敗しました。"
+    );
+  } finally {
+    setMealExpenseSubmitting(false);
+  }
+};
 
   /* ------- Render ------- */
   return (
@@ -1236,21 +1426,23 @@ useEffect(() => {
 
 {(mode === "reject" || mode === "view") && (
   <>
-{/*
-    {mealExpenseRequested ? (
-  <div className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
-    ✓ 食事代申請済み
-  </div>
-) : ( */}
-  <Button
-    type="button"
-    variant="outline"
-    onClick={() => setMealExpenseOpen(true)}
-  >
-    食事代申請
-  </Button>
-
-
+    {mealExpenseChecking ? (
+      <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        食事代申請を確認中...
+      </div>
+    ) : mealExpenseRequested ? (
+      <div className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+        ✓ 食事代申請済み
+      </div>
+    ) : (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setMealExpenseOpen(true)}
+      >
+        食事代申請
+      </Button>
+    )}
 
     <Dialog
       open={mealExpenseOpen}
@@ -1312,19 +1504,22 @@ useEffect(() => {
               閉じる
             </Button>
 
-            <Button
-              type="button"
-              disabled={
-                !mealExpenseAmount ||
-                Number(mealExpenseAmount) <= 0 ||
-                !mealExpenseDocuments.some((doc) => doc.url)
-              }
-              onClick={() => {
-                alert("食事代申請の保存処理を実行します。");
-              }}
-            >
-              食事代を申請
-            </Button>
+<Button
+  type="button"
+  disabled={
+    mealExpenseSubmitting ||
+    !mealExpenseAmount ||
+    Number(mealExpenseAmount) <= 0 ||
+    !mealExpenseDocuments.some((doc) => doc.url)
+  }
+  onClick={() => {
+    void handleMealExpenseSubmit();
+  }}
+>
+  {mealExpenseSubmitting
+    ? "申請中..."
+    : "食事代を申請"}
+</Button>
           </div>
         </DialogContent>
       </DialogPortal>
