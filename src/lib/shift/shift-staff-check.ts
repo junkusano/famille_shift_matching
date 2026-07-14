@@ -146,7 +146,7 @@ export async function runShiftStaffCheck(opts: {
     const dryRun = opts.dryRun ?? false;
     //const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 21;
     //const daysAhead = 15; // 要望：今日〜直近15日以内に固定
-    const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 15;
+    const daysAhead = Number.isFinite(opts.daysAhead) ? (opts.daysAhead as number) : 1;
     const inactiveDays = Number.isFinite(opts.inactiveDays) ? (opts.inactiveDays as number) : 15;
 
     const result: ShiftStaffCheckResult = {

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
     // テスト用にURLで調整できるように（cronは通常パラメータ無しでOK）
     const dryRun = searchParams.get("dryRun") === "true";
-    const daysAhead = Number(searchParams.get("daysAhead") ?? "21"); // 何日先のシフトまで見るか
+    const daysAhead = Number(searchParams.get("daysAhead") ?? "1"); // 何日先のシフトまで見るか
     const inactiveDays = Number(searchParams.get("inactiveDays") ?? "15"); // 何日空いてたらアラートか
 
     const result = await runShiftStaffCheck({
