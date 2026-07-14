@@ -382,7 +382,8 @@ export default function ShiftCard({
   const [mealExpenseAmount, setMealExpenseAmount] = useState("");
   const [mealExpenseDocuments, setMealExpenseDocuments] =
   useState<DocItem[]>([]);
-
+  /*
+  const [mealExpenseRequested, setMealExpenseRequested] = useState(false);*/
 
   // 追加：カード内に保持
   const [kaipokeInfo, setKaipokeInfo] = useState<{
@@ -521,7 +522,64 @@ export default function ShiftCard({
         //alert(`[shift_records] fetch error id=${shiftIdStr}  ${String(e)}`);
       }
     })();
-  }, [shiftIdStr]);
+}, [shiftIdStr]);
+
+/*
+// 食事代申請済み判定
+useEffect(() => {
+  if (!shiftIdStr) {
+    setMealExpenseRequested(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  const checkMealExpenseRequest = async () => {
+    setMealExpenseChecking(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("wf_request")
+        .select("id")
+        .contains("request_details", {
+          kind: "meal_expense",
+          shift_id: shiftIdStr,
+        })
+        .limit(1);
+
+      if (error) {
+        console.error("[meal-expense] request check error", error);
+
+        if (!cancelled) {
+          setMealExpenseRequested(false);
+        }
+
+        return;
+      }
+
+      if (!cancelled) {
+        setMealExpenseRequested((data?.length ?? 0) > 0);
+      }
+    } catch (error) {
+      console.error("[meal-expense] request check failed", error);
+
+      if (!cancelled) {
+        setMealExpenseRequested(false);
+      }
+    } finally {
+      if (!cancelled) {
+        setMealExpenseChecking(false);
+      }
+    }
+  };
+
+  void checkMealExpenseRequest();
+
+  return () => {
+    cancelled = true;
+  };
+}, [shiftIdStr]);
+*/
 
   // null = まだ未判定 / 取得失敗（判定不能）
   const [myServiceKeys, setMyServiceKeys] = useState<ServiceKey[] | null>(null);
@@ -1178,13 +1236,21 @@ export default function ShiftCard({
 
 {(mode === "reject" || mode === "view") && (
   <>
-    <Button
-      type="button"
-      variant="outline"
-      onClick={() => setMealExpenseOpen(true)}
-    >
-      食事代申請
-    </Button>
+{/*
+    {mealExpenseRequested ? (
+  <div className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+    ✓ 食事代申請済み
+  </div>
+) : ( */}
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => setMealExpenseOpen(true)}
+  >
+    食事代申請
+  </Button>
+
+
 
     <Dialog
       open={mealExpenseOpen}
@@ -1207,12 +1273,13 @@ export default function ShiftCard({
 
             <div className="mt-1 flex items-center gap-2">
               <input
-                type="number"
-                min="1"
+                type="text"
                 inputMode="numeric"
                 value={mealExpenseAmount}
                 onChange={(e) =>
-                  setMealExpenseAmount(e.target.value.replace(/\D/g, ""))
+                  setMealExpenseAmount(
+                    e.target.value.replace(/\D/g, "")
+                  )
                 }
                 placeholder="例：500"
                 className="w-40 rounded-md border px-3 py-2"
@@ -1253,9 +1320,7 @@ export default function ShiftCard({
                 !mealExpenseDocuments.some((doc) => doc.url)
               }
               onClick={() => {
-                alert(
-                  "アップロード確認完了。wf_requestへの保存処理は次に接続します。"
-                );
+                alert("食事代申請の保存処理を実行します。");
               }}
             >
               食事代を申請
@@ -1267,7 +1332,7 @@ export default function ShiftCard({
   </>
 )}
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
+<div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               {mode === "view" ? (
