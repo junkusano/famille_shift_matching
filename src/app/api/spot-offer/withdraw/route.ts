@@ -59,12 +59,11 @@ export async function POST(req: NextRequest) {
 
 const requestDetails = {
   created_from: "/portal/roster/daily",
-
-  // PADが処理種別を判定するため
   command: "close_job",
-
-  // アプリ側の識別用
   action: "withdraw_taimee_job",
+
+  // 追加
+  reason: "manual_withdraw",
 
   // ========================================
   // 既存の直下項目
