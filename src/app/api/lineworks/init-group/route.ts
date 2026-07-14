@@ -137,7 +137,7 @@ export async function POST(req: Request) {
     const { data: serviceSupportUser, error: serviceSupportError } = await supabase
         .from("user_entry_united_view_single")
         .select("user_id, lw_userid")
-        .eq("user_id", "survicesuport")
+        .eq("user_id", "servicesuport")
         .not("lw_userid", "is", null)
         .maybeSingle();
 
