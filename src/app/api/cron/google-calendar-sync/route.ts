@@ -281,8 +281,19 @@ async function syncGoogleCalendars() {
     );
   }
 
-  const calendarLinks =
-    (links ?? []) as CalendarLink[];
+  const calendarLinks: CalendarLink[] = (links ?? []).map((link) => {
+  const row = link as unknown as {
+    user_id: string;
+    google_calendar_id: string;
+    calendar_name: string | null;
+  };
+
+  return {
+    user_id: row.user_id,
+    google_calendar_id: row.google_calendar_id,
+    calendar_name: row.calendar_name,
+  };
+});
 
   let fetchedEventCount = 0;
   let upsertedEventCount = 0;
