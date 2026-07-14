@@ -1212,7 +1212,7 @@ export default function ShiftCard({
                 inputMode="numeric"
                 value={mealExpenseAmount}
                 onChange={(e) =>
-                  setMealExpenseAmount(e.target.value)
+                  setMealExpenseAmount(e.target.value.replace(/\D/g, ""))
                 }
                 placeholder="例：500"
                 className="w-40 rounded-md border px-3 py-2"
