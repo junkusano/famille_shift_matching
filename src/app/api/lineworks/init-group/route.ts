@@ -135,8 +135,8 @@ export async function POST(req: Request) {
 
     // === 3-1) サービスサポートのLINE WORKSユーザーID取得 ===
     const { data: serviceSupportUser, error: serviceSupportError } = await supabase
-        .from("users")
-        .select("lw_userid")
+        .from("user_entry_united_view_single")
+        .select("user_id, lw_userid")
         .eq("user_id", "survicesuport")
         .not("lw_userid", "is", null)
         .maybeSingle();
@@ -149,7 +149,14 @@ export async function POST(req: Request) {
     }
 
     const serviceSupportLwUserId =
-        (serviceSupportUser?.lw_userid as string | undefined) ?? null;
+        typeof serviceSupportUser?.lw_userid === "string"
+            ? serviceSupportUser.lw_userid.trim()
+            : null;
+
+    console.log("[init-group] service support resolved", {
+        user_id: serviceSupportUser?.user_id ?? null,
+        lw_userid: serviceSupportLwUserId,
+    });
 
     // === 4) 上司（orgs.mgr_user_id → lw_userid） ===
     let mgrLwUserId: string | null = null;
