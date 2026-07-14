@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const requestDetails = {
+const requestDetails = {
   created_from: "/portal/roster/daily",
 
   // PADが処理種別を判定するため
@@ -66,6 +66,10 @@ export async function POST(req: NextRequest) {
   // アプリ側の識別用
   action: "withdraw_taimee_job",
 
+  // ========================================
+  // 既存の直下項目
+  // PADの既存処理との互換性維持のため削除しない
+  // ========================================
   shift_id: spotOffer.shift_id,
   core_id: spotOffer.core_id,
   taimee_job_id: spotOffer.taimee_job_id,
@@ -78,6 +82,27 @@ export async function POST(req: NextRequest) {
 
   requested_status: "募集なし",
   previous_status: spotOffer.status,
+
+  // ========================================
+  // SukimaTaimeeCloseが参照する必須オブジェクト
+  // 既存項目を削除せず追加する
+  // ========================================
+  spot_offer_request: {
+    id: spotOffer.id,
+    shift_id: spotOffer.shift_id,
+    core_id: spotOffer.core_id,
+    kaipoke_cs_id: spotOffer.kaipoke_cs_id,
+    taimee_job_id: spotOffer.taimee_job_id,
+    status: spotOffer.status,
+    start_at: spotOffer.start_at,
+    end_at: spotOffer.end_at,
+    template_title: spotOffer.template_title,
+    shift_start_date: spotOffer.shift_start_date,
+    shift_start_time: spotOffer.shift_start_time,
+    shift_end_time: spotOffer.shift_end_time,
+    unit_amount: spotOffer.unit_amount,
+    commute_fee: spotOffer.commute_fee,
+  },
 };
 
   const { error: rpaError } = await supabaseAdmin
