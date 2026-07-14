@@ -15,6 +15,14 @@ type RegisterRequestBody = {
   mappings?: CalendarMapping[];
 };
 
+type GoogleCalendarItem = {
+  google_calendar_id: string;
+  calendar_name: string | null;
+  access_role: string | null;
+  primary: boolean;
+  selected: boolean;
+};
+
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
 
@@ -39,8 +47,8 @@ function getSupabaseAdmin() {
 }
 
 /**
- * GoogleカレンダーIDがメールアドレスの場合、
- * @より前をマイファミーユのuser_id候補として使用します。
+ * GoogleカレンダーIDがメールアドレス形式の場合、
+ * @より前をマイファミーユ側のuser_id候補にします。
  *
  * 例:
  * masashisuzuki@shi-on.net
@@ -61,6 +69,16 @@ function getUserIdCandidate(calendarId: string): string | null {
   return localPart;
 }
 
+/**
+ * APIを誰でも実行できないように、
+ * setup_secretを確認します。
+ *
+ * GET:
+ * ?setup_secret=xxxxx
+ *
+ * POST:
+ * x-setup-secret: xxxxx
+ */
 function verifySetupSecret(request: NextRequest): boolean {
   const expectedSecret =
     process.env.GOOGLE_CALENDAR_OAUTH_SETUP_SECRET;
@@ -72,7 +90,8 @@ function verifySetupSecret(request: NextRequest): boolean {
   const querySecret =
     request.nextUrl.searchParams.get("setup_secret");
 
-  const headerSecret = request.headers.get("x-setup-secret");
+  const headerSecret =
+    request.headers.get("x-setup-secret");
 
   return (
     querySecret === expectedSecret ||
@@ -80,7 +99,13 @@ function verifySetupSecret(request: NextRequest): boolean {
   );
 }
 
-async function getAllGoogleCalendars() {
+/**
+ * 代表アカウントから見えるGoogleカレンダーを
+ * ページング込みですべて取得します。
+ */
+async function getAllGoogleCalendars(): Promise<
+  GoogleCalendarItem[]
+> {
   const oauth2Client = new google.auth.OAuth2(
     getRequiredEnv("GOOGLE_CALENDAR_CLIENT_ID"),
     getRequiredEnv("GOOGLE_CALENDAR_CLIENT_SECRET"),
@@ -98,13 +123,7 @@ async function getAllGoogleCalendars() {
     auth: oauth2Client,
   });
 
-  const calendars: Array<{
-    google_calendar_id: string;
-    calendar_name: string | null;
-    access_role: string | null;
-    primary: boolean;
-    selected: boolean;
-  }> = [];
+  const calendars: GoogleCalendarItem[] = [];
 
   let pageToken: string | undefined;
 
@@ -132,7 +151,8 @@ async function getAllGoogleCalendars() {
       });
     }
 
-    pageToken = response.data.nextPageToken ?? undefined;
+    pageToken =
+      response.data.nextPageToken ?? undefined;
   } while (pageToken);
 
   return calendars;
@@ -147,7 +167,7 @@ async function processRegistration(
       {
         ok: false,
         error:
-          "setup_secretが正しくないか、環境変数が設定されていません",
+          "setup_secretが正しくないか、GOOGLE_CALENDAR_OAUTH_SETUP_SECRETが設定されていません",
       },
       { status: 401 },
     );
@@ -159,13 +179,14 @@ async function processRegistration(
   const supabase = getSupabaseAdmin();
   const calendars = await getAllGoogleCalendars();
 
-  /*
-   * マイファミーユに存在するuser_idを取得します。
+  /**
+   * マイファミーユ側に存在するuser_id一覧を取得します。
    */
-  const { data: users, error: usersError } = await supabase
-    .from("user_entry_united_view_single")
-    .select("user_id")
-    .not("user_id", "is", null);
+  const { data: users, error: usersError } =
+    await supabase
+      .from("user_entry_united_view_single")
+      .select("user_id")
+      .not("user_id", "is", null);
 
   if (usersError) {
     throw new Error(
@@ -175,21 +196,32 @@ async function processRegistration(
 
   const validUserIds = new Set(
     (users ?? [])
-      .map((user) => String(user.user_id ?? "").trim())
+      .map((user) =>
+        String(user.user_id ?? "").trim(),
+      )
       .filter(Boolean),
   );
 
-  /*
-   * POSTで指定された明示的な対応表です。
+  /**
+   * 明示的に指定された対応表。
    *
-   * key   = GoogleカレンダーID
-   * value = マイファミーユのuser_id
+   * key:
+   * GoogleカレンダーID
+   *
+   * value:
+   * マイファミーユ側user_id
    */
   const explicitMappingMap = new Map(
-    explicitMappings.map((mapping) => [
-      mapping.google_calendar_id.trim(),
-      mapping.user_id.trim(),
-    ]),
+    explicitMappings
+      .filter(
+        (mapping) =>
+          mapping.google_calendar_id &&
+          mapping.user_id,
+      )
+      .map((mapping) => [
+        mapping.google_calendar_id.trim(),
+        mapping.user_id.trim(),
+      ]),
   );
 
   const registerRows: Array<{
@@ -203,27 +235,37 @@ async function processRegistration(
   const unmatchedCalendars: Array<{
     google_calendar_id: string;
     calendar_name: string | null;
-    reason: string;
+    access_role: string | null;
+    primary: boolean;
     candidate_user_id: string | null;
+    reason: string;
   }> = [];
 
   for (const calendar of calendars) {
-    const explicitlyMappedUserId = explicitMappingMap.get(
-      calendar.google_calendar_id,
-    );
+    const explicitlyMappedUserId =
+      explicitMappingMap.get(
+        calendar.google_calendar_id,
+      );
 
     const candidateUserId =
       explicitlyMappedUserId ??
-      getUserIdCandidate(calendar.google_calendar_id);
+      getUserIdCandidate(
+        calendar.google_calendar_id,
+      );
 
     if (!candidateUserId) {
       unmatchedCalendars.push({
         google_calendar_id:
           calendar.google_calendar_id,
-        calendar_name: calendar.calendar_name,
+        calendar_name:
+          calendar.calendar_name,
+        access_role:
+          calendar.access_role,
+        primary:
+          calendar.primary,
+        candidate_user_id: null,
         reason:
           "カレンダーIDからuser_idを判定できません",
-        candidate_user_id: null,
       });
 
       continue;
@@ -233,10 +275,16 @@ async function processRegistration(
       unmatchedCalendars.push({
         google_calendar_id:
           calendar.google_calendar_id,
-        calendar_name: calendar.calendar_name,
+        calendar_name:
+          calendar.calendar_name,
+        access_role:
+          calendar.access_role,
+        primary:
+          calendar.primary,
+        candidate_user_id:
+          candidateUserId,
         reason:
           "マイファミーユに一致するuser_idがありません",
-        candidate_user_id: candidateUserId,
       });
 
       continue;
@@ -246,21 +294,21 @@ async function processRegistration(
       user_id: candidateUserId,
       google_calendar_id:
         calendar.google_calendar_id,
-      calendar_name: calendar.calendar_name,
-      access_role: calendar.access_role,
+      calendar_name:
+        calendar.calendar_name,
+      access_role:
+        calendar.access_role,
       sync_enabled: true,
     });
   }
 
   if (!dryRun && registerRows.length > 0) {
-    /*
-     * google_calendar_idを基準に更新または追加します。
-     */
-    const { error: upsertError } = await supabase
-      .from("google_calendar_user_links")
-      .upsert(registerRows, {
-        onConflict: "google_calendar_id",
-      });
+    const { error: upsertError } =
+      await supabase
+        .from("google_calendar_user_links")
+        .upsert(registerRows, {
+          onConflict: "google_calendar_id",
+        });
 
     if (upsertError) {
       throw new Error(
@@ -274,23 +322,32 @@ async function processRegistration(
     dry_run: dryRun,
     calendar_count: calendars.length,
     matched_count: registerRows.length,
-    unmatched_count: unmatchedCalendars.length,
-    registered_count: dryRun ? 0 : registerRows.length,
+    unmatched_count:
+      unmatchedCalendars.length,
+    registered_count:
+      dryRun ? 0 : registerRows.length,
     matched: registerRows,
     unmatched: unmatchedCalendars,
   });
 }
 
 /**
- * GETは確認専用です。
- * DBには書き込みません。
+ * GET
+ *
+ * 確認専用です。
+ * DBには登録しません。
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+) {
   try {
-    return await processRegistration(request, {
-      dry_run: true,
-      mappings: [],
-    });
+    return await processRegistration(
+      request,
+      {
+        dry_run: true,
+        mappings: [],
+      },
+    );
   } catch (error) {
     console.error(
       "[google-calendar/register-calendars][GET]",
@@ -311,14 +368,21 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POSTは実際の登録に使用します。
+ * POST
+ *
+ * 実際のDB登録に使用します。
  */
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+) {
   try {
     const body =
       (await request.json()) as RegisterRequestBody;
 
-    return await processRegistration(request, body);
+    return await processRegistration(
+      request,
+      body,
+    );
   } catch (error) {
     console.error(
       "[google-calendar/register-calendars][POST]",
