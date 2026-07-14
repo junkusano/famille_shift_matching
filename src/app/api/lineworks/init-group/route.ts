@@ -133,6 +133,24 @@ export async function POST(req: Request) {
     // === 3) 固定管理者（usersから取得してユニーク化） ===
     const fixedAdmins = await fetchFixedAdmins(supabase);
 
+    // === 3-1) サービスサポートのLINE WORKSユーザーID取得 ===
+    const { data: serviceSupportUser, error: serviceSupportError } = await supabase
+        .from("users")
+        .select("lw_userid")
+        .eq("user_id", "survicesuport")
+        .not("lw_userid", "is", null)
+        .maybeSingle();
+
+    if (serviceSupportError) {
+        console.warn(
+            "[init-group] サービスサポートのlw_userid取得失敗:",
+            serviceSupportError.message
+        );
+    }
+
+    const serviceSupportLwUserId =
+        (serviceSupportUser?.lw_userid as string | undefined) ?? null;
+
     // === 4) 上司（orgs.mgr_user_id → lw_userid） ===
     let mgrLwUserId: string | null = null;
     try {
@@ -173,10 +191,24 @@ export async function POST(req: Request) {
     const supportAdmins = Array.from(adminIds).map(id => ({ userId: id }));
     const supportMembers = dedupeUsers([
         { id: userId, type: 'USER' as const },
+
+        ...(serviceSupportLwUserId
+            ? [{ id: serviceSupportLwUserId, type: 'USER' as const }]
+            : []),
+
         ...Array.from(adminIds).map(id => ({ id, type: 'USER' as const })),
-        ...sameOrgUpperUsers.map((u: LwUserIdRow) => ({ id: u.lw_userid, type: 'USER' as const })),
-        ...upperOrgUpperUsers.map((u: LwUserIdRow) => ({ id: u.lw_userid, type: 'USER' as const })),
-        ...Array.from(extraSet).map(id => ({ id, type: 'USER' as const }))
+        ...sameOrgUpperUsers.map((u: LwUserIdRow) => ({
+            id: u.lw_userid,
+            type: 'USER' as const
+        })),
+        ...upperOrgUpperUsers.map((u: LwUserIdRow) => ({
+            id: u.lw_userid,
+            type: 'USER' as const
+        })),
+        ...Array.from(extraSet).map(id => ({
+            id,
+            type: 'USER' as const
+        }))
     ]);
 
     const supportGroup: GroupCreatePayload = {
