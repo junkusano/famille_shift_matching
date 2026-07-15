@@ -1,7 +1,12 @@
 // src/app/portal/event-tasks/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,6 +184,7 @@ const [pagination, setPagination] = useState<Pagination>({
 
     // edit
     const [editId, setEditId] = useState<string>("");
+    const detailRef = useRef<HTMLDivElement | null>(null);
     const editTask = useMemo(() => tasks.find((t) => t.id === editId) ?? null, [tasks, editId]);
     const [addDocTypeId, setAddDocTypeId] = useState<string>("");
     const [addDocMemo, setAddDocMemo] = useState<string>("");
@@ -203,22 +209,15 @@ const [pagination, setPagination] = useState<Pagination>({
 
         const qs = new URLSearchParams();
 
-qs.set("page", String(page));
-qs.set("pageSize", "50");
-
-if (statusFilter) {
-    qs.set("status", statusFilter);
-}
-
-if (dueFilter) {
-    qs.set("due", dueFilter);
-}
-
         qs.set("page", String(page));
         qs.set("pageSize", "50");
 
         if (statusFilter) {
             qs.set("status", statusFilter);
+        }
+
+        if (dueFilter) {
+            qs.set("due", dueFilter);
         }
 
         const res = await fetchWithAuth(
@@ -333,40 +332,45 @@ if (dueFilter) {
                     再読み込み
                 </Button>
 
-                <div className="ml-auto w-[220px]">
-                    <Select
-                        value={statusFilter}
-                        onValueChange={(value) => {
-                        setStatusFilter(value);
-                        setPage(1);
-                        }}
-                        placeholder="status 絞り込み"
-                        disabled={loading}
-                    >
-                    <Select
-    value={dueFilter}
-    onValueChange={(value) => {
-        setDueFilter(value);
-        setPage(1);
-    }}
-    placeholder="期日 絞り込み"
-    disabled={loading}
->
-    <option value="">すべて</option>
-    <option value="overdue">期限切れ</option>
-    <option value="today">今日</option>
-    <option value="week">今週</option>
-    <option value="month">今月</option>
-</Select>
-                        <SelectItem value="">(all)</SelectItem>
-                        {TASK_STATUS.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>
-                                {s.label}
-                            </SelectItem>
-                        ))}
-                    </Select>
-                </div>
-            </div>
+<div className="ml-auto flex items-center gap-3">
+    <div className="w-[220px]">
+        <Select
+            value={dueFilter}
+            onValueChange={(value) => {
+                setDueFilter(value);
+                setPage(1);
+            }}
+            placeholder="期日 絞り込み"
+            disabled={loading}
+        >
+            <SelectItem value="">すべて</SelectItem>
+            <SelectItem value="overdue">期限切れ</SelectItem>
+            <SelectItem value="today">今日</SelectItem>
+            <SelectItem value="week">今週</SelectItem>
+            <SelectItem value="month">今月</SelectItem>
+        </Select>
+    </div>
+
+    <div className="w-[220px]">
+        <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+                setStatusFilter(value);
+                setPage(1);
+            }}
+            placeholder="status 絞り込み"
+            disabled={loading}
+        >
+            <SelectItem value="">すべて</SelectItem>
+
+            {TASK_STATUS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                </SelectItem>
+            ))}
+        </Select>
+    </div>
+</div>
 
             {error && (
                 <div className="text-sm text-red-600">
@@ -482,7 +486,16 @@ if (dueFilter) {
                                 <TableRow
                                     key={t.id}
                                     className={`cursor-pointer ${editId === t.id ? "bg-muted" : ""}`}
-                                    onClick={() => setEditId(t.id)}
+                                    onClick={() => {
+    setEditId(t.id);
+
+    setTimeout(() => {
+        detailRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+    }, 0);
+}}
                                 >
                                     <TableCell>{t.due_date}</TableCell>
                                     <TableCell>{t.status}</TableCell>
@@ -545,7 +558,8 @@ if (dueFilter) {
 
             {/* 詳細/編集 */}
             {editTask && (
-                <Card>
+    <div ref={detailRef}>
+        <Card>
                     <CardHeader>
                         <CardTitle>詳細 / 編集</CardTitle>
                     </CardHeader>
@@ -791,9 +805,12 @@ if (dueFilter) {
                                 ※ 自動判定（cs_docs などからOK/NG判定）は後続実装でOK。今は手動で status を更新します。
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                         </CardContent>
+            </Card>
         </div>
-    );
+    )}
+
+    </div>
+</div>
+);
 }
