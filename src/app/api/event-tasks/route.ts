@@ -2,36 +2,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/service";
 import { getUserFromBearer } from "@/lib/auth/getUserFromBearer";
-//import { isAdminByAuthUserId } from "@/lib/auth/isAdminByAuthUserId";
+
 import type {
     UpsertEventTaskPayload,
-    EventTaskView,
-    EventTaskRequiredDocView,
 } from "@/types/eventTasks";
-
-type RequiredDocRow = {
-    id: string;
-    event_task_id: string;
-    doc_type_id: string;
-    memo: string | null;
-    result_doc_id: string | null;
-    status: "pending" | "ok" | "ng" | "skipped";
-    checked_at: string | null;
-    checked_by_user_id: string | null;
-    created_at: string;
-    updated_at: string;
-};
-
 
 export const dynamic = "force-dynamic";
 
 function bad(message: string, status = 400) {
     return NextResponse.json({ message }, { status });
 }
+type RequiredDocRow = {
+    event_task_id: string;
+    doc_type_id: string;
+    completed: boolean | null;
+    [key: string]: unknown;
+};
+
+type EventTaskRequiredDocView = RequiredDocRow & {
+    doc_type_name: string | null;
+};
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let i = 0; i < items.length; i += size) {
+        chunks.push(items.slice(i, i + size));
+    }
+
+    return chunks;
+}
 
 export async function GET(req: NextRequest) {
     const { user } = await getUserFromBearer(req);
-    if (!user) return bad("Missing token", 401);
+
+    if (!user) {
+        return bad("Missing token", 401);
+    }
 
     //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
     //if (!admin) return bad("Forbidden", 403);
@@ -44,10 +51,10 @@ export async function GET(req: NextRequest) {
     const due_to = url.searchParams.get("due_to");
 
     let q = supabaseAdmin
-        .from("event_tasks")
-        .select("*")
-        .order("due_date", { ascending: true })
-        .limit(2000);
+    .from("event_tasks")
+    .select("*")
+    .order("due_date", { ascending: true })
+    .limit(200);
 
     if (status) q = q.eq("status", status);
     if (template_id) q = q.eq("template_id", template_id);
@@ -55,48 +62,214 @@ export async function GET(req: NextRequest) {
     if (due_from) q = q.gte("due_date", due_from);
     if (due_to) q = q.lte("due_date", due_to);
 
-    const { data: tasks, error: tErr } = await q;
-    if (tErr) return NextResponse.json({ message: tErr.message }, { status: 500 });
+   const { data: tasks, error: tErr } = await q;
 
-    const taskIds = (tasks ?? []).map((t) => t.id);
-    const templateIds = Array.from(new Set((tasks ?? []).map((t) => t.template_id)));
-    const csIds = Array.from(new Set((tasks ?? []).map((t) => t.kaipoke_cs_id)));
-    const userIds = Array.from(new Set((tasks ?? []).map((t) => t.user_id).filter(Boolean)));
+if (tErr) {
+    console.error("[event-tasks][GET] tasks error", {
+        message: tErr.message,
+        details: tErr.details,
+        hint: tErr.hint,
+        code: tErr.code,
+    });
 
-    const [{ data: reqDocs, error: rdErr }, { data: templates, error: tplErr }, { data: clients, error: cErr }, { data: users, error: uErr }] =
-        await Promise.all([
-            taskIds.length
-                ? supabaseAdmin.from("event_task_required_docs").select("*").in("event_task_id", taskIds)
-                : Promise.resolve({ data: [], error: null }),
-            templateIds.length
-                ? supabaseAdmin.from("event_template").select("id,template_name").in("id", templateIds)
-                : Promise.resolve({ data: [], error: null }),
-            csIds.length
-                ? supabaseAdmin.from("cs_kaipoke_info").select("kaipoke_cs_id,name").in("kaipoke_cs_id", csIds)
-                : Promise.resolve({ data: [], error: null }),
-            userIds.length
-                ? supabaseAdmin.from("user_entry_united_view_single").select("user_id,last_name_kanji,first_name_kanji").in("user_id", userIds as string[])
-                : Promise.resolve({ data: [], error: null }),
-        ]);
+    return NextResponse.json(
+        {
+            message: `タスクの取得に失敗しました: ${tErr.message}`,
+            details: tErr.details,
+            hint: tErr.hint,
+            code: tErr.code,
+        },
+        { status: 500 }
+    );
+}
 
-    const reqDocsRows = (reqDocs ?? []) as RequiredDocRow[];
+    const taskIds = Array.from(
+    new Set(
+        (tasks ?? [])
+            .map((t) => t.id)
+            .filter(
+                (id): id is string =>
+                    typeof id === "string" &&
+                    id.trim().length > 0
+            )
+    )
+);
 
-    if (rdErr) return NextResponse.json({ message: rdErr.message }, { status: 500 });
-    if (tplErr) return NextResponse.json({ message: tplErr.message }, { status: 500 });
-    if (cErr) return NextResponse.json({ message: cErr.message }, { status: 500 });
-    if (uErr) return NextResponse.json({ message: uErr.message }, { status: 500 });
+const templateIds = Array.from(
+    new Set(
+        (tasks ?? [])
+            .map((t) => t.template_id)
+            .filter(
+                (id): id is string =>
+                    typeof id === "string" &&
+                    id.trim().length > 0
+            )
+    )
+);
 
+const csIds = Array.from(
+    new Set(
+        (tasks ?? [])
+            .map((t) => t.kaipoke_cs_id)
+            .filter(
+                (id): id is string =>
+                    typeof id === "string" &&
+                    id.trim().length > 0
+            )
+    )
+);
+
+const userIds = Array.from(
+    new Set(
+        (tasks ?? [])
+            .map((t) => t.user_id)
+            .filter(
+                (id): id is string =>
+                    typeof id === "string" &&
+                    id.trim().length > 0
+            )
+    )
+);
+
+const templates: {
+    id: string;
+    template_name: string | null;
+}[] = [];
+
+const clients: {
+    kaipoke_cs_id: string;
+    name: string | null;
+}[] = [];
+
+const users: {
+    user_id: string;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+}[] = [];
+
+const reqDocsRows: RequiredDocRow[] = [];
+
+// 必要書類を100件ずつ取得
+for (const ids of chunkArray(taskIds, 100)) {
+    const { data, error } = await supabaseAdmin
+        .from("event_task_required_docs")
+        .select("*")
+        .in("event_task_id", ids);
+
+    if (error) {
+        console.error("[event-tasks][GET] required docs error", {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            idCount: ids.length,
+        });
+
+        return NextResponse.json(
+            {
+                stage: "event_task_required_docs",
+                message: `必要書類の取得に失敗しました: ${error.message}`,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            },
+            { status: 500 }
+        );
+    }
+
+    reqDocsRows.push(...((data ?? []) as RequiredDocRow[]));
+}
+
+// テンプレートを100件ずつ取得
+for (const ids of chunkArray(templateIds, 100)) {
+    const { data, error } = await supabaseAdmin
+        .from("event_template")
+        .select("id,template_name")
+        .in("id", ids);
+
+    if (error) {
+        return NextResponse.json(
+            {
+                message: `テンプレートの取得に失敗しました: ${error.message}`,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            },
+            { status: 500 }
+        );
+    }
+
+    templates.push(...(data ?? []));
+}
+
+// 利用者を100件ずつ取得
+for (const ids of chunkArray(csIds, 100)) {
+    const { data, error } = await supabaseAdmin
+        .from("cs_kaipoke_info")
+        .select("kaipoke_cs_id,name")
+        .in("kaipoke_cs_id", ids);
+
+    if (error) {
+        return NextResponse.json(
+            {
+                message: `利用者情報の取得に失敗しました: ${error.message}`,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            },
+            { status: 500 }
+        );
+    }
+
+    clients.push(...(data ?? []));
+}
+
+// 担当者を100件ずつ取得
+for (const ids of chunkArray(userIds as string[], 100)) {
+    const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select("user_id,last_name_kanji,first_name_kanji")
+        .in("user_id", ids);
+
+    if (error) {
+        return NextResponse.json(
+            {
+                message: `担当者情報の取得に失敗しました: ${error.message}`,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            },
+            { status: 500 }
+        );
+    }
+
+    users.push(...(data ?? []));
+}
     // doc master 名称（user_doc_master は label が表示名）
     const docTypeIds = Array.from(new Set(reqDocsRows.map((d) => d.doc_type_id)));
 
     const { data: docMasters, error: dmErr } = docTypeIds.length
-        ? await supabaseAdmin
-            .from("user_doc_master")
-            .select("id,label")
-            .in("id", docTypeIds)
-        : { data: [], error: null };
+    ? await supabaseAdmin
+        .from("user_doc_master")
+        .select("id,label")
+        .in("id", docTypeIds)
+    : { data: [], error: null };
 
-    if (dmErr) return NextResponse.json({ message: dmErr.message }, { status: 500 });
+if (dmErr) {
+    console.error("[event-tasks] user_doc_master error", dmErr);
+
+    return NextResponse.json(
+        {
+            stage: "user_doc_master",
+            message: dmErr.message,
+            details: dmErr.details,
+            hint: dmErr.hint,
+            code: dmErr.code,
+        },
+        { status: 500 }
+    );
+}
+
 
     const docNameMap = new Map<string, string>(
         (docMasters ?? [])
@@ -138,7 +311,7 @@ export async function GET(req: NextRequest) {
         docsByTask.set(d.event_task_id, arr);
     }
 
-    const result: EventTaskView[] = (tasks ?? []).map((t) => ({
+    const result = (tasks ?? []).map((t) => ({
         ...t,
         template_name: templateMap.get(t.template_id) ?? null,
         client_name: clientMap.get(t.kaipoke_cs_id) ?? null,
