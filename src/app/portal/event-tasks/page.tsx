@@ -32,30 +32,78 @@ function errMsg(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
 
-async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}) {
-    const { data } = await supabase.auth.getSession();
+async function fetchWithAuth(
+    input: RequestInfo,
+    init: RequestInit = {}
+) {
+    const { data, error: sessionError } =
+        await supabase.auth.getSession();
+
+    if (sessionError) {
+        throw new Error(
+            `ログイン情報の取得に失敗しました: ${sessionError.message}`
+        );
+    }
+
     const token = data.session?.access_token;
+
+    if (!token) {
+        throw new Error(
+            "ログイン情報を確認できませんでした。再ログインしてください。"
+        );
+    }
 
     const res = await fetch(input, {
         ...init,
         cache: "no-store",
         headers: {
             ...(init.headers ?? {}),
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(init.body
+                ? { "Content-Type": "application/json" }
+                : {}),
+            Authorization: `Bearer ${token}`,
         },
         credentials: "same-origin",
     });
 
     if (res.status === 401) {
-        // Missing token = ログイン切れ
-        throw new Error("ログインが切れました。再ログインしてください。");
+        throw new Error(
+            "ログインが切れました。再ログインしてください。"
+        );
     }
-    if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as ApiErrorBody | null;
-        throw new Error(j?.message ?? `API error: ${res.status}`);
 
+    if (res.status === 403) {
+        throw new Error(
+            "このページを利用する権限がありません。"
+        );
     }
+
+    if (!res.ok) {
+        const contentType =
+            res.headers.get("content-type") ?? "";
+
+        let message =
+            `API error: ${res.status} ${res.statusText}`;
+
+        if (contentType.includes("application/json")) {
+            const body = (await res.json().catch(() => null)) as
+                | ApiErrorBody
+                | null;
+
+            if (body?.message) {
+                message = body.message;
+            }
+        } else {
+            const text = await res.text().catch(() => "");
+
+            if (text.trim()) {
+                message = `${message}\n${text}`;
+            }
+        }
+
+        throw new Error(message);
+    }
+
     return res;
 }
 
@@ -124,8 +172,18 @@ export default function EventTasksPage() {
                 setMeta(m);
             }
             const qs = new URLSearchParams();
-            if (statusFilter) qs.set("status", statusFilter);
-            const res = await fetchWithAuth(`/api/event-tasks?${qs.toString()}`, { method: "GET" });
+            if (statusFilter) {
+                qs.set("status", statusFilter);
+            }
+            const queryString = qs.toString();
+            const url = queryString
+                ? `/api/event-tasks?${queryString}`
+                : "/api/event-tasks";
+
+            const res = await fetchWithAuth(url, {
+                method: "GET",
+            });
+
             const j = (await res.json()) as ApiTasksResponse;
             setTasks(j.tasks ?? []);
         } catch (e: unknown) {
