@@ -174,6 +174,7 @@ const [pagination, setPagination] = useState<Pagination>({
     // filters
     const [statusFilter, setStatusFilter] = useState<string>("");
     const [dueFilter, setDueFilter] = useState<string>("");
+    const [clientFilter, setClientFilter] = useState<string>("");
 
     // create draft
     const [templateId, setTemplateId] = useState("");
@@ -220,6 +221,10 @@ const [pagination, setPagination] = useState<Pagination>({
             qs.set("due", dueFilter);
         }
 
+        if (clientFilter) {
+    qs.set("client_id", clientFilter);
+}
+
         const res = await fetchWithAuth(
             `/api/event-tasks?${qs.toString()}`,
             { method: "GET" }
@@ -239,7 +244,7 @@ const [pagination, setPagination] = useState<Pagination>({
     useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [statusFilter, dueFilter, page]);
+}, [statusFilter, dueFilter, clientFilter, page]);
 
     // template を選んだら due_date 初期値を offset 反映
     useEffect(() => {
@@ -348,7 +353,7 @@ const [pagination, setPagination] = useState<Pagination>({
             絞り込み
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-1">
                 <label className="text-sm font-medium">
                     期日
@@ -401,6 +406,32 @@ const [pagination, setPagination] = useState<Pagination>({
                             value={s.value}
                         >
                             {s.label}
+                        </SelectItem>
+                    ))}
+                </Select>
+            </div>
+                        <div className="space-y-1">
+                <label className="text-sm font-medium">
+                    利用者
+                </label>
+
+                <Select
+                    value={clientFilter}
+                    onValueChange={(value) => {
+                        setClientFilter(value);
+                        setPage(1);
+                    }}
+                    placeholder="利用者を選択"
+                    disabled={loading}
+                >
+                    <SelectItem value="">すべて</SelectItem>
+
+                    {(meta?.clients ?? []).map((client) => (
+                        <SelectItem
+                            key={client.kaipoke_cs_id}
+                            value={client.kaipoke_cs_id}
+                        >
+                            {client.name ?? client.kaipoke_cs_id}
                         </SelectItem>
                     ))}
                 </Select>

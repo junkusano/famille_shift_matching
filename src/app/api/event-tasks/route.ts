@@ -55,6 +55,7 @@ const pageSize = Math.min(
     )
 );
 const dueFilter = searchParams.get("due");
+const clientFilter = searchParams.get("client_id");
 
 const from = (page - 1) * pageSize;
 const to = from + pageSize - 1;
@@ -76,7 +77,13 @@ const to = from + pageSize - 1;
     .range(from, to);
 
     if (status) q = q.eq("status", status);
+
+    if (clientFilter) {
+    q = q.eq("kaipoke_cs_id", clientFilter);
+}
+
     const today = new Date();
+
 const todayStr = today.toISOString().slice(0, 10);
 
 if (dueFilter === "overdue") {
