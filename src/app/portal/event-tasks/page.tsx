@@ -24,9 +24,19 @@ import type {
     UpdateEventTaskPayload,
 } from "@/types/eventTasks";
 
-type ApiTasksResponse = { tasks: EventTaskView[] };
+type ApiTasksResponse = {
+    tasks: EventTaskView[];
+    pagination: Pagination;
+};
 
 type ApiErrorBody = { message?: string };
+
+type Pagination = {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+};
 
 function errMsg(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
@@ -143,6 +153,16 @@ function addDaysYmd(baseYmd: string, deltaDays: number) {
 export default function EventTasksPage() {
     const [meta, setMeta] = useState<EventTaskMetaResponse | null>(null);
     const [tasks, setTasks] = useState<EventTaskView[]>([]);
+
+const [page, setPage] = useState(1);
+
+const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 1,
+});
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -164,39 +184,51 @@ export default function EventTasksPage() {
 
 
     async function reload() {
-        setLoading(true);
-        setError(null);
-        try {
-            if (!meta) {
-                const m = await fetchWithAuth("/api/event-tasks/meta", { method: "GET" }).then((r) => r.json() as Promise<EventTaskMetaResponse>);
-                setMeta(m);
-            }
-            const qs = new URLSearchParams();
-            if (statusFilter) {
-                qs.set("status", statusFilter);
-            }
-            const queryString = qs.toString();
-            const url = queryString
-                ? `/api/event-tasks?${queryString}`
-                : "/api/event-tasks";
+    setLoading(true);
+    setError(null);
 
-            const res = await fetchWithAuth(url, {
-                method: "GET",
-            });
+    try {
+        if (!meta) {
+            const m = await fetchWithAuth(
+                "/api/event-tasks/meta",
+                { method: "GET" }
+            ).then(
+                (r) =>
+                    r.json() as Promise<EventTaskMetaResponse>
+            );
 
-            const j = (await res.json()) as ApiTasksResponse;
-            setTasks(j.tasks ?? []);
-        } catch (e: unknown) {
-            setError(errMsg(e));
-        } finally {
-            setLoading(false);
+            setMeta(m);
         }
+
+        const qs = new URLSearchParams();
+
+        qs.set("page", String(page));
+        qs.set("pageSize", "50");
+
+        if (statusFilter) {
+            qs.set("status", statusFilter);
+        }
+
+        const res = await fetchWithAuth(
+            `/api/event-tasks?${qs.toString()}`,
+            { method: "GET" }
+        );
+
+        const j = (await res.json()) as ApiTasksResponse;
+
+        setTasks(j.tasks ?? []);
+        setPagination(j.pagination);
+    } catch (e: unknown) {
+        setError(errMsg(e));
+    } finally {
+        setLoading(false);
     }
+}
 
     useEffect(() => {
-        reload();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter]);
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [statusFilter, page]);
 
     // template を選んだら due_date 初期値を offset 反映
     useEffect(() => {
@@ -292,7 +324,10 @@ export default function EventTasksPage() {
                 <div className="ml-auto w-[220px]">
                     <Select
                         value={statusFilter}
-                        onValueChange={setStatusFilter}
+                        onValueChange={(value) => {
+                        setStatusFilter(value);
+                        setPage(1);
+                        }}
                         placeholder="status 絞り込み"
                         disabled={loading}
                     >
@@ -438,7 +473,46 @@ export default function EventTasksPage() {
                                 </TableRow>
                             )}
                         </TableBody>
-                    </Table>
+                      </Table>
+
+                    <div className="mt-4 flex items-center justify-center gap-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                                setPage((current) =>
+                                    Math.max(1, current - 1)
+                                )
+                            }
+                            disabled={loading || page <= 1}
+                        >
+                            前へ
+                        </Button>
+
+                        <div className="text-sm">
+                            {pagination.page} / {pagination.totalPages}ページ
+                            （全{pagination.total}件）
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                                setPage((current) =>
+                                    Math.min(
+                                        pagination.totalPages,
+                                        current + 1
+                                    )
+                                )
+                            }
+                            disabled={
+                                loading ||
+                                page >= pagination.totalPages
+                            }
+                        >
+                            次へ
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
