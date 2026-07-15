@@ -40,6 +40,24 @@ export async function GET(req: NextRequest) {
         return bad("Missing token", 401);
     }
 
+    const { searchParams } = new URL(req.url);
+
+const page = Math.max(
+    1,
+    Number(searchParams.get("page") ?? "1")
+);
+
+const pageSize = Math.min(
+    100,
+    Math.max(
+        1,
+        Number(searchParams.get("pageSize") ?? "50")
+    )
+);
+
+const from = (page - 1) * pageSize;
+const to = from + pageSize - 1;
+
     //const admin = await isAdminByAuthUserId(supabaseAdmin, user.id);
     //if (!admin) return bad("Forbidden", 403);
 
@@ -52,9 +70,9 @@ export async function GET(req: NextRequest) {
 
     let q = supabaseAdmin
     .from("event_tasks")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("due_date", { ascending: true })
-    .limit(200);
+    .range(from, to);
 
     if (status) q = q.eq("status", status);
     if (template_id) q = q.eq("template_id", template_id);
@@ -62,7 +80,11 @@ export async function GET(req: NextRequest) {
     if (due_from) q = q.gte("due_date", due_from);
     if (due_to) q = q.lte("due_date", due_to);
 
-   const { data: tasks, error: tErr } = await q;
+   const {
+    data: tasks,
+    error: tErr,
+    count,
+} = await q;
 
 if (tErr) {
     console.error("[event-tasks][GET] tasks error", {
@@ -319,7 +341,18 @@ if (dmErr) {
         required_docs: (docsByTask.get(t.id) ?? []).sort((a, b) => (a.doc_type_name ?? "").localeCompare(b.doc_type_name ?? "")),
     }));
 
-    return NextResponse.json({ tasks: result });
+    return NextResponse.json({
+    tasks: result,
+    pagination: {
+        page,
+        pageSize,
+        total: count ?? 0,
+        totalPages: Math.max(
+            1,
+            Math.ceil((count ?? 0) / pageSize)
+        ),
+    },
+});
 }
 
 export async function POST(req: NextRequest) {
