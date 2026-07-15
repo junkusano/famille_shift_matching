@@ -54,6 +54,7 @@ const pageSize = Math.min(
         Number(searchParams.get("pageSize") ?? "50")
     )
 );
+const dueFilter = searchParams.get("due");
 
 const from = (page - 1) * pageSize;
 const to = from + pageSize - 1;
@@ -75,6 +76,33 @@ const to = from + pageSize - 1;
     .range(from, to);
 
     if (status) q = q.eq("status", status);
+    const today = new Date();
+const todayStr = today.toISOString().slice(0, 10);
+
+if (dueFilter === "overdue") {
+    q = q.lt("due_date", todayStr);
+}
+
+if (dueFilter === "today") {
+    q = q.eq("due_date", todayStr);
+}
+
+if (dueFilter === "week") {
+    const end = new Date(today);
+    end.setDate(today.getDate() + 6);
+
+    q = q
+        .gte("due_date", todayStr)
+        .lte("due_date", end.toISOString().slice(0, 10));
+}
+
+if (dueFilter === "month") {
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    q = q
+        .gte("due_date", todayStr)
+        .lte("due_date", end.toISOString().slice(0, 10));
+}
     if (template_id) q = q.eq("template_id", template_id);
     if (kaipoke_cs_id) q = q.eq("kaipoke_cs_id", kaipoke_cs_id);
     if (due_from) q = q.gte("due_date", due_from);

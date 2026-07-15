@@ -168,6 +168,7 @@ const [pagination, setPagination] = useState<Pagination>({
 
     // filters
     const [statusFilter, setStatusFilter] = useState<string>("");
+    const [dueFilter, setDueFilter] = useState<string>("");
 
     // create draft
     const [templateId, setTemplateId] = useState("");
@@ -202,6 +203,17 @@ const [pagination, setPagination] = useState<Pagination>({
 
         const qs = new URLSearchParams();
 
+qs.set("page", String(page));
+qs.set("pageSize", "50");
+
+if (statusFilter) {
+    qs.set("status", statusFilter);
+}
+
+if (dueFilter) {
+    qs.set("due", dueFilter);
+}
+
         qs.set("page", String(page));
         qs.set("pageSize", "50");
 
@@ -228,7 +240,7 @@ const [pagination, setPagination] = useState<Pagination>({
     useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [statusFilter, page]);
+}, [statusFilter, dueFilter, page]);
 
     // template を選んだら due_date 初期値を offset 反映
     useEffect(() => {
@@ -331,6 +343,21 @@ const [pagination, setPagination] = useState<Pagination>({
                         placeholder="status 絞り込み"
                         disabled={loading}
                     >
+                    <Select
+    value={dueFilter}
+    onValueChange={(value) => {
+        setDueFilter(value);
+        setPage(1);
+    }}
+    placeholder="期日 絞り込み"
+    disabled={loading}
+>
+    <option value="">すべて</option>
+    <option value="overdue">期限切れ</option>
+    <option value="today">今日</option>
+    <option value="week">今週</option>
+    <option value="month">今月</option>
+</Select>
                         <SelectItem value="">(all)</SelectItem>
                         {TASK_STATUS.map((s) => (
                             <SelectItem key={s.value} value={s.value}>
