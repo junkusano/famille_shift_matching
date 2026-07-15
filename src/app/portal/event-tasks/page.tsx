@@ -326,57 +326,94 @@ const [pagination, setPagination] = useState<Pagination>({
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex items-center gap-3">
-                <h1 className="text-xl font-semibold">イベントタスク管理</h1>
-                <Button variant="outline" onClick={reload} disabled={loading}>
-                    再読み込み
-                </Button>
+<div className="space-y-4">
+    {/* タイトル行 */}
+    <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">
+            イベントタスク管理
+        </h1>
 
-<div className="ml-auto flex items-center gap-3">
-    <div className="w-[220px]">
-        <Select
-            value={dueFilter}
-            onValueChange={(value) => {
-                setDueFilter(value);
-                setPage(1);
-            }}
-            placeholder="期日 絞り込み"
+        <Button
+            variant="outline"
+            onClick={reload}
             disabled={loading}
         >
-            <SelectItem value="">すべて</SelectItem>
-            <SelectItem value="overdue">期限切れ</SelectItem>
-            <SelectItem value="today">今日</SelectItem>
-            <SelectItem value="week">今週</SelectItem>
-            <SelectItem value="month">今月</SelectItem>
-        </Select>
+            再読み込み
+        </Button>
     </div>
 
-    <div className="w-[220px]">
-        <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-                setStatusFilter(value);
-                setPage(1);
-            }}
-            placeholder="status 絞り込み"
-            disabled={loading}
-        >
-            <SelectItem value="">すべて</SelectItem>
+    {/* 絞り込み行 */}
+    <div className="rounded-lg border bg-white p-4">
+        <div className="mb-3 text-sm font-semibold">
+            絞り込み
+        </div>
 
-            {TASK_STATUS.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                </SelectItem>
-            ))}
-        </Select>
-    </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+                <label className="text-sm font-medium">
+                    期日
+                </label>
+
+                <Select
+                    value={dueFilter}
+                    onValueChange={(value) => {
+                        setDueFilter(value);
+                        setPage(1);
+                    }}
+                    placeholder="期日を選択"
+                    disabled={loading}
+                >
+                    <SelectItem value="">すべて</SelectItem>
+                    <SelectItem value="overdue">
+                        期限切れ
+                    </SelectItem>
+                    <SelectItem value="today">
+                        今日
+                    </SelectItem>
+                    <SelectItem value="week">
+                        今週
+                    </SelectItem>
+                    <SelectItem value="month">
+                        今月
+                    </SelectItem>
+                </Select>
+            </div>
+
+            <div className="space-y-1">
+                <label className="text-sm font-medium">
+                    ステータス
+                </label>
+
+                <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                        setStatusFilter(value);
+                        setPage(1);
+                    }}
+                    placeholder="ステータスを選択"
+                    disabled={loading}
+                >
+                    <SelectItem value="">すべて</SelectItem>
+
+                    {TASK_STATUS.map((s) => (
+                        <SelectItem
+                            key={s.value}
+                            value={s.value}
+                        >
+                            {s.label}
+                        </SelectItem>
+                    ))}
+                </Select>
+            </div>
+        </div>
+     </div>
 </div>
 
-            {error && (
-                <div className="text-sm text-red-600">
-                    {error}
-                </div>
-            )}
+{error && (
+    <div className="text-sm text-red-600">
+        {error}
+    </div>
+)}
 
             {/* 新規作成 */}
             <Card>
@@ -811,6 +848,6 @@ const [pagination, setPagination] = useState<Pagination>({
     )}
 
     </div>
-</div>
+
 );
 }
