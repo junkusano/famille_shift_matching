@@ -407,26 +407,40 @@ export async function POST(req: NextRequest) {
             return json({ ok: false, error: "無効なオプションです" }, 400);
         }
 
+        const currentResponseQuery = supabaseAdmin
+            .from("bento_survey_responses")
+            .select("id")
+            .eq("survey_id", surveyId)
+            .eq("user_id", loginUser.userId)
+            .maybeSingle();
+
         const [menuResult, locationResult, currentResult] = await Promise.all([
-            supabaseAdmin
-                .from("bento_survey_menus")
-                .select("id")
-                .eq("id", menuId)
-                .eq("survey_id", surveyId)
-                .eq("is_active", true)
-                .maybeSingle(),
-            supabaseAdmin
-                .from("bento_pickup_locations")
-                .select("id")
-                .eq("id", pickupLocationId)
-                .eq("is_active", true)
-                .maybeSingle(),
-            supabaseAdmin
-                .from("bento_survey_responses")
-                .select("id")
-                .eq("survey_id", surveyId)
-                .eq("user_id", loginUser.userId)
-                .maybeSingle(),
+            wantsBento
+                ? supabaseAdmin
+                    .from("bento_survey_menus")
+                    .select("id")
+                    .eq("id", menuId)
+                    .eq("survey_id", surveyId)
+                    .eq("is_active", true)
+                    .maybeSingle()
+                : Promise.resolve({
+                    data: null,
+                    error: null,
+                }),
+
+            wantsBento
+                ? supabaseAdmin
+                    .from("bento_pickup_locations")
+                    .select("id")
+                    .eq("id", pickupLocationId)
+                    .eq("is_active", true)
+                    .maybeSingle()
+                : Promise.resolve({
+                    data: null,
+                    error: null,
+                }),
+
+            currentResponseQuery,
         ]);
 
         if (menuResult.error) throw menuResult.error;
@@ -540,12 +554,13 @@ export async function PATCH(req: NextRequest) {
         const { data: existingResponse, error: responseError } =
             await supabaseAdmin
                 .from("bento_survey_responses")
-                .select("id,received_at")
+                .select("id,received_at,wants_bento")
                 .eq("survey_id", surveyId)
                 .eq("user_id", loginUser.userId)
                 .maybeSingle<{
                     id: string;
                     received_at: string | null;
+                    wants_bento: boolean;
                 }>();
 
         if (responseError) {
@@ -557,6 +572,16 @@ export async function PATCH(req: NextRequest) {
                 {
                     ok: false,
                     error: "先にアンケートへ回答してください。",
+                },
+                400,
+            );
+        }
+
+        if (!existingResponse.wants_bento) {
+            return json(
+                {
+                    ok: false,
+                    error: "お弁当不要の回答では受取済みにできません。",
                 },
                 400,
             );
