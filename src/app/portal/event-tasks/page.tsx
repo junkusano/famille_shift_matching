@@ -665,35 +665,47 @@ const [pagination, setPagination] = useState<Pagination>({
                         {t.due_date}
                     </TableCell>
 
-                    <TableCell
-                        className="w-[150px]"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                        }}
-                    >
-                        <Select
-                            value={
-                                t.status === "done"
-                                    ? "done"
-                                    : "open"
-                            }
-                            onValueChange={(value) => {
-                                void onUpdateTaskStatusFromList(
-                                    t.id,
-                                    value as "open" | "done"
-                                );
-                            }}
-                            disabled={loading}
-                        >
-                            <SelectItem value="open">
-                                open
-                            </SelectItem>
+<TableCell
+    className="w-[150px]"
+    onClick={(event) => {
+        event.stopPropagation();
+    }}
+>
+    <button
+        type="button"
+        disabled={loading}
+        onClick={() => {
+            const nextStatus =
+                t.status === "done" ? "open" : "done";
 
-                            <SelectItem value="done">
-                                done
-                            </SelectItem>
-                        </Select>
-                    </TableCell>
+            void onUpdateTaskStatusFromList(
+                t.id,
+                nextStatus
+            );
+        }}
+        className={`
+            inline-flex
+            min-w-[96px]
+            items-center
+            justify-center
+            rounded-md
+            px-3
+            py-2
+            text-sm
+            font-semibold
+            transition
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+            ${
+                t.status === "done"
+                    ? "bg-red-600 text-white hover:bg-red-700"
+                    : "bg-green-600 text-white hover:bg-green-700"
+            }
+        `}
+    >
+        {t.status === "done" ? "done" : "open"}
+    </button>
+</TableCell>
 
                     <TableCell>
                         {t.template_name ?? t.template_id}
