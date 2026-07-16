@@ -175,6 +175,7 @@ const [pagination, setPagination] = useState<Pagination>({
     const [statusFilter, setStatusFilter] = useState<string>("");
     const [dueFilter, setDueFilter] = useState<string>("");
     const [clientFilter, setClientFilter] = useState<string>("");
+    const [userFilter, setUserFilter] = useState<string>("");
     const [sortColumn, setSortColumn] = useState<
     | "due_date"
     | "status"
@@ -255,6 +256,10 @@ const [pagination, setPagination] = useState<Pagination>({
     qs.set("client_id", clientFilter);
 }
 
+if (userFilter) {
+    qs.set("user_id", userFilter);
+}
+
         const res = await fetchWithAuth(
             `/api/event-tasks?${qs.toString()}`,
             { method: "GET" }
@@ -278,6 +283,7 @@ const [pagination, setPagination] = useState<Pagination>({
     statusFilter,
     dueFilter,
     clientFilter,
+    userFilter,
     sortColumn,
     sortOrder,
     page,
@@ -441,7 +447,7 @@ return (
             絞り込み
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="space-y-1">
                 <label className="text-sm font-medium">
                     期日
@@ -523,6 +529,50 @@ return (
                     ))}
                 </Select>
             </div>
+            <div className="space-y-1">
+    <label className="text-sm font-medium">
+        担当
+    </label>
+
+    <Select
+        value={userFilter}
+        onValueChange={(value) => {
+            setUserFilter(value);
+            setPage(1);
+        }}
+        placeholder="担当を選択"
+        disabled={loading}
+    >
+        <SelectItem value="">
+            すべて
+        </SelectItem>
+
+        {Array.from(
+            new Map(
+                (tasks ?? [])
+                    .filter((t) => t.assigned_user_name)
+                    .map((t) => [
+                        t.user_id ??
+                            t.assigned_user_name!,
+                        {
+                            id:
+                                t.user_id ??
+                                t.assigned_user_name!,
+                            name:
+                                t.assigned_user_name!,
+                        },
+                    ])
+            ).values()
+        ).map((user) => (
+            <SelectItem
+                key={user.id}
+                value={user.id}
+            >
+                {user.name}
+            </SelectItem>
+        ))}
+    </Select>
+</div>
         </div>
      </div>
 </div>

@@ -55,7 +55,11 @@ const pageSize = Math.min(
     )
 );
 const dueFilter = searchParams.get("due");
-const clientFilter = searchParams.get("client_id");
+const clientFilter =
+    searchParams.get("client_id");
+
+const userFilter =
+    searchParams.get("user_id");
 
 const from = (page - 1) * pageSize;
 const to = from + pageSize - 1;
@@ -93,7 +97,17 @@ const to = from + pageSize - 1;
     if (status) q = q.eq("status", status);
 
     if (clientFilter) {
-    q = q.eq("kaipoke_cs_id", clientFilter);
+    q = q.eq(
+        "kaipoke_cs_id",
+        clientFilter
+    );
+}
+
+if (userFilter) {
+    q = q.eq(
+        "user_id",
+        userFilter
+    );
 }
 
     const today = new Date();
