@@ -175,6 +175,11 @@ const [pagination, setPagination] = useState<Pagination>({
     const [statusFilter, setStatusFilter] = useState<string>("");
     const [dueFilter, setDueFilter] = useState<string>("");
     const [clientFilter, setClientFilter] = useState<string>("");
+    const [sortColumn, setSortColumn] = useState<
+        "due_date" | "status" | "created_at"
+    >("due_date");
+
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
     // create draft
     const [templateId, setTemplateId] = useState("");
@@ -190,6 +195,20 @@ const [pagination, setPagination] = useState<Pagination>({
     const [addDocTypeId, setAddDocTypeId] = useState<string>("");
     const [addDocMemo, setAddDocMemo] = useState<string>("");
 
+    function handleSort(
+        column: "due_date" | "status" | "created_at"
+    ) {
+        if (sortColumn === column) {
+            setSortOrder((current) =>
+                current === "asc" ? "desc" : "asc"
+            );
+        } else {
+            setSortColumn(column);
+            setSortOrder("asc");
+        }
+
+    setPage(1);
+    }
 
     async function reload() {
     setLoading(true);
@@ -210,12 +229,14 @@ const [pagination, setPagination] = useState<Pagination>({
 
         const qs = new URLSearchParams();
 
-        qs.set("page", String(page));
-        qs.set("pageSize", "50");
+    qs.set("page", String(page));
+    qs.set("pageSize", "50");
+    qs.set("sort", sortColumn);
+    qs.set("order", sortOrder);
 
-        if (statusFilter) {
-            qs.set("status", statusFilter);
-        }
+    if (statusFilter) {
+        qs.set("status", statusFilter);
+    }
 
         if (dueFilter) {
             qs.set("due", dueFilter);
@@ -244,7 +265,14 @@ const [pagination, setPagination] = useState<Pagination>({
     useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [statusFilter, dueFilter, clientFilter, page]);
+    }, [
+    statusFilter,
+    dueFilter,
+    clientFilter,
+    sortColumn,
+    sortOrder,
+    page,
+]);
 
     // template を選んだら due_date 初期値を offset 反映
     useEffect(() => {
@@ -540,15 +568,33 @@ const [pagination, setPagination] = useState<Pagination>({
                 <CardContent>
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead>期日</TableHead>
-                                <TableHead>status</TableHead>
-                                <TableHead>テンプレ</TableHead>
-                                <TableHead>利用者</TableHead>
-                                <TableHead>担当</TableHead>
-                                <TableHead className="text-right">必要書類</TableHead>
-                            </TableRow>
-                        </TableHeader>
+    <TableRow>
+        <TableHead>
+            <button
+                type="button"
+                onClick={() => handleSort("due_date")}
+                className="inline-flex items-center gap-1 font-medium hover:underline"
+            >
+                期日
+
+                {sortColumn === "due_date" && (
+                    <span aria-hidden="true">
+                        {sortOrder === "asc" ? "▲" : "▼"}
+                    </span>
+                )}
+            </button>
+        </TableHead>
+
+        <TableHead>status</TableHead>
+        <TableHead>テンプレ</TableHead>
+        <TableHead>利用者</TableHead>
+        <TableHead>担当</TableHead>
+
+        <TableHead className="text-right">
+            必要書類
+        </TableHead>
+    </TableRow>
+</TableHeader>
                         <TableBody>
                             {tasks.map((t) => (
                                 <TableRow
