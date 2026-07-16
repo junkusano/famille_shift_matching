@@ -48,6 +48,13 @@ type SurveyResponse = {
     option_text: string | null;
     submitted_at: string;
     updated_at: string;
+    received_at: string | null;
+};
+
+type UserName = {
+    user_id: string;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
 };
 
 type SurveyNotesPayload = {
@@ -170,6 +177,7 @@ export default function BentoAdminPage() {
     const [menus, setMenus] = useState<BentoMenu[]>([]);
     const [locations, setLocations] = useState<PickupLocation[]>([]);
     const [responses, setResponses] = useState<SurveyResponse[]>([]);
+    const [userNames, setUserNames] = useState<UserName[]>([]);
     const [selectedSurveyId, setSelectedSurveyId] = useState<string>("");
     const [surveyForm, setSurveyForm] = useState<SurveyForm>(initialSurveyForm);
     const [menuDraft, setMenuDraft] = useState<MenuDraft>(initialMenuDraft);
@@ -236,8 +244,35 @@ export default function BentoAdminPage() {
         setSurveys(surveyRows);
         setMenus((menuResult.data ?? []) as BentoMenu[]);
         setLocations((locationResult.data ?? []) as PickupLocation[]);
-        setResponses((responseResult.data ?? []) as SurveyResponse[]);
+        const responseRows =
+            (responseResult.data ?? []) as SurveyResponse[];
 
+        setResponses(responseRows);
+
+        const responseUserIds = [
+            ...new Set(
+                responseRows
+                    .map((response) => response.user_id)
+                    .filter(Boolean)
+            ),
+        ];
+
+        if (responseUserIds.length > 0) {
+            const { data: userNameRows, error: userNameError } = await supabase
+                .from("user_entry_united_view_single")
+                .select("user_id,last_name_kanji,first_name_kanji")
+                .in("user_id", responseUserIds);
+
+            if (userNameError) {
+                setError(userNameError.message);
+                setLoading(false);
+                return;
+            }
+
+            setUserNames((userNameRows ?? []) as UserName[]);
+        } else {
+            setUserNames([]);
+        }
         setSelectedSurveyId((current) => current || surveyRows[0]?.id || "");
         setLoading(false);
     }, [supabase]);
@@ -263,6 +298,29 @@ export default function BentoAdminPage() {
             options: notes.options.length > 0 ? notes.options : ["普通盛り", "大盛り"],
         });
     }, [selectedSurvey]);
+
+    function getUserName(userId: string): string {
+        const user = userNames.find((item) => item.user_id === userId);
+
+        const fullName = [
+            user?.last_name_kanji,
+            user?.first_name_kanji,
+        ]
+            .filter(Boolean)
+            .join(" ");
+
+        return fullName || userId;
+    }
+
+    function getMenuName(menuId: string): string {
+        return menus.find((menu) => menu.id === menuId)?.name ?? "-";
+    }
+
+    function getPickupLocationName(locationId: string): string {
+        return (
+            locations.find((location) => location.id === locationId)?.name ?? "-"
+        );
+    }
 
     function clearMessages() {
         setMessage("");
@@ -421,14 +479,19 @@ export default function BentoAdminPage() {
 
         await loadData();
     }
-
     async function deleteSurvey() {
         if (!selectedSurveyId) return;
-        if (!window.confirm("このアンケートを削除します。メニューと回答も削除されます。よろしいですか？")) {
+
+        if (
+            !window.confirm(
+                "このアンケートを削除します。メニューと回答も削除されます。よろしいですか？"
+            )
+        ) {
             return;
         }
 
         clearMessages();
+
         const { error: deleteError } = await supabase
             .from("bento_surveys")
             .delete()
@@ -444,8 +507,83 @@ export default function BentoAdminPage() {
         await loadData();
     }
 
+    async function copySurvey() {
+        if (!selectedSurvey) {
+            setError("コピーするアンケートを選択してください。");
+            return;
+        }
+
+        clearMessages();
+        setSaving(true);
+
+        const { data: newSurvey, error: surveyInsertError } =
+            await supabase
+                .from("bento_surveys")
+                .insert({
+                    title: `${selectedSurvey.title}（コピー）`,
+                    description: selectedSurvey.description,
+                    notes: selectedSurvey.notes,
+                    event_date: selectedSurvey.event_date,
+                    response_deadline: selectedSurvey.response_deadline,
+                    status: "draft",
+                    allow_edit_after_submit:
+                        selectedSurvey.allow_edit_after_submit,
+                    is_active: true,
+                    published_at: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .select("id")
+                .single();
+
+        if (surveyInsertError) {
+            setError(surveyInsertError.message);
+            setSaving(false);
+            return;
+        }
+
+        const sourceMenus = menus.filter(
+            (menu) => menu.survey_id === selectedSurvey.id
+        );
+
+        if (sourceMenus.length > 0) {
+            const copiedMenus = sourceMenus.map((menu) => ({
+                survey_id: newSurvey.id,
+                name: menu.name,
+                description: menu.description,
+                image_url: menu.image_url,
+                sort_order: menu.sort_order,
+                is_active: menu.is_active,
+            }));
+
+            const { error: menuInsertError } = await supabase
+                .from("bento_survey_menus")
+                .insert(copiedMenus);
+
+            if (menuInsertError) {
+                setError(
+                    `アンケート本体はコピーされましたが、メニューのコピーに失敗しました：${menuInsertError.message}`
+                );
+                setSelectedSurveyId(newSurvey.id);
+                await loadData();
+                setSaving(false);
+                return;
+            }
+        }
+
+        setSelectedSurveyId(newSurvey.id);
+        setMessage(
+            "アンケートを下書きとしてコピーしました。配布日と回答締切を変更してください。"
+        );
+
+        await loadData();
+        setSaving(false);
+    }
+
     function addOption() {
-        setSurveyForm((current) => ({ ...current, options: [...current.options, ""] }));
+        setSurveyForm((current) => ({
+            ...current,
+            options: [...current.options, ""],
+        }));
     }
 
     function updateOption(index: number, value: string) {
@@ -623,6 +761,34 @@ export default function BentoAdminPage() {
         await loadData();
     }
 
+    async function updateReceivedStatus(
+        responseId: string,
+        received: boolean
+    ) {
+        clearMessages();
+
+        const { error: updateError } = await supabase
+            .from("bento_survey_responses")
+            .update({
+                received_at: received ? new Date().toISOString() : null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", responseId);
+
+        if (updateError) {
+            setError(updateError.message);
+            return;
+        }
+
+        setMessage(
+            received
+                ? "受取済みに変更しました。"
+                : "未受取に戻しました。"
+        );
+
+        await loadData();
+    }
+
     if (loading) {
         return <main className="p-6">読み込み中です...</main>;
     }
@@ -636,13 +802,24 @@ export default function BentoAdminPage() {
                         アンケート、メニュー、写真、オプション、受取場所を管理します。
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={startNewSurvey}
-                    className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
-                >
-                    新しいアンケートを作成
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={startNewSurvey}
+                        className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+                    >
+                        新しいアンケートを作成
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => void copySurvey()}
+                        disabled={!selectedSurveyId || saving}
+                        className="rounded border border-blue-300 bg-white px-4 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                        前回アンケートをコピー
+                    </button>
+                </div>
             </div>
 
             {message && <div className="rounded border border-green-300 bg-green-50 p-3 text-green-800">{message}</div>}
@@ -1127,25 +1304,72 @@ export default function BentoAdminPage() {
                             </div>
 
                             <div className="mt-4 max-h-72 overflow-auto rounded border">
-                                <table className="w-full text-sm">
+                                <table className="min-w-[900px] w-full text-sm">
                                     <thead className="sticky top-0 bg-gray-100">
                                         <tr>
-                                            <th className="px-3 py-2 text-left">ユーザーID</th>
+                                            <th className="px-3 py-2 text-left">氏名</th>
+                                            <th className="px-3 py-2 text-left">お弁当</th>
                                             <th className="px-3 py-2 text-left">オプション</th>
+                                            <th className="px-3 py-2 text-left">受取場所</th>
+                                            <th className="px-3 py-2 text-left">受取状況</th>
                                             <th className="px-3 py-2 text-left">回答日時</th>
                                         </tr>
                                     </thead>
+
                                     <tbody>
                                         {selectedResponses.map((response) => (
                                             <tr key={response.id} className="border-t">
-                                                <td className="px-3 py-2">{response.user_id}</td>
-                                                <td className="px-3 py-2">{response.option_text || "-"}</td>
-                                                <td className="px-3 py-2">{formatDateTime(response.submitted_at)}</td>
+                                                <td className="px-3 py-2 font-medium">
+                                                    {getUserName(response.user_id)}
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    {getMenuName(response.menu_id)}
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    {response.option_text || "-"}
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    {getPickupLocationName(
+                                                        response.pickup_location_id
+                                                    )}
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    <label className="inline-flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={response.received_at !== null}
+                                                            onChange={(event) =>
+                                                                void updateReceivedStatus(
+                                                                    response.id,
+                                                                    event.target.checked
+                                                                )
+                                                            }
+                                                        />
+
+                                                        <span>
+                                                            {response.received_at
+                                                                ? "受取済み"
+                                                                : "未受取"}
+                                                        </span>
+                                                    </label>
+                                                </td>
+
+                                                <td className="px-3 py-2">
+                                                    {formatDateTime(response.submitted_at)}
+                                                </td>
                                             </tr>
                                         ))}
+
                                         {selectedResponses.length === 0 && (
                                             <tr>
-                                                <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-3 py-6 text-center text-gray-500"
+                                                >
                                                     回答はまだありません。
                                                 </td>
                                             </tr>
