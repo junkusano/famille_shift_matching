@@ -93,7 +93,7 @@ export async function POST(req: Request) {
             .eq("id", entryUser.entry_id)
             .maybeSingle();
 
-        dbFullName = `${entryData?.last_name_kanji ?? ""} ${entryData?.first_name_kanji ?? ""}`.trim();
+        dbFullName = `${entryData?.last_name_kanji ?? ""}${entryData?.first_name_kanji ?? ""}`;
     }
 
     const fullName =
