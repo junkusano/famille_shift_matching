@@ -9,7 +9,7 @@ type AppUser = {
     system_role: string | null;
     org_unit_id: string | null;
     status: string | null;
-    entry_date: string | null;
+    entry_date_latest: string | null;
 };
 
 type SurveyRow = {
@@ -34,6 +34,21 @@ function json(data: unknown, status = 200) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    if (
+        isRecord(error) &&
+        typeof error.message === "string"
+    ) {
+        return error.message;
+    }
+
+    return "予期しないエラーが発生しました";
 }
 
 function monthRange(dateText: string) {
@@ -84,7 +99,9 @@ async function readLoginUser(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
         .from("users")
-        .select("user_id,system_role,org_unit_id,status,entry_date")
+        .select(
+            "user_id,system_role,org_unit_id,status,entry_date_latest"
+        )
         .eq("auth_user_id", user.id)
         .maybeSingle<AppUser>();
 
@@ -104,7 +121,7 @@ async function readLoginUser(req: NextRequest) {
         role,
         orgUnitId: String(data.org_unit_id ?? ""),
         status: String(data.status ?? ""),
-        entryDate: data.entry_date,
+        entryDate: data.entry_date_latest,
     };
 }
 
@@ -273,7 +290,10 @@ export async function GET(req: NextRequest) {
             can_edit: canEdit,
         });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        console.error("[bento/member][GET]", error);
+
+        const message = getErrorMessage(error);
+
         return json(
             { ok: false, error: message },
             message === "unauthorized" ? 401 : 500,
@@ -392,7 +412,10 @@ export async function POST(req: NextRequest) {
 
         return json({ ok: true, response: saved });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        console.error("[bento/member][GET]", error);
+
+        const message = getErrorMessage(error);
+
         return json(
             { ok: false, error: message },
             message === "unauthorized" ? 401 : 500,
