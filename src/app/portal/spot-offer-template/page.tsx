@@ -598,7 +598,9 @@ const saveTemplate = async () => {
     }
 
     const payload: Partial<SpotOfferTemplateUnified> = {
-      timee_offer_id: fTimeeOfferId.trim() || null,
+      timee_offer_id: editing
+        ? null
+        : fTimeeOfferId.trim() || null,
       ucare_offer_id: fUcareOfferId.trim() || null,
       kaiteku_offer_id: fKaitekuOfferId.trim() || null,
       template_title: fTitle.trim() || null,
