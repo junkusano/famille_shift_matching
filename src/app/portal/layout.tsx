@@ -130,7 +130,7 @@ function NavLinks({ role }: { role: string | null }) {
               href="/portal/bento/admin"
               className="text-blue-300 hover:underline"
             >
-              お弁当アンケート管理
+              お弁当アンケート【管理】
             </Link>
           </li>
           <li>
