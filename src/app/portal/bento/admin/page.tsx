@@ -492,10 +492,40 @@ export default function BentoAdminPage() {
             return;
         }
 
-        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-        setMenuDraft((current) => ({ ...current, imageUrl: data.publicUrl }));
+        const { data } = supabase.storage
+            .from(STORAGE_BUCKET)
+            .getPublicUrl(filePath);
+
+        const publicUrl = data.publicUrl;
+
+        setMenuDraft((current) => ({
+            ...current,
+            imageUrl: publicUrl,
+        }));
+
+        if (editingMenuId) {
+            const { error: updateError } = await supabase
+                .from("bento_survey_menus")
+                .update({
+                    image_url: publicUrl,
+                })
+                .eq("id", editingMenuId);
+
+            if (updateError) {
+                setError(updateError.message);
+                setUploading(false);
+                return;
+            }
+
+            await loadData();
+            setMessage("画像をアップロードし、メニューに保存しました。");
+        } else {
+            setMessage(
+                "画像をアップロードしました。メニュー名を入力して「追加」を押してください。"
+            );
+        }
+
         setUploading(false);
-        setMessage("画像をアップロードしました。");
     }
 
     async function saveMenu(event: FormEvent<HTMLFormElement>) {
@@ -515,7 +545,7 @@ export default function BentoAdminPage() {
             survey_id: selectedSurveyId,
             name: menuDraft.name.trim(),
             description: menuDraft.description.trim() || null,
-            image_url: menuDraft.imageUrl.trim() || null,
+            image_url: menuDraft.imageUrl?.trim() || null,
             sort_order: Number(menuDraft.sortOrder) || 0,
             is_active: menuDraft.isActive,
         };

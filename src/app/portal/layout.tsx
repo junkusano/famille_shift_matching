@@ -128,6 +128,14 @@ function NavLinks({ role }: { role: string | null }) {
           <li><Link href="/portal/audit_log" className="text-blue-300 hover:underline">監査ログ</Link></li>
           <li>
             <Link
+              href="/portal/bento/admin"
+              className="text-blue-300 hover:underline"
+            >
+              お弁当アンケート【管理用】
+            </Link>
+          </li>
+          <li>
+            <Link
               href="/portal/training-goals/manage"
               className="text-blue-300 hover:underline"
             >
@@ -148,6 +156,14 @@ function NavLinks({ role }: { role: string | null }) {
           className="text-blue-300 hover:underline"
         >
           月例会議参加チェック
+        </Link>
+      </li>
+      <li>
+        <Link
+          href="/portal/bento"
+          className="text-blue-300 hover:underline"
+        >
+          お弁当アンケート
         </Link>
       </li>
       <li><Link href="/portal/shift-view" className="text-blue-300 hover:underline">シフト・勤務一覧</Link></li>
