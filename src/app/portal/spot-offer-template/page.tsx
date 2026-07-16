@@ -1220,7 +1220,7 @@ await fetchList();
                 <div>
                   <div className="md:col-span-2 xl:col-span-3"></div>
                   <FieldLabel required>タイトル　※ここに個人名は入れないでください。</FieldLabel>
-                  <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
+                  <Input className="bg-yellow-50" value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="例：港区 夕方短時間 2時間" />
                 </div>
                 <div>
                   <FieldLabel>状態</FieldLabel>
@@ -1321,21 +1321,23 @@ await fetchList();
       <FieldLabel required>勤務時間 ※リクエスト作成時に変更可</FieldLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Input
-          value={fStartAt}
-          onChange={(e) => {
-            setFStartAt(e.target.value);
-            setShiftStartTime(e.target.value);
-          }}
-          placeholder="開始時間 例：0930 / 09:30"
-        />
+  className="bg-yellow-50"
+  value={fStartAt}
+  onChange={(e) => {
+    setFStartAt(e.target.value);
+    setShiftStartTime(e.target.value);
+  }}
+  placeholder="開始時間 例：0930 / 09:30"
+/>
         <Input
-          value={fEndAt}
-          onChange={(e) => {
-            setFEndAt(e.target.value);
-            setShiftEndTime(e.target.value);
-          }}
-          placeholder="終了時間 例：1730 / 17:30"
-        />
+  className="bg-yellow-50"
+  value={fEndAt}
+  onChange={(e) => {
+    setFEndAt(e.target.value);
+    setShiftEndTime(e.target.value);
+  }}
+  placeholder="終了時間 例：1730 / 17:30"
+/>
       </div>
     </div>
 
@@ -1343,15 +1345,17 @@ await fetchList();
       <FieldLabel>休憩時間</FieldLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Input
-          value={fBreakStartTime}
-          onChange={(e) => setFBreakStartTime(e.target.value)}
-          placeholder="休憩開始 例：1200 / 12:00"
-        />
+  className="bg-yellow-50"
+  value={fBreakStartTime}
+  onChange={(e) => setFBreakStartTime(e.target.value)}
+  placeholder="休憩開始 例：1200 / 12:00"
+/>
         <Input
-          value={fBreakEndTime}
-          onChange={(e) => setFBreakEndTime(e.target.value)}
-          placeholder="休憩終了 例：1230 / 12:30"
-        />
+  className="bg-yellow-50"
+  value={fBreakEndTime}
+  onChange={(e) => setFBreakEndTime(e.target.value)}
+  placeholder="休憩終了 例：1230 / 12:30"
+/>
       </div>
       {breakValidationMessage && (
   <div className="mt-1 text-xs text-red-600">
@@ -1362,25 +1366,32 @@ await fetchList();
     <div>
       <FieldLabel required>時給</FieldLabel>
       <Input
-        value={fUnitAmount}
-        onChange={(e) => setFUnitAmount(e.target.value)}
-        placeholder="例：1500"
-        inputMode="numeric"
-      />
+  className="bg-yellow-50"
+  value={fUnitAmount}
+  onChange={(e) => setFUnitAmount(e.target.value)}
+  placeholder="例：1500"
+  inputMode="numeric"
+/>
     </div>
 
     <div>
       <FieldLabel required>交通費</FieldLabel>
       <Input
-        value={fCommuteFee}
-        onChange={(e) => setFCommuteFee(e.target.value)}
-        placeholder="例：200"
-        inputMode="numeric"
-      />
+  className="bg-yellow-50"
+  value={fCommuteFee}
+  onChange={(e) => setFCommuteFee(e.target.value)}
+  placeholder="例：200"
+  inputMode="numeric"
+/>
     </div>
      <div className="md:col-span-2 xl:col-span-3">
         <div className="text-[11px] text-muted-foreground">仕事内容</div>
-        <Textarea value={fDesc} onChange={(e) => setFDesc(e.target.value)} rows={4} />
+        <Textarea
+  className="bg-yellow-50"
+  value={fDesc}
+  onChange={(e) => setFDesc(e.target.value)}
+  rows={4}
+/>
      </div>
    </div>
    
@@ -1402,21 +1413,27 @@ await fetchList();
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div>
                   <div className="text-[11px] text-muted-foreground">集合場所名<span className="text-red-500 ml-1">*</span></div>
-                  <Input value={fMatchingPlaceName} onChange={(e) => setFMatchingPlaceName(e.target.value)} placeholder="例：〇〇公園"/>
+                  <Input
+  className="bg-yellow-50"
+  value={fMatchingPlaceName}
+  onChange={(e) => setFMatchingPlaceName(e.target.value)}
+  placeholder="例：〇〇公園"
+/>
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">郵便番号</div>
                   <div className="flex gap-2">
                     <Input
-                     value={fMeetingYuubinn}
-                     onChange={(e) => {
-                      setFMeetingYuubinn(e.target.value);
-                      setPostalError(null);
-                     }}
-                     onBlur={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
-                     placeholder="例：4560018　ハイフンなしで入力"
-                     inputMode="numeric" 
-                  />
+  className="bg-yellow-50"
+  value={fMeetingYuubinn}
+  onChange={(e) => {
+    setFMeetingYuubinn(e.target.value);
+    setPostalError(null);
+  }}
+  onBlur={() => void lookupAddressByPostalCode(fMeetingYuubinn)}
+  placeholder="例：4560018　ハイフンなしで入力"
+  inputMode="numeric"
+/>
                   <Button
                    type="button"
                    variant="outline"
@@ -1434,11 +1451,21 @@ await fetchList();
                   <div className="md:col-span-2 xl:col-span-3">
                    <div className="md:col-span-2 xl:col-span-3"></div> 
                    <FieldLabel required>住所</FieldLabel> 
-                  <Input value={fMeetingPlace} onChange={(e) => setFMeetingPlace(e.target.value)} placeholder="例：愛知県名古屋市熱田区新尾頭"/>
+                  <Input
+  className="bg-yellow-50"
+  value={fMeetingPlace}
+  onChange={(e) => setFMeetingPlace(e.target.value)}
+  placeholder="例：愛知県名古屋市熱田区新尾頭"
+/>
                 </div>
                   <div className="md:col-span-2 xl:col-span-3">
                    <FieldLabel required>番地</FieldLabel>
-                  <Input value={fMeetingPlaceBanchi} onChange={(e) => setFMeetingPlaceBanchi(e.target.value)} placeholder="例：３丁目1-18 WIZ金山602"/>
+                  <Input
+  className="bg-yellow-50"
+  value={fMeetingPlaceBanchi}
+  onChange={(e) => setFMeetingPlaceBanchi(e.target.value)}
+  placeholder="例：３丁目1-18 WIZ金山602"
+/>
                 </div>
               </div>
             </div>
@@ -1520,10 +1547,11 @@ await fetchList();
       </div>
       <div className="text-[11px] text-muted-foreground">マッチングメッセージ</div>
       <Textarea
-        value={fMatchingMsg}
-        onChange={(e) => setFMatchingMsg(e.target.value)}
-        rows={3}
-      />
+  className="bg-yellow-50"
+  value={fMatchingMsg}
+  onChange={(e) => setFMatchingMsg(e.target.value)}
+  rows={3}
+/>
     </div>
   </div>
 </div>
