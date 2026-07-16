@@ -69,11 +69,25 @@ const to = from + pageSize - 1;
     const kaipoke_cs_id = url.searchParams.get("kaipoke_cs_id");
     const due_from = url.searchParams.get("due_from");
     const due_to = url.searchParams.get("due_to");
+    const sort = searchParams.get("sort") ?? "due_date";
+    const order = searchParams.get("order") === "desc" ? "desc" : "asc";
+
+    const allowedSortColumns = [
+        "due_date",
+        "status",
+        "created_at",
+    ] as const;
+
+    const sortColumn = allowedSortColumns.includes(
+        sort as (typeof allowedSortColumns)[number]
+    )
+        ? sort
+        : "due_date";
 
     let q = supabaseAdmin
     .from("event_tasks")
     .select("*", { count: "exact" })
-    .order("due_date", { ascending: true })
+    .order(sortColumn, { ascending: order === "asc" })
     .range(from, to);
 
     if (status) q = q.eq("status", status);
