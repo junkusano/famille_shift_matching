@@ -345,16 +345,62 @@ export default function BentoAdminPage() {
     }
 
     async function changeSurveyStatus(status: SurveyStatus) {
-        if (!selectedSurveyId) return;
+        if (!selectedSurveyId) {
+            setError("先にアンケートを保存してください。");
+            return;
+        }
+
         clearMessages();
 
-        const payload: Partial<BentoSurvey> = {
+        if (status === "published") {
+            const activeMenus = selectedMenus.filter((menu) => menu.is_active);
+
+            if (activeMenus.length === 0) {
+                setError(
+                    "公開するには、回答画面に表示するメニューを1件以上登録してください。"
+                );
+                return;
+            }
+
+            const activeLocations = locations.filter(
+                (location) => location.is_active
+            );
+
+            if (activeLocations.length === 0) {
+                setError(
+                    "公開するには、使用中の受取場所を1件以上登録してください。"
+                );
+                return;
+            }
+
+            const deadline = new Date(selectedSurvey.response_deadline);
+
+            if (Number.isNaN(deadline.getTime())) {
+                setError("回答締切が正しく設定されていません。");
+                return;
+            }
+
+            if (deadline.getTime() <= Date.now()) {
+                setError("回答締切が過ぎているため公開できません。");
+                return;
+            }
+        }
+
+        const payload: {
+            status: SurveyStatus;
+            updated_at: string;
+            published_at?: string | null;
+        } = {
             status,
             updated_at: new Date().toISOString(),
         };
 
         if (status === "published") {
             payload.published_at = new Date().toISOString();
+        }
+
+        if (status === "draft") {
+            payload.published_at = null;
         }
 
         const { error: updateError } = await supabase
@@ -367,7 +413,12 @@ export default function BentoAdminPage() {
             return;
         }
 
-        setMessage(`ステータスを「${statusLabel(status)}」に変更しました。`);
+        setMessage(
+            status === "published"
+                ? "アンケートを公開しました。member・managerの回答画面に表示されます。"
+                : `ステータスを「${statusLabel(status)}」に変更しました。`
+        );
+
         await loadData();
     }
 
@@ -609,8 +660,8 @@ export default function BentoAdminPage() {
                                     setMenuDraft(initialMenuDraft);
                                 }}
                                 className={`w-full rounded border p-3 text-left ${selectedSurveyId === survey.id
-                                        ? "border-blue-500 bg-blue-50"
-                                        : "border-gray-200 hover:bg-gray-50"
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover:bg-gray-50"
                                     }`}
                             >
                                 <div className="font-medium">{survey.title}</div>
@@ -757,32 +808,42 @@ export default function BentoAdminPage() {
                                 disabled={saving}
                                 className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                             >
-                                {saving ? "保存中..." : "保存"}
+                                {saving
+                                    ? "保存中..."
+                                    : selectedSurveyId
+                                        ? "変更を保存"
+                                        : "下書きとして保存"}
                             </button>
 
                             {selectedSurveyId && (
                                 <>
-                                    <button
-                                        type="button"
-                                        onClick={() => void changeSurveyStatus("published")}
-                                        className="rounded bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700"
-                                    >
-                                        公開する
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => void changeSurveyStatus("closed")}
-                                        className="rounded bg-gray-700 px-4 py-2 font-medium text-white hover:bg-gray-800"
-                                    >
-                                        終了する
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => void changeSurveyStatus("draft")}
-                                        className="rounded border px-4 py-2 hover:bg-gray-50"
-                                    >
-                                        下書きに戻す
-                                    </button>
+                                    {selectedSurvey?.status !== "published" && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void changeSurveyStatus("published")}
+                                            className="rounded bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700"
+                                        >
+                                            公開する
+                                        </button>
+                                    )}
+                                    {selectedSurvey?.status === "published" && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void changeSurveyStatus("closed")}
+                                            className="rounded bg-gray-700 px-4 py-2 font-medium text-white hover:bg-gray-800"
+                                        >
+                                            回答受付を終了する
+                                        </button>
+                                    )}
+                                    {selectedSurvey?.status !== "draft" && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void changeSurveyStatus("draft")}
+                                            className="rounded border px-4 py-2 hover:bg-gray-50"
+                                        >
+                                            下書きに戻す
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => void deleteSurvey()}
@@ -982,8 +1043,8 @@ export default function BentoAdminPage() {
                                                 void updateLocation(location, { is_active: !location.is_active })
                                             }
                                             className={`rounded px-3 py-1.5 text-sm ${location.is_active
-                                                    ? "border border-green-300 text-green-700"
-                                                    : "border border-gray-300 text-gray-600"
+                                                ? "border border-green-300 text-green-700"
+                                                : "border border-gray-300 text-gray-600"
                                                 }`}
                                         >
                                             {location.is_active ? "使用中" : "停止中"}
