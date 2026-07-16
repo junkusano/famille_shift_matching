@@ -176,8 +176,12 @@ const [pagination, setPagination] = useState<Pagination>({
     const [dueFilter, setDueFilter] = useState<string>("");
     const [clientFilter, setClientFilter] = useState<string>("");
     const [sortColumn, setSortColumn] = useState<
-        "due_date" | "status" | "created_at"
-    >("due_date");
+    | "due_date"
+    | "status"
+    | "created_at"
+    | "client"
+    | "user"
+>("due_date");
 
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -196,8 +200,13 @@ const [pagination, setPagination] = useState<Pagination>({
     const [addDocMemo, setAddDocMemo] = useState<string>("");
 
     function handleSort(
-        column: "due_date" | "status" | "created_at"
-    ) {
+    column:
+        | "due_date"
+        | "status"
+        | "created_at"
+        | "client"
+        | "user"
+) {
         if (sortColumn === column) {
             setSortOrder((current) =>
                 current === "asc" ? "desc" : "asc"
@@ -375,10 +384,40 @@ const [pagination, setPagination] = useState<Pagination>({
         }
     }
 
-    //const canUse = meta?.admin ?? false;
-    const canUse = true;
+ //const canUse = meta?.admin ?? false;
+const canUse = true;
 
-    return (
+const displayTasks = useMemo(() => {
+    const list = [...tasks];
+
+    // 利用者・担当だけ画面側でソート
+
+    return list;
+}, [tasks, sortColumn, sortOrder]);
+
+if (sortColumn === "client") {
+    displayTasks.sort((a, b) => {
+        const av = a.client_name ?? "";
+        const bv = b.client_name ?? "";
+
+        return sortOrder === "asc"
+            ? av.localeCompare(bv, "ja")
+            : bv.localeCompare(av, "ja");
+    });
+}
+
+if (sortColumn === "user") {
+    displayTasks.sort((a, b) => {
+        const av = a.assigned_user_name ?? "";
+        const bv = b.assigned_user_name ?? "";
+
+        return sortOrder === "asc"
+            ? av.localeCompare(bv, "ja")
+            : bv.localeCompare(av, "ja");
+    });
+}
+
+return (
         <div className="p-6 space-y-6">
 <div className="space-y-4">
     {/* タイトル行 */}
@@ -587,6 +626,7 @@ const [pagination, setPagination] = useState<Pagination>({
                     <CardTitle>一覧（タスクをクリックすると詳細編集できます）</CardTitle>
                 </CardHeader>
                 <CardContent>
+
                     <Table>
                         <TableHeader>
     <TableRow>
@@ -630,7 +670,7 @@ const [pagination, setPagination] = useState<Pagination>({
             </TableCell>
         </TableRow>
     ) : (
-        tasks.map((t) => {
+        displayTasks.map((t) => {
             const statusBackground =
                 t.status === "open"
                     ? "bg-green-100 hover:bg-green-200"
