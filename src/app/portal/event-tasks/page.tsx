@@ -333,6 +333,27 @@ const [pagination, setPagination] = useState<Pagination>({
             alert(m);
         }
     }
+    async function onUpdateTaskStatusFromList(
+    taskId: string,
+    status: "open" | "done"
+) {
+    setError(null);
+
+    try {
+        await fetchWithAuth(`/api/event-tasks/${taskId}`, {
+            method: "PUT",
+            body: JSON.stringify({
+                status,
+            }),
+        });
+
+        await reload();
+    } catch (e: unknown) {
+        const message = errMsg(e);
+        setError(message);
+        alert(message);
+    }
+}
 
     async function onDeleteTask(hard = false) {
         if (!editTask) return;
@@ -585,51 +606,143 @@ const [pagination, setPagination] = useState<Pagination>({
             </button>
         </TableHead>
 
-        <TableHead>status</TableHead>
+        <TableHead className="w-[150px]"> ステータス</TableHead>
         <TableHead>テンプレ</TableHead>
         <TableHead>利用者</TableHead>
         <TableHead>担当</TableHead>
+        <TableHead className="min-w-[260px]">
+            メモ
+        </TableHead>
 
         <TableHead className="text-right">
             必要書類
         </TableHead>
     </TableRow>
 </TableHeader>
-                        <TableBody>
-                            {tasks.map((t) => (
-                                <TableRow
-                                    key={t.id}
-                                    className={`cursor-pointer ${editId === t.id ? "bg-muted" : ""}`}
-                                    onClick={() => {
-    setEditId(t.id);
+<TableBody>
+    {tasks.length === 0 ? (
+        <TableRow>
+            <TableCell
+                colSpan={7}
+                className="text-sm text-muted-foreground"
+            >
+                データがありません
+            </TableCell>
+        </TableRow>
+    ) : (
+        tasks.map((t) => {
+            const statusBackground =
+                t.status === "open"
+                    ? "bg-green-100 hover:bg-green-200"
+                    : t.status === "done"
+                        ? "bg-red-100 hover:bg-red-200"
+                        : "hover:bg-muted/50";
 
-    setTimeout(() => {
-        detailRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-        });
-    }, 0);
-}}
-                                >
-                                    <TableCell>{t.due_date}</TableCell>
-                                    <TableCell>{t.status}</TableCell>
-                                    <TableCell>{t.template_name ?? t.template_id}</TableCell>
-                                    <TableCell>{t.client_name ?? t.kaipoke_cs_id}</TableCell>
-                                    <TableCell>{t.assigned_user_name ?? t.user_id ?? "-"}</TableCell>
-                                    <TableCell className="text-right">{t.required_docs?.length ?? 0}</TableCell>
-                                </TableRow>
-                            ))}
-                            {!tasks.length && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-sm text-muted-foreground">
-                                        データがありません
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                      </Table>
+            return (
+                <TableRow
+                    key={t.id}
+                    className={`
+                        cursor-pointer
+                        ${statusBackground}
+                        ${
+                            editId === t.id
+                                ? "ring-2 ring-inset ring-blue-500"
+                                : ""
+                        }
+                    `}
+                    onClick={() => {
+                        setEditId(t.id);
 
-                    <div className="mt-4 flex items-center justify-center gap-4">
+                        setTimeout(() => {
+                            detailRef.current?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                            });
+                        }, 0);
+                    }}
+                >
+                    <TableCell className="whitespace-nowrap">
+                        {t.due_date}
+                    </TableCell>
+
+                    <TableCell
+                        className="w-[150px]"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                        }}
+                    >
+                        <Select
+                            value={
+                                t.status === "done"
+                                    ? "done"
+                                    : "open"
+                            }
+                            onValueChange={(value) => {
+                                void onUpdateTaskStatusFromList(
+                                    t.id,
+                                    value as "open" | "done"
+                                );
+                            }}
+                            disabled={loading}
+                        >
+                            <SelectItem value="open">
+                                open
+                            </SelectItem>
+
+                            <SelectItem value="done">
+                                done
+                            </SelectItem>
+                        </Select>
+                    </TableCell>
+
+                    <TableCell>
+                        {t.template_name ?? t.template_id}
+                    </TableCell>
+
+                    <TableCell>
+                        {t.client_name ?? t.kaipoke_cs_id}
+                    </TableCell>
+
+                    <TableCell>
+                        {t.assigned_user_name ??
+                            t.user_id ??
+                            "-"}
+                    </TableCell>
+
+                    <TableCell className="min-w-[260px]">
+                        <div
+                            className="
+                                max-h-20
+                                min-w-[240px]
+                                max-w-[360px]
+                                overflow-y-auto
+                                whitespace-pre-wrap
+                                break-words
+                                rounded-md
+                                border
+                                bg-white/70
+                                p-2
+                                text-sm
+                            "
+                            onClick={(event) => {
+                                event.stopPropagation();
+                            }}
+                        >
+                            {t.memo?.trim() || "-"}
+                        </div>
+                    </TableCell>
+
+                     <TableCell className="text-right">
+                        {t.required_docs?.length ?? 0}
+                    </TableCell>
+                </TableRow>
+            );
+        })
+    )}
+</TableBody>
+</Table>
+
+<div className="mt-4 flex items-center justify-center gap-4">
                         <Button
                             type="button"
                             variant="outline"
