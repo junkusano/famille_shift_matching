@@ -24,6 +24,7 @@ type SurveyResponse = {
     option_text: string | null;
     submitted_at: string;
     updated_at: string;
+    received_at: string | null;
 };
 
 type Survey = {
@@ -136,6 +137,7 @@ export default function BentoSurveyPage() {
     const [optionText, setOptionText] = useState("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [receiving, setReceiving] = useState(false);
     const [message, setMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -206,6 +208,65 @@ export default function BentoSurveyPage() {
             setErrorMessage(error instanceof Error ? error.message : String(error));
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function markAsReceived() {
+        if (!data?.survey || !data.response) {
+            setErrorMessage("先にアンケートへ回答してください。");
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "お弁当を受け取りましたか？受け取った場合のみOKを押してください。",
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setReceiving(true);
+        setMessage("");
+        setErrorMessage("");
+
+        try {
+            const response = await fetchWithBearer(
+                supabase,
+                "/api/bento/member",
+                {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        action: "mark_received",
+                        survey_id: data.survey.id,
+                    }),
+                },
+            );
+
+            const json = (await response.json()) as {
+                ok: boolean;
+                error?: string;
+                message?: string;
+            };
+
+            if (!response.ok || !json.ok) {
+                throw new Error(
+                    json.error ?? "受取状況の保存に失敗しました",
+                );
+            }
+
+            setMessage(
+                json.message ?? "受取済みとして記録しました。",
+            );
+
+            await load();
+        } catch (error: unknown) {
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "受取状況の保存に失敗しました",
+            );
+        } finally {
+            setReceiving(false);
         }
     }
 
@@ -411,6 +472,34 @@ export default function BentoSurveyPage() {
                         ? "回答を変更する"
                         : "この内容で回答する"}
             </button>
+
+            {alreadySubmitted && (
+                <div className="mt-4 space-y-2">
+                    {data.response?.received_at ? (
+                        <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-center font-semibold text-green-800">
+                            お弁当は受取済みです
+                            <div className="mt-1 text-xs font-normal">
+                                受取日時：{formatDateTime(data.response.received_at)}
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => void markAsReceived()}
+                            disabled={receiving}
+                            className="w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 disabled:bg-gray-400"
+                        >
+                            {receiving
+                                ? "保存中..."
+                                : "お弁当を受け取りました"}
+                        </button>
+                    )}
+
+                    <p className="text-center text-xs text-gray-500">
+                        実際に受け取った後に押してください。
+                    </p>
+                </div>
+            )}
 
             {!canEdit && (
                 <div className="text-center text-sm text-gray-600">

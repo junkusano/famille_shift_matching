@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
             can_edit: canEdit,
         });
     } catch (error: unknown) {
-        console.error("[bento/member][POST]", error);
+        console.error("[bento/member][GET]", error);
 
         const message = getErrorMessage(error);
 
