@@ -648,8 +648,36 @@ return (
 
         <TableHead className="w-[150px]"> ステータス</TableHead>
         <TableHead>テンプレ</TableHead>
-        <TableHead>利用者</TableHead>
-        <TableHead>担当</TableHead>
+        <TableHead>
+    <button
+        type="button"
+        onClick={() => handleSort("client")}
+        className="inline-flex items-center gap-1 font-medium hover:underline"
+    >
+        利用者
+
+        {sortColumn === "client" && (
+            <span>
+                {sortOrder === "asc" ? "▲" : "▼"}
+            </span>
+        )}
+    </button>
+</TableHead>
+        <TableHead>
+    <button
+        type="button"
+        onClick={() => handleSort("user")}
+        className="inline-flex items-center gap-1 font-medium hover:underline"
+    >
+        担当
+
+        {sortColumn === "user" && (
+            <span>
+                {sortOrder === "asc" ? "▲" : "▼"}
+            </span>
+        )}
+    </button>
+</TableHead>
         <TableHead className="min-w-[260px]">
             メモ
         </TableHead>
