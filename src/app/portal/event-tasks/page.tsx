@@ -478,25 +478,24 @@ return (
                 </label>
 
                 <Select
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                        setStatusFilter(value);
-                        setPage(1);
-                    }}
-                    placeholder="ステータスを選択"
-                    disabled={loading}
-                >
-                    <SelectItem value="">すべて</SelectItem>
+    value={statusFilter}
+    onValueChange={(value) => {
+        setStatusFilter(value);
+        setPage(1);
+    }}
+    placeholder="ステータスを選択"
+    disabled={loading}
+>
+    <SelectItem value="">すべて</SelectItem>
 
-                    {TASK_STATUS.map((s) => (
-                        <SelectItem
-                            key={s.value}
-                            value={s.value}
-                        >
-                            {s.label}
-                        </SelectItem>
-                    ))}
-                </Select>
+    <SelectItem value="open">
+        open
+    </SelectItem>
+
+    <SelectItem value="done">
+        done
+    </SelectItem>
+</Select>
             </div>
                         <div className="space-y-1">
                 <label className="text-sm font-medium">
@@ -700,11 +699,11 @@ return (
     ) : (
         displayTasks.map((t) => {
             const statusBackground =
-                t.status === "open"
-                    ? "bg-green-100 hover:bg-green-200"
-                    : t.status === "done"
-                        ? "bg-red-100 hover:bg-red-200"
-                        : "hover:bg-muted/50";
+    t.status === "done"
+        ? "bg-green-100 hover:bg-green-200"
+        : t.status === "open"
+            ? "bg-red-100 hover:bg-red-200"
+            : "hover:bg-muted/50";
 
             return (
                 <TableRow
@@ -766,8 +765,8 @@ return (
             disabled:opacity-50
             ${
                 t.status === "done"
-                    ? "bg-red-600 text-white hover:bg-red-700"
-                    : "bg-green-600 text-white hover:bg-green-700"
+    ? "bg-green-600 text-white hover:bg-green-700"
+    : "bg-red-600 text-white hover:bg-red-700"
             }
         `}
     >

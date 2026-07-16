@@ -210,10 +210,18 @@ const templates: {
 const clients: {
     kaipoke_cs_id: string;
     name: string | null;
+    asigned_org: string | null;
 }[] = [];
 
 const users: {
     user_id: string;
+    last_name_kanji: string | null;
+    first_name_kanji: string | null;
+}[] = [];
+
+const managers: {
+    user_id: string;
+    org_unit_id: string | null;
     last_name_kanji: string | null;
     first_name_kanji: string | null;
 }[] = [];
@@ -277,7 +285,7 @@ for (const ids of chunkArray(templateIds, 100)) {
 for (const ids of chunkArray(csIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("cs_kaipoke_info")
-        .select("kaipoke_cs_id,name")
+        .select("kaipoke_cs_id,name,asigned_org")
         .in("kaipoke_cs_id", ids);
 
     if (error) {
@@ -292,11 +300,23 @@ for (const ids of chunkArray(csIds, 100)) {
         );
     }
 
-    clients.push(...(data ?? []));
+     clients.push(...(data ?? []));
 }
 
+const assignedOrgIds = Array.from(
+    new Set(
+        clients
+            .map((client) => client.asigned_org)
+            .filter(
+                (id): id is string =>
+                    typeof id === "string" &&
+                    id.trim().length > 0
+            )
+    )
+);
+
 // 担当者を100件ずつ取得
-for (const ids of chunkArray(userIds as string[], 100)) {
+for (const ids of chunkArray(userIds, 100)) {
     const { data, error } = await supabaseAdmin
         .from("user_entry_united_view_single")
         .select("user_id,last_name_kanji,first_name_kanji")
@@ -314,10 +334,42 @@ for (const ids of chunkArray(userIds as string[], 100)) {
         );
     }
 
-    users.push(...(data ?? []));
+        users.push(...(data ?? []));
 }
-    // doc master 名称（user_doc_master は label が表示名）
-    const docTypeIds = Array.from(new Set(reqDocsRows.map((d) => d.doc_type_id)));
+
+// 担当チームのマネジャーを取得
+for (const ids of chunkArray(assignedOrgIds, 100)) {
+    const { data, error } = await supabaseAdmin
+        .from("user_entry_united_view_single")
+        .select(
+            "user_id,org_unit_id,last_name_kanji,first_name_kanji,system_role"
+        )
+        .in("org_unit_id", ids)
+        .ilike("system_role", "manager");
+
+    if (error) {
+        console.error(
+            "[event-tasks][GET] manager lookup error",
+            error
+        );
+
+        return NextResponse.json(
+            {
+                stage: "manager_lookup",
+                message: `マネジャー情報の取得に失敗しました: ${error.message}`,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+            },
+            { status: 500 }
+        );
+    }
+
+    managers.push(...(data ?? []));
+}
+
+// doc master 名称
+const docTypeIds = Array.from(new Set(reqDocsRows.map((d) => d.doc_type_id)));
 
     const { data: docMasters, error: dmErr } = docTypeIds.length
     ? await supabaseAdmin
@@ -356,21 +408,65 @@ if (dmErr) {
     );
 
     const clientMap = new Map<string, string>(
-        (clients ?? [])
-            .filter((r) => typeof r.kaipoke_cs_id === "string")
-            .map((r) => [r.kaipoke_cs_id as string, ((r as { name?: string | null }).name ?? r.kaipoke_cs_id) as string])
-    );
+    (clients ?? [])
+        .filter((r) => typeof r.kaipoke_cs_id === "string")
+        .map((r) => [
+            r.kaipoke_cs_id as string,
+            ((r as { name?: string | null }).name ??
+                r.kaipoke_cs_id) as string,
+        ])
+);
 
-    const userMap = new Map<string, string>(
-        (users ?? [])
-            .filter((r) => typeof r.user_id === "string")
-            .map((r) => [
-                r.user_id as string,
-                `${(r as { last_name_kanji?: string | null }).last_name_kanji ?? ""}${(r as { first_name_kanji?: string | null }).first_name_kanji ?? ""}`.trim() ||
-                (r.user_id as string),
-            ])
-    );
+const userMap = new Map<string, string>(
+    (users ?? [])
+        .filter((r) => typeof r.user_id === "string")
+        .map((r) => {
+            const name =
+                `${r.last_name_kanji ?? ""}${r.first_name_kanji ?? ""}`.trim();
 
+            return [
+                r.user_id,
+                name || r.user_id,
+            ];
+        })
+);
+
+const managerNameByOrg = new Map<string, string>();
+
+for (const manager of managers) {
+    if (!manager.org_unit_id) {
+        continue;
+    }
+
+    const managerName =
+        `${manager.last_name_kanji ?? ""}${manager.first_name_kanji ?? ""}`.trim() ||
+        manager.user_id;
+
+    if (!managerNameByOrg.has(manager.org_unit_id)) {
+        managerNameByOrg.set(
+            manager.org_unit_id,
+            managerName
+        );
+    }
+}
+
+const managerNameByClientId = new Map<string, string>();
+
+for (const client of clients) {
+    if (!client.asigned_org) {
+        continue;
+    }
+
+    const managerName =
+        managerNameByOrg.get(client.asigned_org);
+
+    if (managerName) {
+        managerNameByClientId.set(
+            client.kaipoke_cs_id,
+            managerName
+        );
+    }
+}
 
     const docsByTask = new Map<string, EventTaskRequiredDocView[]>();
     for (const d of reqDocsRows) {
@@ -386,7 +482,9 @@ if (dmErr) {
         ...t,
         template_name: templateMap.get(t.template_id) ?? null,
         client_name: clientMap.get(t.kaipoke_cs_id) ?? null,
-        assigned_user_name: t.user_id ? userMap.get(t.user_id) ?? t.user_id : null,
+        assigned_user_name: t.user_id
+    ? userMap.get(t.user_id) ?? t.user_id
+    : managerNameByClientId.get(t.kaipoke_cs_id) ?? null,
         required_docs: (docsByTask.get(t.id) ?? []).sort((a, b) => (a.doc_type_name ?? "").localeCompare(b.doc_type_name ?? "")),
     }));
 
