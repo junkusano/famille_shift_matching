@@ -1212,8 +1212,16 @@ await fetchList();
       <Dialog open={openEdit} onOpenChange={setOpenEdit}>
         <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "テンプレ編集" : "テンプレ新規追加"}</DialogTitle>
-          </DialogHeader>
+  <DialogTitle>
+    {editing ? "テンプレート編集" : "テンプレート新規追加"}
+  </DialogTitle>
+</DialogHeader>
+
+{!editing && (
+  <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm font-medium text-red-700">
+    □ タイミーに公開されるため、利用者様名・住所・電話番号などの個人情報は入力しないでください。
+  </div>
+)}
 
           <div className="space-y-5">
             <div>
@@ -1408,7 +1416,6 @@ await fetchList();
                   現住所は入力しないでください。<br />
                   コンビニ・公園・バス停・学校など、近隣の目印となる場所を入力してください。<br />
                   <span className="font-semibold text-red-600">
-                    この内容はタイミーに表示されます。
                   </span>
                 </div>
               </div>
