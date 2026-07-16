@@ -174,8 +174,8 @@ export default function BentoAdminPage() {
     const [surveyForm, setSurveyForm] = useState<SurveyForm>(initialSurveyForm);
     const [menuDraft, setMenuDraft] = useState<MenuDraft>(initialMenuDraft);
     const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
-    const [newLocationName, setNewLocationName] = useState("");
-    const [newLocationSortOrder, setNewLocationSortOrder] = useState(0);
+    //const [newLocationName, setNewLocationName] = useState("");
+    //const [newLocationSortOrder, setNewLocationSortOrder] = useState(0);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -574,32 +574,6 @@ export default function BentoAdminPage() {
         }
 
         setMessage("メニューを削除しました。");
-        await loadData();
-    }
-
-    async function addLocation(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        clearMessages();
-
-        if (!newLocationName.trim()) {
-            setError("受取場所名を入力してください。");
-            return;
-        }
-
-        const { error: insertError } = await supabase.from("bento_pickup_locations").insert({
-            name: newLocationName.trim(),
-            sort_order: Number(newLocationSortOrder) || 0,
-            is_active: true,
-        });
-
-        if (insertError) {
-            setError(insertError.message);
-            return;
-        }
-
-        setNewLocationName("");
-        setNewLocationSortOrder(0);
-        setMessage("受取場所を追加しました。");
         await loadData();
     }
 
@@ -1011,46 +985,102 @@ export default function BentoAdminPage() {
                     <div className="grid gap-6 xl:grid-cols-2">
                         <div className="rounded border bg-white p-4 shadow-sm md:p-6">
                             <h2 className="text-lg font-semibold">受取場所マスタ</h2>
-                            <form onSubmit={addLocation} className="mt-4 flex flex-col gap-2 sm:flex-row">
-                                <input
-                                    value={newLocationName}
-                                    onChange={(event) => setNewLocationName(event.target.value)}
-                                    className="flex-1 rounded border px-3 py-2"
-                                    placeholder="例：本社"
-                                />
-                                <input
-                                    type="number"
-                                    value={newLocationSortOrder}
-                                    onChange={(event) => setNewLocationSortOrder(Number(event.target.value))}
-                                    className="w-28 rounded border px-3 py-2"
-                                    placeholder="表示順"
-                                />
-                                <button className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-                                    追加
-                                </button>
-                            </form>
 
-                            <div className="mt-4 space-y-2">
-                                {locations.map((location) => (
-                                    <div key={location.id} className="flex items-center gap-2 rounded border p-3">
-                                        <div className="flex-1">
-                                            <div className="font-medium">{location.name}</div>
-                                            <div className="text-xs text-gray-500">表示順: {location.sort_order}</div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                void updateLocation(location, { is_active: !location.is_active })
-                                            }
-                                            className={`rounded px-3 py-1.5 text-sm ${location.is_active
-                                                ? "border border-green-300 text-green-700"
-                                                : "border border-gray-300 text-gray-600"
-                                                }`}
-                                        >
-                                            {location.is_active ? "使用中" : "停止中"}
-                                        </button>
+                            <p className="mt-2 text-sm text-gray-600">
+                                回答画面に表示する受取場所です。名称と表示順を変更できます。
+                            </p>
+
+                            <div className="mt-4 space-y-3">
+                                {locations.length === 0 ? (
+                                    <div className="rounded border border-dashed p-4 text-sm text-gray-500">
+                                        受取場所が登録されていません。
                                     </div>
-                                ))}
+                                ) : (
+                                    locations.map((location) => (
+                                        <div
+                                            key={location.id}
+                                            className="grid gap-3 rounded border p-3 md:grid-cols-[1fr_120px_auto]"
+                                        >
+                                            <div>
+                                                <label className="mb-1 block text-xs text-gray-500">
+                                                    受取場所名
+                                                </label>
+
+                                                <input
+                                                    value={location.name}
+                                                    onChange={(event) => {
+                                                        const value = event.target.value;
+
+                                                        setLocations((current) =>
+                                                            current.map((item) =>
+                                                                item.id === location.id
+                                                                    ? { ...item, name: value }
+                                                                    : item
+                                                            )
+                                                        );
+                                                    }}
+                                                    className="w-full rounded border px-3 py-2"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="mb-1 block text-xs text-gray-500">
+                                                    表示順
+                                                </label>
+
+                                                <input
+                                                    type="number"
+                                                    value={location.sort_order}
+                                                    onChange={(event) => {
+                                                        const value = Number(event.target.value);
+
+                                                        setLocations((current) =>
+                                                            current.map((item) =>
+                                                                item.id === location.id
+                                                                    ? {
+                                                                        ...item,
+                                                                        sort_order: value,
+                                                                    }
+                                                                    : item
+                                                            )
+                                                        );
+                                                    }}
+                                                    className="w-full rounded border px-3 py-2"
+                                                />
+                                            </div>
+
+                                            <div className="flex items-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void updateLocation(location, {
+                                                            name: location.name.trim(),
+                                                            sort_order: location.sort_order,
+                                                        })
+                                                    }
+                                                    className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                                                >
+                                                    保存
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void updateLocation(location, {
+                                                            is_active: !location.is_active,
+                                                        })
+                                                    }
+                                                    className={`rounded px-3 py-2 text-sm ${location.is_active
+                                                            ? "border border-green-300 text-green-700"
+                                                            : "border border-gray-300 text-gray-600"
+                                                        }`}
+                                                >
+                                                    {location.is_active ? "使用中" : "停止中"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
