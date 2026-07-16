@@ -743,7 +743,7 @@ export default function BentoAdminPage() {
 
                             <div className="mt-3 space-y-2">
                                 {surveyForm.options.map((option, index) => (
-                                    <div key={`${index}-${option}`} className="flex gap-2">
+                                    <div key={index} className="flex gap-2">
                                         <input
                                             value={option}
                                             onChange={(event) => updateOption(index, event.target.value)}
@@ -1071,8 +1071,8 @@ export default function BentoAdminPage() {
                                                         })
                                                     }
                                                     className={`rounded px-3 py-2 text-sm ${location.is_active
-                                                            ? "border border-green-300 text-green-700"
-                                                            : "border border-gray-300 text-gray-600"
+                                                        ? "border border-green-300 text-green-700"
+                                                        : "border border-gray-300 text-gray-600"
                                                         }`}
                                                 >
                                                     {location.is_active ? "使用中" : "停止中"}
