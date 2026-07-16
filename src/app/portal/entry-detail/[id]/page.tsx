@@ -1131,7 +1131,7 @@ export default function EntryDetailPage() {
                         orgUnitId: selectedOrg,
                         extraMemberIds: [mgrLwUserId].filter(Boolean), // ②-1: 上司も同席
                         applicantName: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
-                        fullName: `${entry.last_name_kanji ?? ""} ${entry.first_name_kanji ?? ""}`.trim(),
+                        fullName: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
                         name: `${entry.last_name_kanji ?? ""}${entry.first_name_kanji ?? ""}`,
                     })
                 });
