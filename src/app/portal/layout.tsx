@@ -103,6 +103,7 @@ function NavLinks({ role }: { role: string | null }) {
       <li><Link href="/portal/health-check-results" className="text-blue-300 hover:underline">🩺 健康診断結果</Link></li>
       {isManagerOrAdmin && (
         <>
+          <li> <Link href="/portal/driving_record" className="text-blue-300 hover:underline" > 🚗 走行距離指数 </Link> </li>
           <li><Link href="/portal/dashboard" className="text-blue-300 hover:underline">ダッシュボード</Link></li>
           <li><Link href="/portal/entry-list" className="text-blue-300 hover:underline">エントリー一覧</Link></li>
           <li><Link href="/portal/spot-offer-template" className="text-blue-300 hover:underline">スポット募集管理</Link></li>
