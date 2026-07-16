@@ -291,7 +291,7 @@ export async function GET(req: NextRequest) {
                 supabaseAdmin
                     .from("bento_survey_responses")
                     .select(
-                        "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at",
+                        "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at,received_at",
                     )
                     .eq("survey_id", surveyData.id)
                     .eq("user_id", loginUser.userId)
@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
             can_edit: canEdit,
         });
     } catch (error: unknown) {
-        console.error("[bento/member][GET]", error);
+        console.error("[bento/member][POST]", error);
 
         const message = getErrorMessage(error);
 
@@ -441,7 +441,7 @@ export async function POST(req: NextRequest) {
                 { onConflict: "survey_id,user_id" },
             )
             .select(
-                "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at",
+                "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at,received_at",
             )
             .single();
 
@@ -449,12 +449,125 @@ export async function POST(req: NextRequest) {
 
         return json({ ok: true, response: saved });
     } catch (error: unknown) {
-        console.error("[bento/member][GET]", error);
+        console.error("[bento/member][POST]", error);
 
         const message = getErrorMessage(error);
 
         return json(
             { ok: false, error: message },
+            message === "unauthorized" ? 401 : 500,
+        );
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const loginUser = await readLoginUser(req);
+
+        const body: unknown = await req.json();
+
+        if (!isRecord(body)) {
+            return json(
+                {
+                    ok: false,
+                    error: "送信内容が正しくありません。",
+                },
+                400,
+            );
+        }
+
+        const action =
+            typeof body.action === "string"
+                ? body.action
+                : "";
+
+        const surveyId =
+            typeof body.survey_id === "string"
+                ? body.survey_id
+                : "";
+
+        if (action !== "mark_received") {
+            return json(
+                {
+                    ok: false,
+                    error: "操作内容が正しくありません。",
+                },
+                400,
+            );
+        }
+
+        if (!surveyId) {
+            return json(
+                {
+                    ok: false,
+                    error: "アンケートIDがありません。",
+                },
+                400,
+            );
+        }
+
+        const { data: existingResponse, error: responseError } =
+            await supabaseAdmin
+                .from("bento_survey_responses")
+                .select("id,received_at")
+                .eq("survey_id", surveyId)
+                .eq("user_id", loginUser.userId)
+                .maybeSingle<{
+                    id: string;
+                    received_at: string | null;
+                }>();
+
+        if (responseError) {
+            throw responseError;
+        }
+
+        if (!existingResponse) {
+            return json(
+                {
+                    ok: false,
+                    error: "先にアンケートへ回答してください。",
+                },
+                400,
+            );
+        }
+
+        if (existingResponse.received_at) {
+            return json({
+                ok: true,
+                received_at: existingResponse.received_at,
+                message: "すでに受取済みです。",
+            });
+        }
+
+        const receivedAt = new Date().toISOString();
+
+        const { error: updateError } = await supabaseAdmin
+            .from("bento_survey_responses")
+            .update({
+                received_at: receivedAt,
+                updated_at: receivedAt,
+            })
+            .eq("id", existingResponse.id);
+
+        if (updateError) {
+            throw updateError;
+        }
+
+        return json({
+            ok: true,
+            received_at: receivedAt,
+            message: "受取済みとして保存しました。",
+        });
+    } catch (error: unknown) {
+        console.error("[bento/member][PATCH]", error);
+
+        const message = getErrorMessage(error);
+
+        return json(
+            {
+                ok: false,
+                error: message,
+            },
             message === "unauthorized" ? 401 : 500,
         );
     }
