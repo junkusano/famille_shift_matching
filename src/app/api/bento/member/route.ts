@@ -291,7 +291,7 @@ export async function GET(req: NextRequest) {
                 supabaseAdmin
                     .from("bento_survey_responses")
                     .select(
-                        "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at,received_at",
+                        "id,menu_id,pickup_location_id,option_text,wants_bento,submitted_at,updated_at,received_at",
                     )
                     .eq("survey_id", surveyData.id)
                     .eq("user_id", loginUser.userId)
@@ -345,6 +345,12 @@ export async function POST(req: NextRequest) {
         if (!isRecord(body)) return json({ ok: false, error: "invalid body" }, 400);
 
         const surveyId = typeof body.survey_id === "string" ? body.survey_id : "";
+
+        const wantsBento =
+            typeof body.wants_bento === "boolean"
+                ? body.wants_bento
+                : null;
+
         const menuId = typeof body.menu_id === "string" ? body.menu_id : "";
         const pickupLocationId =
             typeof body.pickup_location_id === "string"
@@ -353,11 +359,21 @@ export async function POST(req: NextRequest) {
         const optionText =
             typeof body.option_text === "string" ? body.option_text.trim() : "";
 
-        if (!surveyId || !menuId || !pickupLocationId) {
+        if (!surveyId || wantsBento === null) {
             return json(
                 {
                     ok: false,
-                    error: "survey_id、menu_id、pickup_location_id は必須です",
+                    error: "お弁当の要否を選択してください",
+                },
+                400,
+            );
+        }
+
+        if (wantsBento && (!menuId || !pickupLocationId)) {
+            return json(
+                {
+                    ok: false,
+                    error: "お弁当と受取場所を選択してください",
                 },
                 400,
             );
@@ -416,11 +432,21 @@ export async function POST(req: NextRequest) {
         if (menuResult.error) throw menuResult.error;
         if (locationResult.error) throw locationResult.error;
         if (currentResult.error) throw currentResult.error;
-        if (!menuResult.data)
-            return json({ ok: false, error: "選択したメニューが無効です" }, 400);
-        if (!locationResult.data)
-            return json({ ok: false, error: "選択した受取場所が無効です" }, 400);
+        if (wantsBento) {
+            if (!menuResult.data) {
+                return json(
+                    { ok: false, error: "選択したメニューが無効です" },
+                    400,
+                );
+            }
 
+            if (!locationResult.data) {
+                return json(
+                    { ok: false, error: "選択した受取場所が無効です" },
+                    400,
+                );
+            }
+        }
         if (currentResult.data && !survey.allow_edit_after_submit) {
             return json({ ok: false, error: "回答後の変更はできません" }, 400);
         }
@@ -432,16 +458,21 @@ export async function POST(req: NextRequest) {
                 {
                     survey_id: surveyId,
                     user_id: loginUser.userId,
-                    menu_id: menuId,
-                    pickup_location_id: pickupLocationId,
-                    option_text: optionText || null,
+                    wants_bento: wantsBento,
+                    menu_id: wantsBento ? menuId : null,
+                    pickup_location_id: wantsBento
+                        ? pickupLocationId
+                        : null,
+                    option_text: wantsBento
+                        ? optionText || null
+                        : null,
                     submitted_at: currentResult.data ? undefined : now,
                     updated_at: now,
                 },
                 { onConflict: "survey_id,user_id" },
             )
             .select(
-                "id,menu_id,pickup_location_id,option_text,submitted_at,updated_at,received_at",
+                "id,menu_id,pickup_location_id,option_text,wants_bento,submitted_at,updated_at,received_at",
             )
             .single();
 

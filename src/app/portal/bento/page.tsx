@@ -19,12 +19,13 @@ type PickupLocation = {
 
 type SurveyResponse = {
     id: string;
-    menu_id: string;
-    pickup_location_id: string;
+    menu_id: string | null;
+    pickup_location_id: string | null;
     option_text: string | null;
     submitted_at: string;
     updated_at: string;
     received_at: string | null;
+    wants_bento: boolean;
 };
 
 type Survey = {
@@ -132,6 +133,7 @@ export default function BentoSurveyPage() {
         });
     }, []);
     const [data, setData] = useState<ApiData | null>(null);
+    const [wantsBento, setWantsBento] = useState<boolean | null>(null);
     const [menuId, setMenuId] = useState("");
     const [pickupLocationId, setPickupLocationId] = useState("");
     const [optionText, setOptionText] = useState("");
@@ -154,6 +156,7 @@ export default function BentoSurveyPage() {
             }
 
             setData(json);
+            setWantsBento(json.response?.wants_bento ?? null);
             setMenuId(json.response?.menu_id ?? "");
             setPickupLocationId(json.response?.pickup_location_id ?? "");
             setOptionText(json.response?.option_text ?? "");
@@ -171,13 +174,21 @@ export default function BentoSurveyPage() {
     async function submit() {
         if (!data?.survey) return;
 
-        if (!menuId) {
-            setErrorMessage("お弁当を選択してください");
+        if (wantsBento === null) {
+            setErrorMessage("お弁当の必要・不要を選択してください");
             return;
         }
-        if (!pickupLocationId) {
-            setErrorMessage("受取場所を選択してください");
-            return;
+
+        if (wantsBento) {
+            if (!menuId) {
+                setErrorMessage("お弁当を選択してください");
+                return;
+            }
+
+            if (!pickupLocationId) {
+                setErrorMessage("受取場所を選択してください");
+                return;
+            }
         }
 
         setSaving(true);
@@ -189,9 +200,14 @@ export default function BentoSurveyPage() {
                 method: "POST",
                 body: JSON.stringify({
                     survey_id: data.survey.id,
-                    menu_id: menuId,
-                    pickup_location_id: pickupLocationId,
-                    option_text: optionText,
+                    wants_bento: wantsBento,
+                    menu_id: wantsBento ? menuId : null,
+                    pickup_location_id: wantsBento
+                        ? pickupLocationId
+                        : null,
+                    option_text: wantsBento
+                        ? optionText || null
+                        : null,
                 }),
             });
 
@@ -332,7 +348,52 @@ export default function BentoSurveyPage() {
                     </div>
                 )}
             </section>
+            <section className="rounded-xl border bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold">
+                    お弁当は必要ですか？
+                </h2>
 
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <label
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 ${wantsBento === true
+                            ? "border-blue-600 bg-blue-50"
+                            : "border-gray-200"
+                            } ${!canEdit ? "cursor-not-allowed opacity-75" : ""}`}
+                    >
+                        <input
+                            type="radio"
+                            name="wantsBento"
+                            checked={wantsBento === true}
+                            onChange={() => setWantsBento(true)}
+                            disabled={!canEdit}
+                        />
+
+                        <span className="font-semibold">必要</span>
+                    </label>
+
+                    <label
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 ${wantsBento === false
+                            ? "border-gray-700 bg-gray-100"
+                            : "border-gray-200"
+                            } ${!canEdit ? "cursor-not-allowed opacity-75" : ""}`}
+                    >
+                        <input
+                            type="radio"
+                            name="wantsBento"
+                            checked={wantsBento === false}
+                            onChange={() => {
+                                setWantsBento(false);
+                                setMenuId("");
+                                setPickupLocationId("");
+                                setOptionText("");
+                            }}
+                            disabled={!canEdit}
+                        />
+
+                        <span className="font-semibold">不要</span>
+                    </label>
+                </div>
+            </section>
             <section
                 className={`rounded-xl border p-4 ${data.eligibility?.eligible
                     ? "border-green-300 bg-green-50"
@@ -344,95 +405,107 @@ export default function BentoSurveyPage() {
                 </div>
                 <div className="mt-1 text-sm">{data.eligibility?.reason}</div>
             </section>
+            {wantsBento === true && (
+                <>
+                    <section className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-bold">1. お弁当を選択</h2>
 
-            <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold">1. お弁当を選択</h2>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    {(data.menus ?? []).map((menu) => (
-                        <label
-                            key={menu.id}
-                            className={`cursor-pointer overflow-hidden rounded-xl border-2 transition ${menuId === menu.id
-                                ? "border-blue-600 bg-blue-50"
-                                : "border-gray-200 bg-white"
-                                } ${!canEdit ? "cursor-not-allowed opacity-75" : ""}`}
-                        >
-                            {menu.image_url && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={menu.image_url}
-                                    alt={menu.name}
-                                    className="h-44 w-full object-cover"
-                                />
-                            )}
-                            <div className="flex gap-3 p-4">
-                                <input
-                                    type="radio"
-                                    name="menu"
-                                    value={menu.id}
-                                    checked={menuId === menu.id}
-                                    onChange={() => setMenuId(menu.id)}
-                                    disabled={!canEdit}
-                                    className="mt-1"
-                                />
-                                <div>
-                                    <div className="font-semibold">{menu.name}</div>
-                                    {menu.description && (
-                                        <div className="mt-1 whitespace-pre-wrap text-sm text-gray-600">
-                                            {menu.description}
-                                        </div>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            {(data.menus ?? []).map((menu) => (
+                                <label
+                                    key={menu.id}
+                                    className={`cursor-pointer overflow-hidden rounded-xl border-2 transition ${menuId === menu.id
+                                        ? "border-blue-600 bg-blue-50"
+                                        : "border-gray-200 bg-white"
+                                        } ${!canEdit ? "cursor-not-allowed opacity-75" : ""}`}
+                                >
+                                    {menu.image_url && (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={menu.image_url}
+                                            alt={menu.name}
+                                            className="h-44 w-full object-cover"
+                                        />
                                     )}
-                                </div>
+                                    <div className="flex gap-3 p-4">
+                                        <input
+                                            type="radio"
+                                            name="menu"
+                                            value={menu.id}
+                                            checked={menuId === menu.id}
+                                            onChange={() => setMenuId(menu.id)}
+                                            disabled={!canEdit}
+                                            className="mt-1"
+                                        />
+                                        <div>
+                                            <div className="font-semibold">{menu.name}</div>
+                                            {menu.description && (
+                                                <div className="mt-1 whitespace-pre-wrap text-sm text-gray-600">
+                                                    {menu.description}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        {(data.menus ?? []).length === 0 && (
+                            <div className="mt-4 rounded border bg-gray-50 p-4 text-sm text-gray-600">
+                                選択できるメニューが登録されていません。
                             </div>
-                        </label>
-                    ))}
-                </div>
+                        )}
+                    </section>
 
-                {(data.menus ?? []).length === 0 && (
-                    <div className="mt-4 rounded border bg-gray-50 p-4 text-sm text-gray-600">
-                        選択できるメニューが登録されていません。
-                    </div>
-                )}
-            </section>
+                    {survey.notes_payload.options.length > 0 && (
+                        <section className="rounded-xl border bg-white p-5 shadow-sm">
+                            <h2 className="text-lg font-bold">2. オプションを選択</h2>
+                            <select
+                                value={optionText}
+                                onChange={(event) => setOptionText(event.target.value)}
+                                disabled={!canEdit}
+                                className="mt-4 w-full rounded-lg border px-3 py-2 disabled:bg-gray-100"
+                            >
+                                <option value="">オプションなし</option>
+                                {survey.notes_payload.options.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </section>
+                    )}
 
-            {survey.notes_payload.options.length > 0 && (
-                <section className="rounded-xl border bg-white p-5 shadow-sm">
-                    <h2 className="text-lg font-bold">2. オプションを選択</h2>
-                    <select
-                        value={optionText}
-                        onChange={(event) => setOptionText(event.target.value)}
-                        disabled={!canEdit}
-                        className="mt-4 w-full rounded-lg border px-3 py-2 disabled:bg-gray-100"
-                    >
-                        <option value="">オプションなし</option>
-                        {survey.notes_payload.options.map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
-                </section>
+                    <section className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h2 className="text-lg font-bold">
+                            {survey.notes_payload.options.length > 0 ? "3" : "2"}. 受取場所を選択
+                        </h2>
+
+                        <select
+                            value={pickupLocationId}
+                            onChange={(event) => setPickupLocationId(event.target.value)}
+                            disabled={!canEdit}
+                            className="mt-4 w-full rounded-lg border px-3 py-2 disabled:bg-gray-100"
+                        >
+                            <option value="">受取場所を選択してください</option>
+                            {(data.pickup_locations ?? []).map((location) => (
+                                <option key={location.id} value={location.id}>
+                                    {location.name}
+                                </option>
+                            ))}
+                        </select>
+                    </section>
+
+                </>
             )}
 
-            <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold">
-                    {survey.notes_payload.options.length > 0 ? "3" : "2"}. 受取場所を選択
-                </h2>
-
-                <select
-                    value={pickupLocationId}
-                    onChange={(event) => setPickupLocationId(event.target.value)}
-                    disabled={!canEdit}
-                    className="mt-4 w-full rounded-lg border px-3 py-2 disabled:bg-gray-100"
-                >
-                    <option value="">受取場所を選択してください</option>
-                    {(data.pickup_locations ?? []).map((location) => (
-                        <option key={location.id} value={location.id}>
-                            {location.name}
-                        </option>
-                    ))}
-                </select>
-            </section>
+            {wantsBento === false && (
+                <section className="rounded-xl border bg-gray-50 p-5 text-sm text-gray-700">
+                    お弁当は「不要」で回答します。
+                    <br />
+                    メニュー・オプション・受取場所の選択は必要ありません。
+                </section>
+            )}
 
             {alreadySubmitted && (
                 <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
@@ -463,7 +536,13 @@ export default function BentoSurveyPage() {
             <button
                 type="button"
                 onClick={submit}
-                disabled={!canEdit || saving || !menuId || !pickupLocationId}
+                disabled={
+                    !canEdit ||
+                    saving ||
+                    wantsBento === null ||
+                    (wantsBento === true &&
+                        (!menuId || !pickupLocationId))
+                }
                 className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
             >
                 {saving
@@ -473,33 +552,34 @@ export default function BentoSurveyPage() {
                         : "この内容で回答する"}
             </button>
 
-            {alreadySubmitted && (
-                <div className="mt-4 space-y-2">
-                    {data.response?.received_at ? (
-                        <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-center font-semibold text-green-800">
-                            お弁当は受取済みです
-                            <div className="mt-1 text-xs font-normal">
-                                受取日時：{formatDateTime(data.response.received_at)}
+            {alreadySubmitted &&
+                data.response?.wants_bento === true && (
+                    <div className="mt-4 space-y-2">
+                        {data.response?.received_at ? (
+                            <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-center font-semibold text-green-800">
+                                お弁当は受取済みです
+                                <div className="mt-1 text-xs font-normal">
+                                    受取日時：{formatDateTime(data.response.received_at)}
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={() => void markAsReceived()}
-                            disabled={receiving}
-                            className="w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 disabled:bg-gray-400"
-                        >
-                            {receiving
-                                ? "保存中..."
-                                : "お弁当を受け取りました"}
-                        </button>
-                    )}
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => void markAsReceived()}
+                                disabled={receiving}
+                                className="w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700 disabled:bg-gray-400"
+                            >
+                                {receiving
+                                    ? "保存中..."
+                                    : "お弁当を受け取りました"}
+                            </button>
+                        )}
 
-                    <p className="text-center text-xs text-gray-500">
-                        実際に受け取った後に押してください。
-                    </p>
-                </div>
-            )}
+                        <p className="text-center text-xs text-gray-500">
+                            実際に受け取った後に押してください。
+                        </p>
+                    </div>
+                )}
 
             {!canEdit && (
                 <div className="text-center text-sm text-gray-600">
