@@ -67,11 +67,6 @@ function monthRange(dateText: string) {
     };
 }
 
-function toMonthKey(value: string | null) {
-    if (!value) return "";
-    return value.slice(0, 7);
-}
-
 function parseNotes(value: string | null): NotesPayload {
     if (!value) return { noticeText: "", options: [] };
 
@@ -130,8 +125,10 @@ async function checkEligibility(
     survey: SurveyRow,
 ) {
     const { monthKey, fromDate, toDate } = monthRange(survey.event_date);
+    const targetMonth = `${monthKey}-01`;
 
     const status = loginUser.status.toLowerCase();
+
     if (status.startsWith("removed")) {
         return {
             eligible: false,
@@ -142,62 +139,102 @@ async function checkEligibility(
         };
     }
 
-    let isMeetingMember = false;
-
-    if (loginUser.orgUnitId) {
-        const { data: org, error: orgError } = await supabaseAdmin
-            .from("orgs")
-            .select("meeting_must")
-            .eq("orgunitid", loginUser.orgUnitId)
-            .maybeSingle<{ meeting_must: boolean | null }>();
-
-        if (orgError) throw orgError;
-        isMeetingMember = org?.meeting_must === true;
+    // 管理者は確認用として常に回答可能
+    if (loginUser.role === "ADMIN" || loginUser.role === "FULL") {
+        return {
+            eligible: true,
+            reason: "管理者確認のため回答できます。",
+            isEntryMonth: false,
+            hasShift: false,
+            isMeetingMember: true,
+        };
     }
 
-    const { data: shiftRows, error: shiftError } = await supabaseAdmin
+    /*
+     * 1. 会議対象者か確認
+     */
+    const { data: meetingRow, error: meetingError } = await supabaseAdmin
+        .from("monthly_meeting_attendance")
+        .select("user_id,required")
+        .eq("target_month", targetMonth)
+        .eq("user_id", loginUser.userId)
+        .maybeSingle<{
+            user_id: string;
+            required: boolean | null;
+        }>();
+
+    if (meetingError) {
+        throw meetingError;
+    }
+
+    const isMeetingMember =
+        meetingRow !== null &&
+        meetingRow.required !== false;
+
+    /*
+     * 2. 配布月がエントリー月か確認
+     *
+     * loginUser.entryDateには users.entry_date_latest を使用します。
+     */
+    const entryMonthKey = loginUser.entryDate
+        ? loginUser.entryDate.slice(0, 7)
+        : null;
+
+    const isEntryMonth = entryMonthKey === monthKey;
+
+    /*
+     * 3. 配布月にシフトがあるか確認
+     */
+    const { data: shifts, error: shiftError } = await supabaseAdmin
         .from("shift")
         .select("shift_id")
         .gte("shift_start_date", fromDate)
         .lt("shift_start_date", toDate)
         .or(
-            `staff_01_user_id.eq.${loginUser.userId},staff_02_user_id.eq.${loginUser.userId},staff_03_user_id.eq.${loginUser.userId}`,
+            [
+                `staff_01_user_id.eq.${loginUser.userId}`,
+                `staff_02_user_id.eq.${loginUser.userId}`,
+                `staff_03_user_id.eq.${loginUser.userId}`,
+            ].join(","),
         )
         .limit(1);
 
-    if (shiftError) throw shiftError;
-    const hasShift = (shiftRows?.length ?? 0) > 0;
-
-    // 現在は users.created_at を「エントリー日」として使用。
-    // 実際のエントリー日カラムが別にある場合は readLoginUser の entryDate を差し替えてください。
-    const isEntryMonth = toMonthKey(loginUser.entryDate) === monthKey;
-
-    if (!isMeetingMember) {
-        return {
-            eligible: false,
-            reason: "会議対象の所属ではないため回答できません。",
-            isEntryMonth,
-            hasShift,
-            isMeetingMember,
-        };
+    if (shiftError) {
+        throw shiftError;
     }
 
-    if (!isEntryMonth && !hasShift) {
-        return {
-            eligible: false,
-            reason:
-                "エントリー月の翌月以降は、配布月にシフトがない場合は回答できません。",
-            isEntryMonth,
-            hasShift,
-            isMeetingMember,
-        };
+    const hasShift = (shifts?.length ?? 0) > 0;
+
+    /*
+     * 最終判定
+     *
+     * ・会議対象者
+     * ・エントリー月
+     * ・エントリー翌月以降で、配布月にシフトあり
+     */
+    const eligible =
+        isMeetingMember ||
+        isEntryMonth ||
+        hasShift;
+
+    let reason: string;
+
+    if (isMeetingMember) {
+        reason = "対象月の会議対象者のため回答できます。";
+    } else if (isEntryMonth) {
+        reason =
+            "エントリー月のため、対象月にシフトがなくても回答できます。";
+    } else if (hasShift) {
+        reason =
+            "対象月にシフトが登録されているため回答できます。";
+    } else {
+        reason =
+            "会議対象者ではなく、エントリー月でもなく、対象月のシフトもないため回答できません。";
     }
 
     return {
-        eligible: true,
-        reason: isEntryMonth
-            ? "エントリー月のため回答できます。"
-            : "配布月のシフトが確認できたため回答できます。",
+        eligible,
+        reason,
         isEntryMonth,
         hasShift,
         isMeetingMember,
