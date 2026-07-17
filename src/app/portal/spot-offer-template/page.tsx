@@ -634,7 +634,7 @@ const saveTemplate = async () => {
       status: fStatusChecked ? "active" : "inactive",
       unit_amount: unitAmount,
       commute_fee: commuteFee,
-      send_msg_flg: !!fSendMsgFlg,
+      send_msg_flg: true,
       matching_msg: fMatchingMsg.trim() || null,
       meeting_place: fMeetingPlace.trim() || null,
       meeting_yuubinn: fMeetingYuubinn.trim() || null,
@@ -1558,10 +1558,10 @@ await fetchList();
       <FieldLabel>send_msg_flg</FieldLabel>
       <label className="flex items-center gap-2 h-9">
         <input
-          type="checkbox"
-          checked={!!fSendMsgFlg}
-          onChange={(e) => setFSendMsgFlg(e.target.checked)}
-        />
+  type="checkbox"
+  checked={true}
+  disabled
+/>
         <span>{fSendMsgFlg ? "送信する" : "送信しない"}</span>
       </label>
     </div>
