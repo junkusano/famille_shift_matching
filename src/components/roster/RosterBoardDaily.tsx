@@ -50,6 +50,69 @@ const widthPx = (start: string, end: string) => {
 };
 const TIMELINE_WIDTH = MINUTES_IN_DAY * PX_PER_MIN;
 
+const isoToJstHHmm = (
+  value: string,
+): string => {
+  if (!value) return "";
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsedDate);
+};
+
+const getGoogleEventTimeForDate = (
+  event: GoogleCalendarEvent,
+  targetDate: string,
+) => {
+  const dayStart = new Date(
+    `${targetDate}T00:00:00+09:00`,
+  );
+
+  const nextDayStart = new Date(dayStart);
+  nextDayStart.setDate(
+    nextDayStart.getDate() + 1,
+  );
+
+  const originalStart = new Date(
+    event.start_at,
+  );
+
+  const originalEnd = new Date(
+    event.end_at,
+  );
+
+  const clippedStart =
+    originalStart < dayStart
+      ? dayStart
+      : originalStart;
+
+  const clippedEnd =
+    originalEnd > nextDayStart
+      ? nextDayStart
+      : originalEnd;
+
+  return {
+    start: isoToJstHHmm(
+      clippedStart.toISOString(),
+    ),
+    end:
+      clippedEnd.getTime() ===
+      nextDayStart.getTime()
+        ? "24:00"
+        : isoToJstHHmm(
+            clippedEnd.toISOString(),
+          ),
+  };
+};
 
 // ✅ 表示用 hh:mm（秒ありの文字列でも5桁に丸める）
 const dispHHmm = (t: string) => {
@@ -64,11 +127,21 @@ function parseCardCompositeId(id: string) {
     return { shiftId: Number(id.slice(0, idx)), staffId: id.slice(idx + 1) };
 }
 
+type GoogleCalendarEvent = {
+  id: string;
+  user_id: string;
+  title: string | null;
+  start_at: string;
+  end_at: string;
+  is_all_day: boolean;
+};
+
 // ===== Props =====
 type Props = {
-    date: string;
-    initialView: RosterDailyView;
-    deletable?: boolean; // ← 追加
+  date: string;
+  initialView: RosterDailyView;
+  googleCalendarEvents?: GoogleCalendarEvent[];
+  deletable?: boolean;
 };
 
 // ===== DnD State =====
@@ -90,7 +163,13 @@ interface DragState {
     srcStaffId: string;       // ★ 触り始めたカードの元担当
 }
 
-export default function RosterBoardDaily({ date, initialView, deletable = false }: Props) {
+export default function RosterBoardDaily({
+  date,
+  initialView,
+  googleCalendarEvents = [],
+  deletable = false,
+}: Props) {
+
     // ====== ルーティング（日付遷移） ======
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -409,6 +488,7 @@ return sorted.filter((st) => {
         const rowIdx = rowIndexByStaff.get(card.staff_id) ?? 0;
         const s = hhmmToMin(dispHHmm(card.start_at));
         const en = hhmmToMin(dispHHmm(card.end_at));
+        
         const pointerMin = minuteFromClientX(e.clientX);
         const grabOffsetMin = clamp(pointerMin - s, 0, en - s);
         setDrag({
@@ -666,6 +746,49 @@ return sorted.filter((st) => {
             gap: 2,
         };
     };
+    const googleEventStyle = (
+  event: GoogleCalendarEvent,
+): React.CSSProperties => {
+  const rowIdx =
+    rowIndexByStaff.get(event.user_id);
+
+  const eventTime =
+    getGoogleEventTimeForDate(event, date);
+
+  const topPx =
+    rowIdx != null
+      ? rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20
+      : ROW_HEIGHT - 20;
+
+  return {
+    position: "absolute",
+    top: topPx,
+    left: leftPx(eventTime.start),
+width: widthPx(
+  eventTime.start,
+  eventTime.end,
+),
+    height: 17,
+    minWidth: 4,
+    borderRadius: 3,
+    border: "1px solid #6b7280",
+    background:
+      "repeating-linear-gradient(135deg, #e5e7eb 0, #e5e7eb 5px, #d1d5db 5px, #d1d5db 10px)",
+    color: "#111827",
+    padding: "1px 4px",
+    fontSize: 10,
+    fontWeight: 600,
+    lineHeight: "13px",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+    cursor: "default",
+    userSelect: "none",
+    zIndex: 5,
+    boxSizing: "border-box",
+  };
+};
+
     const resizeHandleStyle: React.CSSProperties = {
         position: "absolute",
         right: 0,
@@ -779,8 +902,26 @@ return sorted.filter((st) => {
                     </div>
                 </div>
 
-                {/* 盤面（★ このコンテナに縦スクロールを付けた） */}
-                <div style={gridStyle} ref={outerScrollRef}>
+<div className="flex items-center gap-4 px-1 text-xs text-gray-600">
+  <div className="flex items-center gap-1">
+    <span
+      className="inline-block h-3 w-6 rounded border border-blue-400 bg-blue-100"
+    />
+    <span>マイファミーユのシフト</span>
+  </div>
+
+  <div className="flex items-center gap-1">
+    <span
+      className="inline-block h-3 w-6 rounded border border-gray-500 bg-gray-200"
+    />
+    <span>
+      Google予定・参照専用
+    </span>
+  </div>
+</div>
+
+{/* 盤面 */}
+<div style={gridStyle} ref={outerScrollRef}>
                     {/* 左：氏名列 */}
                     <div style={leftColStyle}>
                         <div style={headerNameStyle}>スタッフ</div>
@@ -824,96 +965,243 @@ return sorted.filter((st) => {
                                 <div key={idx} style={staffRowBgStyle(idx)} />
                             ))}
 
-                            {/* カード */}
-                            {cards.map((c) => {
-                                const rowIdx = rowIndexByStaff.get(c.staff_id);
-                                if (rowIdx == null) return null;
-                                return (
-                                    <div
-                                        key={c.id}
-                                        style={cardStyle(c)}
-                                        title={`${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}\n${c.client_name}：${c.service_code ?? c.service_name ?? ''}`}
-                                        onMouseDown={(e) => onCardMouseDownMove(e, c)}
-                                    >
-                                        <div className="text-[15px] font-semibold">
-                                            {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
-                                        </div>
+ {/* MyFamilleのシフトカード */}
+{cards.map((c) => {
+  const rowIdx = rowIndexByStaff.get(c.staff_id);
 
-                                        <button
-                                            type="button"
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openShiftDialog(c);
-                                            }}
-                                            className="text-[17px] truncate text-blue-700 hover:underline text-left"
-                                        >
-                                            {c.client_name}：{c.service_code ?? ""}
-                                        </button>
+  if (rowIdx == null) {
+    return null;
+  }
+
+  return (
+    <div
+      key={c.id}
+      style={cardStyle(c)}
+      title={[
+        `${dispHHmm(c.start_at)}-${dispHHmm(c.end_at)}`,
+        `${c.client_name}：${c.service_code ?? c.service_name ?? ""}`,
+      ].join("\n")}
+      onMouseDown={(e) => onCardMouseDownMove(e, c)}
+    >
+      <div className="text-[15px] font-semibold">
+        {dispHHmm(c.start_at)}-{dispHHmm(c.end_at)}
+      </div>
+
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          openShiftDialog(c);
+        }}
+        className="text-[17px] truncate text-blue-700 hover:underline text-left"
+      >
+        {c.client_name}：{c.service_code ?? ""}
+      </button>
+
+      {c.spot_status === "募集中" && (
+        <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
+          T
+        </div>
+      )}
+
+      {c.spot_status === "確定" && (
+        <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
+          T
+        </div>
+      )}
+
+      {c.dsp_short ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 1,
+            bottom: 1,
+            minWidth: 22,
+            height: 22,
+            padding: "0 4px",
+            borderRadius: 9999,
+            border: "1px solid #9ca3af",
+            background: "rgba(255,255,255,0.92)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: "#374151",
+            pointerEvents: "none",
+          }}
+        >
+          {c.dsp_short}
+        </div>
+      ) : null}
+
+      <div
+        style={resizeHandleStyle}
+        onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)}
+      />
+
+      {deletable && (
+        <button
+          type="button"
+          aria-label="削除"
+          title="削除"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDelete(c.id);
+          }}
+          disabled={deletingIds.has(
+            parseCardCompositeId(c.id).shiftId,
+          )}
+          className={[
+            "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
+            "bg-red-600 text-white text-sm leading-6 text-center",
+            "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+          ].join(" ")}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+})}
+
+{/* Googleカレンダー予定・参照専用 */}
+{googleCalendarEvents.map((event) => {
+  const rowIdx = rowIndexByStaff.get(event.user_id);
+
+  if (rowIdx == null) {
+    return null;
+  }
+    const eventTime = getGoogleEventTimeForDate(
+    event,
+    date,
+  );
+
+  const displayTitle =
+    event.title?.trim() || "予定あり";
+
+  return (
+    <div
+      key={`google-${event.id}`}
+      style={{
+        position: "absolute",
+        top: rowIdx * ROW_HEIGHT + ROW_HEIGHT - 20,
+        left: leftPx(eventTime.start),
+        width: widthPx(
+          eventTime.start,
+          eventTime.end,
+        ),
+        height: 17,
+        minWidth: 4,
+        borderRadius: 3,
+        border: "1px solid #6b7280",
+        background:
+          "repeating-linear-gradient(135deg, #e5e7eb 0, #e5e7eb 5px, #d1d5db 5px, #d1d5db 10px)",
+        color: "#111827",
+        padding: "1px 4px",
+        fontSize: 10,
+        fontWeight: 600,
+        lineHeight: "13px",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        textOverflow: "ellipsis",
+        cursor: "default",
+        userSelect: "none",
+        zIndex: 5,
+        boxSizing: "border-box",
+      }}
+      title={[
+        "Googleカレンダー予定",
+        `${eventTime.start}-${eventTime.end}`,
+        displayTitle,
+        "編集はGoogleカレンダーで行ってください",
+      ].join("\n")}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        alert(
+          [
+            "Googleカレンダーから同期された予定です。",
+            "",
+            `${eventTime.start}-${eventTime.end}`,
+            displayTitle,
+            "",
+            "編集はGoogleカレンダーで行ってください。",
+          ].join("\n"),
+        );
+      }}
+    >
+      G {displayTitle}
+    </div>
+  );
+})}
+{/* Googleカレンダー予定・参照専用 */}
+{googleCalendarEvents.map((event) => {
+  const rowIdx = rowIndexByStaff.get(event.user_id);
+
+  if (rowIdx == null) {
+    return null;
+  }
+
+  const eventTime = getGoogleEventTimeForDate(
+    event,
+    date,
+  );
+
+  const displayTitle =
+    event.title?.trim() || "予定あり";
+
+  return (
+    <div
+      key={`google-${event.id}`}
+      style={googleEventStyle(event)}
+      title={[
+        "Googleカレンダー予定",
+        `${eventTime.start}-${eventTime.end}`,
+        displayTitle,
+        "編集はGoogleカレンダーで行ってください",
+      ].join("\n")}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        alert(
+          [
+            "Googleカレンダーから同期された予定です。",
+            "",
+            `${eventTime.start}-${eventTime.end}`,
+            displayTitle,
+            "",
+            "編集はGoogleカレンダーで行ってください。",
+          ].join("\n"),
+        );
+      }}
+    >
+      G {displayTitle}
+    </div>
+  );
+})}
 
 
-                                        {c.spot_status === "募集中" && (
-                                            <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[9px] font-bold text-gray-900 shadow">
-                                                T
-                                            </div>
-                                        )}
-
-                                        {c.spot_status === "確定" && (
-                                            <div className="absolute top-0 right-4 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-300 text-[9px] font-bold text-black shadow">
-                                                T
-                                            </div>
-                                        )}
-
-                                        {c.dsp_short ? (
-                                            <div
-                                                style={{
-                                                    position: "absolute",
-                                                    right: 1,
-                                                    bottom: 1,
-                                                    minWidth: 22,
-                                                    height: 22,
-                                                    padding: "0 4px",
-                                                    borderRadius: 9999,
-                                                    border: "1px solid #9ca3af",
-                                                    background: "rgba(255,255,255,0.92)",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    fontSize: 11,
-                                                    fontWeight: 700,
-                                                    lineHeight: 1,
-                                                    color: "#374151",
-                                                    pointerEvents: "none",
-                                                }}
-                                            >
-                                                {c.dsp_short}
-                                            </div>
-                                        ) : null}
-
-                                        <div style={resizeHandleStyle} onMouseDown={(e) => onCardMouseDownResizeEnd(e, c)} />
-
-                                        {deletable && (
-                                            <button
-                                                type="button"
-                                                aria-label="削除"
-                                                title="削除"
-                                                onClick={(e) => { e.stopPropagation(); void handleDelete(c.id); }}
-                                                disabled={deletingIds.has(parseCardCompositeId(c.id).shiftId)}
-                                                className={[
-                                                    "absolute -top-2 -right-2 h-6 w-6 rounded-full border",
-                                                    "bg-red-600 text-white text-sm leading-6 text-center",
-                                                    "shadow hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-300",
-                                                ].join(' ')}
-                                            >
-                                                ×
-                                            </button>
-                                        )}
-                                    </div>
-                                );
-                            })}
-
-                            {/* ゴースト */}
-                            {drag && <div style={ghostStyle(drag)} />}
+{/* ゴースト */}
+{drag && <div style={ghostStyle(drag)} />}
                         </div>
                     </div>
                 </div>
