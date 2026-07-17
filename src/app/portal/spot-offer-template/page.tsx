@@ -565,6 +565,9 @@ const saveTemplate = async () => {
     if (!fTitle.trim()) {
       throw new Error("タイトルは必須です");
     }
+    if (!fKaipokeCsId.trim()) {
+      throw new Error("利用者IDは必須です");
+    }
     if (!fMeetingPlace.trim()) {
       throw new Error("住所は必須です");
     }
@@ -585,6 +588,9 @@ const saveTemplate = async () => {
     }
     if (!fCommuteFee.trim()) {
       throw new Error("交通費は必須です");
+    }
+    if (!fMatchingMsg.trim()) {
+      throw new Error("マッチングメッセージは必須です");
     }
 
     const unitAmount = toNullableNumber(fUnitAmount);
